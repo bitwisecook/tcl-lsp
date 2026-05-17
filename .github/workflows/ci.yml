@@ -11,6 +11,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job: read-only.  Jobs that need to
+# write to the repo (releases, artefact uploads, attestations) escalate
+# explicitly in their own `permissions:` block.  A compromised step in
+# `pr-gate` / `test-py` / `test-ext` therefore cannot push commits or
+# create releases even if the repo-level default is "Read and write".
+permissions:
+  contents: read
+
 jobs:
   # Fast PR gate (target wall-clock < 20s).  Runs on every PR and every push.
   # Covers: lint + typecheck + structural invariants + a tightly scoped pytest
@@ -21,25 +29,36 @@ jobs:
   pr-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # `make build-info` (a dep of ci-fast) shells out to `git describe
           # --tags`, which needs the full history.
           fetch-depth: 0
 
       - name: Log commit info
+        # `github.head_ref` is the PR source branch and is attacker-controlled
+        # on forked-PR runs — interpolating it directly into `run:` is the
+        # classic GitHub Actions expression-injection vector.  Pipe every
+        # workflow-context value through `env:` so the shell sees a plain
+        # variable, not template-expanded source.
+        env:
+          GH_SHA: ${{ github.sha }}
+          GH_EVENT: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+          GH_HEAD_REF: ${{ github.head_ref }}
+          GH_RUN_ID: ${{ github.run_id }}
         run: |
           echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
+          echo "github.sha        = $GH_SHA"
+          echo "github.event_name = $GH_EVENT"
+          echo "github.ref        = $GH_REF"
+          echo "github.head_ref   = $GH_HEAD_REF"
+          echo "github.run_id     = $GH_RUN_ID"
           echo "checked-out HEAD  = $(git rev-parse HEAD)"
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           # v6's cache keys on uv.lock by default and works correctly
           # (the v4 lockfile-glob bug is fixed).  Trims a few seconds off
@@ -47,7 +66,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -74,31 +93,39 @@ jobs:
         python-version: ["3.10"]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Log commit info
+        # See pr-gate for why these go through `env:` rather than direct
+        # `${{ github.* }}` interpolation in the run script.
+        env:
+          GH_SHA: ${{ github.sha }}
+          GH_EVENT: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+          GH_HEAD_REF: ${{ github.head_ref }}
+          GH_RUN_ID: ${{ github.run_id }}
         run: |
           echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
+          echo "github.sha        = $GH_SHA"
+          echo "github.event_name = $GH_EVENT"
+          echo "github.ref        = $GH_REF"
+          echo "github.head_ref   = $GH_HEAD_REF"
+          echo "github.run_id     = $GH_RUN_ID"
           echo "checked-out HEAD  = $(git rev-parse HEAD)"
           echo
           git log -1 --pretty=fuller HEAD || true
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up Zig (needed for runtime auto-build)
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -126,26 +153,34 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Log commit info
+        # See pr-gate for why these go through `env:` rather than direct
+        # `${{ github.* }}` interpolation in the run script.
+        env:
+          GH_SHA: ${{ github.sha }}
+          GH_EVENT: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+          GH_HEAD_REF: ${{ github.head_ref }}
+          GH_RUN_ID: ${{ github.run_id }}
         run: |
           echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
+          echo "github.sha        = $GH_SHA"
+          echo "github.event_name = $GH_EVENT"
+          echo "github.ref        = $GH_REF"
+          echo "github.head_ref   = $GH_HEAD_REF"
+          echo "github.run_id     = $GH_RUN_ID"
           echo "checked-out HEAD  = $(git rev-parse HEAD)"
           echo
           git log -1 --pretty=fuller HEAD || true
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -153,7 +188,7 @@ jobs:
         run: uv sync --extra dev
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "lts/*"
 
@@ -180,9 +215,11 @@ jobs:
     needs: [pr-gate, test-py]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Create GitHub Release
         env:
@@ -234,22 +271,24 @@ jobs:
     needs: [create-release, test-ext]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "lts/*"
 
@@ -262,8 +301,18 @@ jobs:
       - name: Build and verify VSIX
         run: make package-vsix
 
+      # SLSA build provenance: binds every artefact to the workflow run
+      # and source commit that produced it.  Verifiable post-hoc with
+      # `gh attestation verify --owner bitwisecook <file>`.  Complements
+      # the cosign-signed SHA256SUMS (which proves the *set* of files is
+      # what we published) with per-file proof of build provenance.
+      - name: Attest VSIX build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/*.vsix"
+
       - name: Upload VSIX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: vsix
           path: "build/*.vsix"
@@ -282,17 +331,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -305,8 +356,13 @@ jobs:
       - name: Smoke-test CLI zipapp
         run: python3 build/tcl-lsp-explorer-cli-*.pyz --help
 
+      - name: Attest CLI zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-explorer-cli-*.pyz"
+
       - name: Upload CLI zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-cli
           path: "build/tcl-lsp-explorer-cli-*.pyz"
@@ -325,17 +381,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -364,8 +422,13 @@ jobs:
           # zsh and fish aren't installed in CI; rely on the bash syntax
           # check plus the static unit tests for those scripts.
 
+      - name: Attest F5 zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/f5-*.pyz"
+
       - name: Upload F5 zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-f5
           path: "build/f5-*.pyz"
@@ -384,17 +447,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -417,8 +482,13 @@ jobs:
           python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
           python3 build/tcl-*.pyz help taint --dialect f5-irules
 
+      - name: Attest unified Tcl zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-*.pyz"
+
       - name: Upload unified Tcl zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-tcl
           path: "build/tcl-*.pyz"
@@ -437,17 +507,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -470,8 +542,13 @@ jobs:
           print(f'OK: {len(names)} entries (CDN variant)')
           "
 
+      - name: Attest CDN GUI zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
+
       - name: Upload CDN GUI zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-gui-cdn
           path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
@@ -490,17 +567,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -513,8 +592,13 @@ jobs:
       - name: Smoke-test LSP zipapp
         run: python3 build/tcl-lsp-server-*.pyz --help
 
+      - name: Attest LSP zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-server-*.pyz"
+
       - name: Upload LSP zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-lsp
           path: "build/tcl-lsp-server-*.pyz"
@@ -533,17 +617,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -559,8 +645,13 @@ jobs:
       - name: Build Claude skills zip
         run: make claude-skills
 
+      - name: Attest Claude skills zip build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-claude-skills-*.zip"
+
       - name: Upload Claude skills zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: claude-skills
           path: "build/tcl-lsp-claude-skills-*.zip"
@@ -579,17 +670,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -602,8 +695,13 @@ jobs:
       - name: Smoke-test MCP zipapp
         run: python3 build/tcl-lsp-mcp-server-*.pyz --help
 
+      - name: Attest MCP zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-mcp-server-*.pyz"
+
       - name: Upload MCP zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-mcp
           path: "build/tcl-lsp-mcp-server-*.pyz"
@@ -622,17 +720,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -645,8 +745,13 @@ jobs:
       - name: Smoke-test WASM zipapp
         run: python3 build/tcl-wasm-compiler-*.pyz --help
 
+      - name: Attest WASM zipapp build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-wasm-compiler-*.pyz"
+
       - name: Upload WASM zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipapp-wasm
           path: "build/tcl-wasm-compiler-*.pyz"
@@ -665,22 +770,24 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: 17
@@ -697,8 +804,13 @@ jobs:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
         run: make jetbrains
 
+      - name: Attest JetBrains plugin build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-jetbrains-*.zip"
+
       - name: Upload JetBrains plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: jetbrains-plugin
           path: "build/tcl-lsp-jetbrains-*.zip"
@@ -717,17 +829,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -752,8 +866,13 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
+      - name: Attest Sublime package build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-sublime-*.sublime-package"
+
       - name: Upload Sublime package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sublime-package
           path: "build/tcl-lsp-sublime-*.sublime-package"
@@ -772,17 +891,19 @@ jobs:
     needs: [create-release]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -793,7 +914,7 @@ jobs:
         # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
         # so we get cargo registry / target caching for free — meaningful
         # speedup vs the bare dtolnay/rust-toolchain action.
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: stable
           target: wasm32-wasip2
@@ -816,8 +937,13 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
+      - name: Attest Zed extension build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "build/tcl-lsp-zed-*.zip"
+
       - name: Upload Zed extension
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zed-extension
           path: "build/tcl-lsp-zed-*.zip"
@@ -879,7 +1005,7 @@ jobs:
             --repo "${{ github.repository }}" --clobber
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign SHA256SUMS (keyless OIDC)
         working-directory: dist

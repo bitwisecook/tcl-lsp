@@ -35,6 +35,32 @@ BASE_URL="https://raw.githubusercontent.com/tcltk/tcl/${TAG}/generic"
 TARGET_DIR="$REPO_ROOT/runtime/zig/vendor/tcl-regex"
 STAMP_FILE="$TARGET_DIR/.stamp"
 
+# Pinned per-file SHA-256 checksums. The tag pin above is not sufficient
+# on its own: a tag-retargeting attack on tcltk/tcl (the same shape as
+# the tj-actions/changed-files compromise in March 2025) would silently
+# substitute different bytes under the same ``core-9-0-3`` tag. The
+# content pin closes that gap. Bump the version line in the checksums
+# file when bumping TCL_REGEX_VERSION.
+CHECKSUMS_FILE="$SCRIPT_DIR/tcl_regex_sha256sums.txt"
+
+expected_version=$(awk '/^VERSION:/ {print $2; exit}' "$CHECKSUMS_FILE")
+if [[ "$expected_version" != "$VERSION" ]]; then
+    echo "ERROR: TCL_REGEX_VERSION=$VERSION but $CHECKSUMS_FILE pins $expected_version" >&2
+    echo "Bump both in lockstep (regenerate sha256sums for the new version)." >&2
+    exit 1
+fi
+
+verify_checksums() {
+    # Strip comments, blank lines and the VERSION: line, then feed the
+    # remainder to ``sha256sum -c``. Run from TARGET_DIR so the bare
+    # filenames in the checksums file resolve correctly.
+    (
+        cd "$TARGET_DIR" && \
+        grep -Ev '^[[:space:]]*(#|$)|^VERSION:' "$CHECKSUMS_FILE" \
+            | sha256sum --quiet -c -
+    )
+}
+
 # The regex engine is self-contained within 15 files in ``generic/``.
 # ``regcomp.c`` and ``regexec.c`` are the two real compilation units
 # — the ``regc_*.c`` and ``rege_*.c`` files are ``#include``d by
@@ -66,6 +92,9 @@ stamp_is_complete() {
     for f in "${FILES[@]}"; do
         [[ -f "$TARGET_DIR/$f" ]] || return 1
     done
+    # Validate that the files on disk still match the pinned checksums
+    # — detects tampering with a previously-fetched vendor dir.
+    verify_checksums >/dev/null 2>&1 || return 1
     return 0
 }
 
@@ -115,6 +144,17 @@ for f in "${FILES[@]}"; do
         fi
     done
 done
+
+# Fail closed if the downloaded bytes don't match the pinned checksums.
+# Do this BEFORE writing the stamp so a tampered fetch never produces a
+# "this dir is good" marker.
+if ! verify_checksums; then
+    echo "ERROR: SHA-256 mismatch after fetch — refusing to write stamp." >&2
+    echo "This means the upstream tag '$TAG' on tcltk/tcl was retargeted," >&2
+    echo "or the download was tampered with in transit." >&2
+    echo "Investigate before bumping checksums; do not just regenerate them." >&2
+    exit 1
+fi
 
 echo "$VERSION" > "$STAMP_FILE"
 echo "Fetched ${#FILES[@]} files to $TARGET_DIR"
