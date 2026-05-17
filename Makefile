@@ -133,7 +133,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-openvsx publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-openvsx publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -146,8 +146,11 @@ install: package-vsix ## Build and install the .vsix into VS Code
 
 publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Verifying VS Code Marketplace credentials"
-	@if ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
-		echo "    No valid PAT found for publisher '$(VSCE_PUBLISHER)'."; \
+	@if [ -n "$$VSCE_PAT" ]; then \
+		echo "    Using VSCE_PAT from environment (non-interactive)."; \
+	elif ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
+		echo "    No valid cached PAT for publisher '$(VSCE_PUBLISHER)' and"; \
+		echo "    VSCE_PAT is not set."; \
 		echo "    Launching interactive login (create a PAT at https://dev.azure.com if needed)..."; \
 		$(VSCE) login $(VSCE_PUBLISHER); \
 	fi
@@ -1270,6 +1273,9 @@ release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
 
 publish-all: publish-vsix publish-openvsx publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+
+publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
+	@bash $(ROOT)scripts/publish_verify.sh
 
 # KCS help database
 

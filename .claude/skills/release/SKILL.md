@@ -180,7 +180,21 @@ job. If the smoke-test succeeds, integrity is intact.
 
 ### 7. Editor publishing
 
-Ask the user which editors to publish to using `AskUserQuestion`:
+Before asking which editors to publish, run a readiness check so any
+missing token or unclaimed namespace surfaces *before* the user picks
+targets:
+
+```bash
+make publish-verify
+```
+
+`publish-verify` prints one of `[ok] / [warn] / [fail]` per editor; it
+exits non-zero only on `[fail]` (tool missing or remote unreachable).
+`[warn]` lines (e.g. `OVSX_PAT not set`) are recoverable — note them
+back to the user and let them decide whether to set the token now or
+skip that target.
+
+Then ask which editors to publish to using `AskUserQuestion`:
 
 > Which editors should be published? (All / None / comma-separated list of: vscode, openvsx, jetbrains, sublime, zed)
 > Default: None
