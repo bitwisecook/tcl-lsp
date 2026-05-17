@@ -121,7 +121,19 @@ set ::argc 0
 set ::tcl_interactive 0
 set ::auto_path {}
 set ::tcl_library ""
-array set ::env {}
+# Seed ::env with the handful of variables tcltest bundles probe at
+# load time.  chanio.test / io.test / fCmd.test all read ``::env(HOME)``
+# inside a ``testConstraint`` body that runs *before* any individual
+# test, so an unset HOME traps the whole bundle.  Pointing HOME at the
+# preopened tmpdir lets the constraint check evaluate cleanly without
+# granting writable-HOME (``[file writable]`` returns 0 on the
+# read-only mount), which is the same answer real tclsh gives in a
+# sandboxed environment.
+array set ::env {
+    HOME "/"
+    PATH ""
+    USER "wasm"
+}
 
 # ``tcl_platform`` — real tclsh exports a dozen-key array that
 # tcltest reads at line 288 / 312 (``$::tcl_platform(platform)``,
