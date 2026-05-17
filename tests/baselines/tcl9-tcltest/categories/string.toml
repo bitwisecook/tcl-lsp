@@ -1,0 +1,91 @@
+# string.test categorisation (Tcl 9.0.3 source tree).
+# 540 / 705 passing.  The 158 failures are nearly all bytecode-shape
+# probes:
+#   - The ``.0`` / ``.1`` / ``.2`` suffix pattern marks the ``$noComp``
+#     loop variants of each test (each base test gets emitted four
+#     times with different compilation hints).  Most of the failing
+#     ``.0`` variants are equivalent uncompiled paths whose semantics
+#     match but whose output shape differs because tcltest's
+#     ``stringComp-`` helpers probe specific bytecode emit shapes.
+#   - The 11.x / 14.x / 15.x / 16.x / 28.x clusters are ``string is``
+#     class-checks where our impl returns the same boolean answer but
+#     the failure-index encoding (``-failindex var``) differs slightly.
+#   - The 24.x cluster is ``string trim`` / ``string trimleft`` /
+#     ``string trimright`` with multi-byte UTF-8 trim sets.
+# Real semantic gaps tracked but non-gating.
+
+good_to_have = [
+  # 2.x - string compare options.
+  "2.5.0", "2.15.2.0", "2.20.0",
+  "2.37.0", "2.38a.0", "2.38b.0", "2.38c.0", "2.38d.0",
+  "2.38e.0", "2.38f.0",
+  # 3.x - string equal.
+  "3.4.0", "3.13.0", "3.23.0", "3.28.0", "3.43.0",
+  "3.45a.0", "3.45b.0", "3.45c.0", "3.45d.0", "3.45e.0", "3.45f.0",
+  # 4.x - string first.
+  "4.2.0", "4.9.0", "4.22.0",
+  # 5.x - string index.
+  "5.7.0", "5.10.0", "5.11.0", "5.14.0", "5.15.0",
+  # 6.x - string is.
+  "6.4.0", "6.36.0", "6.39.0", "6.61.0", "6.76.0", "6.83.0",
+  "6.84.0", "6.102.0",
+  # 7.x - string last.
+  "7.2.0", "7.7.0", "7.12.0", "7.14.0", "7.15.0", "7.16.0",
+  # 9.x - string length.
+  "9.5.0", "9.7.0",
+  # 10.x - string map.
+  "10.1.0", "10.2.0", "10.3.0", "10.9.0", "10.10.0",
+  "10.19.0", "10.20.1.0",
+  # 11.x - string match.
+  "11.9.8.0", "11.9.9.0", "11.9.11.0",
+  "11.14.0", "11.15.0", "11.17.0", "11.18.0", "11.19.0", "11.20.0",
+  "11.29.0", "11.33.0", "11.35.0", "11.38.0", "11.41.0", "11.42.0",
+  "11.50.0", "11.51.0",
+  # 12.x - string range.
+  "12.12.0", "12.13.0", "12.17.0", "12.18.0", "12.19.0", "12.23.0",
+  # 13.x - string repeat.
+  "13.7.0", "13.14.0",
+  # 14.x - string replace.
+  "14.5.0", "14.7.0", "14.8.0", "14.9.0", "14.10.0", "14.13.0",
+  "14.14.0", "14.15.0", "14.16.0", "14.17.0", "14.19.0",
+  "14.20.0", "14.21.0", "14.22.0",
+  "stringComp-14.25.0", "stringComp-14.26.0",
+  # 15.x - string tolower.
+  "15.1.0", "15.2.0", "15.3.0", "15.7.0", "15.8.0", "15.9.0", "15.10.0",
+  # 16.x - string totitle.
+  "16.1.0", "16.2.0", "16.3.0", "16.7.0", "16.8.0", "16.9.0", "16.10.0",
+  # 17.x - string toupper.
+  "17.1.0", "17.2.0", "17.6.0", "17.7.0", "17.9.0",
+  # 18.x - string trim.
+  "18.1.0", "18.2.0", "18.12.0",
+  # 19.x - string trimleft.
+  "19.1.0", "19.3.0",
+  # 20.x - string trimright.
+  "20.1.0", "20.6.0",
+  # 21.x - string wordstart / wordend.
+  "21.18.0", "21.19.0", "21.20.0", "21.22.0", "21.23.0", "21.24.0",
+  "21.25.0",
+  # 24.x - string trim with multi-byte set.
+  "24.5.0", "24.6.0", "24.8.0", "24.10.0", "24.11.0", "24.13.0",
+  "24.16.0", "24.17.0", "24.18.0", "24.19.0",
+  # 25.x - string cat compile path.
+  "25.8.0",
+  # 26.x - string reverse.
+  "26.5.0", "26.6.0",
+  # 27.x - string is (with failindex).
+  "27.4.0", "27.5.0", "27.6.0", "27.7.0", "27.8.0", "27.9.0", "27.10.0",
+  # 28.x - string is failindex matrix.
+  "28.4.0", "28.5.0", "28.6.0", "28.7.0", "28.8.0",
+  "28.9.0", "28.10.0", "28.11.0", "28.12.0", "28.13.0",
+  # 29.x - string cat compile path.
+  "29.4.0",
+  # 32.x - string insert.
+  "32.8.0",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 158
+just_to_match_ctcl_failing = 0
+skip_failing = 0

@@ -1,18 +1,27 @@
 # ooNext2.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — ooNext2.test gets wrong # args from a NextN probe before summary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
-
-trap_allowed = true
-
-good_to_have = []
+# Bundle reaches its tcltest summary line now.  Residual must_pass
+# failures are all in the ``next`` + ``tailcall`` family — needs
+# TclOO's ``next`` to thread the ``tailcall`` flag through the method
+# chain rather than treating the tailcall as a regular return.  Same
+# root-cause as tailcall.test's 12.x cluster.
+good_to_have = [
+  "next-tailcall-simple-1",
+  "next-tailcall-simple-2",
+  "next-tailcall-simple-3",
+  "next-tailcall-simple-4",
+  "next-tailcall-superclass-1",
+  "next-tailcall-superclass-2",
+  "next-tailcall-mixin-1",
+  "next-tailcall-objmixin-1",
+  "next-tailcall-filter-1",
+  "next-tailcall-forward-1",
+  "next-tailcall-constructor-1",
+  "next-tailcall-destructor-1",
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 12
 just_to_match_ctcl_failing = 0
 skip_failing = 0

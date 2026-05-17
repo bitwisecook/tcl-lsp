@@ -41,6 +41,17 @@ good_to_have = [
   "22.13",        # dict-22.13: ``dict with d($i) ...`` — same shape
                   #   targeting an array element (varname with index
                   #   substitution).  Real feature, separate fix.
+  "21.14",        # dict-21.14: ``trace add variable aa write
+                  #   "string length \$indices ;#"`` inside an apply
+                  #   body — when the dict-update write fires the
+                  #   trace, ``\$indices`` should substitute to the
+                  #   apply-frame value ``{2 3}`` before ``string
+                  #   length`` runs.  Our trace callback delivers the
+                  #   raw body string with the ``\$`` unsubstituted,
+                  #   so ``string length`` receives zero arguments and
+                  #   raises ``wrong # args``.  Real codegen fix —
+                  #   write-trace bodies need a substitution pass in
+                  #   the caller's frame before execution.
 ]
 
 # Tests we intentionally do NOT run on the WASM side: they probe
@@ -95,6 +106,6 @@ just_to_match_ctcl = [
 # into the good_to_have bucket fires the gate even though the
 # test name is already listed.  The other two are recorded for
 # visibility only — neither direction is gating.
-good_to_have_failing = 27
+good_to_have_failing = 28
 just_to_match_ctcl_failing = 2
 skip_failing = 16

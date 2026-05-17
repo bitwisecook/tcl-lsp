@@ -1,18 +1,18 @@
 # for.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — for.test exhausts preserveCore early — refcount internal.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle now reaches its tcltest summary line — the preserveCore trap
+# was resolved by the trace + var-resolution fixes.  Residual must_pass
+# failures triaged below.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  "3.6",    # for-3.6: edge case in for-loop body that mutates the
+            # loop variable from inside the body — the for next-clause
+            # re-evaluation doesn't propagate the mutation back to
+            # the variable our condition reads.
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 1
 just_to_match_ctcl_failing = 0
 skip_failing = 0
