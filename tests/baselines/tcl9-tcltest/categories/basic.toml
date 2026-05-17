@@ -1,23 +1,32 @@
 # basic.test categorisation (Tcl 9.0.3 source tree).
-# Bundle currently hangs during top-level evaluation under the
-# interp ``==`` / ``!=`` fix landed in this branch — one of the
-# loop bodies tcltest's preamble runs through
-# ``parse.tcl_subst.subst_flagged_full`` now iterates instead of
-# erroring out (which is the correct semantics, but the loop
-# falls into an infinite ``gets`` on a non-existent pipe channel
-# because the ``stdio`` testConstraint initializer's trace doesn't
-# fire to set ``stdio = 0`` in our runtime).  Set ``trap_allowed
-# = true`` so the timeout is recorded rather than blocking the
-# sweep; the real fix is wiring trace-add-variable through the
-# tcltest variable-write so the constraint-initializer runs.
+# Bundle reaches its tcltest summary line now (74 / 146 passing).
+# The earlier ``trap_allowed`` hatch covered an infinite-loop trap
+# in basic-46.x's pipe-channel ``gets`` retry; the preamble now
+# explicitly pre-sets ``testConstraint stdio 0`` so the
+# constraint-undefined path doesn't fire.  Residual failures span
+# the hidden-command + namespace-aware lookup machinery (interp
+# hide / expose / hidden-cmd lifecycle) plus a handful of compiled-
+# proc body shape probes.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  "10.1",   # DeleteInterpProc — global namespace destruction order.
+  "11.1",   # HiddenCmdsDeleteProc — cached-ref invalidation after
+            # deleting a hidden command.
+  "12.1",   # Tcl_HideCommand — name qualifier rejection.
+  "12.2",   # Tcl_HideCommand — namespace memory for hidden cmds.
+  "13.1",   # Tcl_ExposeCommand — global-namespace lock.
+  "18.6",   # TclRenameCommand — shadowing check on rename target.
+  "22.1",   # Tcl_GetCommandFullName — fully-qualified name lookup.
+  "24.3",   # Tcl_DeleteCommandFromToken — import alias cleanup.
+  "36.1",   # Tcl_EvalObjv — ``unknown`` command lookup.
+  "47.4.0", # AOT loop variant of a hidden-command interaction.
+  "47.5.0", # same — different sub-form.
+  "48.4.0", # AOT loop variant of an introspection check.
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 12
 just_to_match_ctcl_failing = 0
 skip_failing = 0

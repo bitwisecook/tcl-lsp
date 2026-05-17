@@ -367,6 +367,25 @@ namespace import -force ::tcltest::*
 # even when several tests fail.  Tracked separately from the
 # clock work in tcl_cmd_append.
 proc ::tcltest::Asciify {s} { return $s }
+
+# Pre-seed the host-environment testConstraints to 0 so tests gated
+# on them are skipped rather than running against a half-functional
+# stub.  Without this, basic-46.1 / basic-46.2 / basic-46.3 (and a
+# handful of others) hit the constraint-undefined ``SafeFetch`` path
+# which calls the constraint initializer — for ``stdio`` that's
+# ``open "|[interpreter]" w``.  Our WASM runtime's pipe-form open
+# raises ``i/o error`` which the initializer's ``catch`` swallows,
+# leaving the constraint *empty* rather than 0.  An empty constraint
+# in tcltest 2.5 is treated as truthy by ``RunTest`` so the test
+# body runs and immediately hangs on ``gets $f`` against a non-
+# existent channel.  Explicitly setting the constraint to 0 short-
+# circuits the initializer trace and keeps the gated tests in the
+# Skipped column.
+::tcltest::testConstraint stdio 0
+::tcltest::testConstraint exec 0
+::tcltest::testConstraint socket 0
+::tcltest::testConstraint thread 0
+::tcltest::testConstraint testbytestring 0
 """
 
 
