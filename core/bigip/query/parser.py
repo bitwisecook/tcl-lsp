@@ -284,10 +284,45 @@ class _Parser:
     def _parse_not(self) -> Expr:
         tok = self._peek()
         if tok.kind is TokenKind.NOT:
+            # jq exposes ``not`` both as a unary prefix (``not foo``) and
+            # as a postfix filter (``foo | not``).  When the token after
+            # ``not`` could start an operand, treat it as the unary form;
+            # otherwise emit a zero-arg call to the ``not`` builtin so the
+            # postfix shape works in pipelines.
+            if not self._token_starts_operand(self._peek(1)):
+                self._consume()
+                return Call(name="not", args=(), offset=tok.offset)
             self._consume()
             operand = self._parse_not()
             return UnaryOp(op="not", operand=operand, offset=tok.offset)
         return self._parse_cmp()
+
+    def _token_starts_operand(self, tok) -> bool:
+        """Conservatively guess whether *tok* could begin an operand."""
+        if tok.kind in (
+            TokenKind.PIPE,
+            TokenKind.COMMA,
+            TokenKind.RPAREN,
+            TokenKind.RBRACKET,
+            TokenKind.RBRACE,
+            TokenKind.SEMICOLON,
+            TokenKind.EOF,
+            TokenKind.AND,
+            TokenKind.OR,
+            TokenKind.THEN,
+            TokenKind.ELIF,
+            TokenKind.ELSE,
+            TokenKind.END,
+            TokenKind.AS,
+        ):
+            return False
+        # Comparison and arithmetic operators also can't *start* an
+        # operand on their own.
+        if tok.kind in _CMP_OPS or tok.kind in _ASSIGN_OPS:
+            return False
+        if tok.kind in (TokenKind.PLUS, TokenKind.STAR, TokenKind.SLASH):
+            return False
+        return True
 
     def _parse_cmp(self) -> Expr:
         expr = self._parse_add()

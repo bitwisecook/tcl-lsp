@@ -23,11 +23,19 @@ them from other query failures.
 
 from __future__ import annotations
 
+import base64 as _base64
+import calendar as _calendar
+import html as _html
 import ipaddress
 import math
 import re
+import shlex as _shlex
+import time as _time
+import urllib.parse as _urlparse
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime as _datetime
+from datetime import timezone as _timezone
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .errors import BuiltinError
@@ -85,6 +93,7 @@ _CATEGORY_ORDER = (
     "stream",
     "string",
     "math",
+    "time",
     "path",
     "rename",
     "net",
@@ -3063,11 +3072,19 @@ def _builtin_match(value: Any, pattern: Any) -> bool:
 @_register(
     "sub",
     summary="Replace the first regex match in a string.",
-    signatures=("sub(value: string, pattern: string, replacement: string) -> string",),
+    signatures=(
+        "sub(value: string, pattern: string, replacement: string) -> string",
+        "sub(value: string, pattern: string, replacement: string, flags: string) -> string",
+    ),
     details="""
     Replaces the **first** occurrence of *pattern* in *value* with
     *replacement* and returns the new string.  *pattern* is a Python
     regex; *replacement* may use ``\\1`` / ``\\g<name>`` backrefs.
+
+    Optional *flags* string takes the same letters as ``test`` /
+    ``scan`` / ``capture`` / ``splits``: ``i`` for case-insensitive,
+    ``x`` for free-spacing, ``s`` for dot-matches-newline, ``m`` for
+    multi-line.
 
     Use ``gsub`` to replace every match instead.  An invalid pattern
     raises ``BuiltinError``.
@@ -3083,28 +3100,36 @@ def _builtin_match(value: Any, pattern: Any) -> bool:
     """,
     examples=(
         'sub(.name, "^vs_dev_", "vs_qa_")',
+        'sub(.name, "^VS_", "vs_", "i")           # case-insensitive',
         '.ltm.virtual[].destination |= sub(., ":443$", ":8443")',
     ),
     category="string",
     min_args=3,
-    max_args=3,
+    max_args=4,
 )
-def _builtin_sub(value: Any, pattern: Any, repl: Any) -> str:
+def _builtin_sub(value: Any, pattern: Any, repl: Any, flags: Any = "") -> str:
     s = _as_str(value, name="sub", arg=1)
     p = _as_str(pattern, name="sub", arg=2)
     r = _as_str(repl, name="sub", arg=3)
-    rx = _safe_regex_compile(p, name="sub")
+    f = _as_str(flags, name="sub", arg=4) if flags != "" else ""
+    rx = _safe_regex_compile(p, name="sub", flags=_jq_regex_flags(f, name="sub"))
     return rx.sub(r, s, count=1)
 
 
 @_register(
     "gsub",
     summary="Replace every regex match in a string.",
-    signatures=("gsub(value: string, pattern: string, replacement: string) -> string",),
+    signatures=(
+        "gsub(value: string, pattern: string, replacement: string) -> string",
+        "gsub(value: string, pattern: string, replacement: string, flags: string) -> string",
+    ),
     details="""
     Like ``sub`` but replaces **every** occurrence of *pattern* in
     *value*.  Useful for blanket string rewrites inside iRule bodies
     or data-group values.
+
+    Accepts the same optional *flags* string ``sub`` / ``test`` /
+    ``scan`` do: ``i`` / ``x`` / ``s`` / ``m``.
 
     For object full-path renames, prefer ``rename`` or
     ``rename_partition`` over a raw ``gsub`` — those route through a
@@ -3115,17 +3140,19 @@ def _builtin_sub(value: Any, pattern: Any, repl: Any) -> str:
     """,
     examples=(
         'gsub(.body, "/Common/old_", "/Common/new_")',
+        'gsub(.body, "old_", "new_", "i")          # case-insensitive',
         '.ltm.virtual[].destination |= gsub(., "%5", "%7")  # bulk RD change',
     ),
     category="string",
     min_args=3,
-    max_args=3,
+    max_args=4,
 )
-def _builtin_gsub(value: Any, pattern: Any, repl: Any) -> str:
+def _builtin_gsub(value: Any, pattern: Any, repl: Any, flags: Any = "") -> str:
     s = _as_str(value, name="gsub", arg=1)
     p = _as_str(pattern, name="gsub", arg=2)
     r = _as_str(repl, name="gsub", arg=3)
-    rx = _safe_regex_compile(p, name="gsub")
+    f = _as_str(flags, name="gsub", arg=4) if flags != "" else ""
+    rx = _safe_regex_compile(p, name="gsub", flags=_jq_regex_flags(f, name="gsub"))
     return rx.sub(r, s)
 
 
@@ -7062,6 +7089,2542 @@ def _builtin_isnormal(value: Any) -> bool:
         return False
     # Subnormal: smallest normal positive float is 2**-1022.
     return abs(value) >= 2.2250738585072014e-308
+
+
+# ---------------------------------------------------------------------------
+# Path / tree manipulation (jq paths / getpath / setpath / del / delpaths)
+# ---------------------------------------------------------------------------
+
+
+def _value_children(value: Any) -> list[tuple[Any, Any]]:
+    """Return ``(key, child)`` pairs for a composite value, or ``[]`` for leaves.
+
+    Used by ``paths``, ``leaf_paths``, ``walk``, and ``recurse`` to walk
+    the tree of any value uniformly.  Dict-like values yield string keys
+    in sorted order; list-like values yield integer indices.
+    """
+    if isinstance(value, ObjectRef):
+        return [(k, resolve_lazy_field(value, k, value.fields[k])) for k in sorted(value.fields)]
+    if isinstance(value, dict):
+        return [(k, value[k]) for k in sorted(value)]
+    if isinstance(value, (list, tuple)):
+        return list(enumerate(value))
+    if isinstance(value, Stream):
+        return list(enumerate(value.items))
+    return []
+
+
+def _is_container(value: Any) -> bool:
+    return isinstance(value, (dict, list, tuple, Stream, ObjectRef))
+
+
+def _coerce_path_key(key: Any, *, name: str, idx: int) -> str | int:
+    """Coerce a single path element to a string or int."""
+    if isinstance(key, bool):
+        raise BuiltinError(f"{name}: path[{idx}] cannot be bool")
+    if isinstance(key, (int, str)):
+        return key
+    if isinstance(key, PathRef):
+        return key.full_path
+    raise BuiltinError(f"{name}: path[{idx}] must be a string or integer, got {_type_name(key)}")
+
+
+def _coerce_path_list(path: Any, *, name: str, arg: int) -> list[str | int]:
+    """Coerce *path* to a list of string/int keys."""
+    seq = _as_sequence(path, name=name, arg=arg)
+    return [_coerce_path_key(k, name=name, idx=i) for i, k in enumerate(seq)]
+
+
+def _value_at_path(value: Any, path: list[str | int]) -> Any:
+    """Walk *value* following *path*; return ``None`` for missing keys."""
+    cur = value
+    for key in path:
+        if cur is None:
+            return None
+        if isinstance(cur, ObjectRef):
+            if not isinstance(key, str):
+                return None
+            fields = cur.fields
+            if key not in fields:
+                return None
+            cur = resolve_lazy_field(cur, key, fields[key])
+        elif isinstance(cur, dict):
+            if key not in cur:
+                return None
+            cur = cur[key]
+        elif isinstance(cur, (list, tuple)):
+            if not isinstance(key, int):
+                return None
+            if not (-len(cur) <= key < len(cur)):
+                return None
+            cur = cur[key]
+        elif isinstance(cur, Stream):
+            if not isinstance(key, int):
+                return None
+            if not (-len(cur.items) <= key < len(cur.items)):
+                return None
+            cur = cur.items[key]
+        else:
+            return None
+    return cur
+
+
+def _set_at_path(value: Any, path: list[str | int], new_value: Any) -> Any:
+    """Return a copy of *value* with *new_value* placed at *path*.
+
+    Containers are copied along the path; values not on the path are
+    shared.  ``ObjectRef`` and ``Stream`` are coerced to dict / list
+    forms so the assignment is well-defined on plain Python types
+    (jq parity — ``setpath`` returns a fresh value).
+    """
+    if not path:
+        return new_value
+    head = path[0]
+    rest = path[1:]
+    if value is None:
+        # Autocreate the missing container based on the next key.
+        value = {} if isinstance(head, str) else []
+    if isinstance(value, ObjectRef):
+        materialised = {k: resolve_lazy_field(value, k, value.fields[k]) for k in value.fields}
+        return _set_at_path(materialised, path, new_value)
+    if isinstance(value, dict):
+        out_dict = dict(value)
+        sub = out_dict.get(head)
+        out_dict[head if isinstance(head, str) else str(head)] = _set_at_path(sub, rest, new_value)
+        return out_dict
+    if isinstance(value, (list, tuple, Stream)):
+        items = list(value.items) if isinstance(value, Stream) else list(value)
+        if not isinstance(head, int):
+            raise BuiltinError(
+                f"setpath: cannot index list-like value with {_type_name(head)} key {head!r}"
+            )
+        if head < 0:
+            head = len(items) + head
+        while head >= len(items):
+            items.append(None)
+        items[head] = _set_at_path(items[head], rest, new_value)
+        return items
+    raise BuiltinError(f"setpath: cannot descend into {_type_name(value)} at key {head!r}")
+
+
+def _delete_at_path(value: Any, path: list[str | int]) -> Any:
+    """Return a copy of *value* with *path* removed.  Missing path is a no-op."""
+    if not path:
+        return None
+    head = path[0]
+    rest = path[1:]
+    if isinstance(value, ObjectRef):
+        materialised = {k: resolve_lazy_field(value, k, value.fields[k]) for k in value.fields}
+        return _delete_at_path(materialised, path)
+    if isinstance(value, dict):
+        if head not in value:
+            return dict(value)
+        out_dict = dict(value)
+        if not rest:
+            del out_dict[head]
+        else:
+            out_dict[head] = _delete_at_path(out_dict[head], rest)
+        return out_dict
+    if isinstance(value, (list, tuple, Stream)):
+        items = list(value.items) if isinstance(value, Stream) else list(value)
+        if not isinstance(head, int):
+            return items
+        if head < 0:
+            head = len(items) + head
+        if not (0 <= head < len(items)):
+            return items
+        if not rest:
+            del items[head]
+        else:
+            items[head] = _delete_at_path(items[head], rest)
+        return items
+    return value
+
+
+def _all_paths(value: Any, *, only_leaves: bool) -> list[list[str | int]]:
+    """Return every path through *value*.
+
+    When *only_leaves* is true, returns only paths to non-container
+    values (matching jq's ``leaf_paths``).  Otherwise emits every
+    non-root path (matching jq's ``paths``).
+    """
+    out: list[list[str | int]] = []
+
+    def walk(cur: Any, prefix: list[str | int]) -> None:
+        if prefix:
+            if only_leaves:
+                if not _is_container(cur):
+                    out.append(list(prefix))
+            else:
+                out.append(list(prefix))
+        for key, child in _value_children(cur):
+            prefix.append(key)
+            walk(child, prefix)
+            prefix.pop()
+
+    walk(value, [])
+    return out
+
+
+@_register(
+    "paths",
+    summary="Every path through the value as a stream of lists.",
+    signatures=(
+        "paths() -> stream[list]",
+        "paths(filter) -> stream[list]",
+    ),
+    details="""
+    **Special form.**  Matches jq's ``paths``: emits a stream where
+    each element is a path (list of strings / integers) into the
+    current value.  Every reachable composite **and** leaf position
+    is enumerated except the empty root path.
+
+    With a *filter* argument, only emits paths whose value satisfies
+    *filter*: ``paths(type == "string")`` yields every path to a
+    string leaf.
+
+    Useful for introspection, audit, and as input to ``getpath`` /
+    ``setpath`` / ``delpaths``.
+
+    Related: ``leaf_paths``, ``getpath``, ``setpath``, ``del``,
+    ``delpaths``, ``walk``.
+    """,
+    examples=(
+        "{a: 1, b: [2, 3]} | paths",
+        'paths(type == "number")',
+    ),
+    category="value",
+    min_args=0,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_paths(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("paths must be evaluated through the evaluator")
+
+
+@_register(
+    "leaf_paths",
+    summary="Every path through the value that ends at a non-container leaf.",
+    signatures=("leaf_paths() -> stream[list]",),
+    details="""
+    Matches jq's ``leaf_paths``: emits the path to every leaf value
+    (string, number, bool, null) inside the current value.  Internal
+    composite positions are not included.
+
+    Equivalent to ``paths(. | type != "object" and . | type != "array")``.
+
+    Related: ``paths``, ``getpath``.
+    """,
+    examples=(
+        "{a: 1, b: [2, 3]} | leaf_paths",
+        "[.ltm.virtual.web_vs] | leaf_paths      # every leaf inside one VS",
+    ),
+    category="value",
+    min_args=0,
+    max_args=0,
+    special_form=True,
+)
+def _builtin_leaf_paths(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("leaf_paths must be evaluated through the evaluator")
+
+
+@_register(
+    "getpath",
+    summary="Read the value at the given path (list of string / integer keys).",
+    signatures=("getpath(path: list) -> any",),
+    details="""
+    Matches jq's ``getpath``: walks the current value following each
+    element of *path* (strings index objects, integers index arrays /
+    streams).  Returns ``null`` when any element is missing or
+    out-of-range.
+
+    Composes naturally with ``paths``: ``[paths] | map(getpath(.))``
+    enumerates every reachable value.
+
+    Related: ``setpath``, ``del``, ``delpaths``, ``paths``.
+    """,
+    examples=(
+        'getpath(["a", "b"])                     # walk .a.b safely',
+        '{a: {b: 42}} | getpath(["a", "b"])      # -> 42',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_getpath(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("getpath must be evaluated through the evaluator")
+
+
+@_register(
+    "setpath",
+    summary="Return the current value with *path* set to *new_value*.",
+    signatures=("setpath(path: list, new_value: any) -> any",),
+    details="""
+    Matches jq's ``setpath``: creates a copy of the current value with
+    the slot at *path* set to *new_value*.  Missing intermediate
+    containers are auto-created based on the next key type: a string
+    key creates a dict, an integer key creates a list.
+
+    Returns a fresh Python value — this is a functional update, not
+    an in-place mutation.  For BIG-IP edit-pipeline writes, use the
+    ``=`` / ``|=`` assignment operators instead.
+
+    Related: ``getpath``, ``del``, ``delpaths``.
+    """,
+    examples=(
+        '{a: 1} | setpath(["b", "c"], 9)         # -> {a:1, b:{c:9}}',
+        '{a: [1, 2, 3]} | setpath(["a", 1], 99)',
+    ),
+    category="value",
+    min_args=2,
+    max_args=2,
+    special_form=True,
+)
+def _builtin_setpath(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("setpath must be evaluated through the evaluator")
+
+
+@_register(
+    "del",
+    summary="Return the current value with the slot at *path* removed.",
+    signatures=("del(path: list) -> any",),
+    details="""
+    Matches jq's ``del`` for the single-path form.  Removes the slot
+    at *path* and returns a fresh copy of the current value.  Missing
+    paths are silently no-ops (jq parity).
+
+    jq's ``del`` accepts a path **expression** (``del(.foo)``); this
+    DSL takes a path **list** instead (``del(["foo"])``) so we don't
+    have to introduce a third evaluation mode.  Use ``delpaths`` for
+    deleting multiple paths in one call.
+
+    Related: ``delpaths``, ``setpath``, ``getpath``.
+    """,
+    examples=(
+        '{a: 1, b: 2} | del(["a"])               # -> {b: 2}',
+        '{a: [1, 2, 3]} | del(["a", 1])           # -> {a: [1, 3]}',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_del(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("del must be evaluated through the evaluator")
+
+
+@_register(
+    "delpaths",
+    summary="Return the current value with every slot in *paths* removed.",
+    signatures=("delpaths(paths: list[list]) -> any",),
+    details="""
+    Matches jq's ``delpaths``: takes a list of path-lists and returns
+    a copy of the current value with every slot deleted.  Paths must
+    be sorted long-to-short (jq's expectation) — this DSL sorts them
+    internally so callers don't have to worry about deletion order
+    invalidating later paths.
+
+    Related: ``del``, ``setpath``, ``paths``.
+    """,
+    examples=('{a: 1, b: 2, c: 3} | delpaths([["a"], ["c"]])  # -> {b: 2}',),
+    category="value",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_delpaths(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("delpaths must be evaluated through the evaluator")
+
+
+@_register(
+    "walk",
+    summary="Apply *body* to every value bottom-up, returning the rebuilt structure.",
+    signatures=("walk(body) -> any",),
+    details="""
+    **Special form.**  Matches jq's ``walk``: traverses the current
+    value's tree bottom-up.  For each composite, ``walk`` first
+    recurses into its children, then evaluates *body* with ``.``
+    re-bound to the (now-transformed) composite.  Leaves are passed
+    directly to *body*.
+
+    Classic uses:
+
+    - **String normalisation across a whole config**:
+      ``walk(if type == "string" then ascii_downcase else . end)``.
+    - **Field renames**: ``walk(if type == "object" then
+      with_entries(...) else . end)``.
+    - **Pruning**: ``walk(if type == "array" then map(select(.))
+      else . end)`` drops empty entries from every array.
+
+    Related: ``recurse``, ``map``, ``with_entries``.
+    """,
+    examples=(
+        'walk(if type == "string" then ascii_downcase else . end)',
+        'walk(if type == "number" then . + 1 else . end)',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_walk(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("walk must be evaluated through the evaluator")
+
+
+@_register(
+    "recurse",
+    summary="Emit every value reachable from the current input, optionally driven by *body*.",
+    signatures=(
+        "recurse() -> stream",
+        "recurse(body) -> stream",
+        "recurse(body, cond) -> stream",
+    ),
+    details="""
+    **Special form.**  Matches jq's ``recurse`` family.
+
+    - **Zero args** (``recurse``) — emits the current value, then
+      every reachable value (every dict value, every array element,
+      every nested composite, recursively).
+    - **One arg** (``recurse(body)``) — emits the current value, then
+      ``body`` applied once, then ``body`` applied to that, etc.
+      Stops on null.
+    - **Two args** (``recurse(body, cond)``) — same as the one-arg
+      form but stops when ``cond`` is false.
+
+    To prevent runaway loops, this DSL caps total emissions at
+    100,000 — pipelines that legitimately need more should narrow
+    *body* or pre-collect.
+
+    Related: ``walk``, ``map``, ``paths``.
+    """,
+    examples=(
+        "{a: 1, b: {c: 2}} | recurse",
+        "1 | recurse(. + 1, . < 5)              # -> 1, 2, 3, 4",
+    ),
+    category="value",
+    min_args=0,
+    max_args=2,
+    special_form=True,
+)
+def _builtin_recurse(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("recurse must be evaluated through the evaluator")
+
+
+@_register(
+    "until",
+    summary="Iterate *update* against the current value until *cond* becomes true.",
+    signatures=("until(cond, update) -> any",),
+    details="""
+    **Special form.**  Matches jq's ``until``: starting from the
+    current value, repeatedly applies *update* (with ``.`` re-bound
+    to the running value) and tests *cond* against the result.
+    Returns the first value for which *cond* is truthy.
+
+    Capped at 100,000 iterations to prevent runaway loops — pipelines
+    that legitimately need more should restructure.
+
+    Related: ``recurse``, ``repeat``.
+    """,
+    examples=(
+        "1 | until(. >= 100, . * 2)              # -> 128",
+        "0 | until(. > 5, . + 1)                  # -> 6",
+    ),
+    category="value",
+    min_args=2,
+    max_args=2,
+    special_form=True,
+)
+def _builtin_until(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("until must be evaluated through the evaluator")
+
+
+@_register(
+    "repeat",
+    summary="Emit ``f(.), f(f(.)), …`` capped at 100,000 iterations.",
+    signatures=("repeat(body) -> stream",),
+    details="""
+    **Special form.**  Matches jq's ``repeat`` modulo a safety cap.
+    Emits an infinite-by-design stream of successive applications of
+    *body* to the current value.  jq pairs this with ``limit(n; ...)``
+    to bound the result; this DSL also enforces an absolute cap of
+    100,000 emissions so a forgetful pipeline can't wedge the
+    evaluator.
+
+    Common pattern: ``[limit(5, repeat(. + 1))]`` (using jq-style
+    semantics) — though in this DSL ``[range(5)] | map(. + 1)`` is
+    usually shorter.
+
+    Related: ``until``, ``recurse``, ``range``.
+    """,
+    examples=("1 | [limit(repeat(. + 1), 5)]            # capped to 5",),
+    category="value",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_repeat(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("repeat must be evaluated through the evaluator")
+
+
+# ---------------------------------------------------------------------------
+# Flow / control (empty, error, not, inside, IN, INDEX, combinations)
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "empty",
+    summary="Emit no values — the zero element of jq's stream algebra.",
+    signatures=("empty() -> stream",),
+    details="""
+    Matches jq's ``empty``: produces a stream with zero items.  Used
+    inside ``if ... then ... else empty end`` to silently drop a
+    branch, or inside ``map(...)`` to filter without ``select``.
+
+    Related: ``select`` (drops one item), ``error`` (raises instead).
+    """,
+    examples=(
+        "if .pool then .name else empty end",
+        "map(if .x > 0 then .x else empty end)",
+    ),
+    category="stream",
+    min_args=0,
+    max_args=0,
+)
+def _builtin_empty() -> Stream:
+    return Stream(items=[])
+
+
+@_register(
+    "error",
+    summary="Raise a query error with a custom message.",
+    signatures=(
+        "error() -> never",
+        "error(msg: string) -> never",
+    ),
+    details="""
+    Matches jq's ``error``: aborts the query with an error.  With no
+    argument, raises with the current value's string form; with a
+    message, raises with that message.
+
+    Useful for fail-fast validation inside ``if`` / ``select``
+    pipelines: ``if .destination == null then error("VS has no dest")
+    else . end``.
+
+    Related: ``select``, ``empty``.
+    """,
+    examples=('if .pool == null then error("no pool") else . end',),
+    category="stream",
+    min_args=0,
+    max_args=1,
+)
+def _builtin_error(*args: Any) -> Any:
+    if not args:
+        raise BuiltinError("error: query halted by error()")
+    msg = args[0]
+    if isinstance(msg, str):
+        text = msg
+    elif isinstance(msg, PathRef):
+        text = msg.full_path
+    else:
+        text = repr(msg)
+    raise BuiltinError(text)
+
+
+@_register(
+    "not",
+    summary="Invert the truthiness of the input — jq's postfix ``not``.",
+    signatures=("not() -> boolean",),
+    details="""
+    Matches jq's ``not``: returns ``true`` when the current value is
+    falsy and ``false`` otherwise.  Truthiness follows the DSL's
+    usual rules (null / false / empty string / empty list are falsy).
+
+    The DSL also exposes ``not`` as a unary prefix operator — both
+    forms exist for jq snippet compatibility.
+
+    Related: ``select``, ``any``, ``all``.
+    """,
+    examples=(
+        ".pool | not                             # true when pool is unset",
+        ".ltm.virtual[] | select(.snatpool | not)",
+    ),
+    category="stream",
+    min_args=0,
+    max_args=0,
+    special_form=True,
+)
+def _builtin_not(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("not must be evaluated through the evaluator")
+
+
+@_register(
+    "inside",
+    summary="Inverse of ``contains`` — current is *inside* the given container.",
+    signatures=("inside(needle: any, container: any) -> boolean",),
+    details="""
+    Matches jq's ``inside``: ``a | inside(b)`` is equivalent to
+    ``b | contains(a)``.  String substring test, list element test,
+    dict submap test.  Use the implicit-receiver form for the
+    natural reading: ``"bar" | inside("foobar")``.
+
+    Related: ``contains``, ``has``, ``in``.
+    """,
+    examples=(
+        '"bar" | inside("foobar")                 # -> true',
+        '"/Common/log_rule" | inside(.rules)      # rule in attached set?',
+    ),
+    category="stream",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_inside(needle: Any, container: Any) -> bool:
+    return _builtin_contains(container, needle)
+
+
+@_register(
+    "combinations",
+    summary="Cartesian product of a list of lists.",
+    signatures=(
+        "combinations() -> stream[list]",
+        "combinations(n: integer) -> stream[list]",
+    ),
+    details="""
+    **Special form.**  Matches jq's ``combinations``: with no
+    argument, returns every combination drawn from a list of lists —
+    one element from each sub-list.  With an integer ``n``, returns
+    every n-length combination of the current list's elements
+    (repeats allowed).
+
+    The result is a stream of lists.  For empty input or empty
+    sub-lists, the stream is empty.
+
+    Operates on the current input — call via pipe
+    (``[X] | combinations``) or directly (``combinations``).
+
+    Related: ``map``, ``range``, ``flatten``.
+    """,
+    examples=(
+        "[[1, 2], [3, 4]] | combinations          # -> [1,3], [1,4], [2,3], [2,4]",
+        "[1, 2, 3] | combinations(2)              # -> [1,1], [1,2], ..., [3,3]",
+    ),
+    category="stream",
+    min_args=0,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_combinations(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("combinations must be evaluated through the evaluator")
+
+
+def _combinations_impl(value: Any, n: int | None) -> Stream:
+    items = _as_sequence(value, name="combinations", arg=1)
+    if n is not None:
+        if n < 0:
+            raise BuiltinError(f"combinations: n must be non-negative, got {n}")
+        sub_lists = [items] * n
+    else:
+        sub_lists = []
+        for i, sub in enumerate(items):
+            if not isinstance(sub, (list, tuple, Stream)):
+                raise BuiltinError(f"combinations: item {i} must be a list, got {_type_name(sub)}")
+            sub_lists.append(list(sub.items) if isinstance(sub, Stream) else list(sub))
+
+    def _cart(prefix: list[Any], remaining: list[list[Any]]) -> list[list[Any]]:
+        if not remaining:
+            return [prefix]
+        head, *tail = remaining
+        out: list[list[Any]] = []
+        for item in head:
+            out.extend(_cart([*prefix, item], tail))
+        return out
+
+    return Stream(items=_cart([], sub_lists))
+
+
+@_register(
+    "IN",
+    summary="True when the current value equals any of the candidate arguments.",
+    signatures=("IN(...candidates) -> boolean",),
+    details="""
+    **Special form.**  Matches jq's ``IN(s)``: returns ``true`` when
+    the current value compares equal to **any** of the values in the
+    argument stream.
+
+    Our DSL accepts the candidates as ordinary function arguments —
+    ``IN("a", "b", "c")`` — because comma inside a call is the arg
+    separator, not jq's stream-concat operator.  Each argument is
+    evaluated against the current input; stream-valued arguments
+    expand element-wise so the jq pattern
+    ``.ltm.virtual[].name | IN([candidates] | .[])`` works the same
+    way.
+
+    Short-circuits on the first match.
+
+    Related: ``INDEX``, ``contains``, ``in``, ``any``.
+    """,
+    examples=(
+        '.name | IN("a", "b", "c")',
+        '.ltm.virtual[].name | select(IN("web_vs", "api_vs"))',
+    ),
+    category="stream",
+    min_args=1,
+    max_args=None,
+    special_form=True,
+)
+def _builtin_IN(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("IN must be evaluated through the evaluator")
+
+
+@_register(
+    "INDEX",
+    summary="Build an object keyed by *idx_expr* evaluated against each item.",
+    signatures=(
+        "INDEX(idx_expr) -> object",
+        "INDEX(source, idx_expr) -> object",
+    ),
+    details="""
+    **Special form.**  Matches jq's ``INDEX``: with one argument,
+    indexes the current list / stream by the value of *idx_expr*
+    per item.  With two arguments, indexes the stream produced by
+    *source* the same way.
+
+    Duplicate keys: last write wins (jq parity).  Keys are coerced
+    to strings.
+
+    Related: ``group_by``, ``unique_by``, ``to_entries``.
+    """,
+    examples=(
+        "[.ltm.virtual[]] | INDEX(.name)",
+        "INDEX(.ltm.virtual[]; .name)             # jq's two-arg form",
+    ),
+    category="stream",
+    min_args=1,
+    max_args=2,
+    special_form=True,
+)
+def _builtin_INDEX(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("INDEX must be evaluated through the evaluator")
+
+
+# ---------------------------------------------------------------------------
+# JSON encoding / decoding (tojson / fromjson) and @-prefix format helpers
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "tojson",
+    summary="Encode the current value as a JSON string (jq's ``tojson`` / ``@json``).",
+    signatures=("tojson(value: any) -> string",),
+    details="""
+    Matches jq's ``tojson`` and the ``@json`` format string: returns
+    a JSON encoding of *value*.  Numbers, booleans, and ``null``
+    serialise as JSON literals; strings and PathRef values quote;
+    lists and dicts recurse.
+
+    Identical in output to ``tostring`` for aggregates, but always
+    returns valid JSON (``tostring`` of a string returns the string
+    unchanged — ``tojson`` quotes it).
+
+    Related: ``fromjson``, ``tostring``, ``str``.
+    """,
+    examples=(
+        'tojson(42)                               # -> "42"',
+        'tojson("hi")                            # -> \'"hi"\'',
+        'tojson({a: 1, b: [2, 3]})                # -> \'{"a":1,"b":[2,3]}\'',
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_tojson(value: Any) -> str:
+    import json
+
+    return json.dumps(_to_jsonable(value), separators=(",", ":"), sort_keys=True)
+
+
+@_register(
+    "fromjson",
+    summary="Parse a JSON-encoded string into a value (jq's ``fromjson``).",
+    signatures=("fromjson(value: string) -> any",),
+    details="""
+    Matches jq's ``fromjson``: parses *value* as JSON and returns
+    the resulting Python value.  Numbers become int / float, strings
+    quote, booleans pass through, ``null`` becomes Python ``None``,
+    arrays become lists, objects become dicts.
+
+    Raises ``BuiltinError`` on malformed input.
+
+    Related: ``tojson``, ``json_load``, ``json_parse``.
+    """,
+    examples=(
+        'fromjson("42")                         # -> 42',
+        'fromjson("{\\"a\\": 1}")                  # -> {a: 1}',
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_fromjson(value: Any) -> Any:
+    import json
+
+    s = _as_str(value, name="fromjson", arg=1)
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError as exc:
+        raise BuiltinError(f"fromjson: invalid JSON: {exc}") from exc
+
+
+@_register(
+    "uri",
+    summary="URL-encode a string — equivalent of jq's ``@uri`` format string.",
+    signatures=("uri(value: string) -> string",),
+    details="""
+    Matches jq's ``@uri``: percent-encodes characters that need
+    escaping in URL components (everything outside the unreserved
+    set ``A-Z a-z 0-9 - _ . ~``).
+
+    Related: ``base64``, ``html``, ``sh``.
+    """,
+    examples=(
+        'uri("hello world")                       # -> "hello%20world"',
+        'uri("/Common/web_vs?x=1&y=2")',
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_uri(value: Any) -> str:
+    return _urlparse.quote(_as_str(value, name="uri", arg=1), safe="")
+
+
+@_register(
+    "base64",
+    summary="Base64-encode a string — equivalent of jq's ``@base64`` format string.",
+    signatures=("base64(value: string) -> string",),
+    details="""
+    Matches jq's ``@base64``: Base64-encodes the UTF-8 bytes of
+    *value* and returns the standard-alphabet result.
+
+    Related: ``base64d``, ``uri``.
+    """,
+    examples=('base64("hello")                          # -> "aGVsbG8="',),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_base64(value: Any) -> str:
+    s = _as_str(value, name="base64", arg=1)
+    return _base64.b64encode(s.encode("utf-8")).decode("ascii")
+
+
+@_register(
+    "base64d",
+    summary="Base64-decode a string — equivalent of jq's ``@base64d`` format string.",
+    signatures=("base64d(value: string) -> string",),
+    details="""
+    Matches jq's ``@base64d``: decodes a Base64-encoded ASCII string
+    into the original UTF-8 text.  Malformed input raises
+    ``BuiltinError``.
+
+    Related: ``base64``.
+    """,
+    examples=('base64d("aGVsbG8=")                      # -> "hello"',),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_base64d(value: Any) -> str:
+    s = _as_str(value, name="base64d", arg=1)
+    try:
+        return _base64.b64decode(s, validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise BuiltinError(f"base64d: invalid Base64 input: {exc}") from exc
+
+
+@_register(
+    "html",
+    summary="HTML-escape a string — equivalent of jq's ``@html`` format string.",
+    signatures=("html(value: string) -> string",),
+    details="""
+    Matches jq's ``@html``: replaces ``< > & ' "`` with their HTML
+    entity equivalents so the result is safe to embed in HTML text
+    or attribute values.
+
+    Related: ``uri``, ``sh``.
+    """,
+    examples=('html("<a href=\\"x\\">&copy;</a>")',),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_html(value: Any) -> str:
+    return _html.escape(_as_str(value, name="html", arg=1), quote=True)
+
+
+@_register(
+    "sh",
+    summary="POSIX-shell-quote a string or list of strings — jq's ``@sh``.",
+    signatures=(
+        "sh(value: string) -> string",
+        "sh(value: list[string]) -> string",
+    ),
+    details="""
+    Matches jq's ``@sh``: returns a representation safe to interpolate
+    into a POSIX shell command.  Strings become single-quoted with
+    embedded ``'`` escaped; lists become space-separated quoted
+    fields.
+
+    Related: ``uri``, ``base64``, ``join``.
+    """,
+    examples=(
+        'sh("hello world")                       # -> "\'hello world\'"',
+        'sh(["a", "b c"])                          # -> "\'a\' \'b c\'"',
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+    stream_aware=True,
+)
+def _builtin_sh(value: Any) -> str:
+    if isinstance(value, (list, tuple, Stream)):
+        items = value.items if isinstance(value, Stream) else value
+        return " ".join(_shlex.quote(_as_str(item, name="sh", arg=1)) for item in items)
+    return _shlex.quote(_as_str(value, name="sh", arg=1))
+
+
+# ---------------------------------------------------------------------------
+# String extensions (utf8bytelength, ascii)
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "utf8bytelength",
+    summary="Number of UTF-8 bytes the string encodes to.",
+    signatures=("utf8bytelength(value: string) -> integer",),
+    details="""
+    Matches jq's ``utf8bytelength``: returns the byte count of
+    *value*'s UTF-8 encoding.  Differs from ``length`` (which
+    counts codepoints) whenever the string contains non-ASCII.
+
+    Related: ``length``, ``explode``.
+    """,
+    examples=(
+        'utf8bytelength("hello")                  # -> 5',
+        'utf8bytelength("héllo")                  # -> 6  (é is 2 bytes)',
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_utf8bytelength(value: Any) -> int:
+    s = _as_str(value, name="utf8bytelength", arg=1)
+    return len(s.encode("utf-8"))
+
+
+@_register(
+    "ascii",
+    summary="Codepoint integer to its single-character string form.",
+    signatures=("ascii(value: integer) -> string",),
+    details="""
+    Sugar for ``[value] | implode``: returns the single-character
+    string for a Unicode codepoint integer.  Useful inside arithmetic
+    pipelines that compute characters by codepoint offset.
+
+    Related: ``explode``, ``implode``.
+    """,
+    examples=(
+        'ascii(65)                                # -> "A"',
+        "65 | ascii                               # same via implicit receiver",
+    ),
+    category="string",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ascii(value: Any) -> str:
+    n = _as_int(value, name="ascii", arg=1)
+    if n < 0 or n > 0x10FFFF:
+        raise BuiltinError(f"ascii: {n} is not a valid Unicode codepoint")
+    return chr(n)
+
+
+# ---------------------------------------------------------------------------
+# Math (trig, hyperbolic, advanced C-math)
+# ---------------------------------------------------------------------------
+
+
+def _math_unary(fn, name: str):
+    def impl(value: Any) -> float:
+        return fn(_as_number(value, name=name, arg=1))
+
+    impl.__name__ = f"_builtin_{name}"
+    return impl
+
+
+_TRIG_DOCS = {
+    "sin": "Sine of a radian angle.",
+    "cos": "Cosine of a radian angle.",
+    "tan": "Tangent of a radian angle.",
+    "asin": "Inverse sine in radians.",
+    "acos": "Inverse cosine in radians.",
+    "atan": "Inverse tangent in radians.",
+    "sinh": "Hyperbolic sine.",
+    "cosh": "Hyperbolic cosine.",
+    "tanh": "Hyperbolic tangent.",
+    "asinh": "Inverse hyperbolic sine.",
+    "acosh": "Inverse hyperbolic cosine.",
+    "atanh": "Inverse hyperbolic tangent.",
+}
+
+
+for _trig_name, _trig_summary in _TRIG_DOCS.items():
+    _register(
+        _trig_name,
+        summary=_trig_summary + " Matches jq's namesake C-math function.",
+        signatures=(f"{_trig_name}(value: number) -> number",),
+        details=(
+            f"    Matches jq's ``{_trig_name}``: thin wrapper over Python's\n"
+            f"    ``math.{_trig_name}``.  Domain errors (``acos(2)`` etc.)\n"
+            "    raise ``BuiltinError`` rather than returning NaN so the\n"
+            "    failure shows in query output."
+        ),
+        examples=(f"{_trig_name}(0)", f"{_trig_name}(.angle)"),
+        category="math",
+        min_args=1,
+        max_args=1,
+    )(_math_unary(getattr(math, _trig_name), _trig_name))
+
+
+@_register(
+    "atan2",
+    summary="Two-argument inverse tangent — ``atan2(y, x)``.",
+    signatures=("atan2(y: number, x: number) -> number",),
+    details="""
+    Matches jq's ``atan2``: returns the angle in radians between the
+    positive x-axis and the point (x, y), with the correct quadrant.
+
+    Related: ``atan``, ``sin``, ``cos``.
+    """,
+    examples=("atan2(1, 1)                              # -> pi/4",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_atan2(y: Any, x: Any) -> float:
+    return math.atan2(
+        _as_number(y, name="atan2", arg=1),
+        _as_number(x, name="atan2", arg=2),
+    )
+
+
+@_register(
+    "cbrt",
+    summary="Cube root of a number.",
+    signatures=("cbrt(value: number) -> number",),
+    details="""
+    Matches jq's ``cbrt``: returns the real cube root of *value*.
+    Handles negative inputs (``cbrt(-8) == -2``) — distinct from
+    ``pow(., 1.0/3)`` which is undefined for negative bases.
+
+    Related: ``sqrt``, ``pow``.
+    """,
+    examples=("cbrt(27)                                 # -> 3.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_cbrt(value: Any) -> float:
+    n = _as_number(value, name="cbrt", arg=1)
+    if n < 0:
+        return -((-n) ** (1 / 3))
+    return n ** (1 / 3)
+
+
+@_register(
+    "exp2",
+    summary="``2`` raised to the *value* power.",
+    signatures=("exp2(value: number) -> number",),
+    details="""
+    Matches jq's ``exp2``: returns ``2^value``.
+
+    Related: ``exp``, ``exp10``, ``pow``, ``log2``.
+    """,
+    examples=("exp2(10)                                 # -> 1024.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_exp2(value: Any) -> float:
+    return math.pow(2.0, _as_number(value, name="exp2", arg=1))
+
+
+@_register(
+    "exp10",
+    summary="``10`` raised to the *value* power.",
+    signatures=("exp10(value: number) -> number",),
+    details="""
+    Matches jq's ``exp10``: returns ``10^value``.
+
+    Related: ``exp``, ``exp2``, ``pow``, ``log10``.
+    """,
+    examples=("exp10(3)                                 # -> 1000.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_exp10(value: Any) -> float:
+    return math.pow(10.0, _as_number(value, name="exp10", arg=1))
+
+
+@_register(
+    "logb",
+    summary="Integer binary exponent of *value* (``floor(log2(|value|))``).",
+    signatures=("logb(value: number) -> number",),
+    details="""
+    Matches jq's ``logb`` / C's ``logb``: returns the exponent of
+    *value*'s base-2 representation as a floating-point number.  For
+    a non-zero finite *value* this is the integer part of
+    ``log2(|value|)``.
+
+    Returns ``-inf`` for zero and ``+inf`` for infinity (jq parity).
+
+    Related: ``log2``, ``frexp``.
+    """,
+    examples=(
+        "logb(8)                                  # -> 3.0",
+        "logb(0.25)                               # -> -2.0",
+    ),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_logb(value: Any) -> float:
+    n = _as_number(value, name="logb", arg=1)
+    if n == 0:
+        return -math.inf
+    if math.isinf(n):
+        return math.inf
+    return float(math.floor(math.log2(abs(n))))
+
+
+@_register(
+    "trunc",
+    summary="Truncate toward zero — drop the fractional part.",
+    signatures=("trunc(value: number) -> integer",),
+    details="""
+    Matches jq's ``trunc``: returns *value* with its fractional part
+    removed, rounding toward zero.
+
+    Related: ``floor``, ``ceil``, ``round``.
+    """,
+    examples=(
+        "trunc(3.9)                               # -> 3",
+        "trunc(-3.9)                              # -> -3",
+    ),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_trunc(value: Any) -> int:
+    return math.trunc(_as_number(value, name="trunc", arg=1))
+
+
+@_register(
+    "rint",
+    summary="Round to the nearest integer, ties to even (banker's rounding).",
+    signatures=("rint(value: number) -> integer",),
+    details="""
+    Matches jq's ``rint``: rounds to the nearest integer with
+    ties-to-even semantics — distinct from ``round`` which uses
+    ties-away-from-zero.
+
+    Related: ``round``, ``floor``, ``ceil``.
+    """,
+    examples=(
+        "rint(2.5)                                # -> 2  (banker's)",
+        "rint(3.5)                                # -> 4",
+    ),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_rint(value: Any) -> int:
+    return int(round(_as_number(value, name="rint", arg=1)))
+
+
+@_register(
+    "copysign",
+    summary="Magnitude of *x* with the sign of *y*.",
+    signatures=("copysign(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``copysign``: ``copysign(x; y)`` returns a value with
+    the magnitude of ``x`` and the sign of ``y``.
+
+    Related: ``abs``, ``fabs``.
+    """,
+    examples=("copysign(3, -1)                          # -> -3.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_copysign(x: Any, y: Any) -> float:
+    return math.copysign(
+        _as_number(x, name="copysign", arg=1),
+        _as_number(y, name="copysign", arg=2),
+    )
+
+
+@_register(
+    "fdim",
+    summary="Positive difference — ``max(x - y, 0)``.",
+    signatures=("fdim(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``fdim``: returns ``max(x - y, 0)``.
+
+    Related: ``min``, ``max``, ``abs``.
+    """,
+    examples=("fdim(5, 3)                               # -> 2.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_fdim(x: Any, y: Any) -> float:
+    nx = _as_number(x, name="fdim", arg=1)
+    ny = _as_number(y, name="fdim", arg=2)
+    return max(float(nx - ny), 0.0)
+
+
+@_register(
+    "frexp",
+    summary="Decompose a number into mantissa and exponent — returns ``[m, e]``.",
+    signatures=("frexp(value: number) -> list",),
+    details="""
+    Matches jq's ``frexp``: returns ``[mantissa, exponent]`` such
+    that ``value == mantissa * 2**exponent`` and ``0.5 <= |mantissa|
+    < 1`` (or both parts zero when ``value`` is zero).
+
+    jq returns a 2-element array; this DSL returns a Python list of
+    the same shape.
+
+    Related: ``ldexp``, ``modf``, ``logb``.
+    """,
+    examples=("frexp(12)                                # -> [0.75, 4]",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_frexp(value: Any) -> list[Any]:
+    m, e = math.frexp(_as_number(value, name="frexp", arg=1))
+    return [m, e]
+
+
+@_register(
+    "ldexp",
+    summary="``mantissa * 2**exponent`` — inverse of ``frexp``.",
+    signatures=("ldexp(mantissa: number, exponent: integer) -> number",),
+    details="""
+    Matches jq's ``ldexp``: returns ``mantissa * 2**exponent``.
+
+    Related: ``frexp``, ``exp2``.
+    """,
+    examples=("ldexp(0.75, 4)                           # -> 12.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_ldexp(mantissa: Any, exponent: Any) -> float:
+    return math.ldexp(
+        _as_number(mantissa, name="ldexp", arg=1),
+        _as_int(exponent, name="ldexp", arg=2),
+    )
+
+
+@_register(
+    "modf",
+    summary="Split a number into fractional and integer parts — returns ``[frac, int]``.",
+    signatures=("modf(value: number) -> list",),
+    details="""
+    Matches jq's ``modf``: returns ``[frac, int]`` where ``frac`` is
+    the fractional part of *value* and ``int`` is the integer part,
+    both with the same sign as *value*.
+
+    Related: ``trunc``, ``floor``.
+    """,
+    examples=("modf(3.75)                               # -> [0.75, 3.0]",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_modf(value: Any) -> list[Any]:
+    frac, integ = math.modf(_as_number(value, name="modf", arg=1))
+    return [frac, integ]
+
+
+@_register(
+    "gamma",
+    summary="Gamma function — ``tgamma`` (jq alias).",
+    signatures=("gamma(value: number) -> number",),
+    details="""
+    Matches jq's ``gamma`` / ``tgamma``: returns the gamma function
+    of *value*.  Domain errors raise ``BuiltinError``.
+
+    Related: ``lgamma``, ``tgamma``.
+    """,
+    examples=("gamma(5)                                 # -> 24.0  (4!)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_gamma(value: Any) -> float:
+    n = _as_number(value, name="gamma", arg=1)
+    try:
+        return math.gamma(n)
+    except ValueError as exc:
+        raise BuiltinError(f"gamma: {exc}") from exc
+
+
+@_register(
+    "tgamma",
+    summary="Gamma function (alias of ``gamma``).",
+    signatures=("tgamma(value: number) -> number",),
+    details="""
+    Matches jq's ``tgamma`` (C's ``tgamma``).  Same result as
+    ``gamma``.
+
+    Related: ``gamma``, ``lgamma``.
+    """,
+    examples=("tgamma(5)                                # -> 24.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_tgamma(value: Any) -> float:
+    return _builtin_gamma(value)
+
+
+@_register(
+    "lgamma",
+    summary="Natural log of the absolute value of the gamma function.",
+    signatures=("lgamma(value: number) -> number",),
+    details="""
+    Matches jq's ``lgamma`` / ``lgamma_r``: returns ``log(|gamma(x)|)``
+    — useful for combinatoric calculations where the gamma value
+    would overflow.
+
+    Related: ``gamma``, ``log``.
+    """,
+    examples=("lgamma(5)                                # -> log(24)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_lgamma(value: Any) -> float:
+    return math.lgamma(_as_number(value, name="lgamma", arg=1))
+
+
+@_register(
+    "significand",
+    summary="Significand (mantissa with exponent normalised to zero).",
+    signatures=("significand(value: number) -> number",),
+    details="""
+    Matches jq's ``significand``: returns the value scaled to the
+    range ``[1, 2)`` (or ``[-2, -1]`` for negatives), i.e. divided by
+    ``2 ** logb(value)``.  Returns the input unchanged for zero,
+    infinities, and NaN.
+
+    Related: ``frexp``, ``logb``.
+    """,
+    examples=("significand(12)                          # -> 1.5",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_significand(value: Any) -> float:
+    n = _as_number(value, name="significand", arg=1)
+    if n == 0 or math.isinf(n) or math.isnan(n):
+        return float(n)
+    e = math.floor(math.log2(abs(n)))
+    return float(n) / math.pow(2.0, e)
+
+
+@_register(
+    "j0",
+    summary="Bessel function of the first kind, order 0 — series approximation.",
+    signatures=("j0(value: number) -> number",),
+    details="""
+    Matches jq's ``j0``: returns ``J_0(value)``, the Bessel function
+    of the first kind at order 0.  Implemented via a polynomial /
+    asymptotic approximation (Abramowitz & Stegun 9.4.1 / 9.2.5)
+    accurate to ~1e-7 — adequate for the ad-hoc audit queries this
+    DSL targets.  For research-grade precision use SciPy.
+
+    Related: ``j1``, ``y0``, ``y1``.
+    """,
+    examples=("j0(0)                                    # -> 1.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_j0(value: Any) -> float:
+    return _bessel_j0(_as_number(value, name="j0", arg=1))
+
+
+@_register(
+    "j1",
+    summary="Bessel function of the first kind, order 1.",
+    signatures=("j1(value: number) -> number",),
+    details="""
+    Matches jq's ``j1``: ``J_1(value)``, accuracy ~1e-7.  See
+    ``j0`` for the approximation notes.
+
+    Related: ``j0``, ``y0``, ``y1``.
+    """,
+    examples=("j1(0)                                    # -> 0.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_j1(value: Any) -> float:
+    return _bessel_j1(_as_number(value, name="j1", arg=1))
+
+
+@_register(
+    "y0",
+    summary="Bessel function of the second kind, order 0.",
+    signatures=("y0(value: number) -> number",),
+    details="""
+    Matches jq's ``y0``: ``Y_0(value)``, defined for ``value > 0``.
+    Series / asymptotic approximation accurate to ~1e-7.
+
+    Related: ``y1``, ``j0``, ``j1``.
+    """,
+    examples=("y0(1)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_y0(value: Any) -> float:
+    n = _as_number(value, name="y0", arg=1)
+    if n <= 0:
+        raise BuiltinError(f"y0: argument must be positive, got {n}")
+    return _bessel_y0(n)
+
+
+@_register(
+    "y1",
+    summary="Bessel function of the second kind, order 1.",
+    signatures=("y1(value: number) -> number",),
+    details="""
+    Matches jq's ``y1``: ``Y_1(value)``, defined for ``value > 0``.
+    Series / asymptotic approximation accurate to ~1e-7.
+
+    Related: ``y0``, ``j0``, ``j1``.
+    """,
+    examples=("y1(1)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_y1(value: Any) -> float:
+    n = _as_number(value, name="y1", arg=1)
+    if n <= 0:
+        raise BuiltinError(f"y1: argument must be positive, got {n}")
+    return _bessel_y1(n)
+
+
+def _bessel_j0(x: float) -> float:
+    """Abramowitz & Stegun 9.4.1 / 9.4.3 approximation for J_0."""
+    ax = abs(x)
+    if ax < 8.0:
+        y = x * x
+        num = 57568490574.0 + y * (
+            -13362590354.0
+            + y * (651619640.7 + y * (-11214424.18 + y * (77392.33017 + y * (-184.9052456))))
+        )
+        den = 57568490411.0 + y * (
+            1029532985.0 + y * (9494680.718 + y * (59272.64853 + y * (267.8532712 + y)))
+        )
+        return num / den
+    z = 8.0 / ax
+    y = z * z
+    p0 = 1.0 + y * (
+        -0.1098628627e-2 + y * (0.2734510407e-4 + y * (-0.2073370639e-5 + y * 0.2093887211e-6))
+    )
+    q0 = -0.1562499995e-1 + y * (
+        0.1430488765e-3 + y * (-0.6911147651e-5 + y * (0.7621095161e-6 + y * (-0.934935152e-7)))
+    )
+    return math.sqrt(0.636619772 / ax) * (
+        math.cos(ax - math.pi / 4) * p0 - z * math.sin(ax - math.pi / 4) * q0
+    )
+
+
+def _bessel_j1(x: float) -> float:
+    """Abramowitz & Stegun 9.4.4 / 9.4.6 approximation for J_1."""
+    ax = abs(x)
+    if ax < 8.0:
+        y = x * x
+        num = x * (
+            72362614232.0
+            + y
+            * (
+                -7895059235.0
+                + y * (242396853.1 + y * (-2972611.439 + y * (15704.48260 + y * (-30.16036606))))
+            )
+        )
+        den = 144725228442.0 + y * (
+            2300535178.0 + y * (18583304.74 + y * (99447.43394 + y * (376.9991397 + y)))
+        )
+        return num / den
+    z = 8.0 / ax
+    y = z * z
+    p1 = 1.0 + y * (
+        0.183105e-2 + y * (-0.3516396496e-4 + y * (0.2457520174e-5 + y * (-0.240337019e-6)))
+    )
+    q1 = 0.04687499995 + y * (
+        -0.2002690873e-3 + y * (0.8449199096e-5 + y * (-0.88228987e-6 + y * 0.105787412e-6))
+    )
+    result = math.sqrt(0.636619772 / ax) * (
+        math.cos(ax - 3 * math.pi / 4) * p1 - z * math.sin(ax - 3 * math.pi / 4) * q1
+    )
+    return -result if x < 0 else result
+
+
+def _bessel_y0(x: float) -> float:
+    """Abramowitz & Stegun approximation for Y_0(x), x > 0."""
+    if x < 8.0:
+        y = x * x
+        num = -2957821389.0 + y * (
+            7062834065.0
+            + y * (-512359803.6 + y * (10879881.29 + y * (-86327.92757 + y * 228.4622733)))
+        )
+        den = 40076544269.0 + y * (
+            745249964.8 + y * (7189466.438 + y * (47447.26470 + y * (226.1030244 + y)))
+        )
+        return num / den + 0.636619772 * _bessel_j0(x) * math.log(x)
+    z = 8.0 / x
+    y = z * z
+    p0 = 1.0 + y * (
+        -0.1098628627e-2 + y * (0.2734510407e-4 + y * (-0.2073370639e-5 + y * 0.2093887211e-6))
+    )
+    q0 = -0.1562499995e-1 + y * (
+        0.1430488765e-3 + y * (-0.6911147651e-5 + y * (0.7621095161e-6 + y * (-0.934935152e-7)))
+    )
+    return math.sqrt(0.636619772 / x) * (
+        math.sin(x - math.pi / 4) * p0 + z * math.cos(x - math.pi / 4) * q0
+    )
+
+
+def _bessel_y1(x: float) -> float:
+    """Abramowitz & Stegun approximation for Y_1(x), x > 0."""
+    if x < 8.0:
+        y = x * x
+        num = x * (
+            -0.4900604943e13
+            + y
+            * (
+                0.1275274390e13
+                + y
+                * (
+                    -0.5153438139e11
+                    + y * (0.7349264551e9 + y * (-0.4237922726e7 + y * 0.8511937935e4))
+                )
+            )
+        )
+        den = 0.2499580570e14 + y * (
+            0.4244419664e12
+            + y
+            * (
+                0.3733650367e10
+                + y * (0.2245904002e8 + y * (0.1020426050e6 + y * (0.3549632885e3 + y)))
+            )
+        )
+        return num / den + 0.636619772 * (_bessel_j1(x) * math.log(x) - 1.0 / x)
+    z = 8.0 / x
+    y = z * z
+    p1 = 1.0 + y * (
+        0.183105e-2 + y * (-0.3516396496e-4 + y * (0.2457520174e-5 + y * (-0.240337019e-6)))
+    )
+    q1 = 0.04687499995 + y * (
+        -0.2002690873e-3 + y * (0.8449199096e-5 + y * (-0.88228987e-6 + y * 0.105787412e-6))
+    )
+    return math.sqrt(0.636619772 / x) * (
+        math.sin(x - 3 * math.pi / 4) * p1 + z * math.cos(x - 3 * math.pi / 4) * q1
+    )
+
+
+# ---------------------------------------------------------------------------
+# Time (now / fromdate / todate / mktime / gmtime / localtime / strftime / strptime)
+# ---------------------------------------------------------------------------
+
+
+def _broken_down_from_unix(unix_seconds: float, *, utc: bool) -> list[Any]:
+    """Return the jq-shaped broken-down time array for *unix_seconds*."""
+    if utc:
+        tm = _time.gmtime(unix_seconds)
+    else:
+        tm = _time.localtime(unix_seconds)
+    # jq's broken-down array order: [year-1900, month-0-indexed, day,
+    # hour, minute, second, day-of-week (0=Sun), day-of-year-1].
+    return [
+        tm.tm_year - 1900,
+        tm.tm_mon - 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec,
+        tm.tm_wday + 1 if tm.tm_wday < 6 else 0,  # 0=Sun..6=Sat (C convention)
+        tm.tm_yday - 1,
+    ]
+
+
+def _broken_down_to_struct(arr: list[Any], *, name: str) -> _time.struct_time:
+    """Inverse of :func:`_broken_down_from_unix` — to a ``struct_time``."""
+    if not isinstance(arr, (list, tuple)) or len(arr) < 6:
+        raise BuiltinError(
+            f"{name}: broken-down time must be a list of at least 6 ints, got {_type_name(arr)}"
+        )
+    pieces = list(arr) + [0] * (9 - len(arr))
+    year, month, day, hour, minute, second = (
+        pieces[0] + 1900,
+        pieces[1] + 1,
+        pieces[2],
+        pieces[3],
+        pieces[4],
+        pieces[5],
+    )
+    return _time.struct_time((year, month, day, hour, minute, int(second), 0, 1, -1))
+
+
+@_register(
+    "now",
+    summary="Current Unix epoch time as a float.",
+    signatures=("now() -> number",),
+    details="""
+    Matches jq's ``now``: returns the current time in seconds since
+    the Unix epoch (UTC) as a float with sub-second resolution.
+
+    Related: ``todate``, ``fromdate``, ``strftime``.
+    """,
+    examples=("now",),
+    category="time",
+    min_args=0,
+    max_args=0,
+)
+def _builtin_now() -> float:
+    return _time.time()
+
+
+@_register(
+    "todate",
+    summary="Unix epoch seconds → ISO-8601 UTC string.",
+    signatures=("todate(value: number) -> string",),
+    details="""
+    Matches jq's ``todate`` / ``todateiso8601``: formats a Unix
+    epoch-seconds value as an ISO-8601 string in UTC, second
+    precision (``YYYY-MM-DDTHH:MM:SSZ``).
+
+    Related: ``fromdate``, ``strftime``, ``now``.
+    """,
+    examples=(
+        'todate(0)                                # -> "1970-01-01T00:00:00Z"',
+        "now | todate",
+    ),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_todate(value: Any) -> str:
+    n = _as_number(value, name="todate", arg=1)
+    dt = _datetime.fromtimestamp(n, tz=_timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@_register(
+    "todateiso8601",
+    summary="Alias of ``todate`` — Unix epoch → ISO-8601 UTC string.",
+    signatures=("todateiso8601(value: number) -> string",),
+    details="""
+    Matches jq's ``todateiso8601`` (same as ``todate``).  Both names
+    available for jq snippet portability.
+
+    Related: ``todate``, ``fromdateiso8601``.
+    """,
+    examples=("todateiso8601(0)",),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_todateiso8601(value: Any) -> str:
+    return _builtin_todate(value)
+
+
+@_register(
+    "fromdate",
+    summary="ISO-8601 UTC string → Unix epoch seconds.",
+    signatures=("fromdate(value: string) -> number",),
+    details="""
+    Matches jq's ``fromdate`` / ``fromdateiso8601``: parses an
+    ISO-8601 UTC timestamp (``YYYY-MM-DDTHH:MM:SS[.fff]Z`` or with
+    ``+00:00`` offset) and returns the corresponding Unix epoch
+    seconds.
+
+    Related: ``todate``, ``strptime``, ``now``.
+    """,
+    examples=(
+        'fromdate("1970-01-01T00:00:00Z")          # -> 0',
+        'fromdate("2025-01-01T00:00:00Z")',
+    ),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_fromdate(value: Any) -> float:
+    s = _as_str(value, name="fromdate", arg=1)
+    try:
+        # ``datetime.fromisoformat`` accepts ``Z`` from Python 3.11+;
+        # normalise it for portability across the supported range.
+        text = s.replace("Z", "+00:00") if s.endswith("Z") else s
+        dt = _datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise BuiltinError(f"fromdate: cannot parse {s!r}: {exc}") from exc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_timezone.utc)
+    return dt.timestamp()
+
+
+@_register(
+    "fromdateiso8601",
+    summary="Alias of ``fromdate``.",
+    signatures=("fromdateiso8601(value: string) -> number",),
+    details="""
+    Matches jq's ``fromdateiso8601``.
+
+    Related: ``fromdate``, ``todateiso8601``.
+    """,
+    examples=('fromdateiso8601("1970-01-01T00:00:00Z")',),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_fromdateiso8601(value: Any) -> float:
+    return _builtin_fromdate(value)
+
+
+@_register(
+    "date",
+    summary="Alias of ``todate`` for jq snippet compatibility.",
+    signatures=("date(value: number) -> string",),
+    details="""
+    Matches jq's ``date`` (jq 1.7+): same as ``todate``.
+
+    Related: ``todate``, ``fromdate``.
+    """,
+    examples=("date(0)",),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_date(value: Any) -> str:
+    return _builtin_todate(value)
+
+
+@_register(
+    "gmtime",
+    summary="Unix epoch seconds → broken-down UTC time array.",
+    signatures=("gmtime(value: number) -> list",),
+    details="""
+    Matches jq's ``gmtime``: returns a length-8 list of integers in
+    jq's order — ``[year - 1900, month, day, hour, minute, second,
+    weekday, yearday]`` (months 0..11, weekday 0=Sunday, yearday
+    0..365).
+
+    Related: ``localtime``, ``mktime``, ``strftime``.
+    """,
+    examples=("gmtime(0)                                # -> [70, 0, 1, 0, 0, 0, 4, 0]",),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_gmtime(value: Any) -> list[Any]:
+    return _broken_down_from_unix(_as_number(value, name="gmtime", arg=1), utc=True)
+
+
+@_register(
+    "localtime",
+    summary="Unix epoch seconds → broken-down local time array.",
+    signatures=("localtime(value: number) -> list",),
+    details="""
+    Matches jq's ``localtime``: same shape as ``gmtime`` but in the
+    process's local timezone.
+
+    Related: ``gmtime``, ``mktime``.
+    """,
+    examples=("localtime(0)",),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_localtime(value: Any) -> list[Any]:
+    return _broken_down_from_unix(_as_number(value, name="localtime", arg=1), utc=False)
+
+
+@_register(
+    "mktime",
+    summary="Broken-down UTC time array → Unix epoch seconds.",
+    signatures=("mktime(value: list) -> number",),
+    details="""
+    Matches jq's ``mktime``: inverse of ``gmtime``.  Accepts the
+    broken-down array ``[year - 1900, month, day, hour, minute,
+    second, ...]`` and returns the corresponding Unix epoch seconds,
+    interpreting the input as UTC.
+
+    Related: ``gmtime``, ``fromdate``.
+    """,
+    examples=("mktime([70, 0, 1, 0, 0, 0])              # -> 0",),
+    category="time",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_mktime(value: Any) -> float:
+    tm = _broken_down_to_struct(value, name="mktime")
+    return float(_calendar.timegm(tm))
+
+
+@_register(
+    "strftime",
+    summary="Format a Unix epoch-seconds value using ``strftime``.",
+    signatures=("strftime(value: number, fmt: string) -> string",),
+    details="""
+    Matches jq's ``strftime``: formats a Unix epoch-seconds value
+    (UTC) using a strftime-style format string.
+
+    jq's two-arg form is ``strftime(fmt)`` applied to the broken-down
+    time as input; this DSL flattens to the more common case
+    ``strftime(unix_seconds, fmt)``.  Use the implicit-receiver form
+    for the jq feel: ``now | strftime("%Y-%m-%d")``.
+
+    Related: ``strptime``, ``todate``, ``now``.
+    """,
+    examples=(
+        'strftime(0, "%Y-%m-%d")                   # -> "1970-01-01"',
+        'now | strftime("%Y-%m-%d %H:%M:%S")',
+    ),
+    category="time",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_strftime(value: Any, fmt: Any) -> str:
+    n = _as_number(value, name="strftime", arg=1)
+    f = _as_str(fmt, name="strftime", arg=2)
+    return _time.strftime(f, _time.gmtime(n))
+
+
+@_register(
+    "strptime",
+    summary="Parse a timestamp string into a broken-down UTC time array.",
+    signatures=("strptime(value: string, fmt: string) -> list",),
+    details="""
+    Matches jq's ``strptime``: parses *value* using *fmt* and returns
+    the broken-down array compatible with ``mktime`` /
+    ``gmtime`` (jq's order).
+
+    Related: ``strftime``, ``mktime``, ``fromdate``.
+    """,
+    examples=('strptime("2025-01-01", "%Y-%m-%d") | mktime',),
+    category="time",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_strptime(value: Any, fmt: Any) -> list[Any]:
+    s = _as_str(value, name="strptime", arg=1)
+    f = _as_str(fmt, name="strptime", arg=2)
+    try:
+        tm = _time.strptime(s, f)
+    except ValueError as exc:
+        raise BuiltinError(f"strptime: cannot parse {s!r} with {f!r}: {exc}") from exc
+    return [
+        tm.tm_year - 1900,
+        tm.tm_mon - 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec,
+        tm.tm_wday + 1 if tm.tm_wday < 6 else 0,
+        tm.tm_yday - 1,
+    ]
+
+
+@_register(
+    "dateadd",
+    summary="Add a number of seconds to a Unix epoch value.",
+    signatures=("dateadd(value: number, seconds: number) -> number",),
+    details="""
+    Matches jq's ``dateadd`` (jq 1.7+): ``dateadd(t; s)`` is
+    ``t + s``.  Provided for jq-snippet portability — plain
+    arithmetic works too.
+
+    Related: ``datesub``, ``now``.
+    """,
+    examples=('fromdate("2025-01-01T00:00:00Z") | dateadd(., 86400) | todate',),
+    category="time",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_dateadd(value: Any, seconds: Any) -> float:
+    return _as_number(value, name="dateadd", arg=1) + _as_number(seconds, name="dateadd", arg=2)
+
+
+@_register(
+    "datesub",
+    summary="Subtract a number of seconds from a Unix epoch value.",
+    signatures=("datesub(value: number, seconds: number) -> number",),
+    details="""
+    Matches jq's ``datesub`` (jq 1.7+): ``datesub(t; s)`` is
+    ``t - s``.
+
+    Related: ``dateadd``, ``now``.
+    """,
+    examples=("now | datesub(., 3600) | todate           # one hour ago",),
+    category="time",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_datesub(value: Any, seconds: Any) -> float:
+    return _as_number(value, name="datesub", arg=1) - _as_number(seconds, name="datesub", arg=2)
+
+
+# ---------------------------------------------------------------------------
+# Remaining jq surface — object / stream / debug / halt / env / misc math
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "keys_unsorted",
+    summary="Field names of an object in insertion order (jq's ``keys_unsorted``).",
+    signatures=("keys_unsorted(value: object) -> list[string]",),
+    details="""
+    Matches jq's ``keys_unsorted``: like ``keys`` but does **not**
+    sort the result.  Returns the field names in the order they were
+    first seen on the object.  For lists / streams, returns indices
+    ``0..n-1`` (matching jq).
+
+    Use ``keys`` for the sorted form.
+
+    Related: ``keys``, ``values``, ``to_entries``.
+    """,
+    examples=("{b: 1, a: 2} | keys_unsorted",),
+    category="stream",
+    min_args=1,
+    max_args=1,
+    stream_aware=True,
+)
+def _builtin_keys_unsorted(value: Any) -> list[Any]:
+    if isinstance(value, ObjectRef):
+        return list(value.fields)
+    if isinstance(value, dict):
+        return list(value)
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
+        return list(range(len(list(value))))
+    raise BuiltinError(
+        f"keys_unsorted: argument 1 must be an object or list, got {_type_name(value)}"
+    )
+
+
+@_register(
+    "map_values",
+    summary="Apply *body* to every value of an object / array, keeping shape.",
+    signatures=("map_values(body) -> any",),
+    details="""
+    **Special form.**  Matches jq's ``map_values``: equivalent to
+    ``with_entries(.value |= body)`` for objects and ``map(body)``
+    for arrays.  Preserves the input's shape — an object stays an
+    object with the same keys, an array stays an array.
+
+    Returning the ``select`` drop sentinel removes the value's slot.
+
+    Related: ``map``, ``with_entries``, ``select``.
+    """,
+    examples=(
+        "{a: 1, b: 2} | map_values(. * 10)        # -> {a: 10, b: 20}",
+        "[1, 2, 3] | map_values(. * 10)            # -> [10, 20, 30]",
+    ),
+    category="stream",
+    min_args=1,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_map_values(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("map_values must be evaluated through the evaluator")
+
+
+@_register(
+    "pick",
+    summary="Keep only the slots named by *path_exprs*; everything else is dropped.",
+    signatures=("pick(...path_exprs) -> any",),
+    details="""
+    **Special form.**  Matches jq 1.7's ``pick``: enumerates one or
+    more path expressions against the current value, then returns
+    a value containing only those paths (with intermediate
+    containers reconstructed).
+
+    Each argument should be a static path projection (``.foo``,
+    ``.bar.baz``, ``.list[0]``).  Multiple paths may be passed either
+    as separate function arguments (``pick(.a, .c)``) or as a single
+    comma-stream argument (``pick((.a, .c))``) — both work.  Missing
+    slots are silently ignored.
+
+    Related: ``getpath``, ``setpath``, ``del``, ``paths``.
+    """,
+    examples=(
+        "{a: 1, b: 2, c: 3} | pick(.a, .c)         # -> {a: 1, c: 3}",
+        "{a: {b: 1, c: 2}, d: 3} | pick(.a.b, .d)",
+    ),
+    category="value",
+    min_args=1,
+    max_args=None,
+    special_form=True,
+)
+def _builtin_pick(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("pick must be evaluated through the evaluator")
+
+
+@_register(
+    "recurse_down",
+    summary="Alias of ``recurse`` with no arguments — emit every reachable value.",
+    signatures=("recurse_down() -> stream",),
+    details="""
+    Matches jq's ``recurse_down`` (deprecated in jq itself, kept for
+    backward compatibility).  Same as ``recurse`` with no arguments.
+
+    Related: ``recurse``, ``walk``.
+    """,
+    examples=("{a: 1, b: {c: 2}} | [recurse_down]",),
+    category="value",
+    min_args=0,
+    max_args=0,
+    special_form=True,
+)
+def _builtin_recurse_down(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("recurse_down must be evaluated through the evaluator")
+
+
+@_register(
+    "min_max",
+    summary="Return ``[min, max]`` of a list, keyed by *body*.",
+    signatures=(
+        "min_max() -> list",
+        "min_max(body) -> list",
+    ),
+    details="""
+    **Special form.**  Matches jq 1.7's ``min_max``: returns a
+    two-element list ``[minimum, maximum]``.  Without *body*, items
+    compare under jq's cross-type ordering; with *body*, each item's
+    key is the result of *body* applied to it (like ``min_by`` /
+    ``max_by``).
+
+    Empty input returns ``[null, null]`` (jq parity).
+
+    Related: ``min``, ``max``, ``min_by``, ``max_by``, ``max_min``.
+    """,
+    examples=(
+        "[5, 2, 8, 1] | min_max",
+        "[.ltm.pool[]] | min_max(.members | length)",
+    ),
+    category="stream",
+    min_args=0,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_min_max(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("min_max must be evaluated through the evaluator")
+
+
+@_register(
+    "max_min",
+    summary="Return ``[max, min]`` of a list, keyed by *body*.",
+    signatures=(
+        "max_min() -> list",
+        "max_min(body) -> list",
+    ),
+    details="""
+    **Special form.**  Matches jq 1.7's ``max_min``: like ``min_max``
+    but in the opposite order — ``[maximum, minimum]``.
+
+    Related: ``min_max``, ``min``, ``max``, ``min_by``, ``max_by``.
+    """,
+    examples=("[5, 2, 8, 1] | max_min",),
+    category="stream",
+    min_args=0,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_max_min(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("max_min must be evaluated through the evaluator")
+
+
+@_register(
+    "halt",
+    summary="Halt the query silently — no further output.",
+    signatures=("halt() -> never",),
+    details="""
+    Matches jq's ``halt``: terminates query evaluation without
+    emitting an error message.  In this DSL, ``halt`` raises a
+    distinct ``BuiltinError`` flagged so the runner exits with status
+    0 (versus ``halt_error`` which exits non-zero).
+
+    Useful for "I've found what I wanted, stop early" pipelines.
+
+    Related: ``halt_error``, ``error``, ``empty``.
+    """,
+    examples=('.ltm.virtual[] | select(.name == "web_vs") | halt',),
+    category="stream",
+    min_args=0,
+    max_args=0,
+)
+def _builtin_halt() -> Any:
+    raise BuiltinError("halt: query halted by halt()")
+
+
+@_register(
+    "halt_error",
+    summary="Halt the query with an error message and exit code.",
+    signatures=(
+        "halt_error() -> never",
+        "halt_error(exit_code: integer) -> never",
+    ),
+    details="""
+    Matches jq's ``halt_error``: terminates evaluation and signals
+    a non-zero exit.  With an optional integer argument, jq sets
+    that exit code; this DSL preserves the code on the error so the
+    CLI can map it to a process exit.
+
+    Related: ``halt``, ``error``.
+    """,
+    examples=(".ltm.virtual[] | select(.pool == null) | halt_error(5)",),
+    category="stream",
+    min_args=0,
+    max_args=1,
+)
+def _builtin_halt_error(*args: Any) -> Any:
+    exit_code = 5
+    if args:
+        exit_code = _as_int(args[0], name="halt_error", arg=1)
+    raise BuiltinError(f"halt_error: query halted (exit_code={exit_code})")
+
+
+@_register(
+    "debug",
+    summary="Pass-through that logs the current value to stderr.",
+    signatures=(
+        "debug() -> any",
+        "debug(label: string) -> any",
+    ),
+    details="""
+    **Special form.**  Matches jq's ``debug``: returns the current
+    value unchanged but writes a debug line to stderr
+    (``["DEBUG:", value]`` in jq's one-arg form, ``["DEBUG:", label,
+    value]`` with a label).  Useful for tracing complex pipelines
+    without adding extra pipeline stages.
+
+    Related: ``stderr``, ``error``.
+    """,
+    examples=(
+        ".ltm.virtual[] | debug | .name",
+        '.ltm.virtual[] | debug("vs") | .name',
+    ),
+    category="stream",
+    min_args=0,
+    max_args=1,
+    special_form=True,
+)
+def _builtin_debug(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("debug must be evaluated through the evaluator")
+
+
+@_register(
+    "stderr",
+    summary="Pass-through that writes the current value to stderr as JSON.",
+    signatures=("stderr() -> any",),
+    details="""
+    **Special form.**  Matches jq's ``stderr``: returns the current
+    value unchanged but writes its JSON encoding to stderr.  Same
+    chokepoint as ``debug`` without the ``["DEBUG:", ...]`` wrapping.
+
+    Related: ``debug``, ``error``.
+    """,
+    examples=(".ltm.virtual[] | stderr | .name",),
+    category="stream",
+    min_args=0,
+    max_args=0,
+    special_form=True,
+)
+def _builtin_stderr(*_args):  # pragma: no cover - dispatched specially
+    raise RuntimeError("stderr must be evaluated through the evaluator")
+
+
+@_register(
+    "env",
+    summary="The process environment as a dict — jq's ``env``.",
+    signatures=("env() -> object",),
+    details="""
+    Matches jq's ``env`` builtin: returns the process environment
+    variables as an object.  Read-only — modifications don't
+    propagate back.
+
+    Related: ``$ENV`` (jq's variable form, not exposed here).
+    """,
+    examples=(
+        "env | .HOME",
+        'env | with_entries(select(.key | startswith("F5_")))',
+    ),
+    category="value",
+    min_args=0,
+    max_args=0,
+)
+def _builtin_env() -> dict[str, str]:
+    import os as _os
+
+    return dict(_os.environ)
+
+
+# ---------------------------------------------------------------------------
+# Additional math (expm1, log1p, hypot, fma*, pow10, nearbyint, remainder,
+# Bessel-arbitrary-order jn/yn, lgamma_r)
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "expm1",
+    summary="``exp(value) - 1`` with high precision near zero.",
+    signatures=("expm1(value: number) -> number",),
+    details="""
+    Matches jq's ``expm1``: thin wrapper over Python's ``math.expm1``.
+    Avoids the loss of precision that ``exp(x) - 1`` suffers when
+    ``x`` is small.
+
+    Related: ``exp``, ``log1p``.
+    """,
+    examples=("expm1(1e-10)                             # -> 1e-10 (high precision)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_expm1(value: Any) -> float:
+    return math.expm1(_as_number(value, name="expm1", arg=1))
+
+
+@_register(
+    "log1p",
+    summary="``log(1 + value)`` with high precision near zero.",
+    signatures=("log1p(value: number) -> number",),
+    details="""
+    Matches jq's ``log1p``: thin wrapper over Python's ``math.log1p``.
+    Avoids the loss of precision that ``log(1 + x)`` suffers when
+    ``x`` is small.
+
+    Related: ``log``, ``expm1``.
+    """,
+    examples=("log1p(1e-10)                             # -> 1e-10 (high precision)",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_log1p(value: Any) -> float:
+    return math.log1p(_as_number(value, name="log1p", arg=1))
+
+
+@_register(
+    "pow10",
+    summary="Alias of ``exp10`` — ``10 ** value``.",
+    signatures=("pow10(value: number) -> number",),
+    details="""
+    Matches jq's ``pow10``: ``10**value``.  Identical to ``exp10``.
+
+    Related: ``exp10``, ``pow``, ``log10``.
+    """,
+    examples=("pow10(3)                                 # -> 1000.0",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_pow10(value: Any) -> float:
+    return math.pow(10.0, _as_number(value, name="pow10", arg=1))
+
+
+@_register(
+    "nearbyint",
+    summary="Round to nearest integer using current rounding mode (banker's).",
+    signatures=("nearbyint(value: number) -> integer",),
+    details="""
+    Matches jq's ``nearbyint``: same result as ``rint`` (Python's
+    ``round`` uses banker's rounding).  C distinguishes them by
+    whether they raise the inexact flag; Python doesn't expose
+    that, so the two are aliases here.
+
+    Related: ``rint``, ``round``, ``trunc``.
+    """,
+    examples=("nearbyint(2.5)                           # -> 2",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_nearbyint(value: Any) -> int:
+    return int(round(_as_number(value, name="nearbyint", arg=1)))
+
+
+@_register(
+    "hypot",
+    summary="``sqrt(x*x + y*y)`` without intermediate overflow.",
+    signatures=("hypot(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``hypot``: the Euclidean distance.  Uses Python's
+    ``math.hypot``, which avoids overflow for large operands.
+
+    Related: ``sqrt``, ``pow``.
+    """,
+    examples=("hypot(3, 4)                              # -> 5.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_hypot(x: Any, y: Any) -> float:
+    return math.hypot(
+        _as_number(x, name="hypot", arg=1),
+        _as_number(y, name="hypot", arg=2),
+    )
+
+
+@_register(
+    "fma",
+    summary="Fused multiply-add — ``x * y + z`` in one rounding.",
+    signatures=("fma(x: number, y: number, z: number) -> number",),
+    details="""
+    Matches jq's ``fma``: returns ``x*y + z``.  Python doesn't expose
+    hardware FMA in older versions; this implementation computes the
+    naive expression, which agrees with FMA to within one ULP.
+
+    Related: ``pow``, ``hypot``.
+    """,
+    examples=("fma(2, 3, 1)                             # -> 7.0",),
+    category="math",
+    min_args=3,
+    max_args=3,
+)
+def _builtin_fma(x: Any, y: Any, z: Any) -> float:
+    nx = _as_number(x, name="fma", arg=1)
+    ny = _as_number(y, name="fma", arg=2)
+    nz = _as_number(z, name="fma", arg=3)
+    return float(nx) * float(ny) + float(nz)
+
+
+@_register(
+    "fmax",
+    summary="Larger of two numbers — ``max(x, y)`` (jq parity).",
+    signatures=("fmax(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``fmax``: two-argument numeric maximum.  Unlike
+    ``max`` (which is stream-aware), ``fmax`` takes exactly two
+    scalar numbers.
+
+    Related: ``max``, ``fmin``, ``fdim``.
+    """,
+    examples=("fmax(3, 7)                               # -> 7",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_fmax(x: Any, y: Any) -> float:
+    return max(
+        _as_number(x, name="fmax", arg=1),
+        _as_number(y, name="fmax", arg=2),
+    )
+
+
+@_register(
+    "fmin",
+    summary="Smaller of two numbers — ``min(x, y)`` (jq parity).",
+    signatures=("fmin(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``fmin``: two-argument numeric minimum.
+
+    Related: ``min``, ``fmax``.
+    """,
+    examples=("fmin(3, 7)                               # -> 3",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_fmin(x: Any, y: Any) -> float:
+    return min(
+        _as_number(x, name="fmin", arg=1),
+        _as_number(y, name="fmin", arg=2),
+    )
+
+
+@_register(
+    "fmod",
+    summary="Floating-point modulo — ``x - y * trunc(x / y)``.",
+    signatures=("fmod(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``fmod`` (C's ``fmod``): the floating-point remainder
+    truncated toward zero.  Result has the sign of *x*.
+
+    Related: ``remainder``, ``drem``, ``trunc``.
+    """,
+    examples=("fmod(7, 3)                               # -> 1.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_fmod(x: Any, y: Any) -> float:
+    return math.fmod(
+        _as_number(x, name="fmod", arg=1),
+        _as_number(y, name="fmod", arg=2),
+    )
+
+
+@_register(
+    "remainder",
+    summary="IEEE-754 remainder of ``x / y`` (rounded to nearest).",
+    signatures=("remainder(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``remainder`` / ``drem``: the IEEE-754 remainder,
+    which rounds the quotient to the nearest integer (ties to even)
+    rather than truncating.  Result is in ``[-y/2, y/2]``.
+
+    Related: ``fmod``, ``drem``.
+    """,
+    examples=("remainder(7, 3)                          # -> 1.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_remainder(x: Any, y: Any) -> float:
+    return math.remainder(
+        _as_number(x, name="remainder", arg=1),
+        _as_number(y, name="remainder", arg=2),
+    )
+
+
+@_register(
+    "drem",
+    summary="Alias of ``remainder`` (legacy BSD name).",
+    signatures=("drem(x: number, y: number) -> number",),
+    details="""
+    Matches jq's ``drem``: alias of ``remainder``.
+
+    Related: ``remainder``, ``fmod``.
+    """,
+    examples=("drem(7, 3)                               # -> 1.0",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_drem(x: Any, y: Any) -> float:
+    return _builtin_remainder(x, y)
+
+
+@_register(
+    "lgamma_r",
+    summary="lgamma with the sign of gamma — returns ``[lgamma, sign]``.",
+    signatures=("lgamma_r(value: number) -> list",),
+    details="""
+    Matches jq's ``lgamma_r``: returns a 2-element list
+    ``[log(|gamma(x)|), sign]`` where *sign* is +1 or -1.
+
+    Related: ``lgamma``, ``gamma``.
+    """,
+    examples=("lgamma_r(5)                              # -> [log(24), 1]",),
+    category="math",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_lgamma_r(value: Any) -> list[Any]:
+    n = _as_number(value, name="lgamma_r", arg=1)
+    lg = math.lgamma(n)
+    # Sign of gamma(n): negative for n in (-(2k+1), -2k) for k >= 0.
+    try:
+        gv = math.gamma(n)
+        sign = 1 if gv >= 0 else -1
+    except ValueError:
+        sign = 1
+    return [lg, sign]
+
+
+@_register(
+    "jn",
+    summary="Bessel J_n(x) by upward recurrence — accurate for small ``n``.",
+    signatures=("jn(n: integer, x: number) -> number",),
+    details="""
+    Matches jq's ``jn``: ``J_n(x)`` for integer order *n*.  Uses the
+    standard upward recurrence ``J_{n+1}(x) = (2n/x) J_n(x) -
+    J_{n-1}(x)`` seeded by ``j0`` / ``j1``.  Stable for ``n <= |x|``;
+    callers asking for ``n`` far above ``|x|`` may see precision loss
+    — for research-grade results use SciPy.
+
+    Related: ``j0``, ``j1``, ``yn``.
+    """,
+    examples=("jn(2, 5)",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_jn(n: Any, x: Any) -> float:
+    order = _as_int(n, name="jn", arg=1)
+    val = _as_number(x, name="jn", arg=2)
+    if order == 0:
+        return _bessel_j0(float(val))
+    if order == 1:
+        return _bessel_j1(float(val))
+    if order < 0:
+        sign = -1 if (order & 1) else 1
+        return sign * _builtin_jn(-order, val)
+    if val == 0:
+        return 0.0
+    jm1 = _bessel_j0(float(val))
+    j = _bessel_j1(float(val))
+    for k in range(1, order):
+        jp1 = (2.0 * k / float(val)) * j - jm1
+        jm1 = j
+        j = jp1
+    return j
+
+
+@_register(
+    "yn",
+    summary="Bessel Y_n(x) by upward recurrence (``x > 0``).",
+    signatures=("yn(n: integer, x: number) -> number",),
+    details="""
+    Matches jq's ``yn``: ``Y_n(x)`` for integer order *n*, defined
+    for positive *x*.  Upward recurrence seeded by ``y0`` / ``y1``;
+    upward recurrence is stable for Y_n at all orders.
+
+    Related: ``y0``, ``y1``, ``jn``.
+    """,
+    examples=("yn(2, 5)",),
+    category="math",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_yn(n: Any, x: Any) -> float:
+    order = _as_int(n, name="yn", arg=1)
+    val = _as_number(x, name="yn", arg=2)
+    if val <= 0:
+        raise BuiltinError(f"yn: argument must be positive, got {val}")
+    if order == 0:
+        return _bessel_y0(float(val))
+    if order == 1:
+        return _bessel_y1(float(val))
+    if order < 0:
+        sign = -1 if (order & 1) else 1
+        return sign * _builtin_yn(-order, val)
+    ym1 = _bessel_y0(float(val))
+    y = _bessel_y1(float(val))
+    for k in range(1, order):
+        yp1 = (2.0 * k / float(val)) * y - ym1
+        ym1 = y
+        y = yp1
+    return y
 
 
 # ---------------------------------------------------------------------------

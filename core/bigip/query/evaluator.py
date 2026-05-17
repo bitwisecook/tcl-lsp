@@ -910,7 +910,239 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
                 )
             depth = depth_val
         return _builtins._flatten_value(current, depth)
+    if node.name == "paths":
+        return _eval_paths(node, current, ctx, only_leaves=False)
+    if node.name == "leaf_paths":
+        return _eval_paths(node, current, ctx, only_leaves=True)
+    if node.name == "getpath":
+        path_value = _eval(node.args[0], current, ctx)
+        path = _builtins._coerce_path_list(path_value, name="getpath", arg=1)
+        return _builtins._value_at_path(current, path)
+    if node.name == "setpath":
+        path_value = _eval(node.args[0], current, ctx)
+        path = _builtins._coerce_path_list(path_value, name="setpath", arg=1)
+        new_value = _eval(node.args[1], current, ctx)
+        if isinstance(new_value, Stream):
+            new_value = list(new_value.items)
+        return _builtins._set_at_path(current, path, new_value)
+    if node.name == "del":
+        path_value = _eval(node.args[0], current, ctx)
+        path = _builtins._coerce_path_list(path_value, name="del", arg=1)
+        return _builtins._delete_at_path(current, path)
+    if node.name == "delpaths":
+        paths_value = _eval(node.args[0], current, ctx)
+        raw_paths = _builtins._as_sequence(paths_value, name="delpaths", arg=1)
+        paths_list = [_builtins._coerce_path_list(p, name="delpaths", arg=1) for p in raw_paths]
+        # Delete longest paths first so earlier deletions don't shift later ones.
+        paths_list.sort(key=len, reverse=True)
+        out = current
+        for p in paths_list:
+            out = _builtins._delete_at_path(out, p)
+        return out
+    if node.name == "walk":
+        body = node.args[0]
+
+        def _walk(value: Any) -> Any:
+            if isinstance(value, ObjectRef):
+                materialised = {
+                    k: resolve_lazy_field(value, k, value.fields[k]) for k in value.fields
+                }
+                new_dict = {k: _walk(v) for k, v in materialised.items()}
+                return _flatten_one(_eval(body, new_dict, ctx))
+            if isinstance(value, dict):
+                new_dict = {k: _walk(v) for k, v in value.items()}
+                return _flatten_one(_eval(body, new_dict, ctx))
+            if isinstance(value, (list, tuple)):
+                new_list = [_walk(v) for v in value]
+                return _flatten_one(_eval(body, new_list, ctx))
+            if isinstance(value, Stream):
+                new_list = [_walk(v) for v in value.items]
+                return _flatten_one(_eval(body, new_list, ctx))
+            return _flatten_one(_eval(body, value, ctx))
+
+        return _walk(current)
+    if node.name == "recurse":
+        return _eval_recurse(node, current, ctx)
+    if node.name == "until":
+        cond, upd = node.args[0], node.args[1]
+        value = current
+        for _ in range(100_000):
+            cond_value = _flatten_one(_eval(cond, value, ctx))
+            if _truthy(cond_value):
+                return value
+            value = _flatten_one(_eval(upd, value, ctx))
+        raise EvalError("until: hit 100,000-iteration cap without satisfying the condition")
+    if node.name == "repeat":
+        body = node.args[0]
+        out: list[Any] = []
+        value = current
+        for _ in range(100_000):
+            value = _flatten_one(_eval(body, value, ctx))
+            out.append(value)
+        return Stream(items=out)
+    if node.name == "not":
+        return not _truthy(current)
+    if node.name == "combinations":
+        n: int | None = None
+        if node.args:
+            n_value = _eval(node.args[0], current, ctx)
+            if isinstance(n_value, bool) or not isinstance(n_value, int):
+                raise EvalError(
+                    f"combinations: argument 1 must be an integer, got {type(n_value).__name__}"
+                )
+            n = n_value
+        return _builtins._combinations_impl(current, n)
+    if node.name == "map_values":
+        body = node.args[0]
+        if isinstance(current, ObjectRef):
+            materialised = {
+                k: resolve_lazy_field(current, k, current.fields[k]) for k in current.fields
+            }
+            return _map_values_dict(materialised, body, ctx)
+        if isinstance(current, dict):
+            return _map_values_dict(current, body, ctx)
+        if isinstance(current, (list, tuple, Stream)):
+            items = current.items if isinstance(current, Stream) else list(current)
+            out: list[Any] = []
+            for item in items:
+                value = _eval(body, item, ctx)
+                if isinstance(value, _Drop):
+                    continue
+                if isinstance(value, Stream):
+                    if not value.items:
+                        continue
+                    out.append(value.items[0])
+                else:
+                    out.append(value)
+            return out
+        raise EvalError(
+            f"map_values: input must be an object or array, got {type(current).__name__}"
+        )
+    if node.name == "pick":
+        return _eval_pick(node, current, ctx)
+    if node.name == "recurse_down":
+        # Equivalent to bare ``recurse``.
+        return _eval_recurse(Call(name="recurse", args=(), offset=node.offset), current, ctx)
+    if node.name in ("min_max", "max_min"):
+        items = _stream_items(current)
+        if not items:
+            return [None, None]
+        if node.args:
+            body = node.args[0]
+            keyed = [(item, _key_of_body(body, item, ctx)) for item in items]
+            mn_item = min(keyed, key=lambda p: _sort_key(p[1]))[0]
+            mx_item = max(keyed, key=lambda p: _sort_key(p[1]))[0]
+        else:
+            mn_item = min(items, key=_sort_key)
+            mx_item = max(items, key=_sort_key)
+        return [mn_item, mx_item] if node.name == "min_max" else [mx_item, mn_item]
+    if node.name == "debug":
+        import sys as _sys
+
+        if node.args:
+            label_value = _eval(node.args[0], current, ctx)
+            if isinstance(label_value, Stream):
+                label = label_value.items[0] if label_value.items else ""
+            else:
+                label = label_value
+            print(
+                f'["DEBUG:", {label!r}, {_builtins._to_jsonable(current)!r}]',
+                file=_sys.stderr,
+            )
+        else:
+            print(
+                f'["DEBUG:", {_builtins._to_jsonable(current)!r}]',
+                file=_sys.stderr,
+            )
+        return current
+    if node.name == "stderr":
+        import json as _json
+        import sys as _sys
+
+        try:
+            print(
+                _json.dumps(_builtins._to_jsonable(current), separators=(",", ":")),
+                file=_sys.stderr,
+            )
+        except TypeError:
+            print(repr(current), file=_sys.stderr)
+        return current
+    if node.name == "IN":
+        # Variadic: each argument is a candidate; stream args expand
+        # element-wise so jq-style ``IN([cands] | .[])`` works.
+        candidates: list[Any] = []
+        for arg in node.args:
+            value = _eval(arg, current, ctx)
+            candidates.extend(_flatten(value))
+        return any(_eq(current, c) for c in candidates)
+    if node.name == "INDEX":
+        if len(node.args) == 1:
+            source_items = _stream_items(current)
+            key_expr = node.args[0]
+        else:
+            source_value = _eval(node.args[0], current, ctx)
+            source_items = _flatten(source_value)
+            key_expr = node.args[1]
+        index_dict: dict[str, Any] = {}
+        for item in source_items:
+            key = _flatten_one(_eval(key_expr, item, ctx))
+            if isinstance(key, PathRef):
+                key = key.full_path
+            if key is None:
+                key = ""
+            index_dict[str(key)] = item
+        return index_dict
     raise EvalError(f"unsupported special form: {node.name}")
+
+
+def _eval_paths(node: Call, current: Any, ctx: EvalContext, *, only_leaves: bool) -> Stream:
+    """Implement ``paths`` / ``leaf_paths`` / ``paths(filter)``."""
+    every = _builtins._all_paths(current, only_leaves=only_leaves)
+    if only_leaves or not node.args:
+        return Stream(items=[list(p) for p in every])
+    filter_node = node.args[0]
+    out_paths: list[list[Any]] = []
+    for p in every:
+        value_at = _builtins._value_at_path(current, p)
+        result = _eval(filter_node, value_at, ctx)
+        if isinstance(result, Stream):
+            if any(_truthy(v) for v in result.items):
+                out_paths.append(list(p))
+        elif _truthy(result):
+            out_paths.append(list(p))
+    return Stream(items=out_paths)
+
+
+def _eval_recurse(node: Call, current: Any, ctx: EvalContext) -> Stream:
+    """Implement ``recurse`` / ``recurse(f)`` / ``recurse(f, cond)``."""
+    out: list[Any] = [current]
+    if not node.args:
+        # Default: descend into every reachable composite, emit the
+        # current value plus every child / leaf.
+        queue: list[Any] = [current]
+        while queue:
+            value = queue.pop(0)
+            for _key, child in _builtins._value_children(value):
+                out.append(child)
+                queue.append(child)
+            if len(out) >= 100_000:
+                break
+        return Stream(items=out)
+    body = node.args[0]
+    cond = node.args[1] if len(node.args) >= 2 else None
+    value = current
+    for _ in range(100_000):
+        nxt = _flatten_one(_eval(body, value, ctx))
+        if cond is None:
+            if nxt is None:
+                break
+        else:
+            cond_value = _flatten_one(_eval(cond, nxt, ctx))
+            if not _truthy(cond_value):
+                break
+        out.append(nxt)
+        value = nxt
+    return Stream(items=out)
 
 
 def _key_of_body(body: Any, item: Any, ctx: EvalContext) -> Any:
@@ -926,6 +1158,94 @@ def _key_of_body(body: Any, item: Any, ctx: EvalContext) -> Any:
 
 
 _MISSING_KEY: Any = object()
+
+
+def _map_values_dict(d: dict[Any, Any], body: Any, ctx: EvalContext) -> dict[Any, Any]:
+    """Apply *body* to each value of *d*; drop on ``select`` sentinel."""
+    out: dict[Any, Any] = {}
+    for k, v in d.items():
+        result = _eval(body, v, ctx)
+        if isinstance(result, _Drop):
+            continue
+        if isinstance(result, Stream):
+            if not result.items:
+                continue
+            out[k] = result.items[0]
+        else:
+            out[k] = result
+    return out
+
+
+def _eval_pick(node: Call, current: Any, ctx: EvalContext) -> Any:
+    """Implement ``pick(...path_exprs)`` — keep only the listed paths.
+
+    Each argument is a path expression evaluated against *current*.
+    The path is captured statically (via :func:`_collect_path_projections`)
+    when the expression is a bare path projection; otherwise the
+    eagerly-evaluated result is treated as a list of paths.
+    """
+    paths: list[list[Any]] = []
+    for arg in node.args:
+        # Try static AST-level path capture first.
+        static = _collect_path_projections(arg, current, ctx)
+        if static:
+            paths.extend(static)
+            continue
+        # Fallback: evaluate and accept list-of-keys / path-shaped results.
+        result = _eval(arg, current, ctx)
+        candidates = _flatten(result)
+        for candidate in candidates:
+            if isinstance(candidate, (list, tuple)) and all(
+                isinstance(k, (str, int)) for k in candidate
+            ):
+                paths.append(list(candidate))
+
+    out: Any = None
+    for p in paths:
+        value_at = _builtins._value_at_path(current, p)
+        out = _builtins._set_at_path(out, p, value_at)
+    return out
+
+
+def _collect_path_projections(node: Any, current: Any, ctx: EvalContext) -> list[list[Any]]:
+    """Walk *node* and return the static field-projection paths it describes.
+
+    Handles the common ``.a, .b.c, .d.e[0]`` shapes used with ``pick``.
+    Unknown shapes contribute no paths — the caller falls back to the
+    eager-evaluation approach.
+    """
+    paths: list[list[Any]] = []
+
+    def _path_from_pathexpr(pe: PathExpr) -> list[Any] | None:
+        if pe.head is not None:
+            return None
+        out: list[Any] = []
+        for step in pe.steps:
+            if isinstance(step, Field):
+                out.append(step.name)
+            elif isinstance(step, Subscript):
+                if step.stream or step.regex is not None or step.index is None:
+                    return None
+                if isinstance(step.index, Literal) and isinstance(step.index.value, (str, int)):
+                    out.append(step.index.value)
+                else:
+                    return None
+            else:
+                return None
+        return out
+
+    def walk(n: Any) -> None:
+        if isinstance(n, CommaStream):
+            for part in n.parts:
+                walk(part)
+            return
+        if isinstance(n, PathExpr):
+            p = _path_from_pathexpr(n)
+            if p is not None:
+                paths.append(p)
+
+    walk(node)
+    return paths
 
 
 # Sentinel used by ``select`` to indicate "drop the current value".

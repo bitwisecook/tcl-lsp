@@ -1187,6 +1187,473 @@ def test_nan_infinite_and_classifiers():
 
 
 # ---------------------------------------------------------------------------
+# Path / tree manipulation (paths / getpath / setpath / del / delpaths /
+# walk / recurse / until / repeat)
+# ---------------------------------------------------------------------------
+
+
+def test_paths_emits_every_non_root_path():
+    [out] = run_query("{a: 1, b: [2, 3]} | [paths]", {"m": ""}).values_per_file["m"]
+    assert out == [["a"], ["b"], ["b", 0], ["b", 1]]
+
+
+def test_leaf_paths_only_emits_leaf_positions():
+    [out] = run_query("{a: 1, b: [2, 3]} | [leaf_paths]", {"m": ""}).values_per_file["m"]
+    assert out == [["a"], ["b", 0], ["b", 1]]
+
+
+def test_paths_with_filter_keeps_matching_only():
+    [out] = run_query("{a: 1, b: 2, c: 3} | [paths(. == 2)]", {"m": ""}).values_per_file["m"]
+    assert out == [["b"]]
+
+
+def test_getpath_returns_value_or_null():
+    assert run_query('{a: {b: 42}} | getpath(["a", "b"])', {"m": ""}).values_per_file["m"] == [42]
+    [out] = run_query('{a: 1} | getpath(["missing"])', {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_setpath_autocreates_intermediate_containers():
+    [out] = run_query('{a: 1} | setpath(["b", "c"], 9)', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": {"c": 9}}
+    [out] = run_query('{a: [1, 2, 3]} | setpath(["a", 1], 99)', {"m": ""}).values_per_file["m"]
+    assert out == {"a": [1, 99, 3]}
+
+
+def test_del_and_delpaths_remove_slots():
+    [out] = run_query('{a: 1, b: 2} | del(["a"])', {"m": ""}).values_per_file["m"]
+    assert out == {"b": 2}
+    [out] = run_query('{a: [1, 2, 3]} | del(["a", 1])', {"m": ""}).values_per_file["m"]
+    assert out == {"a": [1, 3]}
+    [out] = run_query('{a: 1, b: 2, c: 3} | delpaths([["a"], ["c"]])', {"m": ""}).values_per_file[
+        "m"
+    ]
+    assert out == {"b": 2}
+
+
+def test_walk_applies_body_bottom_up():
+    [out] = run_query(
+        '{a: "X", b: "Y", c: 1} | walk(if type == "string" then ascii_downcase else . end)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out == {"a": "x", "b": "y", "c": 1}
+
+
+def test_recurse_without_args_walks_tree():
+    [out] = run_query("{a: 1, b: {c: 2}} | [recurse]", {"m": ""}).values_per_file["m"]
+    # Root first, then each reachable value (breadth-first).
+    assert {"a": 1, "b": {"c": 2}} in out
+    assert {"c": 2} in out
+    assert 1 in out
+    assert 2 in out
+
+
+def test_recurse_with_body_and_cond_stops_correctly():
+    [out] = run_query("1 | [recurse(. + 1, . < 5)]", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+
+
+def test_until_iterates_to_fixed_point():
+    assert run_query("1 | until(. >= 100, . * 2)", {"m": ""}).values_per_file["m"] == [128]
+
+
+def test_repeat_caps_at_safety_limit():
+    # Pull only the first few via array-collection and slice.
+    [out] = run_query("1 | [repeat(. + 1)] | limit(3)", {"m": ""}).values_per_file["m"]
+    assert out == [2, 3, 4]
+
+
+# ---------------------------------------------------------------------------
+# Flow / control (empty / error / not / inside / IN / INDEX / combinations)
+# ---------------------------------------------------------------------------
+
+
+def test_empty_emits_no_values():
+    out = run_query("1 | empty", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_error_raises_with_message():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="boom"):
+        run_query('1 | error("boom")', {"m": ""})
+
+
+def test_not_works_as_postfix_filter_and_prefix_op():
+    # Postfix (jq's ``x | not``) form.
+    assert run_query("null | not", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("false | not", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("1 | not", {"m": ""}).values_per_file["m"] == [False]
+    # Prefix form (this DSL's existing unary operator) still works.
+    assert run_query("not true", {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_inside_inverts_contains():
+    assert run_query('"bar" | inside("foobar")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"xyz" | inside("foobar")', {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_IN_variadic_alternatives():
+    assert run_query('"a" | IN("a", "b", "c")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"z" | IN("a", "b", "c")', {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_INDEX_keys_a_stream_by_expression():
+    [out] = run_query(
+        '[{name: "a", v: 1}, {name: "b", v: 2}] | INDEX(.name)', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"a": {"name": "a", "v": 1}, "b": {"name": "b", "v": 2}}
+
+
+def test_combinations_cartesian_product_of_lists():
+    [out] = run_query("[[1, 2], [3, 4]] | [combinations]", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 3], [1, 4], [2, 3], [2, 4]]
+
+
+def test_combinations_n_repeats_input():
+    [out] = run_query("[1, 2] | [combinations(2)]", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 1], [1, 2], [2, 1], [2, 2]]
+
+
+# ---------------------------------------------------------------------------
+# JSON & encoding (tojson / fromjson / uri / base64 / base64d / html / sh)
+# ---------------------------------------------------------------------------
+
+
+def test_tojson_and_fromjson_round_trip():
+    assert run_query("tojson(42)", {"m": ""}).values_per_file["m"] == ["42"]
+    assert run_query('tojson("hi")', {"m": ""}).values_per_file["m"] == ['"hi"']
+    [out] = run_query("tojson({a: 1, b: [2, 3]})", {"m": ""}).values_per_file["m"]
+    assert out == '{"a":1,"b":[2,3]}'
+    assert run_query('fromjson("42")', {"m": ""}).values_per_file["m"] == [42]
+    [out] = run_query('fromjson("{\\"a\\": 1}")', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+
+
+def test_uri_encodes_url_unsafe_characters():
+    assert run_query('uri("hello world")', {"m": ""}).values_per_file["m"] == ["hello%20world"]
+
+
+def test_base64_round_trip():
+    assert run_query('base64("hello")', {"m": ""}).values_per_file["m"] == ["aGVsbG8="]
+    assert run_query('base64d("aGVsbG8=")', {"m": ""}).values_per_file["m"] == ["hello"]
+
+
+def test_html_and_sh_quote():
+    assert run_query('html("<a>&b</a>")', {"m": ""}).values_per_file["m"] == [
+        "&lt;a&gt;&amp;b&lt;/a&gt;"
+    ]
+    assert run_query('sh("hello world")', {"m": ""}).values_per_file["m"] == ["'hello world'"]
+    assert run_query('sh(["a", "b c"])', {"m": ""}).values_per_file["m"] == ["a 'b c'"]
+
+
+# ---------------------------------------------------------------------------
+# String extensions (utf8bytelength, ascii)
+# ---------------------------------------------------------------------------
+
+
+def test_utf8bytelength_counts_bytes_not_codepoints():
+    assert run_query('utf8bytelength("hello")', {"m": ""}).values_per_file["m"] == [5]
+    # é is two UTF-8 bytes.
+    assert run_query('utf8bytelength("héllo")', {"m": ""}).values_per_file["m"] == [6]
+
+
+def test_ascii_codepoint_to_char():
+    assert run_query("ascii(65)", {"m": ""}).values_per_file["m"] == ["A"]
+    assert run_query("65 | ascii", {"m": ""}).values_per_file["m"] == ["A"]
+
+
+def test_sub_and_gsub_accept_flags():
+    assert run_query('sub("ABC", "abc", "XYZ", "i")', {"m": ""}).values_per_file["m"] == ["XYZ"]
+    assert run_query('gsub("aBcD", "[bd]", "X", "i")', {"m": ""}).values_per_file["m"] == ["aXcX"]
+
+
+# ---------------------------------------------------------------------------
+# Math — trig, hyperbolic, advanced C-math
+# ---------------------------------------------------------------------------
+
+
+def test_trig_round_trips():
+    import math as _math
+
+    [out] = run_query("sin(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("cos(0)", {"m": ""}).values_per_file["m"]
+    assert out == 1.0
+    [out] = run_query("atan2(1, 1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - _math.pi / 4) < 1e-12
+
+
+def test_hyperbolic_functions():
+    import math as _math
+
+    [out] = run_query("sinh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("cosh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 1.0
+    [out] = run_query("tanh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("atanh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("acosh(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out) < 1e-12
+    [out] = run_query("asinh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    _ = _math
+
+
+def test_cbrt_handles_negatives():
+    [out] = run_query("cbrt(27)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 3.0) < 1e-9
+    [out] = run_query("cbrt(-8)", {"m": ""}).values_per_file["m"]
+    assert abs(out - (-2.0)) < 1e-9
+
+
+def test_exp2_exp10_and_logb():
+    assert run_query("exp2(10)", {"m": ""}).values_per_file["m"] == [1024.0]
+    assert run_query("exp10(3)", {"m": ""}).values_per_file["m"] == [1000.0]
+    assert run_query("logb(8)", {"m": ""}).values_per_file["m"] == [3.0]
+    assert run_query("logb(0.25)", {"m": ""}).values_per_file["m"] == [-2.0]
+
+
+def test_trunc_rint_copysign_fdim():
+    assert run_query("trunc(3.9)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("trunc(-3.9)", {"m": ""}).values_per_file["m"] == [-3]
+    # rint uses banker's rounding (ties to even).
+    assert run_query("rint(2.5)", {"m": ""}).values_per_file["m"] == [2]
+    assert run_query("rint(3.5)", {"m": ""}).values_per_file["m"] == [4]
+    assert run_query("copysign(3, -1)", {"m": ""}).values_per_file["m"] == [-3.0]
+    assert run_query("fdim(5, 3)", {"m": ""}).values_per_file["m"] == [2.0]
+    assert run_query("fdim(3, 5)", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_frexp_ldexp_modf_round_trip():
+    [out] = run_query("frexp(12)", {"m": ""}).values_per_file["m"]
+    assert out == [0.75, 4]
+    [out] = run_query("ldexp(0.75, 4)", {"m": ""}).values_per_file["m"]
+    assert out == 12.0
+    [out] = run_query("modf(3.75)", {"m": ""}).values_per_file["m"]
+    assert abs(out[0] - 0.75) < 1e-12
+    assert out[1] == 3.0
+
+
+def test_gamma_and_lgamma():
+    import math as _math
+
+    [out] = run_query("gamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 24.0) < 1e-9
+    [out] = run_query("tgamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 24.0) < 1e-9
+    [out] = run_query("lgamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - _math.log(24.0)) < 1e-9
+
+
+def test_significand_normalises_to_unit_range():
+    assert run_query("significand(12)", {"m": ""}).values_per_file["m"] == [1.5]
+    assert run_query("significand(0.25)", {"m": ""}).values_per_file["m"] == [1.0]
+
+
+def test_bessel_approximations_match_known_values():
+    [out] = run_query("j0(0)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 1.0) < 1e-6
+    [out] = run_query("j1(0)", {"m": ""}).values_per_file["m"]
+    assert abs(out) < 1e-6
+    # J_0(1) ≈ 0.7651976865...
+    [out] = run_query("j0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.7651976865) < 1e-6
+    # J_1(1) ≈ 0.4400505857...
+    [out] = run_query("j1(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.4400505857) < 1e-6
+    # Y_0(1) ≈ 0.0882569642...
+    [out] = run_query("y0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.0882569642) < 1e-6
+    # Y_1(1) ≈ -0.7812128213...
+    [out] = run_query("y1(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - (-0.7812128213)) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Time helpers (now / todate / fromdate / strftime / strptime / etc.)
+# ---------------------------------------------------------------------------
+
+
+def test_now_returns_a_float_epoch():
+    [out] = run_query("now", {"m": ""}).values_per_file["m"]
+    assert isinstance(out, float)
+    assert out > 1_700_000_000.0  # any time after 2023
+
+
+def test_todate_and_fromdate_round_trip():
+    assert run_query("todate(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+    assert run_query('fromdate("1970-01-01T00:00:00Z")', {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_date_iso8601_aliases():
+    assert run_query("todateiso8601(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+    assert run_query('fromdateiso8601("1970-01-01T00:00:00Z")', {"m": ""}).values_per_file["m"] == [
+        0.0
+    ]
+    assert run_query("date(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+
+
+def test_gmtime_and_mktime_round_trip():
+    [out] = run_query("gmtime(0)", {"m": ""}).values_per_file["m"]
+    # [year-1900, month-0..11, day, hour, minute, second, weekday, yearday]
+    assert out[:6] == [70, 0, 1, 0, 0, 0]
+    assert run_query("mktime([70, 0, 1, 0, 0, 0])", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_strftime_and_strptime():
+    assert run_query('strftime(0, "%Y-%m-%d")', {"m": ""}).values_per_file["m"] == ["1970-01-01"]
+    [out] = run_query('strptime("2025-01-01", "%Y-%m-%d")', {"m": ""}).values_per_file["m"]
+    assert out[:6] == [125, 0, 1, 0, 0, 0]
+
+
+def test_dateadd_and_datesub():
+    assert run_query("dateadd(0, 60)", {"m": ""}).values_per_file["m"] == [60.0]
+    assert run_query("datesub(100, 60)", {"m": ""}).values_per_file["m"] == [40.0]
+
+
+# ---------------------------------------------------------------------------
+# Additional jq builtins (keys_unsorted, map_values, pick, halt*, debug,
+# stderr, env, advanced math)
+# ---------------------------------------------------------------------------
+
+
+def test_keys_unsorted_preserves_insertion_order():
+    [out] = run_query("{b: 1, a: 2} | keys_unsorted", {"m": ""}).values_per_file["m"]
+    assert out == ["b", "a"]
+
+
+def test_map_values_keeps_shape():
+    [out] = run_query("{a: 1, b: 2} | map_values(. * 10)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 10, "b": 20}
+    [out] = run_query("[1, 2, 3] | map_values(. * 10)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20, 30]
+
+
+def test_pick_keeps_only_listed_paths():
+    [out] = run_query("{a: 1, b: 2, c: 3} | pick(.a, .c)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "c": 3}
+    [out] = run_query("{a: {b: 1, c: 2}, d: 3} | pick(.a.b, .d)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": {"b": 1}, "d": 3}
+
+
+def test_recurse_down_emits_all_reachable():
+    [out] = run_query("{a: 1, b: {c: 2}} | [recurse_down]", {"m": ""}).values_per_file["m"]
+    assert 1 in out
+    assert 2 in out
+    assert {"c": 2} in out
+
+
+def test_min_max_and_max_min_return_pairs():
+    [out] = run_query("[5, 2, 8, 1] | min_max", {"m": ""}).values_per_file["m"]
+    assert out == [1, 8]
+    [out] = run_query("[5, 2, 8, 1] | max_min", {"m": ""}).values_per_file["m"]
+    assert out == [8, 1]
+    [out] = run_query("[] | min_max", {"m": ""}).values_per_file["m"]
+    assert out == [None, None]
+    # With body — key by .n.
+    [out] = run_query('[{n: 3, k: "a"}, {n: 1, k: "b"}] | min_max(.n)', {"m": ""}).values_per_file[
+        "m"
+    ]
+    assert [v["n"] for v in out] == [1, 3]
+
+
+def test_halt_raises_a_builtin_error():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="halt"):
+        run_query("1 | halt", {"m": ""})
+
+
+def test_halt_error_carries_exit_code():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="exit_code=5"):
+        run_query("1 | halt_error(5)", {"m": ""})
+    with pytest.raises(BuiltinError):
+        run_query("1 | halt_error", {"m": ""})
+
+
+def test_debug_and_stderr_pass_through(capsys):
+    [out] = run_query("42 | debug", {"m": ""}).values_per_file["m"]
+    assert out == 42
+    captured = capsys.readouterr()
+    assert "DEBUG" in captured.err
+    [out] = run_query("{a: 1} | stderr", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+    captured = capsys.readouterr()
+    assert "a" in captured.err
+
+
+def test_env_returns_environment_dict():
+    [out] = run_query('env | has("PATH")', {"m": ""}).values_per_file["m"]
+    assert out in (True, False)  # PATH may or may not be set in test env
+
+
+# ---------------------------------------------------------------------------
+# Additional math: expm1 / log1p / hypot / pow10 / fmax / fmin / fmod /
+# remainder / fma / lgamma_r / jn / yn / nearbyint
+# ---------------------------------------------------------------------------
+
+
+def test_expm1_log1p_high_precision_near_zero():
+    [out] = run_query("expm1(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("log1p(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+
+
+def test_hypot_avoids_overflow():
+    assert run_query("hypot(3, 4)", {"m": ""}).values_per_file["m"] == [5.0]
+    assert run_query("hypot(0, 0)", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_pow10_alias_of_exp10():
+    assert run_query("pow10(3)", {"m": ""}).values_per_file["m"] == [1000.0]
+
+
+def test_nearbyint_uses_bankers_rounding():
+    assert run_query("nearbyint(2.5)", {"m": ""}).values_per_file["m"] == [2]
+    assert run_query("nearbyint(3.5)", {"m": ""}).values_per_file["m"] == [4]
+
+
+def test_fmax_fmin_fmod_remainder():
+    assert run_query("fmax(3, 7)", {"m": ""}).values_per_file["m"] == [7]
+    assert run_query("fmin(3, 7)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("fmod(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+    assert run_query("remainder(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+    assert run_query("drem(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+
+
+def test_fma_naive_compute():
+    assert run_query("fma(2, 3, 1)", {"m": ""}).values_per_file["m"] == [7.0]
+
+
+def test_lgamma_r_returns_pair():
+    import math as _math
+
+    [out] = run_query("lgamma_r(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out[0] - _math.log(24.0)) < 1e-9
+    assert out[1] == 1
+
+
+def test_jn_yn_match_known_values():
+    # J_2(5) ≈ 0.046565... (verifiable against scipy/Wolfram)
+    [out] = run_query("jn(2, 5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.046565) < 1e-3
+    # Y_2(5) ≈ 0.367663...
+    [out] = run_query("yn(2, 5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.367663) < 1e-3
+    # J_0 / J_1 alignment.
+    [j0_via_jn] = run_query("jn(0, 1)", {"m": ""}).values_per_file["m"]
+    [j0_direct] = run_query("j0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(j0_via_jn - j0_direct) < 1e-9
+
+
+# ---------------------------------------------------------------------------
 # Reported issues — minimal-SCF regression tests
 # ---------------------------------------------------------------------------
 

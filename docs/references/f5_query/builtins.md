@@ -22,12 +22,14 @@ exactly the same content for one builtin.
 ## Categories
 
 
-- **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
-  - [`add`](#add), [`all`](#all), [`any`](#any), [`count`](#count), [`dupes`](#dupes), [`first`](#first), [`flatten`](#flatten), [`group_by`](#group_by), [`keys`](#keys), [`last`](#last), [`limit`](#limit), [`map`](#map), [`max`](#max), [`max_by`](#max_by), [`min`](#min), [`min_by`](#min_by), [`nth`](#nth), [`range`](#range), [`reverse`](#reverse), [`select`](#select), [`sort`](#sort), [`sort_by`](#sort_by), [`unique`](#unique), [`unique_by`](#unique_by), [`values`](#values)
-- **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits`, plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), and conversions (`tonumber` / `tostring` / `explode` / `implode`).
-  - [`ascii_downcase`](#ascii_downcase), [`ascii_upcase`](#ascii_upcase), [`capture`](#capture), [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`explode`](#explode), [`gsub`](#gsub), [`implode`](#implode), [`index`](#index), [`join`](#join), [`ltrimstr`](#ltrimstr), [`match`](#match), [`rtrimstr`](#rtrimstr), [`scan`](#scan), [`split`](#split), [`splits`](#splits), [`startswith`](#startswith), [`sub`](#sub), [`test`](#test), [`tonumber`](#tonumber), [`tostring`](#tostring), [`tsv`](#tsv), [`upcase`](#upcase)
-- **[math](#math)** — Numeric helpers matching jq's math surface: rounding (`floor` / `ceil` / `round`), magnitude (`abs` / `fabs`), powers and roots (`sqrt` / `pow` / `exp`), logarithms (`log` / `log2` / `log10`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
-  - [`abs`](#abs), [`ceil`](#ceil), [`exp`](#exp), [`fabs`](#fabs), [`floor`](#floor), [`infinite`](#infinite), [`isinfinite`](#isinfinite), [`isnan`](#isnan), [`isnormal`](#isnormal), [`log`](#log), [`log10`](#log10), [`log2`](#log2), [`nan`](#nan), [`pow`](#pow), [`round`](#round), [`sqrt`](#sqrt)
+- **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), set membership (`IN` / `INDEX` / `inside` / `combinations`), flow control (`empty` / `error` / `not`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
+  - [`IN`](#IN), [`INDEX`](#INDEX), [`add`](#add), [`all`](#all), [`any`](#any), [`combinations`](#combinations), [`count`](#count), [`debug`](#debug), [`dupes`](#dupes), [`empty`](#empty), [`error`](#error), [`first`](#first), [`flatten`](#flatten), [`group_by`](#group_by), [`halt`](#halt), [`halt_error`](#halt_error), [`inside`](#inside), [`keys`](#keys), [`keys_unsorted`](#keys_unsorted), [`last`](#last), [`limit`](#limit), [`map`](#map), [`map_values`](#map_values), [`max`](#max), [`max_by`](#max_by), [`max_min`](#max_min), [`min`](#min), [`min_by`](#min_by), [`min_max`](#min_max), [`not`](#not), [`nth`](#nth), [`range`](#range), [`reverse`](#reverse), [`select`](#select), [`sort`](#sort), [`sort_by`](#sort_by), [`stderr`](#stderr), [`unique`](#unique), [`unique_by`](#unique_by), [`values`](#values)
+- **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits` (all flag-aware), plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), conversions (`tonumber` / `tostring` / `tojson` / `fromjson` / `explode` / `implode` / `ascii` / `utf8bytelength`), and jq-style encodings (`uri` / `base64` / `base64d` / `html` / `sh`).
+  - [`ascii`](#ascii), [`ascii_downcase`](#ascii_downcase), [`ascii_upcase`](#ascii_upcase), [`base64`](#base64), [`base64d`](#base64d), [`capture`](#capture), [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`explode`](#explode), [`fromjson`](#fromjson), [`gsub`](#gsub), [`html`](#html), [`implode`](#implode), [`index`](#index), [`join`](#join), [`ltrimstr`](#ltrimstr), [`match`](#match), [`rtrimstr`](#rtrimstr), [`scan`](#scan), [`sh`](#sh), [`split`](#split), [`splits`](#splits), [`startswith`](#startswith), [`sub`](#sub), [`test`](#test), [`tojson`](#tojson), [`tonumber`](#tonumber), [`tostring`](#tostring), [`tsv`](#tsv), [`upcase`](#upcase), [`uri`](#uri), [`utf8bytelength`](#utf8bytelength)
+- **[math](#math)** — Numeric helpers matching jq's C-math surface: rounding (`floor` / `ceil` / `round` / `trunc` / `rint`), magnitude / sign (`abs` / `fabs` / `copysign` / `fdim`), powers / roots (`sqrt` / `cbrt` / `pow` / `exp` / `exp2` / `exp10`), logarithms (`log` / `log2` / `log10` / `logb`), trigonometry (`sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `atan2`), hyperbolics (`sinh` / `cosh` / `tanh` / `asinh` / `acosh` / `atanh`), special functions (`gamma` / `tgamma` / `lgamma`, Bessel `j0` / `j1` / `y0` / `y1`), bit-level decomposition (`frexp` / `ldexp` / `modf` / `significand`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
+  - [`abs`](#abs), [`acos`](#acos), [`acosh`](#acosh), [`asin`](#asin), [`asinh`](#asinh), [`atan`](#atan), [`atan2`](#atan2), [`atanh`](#atanh), [`cbrt`](#cbrt), [`ceil`](#ceil), [`copysign`](#copysign), [`cos`](#cos), [`cosh`](#cosh), [`drem`](#drem), [`exp`](#exp), [`exp10`](#exp10), [`exp2`](#exp2), [`expm1`](#expm1), [`fabs`](#fabs), [`fdim`](#fdim), [`floor`](#floor), [`fma`](#fma), [`fmax`](#fmax), [`fmin`](#fmin), [`fmod`](#fmod), [`frexp`](#frexp), [`gamma`](#gamma), [`hypot`](#hypot), [`infinite`](#infinite), [`isinfinite`](#isinfinite), [`isnan`](#isnan), [`isnormal`](#isnormal), [`j0`](#j0), [`j1`](#j1), [`jn`](#jn), [`ldexp`](#ldexp), [`lgamma`](#lgamma), [`lgamma_r`](#lgamma_r), [`log`](#log), [`log10`](#log10), [`log1p`](#log1p), [`log2`](#log2), [`logb`](#logb), [`modf`](#modf), [`nan`](#nan), [`nearbyint`](#nearbyint), [`pow`](#pow), [`pow10`](#pow10), [`remainder`](#remainder), [`rint`](#rint), [`round`](#round), [`significand`](#significand), [`sin`](#sin), [`sinh`](#sinh), [`sqrt`](#sqrt), [`tan`](#tan), [`tanh`](#tanh), [`tgamma`](#tgamma), [`trunc`](#trunc), [`y0`](#y0), [`y1`](#y1), [`yn`](#yn)
+- **[time](#time)** — Time and date helpers matching jq's surface: epoch reads (`now`), ISO-8601 conversions (`todate` / `todateiso8601` / `fromdate` / `fromdateiso8601` / `date`), broken-down time (`gmtime` / `localtime` / `mktime`), formatting / parsing (`strftime` / `strptime`), and epoch arithmetic (`dateadd` / `datesub`).
+  - [`date`](#date), [`dateadd`](#dateadd), [`datesub`](#datesub), [`fromdate`](#fromdate), [`fromdateiso8601`](#fromdateiso8601), [`gmtime`](#gmtime), [`localtime`](#localtime), [`mktime`](#mktime), [`now`](#now), [`strftime`](#strftime), [`strptime`](#strptime), [`todate`](#todate), [`todateiso8601`](#todateiso8601)
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
   - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
@@ -36,12 +38,73 @@ exactly the same content for one builtin.
   - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_config`](#x509_from_config), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
-- **[value](#value)** — Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`) and object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`).
-  - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`f5log_load`](#f5log_load), [`from_entries`](#from_entries), [`has`](#has), [`in`](#in), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`to_entries`](#to_entries), [`type`](#type), [`with_entries`](#with_entries)
+- **[value](#value)** — Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`), object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`), and jq-style tree manipulation (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `walk` / `recurse` / `until` / `repeat`).
+  - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`del`](#del), [`delpaths`](#delpaths), [`env`](#env), [`f5log_load`](#f5log_load), [`from_entries`](#from_entries), [`getpath`](#getpath), [`has`](#has), [`in`](#in), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`leaf_paths`](#leaf_paths), [`length`](#length), [`path`](#path), [`paths`](#paths), [`pick`](#pick), [`recurse`](#recurse), [`recurse_down`](#recurse_down), [`repeat`](#repeat), [`setpath`](#setpath), [`source_file`](#source_file), [`str`](#str), [`to_entries`](#to_entries), [`type`](#type), [`until`](#until), [`walk`](#walk), [`with_entries`](#with_entries)
 
 ## stream
 
-Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
+Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), set membership (`IN` / `INDEX` / `inside` / `combinations`), flow control (`empty` / `error` / `not`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
+
+### `IN`
+
+True when the current value equals any of the candidate arguments.
+
+**Signatures**
+
+- `IN(...candidates) -> boolean`
+
+**Details**
+
+**Special form.**  Matches jq's ``IN(s)``: returns ``true`` when
+the current value compares equal to **any** of the values in the
+argument stream.
+
+Our DSL accepts the candidates as ordinary function arguments —
+``IN("a", "b", "c")`` — because comma inside a call is the arg
+separator, not jq's stream-concat operator.  Each argument is
+evaluated against the current input; stream-valued arguments
+expand element-wise so the jq pattern
+``.ltm.virtual[].name | IN([candidates] | .[])`` works the same
+way.
+
+Short-circuits on the first match.
+
+Related: ``INDEX``, ``contains``, ``in``, ``any``.
+
+**Examples**
+
+```
+.name | IN("a", "b", "c")
+.ltm.virtual[].name | select(IN("web_vs", "api_vs"))
+```
+
+### `INDEX`
+
+Build an object keyed by *idx_expr* evaluated against each item.
+
+**Signatures**
+
+- `INDEX(idx_expr) -> object`
+- `INDEX(source, idx_expr) -> object`
+
+**Details**
+
+**Special form.**  Matches jq's ``INDEX``: with one argument,
+indexes the current list / stream by the value of *idx_expr*
+per item.  With two arguments, indexes the stream produced by
+*source* the same way.
+
+Duplicate keys: last write wins (jq parity).  Keys are coerced
+to strings.
+
+Related: ``group_by``, ``unique_by``, ``to_entries``.
+
+**Examples**
+
+```
+[.ltm.virtual[]] | INDEX(.name)
+INDEX(.ltm.virtual[]; .name)             # jq's two-arg form
+```
 
 ### `add`
 
@@ -145,6 +208,38 @@ any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
 .ltm.virtual[] | select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) | .name
 ```
 
+### `combinations`
+
+Cartesian product of a list of lists.
+
+**Signatures**
+
+- `combinations() -> stream[list]`
+- `combinations(n: integer) -> stream[list]`
+
+**Details**
+
+**Special form.**  Matches jq's ``combinations``: with no
+argument, returns every combination drawn from a list of lists —
+one element from each sub-list.  With an integer ``n``, returns
+every n-length combination of the current list's elements
+(repeats allowed).
+
+The result is a stream of lists.  For empty input or empty
+sub-lists, the stream is empty.
+
+Operates on the current input — call via pipe
+(``[X] | combinations``) or directly (``combinations``).
+
+Related: ``map``, ``range``, ``flatten``.
+
+**Examples**
+
+```
+[[1, 2], [3, 4]] | combinations          # -> [1,3], [1,4], [2,3], [2,4]
+[1, 2, 3] | combinations(2)              # -> [1,1], [1,2], ..., [3,3]
+```
+
 ### `count`
 
 Count the items in a list or stream.
@@ -165,6 +260,32 @@ Related: ``length``.
 ```
 [.ltm.virtual[]] | count                 # number of VSes
 .ltm.virtual[] | select(.rules | count > 0) | .name
+```
+
+### `debug`
+
+Pass-through that logs the current value to stderr.
+
+**Signatures**
+
+- `debug() -> any`
+- `debug(label: string) -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``debug``: returns the current
+value unchanged but writes a debug line to stderr
+(``["DEBUG:", value]`` in jq's one-arg form, ``["DEBUG:", label,
+value]`` with a label).  Useful for tracing complex pipelines
+without adding extra pipeline stages.
+
+Related: ``stderr``, ``error``.
+
+**Examples**
+
+```
+.ltm.virtual[] | debug | .name
+.ltm.virtual[] | debug("vs") | .name
 ```
 
 ### `dupes`
@@ -197,6 +318,56 @@ Related: ``unique``, ``unique_by``, ``group_by``, ``sort``.
 ```
 [.ltm.virtual[].pool] | dupes            # pools attached to more than one VS
 [.ltm.virtual[].destination | host] | dupes  # IPs reused across VSes
+```
+
+### `empty`
+
+Emit no values — the zero element of jq's stream algebra.
+
+**Signatures**
+
+- `empty() -> stream`
+
+**Details**
+
+Matches jq's ``empty``: produces a stream with zero items.  Used
+inside ``if ... then ... else empty end`` to silently drop a
+branch, or inside ``map(...)`` to filter without ``select``.
+
+Related: ``select`` (drops one item), ``error`` (raises instead).
+
+**Examples**
+
+```
+if .pool then .name else empty end
+map(if .x > 0 then .x else empty end)
+```
+
+### `error`
+
+Raise a query error with a custom message.
+
+**Signatures**
+
+- `error() -> never`
+- `error(msg: string) -> never`
+
+**Details**
+
+Matches jq's ``error``: aborts the query with an error.  With no
+argument, raises with the current value's string form; with a
+message, raises with that message.
+
+Useful for fail-fast validation inside ``if`` / ``select``
+pipelines: ``if .destination == null then error("VS has no dest")
+else . end``.
+
+Related: ``select``, ``empty``.
+
+**Examples**
+
+```
+if .pool == null then error("no pool") else . end
 ```
 
 ### `first`
@@ -293,6 +464,79 @@ Related: ``sort_by``, ``unique_by``, ``map``, ``count``.
 [.ltm.virtual[]] | group_by(.pool) | map(length)  # VS count per pool
 ```
 
+### `halt`
+
+Halt the query silently — no further output.
+
+**Signatures**
+
+- `halt() -> never`
+
+**Details**
+
+Matches jq's ``halt``: terminates query evaluation without
+emitting an error message.  In this DSL, ``halt`` raises a
+distinct ``BuiltinError`` flagged so the runner exits with status
+0 (versus ``halt_error`` which exits non-zero).
+
+Useful for "I've found what I wanted, stop early" pipelines.
+
+Related: ``halt_error``, ``error``, ``empty``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(.name == "web_vs") | halt
+```
+
+### `halt_error`
+
+Halt the query with an error message and exit code.
+
+**Signatures**
+
+- `halt_error() -> never`
+- `halt_error(exit_code: integer) -> never`
+
+**Details**
+
+Matches jq's ``halt_error``: terminates evaluation and signals
+a non-zero exit.  With an optional integer argument, jq sets
+that exit code; this DSL preserves the code on the error so the
+CLI can map it to a process exit.
+
+Related: ``halt``, ``error``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(.pool == null) | halt_error(5)
+```
+
+### `inside`
+
+Inverse of ``contains`` — current is *inside* the given container.
+
+**Signatures**
+
+- `inside(needle: any, container: any) -> boolean`
+
+**Details**
+
+Matches jq's ``inside``: ``a | inside(b)`` is equivalent to
+``b | contains(a)``.  String substring test, list element test,
+dict submap test.  Use the implicit-receiver form for the
+natural reading: ``"bar" | inside("foobar")``.
+
+Related: ``contains``, ``has``, ``in``.
+
+**Examples**
+
+```
+"bar" | inside("foobar")                 # -> true
+"/Common/log_rule" | inside(.rules)      # rule in attached set?
+```
+
 ### `keys`
 
 Return the field names of an object as a sorted list.
@@ -320,6 +564,31 @@ Related: ``values``, ``length``, ``type``.
 ```
 keys(.ltm.virtual.web_vs)                # all field names of one VS
 [.ltm.virtual[]] | first | keys          # discover the VS field set
+```
+
+### `keys_unsorted`
+
+Field names of an object in insertion order (jq's ``keys_unsorted``).
+
+**Signatures**
+
+- `keys_unsorted(value: object) -> list[string]`
+
+**Details**
+
+Matches jq's ``keys_unsorted``: like ``keys`` but does **not**
+sort the result.  Returns the field names in the order they were
+first seen on the object.  For lists / streams, returns indices
+``0..n-1`` (matching jq).
+
+Use ``keys`` for the sorted form.
+
+Related: ``keys``, ``values``, ``to_entries``.
+
+**Examples**
+
+```
+{b: 1, a: 2} | keys_unsorted
 ```
 
 ### `last`
@@ -433,6 +702,32 @@ Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
 any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
 ```
 
+### `map_values`
+
+Apply *body* to every value of an object / array, keeping shape.
+
+**Signatures**
+
+- `map_values(body) -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``map_values``: equivalent to
+``with_entries(.value |= body)`` for objects and ``map(body)``
+for arrays.  Preserves the input's shape — an object stays an
+object with the same keys, an array stays an array.
+
+Returning the ``select`` drop sentinel removes the value's slot.
+
+Related: ``map``, ``with_entries``, ``select``.
+
+**Examples**
+
+```
+{a: 1, b: 2} | map_values(. * 10)        # -> {a: 10, b: 20}
+[1, 2, 3] | map_values(. * 10)            # -> [10, 20, 30]
+```
+
 ### `max`
 
 Largest element of a list or stream, or null when empty.
@@ -478,6 +773,28 @@ Related: ``max``, ``min_by``, ``sort_by``, ``last``.
 ```
 [.ltm.pool[]] | max_by(.members | length)  # biggest pool
 [.ltm.virtual[]] | max_by(.name)            # alphabetically last VS
+```
+
+### `max_min`
+
+Return ``[max, min]`` of a list, keyed by *body*.
+
+**Signatures**
+
+- `max_min() -> list`
+- `max_min(body) -> list`
+
+**Details**
+
+**Special form.**  Matches jq 1.7's ``max_min``: like ``min_max``
+but in the opposite order — ``[maximum, minimum]``.
+
+Related: ``min_max``, ``min``, ``max``, ``min_by``, ``max_by``.
+
+**Examples**
+
+```
+[5, 2, 8, 1] | max_min
 ```
 
 ### `min`
@@ -530,6 +847,60 @@ Related: ``min``, ``max_by``, ``sort_by``, ``first``.
 ```
 [.ltm.pool[]] | min_by(.members | length)  # smallest pool
 [.ltm.virtual[]] | min_by(.name)            # alphabetically first VS
+```
+
+### `min_max`
+
+Return ``[min, max]`` of a list, keyed by *body*.
+
+**Signatures**
+
+- `min_max() -> list`
+- `min_max(body) -> list`
+
+**Details**
+
+**Special form.**  Matches jq 1.7's ``min_max``: returns a
+two-element list ``[minimum, maximum]``.  Without *body*, items
+compare under jq's cross-type ordering; with *body*, each item's
+key is the result of *body* applied to it (like ``min_by`` /
+``max_by``).
+
+Empty input returns ``[null, null]`` (jq parity).
+
+Related: ``min``, ``max``, ``min_by``, ``max_by``, ``max_min``.
+
+**Examples**
+
+```
+[5, 2, 8, 1] | min_max
+[.ltm.pool[]] | min_max(.members | length)
+```
+
+### `not`
+
+Invert the truthiness of the input — jq's postfix ``not``.
+
+**Signatures**
+
+- `not() -> boolean`
+
+**Details**
+
+Matches jq's ``not``: returns ``true`` when the current value is
+falsy and ``false`` otherwise.  Truthiness follows the DSL's
+usual rules (null / false / empty string / empty list are falsy).
+
+The DSL also exposes ``not`` as a unary prefix operator — both
+forms exist for jq snippet compatibility.
+
+Related: ``select``, ``any``, ``all``.
+
+**Examples**
+
+```
+.pool | not                             # true when pool is unset
+.ltm.virtual[] | select(.snatpool | not)
 ```
 
 ### `nth`
@@ -726,6 +1097,28 @@ Related: ``sort``, ``unique_by``, ``min_by``, ``max_by``,
 [.ltm.virtual[]] | sort_by(partition(.name))
 ```
 
+### `stderr`
+
+Pass-through that writes the current value to stderr as JSON.
+
+**Signatures**
+
+- `stderr() -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``stderr``: returns the current
+value unchanged but writes its JSON encoding to stderr.  Same
+chokepoint as ``debug`` without the ``["DEBUG:", ...]`` wrapping.
+
+Related: ``debug``, ``error``.
+
+**Examples**
+
+```
+.ltm.virtual[] | stderr | .name
+```
+
 ### `unique`
 
 Return the unique items of a list, sorted.
@@ -819,7 +1212,30 @@ values(.ltm.virtual.web_vs)
 
 ## string
 
-String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits`, plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), and conversions (`tonumber` / `tostring` / `explode` / `implode`).
+String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits` (all flag-aware), plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), conversions (`tonumber` / `tostring` / `tojson` / `fromjson` / `explode` / `implode` / `ascii` / `utf8bytelength`), and jq-style encodings (`uri` / `base64` / `base64d` / `html` / `sh`).
+
+### `ascii`
+
+Codepoint integer to its single-character string form.
+
+**Signatures**
+
+- `ascii(value: integer) -> string`
+
+**Details**
+
+Sugar for ``[value] | implode``: returns the single-character
+string for a Unicode codepoint integer.  Useful inside arithmetic
+pipelines that compute characters by codepoint offset.
+
+Related: ``explode``, ``implode``.
+
+**Examples**
+
+```
+ascii(65)                                # -> "A"
+65 | ascii                               # same via implicit receiver
+```
 
 ### `ascii_downcase`
 
@@ -865,6 +1281,49 @@ Related: ``upcase``, ``ascii_downcase``.
 
 ```
 ascii_upcase("vs_prod")                  # -> "VS_PROD"
+```
+
+### `base64`
+
+Base64-encode a string — equivalent of jq's ``@base64`` format string.
+
+**Signatures**
+
+- `base64(value: string) -> string`
+
+**Details**
+
+Matches jq's ``@base64``: Base64-encodes the UTF-8 bytes of
+*value* and returns the standard-alphabet result.
+
+Related: ``base64d``, ``uri``.
+
+**Examples**
+
+```
+base64("hello")                          # -> "aGVsbG8="
+```
+
+### `base64d`
+
+Base64-decode a string — equivalent of jq's ``@base64d`` format string.
+
+**Signatures**
+
+- `base64d(value: string) -> string`
+
+**Details**
+
+Matches jq's ``@base64d``: decodes a Base64-encoded ASCII string
+into the original UTF-8 text.  Malformed input raises
+``BuiltinError``.
+
+Related: ``base64``.
+
+**Examples**
+
+```
+base64d("aGVsbG8=")                      # -> "hello"
 ```
 
 ### `capture`
@@ -1038,6 +1497,32 @@ explode("abc")                           # -> [97, 98, 99]
 explode(.name) | length                  # codepoint count
 ```
 
+### `fromjson`
+
+Parse a JSON-encoded string into a value (jq's ``fromjson``).
+
+**Signatures**
+
+- `fromjson(value: string) -> any`
+
+**Details**
+
+Matches jq's ``fromjson``: parses *value* as JSON and returns
+the resulting Python value.  Numbers become int / float, strings
+quote, booleans pass through, ``null`` becomes Python ``None``,
+arrays become lists, objects become dicts.
+
+Raises ``BuiltinError`` on malformed input.
+
+Related: ``tojson``, ``json_load``, ``json_parse``.
+
+**Examples**
+
+```
+fromjson("42")                         # -> 42
+fromjson("{\"a\": 1}")                  # -> {a: 1}
+```
+
 ### `gsub`
 
 Replace every regex match in a string.
@@ -1045,12 +1530,16 @@ Replace every regex match in a string.
 **Signatures**
 
 - `gsub(value: string, pattern: string, replacement: string) -> string`
+- `gsub(value: string, pattern: string, replacement: string, flags: string) -> string`
 
 **Details**
 
 Like ``sub`` but replaces **every** occurrence of *pattern* in
 *value*.  Useful for blanket string rewrites inside iRule bodies
 or data-group values.
+
+Accepts the same optional *flags* string ``sub`` / ``test`` /
+``scan`` do: ``i`` / ``x`` / ``s`` / ``m``.
 
 For object full-path renames, prefer ``rename`` or
 ``rename_partition`` over a raw ``gsub`` — those route through a
@@ -1063,7 +1552,30 @@ Related: ``sub``, ``match``, ``rename``, ``rename_partition``.
 
 ```
 gsub(.body, "/Common/old_", "/Common/new_")
+gsub(.body, "old_", "new_", "i")          # case-insensitive
 .ltm.virtual[].destination |= gsub(., "%5", "%7")  # bulk RD change
+```
+
+### `html`
+
+HTML-escape a string — equivalent of jq's ``@html`` format string.
+
+**Signatures**
+
+- `html(value: string) -> string`
+
+**Details**
+
+Matches jq's ``@html``: replaces ``< > & ' "`` with their HTML
+entity equivalents so the result is safe to embed in HTML text
+or attribute values.
+
+Related: ``uri``, ``sh``.
+
+**Examples**
+
+```
+html("<a href=\"x\">&copy;</a>")
 ```
 
 ### `implode`
@@ -1293,6 +1805,31 @@ scan("a1 b22 c333", "[0-9]+")            # -> ["1", "22", "333"]
 scan("a=1 b=2 c=3", "([a-z])=([0-9])")   # -> [["a","1"], ["b","2"], ["c","3"]]
 ```
 
+### `sh`
+
+POSIX-shell-quote a string or list of strings — jq's ``@sh``.
+
+**Signatures**
+
+- `sh(value: string) -> string`
+- `sh(value: list[string]) -> string`
+
+**Details**
+
+Matches jq's ``@sh``: returns a representation safe to interpolate
+into a POSIX shell command.  Strings become single-quoted with
+embedded ``'`` escaped; lists become space-separated quoted
+fields.
+
+Related: ``uri``, ``base64``, ``join``.
+
+**Examples**
+
+```
+sh("hello world")                       # -> "'hello world'"
+sh(["a", "b c"])                          # -> "'a' 'b c'"
+```
+
 ### `split`
 
 Split a string on a separator.  Returns a list.
@@ -1383,12 +1920,18 @@ Replace the first regex match in a string.
 **Signatures**
 
 - `sub(value: string, pattern: string, replacement: string) -> string`
+- `sub(value: string, pattern: string, replacement: string, flags: string) -> string`
 
 **Details**
 
 Replaces the **first** occurrence of *pattern* in *value* with
 *replacement* and returns the new string.  *pattern* is a Python
 regex; *replacement* may use ``\1`` / ``\g<name>`` backrefs.
+
+Optional *flags* string takes the same letters as ``test`` /
+``scan`` / ``capture`` / ``splits``: ``i`` for case-insensitive,
+``x`` for free-spacing, ``s`` for dot-matches-newline, ``m`` for
+multi-line.
 
 Use ``gsub`` to replace every match instead.  An invalid pattern
 raises ``BuiltinError``.
@@ -1406,6 +1949,7 @@ identity renames the engine already understands).
 
 ```
 sub(.name, "^vs_dev_", "vs_qa_")
+sub(.name, "^VS_", "vs_", "i")           # case-insensitive
 .ltm.virtual[].destination |= sub(., ":443$", ":8443")
 ```
 
@@ -1440,6 +1984,35 @@ Related: ``match``, ``scan``, ``capture``, ``sub``, ``gsub``.
 ```
 test(.name, "^vs_")
 test(.name, "^VS_", "i")                 # case-insensitive
+```
+
+### `tojson`
+
+Encode the current value as a JSON string (jq's ``tojson`` / ``@json``).
+
+**Signatures**
+
+- `tojson(value: any) -> string`
+
+**Details**
+
+Matches jq's ``tojson`` and the ``@json`` format string: returns
+a JSON encoding of *value*.  Numbers, booleans, and ``null``
+serialise as JSON literals; strings and PathRef values quote;
+lists and dicts recurse.
+
+Identical in output to ``tostring`` for aggregates, but always
+returns valid JSON (``tostring`` of a string returns the string
+unchanged — ``tojson`` quotes it).
+
+Related: ``fromjson``, ``tostring``, ``str``.
+
+**Examples**
+
+```
+tojson(42)                               # -> "42"
+tojson("hi")                            # -> '"hi"'
+tojson({a: 1, b: [2, 3]})                # -> '{"a":1,"b":[2,3]}'
 ```
 
 ### `tonumber`
@@ -1565,9 +2138,55 @@ upcase(.name)
 upcase("vs_prod_web")                    # -> "VS_PROD_WEB"
 ```
 
+### `uri`
+
+URL-encode a string — equivalent of jq's ``@uri`` format string.
+
+**Signatures**
+
+- `uri(value: string) -> string`
+
+**Details**
+
+Matches jq's ``@uri``: percent-encodes characters that need
+escaping in URL components (everything outside the unreserved
+set ``A-Z a-z 0-9 - _ . ~``).
+
+Related: ``base64``, ``html``, ``sh``.
+
+**Examples**
+
+```
+uri("hello world")                       # -> "hello%20world"
+uri("/Common/web_vs?x=1&y=2")
+```
+
+### `utf8bytelength`
+
+Number of UTF-8 bytes the string encodes to.
+
+**Signatures**
+
+- `utf8bytelength(value: string) -> integer`
+
+**Details**
+
+Matches jq's ``utf8bytelength``: returns the byte count of
+*value*'s UTF-8 encoding.  Differs from ``length`` (which
+counts codepoints) whenever the string contains non-ASCII.
+
+Related: ``length``, ``explode``.
+
+**Examples**
+
+```
+utf8bytelength("hello")                  # -> 5
+utf8bytelength("héllo")                  # -> 6  (é is 2 bytes)
+```
+
 ## math
 
-Numeric helpers matching jq's math surface: rounding (`floor` / `ceil` / `round`), magnitude (`abs` / `fabs`), powers and roots (`sqrt` / `pow` / `exp`), logarithms (`log` / `log2` / `log10`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
+Numeric helpers matching jq's C-math surface: rounding (`floor` / `ceil` / `round` / `trunc` / `rint`), magnitude / sign (`abs` / `fabs` / `copysign` / `fdim`), powers / roots (`sqrt` / `cbrt` / `pow` / `exp` / `exp2` / `exp10`), logarithms (`log` / `log2` / `log10` / `logb`), trigonometry (`sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `atan2`), hyperbolics (`sinh` / `cosh` / `tanh` / `asinh` / `acosh` / `atanh`), special functions (`gamma` / `tgamma` / `lgamma`, Bessel `j0` / `j1` / `y0` / `y1`), bit-level decomposition (`frexp` / `ldexp` / `modf` / `significand`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
 
 ### `abs`
 
@@ -1589,6 +2208,181 @@ Related: ``fabs`` (always float), ``floor``, ``ceil``.
 ```
 abs(-5)                                  # -> 5
 abs(3.14)                                # -> 3.14
+```
+
+### `acos`
+
+Inverse cosine in radians. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `acos(value: number) -> number`
+
+**Details**
+
+Matches jq's ``acos``: thin wrapper over Python's
+``math.acos``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+acos(0)
+acos(.angle)
+```
+
+### `acosh`
+
+Inverse hyperbolic cosine. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `acosh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``acosh``: thin wrapper over Python's
+``math.acosh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+acosh(0)
+acosh(.angle)
+```
+
+### `asin`
+
+Inverse sine in radians. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `asin(value: number) -> number`
+
+**Details**
+
+Matches jq's ``asin``: thin wrapper over Python's
+``math.asin``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+asin(0)
+asin(.angle)
+```
+
+### `asinh`
+
+Inverse hyperbolic sine. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `asinh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``asinh``: thin wrapper over Python's
+``math.asinh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+asinh(0)
+asinh(.angle)
+```
+
+### `atan`
+
+Inverse tangent in radians. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `atan(value: number) -> number`
+
+**Details**
+
+Matches jq's ``atan``: thin wrapper over Python's
+``math.atan``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+atan(0)
+atan(.angle)
+```
+
+### `atan2`
+
+Two-argument inverse tangent — ``atan2(y, x)``.
+
+**Signatures**
+
+- `atan2(y: number, x: number) -> number`
+
+**Details**
+
+Matches jq's ``atan2``: returns the angle in radians between the
+positive x-axis and the point (x, y), with the correct quadrant.
+
+Related: ``atan``, ``sin``, ``cos``.
+
+**Examples**
+
+```
+atan2(1, 1)                              # -> pi/4
+```
+
+### `atanh`
+
+Inverse hyperbolic tangent. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `atanh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``atanh``: thin wrapper over Python's
+``math.atanh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+atanh(0)
+atanh(.angle)
+```
+
+### `cbrt`
+
+Cube root of a number.
+
+**Signatures**
+
+- `cbrt(value: number) -> number`
+
+**Details**
+
+Matches jq's ``cbrt``: returns the real cube root of *value*.
+Handles negative inputs (``cbrt(-8) == -2``) — distinct from
+``pow(., 1.0/3)`` which is undefined for negative bases.
+
+Related: ``sqrt``, ``pow``.
+
+**Examples**
+
+```
+cbrt(27)                                 # -> 3.0
 ```
 
 ### `ceil`
@@ -1613,6 +2407,91 @@ ceil(3.2)                                # -> 4
 ceil(-3.7)                               # -> -3
 ```
 
+### `copysign`
+
+Magnitude of *x* with the sign of *y*.
+
+**Signatures**
+
+- `copysign(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``copysign``: ``copysign(x; y)`` returns a value with
+the magnitude of ``x`` and the sign of ``y``.
+
+Related: ``abs``, ``fabs``.
+
+**Examples**
+
+```
+copysign(3, -1)                          # -> -3.0
+```
+
+### `cos`
+
+Cosine of a radian angle. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `cos(value: number) -> number`
+
+**Details**
+
+Matches jq's ``cos``: thin wrapper over Python's
+``math.cos``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+cos(0)
+cos(.angle)
+```
+
+### `cosh`
+
+Hyperbolic cosine. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `cosh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``cosh``: thin wrapper over Python's
+``math.cosh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+cosh(0)
+cosh(.angle)
+```
+
+### `drem`
+
+Alias of ``remainder`` (legacy BSD name).
+
+**Signatures**
+
+- `drem(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``drem``: alias of ``remainder``.
+
+Related: ``remainder``, ``fmod``.
+
+**Examples**
+
+```
+drem(7, 3)                               # -> 1.0
+```
+
 ### `exp`
 
 ``e`` raised to the *value* power.
@@ -1631,6 +2510,68 @@ Related: ``log``, ``pow``.
 
 ```
 exp(1)                                   # -> 2.718...
+```
+
+### `exp10`
+
+``10`` raised to the *value* power.
+
+**Signatures**
+
+- `exp10(value: number) -> number`
+
+**Details**
+
+Matches jq's ``exp10``: returns ``10^value``.
+
+Related: ``exp``, ``exp2``, ``pow``, ``log10``.
+
+**Examples**
+
+```
+exp10(3)                                 # -> 1000.0
+```
+
+### `exp2`
+
+``2`` raised to the *value* power.
+
+**Signatures**
+
+- `exp2(value: number) -> number`
+
+**Details**
+
+Matches jq's ``exp2``: returns ``2^value``.
+
+Related: ``exp``, ``exp10``, ``pow``, ``log2``.
+
+**Examples**
+
+```
+exp2(10)                                 # -> 1024.0
+```
+
+### `expm1`
+
+``exp(value) - 1`` with high precision near zero.
+
+**Signatures**
+
+- `expm1(value: number) -> number`
+
+**Details**
+
+Matches jq's ``expm1``: thin wrapper over Python's ``math.expm1``.
+Avoids the loss of precision that ``exp(x) - 1`` suffers when
+``x`` is small.
+
+Related: ``exp``, ``log1p``.
+
+**Examples**
+
+```
+expm1(1e-10)                             # -> 1e-10 (high precision)
 ```
 
 ### `fabs`
@@ -1654,6 +2595,26 @@ Related: ``abs``, ``floor``.
 fabs(-5)                                 # -> 5.0
 ```
 
+### `fdim`
+
+Positive difference — ``max(x - y, 0)``.
+
+**Signatures**
+
+- `fdim(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``fdim``: returns ``max(x - y, 0)``.
+
+Related: ``min``, ``max``, ``abs``.
+
+**Examples**
+
+```
+fdim(5, 3)                               # -> 2.0
+```
+
 ### `floor`
 
 Round a number down to the nearest integer.
@@ -1674,6 +2635,158 @@ Related: ``ceil``, ``round``, ``abs``.
 ```
 floor(3.7)                               # -> 3
 floor(-3.2)                              # -> -4
+```
+
+### `fma`
+
+Fused multiply-add — ``x * y + z`` in one rounding.
+
+**Signatures**
+
+- `fma(x: number, y: number, z: number) -> number`
+
+**Details**
+
+Matches jq's ``fma``: returns ``x*y + z``.  Python doesn't expose
+hardware FMA in older versions; this implementation computes the
+naive expression, which agrees with FMA to within one ULP.
+
+Related: ``pow``, ``hypot``.
+
+**Examples**
+
+```
+fma(2, 3, 1)                             # -> 7.0
+```
+
+### `fmax`
+
+Larger of two numbers — ``max(x, y)`` (jq parity).
+
+**Signatures**
+
+- `fmax(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``fmax``: two-argument numeric maximum.  Unlike
+``max`` (which is stream-aware), ``fmax`` takes exactly two
+scalar numbers.
+
+Related: ``max``, ``fmin``, ``fdim``.
+
+**Examples**
+
+```
+fmax(3, 7)                               # -> 7
+```
+
+### `fmin`
+
+Smaller of two numbers — ``min(x, y)`` (jq parity).
+
+**Signatures**
+
+- `fmin(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``fmin``: two-argument numeric minimum.
+
+Related: ``min``, ``fmax``.
+
+**Examples**
+
+```
+fmin(3, 7)                               # -> 3
+```
+
+### `fmod`
+
+Floating-point modulo — ``x - y * trunc(x / y)``.
+
+**Signatures**
+
+- `fmod(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``fmod`` (C's ``fmod``): the floating-point remainder
+truncated toward zero.  Result has the sign of *x*.
+
+Related: ``remainder``, ``drem``, ``trunc``.
+
+**Examples**
+
+```
+fmod(7, 3)                               # -> 1.0
+```
+
+### `frexp`
+
+Decompose a number into mantissa and exponent — returns ``[m, e]``.
+
+**Signatures**
+
+- `frexp(value: number) -> list`
+
+**Details**
+
+Matches jq's ``frexp``: returns ``[mantissa, exponent]`` such
+that ``value == mantissa * 2**exponent`` and ``0.5 <= |mantissa|
+< 1`` (or both parts zero when ``value`` is zero).
+
+jq returns a 2-element array; this DSL returns a Python list of
+the same shape.
+
+Related: ``ldexp``, ``modf``, ``logb``.
+
+**Examples**
+
+```
+frexp(12)                                # -> [0.75, 4]
+```
+
+### `gamma`
+
+Gamma function — ``tgamma`` (jq alias).
+
+**Signatures**
+
+- `gamma(value: number) -> number`
+
+**Details**
+
+Matches jq's ``gamma`` / ``tgamma``: returns the gamma function
+of *value*.  Domain errors raise ``BuiltinError``.
+
+Related: ``lgamma``, ``tgamma``.
+
+**Examples**
+
+```
+gamma(5)                                 # -> 24.0  (4!)
+```
+
+### `hypot`
+
+``sqrt(x*x + y*y)`` without intermediate overflow.
+
+**Signatures**
+
+- `hypot(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``hypot``: the Euclidean distance.  Uses Python's
+``math.hypot``, which avoids overflow for large operands.
+
+Related: ``sqrt``, ``pow``.
+
+**Examples**
+
+```
+hypot(3, 4)                              # -> 5.0
 ```
 
 ### `infinite`
@@ -1769,6 +2882,138 @@ isnormal(0)                              # -> false
 isnormal(nan)                            # -> false
 ```
 
+### `j0`
+
+Bessel function of the first kind, order 0 — series approximation.
+
+**Signatures**
+
+- `j0(value: number) -> number`
+
+**Details**
+
+Matches jq's ``j0``: returns ``J_0(value)``, the Bessel function
+of the first kind at order 0.  Implemented via a polynomial /
+asymptotic approximation (Abramowitz & Stegun 9.4.1 / 9.2.5)
+accurate to ~1e-7 — adequate for the ad-hoc audit queries this
+DSL targets.  For research-grade precision use SciPy.
+
+Related: ``j1``, ``y0``, ``y1``.
+
+**Examples**
+
+```
+j0(0)                                    # -> 1.0
+```
+
+### `j1`
+
+Bessel function of the first kind, order 1.
+
+**Signatures**
+
+- `j1(value: number) -> number`
+
+**Details**
+
+Matches jq's ``j1``: ``J_1(value)``, accuracy ~1e-7.  See
+``j0`` for the approximation notes.
+
+Related: ``j0``, ``y0``, ``y1``.
+
+**Examples**
+
+```
+j1(0)                                    # -> 0.0
+```
+
+### `jn`
+
+Bessel J_n(x) by upward recurrence — accurate for small ``n``.
+
+**Signatures**
+
+- `jn(n: integer, x: number) -> number`
+
+**Details**
+
+Matches jq's ``jn``: ``J_n(x)`` for integer order *n*.  Uses the
+standard upward recurrence ``J_{n+1}(x) = (2n/x) J_n(x) -
+J_{n-1}(x)`` seeded by ``j0`` / ``j1``.  Stable for ``n <= |x|``;
+callers asking for ``n`` far above ``|x|`` may see precision loss
+— for research-grade results use SciPy.
+
+Related: ``j0``, ``j1``, ``yn``.
+
+**Examples**
+
+```
+jn(2, 5)
+```
+
+### `ldexp`
+
+``mantissa * 2**exponent`` — inverse of ``frexp``.
+
+**Signatures**
+
+- `ldexp(mantissa: number, exponent: integer) -> number`
+
+**Details**
+
+Matches jq's ``ldexp``: returns ``mantissa * 2**exponent``.
+
+Related: ``frexp``, ``exp2``.
+
+**Examples**
+
+```
+ldexp(0.75, 4)                           # -> 12.0
+```
+
+### `lgamma`
+
+Natural log of the absolute value of the gamma function.
+
+**Signatures**
+
+- `lgamma(value: number) -> number`
+
+**Details**
+
+Matches jq's ``lgamma`` / ``lgamma_r``: returns ``log(|gamma(x)|)``
+— useful for combinatoric calculations where the gamma value
+would overflow.
+
+Related: ``gamma``, ``log``.
+
+**Examples**
+
+```
+lgamma(5)                                # -> log(24)
+```
+
+### `lgamma_r`
+
+lgamma with the sign of gamma — returns ``[lgamma, sign]``.
+
+**Signatures**
+
+- `lgamma_r(value: number) -> list`
+
+**Details**
+
+Matches jq's ``lgamma_r``: returns a 2-element list
+``[log(|gamma(x)|), sign]`` where *sign* is +1 or -1.
+
+Related: ``lgamma``, ``gamma``.
+
+**Examples**
+
+```
+lgamma_r(5)                              # -> [log(24), 1]
+```
+
 ### `log`
 
 Natural logarithm (base e) of a positive number.
@@ -1810,6 +3055,28 @@ Related: ``log``, ``log2``.
 log10(1000)                              # -> 3.0
 ```
 
+### `log1p`
+
+``log(1 + value)`` with high precision near zero.
+
+**Signatures**
+
+- `log1p(value: number) -> number`
+
+**Details**
+
+Matches jq's ``log1p``: thin wrapper over Python's ``math.log1p``.
+Avoids the loss of precision that ``log(1 + x)`` suffers when
+``x`` is small.
+
+Related: ``log``, ``expm1``.
+
+**Examples**
+
+```
+log1p(1e-10)                             # -> 1e-10 (high precision)
+```
+
 ### `log2`
 
 Base-2 logarithm of a positive number.
@@ -1828,6 +3095,54 @@ Related: ``log``, ``log10``.
 
 ```
 log2(1024)                               # -> 10.0
+```
+
+### `logb`
+
+Integer binary exponent of *value* (``floor(log2(|value|))``).
+
+**Signatures**
+
+- `logb(value: number) -> number`
+
+**Details**
+
+Matches jq's ``logb`` / C's ``logb``: returns the exponent of
+*value*'s base-2 representation as a floating-point number.  For
+a non-zero finite *value* this is the integer part of
+``log2(|value|)``.
+
+Returns ``-inf`` for zero and ``+inf`` for infinity (jq parity).
+
+Related: ``log2``, ``frexp``.
+
+**Examples**
+
+```
+logb(8)                                  # -> 3.0
+logb(0.25)                               # -> -2.0
+```
+
+### `modf`
+
+Split a number into fractional and integer parts — returns ``[frac, int]``.
+
+**Signatures**
+
+- `modf(value: number) -> list`
+
+**Details**
+
+Matches jq's ``modf``: returns ``[frac, int]`` where ``frac`` is
+the fractional part of *value* and ``int`` is the integer part,
+both with the same sign as *value*.
+
+Related: ``trunc``, ``floor``.
+
+**Examples**
+
+```
+modf(3.75)                               # -> [0.75, 3.0]
 ```
 
 ### `nan`
@@ -1852,6 +3167,29 @@ Related: ``infinite``, ``isnan``.
 nan                                      # -> NaN
 ```
 
+### `nearbyint`
+
+Round to nearest integer using current rounding mode (banker's).
+
+**Signatures**
+
+- `nearbyint(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``nearbyint``: same result as ``rint`` (Python's
+``round`` uses banker's rounding).  C distinguishes them by
+whether they raise the inexact flag; Python doesn't expose
+that, so the two are aliases here.
+
+Related: ``rint``, ``round``, ``trunc``.
+
+**Examples**
+
+```
+nearbyint(2.5)                           # -> 2
+```
+
 ### `pow`
 
 Raise *base* to the *exponent* power.
@@ -1871,6 +3209,71 @@ Related: ``sqrt``, ``exp``, ``log``.
 ```
 pow(2, 10)                               # -> 1024.0
 pow(2, 0.5)                              # -> sqrt(2)
+```
+
+### `pow10`
+
+Alias of ``exp10`` — ``10 ** value``.
+
+**Signatures**
+
+- `pow10(value: number) -> number`
+
+**Details**
+
+Matches jq's ``pow10``: ``10**value``.  Identical to ``exp10``.
+
+Related: ``exp10``, ``pow``, ``log10``.
+
+**Examples**
+
+```
+pow10(3)                                 # -> 1000.0
+```
+
+### `remainder`
+
+IEEE-754 remainder of ``x / y`` (rounded to nearest).
+
+**Signatures**
+
+- `remainder(x: number, y: number) -> number`
+
+**Details**
+
+Matches jq's ``remainder`` / ``drem``: the IEEE-754 remainder,
+which rounds the quotient to the nearest integer (ties to even)
+rather than truncating.  Result is in ``[-y/2, y/2]``.
+
+Related: ``fmod``, ``drem``.
+
+**Examples**
+
+```
+remainder(7, 3)                          # -> 1.0
+```
+
+### `rint`
+
+Round to the nearest integer, ties to even (banker's rounding).
+
+**Signatures**
+
+- `rint(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``rint``: rounds to the nearest integer with
+ties-to-even semantics — distinct from ``round`` which uses
+ties-away-from-zero.
+
+Related: ``round``, ``floor``, ``ceil``.
+
+**Examples**
+
+```
+rint(2.5)                                # -> 2  (banker's)
+rint(3.5)                                # -> 4
 ```
 
 ### `round`
@@ -1897,6 +3300,73 @@ round(-2.5)                              # -> -3
 round(2.49)                              # -> 2
 ```
 
+### `significand`
+
+Significand (mantissa with exponent normalised to zero).
+
+**Signatures**
+
+- `significand(value: number) -> number`
+
+**Details**
+
+Matches jq's ``significand``: returns the value scaled to the
+range ``[1, 2)`` (or ``[-2, -1]`` for negatives), i.e. divided by
+``2 ** logb(value)``.  Returns the input unchanged for zero,
+infinities, and NaN.
+
+Related: ``frexp``, ``logb``.
+
+**Examples**
+
+```
+significand(12)                          # -> 1.5
+```
+
+### `sin`
+
+Sine of a radian angle. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `sin(value: number) -> number`
+
+**Details**
+
+Matches jq's ``sin``: thin wrapper over Python's
+``math.sin``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+sin(0)
+sin(.angle)
+```
+
+### `sinh`
+
+Hyperbolic sine. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `sinh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``sinh``: thin wrapper over Python's
+``math.sinh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+sinh(0)
+sinh(.angle)
+```
+
 ### `sqrt`
 
 Square root of a non-negative number.
@@ -1917,6 +3387,449 @@ Related: ``pow``, ``exp``.
 
 ```
 sqrt(16)                                 # -> 4.0
+```
+
+### `tan`
+
+Tangent of a radian angle. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `tan(value: number) -> number`
+
+**Details**
+
+Matches jq's ``tan``: thin wrapper over Python's
+``math.tan``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+tan(0)
+tan(.angle)
+```
+
+### `tanh`
+
+Hyperbolic tangent. Matches jq's namesake C-math function.
+
+**Signatures**
+
+- `tanh(value: number) -> number`
+
+**Details**
+
+Matches jq's ``tanh``: thin wrapper over Python's
+``math.tanh``.  Domain errors (``acos(2)`` etc.)
+raise ``BuiltinError`` rather than returning NaN so the
+failure shows in query output.
+
+**Examples**
+
+```
+tanh(0)
+tanh(.angle)
+```
+
+### `tgamma`
+
+Gamma function (alias of ``gamma``).
+
+**Signatures**
+
+- `tgamma(value: number) -> number`
+
+**Details**
+
+Matches jq's ``tgamma`` (C's ``tgamma``).  Same result as
+``gamma``.
+
+Related: ``gamma``, ``lgamma``.
+
+**Examples**
+
+```
+tgamma(5)                                # -> 24.0
+```
+
+### `trunc`
+
+Truncate toward zero — drop the fractional part.
+
+**Signatures**
+
+- `trunc(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``trunc``: returns *value* with its fractional part
+removed, rounding toward zero.
+
+Related: ``floor``, ``ceil``, ``round``.
+
+**Examples**
+
+```
+trunc(3.9)                               # -> 3
+trunc(-3.9)                              # -> -3
+```
+
+### `y0`
+
+Bessel function of the second kind, order 0.
+
+**Signatures**
+
+- `y0(value: number) -> number`
+
+**Details**
+
+Matches jq's ``y0``: ``Y_0(value)``, defined for ``value > 0``.
+Series / asymptotic approximation accurate to ~1e-7.
+
+Related: ``y1``, ``j0``, ``j1``.
+
+**Examples**
+
+```
+y0(1)
+```
+
+### `y1`
+
+Bessel function of the second kind, order 1.
+
+**Signatures**
+
+- `y1(value: number) -> number`
+
+**Details**
+
+Matches jq's ``y1``: ``Y_1(value)``, defined for ``value > 0``.
+Series / asymptotic approximation accurate to ~1e-7.
+
+Related: ``y0``, ``j0``, ``j1``.
+
+**Examples**
+
+```
+y1(1)
+```
+
+### `yn`
+
+Bessel Y_n(x) by upward recurrence (``x > 0``).
+
+**Signatures**
+
+- `yn(n: integer, x: number) -> number`
+
+**Details**
+
+Matches jq's ``yn``: ``Y_n(x)`` for integer order *n*, defined
+for positive *x*.  Upward recurrence seeded by ``y0`` / ``y1``;
+upward recurrence is stable for Y_n at all orders.
+
+Related: ``y0``, ``y1``, ``jn``.
+
+**Examples**
+
+```
+yn(2, 5)
+```
+
+## time
+
+Time and date helpers matching jq's surface: epoch reads (`now`), ISO-8601 conversions (`todate` / `todateiso8601` / `fromdate` / `fromdateiso8601` / `date`), broken-down time (`gmtime` / `localtime` / `mktime`), formatting / parsing (`strftime` / `strptime`), and epoch arithmetic (`dateadd` / `datesub`).
+
+### `date`
+
+Alias of ``todate`` for jq snippet compatibility.
+
+**Signatures**
+
+- `date(value: number) -> string`
+
+**Details**
+
+Matches jq's ``date`` (jq 1.7+): same as ``todate``.
+
+Related: ``todate``, ``fromdate``.
+
+**Examples**
+
+```
+date(0)
+```
+
+### `dateadd`
+
+Add a number of seconds to a Unix epoch value.
+
+**Signatures**
+
+- `dateadd(value: number, seconds: number) -> number`
+
+**Details**
+
+Matches jq's ``dateadd`` (jq 1.7+): ``dateadd(t; s)`` is
+``t + s``.  Provided for jq-snippet portability — plain
+arithmetic works too.
+
+Related: ``datesub``, ``now``.
+
+**Examples**
+
+```
+fromdate("2025-01-01T00:00:00Z") | dateadd(., 86400) | todate
+```
+
+### `datesub`
+
+Subtract a number of seconds from a Unix epoch value.
+
+**Signatures**
+
+- `datesub(value: number, seconds: number) -> number`
+
+**Details**
+
+Matches jq's ``datesub`` (jq 1.7+): ``datesub(t; s)`` is
+``t - s``.
+
+Related: ``dateadd``, ``now``.
+
+**Examples**
+
+```
+now | datesub(., 3600) | todate           # one hour ago
+```
+
+### `fromdate`
+
+ISO-8601 UTC string → Unix epoch seconds.
+
+**Signatures**
+
+- `fromdate(value: string) -> number`
+
+**Details**
+
+Matches jq's ``fromdate`` / ``fromdateiso8601``: parses an
+ISO-8601 UTC timestamp (``YYYY-MM-DDTHH:MM:SS[.fff]Z`` or with
+``+00:00`` offset) and returns the corresponding Unix epoch
+seconds.
+
+Related: ``todate``, ``strptime``, ``now``.
+
+**Examples**
+
+```
+fromdate("1970-01-01T00:00:00Z")          # -> 0
+fromdate("2025-01-01T00:00:00Z")
+```
+
+### `fromdateiso8601`
+
+Alias of ``fromdate``.
+
+**Signatures**
+
+- `fromdateiso8601(value: string) -> number`
+
+**Details**
+
+Matches jq's ``fromdateiso8601``.
+
+Related: ``fromdate``, ``todateiso8601``.
+
+**Examples**
+
+```
+fromdateiso8601("1970-01-01T00:00:00Z")
+```
+
+### `gmtime`
+
+Unix epoch seconds → broken-down UTC time array.
+
+**Signatures**
+
+- `gmtime(value: number) -> list`
+
+**Details**
+
+Matches jq's ``gmtime``: returns a length-8 list of integers in
+jq's order — ``[year - 1900, month, day, hour, minute, second,
+weekday, yearday]`` (months 0..11, weekday 0=Sunday, yearday
+0..365).
+
+Related: ``localtime``, ``mktime``, ``strftime``.
+
+**Examples**
+
+```
+gmtime(0)                                # -> [70, 0, 1, 0, 0, 0, 4, 0]
+```
+
+### `localtime`
+
+Unix epoch seconds → broken-down local time array.
+
+**Signatures**
+
+- `localtime(value: number) -> list`
+
+**Details**
+
+Matches jq's ``localtime``: same shape as ``gmtime`` but in the
+process's local timezone.
+
+Related: ``gmtime``, ``mktime``.
+
+**Examples**
+
+```
+localtime(0)
+```
+
+### `mktime`
+
+Broken-down UTC time array → Unix epoch seconds.
+
+**Signatures**
+
+- `mktime(value: list) -> number`
+
+**Details**
+
+Matches jq's ``mktime``: inverse of ``gmtime``.  Accepts the
+broken-down array ``[year - 1900, month, day, hour, minute,
+second, ...]`` and returns the corresponding Unix epoch seconds,
+interpreting the input as UTC.
+
+Related: ``gmtime``, ``fromdate``.
+
+**Examples**
+
+```
+mktime([70, 0, 1, 0, 0, 0])              # -> 0
+```
+
+### `now`
+
+Current Unix epoch time as a float.
+
+**Signatures**
+
+- `now() -> number`
+
+**Details**
+
+Matches jq's ``now``: returns the current time in seconds since
+the Unix epoch (UTC) as a float with sub-second resolution.
+
+Related: ``todate``, ``fromdate``, ``strftime``.
+
+**Examples**
+
+```
+now
+```
+
+### `strftime`
+
+Format a Unix epoch-seconds value using ``strftime``.
+
+**Signatures**
+
+- `strftime(value: number, fmt: string) -> string`
+
+**Details**
+
+Matches jq's ``strftime``: formats a Unix epoch-seconds value
+(UTC) using a strftime-style format string.
+
+jq's two-arg form is ``strftime(fmt)`` applied to the broken-down
+time as input; this DSL flattens to the more common case
+``strftime(unix_seconds, fmt)``.  Use the implicit-receiver form
+for the jq feel: ``now | strftime("%Y-%m-%d")``.
+
+Related: ``strptime``, ``todate``, ``now``.
+
+**Examples**
+
+```
+strftime(0, "%Y-%m-%d")                   # -> "1970-01-01"
+now | strftime("%Y-%m-%d %H:%M:%S")
+```
+
+### `strptime`
+
+Parse a timestamp string into a broken-down UTC time array.
+
+**Signatures**
+
+- `strptime(value: string, fmt: string) -> list`
+
+**Details**
+
+Matches jq's ``strptime``: parses *value* using *fmt* and returns
+the broken-down array compatible with ``mktime`` /
+``gmtime`` (jq's order).
+
+Related: ``strftime``, ``mktime``, ``fromdate``.
+
+**Examples**
+
+```
+strptime("2025-01-01", "%Y-%m-%d") | mktime
+```
+
+### `todate`
+
+Unix epoch seconds → ISO-8601 UTC string.
+
+**Signatures**
+
+- `todate(value: number) -> string`
+
+**Details**
+
+Matches jq's ``todate`` / ``todateiso8601``: formats a Unix
+epoch-seconds value as an ISO-8601 string in UTC, second
+precision (``YYYY-MM-DDTHH:MM:SSZ``).
+
+Related: ``fromdate``, ``strftime``, ``now``.
+
+**Examples**
+
+```
+todate(0)                                # -> "1970-01-01T00:00:00Z"
+now | todate
+```
+
+### `todateiso8601`
+
+Alias of ``todate`` — Unix epoch → ISO-8601 UTC string.
+
+**Signatures**
+
+- `todateiso8601(value: number) -> string`
+
+**Details**
+
+Matches jq's ``todateiso8601`` (same as ``todate``).  Both names
+available for jq snippet portability.
+
+Related: ``todate``, ``fromdateiso8601``.
+
+**Examples**
+
+```
+todateiso8601(0)
 ```
 
 ## path
@@ -4225,7 +6138,7 @@ refs(.ltm.virtual.web_vs)
 
 ## value
 
-Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`) and object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`).
+Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`), object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`), and jq-style tree manipulation (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `walk` / `recurse` / `until` / `repeat`).
 
 ### `cert_load`
 
@@ -4337,6 +6250,81 @@ select(defined(.pool))
 .ltm.virtual[] | select(defined(.snatpool)) | .name
 ```
 
+### `del`
+
+Return the current value with the slot at *path* removed.
+
+**Signatures**
+
+- `del(path: list) -> any`
+
+**Details**
+
+Matches jq's ``del`` for the single-path form.  Removes the slot
+at *path* and returns a fresh copy of the current value.  Missing
+paths are silently no-ops (jq parity).
+
+jq's ``del`` accepts a path **expression** (``del(.foo)``); this
+DSL takes a path **list** instead (``del(["foo"])``) so we don't
+have to introduce a third evaluation mode.  Use ``delpaths`` for
+deleting multiple paths in one call.
+
+Related: ``delpaths``, ``setpath``, ``getpath``.
+
+**Examples**
+
+```
+{a: 1, b: 2} | del(["a"])               # -> {b: 2}
+{a: [1, 2, 3]} | del(["a", 1])           # -> {a: [1, 3]}
+```
+
+### `delpaths`
+
+Return the current value with every slot in *paths* removed.
+
+**Signatures**
+
+- `delpaths(paths: list[list]) -> any`
+
+**Details**
+
+Matches jq's ``delpaths``: takes a list of path-lists and returns
+a copy of the current value with every slot deleted.  Paths must
+be sorted long-to-short (jq's expectation) — this DSL sorts them
+internally so callers don't have to worry about deletion order
+invalidating later paths.
+
+Related: ``del``, ``setpath``, ``paths``.
+
+**Examples**
+
+```
+{a: 1, b: 2, c: 3} | delpaths([["a"], ["c"]])  # -> {b: 2}
+```
+
+### `env`
+
+The process environment as a dict — jq's ``env``.
+
+**Signatures**
+
+- `env() -> object`
+
+**Details**
+
+Matches jq's ``env`` builtin: returns the process environment
+variables as an object.  Read-only — modifications don't
+propagate back.
+
+Related: ``$ENV`` (jq's variable form, not exposed here).
+
+**Examples**
+
+```
+env | .HOME
+env | with_entries(select(.key | startswith("F5_")))
+```
+
 ### `f5log_load`
 
 Read a BIG-IP log file from disk and parse it into structured events.
@@ -4410,6 +6398,33 @@ Related: ``to_entries``, ``with_entries``.
 ```
 [{key: "a", value: 1}, {key: "b", value: 2}] | from_entries
 to_entries | from_entries                # round-trips an object
+```
+
+### `getpath`
+
+Read the value at the given path (list of string / integer keys).
+
+**Signatures**
+
+- `getpath(path: list) -> any`
+
+**Details**
+
+Matches jq's ``getpath``: walks the current value following each
+element of *path* (strings index objects, integers index arrays /
+streams).  Returns ``null`` when any element is missing or
+out-of-range.
+
+Composes naturally with ``paths``: ``[paths] | map(getpath(.))``
+enumerates every reachable value.
+
+Related: ``setpath``, ``del``, ``delpaths``, ``paths``.
+
+**Examples**
+
+```
+getpath(["a", "b"])                     # walk .a.b safely
+{a: {b: 42}} | getpath(["a", "b"])      # -> 42
 ```
 
 ### `has`
@@ -4593,6 +6608,31 @@ kind(.ltm.virtual.web_vs)                  # -> 'ltm virtual'
 [.ltm.virtual[] | refs(.)[]] | unique | sort
 ```
 
+### `leaf_paths`
+
+Every path through the value that ends at a non-container leaf.
+
+**Signatures**
+
+- `leaf_paths() -> stream[list]`
+
+**Details**
+
+Matches jq's ``leaf_paths``: emits the path to every leaf value
+(string, number, bool, null) inside the current value.  Internal
+composite positions are not included.
+
+Equivalent to ``paths(. | type != "object" and . | type != "array")``.
+
+Related: ``paths``, ``getpath``.
+
+**Examples**
+
+```
+{a: 1, b: [2, 3]} | leaf_paths
+[.ltm.virtual.web_vs] | leaf_paths      # every leaf inside one VS
+```
+
 ### `length`
 
 Length of a string, list, stream, or object's field map.
@@ -4657,6 +6697,183 @@ Related: ``kind``, ``partition``, ``basename``.
 ```
 path(.ltm.virtual.web_vs)                # -> '/Common/web_vs'
 [.ltm.virtual[] | path(.)]               # collect every VS full-path
+```
+
+### `paths`
+
+Every path through the value as a stream of lists.
+
+**Signatures**
+
+- `paths() -> stream[list]`
+- `paths(filter) -> stream[list]`
+
+**Details**
+
+**Special form.**  Matches jq's ``paths``: emits a stream where
+each element is a path (list of strings / integers) into the
+current value.  Every reachable composite **and** leaf position
+is enumerated except the empty root path.
+
+With a *filter* argument, only emits paths whose value satisfies
+*filter*: ``paths(type == "string")`` yields every path to a
+string leaf.
+
+Useful for introspection, audit, and as input to ``getpath`` /
+``setpath`` / ``delpaths``.
+
+Related: ``leaf_paths``, ``getpath``, ``setpath``, ``del``,
+``delpaths``, ``walk``.
+
+**Examples**
+
+```
+{a: 1, b: [2, 3]} | paths
+paths(type == "number")
+```
+
+### `pick`
+
+Keep only the slots named by *path_exprs*; everything else is dropped.
+
+**Signatures**
+
+- `pick(...path_exprs) -> any`
+
+**Details**
+
+**Special form.**  Matches jq 1.7's ``pick``: enumerates one or
+more path expressions against the current value, then returns
+a value containing only those paths (with intermediate
+containers reconstructed).
+
+Each argument should be a static path projection (``.foo``,
+``.bar.baz``, ``.list[0]``).  Multiple paths may be passed either
+as separate function arguments (``pick(.a, .c)``) or as a single
+comma-stream argument (``pick((.a, .c))``) — both work.  Missing
+slots are silently ignored.
+
+Related: ``getpath``, ``setpath``, ``del``, ``paths``.
+
+**Examples**
+
+```
+{a: 1, b: 2, c: 3} | pick(.a, .c)         # -> {a: 1, c: 3}
+{a: {b: 1, c: 2}, d: 3} | pick(.a.b, .d)
+```
+
+### `recurse`
+
+Emit every value reachable from the current input, optionally driven by *body*.
+
+**Signatures**
+
+- `recurse() -> stream`
+- `recurse(body) -> stream`
+- `recurse(body, cond) -> stream`
+
+**Details**
+
+**Special form.**  Matches jq's ``recurse`` family.
+
+- **Zero args** (``recurse``) — emits the current value, then
+  every reachable value (every dict value, every array element,
+  every nested composite, recursively).
+- **One arg** (``recurse(body)``) — emits the current value, then
+  ``body`` applied once, then ``body`` applied to that, etc.
+  Stops on null.
+- **Two args** (``recurse(body, cond)``) — same as the one-arg
+  form but stops when ``cond`` is false.
+
+To prevent runaway loops, this DSL caps total emissions at
+100,000 — pipelines that legitimately need more should narrow
+*body* or pre-collect.
+
+Related: ``walk``, ``map``, ``paths``.
+
+**Examples**
+
+```
+{a: 1, b: {c: 2}} | recurse
+1 | recurse(. + 1, . < 5)              # -> 1, 2, 3, 4
+```
+
+### `recurse_down`
+
+Alias of ``recurse`` with no arguments — emit every reachable value.
+
+**Signatures**
+
+- `recurse_down() -> stream`
+
+**Details**
+
+Matches jq's ``recurse_down`` (deprecated in jq itself, kept for
+backward compatibility).  Same as ``recurse`` with no arguments.
+
+Related: ``recurse``, ``walk``.
+
+**Examples**
+
+```
+{a: 1, b: {c: 2}} | [recurse_down]
+```
+
+### `repeat`
+
+Emit ``f(.), f(f(.)), …`` capped at 100,000 iterations.
+
+**Signatures**
+
+- `repeat(body) -> stream`
+
+**Details**
+
+**Special form.**  Matches jq's ``repeat`` modulo a safety cap.
+Emits an infinite-by-design stream of successive applications of
+*body* to the current value.  jq pairs this with ``limit(n; ...)``
+to bound the result; this DSL also enforces an absolute cap of
+100,000 emissions so a forgetful pipeline can't wedge the
+evaluator.
+
+Common pattern: ``[limit(5, repeat(. + 1))]`` (using jq-style
+semantics) — though in this DSL ``[range(5)] | map(. + 1)`` is
+usually shorter.
+
+Related: ``until``, ``recurse``, ``range``.
+
+**Examples**
+
+```
+1 | [limit(repeat(. + 1), 5)]            # capped to 5
+```
+
+### `setpath`
+
+Return the current value with *path* set to *new_value*.
+
+**Signatures**
+
+- `setpath(path: list, new_value: any) -> any`
+
+**Details**
+
+Matches jq's ``setpath``: creates a copy of the current value with
+the slot at *path* set to *new_value*.  Missing intermediate
+containers are auto-created based on the next key type: a string
+key creates a dict, an integer key creates a list.
+
+Returns a fresh Python value — this is a functional update, not
+an in-place mutation.  For BIG-IP edit-pipeline writes, use the
+``=`` / ``|=`` assignment operators instead.
+
+Related: ``getpath``, ``del``, ``delpaths``.
+
+**Examples**
+
+```
+{a: 1} | setpath(["b", "c"], 9)         # -> {a:1, b:{c:9}}
+{a: [1, 2, 3]} | setpath(["a", 1], 99)
 ```
 
 ### `source_file`
@@ -4787,6 +7004,67 @@ Related: ``kind`` (TMSH kind, more useful for BIG-IP objects),
 type(.pool)                            # -> 'path-ref'
 type(.destination)                     # -> 'string'
 type(.rules)                           # -> 'list'
+```
+
+### `until`
+
+Iterate *update* against the current value until *cond* becomes true.
+
+**Signatures**
+
+- `until(cond, update) -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``until``: starting from the
+current value, repeatedly applies *update* (with ``.`` re-bound
+to the running value) and tests *cond* against the result.
+Returns the first value for which *cond* is truthy.
+
+Capped at 100,000 iterations to prevent runaway loops — pipelines
+that legitimately need more should restructure.
+
+Related: ``recurse``, ``repeat``.
+
+**Examples**
+
+```
+1 | until(. >= 100, . * 2)              # -> 128
+0 | until(. > 5, . + 1)                  # -> 6
+```
+
+### `walk`
+
+Apply *body* to every value bottom-up, returning the rebuilt structure.
+
+**Signatures**
+
+- `walk(body) -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``walk``: traverses the current
+value's tree bottom-up.  For each composite, ``walk`` first
+recurses into its children, then evaluates *body* with ``.``
+re-bound to the (now-transformed) composite.  Leaves are passed
+directly to *body*.
+
+Classic uses:
+
+- **String normalisation across a whole config**:
+  ``walk(if type == "string" then ascii_downcase else . end)``.
+- **Field renames**: ``walk(if type == "object" then
+  with_entries(...) else . end)``.
+- **Pruning**: ``walk(if type == "array" then map(select(.))
+  else . end)`` drops empty entries from every array.
+
+Related: ``recurse``, ``map``, ``with_entries``.
+
+**Examples**
+
+```
+walk(if type == "string" then ascii_downcase else . end)
+walk(if type == "number" then . + 1 else . end)
 ```
 
 ### `with_entries`
