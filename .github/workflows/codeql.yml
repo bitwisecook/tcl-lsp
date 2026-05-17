@@ -1,10 +1,18 @@
 name: CodeQL
 
-# Static-analysis for the three languages whose source ships in this
-# repo and runs on user machines: Python (LSP server / zipapps), TypeScript
-# (VS Code extension), and Rust (Zed extension).  CodeQL's `actions`
-# query pack also lints the workflows themselves, catching expression-
-# injection and similar mistakes before they reach main.
+# Static-analysis for the languages whose source ships in this repo and
+# runs on user machines: Python (LSP server / zipapps) and TypeScript
+# (VS Code extension).  CodeQL's `actions` query pack also lints the
+# workflows themselves, catching expression-injection and similar
+# mistakes before they reach main.
+#
+# Rust (editors/zed) is intentionally excluded.  CodeQL Rust support is
+# still maturing, and the extension cross-compiles to `wasm32-wasip2`
+# (a target the CodeQL build-mode `manual`/`autobuild` paths don't
+# capture cleanly).  The extension itself is ~100 lines of glue around
+# `zed_extension_api`, with a small attack surface; the cost-benefit
+# of fighting CodeQL Rust's wasm-target handling isn't there yet.
+# Revisit when CodeQL Rust supports `build-mode: none` GA.
 on:
   push:
     branches: [main]
@@ -36,8 +44,6 @@ jobs:
             build-mode: none
           - language: javascript-typescript
             build-mode: none
-          - language: rust
-            build-mode: manual
           - language: actions
             build-mode: none
     steps:
@@ -52,19 +58,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended,security-and-quality
-
-      # Rust needs an actual `cargo build` for CodeQL to capture call
-      # graphs.  Other languages run extractor-only.
-      - name: Set up Rust (matrix.language == 'rust')
-        if: matrix.language == 'rust'
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          toolchain: stable
-          target: wasm32-wasip2
-
-      - name: Build Rust (matrix.language == 'rust')
-        if: matrix.language == 'rust'
-        run: cd editors/zed && cargo build --release --target wasm32-wasip2
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@f25eda876ebb741d872b63b9f2c6dfdd77f14b83 # v4.35.5
