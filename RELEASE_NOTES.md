@@ -1,30 +1,59 @@
-# v1.10.0
+# v1.10.1
 
 ## New Features
 
-- **`f5 query` verb** — a jq-flavoured DSL for inspecting and rewriting parsed `bigip.conf` / SCF configurations. Pipelines, path subscripts, `select` / `map`, and the `=` / `|=` / `+=` / `-=` assignment operators run over the typed BIG-IP object tree. `PathRef` values auto-dereference on field access (so `.ltm.virtual[].pool.members[].address` walks VS → pool → member in one chain), identity-field writes auto-route through `rename_object` (rewriting every reference, including pool refs inside iRule bodies), and a custom `ip(network, source)` builtin rebases addresses preserving host bits and port. DSL help ships in three forms (`--help-dsl`, `--help-builtins [NAME]`, `--help-examples`) so the cookbook and registry can't drift from the implementation.
-- **Typed BIG-IP registry** — every parsed BIG-IP property now carries a typed value spec, exposed through the new query layer and reused by the LSP for diagnostics, semantic tokens parity, document links, and value-aware code actions.
-- **Per-workspace-folder configuration** — `dialect`, `extraCommands`, `libraryPaths`, and `style.nonAscii` can now be set per workspace folder, with `didChangeWorkspaceFolders` properly re-initialising per-folder configs.
-- **Stub command system** — inline `# tcl-lsp: stub` declarations (and `<dialect>.tcl.stubs` files) now feed into the signature registry. Subcommand and optional-arg stubs (`stub db eval {sql ?rowvar? script:body}`) build dynamic arg-role resolvers so callbacks surface in the call graph regardless of argument shape. Verified end-to-end against real `libsqlite3-tcl`.
+- **f5 query DSL — jq 1.7 standard-library parity.** The jq-flavoured
+  `f5 query` verb now implements the full jq 1.7 stdlib surface, so
+  idioms that work in `jq` against arbitrary JSON now transfer
+  verbatim to BIG-IP configuration queries.
+- **f5 query — import-friendly Python API and renderer plugins.** The
+  query engine is exposed as a callable Python API with pluggable
+  renderers, so callers can embed query execution and produce custom
+  output formats without shelling out to the CLI.
+- **Per-workspace-folder config.** Multi-folder workspaces now resolve
+  dialect, `extraCommands`, `libraryPaths`, and `style.nonAscii` per
+  folder, with longest-prefix matching and a fixed race in
+  `_apply_settings_to_target` that previously caused settings from one
+  folder to leak into another (issue #407).
+- **BIG-IP sysadmin queries cookbook.** New cookbook documenting
+  real-world `f5 query` recipes against captured outputs from
+  production-shaped configs.
 
 ## Improvements
 
-- **Call graph completeness** — command substitutions inside `if` / `while` / `for` conditions and `switch` subjects are now scanned, so `if {[q]} ...` no longer flags `q` as dead code or drops the call-graph edge. `ArgRole.BODY` arguments of embedded commands are scanned recursively, covering `if {[catch {p}]} ...` and similar nested forms. (#409)
-- **Deep proc-arg trait inference** — `infer_param_traits_deep` now feeds the offline analytics paths (`tcl callgraph`, the compiler explorer, the MCP server), producing richer BODY / EXPR / VAR trait information. The LSP synchronous path stays on the shallow pass for latency.
-- **BIG-IP port name resolution** — service-name to port-number mapping for BIG-IP config, used by both the parser and diagnostics.
-- **`f5 diff` accepts `tmsh` output** — diffing a saved `tmsh list` snapshot against a config file now works without preprocessing.
-- **Shell completions** — verb aliases dropped from `tcl` completions; missing `f5` verbs added.
-- **Stub overlay caching** — proc / interproc caches mix a stub-overlay fingerprint into their keys, so adding or changing a stub correctly invalidates cached summaries.
+- **Tcl 9 tcltest WASM baseline refresh.** The Tcl 9 tcltest sweep
+  baseline (`tests/baselines/tcl9-tcltest-wasm/`) is regenerated
+  against the current runtime, capturing additional categories
+  (`subst`, several `*-old` legacy suites) and refreshed per-category
+  pass counts.
+- **Documentation.** The installation guide now covers VS Code forks
+  and other LSP-capable editors.
+- **JetBrains plugin compatibility (2024.1+).** The plugin descriptor
+  now declares compatibility with IntelliJ Platform 2024.1 and newer,
+  unblocking installs on current JetBrains IDEs (issue #416).
+- **CI supply-chain hardening.** Pinned GitHub Actions to commit SHAs
+  and tightened token scopes in response to recent third-party action
+  compromises (#419).
 
 ## Bug Fixes
 
-- `args` variadic tail no longer raises the minimum arity by one — `{first args}` is min 1 (correct Tcl semantics), `{args}` alone is min 0.
-- Stub overlay keys are registered under both bare and `::`-qualified spellings, so call sites with either form hit the overlay.
-- Word-building in script scanning now joins adjacent token fragments (`foo[bar]baz` is one word) and skips `TokenType.COMMENT`.
-- Chunked and restore-based analyser paths (`analyse_chunked`, `analyse_commands`) now run under `stub_signature_scope`, so editor diagnostics see stub roles during incremental analysis.
-- Stub parser bails on `stub expr-func` / `stub expr-op` lines so the subcommand regex doesn't mis-parse them.
-
-## Other
-
-- `scripts/` reorganised into `scripts/dev/` for development tooling.
-- Installation guide split into separate editor and CLI documents.
+- **WASM `lreplace` multi-value form (lreplace-4.7.1 / 4.11).** The
+  dedicated `tcl_cmd_lreplace_list` runtime helper now ships in the
+  runtime WASM artefact so multi-value `lreplace LIST FIRST LAST v1
+  v2 ...` resolves `end-N` against the original list rather than
+  drifting slot-by-slot through a chain of inserts.
+- **eglot painter accumulation tolerance.** The `test_issue333`
+  threshold is loosened so the test no longer trips on minor upstream
+  eglot delta-painter variation while still catching the underlying
+  regression (#415).
+- **Per-folder config race condition.** Fixes a race where folder
+  configuration could be applied against stale state when settings
+  arrived during workspace push (#414, #407).
+- **Pull-diagnostics test fixture leak.** `_install_diag_capture` now
+  also restores `_dp._server`, so suites running downstream of
+  `test_per_folder_config` see the real server and
+  `text_document_publish_diagnostics` monkeypatches intercept as
+  intended.
+- **Call-graph completeness.** Scan script bodies inside conditions
+  and stub `BODY` args so the call graph picks up procedures invoked
+  from `if {[…]} { proc … }`–style patterns (#410).
