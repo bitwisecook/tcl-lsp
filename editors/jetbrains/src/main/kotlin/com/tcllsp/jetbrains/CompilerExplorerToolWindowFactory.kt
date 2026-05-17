@@ -11,6 +11,7 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.cef.browser.CefBrowser
@@ -34,7 +35,7 @@ class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
 private class CompilerExplorerPanel(private val project: Project) {
 
     val browser: JBCefBrowser = JBCefBrowser()
-    private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser)
+    private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private var debounceTimer: Timer? = null
     private var lastSource: String = ""
 
@@ -141,13 +142,14 @@ private class CompilerExplorerPanel(private val project: Project) {
                     return@runAsync
                 }
 
-                val lsp4jServer = server.lsp4jServer
-                val result = lsp4jServer.workspaceService.executeCommand(
-                    org.eclipse.lsp4j.ExecuteCommandParams(
-                        "tcl-lsp.compilerExplorer",
-                        listOf(source, dialect)
+                val result = server.sendRequestSync { lsp4j ->
+                    lsp4j.workspaceService.executeCommand(
+                        org.eclipse.lsp4j.ExecuteCommandParams(
+                            "tcl-lsp.compilerExplorer",
+                            listOf(source, dialect)
+                        )
                     )
-                ).get()
+                }
 
                 if (result != null) {
                     val json = com.google.gson.Gson().toJson(result)
