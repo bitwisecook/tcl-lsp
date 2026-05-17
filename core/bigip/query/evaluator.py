@@ -905,7 +905,12 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
         else:
             depth_val = _eval(node.args[0], current, ctx)
             if isinstance(depth_val, bool) or not isinstance(depth_val, int):
-                raise EvalError(
+                # Argument-type validation belongs in the builtin
+                # error family so callers can catch ``BuiltinError``
+                # uniformly across the registry.
+                from .builtins import BuiltinError
+
+                raise BuiltinError(
                     f"flatten: argument 1 must be an integer, got {type(depth_val).__name__}"
                 )
             depth = depth_val
@@ -987,7 +992,9 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
         if node.args:
             n_value = _eval(node.args[0], current, ctx)
             if isinstance(n_value, bool) or not isinstance(n_value, int):
-                raise EvalError(
+                from .builtins import BuiltinError
+
+                raise BuiltinError(
                     f"combinations: argument 1 must be an integer, got {type(n_value).__name__}"
                 )
             n = n_value
@@ -1168,16 +1175,39 @@ _MISSING_KEY: Any = object()
 
 
 def _map_values_dict(d: dict[Any, Any], body: Any, ctx: EvalContext) -> dict[Any, Any]:
-    """Apply *body* to each value of *d*; drop on ``select`` sentinel."""
+    """Apply *body* to each value of *d*; drop on ``select`` sentinel.
+
+    Each *body* invocation must yield exactly one value (matching jq's
+    documented ``map_values`` ≡ ``with_entries(.value |= body)``
+    equivalence — every entry stays a single ``{key, value}`` slot).
+    A zero-element stream / empty result fails loudly so silent value
+    loss can't sneak through; multi-value streams collapse only when
+    one of the values is the ``select`` drop sentinel.
+    """
+    from .builtins import BuiltinError
+
     out: dict[Any, Any] = {}
     for k, v in d.items():
         result = _eval(body, v, ctx)
         if isinstance(result, _Drop):
             continue
         if isinstance(result, Stream):
-            if not result.items:
-                continue
-            out[k] = result.items[0]
+            filtered = [x for x in result.items if not isinstance(x, _Drop)]
+            if not filtered:
+                # ``map_values`` keeps the object's shape — a body
+                # that drops all entries is the user asking for
+                # ``with_entries(select(...))`` instead, so fail
+                # loudly rather than silently shrink the object.
+                raise BuiltinError(
+                    f"map_values: body yielded no value for key {k!r} "
+                    "(use ``with_entries(select(...))`` to drop entries)"
+                )
+            if len(filtered) > 1:
+                raise BuiltinError(
+                    f"map_values: body yielded {len(filtered)} values for key "
+                    f"{k!r}; ``map_values`` keeps the object's shape one-to-one"
+                )
+            out[k] = filtered[0]
         else:
             out[k] = result
     return out

@@ -941,6 +941,18 @@ def test_flatten_explicit_depth():
     assert out == [[1, 2], [3, 4]]
 
 
+def test_flatten_non_integer_depth_raises_builtin_error():
+    """Argument-type errors on builtins are ``BuiltinError`` everywhere.
+
+    Regression for copilot review on PR #418 — the ``flatten`` special
+    form used to raise ``EvalError`` for type validation.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('[[1, 2]] | flatten("two")', {"m": ""})
+
+
 def test_range_one_two_three_args():
     [out] = run_query("[range(5)]", {"m": ""}).values_per_file["m"]
     assert out == [0, 1, 2, 3, 4]
@@ -1349,6 +1361,16 @@ def test_combinations_n_repeats_input():
     assert out == [[1, 1], [1, 2], [2, 1], [2, 2]]
 
 
+def test_combinations_non_integer_n_raises_builtin_error():
+    """Regression for copilot review on PR #418 — argument-type errors
+    on builtins are ``BuiltinError``, not ``EvalError``.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('[1, 2, 3] | combinations("two")', {"m": ""})
+
+
 # ---------------------------------------------------------------------------
 # JSON & encoding (tojson / fromjson / uri / base64 / base64d / html / sh)
 # ---------------------------------------------------------------------------
@@ -1590,6 +1612,20 @@ def test_map_values_on_array_extends_with_every_result():
     # Each item produces a 2-element stream (the original + 10x), so the
     # array should contain 6 elements after flattening.
     assert out == [1, 10, 2, 20, 3, 30]
+
+
+def test_map_values_on_object_rejects_multi_value_body():
+    """Regression for copilot review on PR #418.
+
+    On objects, ``map_values`` keeps the input's shape one-to-one — a
+    body that yields more than one value (or zero) per key would be
+    ambiguous, so we fail loudly rather than silently keeping the
+    first / dropping the entry.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="map_values"):
+        run_query("{a: 1, b: 2} | map_values((., . * 10))", {"m": ""})
 
 
 def test_debug_emits_valid_json_to_stderr(capsys):
