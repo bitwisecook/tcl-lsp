@@ -419,6 +419,13 @@ fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) 
 
 // Bytewise compare with optional case-folding.
 fn lsort_ascii_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) i32 {
+    // Empty / null operands short-circuit.  Without this, casting a
+    // null ``a_ptr`` to a non-allowzero ``[*]const u8`` traps in
+    // ReleaseSafe; set-old.test reaches here via ``array names``
+    // sorted output where some keys can resolve to null pointers.
+    if (a_len == 0 and b_len == 0) return 0;
+    if (a_len == 0) return -1;
+    if (b_len == 0) return 1;
     const ap: [*]const u8 = @ptrFromInt(a_ptr);
     const bp: [*]const u8 = @ptrFromInt(b_ptr);
     const min = if (a_len < b_len) a_len else b_len;
