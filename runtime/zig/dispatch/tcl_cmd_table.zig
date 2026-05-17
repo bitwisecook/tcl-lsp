@@ -48,6 +48,7 @@ const exec_cmd = @import("../cmds/exec.zig");
 const exit_cmd = @import("../cmds/exit.zig");
 const mathop_cmd = @import("../cmds/tcl_mathop.zig");
 const mathfunc_cmd = @import("../cmds/tcl_mathfunc.zig");
+const prefix_cmd = @import("../cmds/tcl_prefix.zig");
 
 // ``tcltest_cmds`` is the namespace bag for the Tcl 9 tcltest C-tier
 // ``test*`` commands ported under ``runtime/zig/tcltest/``.  When
@@ -173,6 +174,7 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     exit_cmd.registrations ++
     mathop_cmd.registrations ++
     mathfunc_cmd.registrations ++
+    prefix_cmd.registrations ++
     tcltest_cmd_obj.registrations ++
     tcltest_cmd_eval.registrations ++
     tcltest_cmd_utf.registrations ++

@@ -608,9 +608,58 @@ inline fn is_trim_char(c: u8, chars_ptr: u32, chars_len: u32) bool {
     return in_chars(c, p, chars_len);
 }
 
+/// UTF-8 codepoint byte-length from a lead byte.  Returns 1 for
+/// ASCII / continuation / invalid bytes so the caller's index walk
+/// advances at least one position.
+fn utf8_lead_len(b: u8) u32 {
+    if (b < 0x80) return 1;
+    if (b < 0xC0) return 1; // continuation — malformed at lead pos
+    if (b < 0xE0) return 2;
+    if (b < 0xF0) return 3;
+    return 4;
+}
+
+/// Does the codepoint at *src*[pos..pos+len] appear in the *chars*
+/// set?  *chars* is treated as a sequence of UTF-8 codepoints; the
+/// codepoint at *pos* matches when its byte run is bit-identical to
+/// any codepoint in *chars*.
+fn codepoint_in_chars(src: [*]const u8, pos: u32, code_len: u32, chars_ptr: u32, chars_len: u32) bool {
+    if (chars_len == 0) {
+        // Empty trim set falls back to Tcl whitespace (single-byte).
+        return is_space(src[pos]);
+    }
+    const cp: [*]const u8 = @ptrFromInt(chars_ptr);
+    var i: u32 = 0;
+    while (i < chars_len) {
+        const cl = utf8_lead_len(cp[i]);
+        const actual = if (i + cl > chars_len) chars_len - i else cl;
+        if (actual == code_len) {
+            var k: u32 = 0;
+            while (k < code_len and src[pos + k] == cp[i + k]) : (k += 1) {}
+            if (k == code_len) return true;
+        }
+        i += actual;
+    }
+    return false;
+}
+
+/// Find the start of the codepoint that ENDS at byte *end* (i.e.
+/// scan back to the most recent UTF-8 lead byte).  Used by the
+/// trim helpers to step backwards through the input by codepoint.
+fn utf8_codepoint_start(src: [*]const u8, end: u32) u32 {
+    var i: u32 = end;
+    while (i > 0) {
+        i -= 1;
+        const b = src[i];
+        if (b < 0x80) return i;
+        if (b >= 0xC0) return i;
+    }
+    return 0;
+}
+
 // Exported: string trim — strip leading/trailing *chars* (default whitespace).
-// ``chars`` is a TclObj whose string value enumerates the bytes to trim;
-// pass 0 to use the default whitespace set.
+// ``chars`` is a TclObj whose string value enumerates the codepoints
+// to trim; pass 0 to use the default whitespace set.
 pub export fn string_trim(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
@@ -623,9 +672,18 @@ pub export fn string_trim(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
+    while (start < s.len) {
+        const code_len = utf8_lead_len(src[start]);
+        const actual = if (start + code_len > s.len) s.len - start else code_len;
+        if (!codepoint_in_chars(src, start, actual, cp, cl)) break;
+        start += actual;
+    }
     var end: u32 = s.len;
-    while (end > start and is_trim_char(src[end - 1], cp, cl)) end -= 1;
+    while (end > start) {
+        const cs2 = utf8_codepoint_start(src, end);
+        if (!codepoint_in_chars(src, cs2, end - cs2, cp, cl)) break;
+        end = cs2;
+    }
     if (start == 0 and end == s.len) return value;
     return obj_new_string_copy(s.ptr + start, end - start);
 }
@@ -643,7 +701,12 @@ pub export fn string_trimleft(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
+    while (start < s.len) {
+        const code_len = utf8_lead_len(src[start]);
+        const actual = if (start + code_len > s.len) s.len - start else code_len;
+        if (!codepoint_in_chars(src, start, actual, cp, cl)) break;
+        start += actual;
+    }
     if (start == 0) return value;
     return obj_new_string_copy(s.ptr + start, s.len - start);
 }
@@ -661,7 +724,11 @@ pub export fn string_trimright(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var end: u32 = s.len;
-    while (end > 0 and is_trim_char(src[end - 1], cp, cl)) end -= 1;
+    while (end > 0) {
+        const cs2 = utf8_codepoint_start(src, end);
+        if (!codepoint_in_chars(src, cs2, end - cs2, cp, cl)) break;
+        end = cs2;
+    }
     if (end == s.len) return value;
     return obj_new_string_copy(s.ptr, end);
 }
@@ -762,9 +829,39 @@ pub export fn string_reverse(value: i32) i32 {
     const buf = alloc(sv.len);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     const dst: [*]u8 = @ptrFromInt(buf);
-    var i: u32 = 0;
-    while (i < sv.len) : (i += 1) {
-        dst[i] = src[sv.len - 1 - i];
+    // Reverse by UTF-8 codepoint so multi-byte chars stay intact
+    // (string-24.5.0: ``킭`` reversed should still decode as
+    // ``킭``, not three garbled replacement chars).  Walk the
+    // source forward, decode each codepoint's byte length from the
+    // lead byte, and copy the byte run into the destination in
+    // reverse element order while preserving the byte order WITHIN
+    // each codepoint.
+    var src_i: u32 = 0;
+    var dst_end: u32 = sv.len;
+    while (src_i < sv.len) {
+        const lead = src[src_i];
+        var code_len: u32 = 1;
+        if (lead < 0x80) {
+            code_len = 1;
+        } else if (lead < 0xC0) {
+            // Continuation byte at lead position — malformed UTF-8.
+            // Fall back to byte-by-byte to mirror C tcl's behaviour
+            // on invalid sequences (preserve the bytes verbatim).
+            code_len = 1;
+        } else if (lead < 0xE0) {
+            code_len = 2;
+        } else if (lead < 0xF0) {
+            code_len = 3;
+        } else {
+            code_len = 4;
+        }
+        if (src_i + code_len > sv.len) code_len = sv.len - src_i;
+        dst_end -= code_len;
+        var k: u32 = 0;
+        while (k < code_len) : (k += 1) {
+            dst[dst_end + k] = src[src_i + k];
+        }
+        src_i += code_len;
     }
     return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
