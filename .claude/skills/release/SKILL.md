@@ -182,7 +182,7 @@ job. If the smoke-test succeeds, integrity is intact.
 
 Ask the user which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed, neovim, helix)
+> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
 > Default: None
 
 Based on the response:
@@ -195,9 +195,9 @@ Available targets:
 - `make publish-vsix` — VS Code Marketplace. Runs `vsce publish`. Requires
   a valid PAT for `bitwisecook` (interactive login otherwise).
 - `make publish-jetbrains` — JetBrains Marketplace. Runs
-  `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. First-time
-  publish must be done manually via the JetBrains web UI — see
-  `docs/kcs/kcs-howto-publish-editor-extensions.md`.
+  `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. The
+  first-ever publish must be done interactively via the JetBrains web
+  UI; `publishPlugin` only updates an already-listed plugin.
 - `make publish-sublime` — Sublime Text / Package Control. Verifies the
   GitHub Release carries the `.sublime-package` asset. After the one-time
   channel submission, Package Control follows tags automatically — no
@@ -208,18 +208,15 @@ Available targets:
   **stops** and prints the suggested commit / push / `gh pr create`
   commands. The script never pushes to a fork or opens a PR — the user
   reviews the diff first and raises the PR themselves.
-- `make publish-neovim` — Informational only. nvim-lspconfig integration
-  is a one-time upstream PR (raised by the user); no per-release action.
-- `make publish-helix` — Informational only. Helix integration is a
-  one-time upstream PR (raised by the user); no per-release action.
 
-If the user is publishing for the **first time** to any of these
-registries, point them at
-`docs/kcs/kcs-howto-publish-editor-extensions.md` before running the
-target — several registries (JetBrains, Sublime Package Control, Zed
-extensions, nvim-lspconfig, Helix) require a one-time external
-registration PR that they raise themselves; the make targets in this
-repo never push to or open PRs against external repositories.
+Neovim (`nvim-lspconfig`) and Helix integration are one-time upstream
+PRs that the user raises by hand; there is no per-release publish step
+or `make publish-*` target for them.
+
+The make targets in this repository never push to or open PRs against
+external repositories — any external-repo PR (JetBrains first-time
+upload, Package Control channel submission, Zed extensions registry,
+nvim-lspconfig, Helix) is raised by the user.
 
 ### 8. Summary
 

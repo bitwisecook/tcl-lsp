@@ -70,24 +70,8 @@ echo "    OK — $TAG carries $found"
 echo
 
 # 4. Guidance
-CHANNEL_ENTRY="$ROOT/scripts/publish_helpers/sublime_channel_entry.json"
 echo "==> Package Control distribution"
 echo
-echo "    Package Control discovers new versions from GitHub tags. Once the"
-echo "    repo is registered in wbond/package_control_channel, no further"
-echo "    action is needed — the channel polls within ~1 hour and serves"
-echo "    the new tag to users."
-echo
-echo "    First-time channel submission — you raise this PR yourself:"
-echo
-echo "      1. Fork https://github.com/wbond/package_control_channel"
-echo "      2. Open repository/t.json"
-echo "      3. Insert the JSON object from:"
-echo "           $CHANNEL_ENTRY"
-echo "         (alphabetical by 'name' within the 'packages' array)"
-echo "      4. Validate the schema with the channel repo's CI/test script"
-echo "      5. Push to your fork and open the PR yourself,"
-echo "         linking this release as evidence"
-echo
-echo "    See docs/kcs/kcs-howto-publish-editor-extensions.md for the full"
-echo "    first-time submission playbook."
+echo "    Once tcl-lsp is registered in wbond/package_control_channel,"
+echo "    Package Control polls the channel and serves the new tag to"
+echo "    users within ~1 hour — no per-release marketplace API call."

@@ -246,9 +246,8 @@ prints the suggested commit / push / `gh pr create` commands and stops —
 no push or PR is performed for you. You review the staged diff, then run
 the suggested commands to raise the PR yourself.
 
-The first time you publish to Zed, follow the one-time submission steps in
-[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md);
-that initial PR is also raised by you, not by any tooling in this repo.
+The initial registration in `zed-industries/extensions` is a separate
+one-time PR you raise by hand before this target can work.
 
 ## Configuration File
 

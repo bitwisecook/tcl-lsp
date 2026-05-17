@@ -30,9 +30,8 @@
 # First-time publish
 # ------------------
 # Before this script can run, the extension must already be REGISTERED
-# in zed-industries/extensions via a one-off PR that adds the submodule
-# and the `[tcl]` block in extensions.toml. See
-# docs/kcs/kcs-howto-publish-editor-extensions.md for the procedure.
+# in zed-industries/extensions via a one-off PR (raised by you) that
+# adds the submodule and the `[tcl]` block in extensions.toml.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -73,10 +72,8 @@ fi
 if [ ! -d "$WORK_DIR/$EXT_PATH" ]; then
     echo
     echo "error: $UPSTREAM does not yet carry an extensions/$EXT_NAME submodule."
-    echo "       The extension has not been registered. See"
-    echo "         docs/kcs/kcs-howto-publish-editor-extensions.md"
-    echo "       for the first-time submission procedure (which is a PR"
-    echo "       you raise yourself)."
+    echo "       The extension has not been registered yet — raise the"
+    echo "       one-time submission PR against $UPSTREAM first."
     exit 1
 fi
 

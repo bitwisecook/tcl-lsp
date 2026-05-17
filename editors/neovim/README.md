@@ -44,10 +44,6 @@ Download the zipapp from the
 and drop it somewhere on PATH (renamed or symlinked to
 `tcl-lsp-server.pyz` so the executable bit is set).
 
-Maintainer note: the upstream submission flow is documented in
-[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md);
-the upstream PR body lives in `editors/neovim/lspconfig.lua`.
-
 ## Neovim 0.11+ (native LSP)
 
 1. Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/tcl_lsp.lua`.

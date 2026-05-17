@@ -8,18 +8,12 @@ with a superset of its features across all Tcl dialects.
 
 ## Installation
 
-### Via Package Control (recommended)
-
-Once tcl-lsp is registered in the Package Control channel:
+### Via Package Control (recommended, once tcl-lsp is on the channel)
 
 1. Open the Command Palette → **Package Control: Install Package**
 2. Search for **Tcl** and install it
 3. Restart Sublime Text and install the **LSP** package for full
    language-server features
-
-Maintainer note: the one-time channel submission and the per-release
-verification flow are documented in
-[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md).
 
 ### Manual install
 

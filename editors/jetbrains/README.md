@@ -43,17 +43,11 @@ All features from the tcl-lsp server are supported:
 
 ## Installation
 
-### From the JetBrains Marketplace (recommended)
-
-Once tcl-lsp is published to the marketplace:
+### From the JetBrains Marketplace (recommended, once the plugin is listed)
 
 1. **Settings → Plugins → Marketplace**
 2. Search for **Tcl Language Support** and install
 3. Restart the IDE
-
-Maintainer note: the one-time marketplace registration and per-release
-publishing flow live in
-[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md).
 
 ### From Release
 

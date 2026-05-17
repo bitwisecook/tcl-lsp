@@ -17,14 +17,10 @@ full details on Python setup across platforms.
 
 ## Upstream integration (after merge)
 
-The `editors/helix/languages.toml` fragment in this repository is the
-payload for the upstream Helix PR. Once merged into
-[`helix-editor/helix`](https://github.com/helix-editor/helix)'s
+Once tcl-lsp is added to
+[`helix-editor/helix`](https://github.com/helix-editor/helix)'s default
 `languages.toml`, Helix users only need the `tcl-lsp-server.pyz` zipapp
 on their PATH — no per-user `languages.toml` edit is required.
-
-Maintainer note: the upstream submission flow is documented in
-[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md).
 
 ## Configuration (until upstream merges)
 
