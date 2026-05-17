@@ -423,19 +423,87 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
     return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
+/// Check whether *c* matches the ``[…]`` character class starting at
+/// *pat*[start].  Returns ``(matches, end)`` where *end* is the
+/// position just past the closing ``]``.  ``end == plen`` signals a
+/// malformed (unclosed) class — caller treats the original ``[`` as
+/// a literal in that case.
+fn glob_match_class(pat: [*]const u8, plen: u32, start: u32, c: u8, nocase: bool) struct { matched: bool, end: u32, ok: bool } {
+    // *start* points at the opening ``[``.
+    var i: u32 = start + 1;
+    if (i >= plen) return .{ .matched = false, .end = start, .ok = false };
+    var negate = false;
+    if (pat[i] == '!' or pat[i] == '^') {
+        negate = true;
+        i += 1;
+    }
+    var matched = false;
+    while (i < plen and pat[i] != ']') {
+        var ch = pat[i];
+        if (ch == '\\' and i + 1 < plen) {
+            ch = pat[i + 1];
+            i += 2;
+        } else {
+            i += 1;
+        }
+        // Range: ``a-z`` — but only if the ``-`` isn't immediately
+        // followed by the closing ``]`` (then ``-`` is literal).
+        if (i + 1 < plen and pat[i] == '-' and pat[i + 1] != ']') {
+            var hi = pat[i + 1];
+            if (hi == '\\' and i + 2 < plen) {
+                hi = pat[i + 2];
+                i += 3;
+            } else {
+                i += 2;
+            }
+            // Range normalisation: Tcl reorders inverted ranges, so
+            // ``[A-fh-Z]`` is the same as ``[A-f] ∪ [Z-h]`` (which
+            // covers ``g``).  Test the lower-half and upper-half
+            // independently.
+            const lo = if (ch < hi) ch else hi;
+            const upper = if (ch < hi) hi else ch;
+            var test_c = c;
+            var lo_c = lo;
+            var hi_c = upper;
+            if (nocase) {
+                test_c = ascii_lower(test_c);
+                lo_c = ascii_lower(lo_c);
+                hi_c = ascii_lower(hi_c);
+            }
+            if (test_c >= lo_c and test_c <= hi_c) matched = true;
+        } else {
+            var test_c = c;
+            var ch_c = ch;
+            if (nocase) {
+                test_c = ascii_lower(test_c);
+                ch_c = ascii_lower(ch_c);
+            }
+            if (test_c == ch_c) matched = true;
+        }
+    }
+    if (i >= plen) {
+        // Unclosed character class — treat the leading ``[`` as
+        // literal so the outer matcher can carry on.
+        return .{ .matched = false, .end = start, .ok = false };
+    }
+    return .{ .matched = if (negate) !matched else matched, .end = i + 1, .ok = true };
+}
+
 pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
-    // Guard against null/zero pointers produced by obj_ensure_string(0).
+    return glob_match_impl(pp, plen, vp, vlen, false);
+}
+
+pub fn glob_match_nocase_impl(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    return glob_match_impl(pp, plen, vp, vlen, true);
+}
+
+fn glob_match_impl(pp: u32, plen: u32, vp: u32, vlen: u32, nocase: bool) bool {
     if (plen == 0) return vlen == 0;
     const pat: [*]const u8 = @ptrFromInt(pp);
-    // vp may be 0 when vlen == 0; defer the cast until we know vlen > 0.
-    var pi: u32 = 0;
-    var vi: u32 = 0;
-    var star_pi: u32 = plen;
-    var star_vi: u32 = 0;
     if (vlen == 0) {
         // Non-empty pattern vs empty value — only matches if every
-        // remaining pattern char is ``*`` (skipping over any
-        // backslash escapes that don't reduce to ``*``).
+        // remaining pattern char is ``*``.
+        var pi: u32 = 0;
         while (pi < plen) {
             if (pat[pi] != '*') return false;
             pi += 1;
@@ -443,45 +511,84 @@ pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
         return true;
     }
     const val: [*]const u8 = @ptrFromInt(vp);
-    while (vi < vlen or pi < plen) {
-        if (pi < plen and pat[pi] == '*') {
-            star_pi = pi;
-            star_vi = vi;
-            pi += 1;
-        } else if (pi < plen and pat[pi] == '\\' and pi + 1 < plen) {
-            // Backslash escape: ``\?`` ``\*`` ``\[`` ``\\`` etc. all
-            // turn into the LITERAL char that follows.  Without this,
-            // ``string match {\?*} cmd`` parses ``\`` as a literal
-            // and tries to match ``c`` against ``\``, returning 0
-            // for the empty case but 1 for any value starting with
-            // a ``?`` (because ``?`` then matches anything as a
-            // wildcard) — root cause of opt-10.x silently passing
-            // ``cmd`` as if it were optional.
-            if (vi < vlen and pat[pi + 1] == val[vi]) {
-                pi += 2;
-                vi += 1;
-            } else if (star_pi < plen) {
-                pi = star_pi + 1;
-                if (star_vi >= vlen) return false;
-                star_vi += 1;
-                vi = star_vi;
-            } else {
-                return false;
+    return glob_match_rec(pat, plen, val, vlen, 0, 0, nocase);
+}
+
+fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_in: u32, vi_in: u32, nocase: bool) bool {
+    var pi = pi_in;
+    var vi = vi_in;
+    while (pi < plen) {
+        const pc = pat[pi];
+        if (pc == '*') {
+            // Skip consecutive ``*``s.
+            while (pi < plen and pat[pi] == '*') pi += 1;
+            if (pi >= plen) return true; // trailing ``*`` matches any tail
+            // Try each suffix position.
+            var k: u32 = vi;
+            while (k <= vlen) : (k += 1) {
+                if (glob_match_rec(pat, plen, val, vlen, pi, k, nocase)) return true;
             }
-        } else if (pi < plen and vi < vlen and (pat[pi] == '?' or pat[pi] == val[vi])) {
-            pi += 1;
-            vi += 1;
-        } else if (star_pi < plen) {
-            pi = star_pi + 1;
-            // No more value positions to try — value exhausted, no match.
-            if (star_vi >= vlen) return false;
-            star_vi += 1;
-            vi = star_vi;
-        } else {
             return false;
         }
+        if (pc == '?') {
+            if (vi >= vlen) return false;
+            pi += 1;
+            vi += 1;
+            continue;
+        }
+        if (pc == '[') {
+            if (vi >= vlen) return false;
+            const r = glob_match_class(pat, plen, pi, val[vi], nocase);
+            if (!r.ok) {
+                // Unclosed ``[`` — treat as literal.
+                if (vi >= vlen) return false;
+                var pc_lit: u8 = pc;
+                var vc: u8 = val[vi];
+                if (nocase) {
+                    pc_lit = ascii_lower(pc_lit);
+                    vc = ascii_lower(vc);
+                }
+                if (pc_lit != vc) return false;
+                pi += 1;
+                vi += 1;
+                continue;
+            }
+            if (!r.matched) return false;
+            pi = r.end;
+            vi += 1;
+            continue;
+        }
+        if (pc == '\\' and pi + 1 < plen) {
+            if (vi >= vlen) return false;
+            var ec: u8 = pat[pi + 1];
+            var vc: u8 = val[vi];
+            if (nocase) {
+                ec = ascii_lower(ec);
+                vc = ascii_lower(vc);
+            }
+            if (ec != vc) return false;
+            pi += 2;
+            vi += 1;
+            continue;
+        }
+        if (pc == '\\') {
+            // Trailing single backslash — no character to escape.
+            // Tcl 9 treats this as a non-match (the pattern is
+            // malformed; matches nothing).
+            return false;
+        }
+        if (vi >= vlen) return false;
+        var pc_c: u8 = pc;
+        var vc: u8 = val[vi];
+        if (nocase) {
+            pc_c = ascii_lower(pc_c);
+            vc = ascii_lower(vc);
+        }
+        if (pc_c != vc) return false;
+        pi += 1;
+        vi += 1;
     }
-    return true;
+    return vi == vlen;
 }
 
 /// Return true if *c* is in *chars* (a u8 slice).
@@ -688,6 +795,52 @@ pub export fn string_tolower(value: i32) i32 {
     return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
+/// Range-bounded variants for ``string tolower/toupper STRING
+/// ?first? ?last?``.  Bytes outside ``[first..last]`` (resolved via
+/// ``resolve_list_index``) are left unchanged.  When *first*/*last*
+/// is 0 they default to 0/len-1 (whole string).
+pub export fn string_toupper_range(value: i32, first: i32, last: i32) i32 {
+    return case_fold_range(value, first, last, false, true);
+}
+
+pub export fn string_tolower_range(value: i32, first: i32, last: i32) i32 {
+    return case_fold_range(value, first, last, true, true);
+}
+
+fn case_fold_range(value: i32, first: i32, last: i32, to_lower: bool, all: bool) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const list_local = @import("tcl_list.zig");
+    const slen: i64 = @intCast(sv.len);
+    var f: i64 = if (first == 0) 0 else list_local.resolve_list_index(first, slen);
+    var l: i64 = if (last == 0) slen - 1 else list_local.resolve_list_index(last, slen);
+    if (f < 0) f = 0;
+    if (l >= slen) l = slen - 1;
+    if (f > l) {
+        // Empty range — return the input verbatim.
+        return value;
+    }
+    const buf = alloc(sv.len);
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const fst: u32 = @intCast(f);
+    const lst: u32 = @intCast(l);
+    var i: u32 = 0;
+    while (i < sv.len) : (i += 1) {
+        const c = src[i];
+        if (all and i >= fst and i <= lst) {
+            if (to_lower) {
+                dst[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+            } else {
+                dst[i] = if (c >= 'a' and c <= 'z') c - 32 else c;
+            }
+        } else {
+            dst[i] = c;
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+}
+
 // Exported: string totitle — uppercase the first alphabetic byte and
 // lowercase every other byte.  Tcl's reference totitle walks the
 // whole string by Unicode codepoint; this ASCII-only approximation
@@ -707,6 +860,41 @@ pub export fn string_totitle(value: i32) i32 {
             first_alpha_seen = true;
         } else if (c >= 'A' and c <= 'Z') {
             dst[i] = c + 32;
+        } else {
+            dst[i] = c;
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+}
+
+/// ``string totitle STRING ?first? ?last?`` — title-case the
+/// character at *first* (or 0 by default) and lowercase the rest
+/// of the range ``[first..last]``.  Bytes outside the range are
+/// left unchanged.
+pub export fn string_totitle_range(value: i32, first: i32, last: i32) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const list_local = @import("tcl_list.zig");
+    const slen: i64 = @intCast(sv.len);
+    var f: i64 = if (first == 0) 0 else list_local.resolve_list_index(first, slen);
+    var l: i64 = if (last == 0) slen - 1 else list_local.resolve_list_index(last, slen);
+    if (f < 0) f = 0;
+    if (l >= slen) l = slen - 1;
+    if (f > l) return value;
+    const buf = alloc(sv.len);
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const fst: u32 = @intCast(f);
+    const lst: u32 = @intCast(l);
+    var i: u32 = 0;
+    while (i < sv.len) : (i += 1) {
+        const c = src[i];
+        if (i == fst) {
+            // Title-case the first character of the range.
+            dst[i] = if (c >= 'a' and c <= 'z') c - 32 else c;
+        } else if (i > fst and i <= lst) {
+            // Lowercase the remainder of the range.
+            dst[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
         } else {
             dst[i] = c;
         }
@@ -760,9 +948,13 @@ pub export fn string_insert(value: i32, index: i32, ins: i32) i32 {
 // Exported: string replace — replace characters in range [first..last] with new string.
 pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i32 {
     const sv = obj_ensure_string(value);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
+    const list_local = @import("tcl_list.zig");
     const slen: i64 = @intCast(sv.len);
+    // ``end`` / ``end±N`` / plain integer — must use the index
+    // resolver so ``string replace ... -100 end`` clamps to the
+    // whole-string range instead of treating ``end`` as 0.
+    var f = list_local.resolve_list_index(first, slen);
+    var l = list_local.resolve_list_index(last, slen);
     if (f < 0) f = 0;
     if (l >= slen) l = slen - 1;
     if (f > l or f >= slen) return value;

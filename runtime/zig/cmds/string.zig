@@ -142,6 +142,66 @@ const sub_arity_table: []const SubArityRule = &.{
         .max_words = null,
         .message = "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
     },
+    .{
+        .name = "map",
+        .min_words = 4,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string map ?-nocase? charMap string\"",
+    },
+    .{
+        .name = "tolower",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string tolower string ?first? ?last?\"",
+    },
+    .{
+        .name = "toupper",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string toupper string ?first? ?last?\"",
+    },
+    .{
+        .name = "totitle",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string totitle string ?first? ?last?\"",
+    },
+    .{
+        .name = "trim",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trim string ?chars?\"",
+    },
+    .{
+        .name = "trimleft",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trimleft string ?chars?\"",
+    },
+    .{
+        .name = "trimright",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trimright string ?chars?\"",
+    },
+    .{
+        .name = "reverse",
+        .min_words = 3,
+        .max_words = 3,
+        .message = "wrong # args: should be \"string reverse string\"",
+    },
+    .{
+        .name = "wordstart",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string wordstart string index\"",
+    },
+    .{
+        .name = "wordend",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string wordend string index\"",
+    },
 };
 
 /// Validate the call's word count against the subcommand's arity
@@ -333,8 +393,24 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     }
     if (words.len < 3) return result_mod.from_globals(0);
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
-    if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
-    if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
+    if (str_eq(sp, sub.len, "index") and words.len >= 4) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_index(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "range") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
+    }
     if (str_eq(sp, sub.len, "compare")) {
         return result_mod.from_globals(eval_compare_or_equal(words, .compare));
     }
@@ -363,6 +439,16 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             }
         }
         if (map_idx + 1 >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        // Validate the CHARMAP has an even number of elements —
+        // Tcl 9 raises ``char map list unbalanced`` when the
+        // pair-count is odd (string-10.10.0).
+        const obj_mod_r = @import("../valtypes/tcl_obj.zig");
+        const map_str = obj_mod_r.obj_ensure_string(words[map_idx]);
+        const map_count = obj_mod_r.list_count_elements(map_str.ptr, map_str.len);
+        if (@rem(map_count, 2) != 0) {
+            raise_string_wrong_args("char map list unbalanced");
+            return result_mod.from_globals(0);
+        }
         if (nocase) return result_mod.from_globals(rt.string_map_nocase(words[map_idx], words[map_idx + 1]));
         return result_mod.from_globals(rt.string_map(words[map_idx], words[map_idx + 1]));
     }
@@ -378,15 +464,71 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         const chars = if (words.len >= 4) words[3] else 0;
         return result_mod.from_globals(rt.string_trimright(words[2], chars));
     }
-    if (str_eq(sp, sub.len, "first") and words.len >= 4) return result_mod.from_globals(rt.string_first(words[2], words[3]));
-    if (str_eq(sp, sub.len, "last") and words.len >= 4) return result_mod.from_globals(rt.string_last(words[2], words[3]));
-    if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
-    if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
-    if (str_eq(sp, sub.len, "totitle")) return result_mod.from_globals(rt.string_totitle(words[2]));
+    if (str_eq(sp, sub.len, "first") and words.len >= 4) {
+        if (words.len >= 5 and !is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_first(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "last") and words.len >= 4) {
+        if (words.len >= 5 and !is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_last(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "toupper") or str_eq(sp, sub.len, "tolower") or str_eq(sp, sub.len, "totitle")) {
+        const first: i32 = if (words.len >= 4) blk: {
+            if (!is_valid_string_index(words[3])) {
+                raise_bad_string_index(words[3]);
+                return result_mod.from_globals(0);
+            }
+            break :blk words[3];
+        } else 0;
+        const last: i32 = if (words.len >= 5) blk: {
+            if (!is_valid_string_index(words[4])) {
+                raise_bad_string_index(words[4]);
+                return result_mod.from_globals(0);
+            }
+            break :blk words[4];
+        } else 0;
+        if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper_range(words[2], first, last));
+        if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower_range(words[2], first, last));
+        return result_mod.from_globals(rt.string_totitle_range(words[2], first, last));
+    }
     if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
-    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
-    if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
-    if (str_eq(sp, sub.len, "insert") and words.len >= 5) return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
+    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) {
+        // ``string repeat string count`` — count must parse as an
+        // integer (the runtime helper ``string_repeat`` reads via
+        // ``obj_get_int`` which silently returns 0 for garbage).
+        const obj_mod_r = @import("../valtypes/tcl_obj.zig");
+        const cs = obj_mod_r.obj_ensure_string(words[3]);
+        if (obj_mod_r.try_parse_int(cs.ptr, cs.len) == null) {
+            raise_expected_integer(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "replace") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        const replace_arg: i32 = if (words.len >= 6) words[5] else obj_new_string(0, 0);
+        return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], replace_arg));
+    }
+    if (str_eq(sp, sub.len, "insert") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
+    }
     if (str_eq(sp, sub.len, "is")) {
         return eval_string_is(words);
     }
@@ -676,6 +818,15 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
     // Reference Tcl emits ``bad option "X"`` for the first such
     // word — string-2.2 (``string compare a b c``) wants ``bad
     // option "a"``.
+    if (ai > opt_end) {
+        // Option processing consumed too many words and we no longer
+        // have two trailing operand strings — string-2.5 (``string
+        // compare -length 10 10`` should raise ``wrong # args``,
+        // not ``bad option "10"``).  ``ai`` overshooting opt_end is
+        // the canonical signal for this shape.
+        raise_string_wrong_args(wrong_args);
+        return obj_new_int(0);
+    }
     if (ai != opt_end) {
         raise_bad_option(words[ai], "must be -nocase or -length");
         return obj_new_int(0);
@@ -690,6 +841,87 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
         return obj_new_int(if (v == 0) 1 else 0);
     }
     return cmp;
+}
+
+/// Validate *idx* as a Tcl string-index argument.  Accepts integers
+/// (with optional ``+``/``-`` sign, possibly hex / octal), ``end``,
+/// ``end-N``, ``end+N``, and the ``int+int`` / ``int-int`` arithmetic
+/// forms the C tcl parser accepts.  Returns ``true`` on a valid
+/// index, ``false`` otherwise.  Used by ``string first`` / ``string
+/// last`` / ``string range`` / ``string replace`` / ``string index``
+/// / ``string repeat`` to reject garbage indices with the canonical
+/// ``bad index "X": must be integer?[+-]integer? or end?[+-]integer?``
+/// diagnostic rather than silently treating them as 0.
+fn is_valid_string_index(idx: i32) bool {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const s = obj_mod.obj_ensure_string(idx);
+    if (s.len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Allow ``end`` / ``end-N`` / ``end+N`` (plus optional arithmetic
+    // tail like ``end-1+0`` which C tcl folds at parse time).
+    if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+        if (s.len == 3) return true;
+        // ``end+N`` / ``end-N`` — N is an integer literal (digits +
+        // optional further ``±N`` arithmetic chain).
+        if (sp[3] != '+' and sp[3] != '-') return false;
+        return is_int_arith_tail(sp, s.len, 4);
+    }
+    // Pure integer arithmetic: optional sign, digits, optional
+    // ``±N`` continuation.
+    var i: u32 = 0;
+    if (sp[i] == '+' or sp[i] == '-') i += 1;
+    if (i >= s.len) return false;
+    return is_int_arith_tail(sp, s.len, i);
+}
+
+fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+    var i = start;
+    // First digit run (required at least 1 digit).
+    if (i >= len) return false;
+    if (!(sp[i] >= '0' and sp[i] <= '9')) return false;
+    while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+    // Optional ``±N`` continuation runs.
+    while (i < len) {
+        if (sp[i] != '+' and sp[i] != '-') return false;
+        i += 1;
+        if (i >= len or !(sp[i] >= '0' and sp[i] <= '9')) return false;
+        while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+    }
+    return true;
+}
+
+fn raise_bad_string_index(idx: i32) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(idx);
+    const prefix = "bad index \"";
+    const suffix = "\": must be integer?[+-]integer? or end?[+-]integer?";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
 }
 
 fn raise_expected_integer(operand: i32) void {
@@ -895,14 +1127,27 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
             i += 2;
             continue;
         }
-        // Unknown flag — same error wording as upstream Tcl 9 (the
-        // class-prefix is substituted in for the canonical 'class').
+        // Unknown flag — Tcl 9's StringIsCmd substitutes the
+        // resolved class name into the diagnostic for this path
+        // (string-6.3.0: ``string is alpha -failin str`` →
+        // ``string is alpha ?...``).
         raise_string_is_args(class_name);
         return result_mod.from_globals(obj_new_int(0));
     }
     if (i + 1 != words.len) {
-        // Either zero or more than one trailing arg — bad arity.
-        raise_string_is_args(class_name);
+        // Trailing-arg count mismatch after option parsing.  C tcl
+        // splits the wording by direction:
+        //   - "missing candidate string" (i > words.len-1, i.e. no
+        //     trailing arg at all) uses the resolved class name
+        //     (string-6.3.0).
+        //   - "extra trailing args" (i < words.len-1, more than one
+        //     trailing word remains) uses the generic ``class``
+        //     placeholder (string-6.4.0).
+        if (i >= words.len) {
+            raise_string_is_args(class_name);
+        } else {
+            raise_string_is_args("class");
+        }
         return result_mod.from_globals(obj_new_int(0));
     }
     const sv = obj_ensure_string(words[i]);
