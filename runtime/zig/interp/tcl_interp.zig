@@ -727,8 +727,100 @@ pub fn eval_command(words: []const i32) i32 {
         }
     }
 
+    // -- Namespace ``path`` resolution --------------------------------
+    // Unqualified names that miss the BUILTINS / proc tables consult
+    // each entry of the current namespace's ``commandPathArray`` and
+    // probe the BUILTINS table for ``${path_ns_full}::${cmd}``.
+    // ``::tcl::mathop::+`` is registered FQ in BUILTINS; ``namespace
+    // path ::tcl::mathop`` makes the bare ``+`` resolve here without
+    // forcing every test to ``namespace import`` first (mathop-1.x,
+    // mathop-2.x, …).
+    if (cmd_s.len > 0) {
+        const cp: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        var has_colons = false;
+        if (cmd_s.len >= 2) {
+            var i: u32 = 0;
+            while (i + 1 < cmd_s.len) : (i += 1) {
+                if (cp[i] == ':' and cp[i + 1] == ':') {
+                    has_colons = true;
+                    break;
+                }
+            }
+        }
+        if (!has_colons) {
+            if (resolve_via_path(cmd_s, words)) |r| return r;
+        }
+    }
+
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
+}
+
+/// Walk the current namespace's command-resolution ``path`` and
+/// look the unqualified ``cmd_s`` up as ``${path_ns}::${cmd_s}``
+/// against the BUILTINS slice.  Returns the handler's result if a
+/// match fires, or ``null`` so the caller can fall through to the
+/// proc / unknown chain.  Read-only — does not mutate any tables.
+fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
+    const ns_cur = tcl_ns.ns_current();
+    if (ns_cur == 0) return null;
+    const plen = tcl_ns.ns_path_len(ns_cur);
+    if (plen == 0) return null;
+    var pi: u32 = 0;
+    while (pi < plen) : (pi += 1) {
+        const e = tcl_ns.ns_path_entry(ns_cur, pi);
+        if (e.target_ns == 0) continue;
+        const full = tcl_ns.ns_full_name(e.target_ns);
+        // Build ``${full}::${cmd_s}``.  Root (``::``) collapses to
+        // ``::${cmd_s}``.
+        const join_len: u32 = if (full.len == 2) 0 else 2;
+        const total: u32 = full.len + join_len + cmd_s.len;
+        const buf = obj_mod.alloc(total);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const src: [*]const u8 = @ptrFromInt(full.ptr);
+        var fi: u32 = 0;
+        while (fi < full.len) : (fi += 1) dst[fi] = src[fi];
+        var loff: u32 = full.len;
+        if (join_len > 0) {
+            dst[loff] = ':';
+            dst[loff + 1] = ':';
+            loff += 2;
+        }
+        const cps2: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        var j: u32 = 0;
+        while (j < cmd_s.len) : (j += 1) dst[loff + j] = cps2[j];
+        // Try the BUILTINS table with the FQ name (strip leading
+        // ``::`` to match the table's storage convention — root
+        // commands are keyed without it).
+        var lookup_ptr: u32 = buf;
+        var lookup_len: u32 = total;
+        if (lookup_len >= 2 and dst[0] == ':' and dst[1] == ':') {
+            lookup_ptr += 2;
+            lookup_len -= 2;
+        }
+        if (cmd_table.lookup(lookup_ptr, lookup_len)) |handler| {
+            // Rewrite words[0] so error messages / the handler's
+            // view of the command name match what was dispatched.
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+            var w: u32 = 1;
+            while (w < words.len) : (w += 1) new_words[w] = words[w];
+            return handler(new_words[0..words.len]).value;
+        }
+        // Also try the proc registry — ``namespace path`` resolves
+        // user procs too, not just builtins.
+        const fq_obj = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+        const bucket = procs.proc_lookup(fq_obj);
+        if (bucket != 0) {
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = fq_obj;
+            var w: u32 = 1;
+            while (w < words.len) : (w += 1) new_words[w] = words[w];
+            return eval_proc_call_bucket(new_words[0..words.len], bucket);
+        }
+        obj_mod.tcl_obj_release(fq_obj);
+    }
+    return null;
 }
 
 /// Recognise ``::tcl::ENSEMBLE::SUBCMD`` (the canonical FQ rewrite
