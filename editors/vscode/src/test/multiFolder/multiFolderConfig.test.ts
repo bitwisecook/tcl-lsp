@@ -9,10 +9,13 @@ import * as vscode from "vscode";
 interface EffectiveConfig {
   uri: string;
   folder_uri: string | null;
-  dialect: string | null;
-  extra_commands: string[] | null;
+  // Resolved values: folder override → workspace fallback → process default.
+  // ``dialect`` always concrete (e.g. "tcl8.6"), never null.
+  // ``extra_commands`` / ``library_paths`` always arrays (empty when unset).
+  dialect: string;
+  extra_commands: string[];
   non_ascii_mode: string | null;
-  library_paths: string[] | null;
+  library_paths: string[];
   line_length: number;
   dialect_explicitly_set: boolean;
   known_folder_uris: string[];

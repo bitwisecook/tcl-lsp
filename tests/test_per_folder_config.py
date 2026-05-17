@@ -25,6 +25,37 @@ from core.formatting import FormatterConfig
 from lsp.feature_config import FeatureConfig
 
 
+def _install_diag_capture(captured: dict) -> object:
+    """Stub the diagnostics-pipeline publisher so tests can inspect diagnostics.
+
+    Returns the original ``_publish_diags_to_client`` value so the caller
+    can restore it in a ``finally`` block.  Centralised here so the
+    ``# type: ignore`` for the deliberate signature-mismatch only appears
+    once instead of in every test method.
+    """
+    import lsp.diagnostics_pipeline as _dp
+
+    orig = _dp._publish_diags_to_client
+
+    def _capture(uri: str, diagnostics: list, version: int | None = None) -> None:
+        captured[uri] = list(diagnostics)
+
+    _dp._publish_diags_to_client = _capture  # type: ignore[assignment]
+
+    class _DummyServer:
+        @staticmethod
+        def text_document_publish_diagnostics(*_a: object, **_kw: object) -> None: ...
+
+    _dp.configure(_DummyServer())  # type: ignore[arg-type]
+    return orig
+
+
+def _restore_diag_capture(orig: object) -> None:
+    import lsp.diagnostics_pipeline as _dp
+
+    _dp._publish_diags_to_client = orig  # type: ignore[assignment]
+
+
 @pytest.fixture
 def reset_per_folder_state():
     """Snapshot/restore the module-level per-folder maps and fallback configs."""
@@ -379,13 +410,7 @@ class TestPerFolderDialect:
         _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
 
         captured: dict[str, list] = {}
-        orig_publish = _dp._publish_diags_to_client
-
-        def _capture(uri, diags, version=None):
-            captured[uri] = list(diags)
-
-        _dp._publish_diags_to_client = _capture
-        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
+        orig_publish = _install_diag_capture(captured)
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             initial = [d for d in captured.get(file_uri, []) if d.code == diagnostic_code]
@@ -404,7 +429,7 @@ class TestPerFolderDialect:
                 f"setting {late_settings!r} applies; got: " + ", ".join(d.message for d in after)
             )
         finally:
-            _dp._publish_diags_to_client = orig_publish
+            _restore_diag_capture(orig_publish)
 
 
 class TestAnalyserOptInDiagnostics:
@@ -434,9 +459,7 @@ class TestAnalyserOptInDiagnostics:
         _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
 
         captured: dict[str, list] = {}
-        orig = _dp._publish_diags_to_client
-        _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
+        orig = _install_diag_capture(captured)
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
@@ -444,7 +467,7 @@ class TestAnalyserOptInDiagnostics:
                 d.message for d in w123
             )
         finally:
-            _dp._publish_diags_to_client = orig
+            _restore_diag_capture(orig)
 
     def test_w123_fires_when_user_enables_it(self, reset_per_folder_state):
         """``tclLsp.diagnostics.W123: true`` makes the analyser emit W123."""
@@ -460,9 +483,7 @@ class TestAnalyserOptInDiagnostics:
         _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
 
         captured: dict[str, list] = {}
-        orig = _dp._publish_diags_to_client
-        _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
+        orig = _install_diag_capture(captured)
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
@@ -472,7 +493,7 @@ class TestAnalyserOptInDiagnostics:
             )
             assert "my_unknown_helper" in w123[0].message
         finally:
-            _dp._publish_diags_to_client = orig
+            _restore_diag_capture(orig)
 
     def test_toggling_w123_at_runtime_re_analyses(self, reset_per_folder_state):
         """Flipping ``tclLsp.diagnostics.W123`` invalidates the cached analysis.
@@ -495,9 +516,7 @@ class TestAnalyserOptInDiagnostics:
         _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
 
         captured: dict[str, list] = {}
-        orig = _dp._publish_diags_to_client
-        _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
+        orig = _install_diag_capture(captured)
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             initial = [d for d in captured.get(file_uri, []) if d.code == "W123"]
@@ -522,7 +541,7 @@ class TestAnalyserOptInDiagnostics:
                 d.message for d in cleared
             )
         finally:
-            _dp._publish_diags_to_client = orig
+            _restore_diag_capture(orig)
 
 
 class TestPerFolderNonAscii:
