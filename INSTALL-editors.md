@@ -8,7 +8,8 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 
 | Editor | Artefact | Install |
 |--------|----------|---------|
-| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension` |
+| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension`, or VS Code Marketplace |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Open VSX Registry, or sideload the `.vsix` |
 | [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
@@ -34,12 +35,30 @@ are installed — see the per-editor sections below.
 
 ## VS Code
 
+Install from the VS Code Marketplace
+(<https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp>),
+or sideload the bundled `.vsix`:
+
 ```sh
 code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 ```
 
 Configure under **Settings > Extensions > Tcl**. Pin an interpreter
 with `tclLsp.pythonPath` (default `"auto"`).
+
+### VS Code-compatible editors (Open VSX)
+
+The same extension is published to the [Open VSX Registry](https://open-vsx.org/extension/bitwisecook/tcl-lsp),
+which is the default extension source for editors that cannot use the
+Microsoft Marketplace:
+
+- **Cursor**, **Windsurf** — Extensions panel; search "Tcl/Tk".
+- **VSCodium** — Extensions panel; search "Tcl/Tk".
+- **Eclipse Theia**, **code-server** / **Coder**, **Gitpod**,
+  **GitHub Codespaces (Theia builds)** — same Extensions UI; search
+  "Tcl/Tk".
+
+Sideloading the `.vsix` works in all of them as a fallback.
 
 ## Sublime Text
 
