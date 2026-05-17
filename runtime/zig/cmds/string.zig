@@ -479,20 +479,33 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(rt.string_last(words[2], words[3]));
     }
     if (str_eq(sp, sub.len, "toupper") or str_eq(sp, sub.len, "tolower") or str_eq(sp, sub.len, "totitle")) {
-        const first: i32 = if (words.len >= 4) blk: {
+        // Tcl 9 ``string tolower/toupper/totitle STRING ?first ?last??`` —
+        // if only *first* is given, *last* defaults to *first* (a single
+        // codepoint).  If neither is given, the whole string is affected.
+        // We thread a special ``0`` sentinel through the range helpers to
+        // mean "whole string"; the dispatch here picks the right pair.
+        const has_first = words.len >= 4;
+        const has_last = words.len >= 5;
+        const first: i32 = if (has_first) blk: {
             if (!is_valid_string_index(words[3])) {
                 raise_bad_string_index(words[3]);
                 return result_mod.from_globals(0);
             }
             break :blk words[3];
         } else 0;
-        const last: i32 = if (words.len >= 5) blk: {
+        const last: i32 = if (has_last) blk: {
             if (!is_valid_string_index(words[4])) {
                 raise_bad_string_index(words[4]);
                 return result_mod.from_globals(0);
             }
             break :blk words[4];
-        } else 0;
+        } else if (has_first) first else 0;
+        if (!has_first) {
+            // Whole-string variant — original helpers.
+            if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
+            if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
+            return result_mod.from_globals(rt.string_totitle(words[2]));
+        }
         if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper_range(words[2], first, last));
         if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower_range(words[2], first, last));
         return result_mod.from_globals(rt.string_totitle_range(words[2], first, last));

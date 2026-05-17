@@ -311,40 +311,80 @@ pub export fn tcl_expr_eq_nan_aware(a: i32, b: i32) i32 {
 }
 
 // Exported: string length — byte length of the string representation.
+/// Count UTF-8 codepoints in [*ptr*..*ptr*+*len*).  Treats each lead
+/// byte as one codepoint, skipping continuation bytes.
+fn count_codepoints(ptr: u32, len: u32) u32 {
+    if (len == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        count += 1;
+        i += actual;
+    }
+    return count;
+}
+
+/// Byte offset of the *idx*-th codepoint (0-based) in [*ptr*..*ptr*+*len*).
+/// Returns ``len`` when *idx* is past the end (caller can detect via
+/// the equality).  Negative indices are treated as out-of-range
+/// (caller resolves ``end`` etc. before calling).
+fn byte_offset_for_codepoint(ptr: u32, len: u32, idx: u32) u32 {
+    if (len == 0 or idx == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var cp: u32 = 0;
+    while (i < len and cp < idx) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        i += actual;
+        cp += 1;
+    }
+    return i;
+}
+
 pub export fn string_length(value: i32) i32 {
     const s = obj_ensure_string(value);
-    return obj_new_int(@intCast(s.len));
+    return obj_new_int(@intCast(count_codepoints(s.ptr, s.len)));
 }
 
-// Exported: string index — extract the character at a byte index.
+// Exported: string index — extract the *idx*-th codepoint (0-based).
+// ``end`` / ``end-N`` / ``end+N`` resolve against the codepoint
+// count, not the byte length.
 pub export fn string_index(value: i32, idx: i32) i32 {
     const s = obj_ensure_string(value);
-    // Accept ``end`` / ``end-N`` / ``end+N`` as well as plain integers —
-    // the same arithmetic list indexing uses.  Previously only plain
-    // integers parsed, so ``string index foo end`` resolved to 0.
-    const slen_i64: i64 = @intCast(s.len);
-    const i_val = list_mod.resolve_list_index(idx, slen_i64);
-    if (i_val < 0 or i_val >= slen_i64) return obj_new_string(0, 0);
-    const pos: u32 = @intCast(i_val);
-    const src: [*]const u8 = @ptrFromInt(s.ptr);
-    const buf = alloc(1);
+    const cp_count: u32 = count_codepoints(s.ptr, s.len);
+    const cp_count_i64: i64 = @intCast(cp_count);
+    const i_val = list_mod.resolve_list_index(idx, cp_count_i64);
+    if (i_val < 0 or i_val >= cp_count_i64) return obj_new_string(0, 0);
+    const start = byte_offset_for_codepoint(s.ptr, s.len, @intCast(i_val));
+    // Determine the byte length of this codepoint to slice the
+    // single-character return value.
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    const cl = utf8_lead_len(sp[start]);
+    const actual = if (start + cl > s.len) s.len - start else cl;
+    const buf = alloc(actual);
     const dst: [*]u8 = @ptrFromInt(buf);
-    dst[0] = src[pos];
-    return obj_new_string(@bitCast(buf), 1);
+    var k: u32 = 0;
+    while (k < actual) : (k += 1) dst[k] = sp[start + k];
+    return obj_new_string(@bitCast(buf), @bitCast(actual));
 }
 
-// Exported: string range — extract a substring [first..last] (inclusive).
+// Exported: string range — extract codepoints [first..last] inclusive.
 pub export fn string_range(value: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(value);
-    const slen: i64 = @intCast(s.len);
-    var f = list_mod.resolve_list_index(first, slen);
-    var l = list_mod.resolve_list_index(last, slen);
+    const cp_count: u32 = count_codepoints(s.ptr, s.len);
+    const cp_count_i64: i64 = @intCast(cp_count);
+    var f = list_mod.resolve_list_index(first, cp_count_i64);
+    var l = list_mod.resolve_list_index(last, cp_count_i64);
     if (f < 0) f = 0;
-    if (l >= slen) l = slen - 1;
-    if (f > l or f >= slen) return obj_new_string(0, 0);
-    const start: u32 = @intCast(f);
-    const count: u32 = @intCast(l - f + 1);
-    return obj_new_string_copy(s.ptr + start, count);
+    if (l >= cp_count_i64) l = cp_count_i64 - 1;
+    if (f > l or f >= cp_count_i64) return obj_new_string(0, 0);
+    const start_byte = byte_offset_for_codepoint(s.ptr, s.len, @intCast(f));
+    const end_byte = byte_offset_for_codepoint(s.ptr, s.len, @as(u32, @intCast(l)) + 1);
+    return obj_new_string_copy(s.ptr + start_byte, end_byte - start_byte);
 }
 
 // Exported: string map — apply a mapping list {from to from to ...} to a string.
@@ -761,7 +801,28 @@ pub export fn string_equal_full(a: i32, b: i32, nocase: i32, len_limit: i32) i32
     return obj_new_int(if (v == 0) @as(i64, 1) else @as(i64, 0));
 }
 
+/// Convert a byte offset into the codepoint index that would land
+/// at that offset.  Used by ``string first`` / ``string last`` to
+/// report the result in codepoint coordinates rather than bytes.
+fn codepoint_index_for_byte(ptr: u32, len: u32, byte_off: u32) u32 {
+    if (byte_off == 0 or len == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var cp: u32 = 0;
+    while (i < len and i < byte_off) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        i += actual;
+        cp += 1;
+    }
+    return cp;
+}
+
 // Exported: string first — find first occurrence of needle in haystack.
+// Returns the codepoint index (0-based), -1 if not found.  The
+// match is bytewise (no Unicode normalisation) but the returned
+// index is in codepoint coordinates so callers can pair it with
+// ``string range`` / ``string index`` without translating.
 pub export fn string_first(needle: i32, haystack: i32) i32 {
     const sn = obj_ensure_string(needle);
     const sh = obj_ensure_string(haystack);
@@ -778,7 +839,9 @@ pub export fn string_first(needle: i32, haystack: i32) i32 {
                 break;
             }
         }
-        if (match) return obj_new_int(@intCast(i));
+        if (match) {
+            return obj_new_int(@intCast(codepoint_index_for_byte(sh.ptr, sh.len, i)));
+        }
     }
     return obj_new_int(-1);
 }
@@ -800,7 +863,9 @@ pub export fn string_last(needle: i32, haystack: i32) i32 {
                 break;
             }
         }
-        if (match) return obj_new_int(@intCast(ui));
+        if (match) {
+            return obj_new_int(@intCast(codepoint_index_for_byte(sh.ptr, sh.len, ui)));
+        }
     }
     return obj_new_int(-1);
 }
