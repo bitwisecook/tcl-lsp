@@ -139,11 +139,18 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Count VSes grouped by partition",
-        query="[.ltm.virtual[].name | partition(.)] | sort",
+        query=(
+            '[.ltm.virtual[]] | group_by(partition(."full-path")) '
+            '| map({partition: (.[0]."full-path" | partition(.)), count: length})'
+        ),
         comment=(
-            "List literal `[...]` collects the stream of partition "
-            "names; `sort` then operates on the list.  `--raw` emits "
-            "one value per line, easy to pipe through `uniq -c`."
+            '`group_by(partition(."full-path"))` partitions the stream of '
+            "VSes by their partition string; `map` then projects each group "
+            "to `{partition, count}` using `length` to count and "
+            '`.[0]."full-path" | partition(.)` to recover the partition '
+            "label.  For the flat-list variant, "
+            '``[.ltm.virtual[]."full-path" | partition(.)] | unique`` '
+            "yields the distinct partition names sorted."
         ),
     ),
     Example(
@@ -188,6 +195,57 @@ _EXAMPLES: tuple[Example, ...] = (
             "into an LTM virtual resolves transparently).  Refuses to "
             "merge when two sources define the same (kind, full-path) "
             "— namespace or redact the inputs first."
+        ),
+    ),
+    Example(
+        title="Pool names attached to more than one VS",
+        query="[.ltm.virtual[].pool] | dupes",
+        comment=(
+            "``dupes`` is the inverse of ``unique`` — returns the "
+            "values that occur **more than once** in the list, sorted.  "
+            "Useful for surfacing intentional sharing (or copy-paste "
+            "bugs)."
+        ),
+    ),
+    Example(
+        title="VSes sorted ascending by attached pool member count",
+        query="[.ltm.virtual[]] | sort_by(.pool.members | length) | map(.name)",
+        comment=(
+            "``sort_by(body)`` orders a list by the value of *body* "
+            "evaluated against each item.  Pair with ``map`` to project "
+            "the field you care about."
+        ),
+    ),
+    Example(
+        title="Largest pool by member count, in one pass",
+        query="[.ltm.pool[]] | max_by(.members | length)",
+        comment=(
+            "``max_by(body)`` picks the item whose *body* value is "
+            "largest under jq's cross-type ordering.  Use ``min_by`` "
+            "for the opposite extreme and ``min_max(body)`` to get both "
+            "in one array."
+        ),
+    ),
+    Example(
+        title="Lowercase every string field anywhere in a VS, recursively",
+        query=('.ltm.virtual.web_vs | walk(if type == "string" then ascii_downcase else . end)'),
+        comment=(
+            "``walk(body)`` is jq's recursive transform — for every "
+            "value in the tree (bottom-up), it rebinds ``.`` to that "
+            "value and evaluates *body*.  Pair with ``type`` and "
+            "``ascii_downcase`` / ``ascii_upcase`` for case normal"
+            "isation across an entire object."
+        ),
+    ),
+    Example(
+        title="Index VSes by name for O(1) lookup in downstream pipelines",
+        query="[.ltm.virtual[]] | INDEX(.name)",
+        comment=(
+            "``INDEX`` builds an object keyed by the result of *body* "
+            "evaluated against each item — here the VS name.  jq's "
+            "two-arg form ``INDEX(source; key)`` uses ``;`` as the "
+            "argument separator; in this DSL function arguments are "
+            "comma-separated, so collect the stream first and pipe."
         ),
     ),
 )

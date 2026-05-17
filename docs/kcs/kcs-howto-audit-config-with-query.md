@@ -107,8 +107,8 @@ $ f5 query --paths-only '.ltm.pool[]
 
 # Pools whose members all share the same address (single-member redundancy bug)
 $ f5 query '.ltm.pool[]
-  | select(.members | map(.address) | unique | count == 1)
-  | select(.members | count > 1)
+  | select(.members | unique_by(.address) | length == 1)
+  | select(.members | length > 1)
   | .name' bigip.conf
 
 # Names of VSes whose pool has any member outside the chosen range:
@@ -122,6 +122,35 @@ $ f5 query --json '.ltm.virtual[]
 ```
 
 The stream of member addresses is piped through `in_cidr(., "...")` and then `not` (each item becomes the boolean "outside the range"); `any` collapses the stream of booleans into a single decision.
+
+### Duplicate / re-used resource detection
+
+`dupes` returns the values that appear more than once in a list — the complement of `unique`.  It's the cleanest way to surface re-used resources that may be unintentional sharing:
+
+```
+# Pool names attached to more than one VS (intentional pool sharing — or
+# a copy-paste bug, depending on policy):
+$ f5 query --raw '[.ltm.virtual[].pool] | dupes' bigip.conf
+
+# Destination IPs reused across VSes (often a listener-conflict bug):
+$ f5 query --raw '[.ltm.virtual[].destination | host] | dupes' bigip.conf
+
+# iRules attached to more than one VS:
+$ f5 query --raw '[.ltm.virtual[].rules[]] | dupes' bigip.conf
+```
+
+For a count-per-group report instead of just the duplicates, `group_by` partitions the input and `map({key, count: length})` projects each group:
+
+```
+# VS count per partition:
+$ f5 query --json '[.ltm.virtual[]]
+  | group_by(partition(."full-path"))
+  | map({partition: (.[0]."full-path" | partition(.)), count: length})' bigip.conf
+
+# Smallest and largest pools (by member count) in one pass:
+$ f5 query --json '[.ltm.pool[]]
+  | min_max(.members | length)' bigip.conf
+```
 
 ### iRule reference hygiene
 

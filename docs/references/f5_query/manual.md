@@ -170,11 +170,14 @@ has its own anchor in that file — to look one up:
 
 Major families:
 
-- **value introspection** — `kind`, `path`, `length`, `defined`, `type`
-- **string** — `match`, `sub`, `gsub`, `startswith`, `endswith`, `contains`, `lower`, `upper`, `strip`
-- **list** — `count`, `unique`, `sort`, `first`, `last`, `reverse`, `any`, `all`
-- **math** — `min`, `max`, `sum`, `avg`
-- **network types** — `ip`, `cidr`, `port`, `iprange`, `portset`, `in_cidr`, `ip_translate`
+- **value introspection** — `kind`, `path`, `length`, `defined`, `type`, `has`, `in`, `to_entries`, `from_entries`, `with_entries`, `env`
+- **tree manipulation** — `paths`, `leaf_paths`, `getpath`, `setpath`, `del`, `delpaths`, `pick`, `walk`, `recurse`, `recurse_down`, `until`, `repeat`
+- **string** — `match` / `test`, `sub`, `gsub` (all flag-aware), `scan`, `capture`, `splits`, `startswith`, `endswith`, `contains`, `upcase` / `ascii_upcase`, `downcase` / `ascii_downcase`, `ltrimstr`, `rtrimstr`, `tonumber`, `tostring`, `tojson`, `fromjson`, `explode`, `implode`, `ascii`, `utf8bytelength`, `csv`, `tsv`, `join`, `split`
+- **encoding** — `uri`, `base64`, `base64d`, `html`, `sh` (jq's `@`-prefix format strings as plain functions)
+- **list / stream** — `count`, `unique`, `dupes`, `sort`, `sort_by`, `unique_by`, `group_by`, `min_by`, `max_by`, `min_max`, `max_min`, `first`, `last`, `nth`, `limit`, `reverse`, `flatten`, `range`, `add`, `min`, `max`, `any`, `all`, `map`, `map_values`, `select`, `keys`, `keys_unsorted`, `values`, `empty`, `error`, `not`, `inside`, `IN`, `INDEX`, `combinations`, `halt`, `halt_error`, `debug`, `stderr`
+- **math** — `floor`, `ceil`, `round`, `trunc`, `rint`, `nearbyint`, `abs`, `fabs`, `copysign`, `fdim`, `sqrt`, `cbrt`, `pow`, `pow10`, `exp`, `exp2`, `exp10`, `expm1`, `log`, `log10`, `log2`, `log1p`, `logb`, `hypot`, `fma`, `fmax`, `fmin`, `fmod`, `remainder`/`drem`, `sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`atan2`, `sinh`/`cosh`/`tanh`/`asinh`/`acosh`/`atanh`, `gamma`/`tgamma`/`lgamma`/`lgamma_r`, `j0`/`j1`/`y0`/`y1`/`jn`/`yn`, `frexp`/`ldexp`/`modf`/`significand`, `nan`, `infinite`, `isnan`, `isinfinite`, `isnormal`
+- **time** — `now`, `todate`/`todateiso8601`/`date`, `fromdate`/`fromdateiso8601`, `gmtime`, `localtime`, `mktime`, `strftime`, `strptime`, `dateadd`, `datesub`
+- **network types** — `ip`, `port`, `host`, `net`, `in_cidr`, `ip_translate`, `ip_range_*`, `port_set_*`
 - **graph** — `refs`, `referenced_by`
 - **mutating** — `rename`, `rename_partition`, `rename_prefix`
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,

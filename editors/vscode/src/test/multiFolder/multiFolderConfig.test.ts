@@ -34,7 +34,7 @@ async function waitForConfigSettled(
   timeoutMs: number = 15000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  let last: Record<string, EffectiveConfig | null> = {};
+  const last: Record<string, EffectiveConfig | null> = {};
   while (Date.now() < deadline) {
     let allMatch = true;
     for (const [folderName, wantDialect] of Object.entries(expected)) {
@@ -487,8 +487,7 @@ suite("Multi-folder per-folder dialect change after open (#407)", () => {
     // is on f5-irules at this point.
     const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
     const fileUri = vscode.Uri.file(path.join(folderB.uri.fsPath, "race.tcl"));
-    const source =
-      'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n';
+    const source = 'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n';
 
     // 1. Switch folder B off iRules and wait for the server to settle.
     //    ``active_members`` becomes a disallowed builtin under tcl8.6,

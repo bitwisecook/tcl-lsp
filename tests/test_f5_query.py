@@ -879,6 +879,907 @@ def test_every_builtin_has_a_details_block():
 
 
 # ---------------------------------------------------------------------------
+# jq-parity stream / list / set helpers
+# ---------------------------------------------------------------------------
+
+
+def test_unique_sorts_matching_jq():
+    """``unique`` returns a sorted list of unique values (jq parity)."""
+    [out] = run_query("[3, 1, 2, 1, 3, 2] | unique", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3]
+
+
+def test_dupes_returns_only_repeated_values_sorted():
+    [out] = run_query("[3, 1, 2, 1, 3, 2, 4] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3]
+    # Empty input.
+    [out] = run_query("[] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == []
+    # No duplicates.
+    [out] = run_query("[1, 2, 3] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_reverse_works_on_lists_and_strings():
+    [out] = run_query("[1, 2, 3] | reverse", {"m": ""}).values_per_file["m"]
+    assert out == [3, 2, 1]
+    [out] = run_query('reverse("abc")', {"m": ""}).values_per_file["m"]
+    assert out == "cba"
+
+
+def test_add_sums_numbers_concatenates_strings_and_lists():
+    assert run_query("[1, 2, 3, 4] | add", {"m": ""}).values_per_file["m"] == [10]
+    assert run_query('["a", "b", "c"] | add', {"m": ""}).values_per_file["m"] == ["abc"]
+    [out] = run_query("[[1, 2], [3, 4]] | add", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+    # Empty input → null (jq parity).
+    [out] = run_query("[] | add", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_min_and_max_return_jq_ordered_extremes():
+    assert run_query("[5, 2, 8, 1] | min", {"m": ""}).values_per_file["m"] == [1]
+    assert run_query("[5, 2, 8, 1] | max", {"m": ""}).values_per_file["m"] == [8]
+    # Empty → null (jq parity).
+    [out] = run_query("[] | min", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_flatten_default_depth_one():
+    [out] = run_query("[[1, 2], [3, 4]] | flatten", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+
+
+def test_flatten_explicit_depth():
+    [out] = run_query("[[1, [2, 3]], [4]] | flatten(2)", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+    # Depth 1 only peels one level.
+    [out] = run_query("[[1, [2, 3]], [4]] | flatten", {"m": ""}).values_per_file["m"]
+    assert out == [1, [2, 3], 4]
+    # Depth 0 is identity.
+    [out] = run_query("[[1, 2], [3, 4]] | flatten(0)", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 2], [3, 4]]
+
+
+def test_flatten_non_integer_depth_raises_builtin_error():
+    """Argument-type errors on builtins are ``BuiltinError`` everywhere.
+
+    Regression for copilot review on PR #418 — the ``flatten`` special
+    form used to raise ``EvalError`` for type validation.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('[[1, 2]] | flatten("two")', {"m": ""})
+
+
+def test_range_one_two_three_args():
+    [out] = run_query("[range(5)]", {"m": ""}).values_per_file["m"]
+    assert out == [0, 1, 2, 3, 4]
+    [out] = run_query("[range(2, 6)]", {"m": ""}).values_per_file["m"]
+    assert out == [2, 3, 4, 5]
+    [out] = run_query("[range(0, 10, 2)]", {"m": ""}).values_per_file["m"]
+    assert out == [0, 2, 4, 6, 8]
+
+
+def test_range_step_zero_is_rejected():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query("[range(0, 5, 0)]", {"m": ""})
+
+
+def test_nth_supports_negative_index_for_safe_access():
+    assert run_query("[10, 20, 30, 40] | nth(2)", {"m": ""}).values_per_file["m"] == [30]
+    # Negative index (DSL extension, jq doesn't accept negatives).
+    assert run_query("[10, 20, 30, 40] | nth(-1)", {"m": ""}).values_per_file["m"] == [40]
+    # Out of range → null.
+    [out] = run_query("[1, 2, 3] | nth(99)", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_limit_caps_a_list():
+    [out] = run_query("[10, 20, 30, 40] | limit(2)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20]
+    [out] = run_query("[10, 20] | limit(99)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20]
+    [out] = run_query("[10, 20] | limit(0)", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_sort_by_orders_by_derived_key():
+    [out] = run_query("[{n: 3}, {n: 1}, {n: 2}] | sort_by(.n)", {"m": ""}).values_per_file["m"]
+    assert [item["n"] for item in out] == [1, 2, 3]
+
+
+def test_unique_by_sorts_and_dedupes_by_key():
+    [out] = run_query(
+        '[{n: 1, k: "a"}, {n: 2, k: "b"}, {n: 1, k: "c"}] | unique_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert [item["n"] for item in out] == [1, 2]
+
+
+def test_min_by_max_by_pick_extremes_by_key():
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 2, k: "c"}] | min_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out["n"] == 1
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 2, k: "c"}] | max_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out["n"] == 3
+
+
+def test_group_by_partitions_with_sorted_keys():
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 1, k: "c"}] | group_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    # Two groups: n=1 (two items, input order preserved) and n=3 (one item).
+    assert len(out) == 2
+    assert [item["k"] for item in out[0]] == ["b", "c"]
+    assert [item["k"] for item in out[1]] == ["a"]
+
+
+# ---------------------------------------------------------------------------
+# Dict / object operations
+# ---------------------------------------------------------------------------
+
+
+def test_to_entries_and_from_entries_round_trip():
+    [out] = run_query("{a: 1, b: 2} | to_entries", {"m": ""}).values_per_file["m"]
+    assert out == [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+    [out] = run_query("{a: 1, b: 2} | to_entries | from_entries", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": 2}
+
+
+def test_from_entries_accepts_short_spellings():
+    [out] = run_query(
+        '[{k: "a", v: 1}, {name: "b", value: 2}] | from_entries', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"a": 1, "b": 2}
+
+
+def test_with_entries_reshapes_object():
+    [out] = run_query(
+        "{a: 1, b: 2} | with_entries({key: upcase(.key), value: .value})", {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"A": 1, "B": 2}
+
+
+def test_with_entries_with_select_filters_fields():
+    [out] = run_query(
+        '{n: 1, s: "x"} | with_entries(select(.value | type == "string"))',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out == {"s": "x"}
+
+
+def test_has_and_in_invert_each_other():
+    assert run_query('{a: 1, b: 2} | has("a")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('{a: 1, b: 2} | has("z")', {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("[10, 20, 30] | has(1)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("[10, 20, 30] | has(5)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query('"a" | in({a: 1})', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"z" | in({a: 1})', {"m": ""}).values_per_file["m"] == [False]
+
+
+# ---------------------------------------------------------------------------
+# String helpers
+# ---------------------------------------------------------------------------
+
+
+def test_ltrimstr_strips_prefix_when_present():
+    assert run_query('ltrimstr("vs_prod", "vs_")', {"m": ""}).values_per_file["m"] == ["prod"]
+    # No-op when prefix isn't present.
+    assert run_query('ltrimstr("api_vs", "vs_")', {"m": ""}).values_per_file["m"] == ["api_vs"]
+
+
+def test_rtrimstr_strips_suffix_when_present():
+    assert run_query('rtrimstr("web_pool", "_pool")', {"m": ""}).values_per_file["m"] == ["web"]
+    assert run_query('rtrimstr("web_vs", "_pool")', {"m": ""}).values_per_file["m"] == ["web_vs"]
+
+
+def test_tonumber_parses_int_then_float():
+    assert run_query('tonumber("42")', {"m": ""}).values_per_file["m"] == [42]
+    assert run_query('tonumber("3.14")', {"m": ""}).values_per_file["m"] == [3.14]
+    # Pass-through for already-numeric input.
+    assert run_query("tonumber(7)", {"m": ""}).values_per_file["m"] == [7]
+
+
+def test_tonumber_rejects_non_numeric():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('tonumber("abc")', {"m": ""})
+
+
+def test_tostring_handles_aggregates():
+    assert run_query("tostring(42)", {"m": ""}).values_per_file["m"] == ["42"]
+    assert run_query("tostring([1, 2, 3])", {"m": ""}).values_per_file["m"] == ["[1,2,3]"]
+    [out] = run_query("tostring({a: 1, b: 2})", {"m": ""}).values_per_file["m"]
+    assert out == '{"a":1,"b":2}'
+
+
+def test_explode_and_implode_round_trip():
+    assert run_query('explode("abc")', {"m": ""}).values_per_file["m"] == [[97, 98, 99]]
+    assert run_query("implode([97, 98, 99])", {"m": ""}).values_per_file["m"] == ["abc"]
+    assert run_query('"abc" | explode | implode', {"m": ""}).values_per_file["m"] == ["abc"]
+
+
+def test_test_predicate_matches_jq():
+    assert run_query('test("abc", "^a")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('test("abc", "^X", "i")', {"m": ""}).values_per_file["m"] == [False]
+    assert run_query('test("ABC", "^a", "i")', {"m": ""}).values_per_file["m"] == [True]
+
+
+def test_scan_returns_match_or_group_lists():
+    [out] = run_query('scan("a1 b22 c333", "[0-9]+")', {"m": ""}).values_per_file["m"]
+    assert out == ["1", "22", "333"]
+    # With capture groups, each match becomes a list of group values.
+    [out] = run_query('scan("a=1 b=2", "([a-z])=([0-9])")', {"m": ""}).values_per_file["m"]
+    assert out == [["a", "1"], ["b", "2"]]
+
+
+def test_capture_returns_named_groups():
+    [out] = run_query(
+        'capture("vs_prod_web", "(?<env>prod|dev)_(?<app>.+)")', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"env": "prod", "app": "web"}
+
+
+def test_capture_rejects_no_match():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('capture("abc", "^(?<x>z)")', {"m": ""})
+
+
+def test_splits_does_regex_split():
+    [out] = run_query('splits("a, b ,c,  d", " *, *")', {"m": ""}).values_per_file["m"]
+    assert out == ["a", "b", "c", "d"]
+
+
+def test_ascii_upcase_downcase_aliases():
+    assert run_query('ascii_upcase("abc")', {"m": ""}).values_per_file["m"] == ["ABC"]
+    assert run_query('ascii_downcase("ABC")', {"m": ""}).values_per_file["m"] == ["abc"]
+
+
+# ---------------------------------------------------------------------------
+# Math helpers
+# ---------------------------------------------------------------------------
+
+
+def test_floor_ceil_round_match_jq_semantics():
+    assert run_query("floor(3.7)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("floor(-3.2)", {"m": ""}).values_per_file["m"] == [-4]
+    assert run_query("ceil(3.2)", {"m": ""}).values_per_file["m"] == [4]
+    assert run_query("ceil(-3.7)", {"m": ""}).values_per_file["m"] == [-3]
+    # jq's round uses ties-away-from-zero (NOT Python's banker's rounding).
+    assert run_query("round(2.5)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("round(-2.5)", {"m": ""}).values_per_file["m"] == [-3]
+    assert run_query("round(0.5)", {"m": ""}).values_per_file["m"] == [1]
+
+
+def test_abs_and_fabs():
+    assert run_query("abs(-5)", {"m": ""}).values_per_file["m"] == [5]
+    assert run_query("abs(3.14)", {"m": ""}).values_per_file["m"] == [3.14]
+    # fabs always returns float.
+    [out] = run_query("fabs(-5)", {"m": ""}).values_per_file["m"]
+    assert out == 5.0 and isinstance(out, float)
+
+
+def test_sqrt_pow_exp_log():
+    assert run_query("sqrt(16)", {"m": ""}).values_per_file["m"] == [4.0]
+    assert run_query("pow(2, 10)", {"m": ""}).values_per_file["m"] == [1024.0]
+    # exp / log round-trip (within float tolerance).
+    [out] = run_query("log(exp(1))", {"m": ""}).values_per_file["m"]
+    assert abs(out - 1.0) < 1e-12
+    assert run_query("log10(1000)", {"m": ""}).values_per_file["m"] == [3.0]
+    assert run_query("log2(1024)", {"m": ""}).values_per_file["m"] == [10.0]
+
+
+def test_nan_infinite_and_classifiers():
+    import math as _math
+
+    [out] = run_query("nan", {"m": ""}).values_per_file["m"]
+    assert _math.isnan(out)
+    [out] = run_query("infinite", {"m": ""}).values_per_file["m"]
+    assert _math.isinf(out)
+    assert run_query("isnan(nan)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isnan(1.0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isinfinite(infinite)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isinfinite(1.0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isnormal(1.0)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isnormal(0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isnormal(nan)", {"m": ""}).values_per_file["m"] == [False]
+
+
+# ---------------------------------------------------------------------------
+# Path / tree manipulation (paths / getpath / setpath / del / delpaths /
+# walk / recurse / until / repeat)
+# ---------------------------------------------------------------------------
+
+
+def test_paths_emits_every_non_root_path():
+    [out] = run_query("{a: 1, b: [2, 3]} | [paths]", {"m": ""}).values_per_file["m"]
+    assert out == [["a"], ["b"], ["b", 0], ["b", 1]]
+
+
+def test_leaf_paths_only_emits_leaf_positions():
+    [out] = run_query("{a: 1, b: [2, 3]} | [leaf_paths]", {"m": ""}).values_per_file["m"]
+    assert out == [["a"], ["b", 0], ["b", 1]]
+
+
+def test_paths_with_filter_keeps_matching_only():
+    [out] = run_query("{a: 1, b: 2, c: 3} | [paths(. == 2)]", {"m": ""}).values_per_file["m"]
+    assert out == [["b"]]
+
+
+def test_getpath_returns_value_or_null():
+    assert run_query('{a: {b: 42}} | getpath(["a", "b"])', {"m": ""}).values_per_file["m"] == [42]
+    [out] = run_query('{a: 1} | getpath(["missing"])', {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_setpath_autocreates_intermediate_containers():
+    [out] = run_query('{a: 1} | setpath(["b", "c"], 9)', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": {"c": 9}}
+    [out] = run_query('{a: [1, 2, 3]} | setpath(["a", 1], 99)', {"m": ""}).values_per_file["m"]
+    assert out == {"a": [1, 99, 3]}
+
+
+def test_del_and_delpaths_remove_slots():
+    [out] = run_query('{a: 1, b: 2} | del(["a"])', {"m": ""}).values_per_file["m"]
+    assert out == {"b": 2}
+    [out] = run_query('{a: [1, 2, 3]} | del(["a", 1])', {"m": ""}).values_per_file["m"]
+    assert out == {"a": [1, 3]}
+    [out] = run_query('{a: 1, b: 2, c: 3} | delpaths([["a"], ["c"]])', {"m": ""}).values_per_file[
+        "m"
+    ]
+    assert out == {"b": 2}
+
+
+def test_walk_applies_body_bottom_up():
+    [out] = run_query(
+        '{a: "X", b: "Y", c: 1} | walk(if type == "string" then ascii_downcase else . end)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out == {"a": "x", "b": "y", "c": 1}
+
+
+def test_recurse_without_args_walks_tree():
+    [out] = run_query("{a: 1, b: {c: 2}} | [recurse]", {"m": ""}).values_per_file["m"]
+    # Root first, then each reachable value.
+    assert {"a": 1, "b": {"c": 2}} in out
+    assert {"c": 2} in out
+    assert 1 in out
+    assert 2 in out
+
+
+def test_recurse_emits_in_jq_depth_first_order():
+    """``recurse`` traverses pre-order depth-first in child order.
+
+    Regression for codex review P2 on PR #418 — an earlier impl used
+    a FIFO queue (breadth-first), which diverged from jq.  jq emits
+    the root, then each child fully, then the next child.
+    """
+    [out] = run_query("{a: [{b: 1}, {c: 2}]} | [recurse]", {"m": ""}).values_per_file["m"]
+    assert out == [
+        {"a": [{"b": 1}, {"c": 2}]},
+        [{"b": 1}, {"c": 2}],
+        {"b": 1},
+        1,
+        {"c": 2},
+        2,
+    ]
+
+
+def test_recurse_with_body_and_cond_stops_correctly():
+    [out] = run_query("1 | [recurse(. + 1, . < 5)]", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+
+
+def test_until_iterates_to_fixed_point():
+    assert run_query("1 | until(. >= 100, . * 2)", {"m": ""}).values_per_file["m"] == [128]
+
+
+def test_repeat_caps_at_safety_limit():
+    # Pull only the first few via array-collection and slice.
+    [out] = run_query("1 | [repeat(. + 1)] | limit(3)", {"m": ""}).values_per_file["m"]
+    assert out == [2, 3, 4]
+
+
+# ---------------------------------------------------------------------------
+# Flow / control (empty / error / not / inside / IN / INDEX / combinations)
+# ---------------------------------------------------------------------------
+
+
+def test_empty_emits_no_values():
+    out = run_query("1 | empty", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_error_raises_with_message():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="boom"):
+        run_query('1 | error("boom")', {"m": ""})
+
+
+def test_not_works_as_postfix_filter_and_prefix_op():
+    # Postfix (jq's ``x | not``) form.
+    assert run_query("null | not", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("false | not", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("1 | not", {"m": ""}).values_per_file["m"] == [False]
+    # Prefix form (this DSL's existing unary operator) still works.
+    assert run_query("not true", {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_postfix_not_binds_below_arithmetic_in_pipelines():
+    """``x | not - 1`` parses as ``(x | not) - 1``, not ``not(-1)``.
+
+    jq treats ``not`` as a postfix filter only — a trailing ``-`` is
+    always subtraction at the cmp/add level.  Regression for codex
+    review P1 on PR #418.
+    """
+    assert run_query("1 | not - 1", {"m": ""}).values_per_file["m"] == [-1]
+    # Explicit parens still let the user opt into unary-prefix ``not``
+    # against a negative literal.
+    assert run_query("not (-1)", {"m": ""}).values_per_file["m"] == [False]
+    # Combine postfix ``not`` with comparison.
+    assert run_query("(1 | not) == false", {"m": ""}).values_per_file["m"] == [True]
+
+
+def test_inside_inverts_contains():
+    assert run_query('"bar" | inside("foobar")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"xyz" | inside("foobar")', {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_IN_variadic_alternatives():
+    assert run_query('"a" | IN("a", "b", "c")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"z" | IN("a", "b", "c")', {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_INDEX_keys_a_stream_by_expression():
+    [out] = run_query(
+        '[{name: "a", v: 1}, {name: "b", v: 2}] | INDEX(.name)', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"a": {"name": "a", "v": 1}, "b": {"name": "b", "v": 2}}
+
+
+def test_combinations_cartesian_product_of_lists():
+    [out] = run_query("[[1, 2], [3, 4]] | [combinations]", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 3], [1, 4], [2, 3], [2, 4]]
+
+
+def test_combinations_n_repeats_input():
+    [out] = run_query("[1, 2] | [combinations(2)]", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 1], [1, 2], [2, 1], [2, 2]]
+
+
+def test_combinations_non_integer_n_raises_builtin_error():
+    """Regression for copilot review on PR #418 — argument-type errors
+    on builtins are ``BuiltinError``, not ``EvalError``.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('[1, 2, 3] | combinations("two")', {"m": ""})
+
+
+# ---------------------------------------------------------------------------
+# JSON & encoding (tojson / fromjson / uri / base64 / base64d / html / sh)
+# ---------------------------------------------------------------------------
+
+
+def test_tojson_and_fromjson_round_trip():
+    assert run_query("tojson(42)", {"m": ""}).values_per_file["m"] == ["42"]
+    assert run_query('tojson("hi")', {"m": ""}).values_per_file["m"] == ['"hi"']
+    [out] = run_query("tojson({a: 1, b: [2, 3]})", {"m": ""}).values_per_file["m"]
+    assert out == '{"a":1,"b":[2,3]}'
+    assert run_query('fromjson("42")', {"m": ""}).values_per_file["m"] == [42]
+    [out] = run_query('fromjson("{\\"a\\": 1}")', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+
+
+def test_uri_encodes_url_unsafe_characters():
+    assert run_query('uri("hello world")', {"m": ""}).values_per_file["m"] == ["hello%20world"]
+
+
+def test_base64_round_trip():
+    assert run_query('base64("hello")', {"m": ""}).values_per_file["m"] == ["aGVsbG8="]
+    assert run_query('base64d("aGVsbG8=")', {"m": ""}).values_per_file["m"] == ["hello"]
+
+
+def test_html_and_sh_quote():
+    assert run_query('html("<a>&b</a>")', {"m": ""}).values_per_file["m"] == [
+        "&lt;a&gt;&amp;b&lt;/a&gt;"
+    ]
+    assert run_query('sh("hello world")', {"m": ""}).values_per_file["m"] == ["'hello world'"]
+    # jq @sh parity: every list element is single-quoted, even
+    # "obviously safe" tokens — distinct from ``shlex.quote`` which
+    # leaves alphanumerics bare.
+    assert run_query('sh(["a", "b c"])', {"m": ""}).values_per_file["m"] == ["'a' 'b c'"]
+    # Embedded single quotes are escaped with the classic ``'\\''``
+    # close-escape-reopen dance.
+    assert run_query('sh("a\'b")', {"m": ""}).values_per_file["m"] == ["'a'\\''b'"]
+
+
+# ---------------------------------------------------------------------------
+# String extensions (utf8bytelength, ascii)
+# ---------------------------------------------------------------------------
+
+
+def test_utf8bytelength_counts_bytes_not_codepoints():
+    assert run_query('utf8bytelength("hello")', {"m": ""}).values_per_file["m"] == [5]
+    # é is two UTF-8 bytes.
+    assert run_query('utf8bytelength("héllo")', {"m": ""}).values_per_file["m"] == [6]
+
+
+def test_ascii_codepoint_to_char():
+    assert run_query("ascii(65)", {"m": ""}).values_per_file["m"] == ["A"]
+    assert run_query("65 | ascii", {"m": ""}).values_per_file["m"] == ["A"]
+
+
+def test_sub_and_gsub_accept_flags():
+    assert run_query('sub("ABC", "abc", "XYZ", "i")', {"m": ""}).values_per_file["m"] == ["XYZ"]
+    assert run_query('gsub("aBcD", "[bd]", "X", "i")', {"m": ""}).values_per_file["m"] == ["aXcX"]
+
+
+# ---------------------------------------------------------------------------
+# Math — trig, hyperbolic, advanced C-math
+# ---------------------------------------------------------------------------
+
+
+def test_trig_round_trips():
+    import math as _math
+
+    [out] = run_query("sin(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("cos(0)", {"m": ""}).values_per_file["m"]
+    assert out == 1.0
+    [out] = run_query("atan2(1, 1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - _math.pi / 4) < 1e-12
+
+
+def test_hyperbolic_functions():
+    import math as _math
+
+    [out] = run_query("sinh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("cosh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 1.0
+    [out] = run_query("tanh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("atanh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("acosh(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out) < 1e-12
+    [out] = run_query("asinh(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    _ = _math
+
+
+def test_cbrt_handles_negatives():
+    [out] = run_query("cbrt(27)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 3.0) < 1e-9
+    [out] = run_query("cbrt(-8)", {"m": ""}).values_per_file["m"]
+    assert abs(out - (-2.0)) < 1e-9
+
+
+def test_exp2_exp10_and_logb():
+    assert run_query("exp2(10)", {"m": ""}).values_per_file["m"] == [1024.0]
+    assert run_query("exp10(3)", {"m": ""}).values_per_file["m"] == [1000.0]
+    assert run_query("logb(8)", {"m": ""}).values_per_file["m"] == [3.0]
+    assert run_query("logb(0.25)", {"m": ""}).values_per_file["m"] == [-2.0]
+
+
+def test_trunc_rint_copysign_fdim():
+    assert run_query("trunc(3.9)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("trunc(-3.9)", {"m": ""}).values_per_file["m"] == [-3]
+    # rint uses banker's rounding (ties to even).
+    assert run_query("rint(2.5)", {"m": ""}).values_per_file["m"] == [2]
+    assert run_query("rint(3.5)", {"m": ""}).values_per_file["m"] == [4]
+    assert run_query("copysign(3, -1)", {"m": ""}).values_per_file["m"] == [-3.0]
+    assert run_query("fdim(5, 3)", {"m": ""}).values_per_file["m"] == [2.0]
+    assert run_query("fdim(3, 5)", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_frexp_ldexp_modf_round_trip():
+    [out] = run_query("frexp(12)", {"m": ""}).values_per_file["m"]
+    assert out == [0.75, 4]
+    [out] = run_query("ldexp(0.75, 4)", {"m": ""}).values_per_file["m"]
+    assert out == 12.0
+    [out] = run_query("modf(3.75)", {"m": ""}).values_per_file["m"]
+    assert abs(out[0] - 0.75) < 1e-12
+    assert out[1] == 3.0
+
+
+def test_gamma_and_lgamma():
+    import math as _math
+
+    [out] = run_query("gamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 24.0) < 1e-9
+    [out] = run_query("tgamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 24.0) < 1e-9
+    [out] = run_query("lgamma(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - _math.log(24.0)) < 1e-9
+
+
+def test_significand_normalises_to_unit_range():
+    assert run_query("significand(12)", {"m": ""}).values_per_file["m"] == [1.5]
+    assert run_query("significand(0.25)", {"m": ""}).values_per_file["m"] == [1.0]
+
+
+def test_bessel_approximations_match_known_values():
+    [out] = run_query("j0(0)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 1.0) < 1e-6
+    [out] = run_query("j1(0)", {"m": ""}).values_per_file["m"]
+    assert abs(out) < 1e-6
+    # J_0(1) ≈ 0.7651976865...
+    [out] = run_query("j0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.7651976865) < 1e-6
+    # J_1(1) ≈ 0.4400505857...
+    [out] = run_query("j1(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.4400505857) < 1e-6
+    # Y_0(1) ≈ 0.0882569642...
+    [out] = run_query("y0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.0882569642) < 1e-6
+    # Y_1(1) ≈ -0.7812128213...
+    [out] = run_query("y1(1)", {"m": ""}).values_per_file["m"]
+    assert abs(out - (-0.7812128213)) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Time helpers (now / todate / fromdate / strftime / strptime / etc.)
+# ---------------------------------------------------------------------------
+
+
+def test_now_returns_a_float_epoch(monkeypatch):
+    # Pin the underlying time source so the suite doesn't depend on
+    # the host clock being accurate (hermetic VMs, time mocks, etc.).
+    import core.bigip.query.builtins as _bq
+
+    monkeypatch.setattr(_bq._time, "time", lambda: 1_700_000_000.5)
+    [out] = run_query("now", {"m": ""}).values_per_file["m"]
+    assert isinstance(out, float)
+    assert out == 1_700_000_000.5
+
+
+def test_todate_and_fromdate_round_trip():
+    assert run_query("todate(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+    assert run_query('fromdate("1970-01-01T00:00:00Z")', {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_date_iso8601_aliases():
+    assert run_query("todateiso8601(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+    assert run_query('fromdateiso8601("1970-01-01T00:00:00Z")', {"m": ""}).values_per_file["m"] == [
+        0.0
+    ]
+    assert run_query("date(0)", {"m": ""}).values_per_file["m"] == ["1970-01-01T00:00:00Z"]
+
+
+def test_gmtime_and_mktime_round_trip():
+    [out] = run_query("gmtime(0)", {"m": ""}).values_per_file["m"]
+    # [year-1900, month-0..11, day, hour, minute, second, weekday, yearday]
+    assert out[:6] == [70, 0, 1, 0, 0, 0]
+    assert run_query("mktime([70, 0, 1, 0, 0, 0])", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_strftime_and_strptime():
+    assert run_query('strftime(0, "%Y-%m-%d")', {"m": ""}).values_per_file["m"] == ["1970-01-01"]
+    [out] = run_query('strptime("2025-01-01", "%Y-%m-%d")', {"m": ""}).values_per_file["m"]
+    assert out[:6] == [125, 0, 1, 0, 0, 0]
+
+
+def test_dateadd_and_datesub():
+    assert run_query("dateadd(0, 60)", {"m": ""}).values_per_file["m"] == [60.0]
+    assert run_query("datesub(100, 60)", {"m": ""}).values_per_file["m"] == [40.0]
+
+
+# ---------------------------------------------------------------------------
+# Additional jq builtins (keys_unsorted, map_values, pick, halt*, debug,
+# stderr, env, advanced math)
+# ---------------------------------------------------------------------------
+
+
+def test_keys_unsorted_preserves_insertion_order():
+    [out] = run_query("{b: 1, a: 2} | keys_unsorted", {"m": ""}).values_per_file["m"]
+    assert out == ["b", "a"]
+
+
+def test_map_values_keeps_shape():
+    [out] = run_query("{a: 1, b: 2} | map_values(. * 10)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 10, "b": 20}
+    [out] = run_query("[1, 2, 3] | map_values(. * 10)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20, 30]
+
+
+def test_map_values_on_array_extends_with_every_result():
+    """Regression for copilot review on PR #418.
+
+    The array branch of ``map_values`` used to collapse a stream-valued
+    body result to its first element, dropping later values.  Match the
+    ``map`` semantics: every flattened output is appended.  Wrap the
+    body in extra parens so the comma is the stream-concat operator,
+    not a function-argument separator.
+    """
+    [out] = run_query("[1, 2, 3] | map_values((., . * 10))", {"m": ""}).values_per_file["m"]
+    # Each item produces a 2-element stream (the original + 10x), so the
+    # array should contain 6 elements after flattening.
+    assert out == [1, 10, 2, 20, 3, 30]
+
+
+def test_map_values_on_object_rejects_multi_value_body():
+    """Regression for copilot review on PR #418.
+
+    On objects, ``map_values`` keeps the input's shape one-to-one — a
+    body that yields more than one value (or zero) per key would be
+    ambiguous, so we fail loudly rather than silently keeping the
+    first / dropping the entry.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="map_values"):
+        run_query("{a: 1, b: 2} | map_values((., . * 10))", {"m": ""})
+
+
+def test_debug_emits_valid_json_to_stderr(capsys):
+    """``debug`` writes a parseable JSON array, not a Python repr.
+
+    Regression for copilot review on PR #418.
+    """
+    import json as _json
+
+    [out] = run_query('{a: 1, b: "hi"} | debug', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": "hi"}
+    captured = capsys.readouterr()
+    # The captured line is valid JSON of the form ``["DEBUG:", value]``.
+    decoded = _json.loads(captured.err.strip())
+    assert decoded == ["DEBUG:", {"a": 1, "b": "hi"}]
+
+
+def test_pick_keeps_only_listed_paths():
+    [out] = run_query("{a: 1, b: 2, c: 3} | pick(.a, .c)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "c": 3}
+    [out] = run_query("{a: {b: 1, c: 2}, d: 3} | pick(.a.b, .d)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": {"b": 1}, "d": 3}
+
+
+def test_pick_skips_missing_paths_and_preserves_explicit_null():
+    """``pick`` ignores paths that aren't present, but keeps explicit nulls.
+
+    Regression for copilot review on PR #418 — previously ``pick`` used
+    ``_value_at_path`` which collapsed "missing" and "present but null"
+    to the same ``None``, so absent slots were silently materialised as
+    ``null`` in the output.
+    """
+    # Missing path: dropped.
+    [out] = run_query("{a: 1} | pick(.a, .missing)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+    # Explicit null: preserved.
+    [out] = run_query("{a: null, b: 2} | pick(.a, .b)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": None, "b": 2}
+
+
+def test_recurse_down_emits_all_reachable():
+    [out] = run_query("{a: 1, b: {c: 2}} | [recurse_down]", {"m": ""}).values_per_file["m"]
+    assert 1 in out
+    assert 2 in out
+    assert {"c": 2} in out
+
+
+def test_min_max_and_max_min_return_pairs():
+    [out] = run_query("[5, 2, 8, 1] | min_max", {"m": ""}).values_per_file["m"]
+    assert out == [1, 8]
+    [out] = run_query("[5, 2, 8, 1] | max_min", {"m": ""}).values_per_file["m"]
+    assert out == [8, 1]
+    [out] = run_query("[] | min_max", {"m": ""}).values_per_file["m"]
+    assert out == [None, None]
+    # With body — key by .n.
+    [out] = run_query('[{n: 3, k: "a"}, {n: 1, k: "b"}] | min_max(.n)', {"m": ""}).values_per_file[
+        "m"
+    ]
+    assert [v["n"] for v in out] == [1, 3]
+
+
+def test_halt_raises_a_builtin_error():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="halt"):
+        run_query("1 | halt", {"m": ""})
+
+
+def test_halt_error_carries_exit_code():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError, match="exit_code=5"):
+        run_query("1 | halt_error(5)", {"m": ""})
+    with pytest.raises(BuiltinError):
+        run_query("1 | halt_error", {"m": ""})
+
+
+def test_debug_and_stderr_pass_through(capsys):
+    [out] = run_query("42 | debug", {"m": ""}).values_per_file["m"]
+    assert out == 42
+    captured = capsys.readouterr()
+    assert "DEBUG" in captured.err
+    [out] = run_query("{a: 1} | stderr", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+    captured = capsys.readouterr()
+    assert "a" in captured.err
+
+
+def test_env_returns_environment_dict():
+    [out] = run_query('env | has("PATH")', {"m": ""}).values_per_file["m"]
+    assert out in (True, False)  # PATH may or may not be set in test env
+
+
+# ---------------------------------------------------------------------------
+# Additional math: expm1 / log1p / hypot / pow10 / fmax / fmin / fmod /
+# remainder / fma / lgamma_r / jn / yn / nearbyint
+# ---------------------------------------------------------------------------
+
+
+def test_expm1_log1p_high_precision_near_zero():
+    [out] = run_query("expm1(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+    [out] = run_query("log1p(0)", {"m": ""}).values_per_file["m"]
+    assert out == 0.0
+
+
+def test_hypot_avoids_overflow():
+    assert run_query("hypot(3, 4)", {"m": ""}).values_per_file["m"] == [5.0]
+    assert run_query("hypot(0, 0)", {"m": ""}).values_per_file["m"] == [0.0]
+
+
+def test_pow10_alias_of_exp10():
+    assert run_query("pow10(3)", {"m": ""}).values_per_file["m"] == [1000.0]
+
+
+def test_nearbyint_uses_bankers_rounding():
+    assert run_query("nearbyint(2.5)", {"m": ""}).values_per_file["m"] == [2]
+    assert run_query("nearbyint(3.5)", {"m": ""}).values_per_file["m"] == [4]
+
+
+def test_fmax_fmin_fmod_remainder():
+    assert run_query("fmax(3, 7)", {"m": ""}).values_per_file["m"] == [7]
+    assert run_query("fmin(3, 7)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("fmod(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+    assert run_query("remainder(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+    assert run_query("drem(7, 3)", {"m": ""}).values_per_file["m"] == [1.0]
+
+
+def test_fma_naive_compute():
+    assert run_query("fma(2, 3, 1)", {"m": ""}).values_per_file["m"] == [7.0]
+
+
+def test_lgamma_r_returns_pair():
+    import math as _math
+
+    [out] = run_query("lgamma_r(5)", {"m": ""}).values_per_file["m"]
+    assert abs(out[0] - _math.log(24.0)) < 1e-9
+    assert out[1] == 1
+
+
+def test_jn_yn_match_known_values():
+    # J_2(5) ≈ 0.046565... (verifiable against scipy/Wolfram)
+    [out] = run_query("jn(2, 5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.046565) < 1e-3
+    # Y_2(5) ≈ 0.367663...
+    [out] = run_query("yn(2, 5)", {"m": ""}).values_per_file["m"]
+    assert abs(out - 0.367663) < 1e-3
+    # J_0 / J_1 alignment.
+    [j0_via_jn] = run_query("jn(0, 1)", {"m": ""}).values_per_file["m"]
+    [j0_direct] = run_query("j0(1)", {"m": ""}).values_per_file["m"]
+    assert abs(j0_via_jn - j0_direct) < 1e-9
+
+
+# ---------------------------------------------------------------------------
 # Reported issues — minimal-SCF regression tests
 # ---------------------------------------------------------------------------
 

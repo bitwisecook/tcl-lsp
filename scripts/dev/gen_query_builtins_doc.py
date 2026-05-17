@@ -63,12 +63,42 @@ exactly the same content for one builtin.
 _CATEGORY_BLURBS: dict[str, str] = {
     "stream": (
         "Sequence-shaped operations: filter (`select`), transform (`map`), "
-        "aggregate (`any` / `all` / `count` / `unique` / `sort`), and the "
-        "object-introspection helpers (`keys` / `values` / `first` / `last`)."
+        "aggregate (`any` / `all` / `count` / `min` / `max` / `add` / "
+        "`unique` / `dupes` / `sort` / `reverse`), generators (`range`), "
+        "grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / "
+        "`max_by`), set membership (`IN` / `INDEX` / `inside` / "
+        "`combinations`), flow control (`empty` / `error` / `not`), and "
+        "the object-introspection helpers (`keys` / `values` / `first` / "
+        "`last` / `nth` / `limit` / `flatten`)."
     ),
     "string": (
         "String predicates and rewrites: substring / prefix / suffix tests, "
-        "regex `match` / `sub` / `gsub`, plain `split` / `join`, casing."
+        "regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / "
+        "`splits` (all flag-aware), plain `split` / `join`, casing, trims "
+        "(`ltrimstr` / `rtrimstr`), conversions (`tonumber` / `tostring` / "
+        "`tojson` / `fromjson` / `explode` / `implode` / `ascii` / "
+        "`utf8bytelength`), and jq-style encodings (`uri` / `base64` / "
+        "`base64d` / `html` / `sh`)."
+    ),
+    "math": (
+        "Numeric helpers matching jq's C-math surface: rounding (`floor` / "
+        "`ceil` / `round` / `trunc` / `rint`), magnitude / sign (`abs` / "
+        "`fabs` / `copysign` / `fdim`), powers / roots (`sqrt` / `cbrt` / "
+        "`pow` / `exp` / `exp2` / `exp10`), logarithms (`log` / `log2` / "
+        "`log10` / `logb`), trigonometry (`sin` / `cos` / `tan` / `asin` / "
+        "`acos` / `atan` / `atan2`), hyperbolics (`sinh` / `cosh` / `tanh` "
+        "/ `asinh` / `acosh` / `atanh`), special functions (`gamma` / "
+        "`tgamma` / `lgamma`, Bessel `j0` / `j1` / `y0` / `y1`), bit-level "
+        "decomposition (`frexp` / `ldexp` / `modf` / `significand`), and "
+        "IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / "
+        "`isnormal`)."
+    ),
+    "time": (
+        "Time and date helpers matching jq's surface: epoch reads (`now`), "
+        "ISO-8601 conversions (`todate` / `todateiso8601` / `fromdate` / "
+        "`fromdateiso8601` / `date`), broken-down time (`gmtime` / "
+        "`localtime` / `mktime`), formatting / parsing (`strftime` / "
+        "`strptime`), and epoch arithmetic (`dateadd` / `datesub`)."
     ),
     "path": (
         "BIG-IP full-path string helpers — extract the partition or basename, "
@@ -93,8 +123,11 @@ _CATEGORY_BLURBS: dict[str, str] = {
         "for now."
     ),
     "value": (
-        "Type / identity introspection: `kind` (TMSH kind), `path` "
-        "(full-path), `length`, `defined`, `type`."
+        "Type / identity introspection (`kind`, `path`, `length`, `defined`, "
+        "`type`), object-shape conversions (`to_entries` / `from_entries` / "
+        "`with_entries` / `has` / `in`), and jq-style tree manipulation "
+        "(`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / "
+        "`delpaths` / `walk` / `recurse` / `until` / `repeat`)."
     ),
 }
 
