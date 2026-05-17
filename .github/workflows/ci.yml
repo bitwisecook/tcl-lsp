@@ -196,6 +196,19 @@ jobs:
         with:
           node-version: "lts/*"
 
+      # The repo doesn't commit `package-lock.json`, so setup-node's
+      # built-in `cache: 'npm'` (which needs a lockfile) won't work.
+      # Cache the npm metadata directory instead so `npm install` skips
+      # the network for tarballs it already has.  Key on package.json so
+      # the cache invalidates whenever declared deps change.
+      - name: Cache npm registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install npm dependencies
         run: cd editors/vscode && npm install
 
@@ -297,6 +310,19 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "lts/*"
+
+      # The repo doesn't commit `package-lock.json`, so setup-node's
+      # built-in `cache: 'npm'` (which needs a lockfile) won't work.
+      # Cache the npm metadata directory instead so `npm install` skips
+      # the network for tarballs it already has.  Key on package.json so
+      # the cache invalidates whenever declared deps change.
+      - name: Cache npm registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
       - name: Sync Python environment
         run: uv sync --extra dev
