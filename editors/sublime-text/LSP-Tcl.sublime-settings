@@ -90,7 +90,7 @@
 
     // User-configurable overrides — leave empty to use auto-detection.
     //
-    // "server_path": "/path/to/server/__main__.py",
+    // "server_path": "/path/to/tcl-lsp-server.pyz",
     // "python_path": "/usr/bin/python3",
 
     "initializationOptions": {}

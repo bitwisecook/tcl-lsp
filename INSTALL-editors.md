@@ -8,8 +8,9 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 
 | Editor | Artefact | Install |
 |--------|----------|---------|
-| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension` |
-| [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Copy into `Installed Packages/` |
+| [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension`, or VS Code Marketplace |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
+| [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
 | [Emacs](#emacs) | `tcl-lsp-server-<v>.pyz` | eglot / lsp-mode |
@@ -42,6 +43,10 @@ are installed — see the per-editor sections below.
 
 ## VS Code
 
+Install from the VS Code Marketplace
+(<https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp>),
+or sideload the bundled `.vsix`:
+
 ```sh
 code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 ```
@@ -49,10 +54,34 @@ code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 Configure under **Settings > Extensions > Tcl**. Pin an interpreter
 with `tclLsp.pythonPath` (default `"auto"`).
 
+### VS Code-compatible editors
+
+The same `.vsix` works in editors that cannot use the Microsoft
+Marketplace (Cursor, Windsurf, VSCodium, Eclipse Theia, code-server /
+Coder, Gitpod, GitHub Codespaces Theia builds). Download from the
+GitHub release and sideload through the editor's Extensions UI, or
+via the CLI:
+
+```sh
+cursor   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+codium   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+```
+
+(Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
+"Install from VSIX" entry in their Extensions panel.)
+
 ## Sublime Text
 
-Drop the package — **filename must be `Tcl.sublime-package`** — into
-your Installed Packages directory:
+Install via **Package Control** (Command Palette → **Package Control:
+Install Package** → search **Tcl-LSP**), or sideload manually. The
+Package Control entry pulls from a dedicated mirror repo, so tagged
+releases of `bitwisecook/tcl-lsp` appear within ~1 hour of the
+maintainer running `make publish-sublime`.
+
+For the manual sideload path, drop the package —
+**filename must be `Tcl.sublime-package`** — into your Installed
+Packages directory:
 
 ```sh
 # macOS:   ~/Library/Application Support/Sublime Text/Installed Packages/

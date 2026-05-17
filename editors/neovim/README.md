@@ -28,6 +28,22 @@ To point to a specific Python interpreter, use the full path as the first
 element of `cmd` in your LSP config (e.g.
 `'/opt/homebrew/bin/python3.14'`).
 
+## Via nvim-lspconfig (recommended once merged upstream)
+
+Once the tcl-lsp config is merged into
+[`neovim/nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig), the
+setup is a one-liner:
+
+```lua
+require('lspconfig').tcl_lsp.setup({})
+```
+
+The config expects the `tcl-lsp-server.pyz` zipapp to be on your PATH.
+Download the zipapp from the
+[latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
+and drop it somewhere on PATH (renamed or symlinked to
+`tcl-lsp-server.pyz` so the executable bit is set).
+
 ## Neovim 0.11+ (native LSP)
 
 1. Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/tcl_lsp.lua`.

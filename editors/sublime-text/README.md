@@ -8,6 +8,23 @@ with a superset of its features across all Tcl dialects.
 
 ## Installation
 
+### Via Package Control (recommended, once tcl-lsp is on the channel)
+
+1. Open the Command Palette → **Package Control: Install Package**
+2. Search for **Tcl-LSP** and install it
+3. Restart Sublime Text and install the **LSP** package for full
+   language-server features
+
+Maintainer note: Package Control fetches the package source archive from
+the `bitwisecook/tcl-lsp-sublime-text` mirror repo (a flat-layout sibling
+of this monorepo that exists because Package Control's `tags: true`
+discovery downloads the git tarball at each tag and expects the package
+contents at the root). The mirror is repopulated and tagged from
+`build/sublime-stage/` by `make publish-sublime` on every release; no
+edit to that repo is ever needed by hand.
+
+### Manual install
+
 1. Download `Tcl.sublime-package` from the
    [latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
 2. Copy it to your Sublime Text **Installed Packages** directory:
