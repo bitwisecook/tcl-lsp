@@ -2124,6 +2124,11 @@ pub export fn local_set(name: i32, value: i32) i32 {
         // var_set_scalar guard — see that function's docstring for
         // the buffer-recycle scenario this avoids (cmdAH cascade).
         const stored = ensure_local_obj_owned(value);
+        // When ``ensure_local_obj_owned`` minted a fresh copy, that
+        // copy arrives at rc=1 — already exactly the slot's share.
+        // Only retain when we kept the caller's original handle
+        // (parser-side release will balance that retain).
+        const needs_retain = (stored != 0 and stored == value);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_set(name, stored);
@@ -2134,14 +2139,14 @@ pub export fn local_set(name: i32, value: i32) i32 {
             // and the parser-side release at end-of-statement
             // (MM-B.4) would free param values out from under the
             // running proc body.
-            if (stored != 0) obj.tcl_obj_retain(stored);
+            if (needs_retain) obj.tcl_obj_retain(stored);
             write_i32(bucket + OFF_VALUE, stored);
             if (v != 0 and v != stored) obj.tcl_obj_release(v);
             fire_local_trace(sn.ptr, sn.len, stored);
             return stored;
         }
         // Fresh insert — retain the new value (no old to release).
-        if (stored != 0) obj.tcl_obj_retain(stored);
+        if (needs_retain) obj.tcl_obj_retain(stored);
         frame_insert(base, sn.ptr, sn.len, hash, stored);
         fire_local_trace(sn.ptr, sn.len, stored);
         return stored;
@@ -2160,6 +2165,9 @@ pub export fn local_set(name: i32, value: i32) i32 {
 /// through unchanged.
 fn ensure_local_obj_owned(o: i32) i32 {
     if (o == 0) return 0;
+    // S6.4 — tagged immediates have no header to read.  See
+    // :func:`tcl_ns.ensure_var_obj_owned` for the rationale.
+    if (obj.is_immediate(o)) return o;
     const addr: u32 = @bitCast(o);
     const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
     if (tag != obj.TYPE_STRING) return o;
@@ -2202,16 +2210,18 @@ pub export fn local_set_silent(name: i32, value: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         const stored = ensure_local_obj_owned(value);
+        // Conditional retain — see local_set for the explanation.
+        const needs_retain = (stored != 0 and stored == value);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_set(name, stored);
             if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, stored);
-            if (stored != 0) obj.tcl_obj_retain(stored);
+            if (needs_retain) obj.tcl_obj_retain(stored);
             write_i32(bucket + OFF_VALUE, stored);
             if (v != 0 and v != stored) obj.tcl_obj_release(v);
             return stored;
         }
-        if (stored != 0) obj.tcl_obj_retain(stored);
+        if (needs_retain) obj.tcl_obj_retain(stored);
         frame_insert(base, sn.ptr, sn.len, hash, stored);
         return stored;
     }

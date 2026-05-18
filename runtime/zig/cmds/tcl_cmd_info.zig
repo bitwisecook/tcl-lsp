@@ -2199,16 +2199,21 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     }
     if (str_eq(sp, sub_l, "functions")) {
         // ``info functions ?pattern?`` — list the math functions
-        // available to ``expr`` (i.e. the ``::tcl::mathfunc::*``
-        // commands).  Tcl 9 reference: ``InfoFunctionsCmd`` in
-        // ``tclCmdIL.c`` walks ``::tcl::mathfunc``'s cmdTable; we
-        // mirror by materialising the namespace (idempotent forward-
-        // populates the ns from BUILTINS) and scanning its cmd_table,
-        // emitting simple names stripped of the prefix.
+        // available to ``expr``.  Tcl 9 reference: ``InfoFunctionsCmd``
+        // in ``tclCmdIL.c`` runs a small ``::apply`` script that
+        // unions ``info commands ::tcl::mathfunc::$pattern`` with
+        // ``info commands tcl::mathfunc::$pattern`` (relative to
+        // ``[namespace current]``).  We mirror that union here: scan
+        // ``::tcl::mathfunc`` first (the always-present global
+        // mathfunc namespace, materialised on demand from BUILTINs),
+        // then scan ``<current_ns>::tcl::mathfunc`` if it exists,
+        // deduping simple names already collected from the global.
         const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
-        const prefix = "::tcl::mathfunc";
-        const ns_addr = builtin_ns.materialise(@intFromPtr(prefix.ptr), prefix.len);
-        if (ns_addr == 0) return obj_new_string(0, 0);
+        const global_prefix = "::tcl::mathfunc";
+        const global_ns_addr = builtin_ns.materialise(
+            @intFromPtr(global_prefix.ptr),
+            global_prefix.len,
+        );
 
         var pat_ptr: u32 = 0;
         var pat_len: u32 = 0;
@@ -2222,47 +2227,70 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
             }
         }
 
-        const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
-        if (ns.cmd_table.buf == 0) return obj_new_string(0, 0);
+        // Walk the namespace tree from current to root looking for a
+        // ``tcl::mathfunc`` child.  Mirrors Tcl 9's relative ``info
+        // commands tcl::mathfunc::$pattern`` resolution.  Skipped when
+        // current is root (the global pass already covers it).
+        var local_ns_addr: u32 = 0;
+        const cur = tcl_ns.ns_current();
+        if (cur != 0 and cur != tcl_ns.ns_root()) {
+            const tcl_name = "tcl";
+            const tcl_ns_addr = tcl_ns.ns_lookup(cur, @intFromPtr(tcl_name.ptr), tcl_name.len);
+            if (tcl_ns_addr != 0) {
+                const mf_name = "mathfunc";
+                local_ns_addr = tcl_ns.ns_lookup(tcl_ns_addr, @intFromPtr(mf_name.ptr), mf_name.len);
+            }
+        }
 
-        // Two-pass build: size first, then fill.  Matches the
-        // pattern used by ``scan_ns_cmd_table``.
-        var total: u32 = 0;
+        // Collect matching simple names into a fixed-size span table.
+        // The combined population is bounded by the mathfunc count
+        // (~30 builtins plus a handful of user-defined entries per ns)
+        // so a stack-sized cap of 256 is comfortably safe.
+        var name_ptrs: [256]u32 = undefined;
+        var name_lens: [256]u32 = undefined;
         var count: u32 = 0;
-        var i: u32 = 0;
-        while (i < ns.cmd_table.cap) : (i += 1) {
-            const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const name_len: u32 = @bitCast(read_i32(bucket + 4));
-            if (name_len == 0) continue;
-            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
-            if (count > 0) total += 1;
-            total += name_len;
-            count += 1;
+        var total: u32 = 0;
+
+        if (global_ns_addr != 0) {
+            const gns: *const tcl_ns.Namespace = @ptrFromInt(global_ns_addr);
+            collect_function_names(
+                gns,
+                pat_ptr,
+                pat_len,
+                has_pattern,
+                &name_ptrs,
+                &name_lens,
+                &count,
+                &total,
+            );
+        }
+        if (local_ns_addr != 0) {
+            const lns: *const tcl_ns.Namespace = @ptrFromInt(local_ns_addr);
+            collect_function_names(
+                lns,
+                pat_ptr,
+                pat_len,
+                has_pattern,
+                &name_ptrs,
+                &name_lens,
+                &count,
+                &total,
+            );
         }
         if (count == 0) return obj_new_string(0, 0);
 
         const buf = alloc(total);
         if (buf == 0) return obj_new_string(0, 0);
         var off: u32 = 0;
-        var written: u32 = 0;
-        i = 0;
-        while (i < ns.cmd_table.cap) : (i += 1) {
-            const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const name_len: u32 = @bitCast(read_i32(bucket + 4));
-            if (name_len == 0) continue;
-            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
-            if (written > 0) {
+        var w: u32 = 0;
+        while (w < count) : (w += 1) {
+            if (w > 0) {
                 const d: [*]u8 = @ptrFromInt(buf + off);
                 d[0] = ' ';
                 off += 1;
             }
-            memcpy(buf + off, name_ptr, name_len);
-            off += name_len;
-            written += 1;
+            memcpy(buf + off, name_ptrs[w], name_lens[w]);
+            off += name_lens[w];
         }
         return obj.obj_new_string_take(buf, total, total);
     }
@@ -2288,4 +2316,61 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         return obj_new_string(0, 0);
     }
     return obj_new_string(0, 0);
+}
+
+/// Walk *ns*'s ``cmd_table`` and append each simple name matching
+/// *pat_ptr* / *pat_len* (or every entry when ``!has_pattern``) into
+/// the ``(name_ptrs, name_lens)`` parallel arrays at offsets tracked
+/// by ``count`` / ``total``.  Skips duplicates already present —
+/// callers stack a global-namespace pass followed by a per-namespace
+/// pass so the dedup makes the second pass observe ``info commands
+/// tcl::mathfunc::$pat`` semantics from C Tcl (a single union).
+fn collect_function_names(
+    ns: *const tcl_ns.Namespace,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    name_ptrs: *[256]u32,
+    name_lens: *[256]u32,
+    count: *u32,
+    total: *u32,
+) void {
+    if (ns.cmd_table.buf == 0) return;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        if (count.* >= name_ptrs.len) return;
+        const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (name_len == 0) continue;
+        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        // Dedup against previously-collected names (small population,
+        // simple linear scan is fine).
+        var dup = false;
+        var k: u32 = 0;
+        while (k < count.*) : (k += 1) {
+            if (name_lens[k] != name_len) continue;
+            const a: [*]const u8 = @ptrFromInt(name_ptrs[k]);
+            const b: [*]const u8 = @ptrFromInt(name_ptr);
+            var same = true;
+            var m: u32 = 0;
+            while (m < name_len) : (m += 1) {
+                if (a[m] != b[m]) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) {
+                dup = true;
+                break;
+            }
+        }
+        if (dup) continue;
+        if (count.* > 0) total.* += 1;
+        total.* += name_len;
+        name_ptrs[count.*] = name_ptr;
+        name_lens[count.*] = name_len;
+        count.* += 1;
+    }
 }

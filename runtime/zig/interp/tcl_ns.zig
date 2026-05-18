@@ -890,9 +890,16 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // (MM-B.4) frees the value out from under us.  With both in
     // place, every TclObj eventually drops to refcount 0 when no
     // var, frame, or list/dict element holds it any more.
+    //
+    // When ``ensure_var_obj_owned`` minted a fresh copy, that copy
+    // arrives at rc=1 from :func:`obj_new_string_copy` — already
+    // exactly the slot's share.  Retaining again would leave a
+    // dangling +1 that nothing releases.  Only retain when we kept
+    // the caller's original handle (parser will drop its own rc at
+    // end-of-statement, balancing this retain).
     const old: u32 = @bitCast(v.value);
     v.value = stored;
-    if (stored != 0) obj.tcl_obj_retain(@bitCast(stored));
+    if (stored != 0 and stored == obj_handle) obj.tcl_obj_retain(@bitCast(stored));
     if (old != 0 and old != stored) obj.tcl_obj_release(@bitCast(old));
 }
 
@@ -906,6 +913,10 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
 /// owning ones pass through unchanged.
 fn ensure_var_obj_owned(o: i32) i32 {
     if (o == 0) return 0;
+    // S6.4 — tagged immediates have no header to read.  Their handles
+    // encode the value directly with bit 0 set; dereferencing them as
+    // pointers would read unrelated memory (or trap above 2 GiB).
+    if (obj.is_immediate(o)) return o;
     const addr: u32 = @bitCast(o);
     // Only string-typed objs have a borrowed-buffer concern.  Int /
     // float / list / dict objs use the value slot for their payload
