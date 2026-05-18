@@ -661,7 +661,10 @@ def _x509_parse_ssl_fallback(pem: str) -> dict[str, Any]:
             tmp_path = tmp.name
         import ssl as _ssl_mod
 
-        cert = _ssl_mod._ssl._test_decode_cert(tmp_path)  # type: ignore[attr-defined]
+        # CPython's `_ssl` C extension exposes `_test_decode_cert` for ssl's
+        # own test suite — the only stdlib entry point that returns a parsed
+        # certificate without needing OpenSSL bindings.  Stable since 3.x.
+        cert = _ssl_mod._ssl._test_decode_cert(tmp_path)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     except Exception as exc:  # noqa: BLE001 — fallback is best-effort
         raise BuiltinError(f"x509_parse: cannot decode cert ({exc})") from exc
     sans = [val for typ, val in cert.get("subjectAltName", ()) if typ in ("DNS", "IP Address")]

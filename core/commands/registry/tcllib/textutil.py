@@ -152,22 +152,23 @@ class TextutilUndentCommand(CommandDef):
 
 def _tu(name: str, summary: str, synopsis: str, arity: Arity) -> type:
     """Register a pure textutil command."""
+    full_name = f"textutil::{name}"
 
     @register
     class _Cmd(CommandDef):
-        pass
+        name = full_name
 
-    _Cmd.name = f"textutil::{name}"
-    _Cmd.spec = classmethod(  # type: ignore[assignment]
-        lambda cls, _n=f"textutil::{name}", _s=summary, _syn=synopsis, _a=arity: CommandSpec(
-            name=_n,
-            tcllib_package=_PACKAGE,
-            pure=True,
-            hover=HoverSnippet(summary=_s, synopsis=(_syn,), source=_SOURCE),
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=_syn),),
-            validation=ValidationSpec(arity=_a),
-        )
-    )
+        @classmethod
+        def spec(cls) -> CommandSpec:
+            return CommandSpec(
+                name=full_name,
+                tcllib_package=_PACKAGE,
+                pure=True,
+                hover=HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
+                forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
+                validation=ValidationSpec(arity=arity),
+            )
+
     return _Cmd
 
 

@@ -366,7 +366,9 @@ def test_deserialize_path(built_db: Path) -> None:
 
     db_bytes = built_db.read_bytes()
     conn = sqlite3.connect(":memory:")
-    conn.deserialize(db_bytes)  # type: ignore[attr-defined, unresolved-attribute]  # Python 3.12+
+    # ``Connection.deserialize`` is Python 3.12+; the guard above ensures
+    # we only reach this path on a runtime where the method exists.
+    conn.deserialize(db_bytes)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     conn.row_factory = sqlite3.Row
 
     rows = conn.execute("SELECT name FROM kcs_features").fetchall()

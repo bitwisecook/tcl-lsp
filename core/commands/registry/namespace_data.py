@@ -34,6 +34,7 @@ No registry imports -- safe for command definition files.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from .namespace_models import (
     EventProps,
@@ -1182,9 +1183,9 @@ PER_REQUEST: frozenset[str] = frozenset(
 # Flow chains (7 chains)
 
 
-def _s(event: str, phase: str, **kw: object) -> FlowStep:
+def _s(event: str, phase: str, **kw: Any) -> FlowStep:
     """Shorthand for FlowStep construction."""
-    return FlowStep(event=event, phase=phase, **kw)  # type: ignore[arg-type, invalid-argument-type]
+    return FlowStep(event=event, phase=phase, **kw)
 
 
 # fmt: off

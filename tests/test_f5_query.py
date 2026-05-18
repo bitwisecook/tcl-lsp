@@ -3368,7 +3368,9 @@ def test_generated_builtins_doc_is_up_to_date():
 
     repo_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(repo_root / "scripts" / "dev"))
-    import gen_query_builtins_doc  # type: ignore[import-not-found]
+    # ``gen_query_builtins_doc`` lives under ``scripts/dev`` and is added
+    # to sys.path above — not a regular package so static resolution fails.
+    import gen_query_builtins_doc  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]
 
     expected = gen_query_builtins_doc.render(list_builtins())
     on_disk = (repo_root / "docs" / "references" / "f5_query" / "builtins.md").read_text(

@@ -53,8 +53,9 @@ class TestParse:
             Version.parse("")
 
     def test_parse_non_string_raises(self) -> None:
+        # Intentionally passing a non-str to assert ``parse`` rejects it.
         with pytest.raises(VersionError):
-            Version.parse(1.2)  # type: ignore[arg-type]
+            Version.parse(1.2)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     def test_parse_garbage_raises(self) -> None:
         with pytest.raises(VersionError):

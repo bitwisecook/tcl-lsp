@@ -338,8 +338,8 @@ def compute_grep(
         nodes_by_uri, edges = build_bigip_object_graph(sources=sources, configs=configs)
     finally:
         configure_signatures(
-            dialect=saved["dialect"],  # type: ignore[arg-type]
-            extra_commands=saved["extra_commands"],  # type: ignore[arg-type]
+            dialect=saved["dialect"],
+            extra_commands=saved["extra_commands"],
         )
 
     all_nodes: dict[str, BigipObjectNode] = {}

@@ -43,6 +43,12 @@ def configure(server_instance: LanguageServer) -> None:
     _server = server_instance
 
 
+def _require_server() -> LanguageServer:
+    if _server is None:
+        raise RuntimeError("lsp.workspace_init: server not configured")
+    return _server
+
+
 # Import warming
 
 
@@ -173,7 +179,7 @@ def _start_scan_with_progress() -> None:
 
         def _send() -> None:
             try:
-                _server.work_done_progress.report(  # type: ignore[union-attr]
+                _require_server().work_done_progress.report(
                     token,
                     types.WorkDoneProgressReport(
                         message=f"{idx}/{total}",
@@ -192,7 +198,7 @@ def _start_scan_with_progress() -> None:
         nonlocal progress_active
         try:
             await asyncio.wait_for(
-                _server.work_done_progress.create_async(token),  # type: ignore[union-attr]
+                _require_server().work_done_progress.create_async(token),
                 timeout=5.0,
             )
         except (Exception, asyncio.TimeoutError):
@@ -204,7 +210,7 @@ def _start_scan_with_progress() -> None:
             return
 
         try:
-            _server.work_done_progress.begin(  # type: ignore[union-attr]
+            _require_server().work_done_progress.begin(
                 token,
                 types.WorkDoneProgressBegin(
                     title="Scanning workspace",
@@ -232,7 +238,7 @@ def _start_scan_with_progress() -> None:
 
         progress_active = False
         try:
-            _server.work_done_progress.end(  # type: ignore[union-attr]
+            _require_server().work_done_progress.end(
                 token,
                 types.WorkDoneProgressEnd(message="done"),
             )
@@ -267,7 +273,7 @@ def on_initialized(params: types.InitializedParams) -> None:
     # Discover project-level config files: one per workspace folder for
     # multi-root workspaces, plus the workspace fallback for files outside
     # any folder.
-    ws = _server.workspace  # type: ignore[union-attr]
+    ws = _require_server().workspace
     # pygls 2.x exposes folders as ``Workspace.folders`` (dict keyed by URI);
     # older releases used ``workspace_folders`` (list).  Support both.
     _folders_attr = getattr(ws, "folders", None)
@@ -321,11 +327,11 @@ def on_initialized(params: types.InitializedParams) -> None:
         active_dialect(),
     )
 
-    caps = _server.client_capabilities  # type: ignore[union-attr]
+    caps = _require_server().client_capabilities
     st = getattr(getattr(caps, "text_document", None), "semantic_tokens", None)
     if st is None:
         log.info("Client did not advertise semantic token support")
-        _server.window_show_message(  # type: ignore[union-attr]
+        _require_server().window_show_message(
             types.ShowMessageParams(
                 type=types.MessageType.Info,
                 message=(
@@ -337,7 +343,7 @@ def on_initialized(params: types.InitializedParams) -> None:
         )
 
     roots: list[str] = []
-    ws = _server.workspace  # type: ignore[union-attr]
+    ws = _require_server().workspace
     if ws.root_path:
         roots.append(ws.root_path)
 

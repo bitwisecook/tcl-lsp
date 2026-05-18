@@ -12,10 +12,11 @@ import importlib
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from ...analysis.semantic_model import StubCommandDef
+    from ...compiler.side_effects import StorageType
 
 from ...compiler.types import TclType
 from ...parsing.tokens import Token
@@ -24,6 +25,12 @@ from .models import CommandSpec, PatternType, ValidationSpec
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
+
+
+class SignatureProfile(TypedDict):
+    dialect: str
+    extra_commands: list[str]
+
 
 # Re-export so existing callers keep working via ``from ...runtime import ...``.
 __all__ = [
@@ -332,14 +339,14 @@ def regex_pattern_commands() -> frozenset[str]:
 
 
 @lru_cache(maxsize=1)
-def storage_type_commands() -> dict[str, object]:
+def storage_type_commands() -> dict[str, StorageType]:
     """Return ``{command: StorageType}`` for commands that imply a storage type.
 
     Used by side-effect analysis to infer whether a variable holds a dict,
     list, or array based on the command that writes to it.
     Derived from ``inferred_storage_type`` on :class:`CommandSpec`.
     """
-    result: dict[str, object] = {}
+    result: dict[str, StorageType] = {}
     for name, specs in REGISTRY.specs_by_name.items():
         for spec in specs:
             if spec.inferred_storage_type is not None:
@@ -692,7 +699,7 @@ def available_dialects() -> list[str]:
     return sorted(_KNOWN_DIALECTS)
 
 
-def active_signature_profile() -> dict[str, object]:
+def active_signature_profile() -> SignatureProfile:
     """Return the currently active command-signature profile."""
     return {
         "dialect": _dialect_var.get(),

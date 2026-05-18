@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -19,8 +20,8 @@ from lsp.features.snippet_templates import (
 # Helpers
 
 
-def _default_ctx(**overrides) -> SnippetContext:
-    defaults = dict(
+def _default_ctx(**overrides: Any) -> SnippetContext:
+    defaults: dict[str, Any] = dict(
         dialect="tcl",
         brace_style=BraceStyle.K_AND_R,
         indent_unit="    ",
@@ -30,7 +31,7 @@ def _default_ctx(**overrides) -> SnippetContext:
         partial="",
     )
     defaults.update(overrides)
-    return SnippetContext(**defaults)  # type: ignore[arg-type, invalid-argument-type]
+    return SnippetContext(**defaults)
 
 
 def _labels(items: list[types.CompletionItem]) -> list[str]:

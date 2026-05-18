@@ -1230,8 +1230,11 @@ def _find_hoistable_constants(
                 if v in ("", "{}", "[list]"):
                     continue
 
-            # Try each candidate event (earliest first).
-            hoistable_stmt: IRAssignConst | IRAssignValue | IRIncr | IRCall = stmt  # type: ignore[assignment, invalid-assignment]
+            # Try each candidate event (earliest first).  By the checks
+            # above ``stmt`` is one of these four IR statement types — the
+            # assert restates that invariant so the type checker can follow.
+            assert isinstance(stmt, (IRAssignConst, IRAssignValue, IRIncr, IRCall))
+            hoistable_stmt = stmt
             best_event = None
             best_exists = False
             for cand, cand_exists in candidates:

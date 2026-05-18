@@ -177,7 +177,7 @@ def load_user_config() -> configparser.ConfigParser:
     does not exist, returns an empty configuration.
     """
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve camelCase keys (configparser docs sanction assigning a callable to optionxform)
     path = _config_path()
     if path.is_file():
         try:
@@ -209,7 +209,7 @@ def load_project_config(workspace_root: str | Path) -> configparser.ConfigParser
     present or when the file fails to parse — never raises.
     """
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve camelCase keys (configparser docs sanction assigning a callable to optionxform)
     path = find_project_config(workspace_root)
     if path is None:
         return config
@@ -219,11 +219,11 @@ def load_project_config(workspace_root: str | Path) -> configparser.ConfigParser
     except Exception:
         log.warning("Failed to parse %s, ignoring", path, exc_info=True)
         config = configparser.ConfigParser()
-        config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
+        config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve camelCase keys (configparser docs sanction assigning a callable to optionxform)
     return config
 
 
-def merge_settings_layers(*layers: dict) -> dict:
+def merge_settings_layers(*layers: dict | None) -> dict:
     """Merge settings dicts with later layers overriding earlier ones.
 
     Sections (nested dicts) are merged key-by-key rather than replaced
@@ -486,7 +486,7 @@ def save_settings_to_config(
     Returns the path that was written.
     """
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve case
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve case (configparser docs sanction assigning a callable to optionxform)
 
     if defaults is None:
         defaults = {}

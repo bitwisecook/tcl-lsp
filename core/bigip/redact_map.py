@@ -49,7 +49,7 @@ from typing import Iterable, Sequence
 if sys.version_info >= (3, 11):
     import tomllib as _TOMLLIB
 else:  # pragma: no cover — repo runs on 3.11+ in CI
-    import tomli as _TOMLLIB  # type: ignore[no-redef]
+    import tomli as _TOMLLIB  # type: ignore[no-redef]  # ty: ignore[unresolved-import]  # tomli is a fallback for py<3.11; declared as conditional dep
 
 # Default RFC1918 pool, walked in order.  Operators on internal LANs
 # routinely use 10/8 but rarely 172.16/12 or 192.168/16 at any scale,

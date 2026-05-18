@@ -22,7 +22,7 @@ from core.common.user_config import (
 def _config_from_string(text: str) -> configparser.ConfigParser:
     """Build a ConfigParser from an INI string (case-preserving, like load_user_config)."""
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve camelCase (configparser docs sanction assigning a callable to optionxform)
     config.read_string(text)
     return config
 

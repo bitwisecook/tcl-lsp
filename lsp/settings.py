@@ -7,7 +7,8 @@ import copy
 import logging
 import re
 import threading
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from lsprotocol import types
 
@@ -187,6 +188,12 @@ _server: LanguageServer | None = None
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
+
+
+def _require_server() -> LanguageServer:
+    if _server is None:
+        raise RuntimeError("lsp.settings: server not configured")
+    return _server
 
 
 # Feature settings application
@@ -800,7 +807,7 @@ def _pull_and_apply_configuration() -> None:
     items.append(types.ConfigurationItem(section="tclLsp"))
     params = types.ConfigurationParams(items=items)
 
-    def _on_result(result: list[object] | None) -> None:
+    def _on_result(result: Sequence[Any | None]) -> None:
         if not result:
             return
         # Result order matches request order: per-folder items first,
@@ -823,7 +830,7 @@ def _pull_and_apply_configuration() -> None:
             _schedule_apply_merged()
 
     try:
-        _server.workspace_configuration(params, callback=_on_result)  # type: ignore[union-attr]
+        _require_server().workspace_configuration(params, callback=_on_result)
     except Exception:
         log.debug("workspace/configuration pull failed", exc_info=True)
 

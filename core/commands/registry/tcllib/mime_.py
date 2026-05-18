@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -120,24 +122,25 @@ class MimeFinaliseCommand(CommandDef):
         )
 
 
-def _mm(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:
+def _mm(name: str, summary: str, synopsis: str, arity: Arity, **kw: Any) -> type:
     """Register a mime command."""
+    full_name = f"mime::{name}"
 
     @register
     class _Cmd(CommandDef):
-        pass
+        name = full_name
 
-    _Cmd.name = f"mime::{name}"
-    _Cmd.spec = classmethod(  # type: ignore[assignment]
-        lambda cls, _n=f"mime::{name}", _s=summary, _syn=synopsis, _a=arity, _kw=kw: CommandSpec(
-            name=_n,
-            tcllib_package=_PACKAGE,
-            hover=HoverSnippet(summary=_s, synopsis=(_syn,), source=_SOURCE),
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=_syn),),
-            validation=ValidationSpec(arity=_a),
-            **_kw,  # type: ignore[arg-type]
-        )
-    )
+        @classmethod
+        def spec(cls) -> CommandSpec:
+            return CommandSpec(
+                name=full_name,
+                tcllib_package=_PACKAGE,
+                hover=HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
+                forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
+                validation=ValidationSpec(arity=arity),
+                **kw,
+            )
+
     return _Cmd
 
 

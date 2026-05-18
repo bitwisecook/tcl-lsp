@@ -51,7 +51,7 @@ def _codes(diags) -> list[str]:
 
 def _config_from_string(text: str) -> configparser.ConfigParser:
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve case (configparser docs sanction assigning a callable to optionxform)
     config.read_string(text)
     return config
 
@@ -367,7 +367,7 @@ class TestMergeSettingsLayers:
 
     def test_ignores_non_dict_layers(self):
         # Robustness: passing ``None`` or a non-dict layer should not crash.
-        merged = merge_settings_layers({"diagnostics": {"W100": False}}, None)  # type: ignore[arg-type]
+        merged = merge_settings_layers({"diagnostics": {"W100": False}}, None)
         assert merged == {"diagnostics": {"W100": False}}
 
 

@@ -28,6 +28,12 @@ def configure(server_instance: LanguageServer) -> None:
     _server = server_instance
 
 
+def _require_server() -> LanguageServer:
+    if _server is None:
+        raise RuntimeError("lsp.lifecycle: server not configured")
+    return _server
+
+
 # Document lifecycle handlers
 
 
@@ -70,7 +76,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
             folder_cfg.dialect = "f5-irules"
             if folder_cfg is _state.feature_config:
                 configure_signatures(dialect="f5-irules")
-            _server.window_show_message(  # type: ignore[union-attr]
+            _require_server().window_show_message(
                 types.ShowMessageParams(
                     type=types.MessageType.Info,
                     message="Switched to iRules dialect for F5 iRules support.",
@@ -132,7 +138,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
 
 
 async def did_change(params: types.DidChangeTextDocumentParams) -> None:
-    doc = _server.workspace.get_text_document(params.text_document.uri)  # type: ignore[union-attr]
+    doc = _require_server().workspace.get_text_document(params.text_document.uri)
     if _dp._is_bigip_conf(params.text_document.uri):
         _dp._publish_bigip_diagnostics(
             params.text_document.uri,
@@ -166,13 +172,13 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     _invalidate_hover_cache(uri)
     if _dp._is_bigip_conf(uri):
         _state.background_scanner.remove_bigip_config(uri)
-        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+        _require_server().text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
     if _dp._is_apl_source(uri):
         _state.background_scanner.remove_apl_model(uri)
-        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+        _require_server().text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
@@ -184,7 +190,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
         _state.workspace_index.update(uri, bg_analysis, EntrySource.BACKGROUND)
     else:
         _state.workspace_index.remove(uri)
-    _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+    _require_server().text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
     )
 
@@ -258,7 +264,7 @@ def on_will_rename_files(
     if not _state.feature_config.workspace_file_ops_enabled:
         return None
     roots: list[str] = []
-    ws = _server.workspace  # type: ignore[union-attr]
+    ws = _require_server().workspace
     if ws.root_path:
         roots.append(ws.root_path)
     return compute_batch_rename_edits(
