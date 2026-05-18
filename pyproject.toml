@@ -1,6 +1,6 @@
 [project]
 name = "tcl-lsp"
-version = "1.10.4"
+dynamic = ["version"]
 description = "A Tcl Language Server Protocol implementation"
 requires-python = ">=3.10"
 dependencies = [
@@ -18,6 +18,11 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.11",
     "ty==0.0.37",
+    # Available at runtime so ``scripts/print_version.py`` can compute the
+    # wheel filename the Makefile expects (hatch-vcs is also a
+    # ``[build-system].requires`` entry — listing it here just makes it
+    # importable from the dev env).
+    "hatch-vcs>=0.5",
     "wasmtime>=20.0",
     "flask>=3.0",
     # Used by the test-slow TLS / x509 suites that spin up an HTTPS
@@ -38,8 +43,24 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# Version comes from the latest annotated git tag (e.g. ``v1.10.5`` → ``1.10.5``).
+# Untagged commits get a PEP 440 dev suffix like ``1.10.5.dev3+ga1b2c3d``. The
+# release flow is therefore tag-only: ``git tag -a vX.Y.Z -m ...`` + push, with
+# no source-file edits needed to bump the version.
+[tool.hatch.version]
+source = "vcs"
+# Drop the local ``+gHASH`` suffix so PEP 440 strict consumers (PyPI,
+# VS Code Marketplace, JetBrains Marketplace) accept the version string.
+# ``guess-next-dev`` (the default scheme) produces e.g. ``1.10.5.dev8``
+# on an untagged commit eight past ``v1.10.4`` — i.e. an in-progress
+# preview of the next release rather than a post-release of the last.
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "lsp/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["lsp", "core", "explorer", "vm", "tclpkg", "f5q"]

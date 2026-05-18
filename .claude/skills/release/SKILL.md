@@ -1,15 +1,22 @@
 ---
 name: release
 description: >
-  Run the full release workflow: validate branch, test, bump version,
-  generate changelog, tag, push, and publish to all editor marketplaces.
-  Asks for patch/minor/major if not specified.
+  Run the full release workflow: validate branch, test, generate changelog,
+  tag, push, and publish to all editor marketplaces. Asks for
+  patch/minor/major if not specified. Tag-only — no source-file edits,
+  no commit on main (main is protected).
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
 # Release
 
 Orchestrates a full release of tcl-lsp. This skill is internal to the project.
+
+The release is **tag-only**: every version literal in the tree is derived
+from the latest annotated tag (via `hatch-vcs` for the Python wheel and via
+the Makefile + `git describe` for every editor build). To cut a release we
+push a `vX.Y.Z` tag — there is no source-file bump and no commit on `main`.
+RELEASE_NOTES.md is the one exception, and it lands via a PR before tagging.
 
 ## Workflow
 
@@ -53,12 +60,10 @@ Then run slow tests:
 make test-slow
 ```
 
-If any test fails, investigate and fix the issue. After fixing, re-run the
-failing target. Once all tests pass, commit fixes and push:
-
-```bash
-git push origin main
-```
+If any test fails, investigate and fix the issue. **Main is protected — push
+fixes via a PR.** Create a fix branch, push, open the PR with `gh pr create`,
+wait for CI green, and ask the user to merge it. Then `git checkout main &&
+git pull origin main` before continuing.
 
 ### 4. Determine version bump
 
@@ -110,21 +115,38 @@ with these sections (omit empty sections):
 ```
 
 Focus on user-visible changes. Group related changes. Use UK spelling. Do not
-list every file touched; summarise the meaningful changes. Commit the file:
+list every file touched; summarise the meaningful changes.
+
+### 6. Land RELEASE_NOTES.md, then tag
+
+Main is protected, so the release-notes commit lands via a PR:
 
 ```bash
+git checkout -b release/vX.Y.Z
 git add RELEASE_NOTES.md
 git commit -m "Add release notes for vX.Y.Z"
+git push -u origin release/vX.Y.Z
+gh pr create --title "Release vX.Y.Z notes" --body "..."
 ```
 
-### 6. Bump version, tag, and push
+Wait for CI on the PR to go green, then ask the user to merge it (squash).
+Once merged, switch back and pull:
+
+```bash
+git checkout main
+git pull origin main
+```
+
+Now create + push the annotated tag. `make release-tag` handles validation
+(clean tree, correct branch, no existing tag) and pushes only the tag —
+no source-file edits, no commit on main:
 
 ```bash
 make release-tag V=X.Y.Z
 ```
 
-This runs `scripts/release.sh` which bumps all version files, commits, creates
-an annotated tag `vX.Y.Z`, and pushes with `--follow-tags`.
+The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
+`publish-checksums`, and publish the GitHub release.
 
 ### 6.5. Verify published artefacts
 

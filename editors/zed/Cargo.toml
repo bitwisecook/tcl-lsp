@@ -1,6 +1,9 @@
 [package]
 name = "tcl-lsp-zed"
-version = "1.10.4"
+# Source literal kept at 0.0.0-dev. The published Zed extension carries the
+# real version via ``extension.toml`` in the staged build (see Makefile
+# target ``zed``); cargo's package version never reaches end users.
+version = "0.0.0-dev"
 edition = "2021"
 
 [lib]
