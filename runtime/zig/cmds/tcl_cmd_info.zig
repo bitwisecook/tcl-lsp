@@ -1231,6 +1231,19 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
         }
     }
 
+    // Qualified pattern that didn't resolve to a target namespace —
+    // tclCmdIL.c InfoCommandsCmd / InfoProcsCmd both return an empty
+    // list when ``TclGetNamespaceForQualName`` reports ``nsPtr == NULL``
+    // for the pattern's qualifier prefix.  Without this guard, the
+    // fall-through to ``walk_unqualified_path`` re-walks the current
+    // ns + path + root and returns every visible command — so a stale
+    // ``info commands test_ns_1::deleted_ns::*`` after a
+    // ``namespace delete`` would surface the entire root cmd_table
+    // instead of an empty list (namespace-8.3).
+    if (ctx.qualified_pattern and qualified_target == 0) {
+        return obj_new_string(0, 0);
+    }
+
     // Pass 1: size.
     if (qualified_target != 0) {
         walk_qualified(qualified_target, &ctx);
