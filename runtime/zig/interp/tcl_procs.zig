@@ -98,7 +98,7 @@ const parse_cache = @import("../valtypes/parse_cache.zig");
 //                                         procs.  Set by proc_register_compiled
 //                                         so dispatch() can raise "wrong # args"
 //                                         before calling the compiled WASM fn.)
-pub const COMMAND_SIZE: u32 = 44;
+pub const COMMAND_SIZE: u32 = 52;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
 const OFF_BODY_OBJ: u32 = 16;
@@ -108,6 +108,14 @@ const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 pub const OFF_EXPORT_NAME_BUCKET: u32 = 36;
 const OFF_N_REQUIRED: u32 = 40;
+// Raw (ptr, len) of the source-text params spec.  Used by ``info
+// args`` to materialise a fresh TclObj on demand without retaining
+// anything at module-init time.  Stashed by
+// :func:`proc_set_params_source_raw`.  Pointing at WASM data segment
+// bytes (immutable, owned by the module instance) — no allocation,
+// no refcount.
+const OFF_PARAMS_SRC_PTR: u32 = 44;
+const OFF_PARAMS_SRC_LEN: u32 = 48;
 
 /// Set on imported (redirect) commands.  ``params_obj`` holds an
 /// ``*ImportedCmdData`` pointing at the source ``*Command`` and
@@ -479,6 +487,13 @@ pub export fn proc_register_compiled(
     write_i32(cmd + OFF_FUNC_IDX, func_idx);
     write_i32(cmd + OFF_ARGS_TAIL, args_tail);
     write_i32(cmd + OFF_N_REQUIRED, n_required);
+    // Clear the raw params source slot so a re-registration over an
+    // existing bucket doesn't inherit a stale data-segment pointer
+    // from a previous module instance.  Stamping is handled by
+    // :func:`proc_set_params_source_raw` immediately after this call
+    // when the codegen prologue emits the stash sequence.
+    write_i32(cmd + OFF_PARAMS_SRC_PTR, 0);
+    write_i32(cmd + OFF_PARAMS_SRC_LEN, 0);
 
     // Stash the registration-time WASM export name in the sidecar
     // record at ``OFF_EXPORT_NAME_BUCKET``.  ``tcl_dispatch`` reads
@@ -520,6 +535,63 @@ pub export fn proc_register_compiled(
 /// proc-body bytes) for large bundles like ``tcltest.test``).  We
 /// just retain the TclObj header so refcounting can't reclaim the
 /// slab while the proc table still references it.
+/// Counterpart to :func:`proc_set_body_source` for the params spec.
+/// ``proc_register_compiled`` zeros ``OFF_PARAMS_OBJ`` because the AOT
+/// path doesn't need a runtime params TclObj for dispatch — but
+/// ``info args`` / ``info default`` read this slot and need the
+/// original ``{p1 ?p2default? ... args}`` source list.  Codegen
+/// emits a call to this right after :func:`proc_set_body_source` in
+/// the compiled-proc registration prologue.
+/// Transfer-ownership variant: the caller hands over its rc=1
+/// reference and does **NOT** release after the call.  This sidesteps
+/// the cmdAH-cascade trap that ``tcl_obj_retain`` at module init
+/// triggers (root cause not yet pinned, but the empirical signature
+/// is that even one extra retain per proc-register at init breaks
+/// tcltest's bootstrap ``file mkdir`` — see the codegen comments
+/// for the matching "no caller release" pattern).
+/// Raw-bytes variant of params source stash.  Stores the data-
+/// segment ``(ptr, len)`` of the proc's params spec in
+/// ``OFF_PARAMS_SRC_*`` so ``info args`` / ``info default`` can
+/// materialise a fresh TclObj on demand.  Avoids the
+/// ``tcl_obj_retain`` cascade that hits tcltest's bootstrap when
+/// any extra retain runs at module-init time per proc — the bytes
+/// live in immutable WASM data segments and need neither retain
+/// nor release.
+pub export fn proc_set_params_source_raw(
+    name_ptr: i32,
+    name_len: i32,
+    params_ptr: i32,
+    params_len: i32,
+) i32 {
+    if (name_ptr == 0 or name_len <= 0) return obj_new_int(0);
+    if (params_ptr == 0 or params_len <= 0) return obj_new_int(0);
+    // Look up the proc bucket directly by raw bytes — no TclObj
+    // allocation happens here.  Avoids the cmdAH-cascade trap that
+    // per-proc TclObj allocs at module init trigger.
+    const cmd_addr = tcl_ns.ns_find_command(
+        tcl_ns.ns_current(),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
+    if (cmd_addr == 0) return obj_new_int(0);
+    const flags: u32 = @bitCast(read_i32(cmd_addr + OFF_FLAGS));
+    const guard_mask: u32 = CMD_IMPORTED | CMD_ALIAS | CMD_INTERP_CHILD |
+        CMD_COROUTINE | CMD_BUILTIN_FORWARD | CMD_BUILTIN_MASKED;
+    if ((flags & guard_mask) != 0) return obj_new_int(0);
+    write_i32(cmd_addr + OFF_PARAMS_SRC_PTR, params_ptr);
+    write_i32(cmd_addr + OFF_PARAMS_SRC_LEN, params_len);
+    return obj_new_int(0);
+}
+
+/// Reader for the raw-bytes params source.  Returns 0/0 when the
+/// proc has no stashed source (interpreted proc, or codegen
+/// skipped the stash because ``params_source`` was empty).
+pub fn proc_get_params_src(bucket: u32) struct { ptr: u32, len: u32 } {
+    const ptr: u32 = @bitCast(read_i32(bucket + OFF_PARAMS_SRC_PTR));
+    const len: u32 = @bitCast(read_i32(bucket + OFF_PARAMS_SRC_LEN));
+    return .{ .ptr = ptr, .len = len };
+}
+
 pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
     if (body_obj == 0) return obj_new_int(0);
     const bucket = proc_lookup(name);

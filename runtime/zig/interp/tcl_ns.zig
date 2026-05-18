@@ -1104,7 +1104,7 @@ pub const ImportedCmdData = extern struct {
 /// ``comptime`` block that asserts these values stay in sync with its
 /// own canonical ``pub const``s, so any drift becomes a compile error.
 pub const tcl_procs_constants = struct {
-    pub const COMMAND_SIZE: u32 = 44;
+    pub const COMMAND_SIZE: u32 = 52;
     pub const OFF_FLAGS: u32 = 8;
     pub const OFF_PARAMS_OBJ: u32 = 12;
     pub const OFF_IMPORT_REF_HEAD: u32 = 32;

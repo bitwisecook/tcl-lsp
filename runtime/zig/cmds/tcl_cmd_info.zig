@@ -191,8 +191,76 @@ pub export fn info_args(name: i32) i32 {
         return 0;
     }
     const params = procs.proc_get_params(bucket);
-    if (params == 0) return obj_new_string(0, 0);
-    return params;
+    if (params != 0) return strip_param_defaults(params);
+    // AOT-compiled procs leave ``OFF_PARAMS_OBJ`` at zero (the
+    // dispatcher takes the host-bridge path so the runtime never
+    // needs a parsed params TclObj at call time).  Codegen instead
+    // stashes the raw params source bytes via
+    // ``proc_set_params_source_raw`` — materialise a fresh TclObj
+    // from those bytes on demand here.  Falls through to the empty
+    // string when no raw source was stashed (synthetic procs, or
+    // bundles built without the params-source emit).
+    const src = procs.proc_get_params_src(@bitCast(bucket));
+    if (src.ptr != 0 and src.len > 0) {
+        const raw = obj_new_string(@bitCast(src.ptr), @bitCast(src.len));
+        return strip_param_defaults(raw);
+    }
+    return obj_new_string(0, 0);
+}
+
+/// Reduce a params list of ``{name1 {name2 default} ...}`` to a list
+/// of just the names: ``{name1 name2 ...}``.  Tcl's ``info args``
+/// reports only parameter NAMES regardless of whether they carry
+/// defaults — even though the underlying ``proc`` syntax embeds the
+/// default value alongside the name in two-element sublists.
+fn strip_param_defaults(params: i32) i32 {
+    const ps = obj_ensure_string(params);
+    if (ps.len == 0 or ps.ptr == 0) return obj_new_string(0, 0);
+    const n = obj.list_count_elements(ps.ptr, ps.len);
+    if (n <= 0) return obj_new_string(0, 0);
+    // Two passes: size then emit.
+    var i: i64 = 0;
+    var total: u32 = 0;
+    var emit_count: u32 = 0;
+    while (i < n) : (i += 1) {
+        const elem = obj.list_element_at(ps.ptr, ps.len, i);
+        if (elem.len == 0) continue;
+        const sub_n = obj.list_count_elements(ps.ptr + elem.start, elem.len);
+        const name_len: u32 = if (sub_n > 0)
+            obj.list_element_at(ps.ptr + elem.start, elem.len, 0).len
+        else
+            elem.len;
+        if (emit_count > 0) total += 1;
+        total += name_len;
+        emit_count += 1;
+    }
+    if (emit_count == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < n) : (i += 1) {
+        const elem = obj.list_element_at(ps.ptr, ps.len, i);
+        if (elem.len == 0) continue;
+        var name_ptr: u32 = ps.ptr + elem.start;
+        var name_len: u32 = elem.len;
+        const sub_n = obj.list_count_elements(ps.ptr + elem.start, elem.len);
+        if (sub_n > 0) {
+            const sub = obj.list_element_at(ps.ptr + elem.start, elem.len, 0);
+            name_ptr = ps.ptr + elem.start + sub.start;
+            name_len = sub.len;
+        }
+        if (written > 0) {
+            const dp: [*]u8 = @ptrFromInt(buf + off);
+            dp[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, name_ptr, name_len);
+        off += name_len;
+        written += 1;
+    }
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 /// ``info complete script`` — returns 1 iff the script can be
