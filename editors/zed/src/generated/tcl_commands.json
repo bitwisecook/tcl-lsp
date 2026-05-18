@@ -387,6 +387,10 @@
       "pure": true
     },
     {
+      "name": "const",
+      "summary": "Define a constant variable."
+    },
+    {
       "name": "continue",
       "summary": "Skip to the next iteration of a loop"
     },

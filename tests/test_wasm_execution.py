@@ -774,6 +774,11 @@ class TestCommandDispatch:
             # call per proc with a statically-known body (every proc
             # except the synthetic ``when`` shims).
             "proc_set_body_source",
+            # ``proc_set_params_source_raw`` is similarly pulled in by
+            # the prologue alongside ``proc_set_body_source`` so
+            # ``info args`` / ``info default`` can materialise a fresh
+            # TclObj on demand for AOT-compiled procs.
+            "proc_set_params_source_raw",
             "frame_push",
             "frame_pop",
             # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``
