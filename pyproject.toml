@@ -17,7 +17,7 @@ dev = [
     "pytest-cov>=6.0",
     "pytest-xdist>=3.8.0",
     "ruff>=0.11",
-    "ty>=0.0.24,<0.0.38",
+    "ty==0.0.37",
     "wasmtime>=20.0",
     "flask>=3.0",
     # Used by the test-slow TLS / x509 suites that spin up an HTTPS
@@ -90,5 +90,5 @@ output = "tmp/coverage/python/coverage.xml"
 
 [dependency-groups]
 dev = [
-    "ty>=0.0.24,<0.0.38",
+    "ty==0.0.37",
 ]

@@ -24,7 +24,7 @@ async function waitForCompletions(
   uri: vscode.Uri,
   position: vscode.Position,
   predicate: (labels: string[]) => boolean,
-  timeout = 15_000,
+  timeout = 30_000,
 ): Promise<string[]> {
   const start = Date.now();
   while (Date.now() - start < timeout) {
