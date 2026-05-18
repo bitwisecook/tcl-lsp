@@ -1,41 +1,69 @@
-# v1.10.4
+# v1.10.5
 
 ## New Features
 
-- **JetBrains plugin — discoverable command actions.** Seventeen new
-  AnAction entries under **Tools → Tcl** (and Find Action) cover every
-  LSP server command the VS Code extension already exposed: Apply All
-  Optimisations, Minify Document, Apply Safe Quick Fixes; Render Tk
-  Preview, Generate Mermaid Diagram, Translate iRule to F5 XC;
-  Generate BIG-IP Cleanup Script, Extract Linked BIG-IP Objects,
-  Rename BIG-IP Partition...; List iRule Events, List Known Tcl
-  Packages, List Ensemble Subcommands..., Describe iRule Event /
-  Command..., Search Tcl Help..., Suggest Packages for Symbol...,
-  Show Effective Configuration. Document-modifying commands fire the
-  LSP command and let lsp4j apply the returned `WorkspaceEdit`;
-  result-producing commands open the output in a scratch editor with
-  a sensible extension.
-- **JetBrains plugin — marketplace logo and release notes.**
-  `META-INF/pluginIcon.svg` and `pluginIcon_dark.svg` ship with the
-  plugin, so the JetBrains Marketplace listing and the in-IDE Plugins
-  window now show the project logo instead of the default
-  puzzle-piece. The `<change-notes>` block is populated from
-  `RELEASE_NOTES.md` via a small inline markdown→HTML pass, so every
-  marketplace release advertises what actually changed.
-- **OS keystore for JetBrains publish token.** `scripts/jetbrains_token.sh`
-  resolves the Marketplace upload token from (1) `$JETBRAINS_TOKEN`,
-  (2) macOS Keychain (`security find-generic-password`), or (3) Linux
-  libsecret (`secret-tool`), in that order. `make publish-jetbrains`
-  and `make publish-verify` both use the resolver, so the publish flow
-  no longer requires an env var in every shell. Script header
-  documents the one-time `add-generic-password` / `secret-tool store`
-  invocations for each platform.
+- **Tcl 9.0 command coverage.** New registry entries and codegen support
+  for `lpop`, `foreachline`, `readfile`, `writefile`, `tcl::idna`,
+  `tcl::process`, and `fconfigure` option additions, with per-option
+  dialect gating so 8.5 / 8.6 / 9.0 / iRules / iApps each see only the
+  surface they actually support (#433).
+- **W003 / W004 diagnostics.** Two new analyser warnings surface
+  iRules-specific authoring issues, plumbed through the diagnostic
+  manifest and into the VS Code, JetBrains, Zed, and emacs catalogs.
+- **iApp diagnostics.** A new `iapp_diagnostics` pathway flags
+  iApp-template authoring problems that previously went unreported.
+- **Domain-aware analysis checks.** `core/analysis/checks/_domain.py`
+  hosts cross-cutting checks that depend on combined command +
+  dialect + side-effect context.
+- **Option-dialect auditing.** `scripts/audit_option_dialects.py`
+  reports option-coverage gaps across dialects so registry edits stay
+  in sync as Tcl 9 surface grows.
+
+## Improvements
+
+- **Tighter command-registry models** for `chan`, `clock`, `encoding`,
+  `exec`, `interp`, `lsearch`, `lsort`, `regsub`, `socket`, `source`,
+  `switch`, and `vwait`, plus updates to the tcllib `fileutil`,
+  `math::statistics`, `mime`, and `textutil` modules.
+- **cmdAH cascade and `info` introspection gaps closed (#430)** so
+  hover, completion, and go-to-definition now resolve commands that
+  previously fell through.
+- **Snippet templates** refreshed with new entries.
+- **Tail-call and DCE optimiser passes** updated alongside the
+  expanded command surface.
+- **Installer smoke test** factored out of the release skill into a
+  standalone `scripts/smoke_installer.sh`.
 
 ## Bug Fixes
 
-- **`publish-verify` JetBrains liveness check.** `curl -fsS … || echo
-  "000"` was concatenating the real HTTP code with `000` on any
-  non-2xx (e.g. `404` became `404000` in the warning text). Dropped
-  `-f` so the status code is reported verbatim, and a 404 from
-  `/api/auth/me` is now a soft warning since `gradle publishPlugin`
-  is the real source of truth.
+- **`probePython` no longer canonicalises bare `PATH` names**, so
+  shimmed interpreters (pyenv, asdf, mise) resolve to the active
+  shim rather than the underlying real binary.
+- **`/etc/os-release` symlinks are followed** before the ownership
+  check, fixing distro detection on systems where the file is a
+  symlink into `/usr/lib` (NixOS, immutable distros).
+- **Dialect-detection extension tests** get a 15 s → 30 s
+  `waitForCompletions` budget, eliminating a flake on the Linux CI
+  runner where the dialect-change config notification could arrive
+  after the previous window expired (#435).
+
+## Internal
+
+- **Tag-only release flow.** Every version literal in the tree now
+  derives from the latest annotated git tag (via `hatch-vcs` for the
+  Python wheel and via the Makefile + `git describe` for every editor
+  build). Cutting a release is `git tag -a vX.Y.Z … && git push
+  origin vX.Y.Z` — no source-file bumps, no commit on `main` (#436).
+- **JetBrains build** no longer mutates `gradle.properties`; the
+  version comes from the `RELEASE_VERSION` env var the Makefile sets
+  (#436).
+- `ty` pinned to `==0.0.37`; previously the range allowed a stale
+  `.venv` to disagree with CI about whether `# ty: ignore[...]`
+  directives were redundant (#435).
+- `@typescript-eslint/eslint-plugin` and `parser` bumped to `^8.59.4`,
+  the first release whose `typescript` peer accepts the `^6.0.3` we
+  now ship (#435).
+- Dependency refresh: TypeScript 6.0, Gradle, pinned GitHub Actions
+  versions (#434).
+- CI: corrected `ossf/scorecard-action` SHA pin and bumped
+  `actions/checkout` to v5 (#431).
