@@ -290,7 +290,7 @@ pub fn is_deleted(interp: u32) bool {
 /// ``tcl_procs.zig`` via the ``comptime`` assert below (using the
 /// ``tcl_ns.tcl_procs_constants`` shadow that ``tcl_procs.zig``
 /// already verifies against itself).
-const COMMAND_SIZE: u32 = 44;
+const COMMAND_SIZE: u32 = 52;
 comptime {
     if (COMMAND_SIZE != tcl_ns.tcl_procs_constants.COMMAND_SIZE)
         @compileError("tcl_interp_registry.COMMAND_SIZE out of sync with tcl_ns.tcl_procs_constants.COMMAND_SIZE");

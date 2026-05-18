@@ -159,6 +159,16 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         // We trust ``array_set_list`` to detect the odd-length list
         // case and surface the ``list must have an even number of
         // elements`` error.
+        // Parent-namespace check: ``array set foo::bar ...`` where
+        // ``foo`` isn't a registered namespace raises the canonical
+        // ``can't set "<name>": parent namespace doesn't exist``
+        // diagnostic per set-old-8.38.5/8.38.6/8.38.7 — emit it
+        // before touching the array directory so a side-effect-free
+        // probe doesn't leave a half-initialised entry behind.
+        if (parent_ns_missing_for_array_set(words[2])) {
+            raise_parent_ns_missing(words[2]);
+            return result_mod.from_globals(0);
+        }
         return result_mod.from_globals(array_mod.array_set_list(resolved_name, words[3]));
     }
     if (str_eq(sp, sub_len, "exists")) return result_mod.from_globals(array_mod.array_exists(resolved_name));
@@ -253,6 +263,76 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(sub.ptr)))[0..sub.len];
     stubs_mod.unsupported_sub("array", sub_slice);
     return result_mod.from_globals(0);
+}
+
+/// Probe whether ``name``'s parent namespace exists.  Returns true iff
+/// *name* is qualified (contains ``::``) AND the prefix up to the
+/// last ``::`` doesn't resolve to an existing namespace.  Used by
+/// ``array set`` to surface the canonical ``parent namespace doesn't
+/// exist`` diagnostic (set-old-8.38.5/6/7) before mutating the array
+/// directory.
+fn parent_ns_missing_for_array_set(name_obj: i32) bool {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const tcl_ns = @import("../interp/tcl_ns.zig");
+    const sn = obj_mod.obj_ensure_string(name_obj);
+    if (sn.len < 2 or sn.ptr == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    // Find the last ``::`` boundary.  Walk left-to-right tracking the
+    // most-recent separator; cheap for short names.
+    var last_sep: i32 = -1;
+    var i: u32 = 0;
+    while (i + 1 < sn.len) : (i += 1) {
+        if (sp[i] == ':' and sp[i + 1] == ':') {
+            last_sep = @intCast(i);
+        }
+    }
+    if (last_sep < 0) return false; // bare name — no parent ns to validate
+    const sep_at: u32 = @intCast(last_sep);
+    if (sep_at == 0) return false; // leading ``::xxx`` — parent is root
+    // ``ns_resolve_qualified`` returns target_ns = the resolved
+    // namespace ONLY when the input ends at a ``::`` boundary; passing
+    // just the prefix bytes hits the "last component is the simple
+    // name" branch and returns target_ns = current-ns (always non-
+    // zero), which is the wrong signal.  Append a trailing ``::`` to
+    // the prefix so the resolver walks the full path and reports
+    // target_ns = 0 when an intermediate is missing.
+    const ctx: u32 = tcl_ns.ns_current();
+    const probe_len: u32 = sep_at + 2;
+    const r = tcl_ns.ns_resolve_qualified(ctx, sn.ptr, probe_len);
+    if (r.target_ns == 0) return true;
+    return false;
+}
+
+/// Emit ``can't set "<name>": parent namespace doesn't exist``.
+fn raise_parent_ns_missing(name_obj: i32) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const sn = obj_mod.obj_ensure_string(name_obj);
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": parent namespace doesn't exist";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(sn.ptr);
+    for (0..sn.len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
 }
 
 fn raise_array_error(msg: []const u8) void {

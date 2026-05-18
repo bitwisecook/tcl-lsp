@@ -1463,6 +1463,12 @@ def _scan_needed_imports(
         # the AOT path would otherwise leave behind.  The codegen
         # prologue skips the call when ``body_source is None``.
         needed.add("tcl_proc_set_body_source")
+        # Raw-bytes sibling: stash the params spec via data-segment
+        # ptr/len so ``info args`` materialises a TclObj on demand.
+        # The raw shape avoids the per-proc ``tcl_obj_retain`` that
+        # cascades into tcltest bootstrap failures (see
+        # ``proc_set_params_source_raw``'s docstring).
+        needed.add("tcl_proc_set_params_source_raw")
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")

@@ -645,6 +645,17 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # Stash the raw bytes of the params spec so ``info args`` /
+    # ``info default`` can materialise a fresh TclObj on demand for
+    # AOT-compiled procs.  Takes (name, ptr, len) — pointer-only,
+    # never a TclObj — so we sidestep the cmdAH-cascade trap that
+    # any extra ``tcl_obj_retain`` per proc at module init triggers.
+    "tcl_proc_set_params_source_raw": (
+        "tcl",
+        "proc_set_params_source_raw",
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Info dispatch helpers (info exists / info <sub>).  The ``info``
     # command itself is a registry spec, but these two helpers are
     # invoked by the emitter directly rather than via a subcommand
