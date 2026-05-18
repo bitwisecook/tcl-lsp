@@ -90,11 +90,14 @@ GIT_HASH         := $(shell git rev-parse --short HEAD 2>/dev/null || echo unkno
 VERSION          := $(shell echo "$(GIT_DESCRIBE)" | sed 's/^v//')
 SEMVER_VERSION   := $(shell sh -c 'v="$(VERSION)"; if echo "$$v" | grep -Eq "^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z.-]+)*$$"; then echo "$$v"; else echo "0.0.0-dev"; fi')
 FULL_VERSION     := $(VERSION)
-# Wheel filename tracks pyproject.toml's [project].version (what `uv build`
-# reads), not the git-describe VERSION above — so that worker.js can discover
-# the wheel at runtime via build_info.json rather than hard-coding a number.
-PYPROJECT_VERSION := $(shell grep -E '^version = ' $(ROOT)pyproject.toml | head -1 | sed 's/.*= *"//;s/".*//')
-WHEEL_FILENAME   := tcl_lsp-$(PYPROJECT_VERSION)-py3-none-any.whl
+# Hatch-vcs version — what ``uv build --wheel`` will embed in the wheel
+# filename and metadata. Identical to SEMVER_VERSION on a tagged commit
+# (e.g. ``1.10.5``) but PEP 440-formatted on dev commits (e.g.
+# ``1.10.5.dev9``), unlike SEMVER_VERSION which falls back to
+# ``0.0.0-dev`` on anything it can't parse. ``scripts/print_version.py``
+# loads hatch-vcs directly so the answer matches the build backend.
+HATCH_VCS_VERSION := $(shell $(UV) run --extra dev python $(ROOT)scripts/print_version.py 2>/dev/null || echo 0.0.0+unknown)
+WHEEL_FILENAME   := tcl_lsp-$(HATCH_VCS_VERSION)-py3-none-any.whl
 BUILD_TIMESTAMP := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Derived paths
@@ -1133,8 +1136,8 @@ jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
 
 $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building JetBrains plugin"
-	@# Inject version into gradle.properties
-	$(PYTHON) -c "import re,pathlib; p=pathlib.Path('$(JB_DIR)/gradle.properties'); p.write_text(re.sub(r'^pluginVersion=.*', 'pluginVersion=$(SEMVER_VERSION)', p.read_text(), flags=re.MULTILINE))"
+	@# build.gradle.kts reads RELEASE_VERSION from the environment first, so
+	@# the gradle.properties source file is never mutated by the build.
 	@# Copy shared resources into plugin resources
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
@@ -1147,8 +1150,8 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 		const {getWebviewHtml} = require('./out/compilerExplorerHtml'); \
 		require('fs').writeFileSync('$(JB_DIR)/src/main/resources/compilerExplorer.html', getWebviewHtml()); \
 	" 2>/dev/null || echo "(compiler explorer HTML extraction skipped — compile TS first)"
-	@# Build plugin
-	cd $(JB_DIR) && ./gradlew buildPlugin
+	@# Build plugin — pass version via env so build.gradle.kts picks it up
+	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew buildPlugin
 	mkdir -p $(BUILD_DIR)
 	cp $(JB_DIR)/build/distributions/tcl-lsp-jetbrains-$(SEMVER_VERSION).zip $(JB_PLUGIN)
 	@echo ""
@@ -1160,7 +1163,7 @@ publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplac
 	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
 	echo "==> Publishing JetBrains plugin to Marketplace"; \
-	cd $(JB_DIR) && ./gradlew publishPlugin
+	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew publishPlugin
 
 # Sublime Text package
 

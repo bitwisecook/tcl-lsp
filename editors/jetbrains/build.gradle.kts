@@ -4,7 +4,14 @@ plugins {
 }
 
 group = "com.tcllsp"
-version = providers.gradleProperty("pluginVersion").get()
+// Version resolution order:
+//   1. RELEASE_VERSION env var (set by the Makefile from ``git describe``)
+//   2. -PpluginVersion=... command-line override
+//   3. pluginVersion in gradle.properties (always ``0.0.0-dev`` in source)
+// The source file is therefore never mutated by the release flow.
+version = (System.getenv("RELEASE_VERSION")
+    ?: providers.gradleProperty("pluginVersion").orNull
+    ?: "0.0.0-dev")
 
 repositories {
     mavenCentral()
