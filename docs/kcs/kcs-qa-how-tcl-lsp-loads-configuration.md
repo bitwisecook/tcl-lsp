@@ -14,32 +14,37 @@ places disagree, which one wins?
 
 ## Answer
 
-The Tcl Language Server reads configuration from up to five places. They
-are merged on every change, with more specific layers overriding less
-specific ones. From **highest priority to lowest**:
+The Tcl Language Server reads configuration from three files and merges
+them on every change. The layers are listed below from **least specific
+to most specific** — each layer overrides any of the lower layers that
+sets the same key:
 
-1. **Inline `# noqa` on the command above the line.** Silences one or
-   more diagnostic codes on the very next command. See
-   [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md).
-2. **Top-of-file `# tcl-lsp: disable=` directive.** Silences codes for
-   the whole document. The `# tcl-dialect: tcl8.4` directive lives in
-   the same header block and pins the dialect for that one file.
-3. **Project config — `.tcl-lsp.ini` at the workspace root.** A
-   per-project INI file committed with the source. Same schema as the
-   global config. Every developer who opens the project picks the same
-   rules up, and they survive switching editors.
-4. **Editor settings.** Whatever the editor sends over
+1. **Global user config — XDG `config.ini`.** A single file in your
+   home directory that applies to every workspace you open. Use it for
+   your personal defaults.
+2. **Project config — `.tcl-lsp.ini` at the workspace root.** A
+   per-project INI file committed with the source. Every developer who
+   opens the project picks the same rules up, and they survive
+   switching editors. Use it for team-wide conventions.
+3. **Editor settings.** Whatever the editor sends over
    `workspace/configuration`, typically under the `tclLsp.*` namespace
    (for example `tclLsp.dialect`, `tclLsp.optimiser.O109`). VS Code,
    Neovim, Zed, Helix, Emacs, Sublime Text, and JetBrains each have
-   their own way of populating these.
-5. **Global user config — XDG `config.ini`.** A single file in your
-   home directory that applies to every workspace you open.
+   their own way of populating these. Use it for the override you want
+   right now, on this machine, in this editor.
 
 When two layers set the same key, the higher-numbered layer wins. The
-merge is per-key inside each section, so a project config that sets
+merge is per-key inside each section, so an editor setting that pins
 `[optimiser] disabled = O109` still inherits `[optimiser] profile =
-readability` from the global config.
+readability` from the project or global config.
+
+In addition to these three configuration layers, two **document-level
+directives** apply on top of the merged config for a single file:
+inline `# noqa` on the line above a command, and top-of-file
+`# tcl-lsp: disable=` for the whole document. Both silence diagnostics
+only; they do not change feature toggles, the formatter, or any other
+setting. See
+[kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md).
 
 ### Where the global config lives
 
