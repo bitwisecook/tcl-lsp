@@ -1200,7 +1200,16 @@ class _WasmEmitterStmtMixin(_Base):
             if (
                 canonical_command == "::namespace"
                 and args
-                and args[0] in ("import", "export", "forget", "path", "unknown", "delete")
+                and args[0]
+                in (
+                    "import",
+                    "export",
+                    "forget",
+                    "path",
+                    "unknown",
+                    "delete",
+                    "ensemble",
+                )
             ):
                 # ``namespace path LIST`` mutates the current ns's
                 # command-resolution path; tcltest's mathop.test does

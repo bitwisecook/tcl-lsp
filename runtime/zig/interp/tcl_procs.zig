@@ -101,10 +101,10 @@ const parse_cache = @import("../valtypes/parse_cache.zig");
 pub const COMMAND_SIZE: u32 = 52;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
-const OFF_BODY_OBJ: u32 = 16;
-const OFF_N_PARAMS: u32 = 20;
+pub const OFF_BODY_OBJ: u32 = 16;
+pub const OFF_N_PARAMS: u32 = 20;
 pub const OFF_FUNC_IDX: u32 = 24;
-const OFF_ARGS_TAIL: u32 = 28;
+pub const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 pub const OFF_EXPORT_NAME_BUCKET: u32 = 36;
 const OFF_N_REQUIRED: u32 = 40;
@@ -168,6 +168,16 @@ pub const CMD_BUILTIN_FORWARD: u32 = 0x800;
 /// The dispatcher checks this flag BEFORE the BUILTIN lookup so the
 /// mask wins.
 pub const CMD_BUILTIN_MASKED: u32 = 0x1000;
+
+/// Set on a ``Command`` registered as a Tcl 9 ensemble dispatch
+/// command (``namespace ensemble create``).  ``params_obj`` stashes
+/// the ``*EnsembleRec`` (see ``cmds/namespace.zig``) describing the
+/// target namespace, the ``-map`` table, ``-subcommands`` list,
+/// ``-unknown`` handler prefix, ``-parameters`` prefix args, and
+/// ``-prefixes`` flag.  The proc-dispatch fast path consults this
+/// bit before treating the Command as a plain interpreted proc and
+/// hands control to the ensemble subcommand resolver.
+pub const CMD_ENSEMBLE: u32 = 0x2000;
 
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
@@ -277,6 +287,14 @@ fn alloc_command(name_ptr: u32, name_len: u32, hash: u32) u32 {
     write_i32(addr + 4, @bitCast(name_len));
     // flags slot at offset 8 stays zero — set later for imports.
     return addr;
+}
+
+/// Public wrapper used by external command modules that need to
+/// synthesise a fresh Command bucket (e.g. ``namespace ensemble
+/// create``).  Mirrors the internal :func:`alloc_command` shape but
+/// is callable from other Zig modules.
+pub fn alloc_command_export(name_ptr: u32, name_len: u32) u32 {
+    return alloc_command(name_ptr, name_len, 0);
 }
 
 /// Resolve the registered FQN to ``(target_ns, simple_name)`` and
