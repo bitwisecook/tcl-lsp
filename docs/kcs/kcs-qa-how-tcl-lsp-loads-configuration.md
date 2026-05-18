@@ -57,6 +57,23 @@ schema. The recognised sections today are `[diagnostics]`,
 `[formatting]`, and `[style]`. Keys outside a known section are
 ignored.
 
+### Each file is only read from its own location
+
+The two INI files share a schema, but the server only looks for each
+one in its own designated place. They are not interchangeable:
+
+- The **global** `config.ini` is only loaded from the platform-native
+  config directory listed above. A `config.ini` dropped into a
+  workspace root is ignored.
+- The **project** `.tcl-lsp.ini` is only loaded from the workspace
+  root the editor opens — the server does not walk upward through
+  parent directories, and a `.tcl-lsp.ini` in your home directory is
+  ignored.
+
+If you want a setting to follow you everywhere, put it in the global
+file. If you want it to travel with the project and apply to everyone
+who checks it out, put it in `.tcl-lsp.ini` and commit it.
+
 ### Dialect is special
 
 For a single document, the dialect is chosen by its own priority chain
