@@ -139,16 +139,12 @@ class TestGlobalAndProjectSections:
 
     def test_kind_none_skips_both_sections(self):
         """Backward-compat: callers without a known origin get neither section."""
-        config = _config_from_string(
-            "[global]\ndialect = tcl9.0\n[project]\ndialect = tcl8.4\n"
-        )
+        config = _config_from_string("[global]\ndialect = tcl9.0\n[project]\ndialect = tcl8.4\n")
         result = get_all_settings(config)
         assert "dialect" not in result
 
     def test_extra_commands_comma_separated(self):
-        config = _config_from_string(
-            "[global]\nextraCommands = mylib::send, mylib::recv\n"
-        )
+        config = _config_from_string("[global]\nextraCommands = mylib::send, mylib::recv\n")
         result = get_all_settings(config, kind="global")
         assert result["extraCommands"] == ["mylib::send", "mylib::recv"]
 
@@ -167,9 +163,7 @@ class TestGlobalAndProjectSections:
         assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
 
     def test_library_paths_comma_one_line(self):
-        config = _config_from_string(
-            "[project]\nlibraryPaths = /opt/tcl/lib, /home/me/stubs\n"
-        )
+        config = _config_from_string("[project]\nlibraryPaths = /opt/tcl/lib, /home/me/stubs\n")
         result = get_all_settings(config, kind="project")
         assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
 
@@ -188,9 +182,7 @@ class TestGlobalAndProjectSections:
 
     def test_combined_with_other_sections(self):
         """Top-level keys coexist with the regular nested sections."""
-        config = _config_from_string(
-            "[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n"
-        )
+        config = _config_from_string("[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n")
         result = get_all_settings(config, kind="global")
         assert result["dialect"] == "tcl9.0"
         assert result["diagnostics"]["W111"] is False
