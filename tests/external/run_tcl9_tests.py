@@ -834,7 +834,7 @@ class TestTcltest9Init:
 # Refresh after a runtime change by running
 # ``make check-tcl9-tcltest-io`` and updating the numbers if the new
 # snapshot is strictly better than the old one.
-_IO_BASELINE: dict[str, dict[str, object]] = {
+_IO_BASELINE: dict[str, dict[str, int | bool]] = {
     # chan.test — 42/42, fully green after the issue #270 ensemble
     # work landed.
     "chan": {"min_passed": 42, "max_failed": 0},
@@ -866,7 +866,7 @@ _IO_BASELINE: dict[str, dict[str, object]] = {
 # (fewer passing or more failing) are still caught while pre-existing
 # mismatches don't block the sweep.  Refresh by re-running the suite
 # and tightening the band when the underlying bug is fixed.
-_BASELINE: dict[str, dict[str, object]] = {
+_BASELINE: dict[str, dict[str, int | bool]] = {
     # set.test — 55/64 passing.  Residual failures include set-3.24
     # (uncompiled ``set`` with too many arguments returns the value
     # instead of an error — arity enforcement gap in the eval fallback)
@@ -1125,8 +1125,8 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         f"  {sample}{extra}"
                     )
             elif baseline_io is not None:
-                min_passed = int(baseline_io.get("min_passed", 0))  # type: ignore[arg-type]
-                max_failed = int(baseline_io.get("max_failed", 0))  # type: ignore[arg-type]
+                min_passed = int(baseline_io.get("min_passed", 0))
+                max_failed = int(baseline_io.get("max_failed", 0))
                 assert passed >= min_passed and failed <= max_failed, (
                     f"{filename}: regression vs baseline — "
                     f"got passed={passed} failed={failed}, "

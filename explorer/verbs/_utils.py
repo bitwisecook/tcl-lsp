@@ -553,7 +553,7 @@ def _attach_tcl_file_completer(action: argparse.Action) -> None:
         from argcomplete.completers import FilesCompleter
     except ImportError:
         return
-    action.completer = FilesCompleter(  # type: ignore[attr-defined]
+    action.completer = FilesCompleter(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]  # argcomplete extends argparse.Action at runtime.
         allowednames=("tcl", "tm", "tk", "itcl", "irul", "irule", "iapp", "iappimpl", "impl"),
         directories=True,
     )
@@ -565,7 +565,7 @@ def _attach_file_completer(action: argparse.Action) -> None:
         from argcomplete.completers import FilesCompleter
     except ImportError:
         return
-    action.completer = FilesCompleter()  # type: ignore[attr-defined]
+    action.completer = FilesCompleter()  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]  # argcomplete extends argparse.Action at runtime.
 
 
 def _attach_directory_completer(action: argparse.Action) -> None:
@@ -574,7 +574,7 @@ def _attach_directory_completer(action: argparse.Action) -> None:
         from argcomplete.completers import DirectoriesCompleter
     except ImportError:
         return
-    action.completer = DirectoriesCompleter()  # type: ignore[attr-defined]
+    action.completer = DirectoriesCompleter()  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]  # argcomplete extends argparse.Action at runtime.
 
 
 # ---------------------------------------------------------------------------

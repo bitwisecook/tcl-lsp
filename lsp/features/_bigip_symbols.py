@@ -29,6 +29,7 @@ field, so a kind added to the model is picked up here automatically.
 from __future__ import annotations
 
 from dataclasses import fields
+from functools import cache
 from typing import Any
 
 from lsprotocol import types
@@ -149,22 +150,17 @@ def _module_kind_for_field(field_name: str, sample_obj: Any) -> tuple[str, str]:
     return ("?", " ".join(parts))
 
 
+@cache
 def _module_kind_by_attr() -> dict[str, tuple[str, str]]:
     """Reverse the projection's ``MODULE_KINDS`` so we can look up by
     BigipConfig attribute name.
-
-    Cached on the function for cheap reuse — the table is static.
     """
-    cache = getattr(_module_kind_by_attr, "_cache", None)
-    if cache is not None:
-        return cache
     from core.bigip.query.projection import MODULE_KINDS
 
     mapping: dict[str, tuple[str, str]] = {}
     for module, kind_table in MODULE_KINDS.items():
         for kind_label, (attr_name, _tmsh_kind) in kind_table.items():
             mapping[attr_name] = (module, kind_label)
-    _module_kind_by_attr._cache = mapping  # type: ignore[attr-defined]
     return mapping
 
 

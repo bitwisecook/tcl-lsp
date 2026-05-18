@@ -171,9 +171,9 @@ def _run_redact(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(rendered)
 
-    if not args.keep_ips and map_path is not None:
+    if not args.keep_ips and map_path is not None and report.redaction_map is not None:
         map_path.parent.mkdir(parents=True, exist_ok=True)
-        map_path.write_text(report.redaction_map.to_toml(), encoding="utf-8")  # type: ignore[union-attr]
+        map_path.write_text(report.redaction_map.to_toml(), encoding="utf-8")
 
     print(
         f"redacted: {report.secrets_replaced} secret(s), "

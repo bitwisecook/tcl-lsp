@@ -20,7 +20,7 @@ from pathlib import Path
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover — repo runs on 3.11+ in CI; 3.10 falls back to tomli
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib  # type: ignore[no-redef]  # ty: ignore[unresolved-import]  # tomli is a fallback for py<3.11; declared as conditional dep
 
 
 @dataclass(frozen=True, slots=True)

@@ -38,6 +38,12 @@ def configure(server_instance: LanguageServer) -> None:
     _server = server_instance
 
 
+def _require_server() -> LanguageServer:
+    if _server is None:
+        raise RuntimeError("lsp.diagnostics_pipeline: server not configured")
+    return _server
+
+
 # Pull diagnostics cache
 
 _pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
@@ -405,11 +411,11 @@ async def _publish_diagnostics_inner(
 
     if did_analyse and state.analysis is not None:
         try:
-            _server.workspace_semantic_tokens_refresh(None)  # type: ignore[union-attr]
+            _require_server().workspace_semantic_tokens_refresh(None)
         except Exception:
             pass
         try:
-            _server.workspace_folding_range_refresh(None)  # type: ignore[union-attr]
+            _require_server().workspace_folding_range_refresh(None)
         except Exception:
             pass
 
@@ -684,7 +690,7 @@ def _publish_bigip_diagnostics(
         _state.background_scanner.parse_bigip_source(uri, source)
     except Exception:
         log.debug("bigip: failed to parse %s", uri, exc_info=True)
-        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+        _require_server().text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
         )
         return
@@ -738,7 +744,7 @@ def _publish_bigip_diagnostics(
     else:
         diagnostics = []
 
-    _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+    _require_server().text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(
             uri=uri,
             diagnostics=diagnostics,
@@ -769,14 +775,14 @@ def _publish_apl_diagnostics(
     base_dir = _uri_to_dir(uri)
     model = _state.background_scanner.parse_apl_source(uri, source, base_dir)
     if model is None:
-        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+        _require_server().text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
         )
         return
 
     cfg = _state.config_for_uri(uri)
     if not cfg.diagnostics_enabled:
-        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+        _require_server().text_document_publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
         )
         return
@@ -803,7 +809,7 @@ def _publish_apl_diagnostics(
                 code=d.code or None,
             )
         )
-    _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+    _require_server().text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(uri=uri, diagnostics=results, version=version)
     )
 
@@ -816,7 +822,7 @@ def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
     impl_uri = _state.background_scanner.find_sibling_impl_source(uri)
     if impl_uri is not None:
         try:
-            impl_doc = _server.workspace.get_text_document(impl_uri)  # type: ignore[union-attr]
+            impl_doc = _require_server().workspace.get_text_document(impl_uri)
             if impl_doc is not None:
                 return extract_iapp_var_refs(impl_doc.source)
         except Exception:

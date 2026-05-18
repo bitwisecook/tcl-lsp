@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -173,27 +175,26 @@ class MathStatBasicStatsCommand(CommandDef):
         )
 
 
-def _ms(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:
+def _ms(name: str, summary: str, synopsis: str, arity: Arity, **kw: Any) -> type:
     """Register a pure math::statistics command."""
+    full_name = f"math::statistics::{name}"
 
     @register
     class _Cmd(CommandDef):
-        pass
+        name = full_name
 
-    _Cmd.name = f"math::statistics::{name}"
-    _Cmd.spec = classmethod(  # type: ignore[assignment]
-        lambda cls, _n=f"math::statistics::{name}", _s=summary, _syn=synopsis, _a=arity, _kw=kw: (
-            CommandSpec(
-                name=_n,
+        @classmethod
+        def spec(cls) -> CommandSpec:
+            return CommandSpec(
+                name=full_name,
                 tcllib_package=_PACKAGE,
                 pure=True,
-                hover=HoverSnippet(summary=_s, synopsis=(_syn,), source=_SOURCE),
-                forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=_syn),),
-                validation=ValidationSpec(arity=_a),
-                **_kw,  # type: ignore[arg-type]
+                hover=HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
+                forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
+                validation=ValidationSpec(arity=arity),
+                **kw,
             )
-        )
-    )
+
     return _Cmd
 
 

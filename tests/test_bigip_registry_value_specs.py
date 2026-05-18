@@ -28,6 +28,7 @@ from core.bigip.registry import (
     PropertySpec,
     Reference,
     ReferenceContext,
+    RenderContext,
     StringSpec,
 )
 from core.bigip.types import BigipList, ListItem
@@ -44,7 +45,7 @@ def test_string_spec_echoes_raw():
     assert parsed.raw == "hello world"
     assert parsed.diagnostics == ()
     assert spec.is_structured is False
-    assert spec.render("hello", None) == "hello"  # type: ignore[arg-type]
+    assert spec.render("hello", RenderContext()) == "hello"
 
 
 def test_int_spec_parses_and_bounds_check():
@@ -73,11 +74,11 @@ def test_bool_spec_accepts_every_known_spelling():
     assert bad.value is None
     assert any("boolean" in d.message for d in bad.diagnostics)
     # render uses the declared style; default is enabled/disabled
-    assert spec.render(True, None) == "enabled"  # type: ignore[arg-type]
-    assert spec.render(False, None) == "disabled"  # type: ignore[arg-type]
+    assert spec.render(True, RenderContext()) == "enabled"
+    assert spec.render(False, RenderContext()) == "disabled"
     yes_no = BoolSpec(style="yes")
-    assert yes_no.render(True, None) == "yes"  # type: ignore[arg-type]
-    assert yes_no.render(False, None) == "no"  # type: ignore[arg-type]
+    assert yes_no.render(True, RenderContext()) == "yes"
+    assert yes_no.render(False, RenderContext()) == "no"
 
 
 def test_enum_spec_warns_on_unknown_value_but_keeps_raw():
@@ -1663,7 +1664,7 @@ def test_list_spec_render_roundtrips_keyed_block():
         "{ /Common/clientssl { context clientside } /Common/http { } }",
         ParseContext(),
     )
-    rendered = spec.render(parsed.value, None)  # type: ignore[arg-type]
+    rendered = spec.render(parsed.value, RenderContext())
     assert "/Common/clientssl" in rendered
     assert "context clientside" in rendered
     assert "/Common/http" in rendered
@@ -1722,7 +1723,7 @@ def test_list_spec_renders_operator_prefixed_roundtrip():
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
     raw = "{ replace-all-with { /Common/r1 /Common/r2 } }"
     parsed = spec.parse(raw, ParseContext())
-    assert spec.render(parsed.value, None) == raw  # type: ignore[arg-type]
+    assert spec.render(parsed.value, RenderContext()) == raw
 
 
 def test_list_spec_operator_prefixed_falls_back_to_bare_list_when_no_verb():
@@ -1804,7 +1805,7 @@ def test_list_spec_empty_input_returns_empty_list():
 
     assert isinstance(parsed.value, BigipList)
     assert len(parsed.value) == 0
-    assert spec.render(parsed.value, None) == "{ }"  # type: ignore[arg-type]
+    assert spec.render(parsed.value, RenderContext()) == "{ }"
 
 
 def test_hand_maintained_kinds_are_explicit_allowlist():

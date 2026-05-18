@@ -136,10 +136,10 @@ def compute_explain(cfg: BigipConfig, target: str, *, kind: str | None = None) -
         )
 
     actual_kind, obj = resolved
-    if actual_kind == _KIND_VIRTUAL:
-        sections = _explain_virtual(cfg, obj)  # type: ignore[arg-type]
+    if isinstance(obj, BigipVirtualServer):
+        sections = _explain_virtual(cfg, obj)
     else:
-        sections = _explain_pool(cfg, obj)  # type: ignore[arg-type]
+        sections = _explain_pool(cfg, obj)
 
     sections_t = tuple((heading, tuple(lines)) for heading, lines in sections)
     text = _format_text(target, actual_kind, obj.full_path, sections)
