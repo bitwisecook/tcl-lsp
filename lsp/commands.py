@@ -411,6 +411,11 @@ def on_get_effective_config(uri: str | None = None) -> dict:
         "line_length": cfg.line_length,
         "dialect_explicitly_set": cfg.dialect_explicitly_set,
         "features": features,
+        "optimiser_enabled": bool(cfg.optimiser_enabled),
+        "shimmer_enabled": bool(cfg.shimmer_enabled),
+        "xc_diagnostics_enabled": bool(cfg.xc_diagnostics_enabled),
+        "disabled_diagnostics": sorted(cfg.disabled_diagnostics),
+        "disabled_optimisations": sorted(cfg.disabled_optimisations),
         "known_folder_uris": list(_state.workspace_folder_uris()),
     }
 

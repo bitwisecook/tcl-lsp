@@ -74,15 +74,63 @@ export async function waitForServerLog(
 }
 
 /**
- * Poll ``tcl-lsp.getEffectiveConfig`` until the server reports that the
- * requested feature toggle has been applied for ``docUri``'s folder,
- * or until ``opts.timeout`` elapses.
+ * Shape of the value returned by ``tcl-lsp.getEffectiveConfig``.
  *
- * Use this instead of ``sleep(N)`` after a ``tclLsp.features.X = Y``
- * config change.  The wait completes as soon as the server's resolved
- * ``FeatureConfig`` matches, so the test does not depend on the
- * debounce timer or the ``workspace/configuration`` round-trip
- * latency.  Throws if the toggle does not settle in time.
+ * Mirrors ``on_get_effective_config`` in ``lsp/commands.py``; covers the
+ * fields tests poll on.  Any field the server adds in future is
+ * harmlessly ignored by predicates that do not name it.
+ */
+export interface EffectiveConfig {
+  uri: string;
+  folder_uri: string | null;
+  dialect: string;
+  extra_commands: string[];
+  non_ascii_mode: string | null;
+  library_paths: string[];
+  line_length: number;
+  dialect_explicitly_set: boolean;
+  features: Record<string, boolean>;
+  optimiser_enabled: boolean;
+  shimmer_enabled: boolean;
+  xc_diagnostics_enabled: boolean;
+  disabled_diagnostics: string[];
+  disabled_optimisations: string[];
+  known_folder_uris: string[];
+}
+
+/**
+ * Poll ``tcl-lsp.getEffectiveConfig`` until ``predicate`` returns true,
+ * or until ``opts.timeout`` elapses.  Use this instead of ``sleep(N)``
+ * after any ``tclLsp.*`` config change so tests wait on the server's
+ * resolved state rather than the debounce timer or the
+ * ``workspace/configuration`` round-trip.  Throws on timeout with the
+ * last-seen config snapshot in the message.
+ */
+export async function waitForEffectiveConfig(
+  docUri: vscode.Uri,
+  predicate: (cfg: EffectiveConfig) => boolean,
+  opts?: { timeout?: number; label?: string },
+): Promise<EffectiveConfig> {
+  const timeout = opts?.timeout ?? 5_000;
+  const deadline = Date.now() + timeout;
+  let last: EffectiveConfig | undefined;
+  while (Date.now() < deadline) {
+    last = (await vscode.commands.executeCommand(
+      "tcl-lsp.getEffectiveConfig",
+      docUri.toString(),
+    )) as EffectiveConfig | undefined;
+    if (last && predicate(last)) return last;
+    await sleep(50);
+  }
+  throw new Error(
+    `Timeout waiting for effective config${opts?.label ? ` (${opts.label})` : ""} ` +
+      `(last seen: ${JSON.stringify(last)})`,
+  );
+}
+
+/**
+ * Convenience wrapper around ``waitForEffectiveConfig`` for the common
+ * case of waiting on a single ``tclLsp.features.X`` toggle.
  */
 export async function waitForFeatureToggle(
   docUri: vscode.Uri,
@@ -90,22 +138,10 @@ export async function waitForFeatureToggle(
   expected: boolean,
   opts?: { timeout?: number },
 ): Promise<void> {
-  const timeout = opts?.timeout ?? 5_000;
-  const deadline = Date.now() + timeout;
-  let last: unknown = undefined;
-  while (Date.now() < deadline) {
-    const cfg = (await vscode.commands.executeCommand(
-      "tcl-lsp.getEffectiveConfig",
-      docUri.toString(),
-    )) as { features?: Record<string, boolean> } | undefined;
-    last = cfg?.features?.[key];
-    if (last === expected) return;
-    await sleep(50);
-  }
-  throw new Error(
-    `Timeout waiting for tclLsp.features.${key} = ${expected} ` +
-      `(last seen: ${JSON.stringify(last)})`,
-  );
+  await waitForEffectiveConfig(docUri, (cfg) => cfg.features?.[key] === expected, {
+    timeout: opts?.timeout,
+    label: `tclLsp.features.${key} = ${expected}`,
+  });
 }
 
 /**
