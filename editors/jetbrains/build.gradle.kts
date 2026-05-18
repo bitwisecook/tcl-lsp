@@ -33,9 +33,20 @@ intellijPlatform {
         name = "Tcl Language Support"
         version = project.version.toString()
         description = """
-            Tcl language support with semantic highlighting, diagnostics, completions, and more — powered by tcl-lsp.
-
-            Supports Tcl 8.4–9.0, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects.
+            <p>Tcl language support powered by the tcl-lsp language server.</p>
+            <ul>
+              <li>Semantic highlighting, diagnostics, and code actions</li>
+              <li>Auto-completion for commands, subcommands, variables, and switches</li>
+              <li>Hover information with command help and proc signatures</li>
+              <li>Go-to-definition, find references, and rename symbol</li>
+              <li>Document formatting with configurable style</li>
+              <li>Document symbols, workspace symbols, and call hierarchy</li>
+              <li>Code folding, inlay hints, and signature help</li>
+              <li>Compiler Explorer tool window (IR, CFG, SSA, optimiser, shimmer analysis)</li>
+              <li>iRule actions for Mermaid diagrams, Tk previews, F5 XC translation, and BIG-IP cleanup script generation</li>
+              <li>Catalogue lookups: list iRule events, known packages, ensemble subcommands; describe a command or event by name</li>
+              <li>Supports Tcl 8.4&ndash;9.0, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
+            </ul>
         """.trimIndent()
 
         ideaVersion {
@@ -46,6 +57,11 @@ intellijPlatform {
         vendor {
             name = "tcl-lsp"
             url = "https://github.com/bitwisecook/tcl-lsp"
+        }
+
+        changeNotes = provider {
+            val notes = rootProject.projectDir.resolve("../../RELEASE_NOTES.md")
+            if (notes.isFile) markdownToHtml(notes.readText()) else ""
         }
     }
 
@@ -70,3 +86,41 @@ tasks {
         archiveBaseName.set("tcl-lsp-jetbrains")
     }
 }
+
+// Minimal markdown → HTML for the change-notes block. JetBrains
+// Marketplace renders HTML in <change-notes>, and we want to surface
+// RELEASE_NOTES.md without pulling in a full markdown library. Covers
+// the subset our release notes actually use: H1/H2 headings, bulleted
+// lists, bold/italic, and inline code.
+fun markdownToHtml(md: String): String {
+    val lines = md.lines()
+    val out = StringBuilder()
+    var inList = false
+    fun closeList() { if (inList) { out.append("</ul>\n"); inList = false } }
+    for (raw in lines) {
+        val line = raw.trimEnd()
+        val bullet = Regex("^\\s*[-*]\\s+(.*)").matchEntire(line)
+        val h1 = Regex("^# (.*)").matchEntire(line)
+        val h2 = Regex("^## (.*)").matchEntire(line)
+        val h3 = Regex("^### (.*)").matchEntire(line)
+        when {
+            h1 != null -> { closeList(); out.append("<h2>").append(inline(h1.groupValues[1])).append("</h2>\n") }
+            h2 != null -> { closeList(); out.append("<h3>").append(inline(h2.groupValues[1])).append("</h3>\n") }
+            h3 != null -> { closeList(); out.append("<h4>").append(inline(h3.groupValues[1])).append("</h4>\n") }
+            bullet != null -> {
+                if (!inList) { out.append("<ul>\n"); inList = true }
+                out.append("  <li>").append(inline(bullet.groupValues[1])).append("</li>\n")
+            }
+            line.isBlank() -> closeList()
+            else -> { closeList(); out.append("<p>").append(inline(line)).append("</p>\n") }
+        }
+    }
+    closeList()
+    return out.toString()
+}
+
+fun inline(text: String): String =
+    text
+        .replace(Regex("`([^`]+)`"), "<code>$1</code>")
+        .replace(Regex("\\*\\*([^*]+)\\*\\*"), "<b>$1</b>")
+        .replace(Regex("(?<![*])\\*([^*]+)\\*(?![*])"), "<i>$1</i>")

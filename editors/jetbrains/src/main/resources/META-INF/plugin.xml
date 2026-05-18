@@ -67,4 +67,88 @@
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>
     </extensions>
+
+    <actions>
+        <group id="com.tcllsp.jetbrains.Actions" text="Tcl" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="TclLsp.OptimiseDocument"
+                    class="com.tcllsp.jetbrains.actions.OptimiseDocumentAction"
+                    text="Apply All Optimisations"
+                    description="Apply every safe optimiser suggestion to the current Tcl/iRule document"/>
+            <action id="TclLsp.MinifyDocument"
+                    class="com.tcllsp.jetbrains.actions.MinifyDocumentAction"
+                    text="Minify Document"
+                    description="Rewrite the current document in minified Tcl form"/>
+            <action id="TclLsp.FixAllSafeIssues"
+                    class="com.tcllsp.jetbrains.actions.FixAllSafeIssuesAction"
+                    text="Apply Safe Quick Fixes"
+                    description="Apply every quick fix marked safe in the current document"/>
+
+            <separator/>
+
+            <action id="TclLsp.TkPreview"
+                    class="com.tcllsp.jetbrains.actions.TkPreviewAction"
+                    text="Render Tk Preview"
+                    description="Render the current Tk script and open the HTML preview"/>
+            <action id="TclLsp.DiagramData"
+                    class="com.tcllsp.jetbrains.actions.DiagramDataAction"
+                    text="Generate Mermaid Diagram"
+                    description="Generate a Mermaid flowchart of the current iRule/Tcl script"/>
+            <action id="TclLsp.TranslateXc"
+                    class="com.tcllsp.jetbrains.actions.TranslateXcAction"
+                    text="Translate iRule to F5 XC"
+                    description="Translate the current iRule to F5 Distributed Cloud configuration"/>
+
+            <separator/>
+
+            <action id="TclLsp.BigipCleanup"
+                    class="com.tcllsp.jetbrains.actions.BigipCleanupAction"
+                    text="Generate BIG-IP Cleanup Script"
+                    description="Generate a tmsh delete script for objects unreferenced by any virtual server"/>
+            <action id="TclLsp.ExtractLinkedObjects"
+                    class="com.tcllsp.jetbrains.actions.ExtractLinkedObjectsAction"
+                    text="Extract Linked BIG-IP Objects"
+                    description="Extract the full reference graph for the current BIG-IP config"/>
+            <action id="TclLsp.RenamePartition"
+                    class="com.tcllsp.jetbrains.actions.RenamePartitionAction"
+                    text="Rename BIG-IP Partition..."
+                    description="Rename a BIG-IP partition across the current configuration"/>
+
+            <separator/>
+
+            <action id="TclLsp.ListIruleEvents"
+                    class="com.tcllsp.jetbrains.actions.ListIruleEventsAction"
+                    text="List iRule Events"
+                    description="Show every iRule event the registry knows about"/>
+            <action id="TclLsp.ListKnownPackages"
+                    class="com.tcllsp.jetbrains.actions.ListKnownPackagesAction"
+                    text="List Known Tcl Packages"
+                    description="Show every package the LSP can suggest 'package require' lines for"/>
+            <action id="TclLsp.DescribeIruleEvent"
+                    class="com.tcllsp.jetbrains.actions.DescribeIruleEventAction"
+                    text="Describe iRule Event..."
+                    description="Look up the details of a specific iRule event"/>
+            <action id="TclLsp.DescribeIruleCommand"
+                    class="com.tcllsp.jetbrains.actions.DescribeIruleCommandAction"
+                    text="Describe iRule Command..."
+                    description="Look up the details of a specific iRule/Tcl command"/>
+            <action id="TclLsp.ListSubcommands"
+                    class="com.tcllsp.jetbrains.actions.ListSubcommandsAction"
+                    text="List Ensemble Subcommands..."
+                    description="Show the subcommand surface of an ensemble (string, dict, array, ...)"/>
+            <action id="TclLsp.SearchHelp"
+                    class="com.tcllsp.jetbrains.actions.SearchHelpAction"
+                    text="Search Tcl Help..."
+                    description="Search the bundled Tcl/iRule help corpus"/>
+            <action id="TclLsp.SuggestPackagesForSymbol"
+                    class="com.tcllsp.jetbrains.actions.SuggestPackagesForSymbolAction"
+                    text="Suggest Packages for Symbol..."
+                    description="Suggest 'package require' candidates that export a given symbol"/>
+            <action id="TclLsp.GetEffectiveConfig"
+                    class="com.tcllsp.jetbrains.actions.GetEffectiveConfigAction"
+                    text="Show Effective Configuration"
+                    description="Show the resolved Tcl LSP configuration for the current file"/>
+        </group>
+    </actions>
 </idea-plugin>
