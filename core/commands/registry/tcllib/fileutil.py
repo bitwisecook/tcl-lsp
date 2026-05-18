@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
@@ -136,23 +138,25 @@ def _update_in_place_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]
     return {len(args) - 1: frozenset({ArgRole.BODY})}
 
 
-def _fu(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:
+def _fu(name: str, summary: str, synopsis: str, arity: Arity, **kw: Any) -> type:
     """Helper to generate simple fileutil command defs."""
-    spec_kw: dict[str, object] = {
-        "name": f"fileutil::{name}",
-        "tcllib_package": _PACKAGE,
-        "hover": HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
-        "forms": (FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
-        "validation": ValidationSpec(arity=arity),
-    }
-    spec_kw.update(kw)
+    full_name = f"fileutil::{name}"
 
     @register
     class _Cmd(CommandDef):
-        pass
+        name = full_name
 
-    _Cmd.name = f"fileutil::{name}"
-    _Cmd.spec = classmethod(lambda cls, _kw=spec_kw: CommandSpec(**_kw))  # type: ignore[assignment]
+        @classmethod
+        def spec(cls) -> CommandSpec:
+            return CommandSpec(
+                name=full_name,
+                tcllib_package=_PACKAGE,
+                hover=HoverSnippet(summary=summary, synopsis=(synopsis,), source=_SOURCE),
+                forms=(FormSpec(kind=FormKind.DEFAULT, synopsis=synopsis),),
+                validation=ValidationSpec(arity=arity),
+                **kw,
+            )
+
     return _Cmd
 
 

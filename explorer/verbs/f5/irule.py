@@ -67,7 +67,7 @@ def _add_irule_input_arguments(
     try:
         from argcomplete.completers import FilesCompleter
 
-        paths.completer = FilesCompleter(  # type: ignore[attr-defined]
+        paths.completer = FilesCompleter(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]  # argcomplete extends argparse.Action at runtime.
             allowednames=("tcl", "irul", "irule", "conf", "scf", "ucs"),
             directories=True,
         )

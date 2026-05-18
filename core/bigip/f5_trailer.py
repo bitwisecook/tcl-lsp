@@ -50,7 +50,7 @@ from dataclasses import dataclass, field
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib  # type: ignore[no-redef]  # ty: ignore[unresolved-import]  # tomli is a fallback for py<3.11; declared as conditional dep
 
 # ── format-detection constants (ported from packet-f5ethtrailer.c) ──
 

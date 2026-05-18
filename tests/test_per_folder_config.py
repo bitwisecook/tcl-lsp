@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -25,7 +26,7 @@ from core.formatting import FormatterConfig
 from lsp.feature_config import FeatureConfig
 
 
-def _install_diag_capture(captured: dict) -> object:
+def _install_diag_capture(captured: dict) -> tuple[Any, Any]:
     """Stub the diagnostics-pipeline publisher so tests can inspect diagnostics.
 
     Returns the original ``_publish_diags_to_client`` value so the caller
@@ -41,22 +42,29 @@ def _install_diag_capture(captured: dict) -> object:
     def _capture(uri: str, diagnostics: list, version: int | None = None) -> None:
         captured[uri] = list(diagnostics)
 
-    _dp._publish_diags_to_client = _capture  # type: ignore[assignment]
+    # Stubbing the module-level publisher so we can inspect what would have
+    # been pushed.  ty correctly notices the diagnostic-list element type
+    # widens from Diagnostic to Unknown via the test's loose list arg —
+    # acceptable in a test stub.
+    _dp._publish_diags_to_client = _capture  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     class _DummyServer:
         @staticmethod
         def text_document_publish_diagnostics(*_a: object, **_kw: object) -> None: ...
 
-    _dp.configure(_DummyServer())  # type: ignore[arg-type]
+    # ``configure`` requires a real ``LanguageServer``; tests only use the
+    # ``text_document_publish_diagnostics`` shim, so a structural stand-in
+    # is fine.
+    _dp.configure(_DummyServer())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     return (orig_publish, orig_server)
 
 
-def _restore_diag_capture(orig: object) -> None:
+def _restore_diag_capture(orig: tuple[Any, Any]) -> None:
     import lsp.diagnostics_pipeline as _dp
 
-    orig_publish, orig_server = orig  # type: ignore[misc]
+    orig_publish, orig_server = orig
     _dp._publish_diags_to_client = orig_publish  # type: ignore[assignment]
-    _dp._server = orig_server  # type: ignore[assignment]
+    _dp._server = orig_server
 
 
 @pytest.fixture

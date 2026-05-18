@@ -66,7 +66,8 @@ class TestSideEffect:
     def test_frozen(self) -> None:
         e = SideEffect(target=SideEffectTarget.VARIABLE, reads=True)
         with pytest.raises(AttributeError):
-            e.reads = False  # type: ignore[misc, invalid-assignment]
+            # Intentional: this test asserts the frozen-dataclass guard rejects mutation.
+            e.reads = False  # type: ignore[misc]  # ty: ignore[invalid-assignment]
 
 
 class TestCommandSideEffects:

@@ -347,9 +347,12 @@ def _run_wasm(
 
         exc = sys.exc_info()[1]
         if exc is not None:
+            # Attach captured streams to the exception for test reporters
+            # — many BaseException subclasses allow attribute setting; the
+            # try/except handles those that don't (e.g. C-level exceptions).
             try:
-                exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]
-                exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]
+                exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+                exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
             except (AttributeError, TypeError):
                 pass
         raise

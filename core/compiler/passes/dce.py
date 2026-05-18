@@ -31,7 +31,9 @@ deletion, never delete a live store.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 
 from ..expr_ast import (
     ExprBinary,
@@ -76,7 +78,7 @@ _VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?
 _SET_READ_RE = re.compile(r"\[set\s+([A-Za-z_][A-Za-z0-9_]*)\s*\]")
 
 
-def dce_module(module: IRModule, summaries: object | None = None) -> IRModule:
+def dce_module(module: IRModule, summaries: Mapping[str, Any] | None = None) -> IRModule:
     """Return a new module with dead local stores removed.
 
     Eligibility (PR #237 review): consult the per-proc
@@ -112,7 +114,7 @@ def dce_module(module: IRModule, summaries: object | None = None) -> IRModule:
 
 def _proc_is_dce_eligible(
     proc: IRProcedure,
-    summaries: object | None,
+    summaries: Mapping[str, Any] | None,
     qname: str,
 ) -> bool:
     """Decide whether DCE may rewrite *proc*'s body.
@@ -127,7 +129,7 @@ def _proc_is_dce_eligible(
         # decoupled from the var-escape implementation while
         # still consuming its precise predicate when present.
         try:
-            summary = summaries[qname]  # type: ignore[index]
+            summary = summaries[qname]
         except (KeyError, TypeError):
             summary = None
         if summary is not None and getattr(summary, "safe_to_dce", False):

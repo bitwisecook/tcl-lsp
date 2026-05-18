@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
-from ..cfg import CFGBranch, CFGGoto, CFGReturn
+from ..cfg import CFGBlock, CFGBranch, CFGGoto, CFGReturn
 from ..expr_ast import (
     BinOp,
     ExprBinary,
@@ -222,7 +222,7 @@ class _ExpressionsMixin:
 
     def _try_emit_jump_table(
         self: _Emitter,
-        blk: object,
+        blk: CFGBlock,
         next_block: str | None,
         skip_blocks: set[str],
     ) -> bool:
@@ -232,7 +232,7 @@ class _ExpressionsMixin:
         normal terminator emission).
         """
 
-        term = blk.terminator  # type: ignore[attr-defined, unresolved-attribute]
+        term = blk.terminator
         if not isinstance(term, CFGBranch):
             return False
 

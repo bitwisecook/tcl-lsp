@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from ipaddress import IPv4Address
 from textwrap import dedent
 
 from lsprotocol import types
@@ -818,8 +819,8 @@ def _ip_conversion_actions(
     if "/" in word:
         suffix = word[word.index("/") :]
 
-    if info.version == 4:
-        mapped = ipv4_to_ipv6_mapped(info.address)  # type: ignore[arg-type, invalid-argument-type]
+    if isinstance(info.address, IPv4Address):
+        mapped = ipv4_to_ipv6_mapped(info.address)
         new_text = mapped + suffix
         actions.append(
             types.CodeAction(

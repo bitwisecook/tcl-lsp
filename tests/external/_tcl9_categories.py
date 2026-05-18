@@ -31,7 +31,7 @@ from threading import Lock
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover — repo runs on 3.11+ in CI; 3.10 falls back to tomli
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib  # type: ignore[no-redef]  # ty: ignore[unresolved-import]  # tomli is a fallback for py<3.11; declared as conditional dep
 
 # Repo-relative path to the per-stem TOML files.  Resolved once at
 # import time so a ``cd`` mid-test doesn't break the lookup.

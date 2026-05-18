@@ -284,8 +284,10 @@ when CLIENT_CLOSED { }
 class TestEventIndex:
     def test_known_event(self):
         idx = event_index("CLIENT_ACCEPTED")
+        rule_init_idx = event_index("RULE_INIT")
         assert idx is not None
-        assert idx > event_index("RULE_INIT")  # type: ignore[operator, unsupported-operator]
+        assert rule_init_idx is not None
+        assert idx > rule_init_idx
 
     def test_unknown_event(self):
         assert event_index("TOTALLY_FAKE_EVENT") is None
