@@ -308,13 +308,24 @@ pub fn alloc_command_export(name_ptr: u32, name_len: u32) u32 {
 /// return the existing ``*Command`` from that ns's ``cmd_table`` if
 /// any, plus the resolution result so the insert path can use it
 /// without re-walking.  ``existing == 0`` for a fresh registration.
+///
+/// Empty simple names are valid for command registration — trailing
+/// ``::`` on a proc name (``proc test_ns::``) creates a command
+/// named ``""`` inside ``test_ns``, mirroring Tcl 9's behaviour
+/// (``TclGetNamespaceForQualName`` returns simpleName="" not NULL
+/// for trailing colons on cmd/var lookups).  The hash table backing
+/// the cmd_table handles empty keys natively (see ``hash_table.zig``
+/// — empty-key find short-circuits on ``el == 0``, insert allocates
+/// a non-zero size-class buffer so ``ep != 0``).  We do still
+/// require ``target_ns != 0`` — a missing intermediate namespace
+/// can't be patched up here.
 fn resolve_for_register(name_ptr: u32, name_len: u32) struct {
     r: tcl_ns.QualifiedResult,
     existing: u32,
 } {
     const cxt = tcl_ns.ns_current();
     const r = tcl_ns.ns_resolve_qualified_creating(cxt, name_ptr, name_len);
-    if (r.target_ns == 0 or r.simple_len == 0) return .{ .r = r, .existing = 0 };
+    if (r.target_ns == 0) return .{ .r = r, .existing = 0 };
     const existing = tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
     return .{ .r = r, .existing = existing };
 }
@@ -367,7 +378,7 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const n_params = obj.list_count_elements(sp.ptr, sp.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
-    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return obj_new_int(0);
+    if (ctx.r.target_ns == 0) return obj_new_int(0);
 
     var cmd: u32 = ctx.existing;
     if (cmd == 0) {

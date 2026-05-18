@@ -699,7 +699,16 @@ pub fn ns_find_command(cxt: u32, name_ptr: u32, name_len: u32) u32 {
 
     if (has_colons) {
         const r = ns_resolve_qualified(start, name_ptr, name_len);
-        if (r.simple_len == 0) return 0; // ``::``-only or trailing ``::``
+        // Trailing ``::`` on a qualified name (e.g. ``test_ns::``)
+        // refers to a command named ``""`` inside the target ns —
+        // not a namespace lookup.  Tcl 9 distinguishes this from a
+        // ``::``-only lookup at the C level (``simpleName`` set to
+        // the empty string vs ``NULL``); we mirror by allowing the
+        // probe to proceed when the last byte of the input is ``:``
+        // (the trailing-separator signature).  Pure ``::`` input
+        // still has its last byte set to ``:`` so it can also probe
+        // root for an empty-name command — harmless when nothing is
+        // registered there.
         if (r.target_ns != 0) {
             const v = ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return v;

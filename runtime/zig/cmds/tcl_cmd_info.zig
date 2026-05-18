@@ -999,10 +999,20 @@ fn emit_name_in_ns(
 
 /// Emit one FQN — sizing pass if ``ctx.buf == 0``, filling pass
 /// otherwise.  The separator is a single space between entries.
+///
+/// Empty names round-trip as ``{}`` so the list shape stays visible
+/// (Tcl 9's ``UpdateStringOfList`` does the same — an empty element
+/// would otherwise be invisible amid the inter-element spaces).
+/// Used by ``info procs`` / ``info commands`` for the trailing-``::``
+/// proc shape registered by ``proc <ns>:: {args} {body}``
+/// (namespace-old 2.2).  Names with whitespace / special characters
+/// still emit raw — that's a separate gap that no current test
+/// exercises.
 fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
+    const out_len: u32 = if (name_len == 0) 2 else name_len;
     if (ctx.buf == 0) {
         if (ctx.count > 0) ctx.total += 1;
-        ctx.total += name_len;
+        ctx.total += out_len;
         ctx.count += 1;
         return;
     }
@@ -1011,8 +1021,15 @@ fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
         d[0] = ' ';
         ctx.off += 1;
     }
-    memcpy(ctx.buf + ctx.off, name_ptr, name_len);
-    ctx.off += name_len;
+    if (name_len == 0) {
+        const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+        d[0] = '{';
+        d[1] = '}';
+        ctx.off += 2;
+    } else {
+        memcpy(ctx.buf + ctx.off, name_ptr, name_len);
+        ctx.off += name_len;
+    }
     ctx.count += 1;
 }
 
@@ -1025,11 +1042,27 @@ fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
 /// command reachable from the root ns appears once rather than
 /// twice.  Path entries pointing back at the context are skipped
 /// (mirrors ``ns_find_command``).
+///
+/// ``info procs`` differs from ``info commands``: reference Tcl 9
+/// (``InfoProcsCmd`` in ``tclCmdIL.c``) scans only the effective
+/// namespace's ``cmdTable`` — not the namespace path, not root.
+/// Without the path/root walks, ``info procs`` from inside a
+/// namespace reports only that namespace's procs (matching
+/// namespace-old 2.2).  We keep the path + root walk for
+/// ``info commands`` so the broader visibility model continues to
+/// match ``Tcl_FindCommand`` resolution.
 fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
     const root = tcl_ns.ns_root();
     const start: u32 = tcl_ns.ns_current();
 
     scan_ns_cmd_table(start, ctx);
+
+    if (ctx.kind == .procs) {
+        // ``info procs`` (unqualified) — Tcl 9 confines the walk to
+        // ``currNsPtr->cmdTable`` (``tclCmdIL.c:1854-1857``).  Skip
+        // the path + root probes here.
+        return;
+    }
 
     // Walk ``namespace path`` entries.  Track whether the path
     // already includes root so the trailing "always scan root"
@@ -1053,9 +1086,8 @@ fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
     // ``try``, ``trace``, ...) live in a static array assembled from
     // each ``cmds/<name>.zig`` rather than in any namespace's
     // ``cmd_table``, so without this pass ``info commands t*`` /
-    // ``info commands string`` etc. came back empty.  ``info procs``
-    // narrows to interpreted procs only, so it skips this pass.
-    if (ctx.kind == .commands) scan_builtin_table(ctx);
+    // ``info commands string`` etc. came back empty.
+    scan_builtin_table(ctx);
 }
 
 /// Walk the static BUILTINS slice from ``tcl_cmd_table.zig`` and emit
