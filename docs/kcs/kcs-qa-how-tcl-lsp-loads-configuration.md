@@ -80,8 +80,11 @@ takes precedence when set:
 Both the global file and the project `.tcl-lsp.ini` use the same INI
 schema. The recognised sections today are `[diagnostics]`,
 `[optimiser]`, `[shimmer]`, `[xcDiagnostics]`, `[features]`,
-`[formatting]`, and `[style]`. Keys outside a known section are
-ignored.
+`[formatting]`, `[style]`, plus a location-specific top-level section:
+`[global]` in `config.ini` and `[project]` in `.tcl-lsp.ini`. Keys
+outside a known section are ignored. See
+[kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
+for the per-section key and value reference.
 
 ### Each file is only read from its own location
 
