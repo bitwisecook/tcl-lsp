@@ -38,9 +38,34 @@ class LsearchCommand(CommandDef):
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-increasing"),
                         OptionSpec(name="-decreasing"),
-                        OptionSpec(name="-bisect"),
-                        OptionSpec(name="-index", takes_value=True, value_hint="index"),
-                        OptionSpec(name="-subindices"),
+                        # -bisect: Tcl 8.6+ (rejected as "bad option" in 8.4/8.5).
+                        OptionSpec(
+                            name="-bisect",
+                            detail="Binary search a sorted list (Tcl 8.6+).",
+                            dialects=frozenset({"tcl8.6", "tcl9.0"}),
+                        ),
+                        # -index: Tcl 8.5+ (rejected in 8.4).
+                        OptionSpec(
+                            name="-index",
+                            takes_value=True,
+                            value_hint="index",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
+                        # -stride: TIP 351 was accepted but only landed in
+                        # Tcl 9.0 — tclsh 8.5/8.6 reject it with "bad option
+                        # \"-stride\"".  Verified against built tclsh 8.5/8.6.
+                        OptionSpec(
+                            name="-stride",
+                            takes_value=True,
+                            value_hint="strideLength",
+                            detail="Treat the list as groups of N elements (TIP 351, Tcl 9.0+).",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        # -subindices: Tcl 8.5+ (rejected in 8.4).
+                        OptionSpec(
+                            name="-subindices",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
                     ),
                 ),
             ),

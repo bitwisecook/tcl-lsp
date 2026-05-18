@@ -1,0 +1,293 @@
+ByteCode ::top, 197 instructions, 616 bytes, 32 literals, 0 variables
+  Literals:
+    0: "tcl::mathfunc::min"
+    1: "3"
+    2: "1"
+    3: "2"
+    4: "min(3,1,2) != 1"
+    5: ""
+    6: "tcl::mathfunc::max"
+    7: "max(3,1,2) != 3"
+    8: "4"
+    9: "5"
+    10: "min variadic != 1"
+    11: "max variadic != 5"
+    12: "tcl::mathfunc::abs"
+    13: "-5"
+    14: "abs(-5) != 5"
+    15: "abs(5) != 5"
+    16: "tcl::mathfunc::int"
+    17: "42"
+    18: "int(42) != 42"
+    19: "tcl::mathfunc::entier"
+    20: "entier(42) != 42"
+    21: "tcl::mathfunc::wide"
+    22: "wide(42) != 42"
+    23: "tcl::mathfunc::pow"
+    24: "10"
+    25: "1024"
+    26: "pow(2,10) != 1024"
+    27: "tcl::mathfunc::bool"
+    28: "bool(5) != 1"
+    29: "0"
+    30: "bool(0) != 0"
+    31: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "tcl::mathfunc::min"
+    (2) push1 1	# "3"
+    (4) push1 2	# "1"
+    (6) push1 3	# "2"
+    (8) invokeStk1 4
+    (10) tryCvtToNumeric
+    (11) push1 2	# "1"
+    (13) neq
+    (14) jumpFalse1 +26	# pc 40
+  # if_then_3:
+    (16) startCommand +22 1	# next cmd at pc 38, 1 cmds start here
+    (25) push1 4	# "min(3,1,2) != 1"
+    (27) push1 5	# ""
+    (29) returnImm +1 0
+  # cmd_end_1:
+    (38) jump1 +4	# pc 42
+  # if_next_4:
+    (40) push1 5	# ""
+  # if_end_2:
+    (42) pop
+    (43) startCommand +51 2	# next cmd at pc 94, 2 cmds start here
+    (52) push1 6	# "tcl::mathfunc::max"
+    (54) push1 1	# "3"
+    (56) push1 2	# "1"
+    (58) push1 3	# "2"
+    (60) invokeStk1 4
+    (62) tryCvtToNumeric
+    (63) push1 1	# "3"
+    (65) neq
+    (66) jumpFalse1 +26	# pc 92
+  # if_then_6:
+    (68) startCommand +22 1	# next cmd at pc 90, 1 cmds start here
+    (77) push1 7	# "max(3,1,2) != 3"
+    (79) push1 5	# ""
+    (81) returnImm +1 0
+  # cmd_end_3:
+    (90) jump1 +4	# pc 94
+  # if_next_7:
+    (92) push1 5	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (94) pop
+    (95) startCommand +55 2	# next cmd at pc 150, 2 cmds start here
+    (104) push1 0	# "tcl::mathfunc::min"
+    (106) push1 2	# "1"
+    (108) push1 3	# "2"
+    (110) push1 1	# "3"
+    (112) push1 8	# "4"
+    (114) push1 9	# "5"
+    (116) invokeStk1 6
+    (118) tryCvtToNumeric
+    (119) push1 2	# "1"
+    (121) neq
+    (122) jumpFalse1 +26	# pc 148
+  # if_then_9:
+    (124) startCommand +22 1	# next cmd at pc 146, 1 cmds start here
+    (133) push1 10	# "min variadic != 1"
+    (135) push1 5	# ""
+    (137) returnImm +1 0
+  # cmd_end_5:
+    (146) jump1 +4	# pc 150
+  # if_next_10:
+    (148) push1 5	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (150) pop
+    (151) startCommand +55 2	# next cmd at pc 206, 2 cmds start here
+    (160) push1 6	# "tcl::mathfunc::max"
+    (162) push1 9	# "5"
+    (164) push1 8	# "4"
+    (166) push1 1	# "3"
+    (168) push1 3	# "2"
+    (170) push1 2	# "1"
+    (172) invokeStk1 6
+    (174) tryCvtToNumeric
+    (175) push1 9	# "5"
+    (177) neq
+    (178) jumpFalse1 +26	# pc 204
+  # if_then_12:
+    (180) startCommand +22 1	# next cmd at pc 202, 1 cmds start here
+    (189) push1 11	# "max variadic != 5"
+    (191) push1 5	# ""
+    (193) returnImm +1 0
+  # cmd_end_7:
+    (202) jump1 +4	# pc 206
+  # if_next_13:
+    (204) push1 5	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (206) pop
+    (207) startCommand +47 2	# next cmd at pc 254, 2 cmds start here
+    (216) push1 12	# "tcl::mathfunc::abs"
+    (218) push1 13	# "-5"
+    (220) invokeStk1 2
+    (222) tryCvtToNumeric
+    (223) push1 9	# "5"
+    (225) neq
+    (226) jumpFalse1 +26	# pc 252
+  # if_then_15:
+    (228) startCommand +22 1	# next cmd at pc 250, 1 cmds start here
+    (237) push1 14	# "abs(-5) != 5"
+    (239) push1 5	# ""
+    (241) returnImm +1 0
+  # cmd_end_9:
+    (250) jump1 +4	# pc 254
+  # if_next_16:
+    (252) push1 5	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (254) pop
+    (255) startCommand +47 2	# next cmd at pc 302, 2 cmds start here
+    (264) push1 12	# "tcl::mathfunc::abs"
+    (266) push1 9	# "5"
+    (268) invokeStk1 2
+    (270) tryCvtToNumeric
+    (271) push1 9	# "5"
+    (273) neq
+    (274) jumpFalse1 +26	# pc 300
+  # if_then_18:
+    (276) startCommand +22 1	# next cmd at pc 298, 1 cmds start here
+    (285) push1 15	# "abs(5) != 5"
+    (287) push1 5	# ""
+    (289) returnImm +1 0
+  # cmd_end_11:
+    (298) jump1 +4	# pc 302
+  # if_next_19:
+    (300) push1 5	# ""
+  # if_end_17:
+  # if_cmd_end_10:
+    (302) pop
+    (303) startCommand +47 2	# next cmd at pc 350, 2 cmds start here
+    (312) push1 16	# "tcl::mathfunc::int"
+    (314) push1 17	# "42"
+    (316) invokeStk1 2
+    (318) tryCvtToNumeric
+    (319) push1 17	# "42"
+    (321) neq
+    (322) jumpFalse1 +26	# pc 348
+  # if_then_21:
+    (324) startCommand +22 1	# next cmd at pc 346, 1 cmds start here
+    (333) push1 18	# "int(42) != 42"
+    (335) push1 5	# ""
+    (337) returnImm +1 0
+  # cmd_end_13:
+    (346) jump1 +4	# pc 350
+  # if_next_22:
+    (348) push1 5	# ""
+  # if_end_20:
+  # if_cmd_end_12:
+    (350) pop
+    (351) startCommand +47 2	# next cmd at pc 398, 2 cmds start here
+    (360) push1 19	# "tcl::mathfunc::entier"
+    (362) push1 17	# "42"
+    (364) invokeStk1 2
+    (366) tryCvtToNumeric
+    (367) push1 17	# "42"
+    (369) neq
+    (370) jumpFalse1 +26	# pc 396
+  # if_then_24:
+    (372) startCommand +22 1	# next cmd at pc 394, 1 cmds start here
+    (381) push1 20	# "entier(42) != 42"
+    (383) push1 5	# ""
+    (385) returnImm +1 0
+  # cmd_end_15:
+    (394) jump1 +4	# pc 398
+  # if_next_25:
+    (396) push1 5	# ""
+  # if_end_23:
+  # if_cmd_end_14:
+    (398) pop
+    (399) startCommand +47 2	# next cmd at pc 446, 2 cmds start here
+    (408) push1 21	# "tcl::mathfunc::wide"
+    (410) push1 17	# "42"
+    (412) invokeStk1 2
+    (414) tryCvtToNumeric
+    (415) push1 17	# "42"
+    (417) neq
+    (418) jumpFalse1 +26	# pc 444
+  # if_then_27:
+    (420) startCommand +22 1	# next cmd at pc 442, 1 cmds start here
+    (429) push1 22	# "wide(42) != 42"
+    (431) push1 5	# ""
+    (433) returnImm +1 0
+  # cmd_end_17:
+    (442) jump1 +4	# pc 446
+  # if_next_28:
+    (444) push1 5	# ""
+  # if_end_26:
+  # if_cmd_end_16:
+    (446) pop
+    (447) startCommand +49 2	# next cmd at pc 496, 2 cmds start here
+    (456) push1 23	# "tcl::mathfunc::pow"
+    (458) push1 3	# "2"
+    (460) push1 24	# "10"
+    (462) invokeStk1 3
+    (464) tryCvtToNumeric
+    (465) push1 25	# "1024"
+    (467) neq
+    (468) jumpFalse1 +26	# pc 494
+  # if_then_30:
+    (470) startCommand +22 1	# next cmd at pc 492, 1 cmds start here
+    (479) push1 26	# "pow(2,10) != 1024"
+    (481) push1 5	# ""
+    (483) returnImm +1 0
+  # cmd_end_19:
+    (492) jump1 +4	# pc 496
+  # if_next_31:
+    (494) push1 5	# ""
+  # if_end_29:
+  # if_cmd_end_18:
+    (496) pop
+    (497) startCommand +47 2	# next cmd at pc 544, 2 cmds start here
+    (506) push1 27	# "tcl::mathfunc::bool"
+    (508) push1 9	# "5"
+    (510) invokeStk1 2
+    (512) tryCvtToNumeric
+    (513) push1 2	# "1"
+    (515) neq
+    (516) jumpFalse1 +26	# pc 542
+  # if_then_33:
+    (518) startCommand +22 1	# next cmd at pc 540, 1 cmds start here
+    (527) push1 28	# "bool(5) != 1"
+    (529) push1 5	# ""
+    (531) returnImm +1 0
+  # cmd_end_21:
+    (540) jump1 +4	# pc 544
+  # if_next_34:
+    (542) push1 5	# ""
+  # if_end_32:
+  # if_cmd_end_20:
+    (544) pop
+    (545) startCommand +47 2	# next cmd at pc 592, 2 cmds start here
+    (554) push1 27	# "tcl::mathfunc::bool"
+    (556) push1 29	# "0"
+    (558) invokeStk1 2
+    (560) tryCvtToNumeric
+    (561) push1 29	# "0"
+    (563) neq
+    (564) jumpFalse1 +26	# pc 590
+  # if_then_36:
+    (566) startCommand +22 1	# next cmd at pc 588, 1 cmds start here
+    (575) push1 30	# "bool(0) != 0"
+    (577) push1 5	# ""
+    (579) returnImm +1 0
+  # cmd_end_23:
+    (588) jump1 +4	# pc 592
+  # if_next_37:
+    (590) push1 5	# ""
+  # if_end_35:
+  # if_cmd_end_22:
+    (592) pop
+    (593) startCommand +22 1	# next cmd at pc 615, 1 cmds start here
+    (602) push1 31	# "ok"
+    (604) push1 5	# ""
+    (606) returnImm +0 1
+  # ret_end_24:
+    (615) done

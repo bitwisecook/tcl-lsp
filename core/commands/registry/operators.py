@@ -4,10 +4,13 @@ Operators live inside ``[expr]`` / ``if`` / ``while`` expressions and
 are recognised by the expression lexer.  Each entry maps the operator
 keyword to a :class:`HoverSnippet` used by the hover provider.
 
-Two categories:
+Three categories:
 
-* **Tcl word operators** — ``eq``, ``ne``, ``in``, ``ni``, ``lt``,
-  ``le``, ``gt``, ``ge`` — available in all dialects (Tcl 8.5+).
+* **Tcl 8.5+ word operators** — ``eq``, ``ne``, ``in``, ``ni`` —
+  available in all dialects (Tcl 8.5+).
+* **Tcl 9.0+ string comparators** — ``lt``, ``le``, ``gt``, ``ge`` —
+  introduced by TIP 461; rejected as ``invalid bareword`` by tclsh
+  8.5 and 8.6.  Gated via :data:`TCL_OPERATOR_DIALECTS`.
 * **iRules-specific operators** — ``contains``, ``ends_with``, etc. —
   available only when the dialect is ``f5-irules``.
 """
@@ -63,6 +66,36 @@ TCL_OPERATOR_HOVER: dict[str, HoverSnippet] = {
         source=_TCL_EXPR_SOURCE,
     ),
 }
+
+
+_8_5_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0"})
+
+# Per-operator dialect restrictions.  ``None`` (or absent) means available
+# in every Tcl dialect.
+#
+# * ``in`` / ``ni`` — added by TIP 201 in Tcl 8.5; tclsh 8.4 rejects them
+#   with ``syntax error in expression``.
+# * ``lt`` / ``le`` / ``gt`` / ``ge`` — added by TIP 461 in Tcl 9.0;
+#   tclsh 8.5 and 8.6 reject them with ``invalid bareword``.
+TCL_OPERATOR_DIALECTS: dict[str, frozenset[str]] = {
+    "in": _8_5_PLUS,
+    "ni": _8_5_PLUS,
+    "lt": frozenset({"tcl9.0"}),
+    "le": frozenset({"tcl9.0"}),
+    "gt": frozenset({"tcl9.0"}),
+    "ge": frozenset({"tcl9.0"}),
+}
+
+
+def operator_supports_dialect(name: str, dialect: str | None) -> bool:
+    """Return True when expr operator *name* is valid in *dialect*."""
+    if dialect is None:
+        return True
+    gated = TCL_OPERATOR_DIALECTS.get(name)
+    if gated is None:
+        return True
+    return dialect in gated
+
 
 # iRules-specific word operators
 

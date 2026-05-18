@@ -83,15 +83,28 @@ const STUB_TRAP: []const []const u8 = &.{
     "memory",
     "bgerror",
     // Tcl 9.0 additions missing in the WASM runtime.
+    "coroinject",
+    "coroprobe",
+    "lpop",
     "lremove",
+    // tcl::process is a host-only capability (subprocess management);
+    // not reachable in WASM/WASI builds.
+    "tcl::process",
+    "::tcl::process",
+    // tcl::idna is a bundled package; trap until a Zig impl exists.
+    "tcl::idna",
+    "::tcl::idna",
     // Standard-library procs Tcl ships in ``library/*.tcl``.
     // Without the library source bundled we trap rather than silently
     // return empty — callers relying on these can install shims.
     "auto_mkindex_old",
+    "foreachLine",
     "parray",
     "pkg_mkindex",
     "pkg::create",
+    "readFile",
     "tcl_findLibrary",
+    "writeFile",
     // Regexp-quoting helpers — several aliases cover historical
     // spellings.
     "re_quote",

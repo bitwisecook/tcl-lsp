@@ -92,6 +92,242 @@ def check_disabled_command(
     return []
 
 
+# W004: Option not available in active dialect
+
+
+@diag(
+    "W004",
+    "Command option is not available in the active dialect.",
+    section="warning",
+)
+def check_dialect_invalid_option(
+    cmd_name: str,
+    args: list[str],
+    arg_tokens: list[Token],
+    all_tokens: list[Token],
+    source: str,
+) -> list[Diagnostic]:
+    """W004: Warn when a switch is used in a dialect that doesn't accept it.
+
+    Looks for ``-foo`` flags in the args, then asks the registry whether
+    each is recognised in the active dialect.  Fires when the registry
+    reports :class:`DialectStatus.DISALLOWED` — i.e. the option exists
+    on the command but its ``dialects`` frozenset excludes the active
+    one.  Examples: ``lsearch -stride`` in tcl8.6, ``regsub -command``
+    in tcl8.x, ``vwait -all`` in tcl8.x, ``socket -reuseaddr`` in
+    tcl8.x.
+
+    Skips substituted argument values (``-foo $bar``), command-only
+    invocations (``cmd``), and non-flag tokens.  Subcommand-scoped
+    options consult the subcommand's dialect set.
+    """
+    if not args or not arg_tokens:
+        return []
+
+    spec = REGISTRY.get(cmd_name, active_dialect())
+    if spec is None:
+        return []
+
+    # Identify the subcommand (if any) so the registry can pick the
+    # right options table.
+    sub: str | None = None
+    if spec.subcommands and args:
+        first = args[0]
+        if first in spec.subcommands:
+            sub = first
+
+    dialect = active_dialect()
+    diagnostics: list[Diagnostic] = []
+    seen_at_offset: set[int] = set()
+
+    # Scan every arg that looks like a switch.  Many commands take
+    # options after a positional (``fconfigure $chan -nodelay 1``,
+    # ``clock scan now -validate 1``) so we don't stop at the first
+    # non-flag.  False positives are limited because we only flag
+    # options the registry recognises on this command/subcommand —
+    # patterns and unrelated literals won't be in the option table.
+    # ``--`` terminates the scan (literal arg, no further options).
+    start_idx = 1 if sub is not None else 0
+    options_with_value = REGISTRY.options_with_values(cmd_name, sub, dialect)
+    i = start_idx
+    while i < len(args):
+        arg = args[i]
+        if arg == "--":
+            break
+        if not arg.startswith("-") or len(arg) < 2:
+            i += 1
+            continue
+        # Skip pure numeric literals (negative numbers).
+        if arg[1:].lstrip("-").replace(".", "", 1).isdigit():
+            i += 1
+            continue
+        if i >= len(arg_tokens):
+            i += 1
+            continue
+        tok = arg_tokens[i]
+        if tok.type in (TokenType.VAR, TokenType.CMD):
+            i += 1
+            continue
+        if tok.start.offset in seen_at_offset:
+            i += 1
+            continue
+        seen_at_offset.add(tok.start.offset)
+        status = REGISTRY.option_status(cmd_name, sub, arg, dialect)
+        if status is DialectStatus.DISALLOWED:
+            diagnostics.append(
+                Diagnostic(
+                    range=range_from_token(tok),
+                    message=(
+                        f"Option '{arg}' on '{cmd_name}'"
+                        + (f" {sub}" if sub else "")
+                        + f" is not available in the active dialect ({dialect})."
+                    ),
+                    severity=Severity.WARNING,
+                    code="W004",
+                )
+            )
+        # Skip the option's value to avoid scanning it.
+        i += 2 if arg in options_with_value else 1
+    return diagnostics
+
+
+# W003: Expression operator not available in active dialect (lt/le/gt/ge)
+
+
+def _find_dialect_invalid_ops(node, dialect: str):
+    """Walk expression AST and collect operators whose dialect gate doesn't
+    include *dialect*.
+
+    Returns a list of ``(BinOp, op_name)`` pairs.  Catches ``in`` / ``ni``
+    in pre-Tcl-8.5 dialects (TIP 201) and ``lt`` / ``le`` / ``gt`` / ``ge``
+    in pre-Tcl-9.0 dialects (TIP 461).  New gated operators just need
+    their entry in :data:`TCL_OPERATOR_DIALECTS`.
+    """
+    from ...commands.registry.operators import operator_supports_dialect
+    from ...compiler.expr_ast import (
+        BinOp,
+        ExprBinary,
+        ExprCall,
+        ExprTernary,
+        ExprUnary,
+    )
+
+    found: list[tuple[BinOp, str]] = []
+    # Operators with version-dependent dialect availability.  ``in`` / ``ni``
+    # were added in Tcl 8.5 (TIP 201); ``lt`` / ``le`` / ``gt`` / ``ge``
+    # were added in Tcl 9.0 (TIP 461).  Both groups are gated through
+    # :data:`TCL_OPERATOR_DIALECTS` in ``commands.registry.operators``.
+    _GATED_OP_NAMES = {
+        BinOp.IN: "in",
+        BinOp.NI: "ni",
+        BinOp.STR_LT: "lt",
+        BinOp.STR_LE: "le",
+        BinOp.STR_GT: "gt",
+        BinOp.STR_GE: "ge",
+    }
+
+    match node:
+        case ExprBinary(op=op, left=left, right=right):
+            found.extend(_find_dialect_invalid_ops(left, dialect))
+            found.extend(_find_dialect_invalid_ops(right, dialect))
+            name = _GATED_OP_NAMES.get(op)
+            if name is not None and not operator_supports_dialect(name, dialect):
+                found.append((op, name))
+        case ExprUnary(operand=operand):
+            found.extend(_find_dialect_invalid_ops(operand, dialect))
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            found.extend(_find_dialect_invalid_ops(cond, dialect))
+            found.extend(_find_dialect_invalid_ops(tb, dialect))
+            found.extend(_find_dialect_invalid_ops(fb, dialect))
+        case ExprCall(args=args):
+            for arg in args:
+                found.extend(_find_dialect_invalid_ops(arg, dialect))
+    return found
+
+
+@diag(
+    "W003",
+    "Expression operator not available in active dialect.",
+    section="warning",
+)
+def check_dialect_invalid_expr_operator(
+    cmd_name: str,
+    args: list[str],
+    arg_tokens: list[Token],
+    all_tokens: list[Token],
+    source: str,
+) -> list[Diagnostic]:
+    """W003: Warn when an expr operator unavailable in the active dialect is used.
+
+    Currently fires for:
+
+    * ``in`` / ``ni`` (TIP 201, Tcl 8.5+) — tclsh 8.4 and iRules
+      (which is locked to 8.4.6) reject them with ``syntax error in
+      expression``.
+    * ``lt`` / ``le`` / ``gt`` / ``ge`` (TIP 461, Tcl 9.0+) — tclsh
+      8.5 / 8.6 reject them with ``invalid bareword``.
+
+    The :data:`TCL_OPERATOR_DIALECTS` table is the source of truth;
+    adding a new gated operator there is enough to extend this check.
+    """
+    from ...compiler.expr_ast import ExprRaw
+    from ...parsing.expr_parser import parse_expr
+
+    dialect = active_dialect()
+    expr_indices = arg_indices_for_role(cmd_name, args, ArgRole.EXPR)
+    if not expr_indices:
+        return []
+
+    diagnostics: list[Diagnostic] = []
+    for idx in sorted(expr_indices):
+        if idx >= len(args) or idx >= len(arg_tokens):
+            continue
+
+        tok = arg_tokens[idx]
+        # ``expr a + b c + d`` form: concatenate the operand args.
+        if cmd_name == "expr" and len(args) > 1:
+            expr_text = " ".join(args)
+        else:
+            expr_text = args[idx]
+
+        parsed = parse_expr(expr_text.strip(), dialect=dialect)
+        if isinstance(parsed, ExprRaw):
+            continue
+
+        offenders = _find_dialect_invalid_ops(parsed, dialect)
+        # Deduplicate (we only need one diagnostic per op name per call).
+        seen: set[str] = set()
+        # Per-op introduction hint so the message points the reader at the
+        # right Tcl version / TIP without us having to special-case dialects
+        # at every call site.
+        intro_hint = {
+            "in": "Tcl 8.5+ (TIP 201)",
+            "ni": "Tcl 8.5+ (TIP 201)",
+            "lt": "Tcl 9.0+ (TIP 461)",
+            "le": "Tcl 9.0+ (TIP 461)",
+            "gt": "Tcl 9.0+ (TIP 461)",
+            "ge": "Tcl 9.0+ (TIP 461)",
+        }
+        for _op, name in offenders:
+            if name in seen:
+                continue
+            seen.add(name)
+            hint = intro_hint.get(name, "a later Tcl version")
+            diagnostics.append(
+                Diagnostic(
+                    range=range_from_token(tok),
+                    message=(
+                        f"Expression operator '{name}' is not available in the "
+                        f"active dialect ({dialect}); requires {hint}."
+                    ),
+                    severity=Severity.WARNING,
+                    code="W003",
+                )
+            )
+
+    return diagnostics
+
+
 # IRULE2002: Deprecated iRules command
 
 

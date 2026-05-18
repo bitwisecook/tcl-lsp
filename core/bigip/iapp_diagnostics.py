@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from ..analysis.semantic_model import Diagnostic, Range, Severity
 from ..common.codes import diag
+from ..common.dialect import active_dialect
 from ..parsing.tokens import SourcePosition
 from .apl_model import AplModel
 from .iapp_vars import IappVarRef
@@ -26,6 +27,22 @@ from .iapp_vars import IappVarRef
 diag("IAPP7001", "iApps template validation — missing section.", section="error", internal=True)
 diag("IAPP7002", "iApps template validation — invalid reference.", section="error", internal=True)
 diag("IAPP7003", "iApps template validation — deprecated syntax.", section="error", internal=True)
+
+# Dialects in which iApp presentation/implementation cross-validation
+# makes sense.  iApps live under f5-iapps; f5-tmsh and f5-bigip share
+# the iApp template format (TMOS configuration files reference the same
+# APL presentation model).  All other dialects (plain Tcl, iRules, EDA
+# vendor dialects) are unrelated to iApps, so IAPP7001/7002/7003
+# diagnostics must not fire there even if a caller passes APL data in
+# (defense-in-depth: the LSP dispatcher already gates on
+# ``_is_apl_source(uri)`` but a misuse from a test or another caller
+# would otherwise leak iApps-specific advice into the wrong context).
+IAPP_DIALECTS: frozenset[str] = frozenset({"f5-iapps", "f5-tmsh", "f5-bigip"})
+
+
+def _iapp_dialect_active() -> bool:
+    """Return True when the active dialect is one where iApp checks apply."""
+    return active_dialect() in IAPP_DIALECTS
 
 
 def validate_iapp_presentation(
@@ -42,7 +59,16 @@ def validate_iapp_presentation(
     impl_var_refs:
         Variable references extracted from a sibling implementation file.
         If ``None``, only presentation-local checks are performed.
+
+    Returns an empty list when the active dialect is not one of
+    :data:`IAPP_DIALECTS` so iApp-specific advice never leaks into plain
+    Tcl / iRules / EDA dialects.  The LSP-level dispatcher in
+    ``lsp/diagnostics_pipeline.py`` already gates on
+    ``_is_apl_source(uri)`` before calling this function; the dialect
+    gate here is defense-in-depth for any other caller.
     """
+    if not _iapp_dialect_active():
+        return []
     diagnostics: list[Diagnostic] = []
 
     # IAPP7003: #include not found
@@ -111,7 +137,13 @@ def validate_iapp_implementation(
     apl_model:
         Parsed APL presentation model from a sibling file.
         If ``None``, no cross-validation is performed.
+
+    Returns an empty list when the active dialect is not one of
+    :data:`IAPP_DIALECTS` so iApp-specific advice never leaks into
+    plain Tcl / iRules / EDA dialects.
     """
+    if not _iapp_dialect_active():
+        return []
     if apl_model is None:
         return []
 

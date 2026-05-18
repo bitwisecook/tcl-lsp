@@ -1,0 +1,42 @@
+ByteCode ::top, 24 instructions, 44 bytes, 10 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "A"
+    3: "\n    method greet {} { return \"A\" }\n"
+    4: "B"
+    5: "\n    superclass A\n    method greet ..."
+    6: "C"
+    7: "\n    superclass B\n    method greet ..."
+    8: "new"
+    9: "greet"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "A"
+    (6) push1 3	# "\n    method greet {} { return \"A\" }\n"
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) push1 0	# "oo::class"
+    (13) push1 1	# "create"
+    (15) push1 4	# "B"
+    (17) push1 5	# "\n    superclass A\n    method greet ..."
+    (19) invokeStk1 4	# oo::class
+  # cmd_end_1:
+    (21) pop
+    (22) push1 0	# "oo::class"
+    (24) push1 1	# "create"
+    (26) push1 6	# "C"
+    (28) push1 7	# "\n    superclass B\n    method greet ..."
+    (30) invokeStk1 4	# oo::class
+  # cmd_end_2:
+    (32) pop
+    (33) push1 6	# "C"
+    (35) push1 8	# "new"
+    (37) invokeStk1 2
+    (39) push1 9	# "greet"
+    (41) invokeStk1 2	# [C new]
+  # cmd_end_3:
+  # exit_2:
+    (43) done

@@ -2,10 +2,10 @@ ByteCode ::top, 12 instructions, 22 bytes, 7 literals, 0 variables
   Literals:
     0: "proc"
     1: "greet"
-    2: "\u0000{name \"World\"} {greeting \"H..."
+    2: "\u0000\u0002{name \"World\"} {greetin..."
     3: "\n    return \"$greeting, $name!\"\n"
     4: "compute"
-    5: "\u0000{a 1} {b 2} {c 3}"
+    5: "\u0000\u0002{a 1} {b 2} {c 3}"
     6: "\n    expr {$a + $b + $c}\n"
   Instructions:
   # entry_1:
@@ -41,8 +41,8 @@ ByteCode ::compute, 6 instructions, 9 bytes, 0 literals, 3 variables
 
 ByteCode ::greet, 6 instructions, 11 bytes, 2 literals, 2 variables
   Literals:
-    0: "\u0000, "
-    1: "\u0000!"
+    0: "\u0000\u0002, "
+    1: "\u0000\u0002!"
   Local variables:
     %v0: "name"
     %v1: "greeting"

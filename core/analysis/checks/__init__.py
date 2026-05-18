@@ -20,6 +20,8 @@ from ._bounds import (
 )
 from ._domain import (
     check_deprecated_irules_command,
+    check_dialect_invalid_expr_operator,
+    check_dialect_invalid_option,
     check_disabled_command,
     check_irules_unnormalized_http_getter,
     check_literal_expected,

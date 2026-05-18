@@ -31,11 +31,21 @@ class LsortCommand(CommandDef):
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-increasing"),
                         OptionSpec(name="-decreasing"),
-                        OptionSpec(name="-indices"),
+                        # -indices: Tcl 8.5+ (rejected in 8.4).
+                        OptionSpec(
+                            name="-indices",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
                         OptionSpec(name="-unique"),
                         OptionSpec(name="-command", takes_value=True, value_hint="cmdPrefix"),
                         OptionSpec(name="-index", takes_value=True, value_hint="index"),
-                        OptionSpec(name="-stride", takes_value=True, value_hint="length"),
+                        # -stride: Tcl 8.6+ (rejected in 8.4/8.5).
+                        OptionSpec(
+                            name="-stride",
+                            takes_value=True,
+                            value_hint="length",
+                            dialects=frozenset({"tcl8.6", "tcl9.0"}),
+                        ),
                     ),
                 ),
             ),

@@ -3,10 +3,10 @@ ByteCode ::top, 18 instructions, 29 bytes, 8 literals, 0 variables
     0: "name"
     1: "Alice"
     2: "greeting"
-    3: "\u0000Hello, "
-    4: "\u0000!"
+    3: "\u0000\u0002Hello, "
+    4: "\u0000\u0002!"
     5: "msg"
-    6: "\u0000Result: "
+    6: "\u0000\u0002Result: "
     7: "3"
   Instructions:
   # entry_1:

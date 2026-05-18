@@ -243,7 +243,14 @@ class InterpCommand(CommandDef):
                     return_type=TclType.STRING,
                     options=(
                         OptionSpec(name="-global"),
-                        OptionSpec(name="-namespace", takes_value=True, value_hint="ns"),
+                        # -namespace: Tcl 8.5+ addition.
+                        OptionSpec(
+                            name="-namespace",
+                            takes_value=True,
+                            value_hint="ns",
+                            detail="Run hidden command in given namespace (Tcl 8.5+).",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
                         OptionSpec(name="--"),
                     ),
                 ),

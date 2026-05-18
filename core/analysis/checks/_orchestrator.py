@@ -18,6 +18,8 @@ from ._bounds import (
 )
 from ._domain import (
     check_deprecated_irules_command,
+    check_dialect_invalid_expr_operator,
+    check_dialect_invalid_option,
     check_disabled_command,
     check_irules_unnormalized_http_getter,
     check_literal_expected,
@@ -92,6 +94,7 @@ ALL_CHECKS = [
     check_literal_expected,
     check_non_ascii,
     check_string_compare_in_expr,
+    check_dialect_invalid_expr_operator,
     check_binary_format_modifiers,
     check_name_vs_value,
     check_unmatched_close_bracket,
@@ -125,6 +128,8 @@ _UNIVERSAL_CHECKS: list[_CheckFn] = [
     check_unbraced_body,
     check_missing_option_terminator,
     check_string_compare_in_expr,
+    check_dialect_invalid_expr_operator,
+    check_dialect_invalid_option,
     check_redundant_expr,
     check_name_vs_value,
 ]

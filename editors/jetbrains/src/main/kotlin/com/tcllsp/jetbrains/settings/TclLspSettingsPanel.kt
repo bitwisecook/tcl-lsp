@@ -84,6 +84,8 @@ class TclLspSettingsPanel {
     // Diagnostics — Style & Best Practice
     private val diagW001 = JBCheckBox("W001: Unknown subcommand")
     private val diagW002 = JBCheckBox("W002: Command is disabled in active dialect profile")
+    private val diagW003 = JBCheckBox("W003: Expression operator not available in active dialect")
+    private val diagW004 = JBCheckBox("W004: Command option is not available in the active dialect")
     private val diagW100 = JBCheckBox("W100: Unbraced expression argument")
     private val diagW104 = JBCheckBox("W104: String concatenation for list building")
     private val diagW105 = JBCheckBox("W105: Unbraced code block or missing variable declaration ...")
@@ -327,11 +329,12 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Style & Best Practice"))
         val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
-            diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
-            diagW115, diagW116, diagW117, diagW118, diagW120, diagW121,
-            diagW122, diagW124, diagW125, diagW126, diagW200, diagW201,
-            diagW230, diagW231, diagW232, diagW240, diagW241,
+            diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
+            diagW105, diagW106, diagW108, diagW110, diagW111, diagW112,
+            diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
+            diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
+            diagW200, diagW201, diagW230, diagW231, diagW232, diagW240,
+            diagW241,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -513,6 +516,8 @@ class TclLspSettingsPanel {
             diagE200.isSelected != s.diagnosticE200 ||
             diagW001.isSelected != s.diagnosticW001 ||
             diagW002.isSelected != s.diagnosticW002 ||
+            diagW003.isSelected != s.diagnosticW003 ||
+            diagW004.isSelected != s.diagnosticW004 ||
             diagW100.isSelected != s.diagnosticW100 ||
             diagW104.isSelected != s.diagnosticW104 ||
             diagW105.isSelected != s.diagnosticW105 ||
@@ -723,6 +728,8 @@ class TclLspSettingsPanel {
         s.diagnosticE200 = diagE200.isSelected
         s.diagnosticW001 = diagW001.isSelected
         s.diagnosticW002 = diagW002.isSelected
+        s.diagnosticW003 = diagW003.isSelected
+        s.diagnosticW004 = diagW004.isSelected
         s.diagnosticW100 = diagW100.isSelected
         s.diagnosticW104 = diagW104.isSelected
         s.diagnosticW105 = diagW105.isSelected
@@ -930,6 +937,8 @@ class TclLspSettingsPanel {
         diagE200.isSelected = s.diagnosticE200
         diagW001.isSelected = s.diagnosticW001
         diagW002.isSelected = s.diagnosticW002
+        diagW003.isSelected = s.diagnosticW003
+        diagW004.isSelected = s.diagnosticW004
         diagW100.isSelected = s.diagnosticW100
         diagW104.isSelected = s.diagnosticW104
         diagW105.isSelected = s.diagnosticW105

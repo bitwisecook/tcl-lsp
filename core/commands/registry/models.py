@@ -331,6 +331,30 @@ class OptionSpec:
     value_hint: str = ""
     detail: str = ""
     hover: HoverSnippet | None = None
+    # Dialect membership — ``None`` means "inherit from parent CommandSpec
+    # / SubCommand dialects" (the common case).  Set this to restrict an
+    # option added in a specific Tcl version (e.g. ``-stride`` on
+    # ``lsearch`` is Tcl 8.6+, ``-validate`` on ``clock scan`` is Tcl
+    # 9.0+) so it doesn't surface in older dialects.
+    dialects: frozenset[str] | None = None
+
+    def supports_dialect(
+        self,
+        dialect: str | None,
+        parent_dialects: frozenset[str] | None = None,
+    ) -> bool:
+        """Check if this option is available in *dialect*.
+
+        If this option has its own ``dialects`` set, use that.  Otherwise
+        inherit from *parent_dialects* (the parent CommandSpec or SubCommand).
+        """
+        if dialect is None:
+            return True
+        if self.dialects is not None:
+            return dialect in self.dialects
+        if parent_dialects is None:
+            return True
+        return dialect in parent_dialects
 
 
 class FormKind(enum.Enum):
@@ -890,14 +914,16 @@ class CommandSpec:
             return self.deprecated_replacement
         return self.deprecated_replacement.name
 
-    def switch_names(self) -> tuple[str, ...]:
+    def switch_names(self, dialect: str | None = None) -> tuple[str, ...]:
         names: list[str] = []
         seen: set[str] = set()
         for form in self.forms:
-            for name in form.option_names():
-                if name not in seen:
-                    seen.add(name)
-                    names.append(name)
+            for option in form.options:
+                if not option.supports_dialect(dialect, self.dialects):
+                    continue
+                if option.name not in seen:
+                    seen.add(option.name)
+                    names.append(option.name)
         return tuple(names)
 
     @property
@@ -905,11 +931,14 @@ class CommandSpec:
         """Whether this command accepts ``-normalized`` (derived from options)."""
         return self.option("-normalized") is not None
 
-    def option(self, option_name: str) -> OptionSpec | None:
+    def option(self, option_name: str, dialect: str | None = None) -> OptionSpec | None:
         for form in self.forms:
             for option in form.options:
-                if option.name == option_name:
-                    return option
+                if option.name != option_name:
+                    continue
+                if not option.supports_dialect(dialect, self.dialects):
+                    continue
+                return option
         return None
 
     def argument_values(self, arg_index: int) -> tuple[ArgumentValueSpec, ...]:

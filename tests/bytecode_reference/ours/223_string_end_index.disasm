@@ -1,0 +1,182 @@
+ByteCode ::top, 108 instructions, 290 bytes, 25 literals, 0 variables
+  Literals:
+    0: "abcdef"
+    1: "end"
+    2: "f"
+    3: "end broke"
+    4: ""
+    5: "end-1"
+    6: "e"
+    7: "end-1 broke"
+    8: "end-5"
+    9: "a"
+    10: "end-5 broke"
+    11: "0"
+    12: "0 broke"
+    13: "3"
+    14: "d"
+    15: "3 broke"
+    16: "cdef"
+    17: "range 2 end"
+    18: "abcde"
+    19: "range 0 end-1"
+    20: "def"
+    21: "range end-2 end"
+    22: "abc"
+    23: "range 0 2"
+    24: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "abcdef"
+    (2) push1 1	# "end"
+    (4) strindex
+    (5) push1 2	# "f"
+    (7) strneq
+    (8) jumpFalse1 +17	# pc 25
+  # if_then_3:
+    (10) push1 3	# "end broke"
+    (12) push1 4	# ""
+    (14) returnImm +1 0
+  # cmd_end_1:
+    (23) jump1 +4	# pc 27
+  # if_next_4:
+    (25) push1 4	# ""
+  # if_end_2:
+    (27) pop
+    (28) push1 0	# "abcdef"
+    (30) push1 5	# "end-1"
+    (32) strindex
+    (33) push1 6	# "e"
+    (35) strneq
+    (36) jumpFalse1 +17	# pc 53
+  # if_then_6:
+    (38) push1 7	# "end-1 broke"
+    (40) push1 4	# ""
+    (42) returnImm +1 0
+  # cmd_end_3:
+    (51) jump1 +4	# pc 55
+  # if_next_7:
+    (53) push1 4	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (55) pop
+    (56) push1 0	# "abcdef"
+    (58) push1 8	# "end-5"
+    (60) strindex
+    (61) push1 9	# "a"
+    (63) strneq
+    (64) jumpFalse1 +17	# pc 81
+  # if_then_9:
+    (66) push1 10	# "end-5 broke"
+    (68) push1 4	# ""
+    (70) returnImm +1 0
+  # cmd_end_5:
+    (79) jump1 +4	# pc 83
+  # if_next_10:
+    (81) push1 4	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (83) pop
+    (84) push1 0	# "abcdef"
+    (86) push1 11	# "0"
+    (88) strindex
+    (89) push1 9	# "a"
+    (91) strneq
+    (92) jumpFalse1 +17	# pc 109
+  # if_then_12:
+    (94) push1 12	# "0 broke"
+    (96) push1 4	# ""
+    (98) returnImm +1 0
+  # cmd_end_7:
+    (107) jump1 +4	# pc 111
+  # if_next_13:
+    (109) push1 4	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (111) pop
+    (112) push1 0	# "abcdef"
+    (114) push1 13	# "3"
+    (116) strindex
+    (117) push1 14	# "d"
+    (119) strneq
+    (120) jumpFalse1 +17	# pc 137
+  # if_then_15:
+    (122) push1 15	# "3 broke"
+    (124) push1 4	# ""
+    (126) returnImm +1 0
+  # cmd_end_9:
+    (135) jump1 +4	# pc 139
+  # if_next_16:
+    (137) push1 4	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (139) pop
+    (140) push1 0	# "abcdef"
+    (142) strrangeImm 2 end
+    (151) push1 16	# "cdef"
+    (153) strneq
+    (154) jumpFalse1 +17	# pc 171
+  # if_then_18:
+    (156) push1 17	# "range 2 end"
+    (158) push1 4	# ""
+    (160) returnImm +1 0
+  # cmd_end_11:
+    (169) jump1 +4	# pc 173
+  # if_next_19:
+    (171) push1 4	# ""
+  # if_end_17:
+  # if_cmd_end_10:
+    (173) pop
+    (174) push1 0	# "abcdef"
+    (176) strrangeImm 0 end-1
+    (185) push1 18	# "abcde"
+    (187) strneq
+    (188) jumpFalse1 +17	# pc 205
+  # if_then_21:
+    (190) push1 19	# "range 0 end-1"
+    (192) push1 4	# ""
+    (194) returnImm +1 0
+  # cmd_end_13:
+    (203) jump1 +4	# pc 207
+  # if_next_22:
+    (205) push1 4	# ""
+  # if_end_20:
+  # if_cmd_end_12:
+    (207) pop
+    (208) push1 0	# "abcdef"
+    (210) strrangeImm end-2 end
+    (219) push1 20	# "def"
+    (221) strneq
+    (222) jumpFalse1 +17	# pc 239
+  # if_then_24:
+    (224) push1 21	# "range end-2 end"
+    (226) push1 4	# ""
+    (228) returnImm +1 0
+  # cmd_end_15:
+    (237) jump1 +4	# pc 241
+  # if_next_25:
+    (239) push1 4	# ""
+  # if_end_23:
+  # if_cmd_end_14:
+    (241) pop
+    (242) push1 0	# "abcdef"
+    (244) strrangeImm 0 2
+    (253) push1 22	# "abc"
+    (255) strneq
+    (256) jumpFalse1 +17	# pc 273
+  # if_then_27:
+    (258) push1 23	# "range 0 2"
+    (260) push1 4	# ""
+    (262) returnImm +1 0
+  # cmd_end_17:
+    (271) jump1 +4	# pc 275
+  # if_next_28:
+    (273) push1 4	# ""
+  # if_end_26:
+  # if_cmd_end_16:
+    (275) pop
+    (276) push1 24	# "ok"
+    (278) push1 4	# ""
+    (280) returnImm +0 1
+  # ret_end_18:
+    (289) done

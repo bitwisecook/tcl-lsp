@@ -21,8 +21,13 @@ from lsp.features.snippet_templates import (
 
 
 def _default_ctx(**overrides: Any) -> SnippetContext:
+    # Use ``tcl9.0`` so version-gated templates (``try``, ``dict for``,
+    # ``oo::class``) are exercised in the default test profile.
+    # Production callers pass the result of ``active_dialect()`` which
+    # is always one of the canonical ``tcl8.4`` / ``tcl9.0`` / ``f5-*``
+    # strings.
     defaults: dict[str, Any] = dict(
-        dialect="tcl",
+        dialect="tcl9.0",
         brace_style=BraceStyle.K_AND_R,
         indent_unit="    ",
         current_event=None,
@@ -75,6 +80,42 @@ class TestSnippetFiltering:
         assert "iRule RULE_INIT" not in labels
         # Tcl core templates should still appear
         assert "Tcl Proc" in labels
+
+    def test_version_gated_snippets_hidden_in_older_dialects(self):
+        """``try``, ``dict for``, ``oo::class`` snippets must not appear
+        in Tcl versions that don't support them.
+
+        ``try``/``trap`` and ``oo::class`` are 8.6+, ``dict for`` is 8.5+.
+        Showing them in tcl8.4 (or f5-irules which is locked to 8.4.6)
+        would generate code that fails at runtime.
+        """
+        # Tcl 8.4 — nothing version-gated should appear.
+        items_84 = get_snippet_completions(_default_ctx(dialect="tcl8.4"))
+        labels_84 = _labels(items_84)
+        assert "Try Trap" not in labels_84
+        assert "Dict For" not in labels_84
+        assert "OO Class" not in labels_84
+
+        # Tcl 8.5 — only ``dict for`` is available.
+        items_85 = get_snippet_completions(_default_ctx(dialect="tcl8.5"))
+        labels_85 = _labels(items_85)
+        assert "Try Trap" not in labels_85
+        assert "Dict For" in labels_85
+        assert "OO Class" not in labels_85
+
+        # Tcl 8.6+ — everything.
+        items_86 = get_snippet_completions(_default_ctx(dialect="tcl8.6"))
+        labels_86 = _labels(items_86)
+        assert "Try Trap" in labels_86
+        assert "Dict For" in labels_86
+        assert "OO Class" in labels_86
+
+        # iRules — locked to 8.4.6, so none of the 8.5+ snippets appear.
+        items_irules = get_snippet_completions(_default_ctx(dialect="f5-irules"))
+        labels_irules = _labels(items_irules)
+        assert "Try Trap" not in labels_irules
+        assert "Dict For" not in labels_irules
+        assert "OO Class" not in labels_irules
 
     def test_existing_event_suppresses_template(self):
         items = get_snippet_completions(

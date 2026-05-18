@@ -1,0 +1,68 @@
+ByteCode ::top, 43 instructions, 100 bytes, 14 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "A"
+    3: "\n    method test {} {lappend ::resul..."
+    4: "B"
+    5: "\n    superclass A\n    method test {..."
+    6: "C"
+    7: "\n    superclass A\n    method test {..."
+    8: "D"
+    9: "\n    superclass B C\n    method test..."
+    10: "result"
+    11: ""
+    12: "new"
+    13: "test"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "A"
+    (6) push1 3	# "\n    method test {} {lappend ::resul..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) push1 0	# "oo::class"
+    (13) push1 1	# "create"
+    (15) push1 4	# "B"
+    (17) push1 5	# "\n    superclass A\n    method test {..."
+    (19) invokeStk1 4	# oo::class
+  # cmd_end_1:
+    (21) pop
+    (22) push1 0	# "oo::class"
+    (24) push1 1	# "create"
+    (26) push1 6	# "C"
+    (28) push1 7	# "\n    superclass A\n    method test {..."
+    (30) invokeStk1 4	# oo::class
+  # cmd_end_2:
+    (32) pop
+    (33) push1 0	# "oo::class"
+    (35) push1 1	# "create"
+    (37) push1 8	# "D"
+    (39) push1 9	# "\n    superclass B C\n    method test..."
+    (41) invokeStk1 4	# oo::class
+  # cmd_end_3:
+    (43) pop
+    (44) startCommand +14 1	# next cmd at pc 58, 1 cmds start here
+    (53) push1 10	# "result"
+    (55) push1 11	# ""
+    (57) storeStk
+  # cmd_end_4:
+    (58) pop
+    (59) startCommand +27 1	# next cmd at pc 86, 1 cmds start here
+    (68) push1 10	# "result"
+    (70) push1 8	# "D"
+    (72) push1 12	# "new"
+    (74) invokeStk1 2
+    (76) push1 13	# "test"
+    (78) invokeStk1 2
+    (80) list 1
+    (85) lappendListStk
+  # cmd_end_5:
+    (86) pop
+    (87) startCommand +12 1	# next cmd at pc 99, 1 cmds start here
+    (96) push1 10	# "result"
+    (98) loadStk
+  # cmd_end_6:
+  # exit_2:
+    (99) done

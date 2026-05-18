@@ -23,6 +23,8 @@ object DiagnosticCatalog {
         DiagnosticDef("E200", "error", "E200: Shimmer parse error", true),
         DiagnosticDef("W001", "warning", "W001: Unknown subcommand", true),
         DiagnosticDef("W002", "warning", "W002: Command is disabled in active dialect profile", true),
+        DiagnosticDef("W003", "warning", "W003: Expression operator not available in active dialect", true),
+        DiagnosticDef("W004", "warning", "W004: Command option is not available in the active dialect", true),
         DiagnosticDef("W100", "warning", "W100: Unbraced expression argument", true),
         DiagnosticDef("W104", "warning", "W104: String concatenation for list building", true),
         DiagnosticDef("W105", "warning", "W105: Unbraced code block or missing variable declaration ...", true),

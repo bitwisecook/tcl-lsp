@@ -19,20 +19,36 @@ from ._base import register
 
 
 def _regsub_arg_role_resolver(args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Dynamically assign VAR_WRITE to the regsub result variable.
+    """Dynamically assign roles to regsub's positional arguments.
 
     ``regsub ?switches? exp string subSpec ?varName?``
 
     After skipping options, arg 0 = pattern, arg 1 = string,
     arg 2 = subSpec, arg 3 = varName (optional, written to).
+
+    When ``-command`` is present (TIP 463, Tcl 9.0+), *subSpec* is a
+    Tcl command prefix invoked with the matched substrings appended as
+    arguments; its return value becomes the replacement.  We tag it
+    with :class:`ArgRole.NAME` in that case so the analyser knows it
+    refers to a callable identifier rather than a substitution
+    template string.
     """
     from ..runtime import options_with_value, skip_options
 
-    first_positional = skip_options(args, options_with_value("regsub"))
+    options_set = options_with_value("regsub")
+    first_positional = skip_options(args, options_set)
+    roles: dict[int, frozenset[ArgRole]] = {}
+
+    # Detect ``-command`` among the leading switches.
+    has_command_option = any(arg == "-command" for arg in args[:first_positional])
+    sub_spec_idx = first_positional + 2
+    if has_command_option and sub_spec_idx < len(args):
+        roles[sub_spec_idx] = frozenset({ArgRole.NAME})
+
     var_idx = first_positional + 3
     if var_idx < len(args):
-        return {var_idx: frozenset({ArgRole.VAR_WRITE})}
-    return {}
+        roles[var_idx] = frozenset({ArgRole.VAR_WRITE})
+    return roles
 
 
 @register
@@ -73,6 +89,20 @@ class RegsubCommand(CommandDef):
                         OptionSpec(name="-lineanchor"),
                         OptionSpec(name="-all"),
                         OptionSpec(name="-start", takes_value=True, value_hint="index"),
+                        OptionSpec(
+                            name="-command",
+                            detail="Treat subSpec as a command prefix called with each match.",
+                            dialects=frozenset({"tcl9.0"}),
+                            hover=HoverSnippet(
+                                summary=(
+                                    "Treat *subSpec* as a command prefix invoked with the matched "
+                                    "substrings appended as arguments; its return value is the "
+                                    "replacement text. (TIP 463, Tcl 9.0+)"
+                                ),
+                                synopsis=("regsub -command exp string cmdPrefix ?varName?",),
+                                source="Tcl regsub(1)",
+                            ),
+                        ),
                         OptionSpec(name="--"),
                     ),
                 ),
