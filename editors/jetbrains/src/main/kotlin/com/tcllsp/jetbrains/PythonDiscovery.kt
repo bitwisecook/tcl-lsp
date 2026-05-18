@@ -140,8 +140,9 @@ private val VERSION_REGEX = Regex("""Python\s+(\d+)\.(\d+)\.(\d+)""")
 private fun probePython(command: String, source: String): PythonInfo? {
     return try {
         val file = File(command)
-        // For absolute paths, check existence first
-        if (command.contains(File.separator) && !file.exists()) return null
+        val hasPathSep = command.contains(File.separator)
+        // For absolute / relative paths, check existence first.
+        if (hasPathSep && !file.exists()) return null
 
         val process = ProcessBuilder(command, "--version")
             .redirectErrorStream(true)
@@ -162,10 +163,16 @@ private fun probePython(command: String, source: String): PythonInfo? {
         if (major < MIN_PYTHON_MAJOR) return null
         if (major == MIN_PYTHON_MAJOR && minor < MIN_PYTHON_MINOR) return null
 
-        // Resolve real path to deduplicate symlinks
-        val resolvedPath = try {
-            file.canonicalPath
-        } catch (_: Exception) {
+        // Only canonicalise when the caller already gave us a real
+        // filesystem path. For a bare PATH name like ``python3.14``,
+        // ``File(command).canonicalPath`` resolves against ``user.dir``
+        // and produces a fake path (e.g. ``/home/jim/python3.14``) that
+        // doesn't exist — which the LSP launcher then tries to spawn,
+        // breaking the plugin entirely. Pass bare names through and let
+        // ProcessBuilder resolve them via PATH at spawn time.
+        val resolvedPath = if (hasPathSep) {
+            try { file.canonicalPath } catch (_: Exception) { command }
+        } else {
             command
         }
 
