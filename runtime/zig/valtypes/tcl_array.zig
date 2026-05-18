@@ -381,10 +381,30 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
 /// array bucket owns one reference; without this helper, parser-side
 /// release (MM-B.4) would free values still held only by the bucket.
 fn bucket_set_value(bucket: u32, value: i32) void {
+    // Promote borrowed (parser-produced) string TclObjs to owning
+    // copies before storing.  Same rationale as
+    // :func:`tcl_ns.ensure_var_obj_owned` — array element slots
+    // outlive the parser-side source TclObj, so storing a borrowed
+    // value would surface a use-after-free once the source's bytes
+    // are recycled by libc malloc.  Mirrors var_set_scalar.
+    const stored = ensure_array_value_owned(value);
     const old: i32 = read_i32(bucket + 12);
-    if (value != 0) obj.tcl_obj_retain(value);
-    write_i32(bucket + 12, value);
-    if (old != 0 and old != value) obj.tcl_obj_release(old);
+    if (stored != 0) obj.tcl_obj_retain(stored);
+    write_i32(bucket + 12, stored);
+    if (old != 0 and old != stored) obj.tcl_obj_release(old);
+}
+
+fn ensure_array_value_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    const addr: u32 = @bitCast(o);
+    const tag = read_i32(addr + obj.OBJ_TYPE_TAG);
+    if (tag != obj.TYPE_STRING) return o;
+    const cap: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_LEN));
+    if (sptr == 0 or slen == 0) return o;
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 {

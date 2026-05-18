@@ -871,6 +871,18 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // now".  Real callers won't flip a real array into a scalar;
     // this is just for the simple-globals replacement in P3.2.
     v.flags &= ~VAR_ARRAY;
+    // Promote borrowed TclObjs (cap == 0) to owning copies before
+    // storing.  Parser-produced TclObjs borrow their bytes from the
+    // surrounding script's source buffer; when the script TclObj
+    // eventually releases (drain after the outermost eval) the
+    // buffer goes back to libc malloc and any variable that still
+    // references those bytes reads garbage.  Surfaces as
+    // ``$::encDefaultProfile`` returning ``\x00\x00\x00\x00\x00\x00``
+    // instead of ``strict`` mid-bundle when a layout shift pushes
+    // the freed buffer into a position the allocator zeroes — the
+    // cmdAH cascade.  Mirrors :func:`proc_register`'s
+    // ``ensure_owned`` discipline for body / params.
+    const stored: u32 = @bitCast(ensure_var_obj_owned(@bitCast(obj_handle)));
     // MM-B.2 refcount discipline: the var slot holds a reference to
     // the value, so retain the incoming obj and release whatever was
     // there before.  Without this the slot's hold is "free" (no
@@ -879,9 +891,34 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // place, every TclObj eventually drops to refcount 0 when no
     // var, frame, or list/dict element holds it any more.
     const old: u32 = @bitCast(v.value);
-    v.value = obj_handle;
-    if (obj_handle != 0) obj.tcl_obj_retain(@bitCast(obj_handle));
-    if (old != 0 and old != obj_handle) obj.tcl_obj_release(@bitCast(old));
+    v.value = stored;
+    if (stored != 0) obj.tcl_obj_retain(@bitCast(stored));
+    if (old != 0 and old != stored) obj.tcl_obj_release(@bitCast(old));
+}
+
+/// Promote a possibly-borrowing TclObj to an owning copy.  Mirrors
+/// :func:`tcl_procs.ensure_owned` — when the input's
+/// ``OBJ_STR_CAP == 0`` the buffer bytes belong to *someone else*
+/// (typically the surrounding script's source TclObj), so a
+/// long-lived store (variable slot, list element, dict value)
+/// must materialise its own copy.  Non-string TclObjs (cap field
+/// also default-zeroes but ``OBJ_STR_PTR == 0``) and already-
+/// owning ones pass through unchanged.
+fn ensure_var_obj_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    const addr: u32 = @bitCast(o);
+    // Only string-typed objs have a borrowed-buffer concern.  Int /
+    // float / list / dict objs use the value slot for their payload
+    // (the str_* slots may be lazily-materialised string reps the
+    // borrower owns themselves).
+    const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+    if (tag != obj.TYPE_STRING) return o;
+    const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_LEN));
+    if (sptr == 0 or slen == 0) return o; // null / empty — no buffer to worry about
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 // -- Namespace export patterns (P4.1) --------------------------------------
