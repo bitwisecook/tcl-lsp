@@ -320,7 +320,7 @@ def on_list_irule_events() -> dict:
     }
 
 
-def on_get_effective_config(uri: str | None = None) -> dict:
+def on_get_effective_config(uri: str = "") -> dict:
     """Return the *resolved* per-folder config for ``uri``.
 
     Returns the values the language server **actually applies** to a

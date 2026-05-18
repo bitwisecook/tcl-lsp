@@ -1993,11 +1993,11 @@ fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) 
 // ``info a t1`` resolves to ``info args t1``).  Kept in sync with
 // ``inspect.info_subcommands``.
 const INFO_SUBCMDS = [_][]const u8{
-    "args",        "body",       "cmdcount",     "cmdtype",       "commands",
-    "complete",    "constant",   "consts",       "coroutine",     "default",
-    "errorstack",  "exists",     "frame",        "functions",     "globals",
-    "hostname",    "level",      "library",      "loaded",        "locals",
-    "nameofexecutable", "object", "patchlevel", "procs",          "script",
+    "args",               "body",       "cmdcount",   "cmdtype",   "commands",
+    "complete",           "constant",   "consts",     "coroutine", "default",
+    "errorstack",         "exists",     "frame",      "functions", "globals",
+    "hostname",           "level",      "library",    "loaded",    "locals",
+    "nameofexecutable",   "object",     "patchlevel", "procs",     "script",
     "sharedlibextension", "tclversion", "vars",
 };
 
