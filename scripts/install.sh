@@ -332,9 +332,12 @@ prefix_for() {
 read_os_release_safe() {
     f=/etc/os-release
     [ -e "$f" ] || return 1
-    # `ls -ldn` is POSIX and available on BusyBox/BSD/GNU. Parse the
-    # mode string (column 1) and numeric uid (column 3).
-    lsout=$(ls -ldn "$f" 2>/dev/null)
+    # `ls -ldnL` is POSIX. The `-L` follows symlinks so we check the
+    # ownership/mode of the *target* file — on every modern Linux
+    # distro /etc/os-release is a symlink into /usr/lib/, and the
+    # symlink itself is world-writable (777) by definition. The
+    # subsequent read also follows the symlink, so this is consistent.
+    lsout=$(ls -ldnL "$f" 2>/dev/null)
     if [ -z "$lsout" ]; then
         die "cannot stat $f.
 Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
