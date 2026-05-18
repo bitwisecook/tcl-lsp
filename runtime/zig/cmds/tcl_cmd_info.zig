@@ -2184,6 +2184,75 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         }
         return obj_new_string(0, 0);
     }
+    if (str_eq(sp, sub_l, "functions")) {
+        // ``info functions ?pattern?`` — list the math functions
+        // available to ``expr`` (i.e. the ``::tcl::mathfunc::*``
+        // commands).  Tcl 9 reference: ``InfoFunctionsCmd`` in
+        // ``tclCmdIL.c`` walks ``::tcl::mathfunc``'s cmdTable; we
+        // mirror by materialising the namespace (idempotent forward-
+        // populates the ns from BUILTINS) and scanning its cmd_table,
+        // emitting simple names stripped of the prefix.
+        const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+        const prefix = "::tcl::mathfunc";
+        const ns_addr = builtin_ns.materialise(@intFromPtr(prefix.ptr), prefix.len);
+        if (ns_addr == 0) return obj_new_string(0, 0);
+
+        var pat_ptr: u32 = 0;
+        var pat_len: u32 = 0;
+        var has_pattern = false;
+        if (arg != 0) {
+            const ps = obj_ensure_string(arg);
+            if (ps.len > 0) {
+                pat_ptr = ps.ptr;
+                pat_len = ps.len;
+                has_pattern = true;
+            }
+        }
+
+        const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+        if (ns.cmd_table.buf == 0) return obj_new_string(0, 0);
+
+        // Two-pass build: size first, then fill.  Matches the
+        // pattern used by ``scan_ns_cmd_table``.
+        var total: u32 = 0;
+        var count: u32 = 0;
+        var i: u32 = 0;
+        while (i < ns.cmd_table.cap) : (i += 1) {
+            const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            if (name_len == 0) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (count > 0) total += 1;
+            total += name_len;
+            count += 1;
+        }
+        if (count == 0) return obj_new_string(0, 0);
+
+        const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
+        var off: u32 = 0;
+        var written: u32 = 0;
+        i = 0;
+        while (i < ns.cmd_table.cap) : (i += 1) {
+            const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            if (name_len == 0) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (written > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            memcpy(buf + off, name_ptr, name_len);
+            off += name_len;
+            written += 1;
+        }
+        return obj.obj_new_string_take(buf, total, total);
+    }
     if (str_eq(sp, sub_l, "library")) {
         // ``info library`` returns the value of the global
         // ``tcl_library`` variable, or raises ``no library has been
