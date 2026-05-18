@@ -26,17 +26,30 @@ sets the same key:
    per-project INI file committed with the source. Every developer who
    opens the project picks the same rules up, and they survive
    switching editors. Use it for team-wide conventions.
-3. **Editor settings.** Whatever the editor sends over
-   `workspace/configuration`, typically under the `tclLsp.*` namespace
-   (for example `tclLsp.dialect`, `tclLsp.optimiser.O109`). VS Code,
-   Neovim, Zed, Helix, Emacs, Sublime Text, and JetBrains each have
-   their own way of populating these. Use it for the override you want
-   right now, on this machine, in this editor.
+3. **Editor settings (non-default values only).** Whatever the editor
+   sends over `workspace/configuration`, typically under the `tclLsp.*`
+   namespace (for example `tclLsp.dialect`, `tclLsp.optimiser.O109`).
+   VS Code, Neovim, Zed, Helix, Emacs, Sublime Text, and JetBrains
+   each have their own way of populating these. Use it for the
+   override you want right now, on this machine, in this editor.
 
-When two layers set the same key, the higher-numbered layer wins. The
-merge is per-key inside each section, so an editor setting that pins
-`[optimiser] disabled = O109` still inherits `[optimiser] profile =
-readability` from the project or global config.
+The merge is per-key inside each section, so an editor setting that
+pins `[optimiser] disabled = O109` still inherits `[optimiser] profile
+= readability` from the project or global config.
+
+### Why editor settings only override for non-default values
+
+Editors like VS Code respond to `workspace/configuration` by echoing
+back the schema default for every key the user has not explicitly set.
+If the server treated the schema default as if it were an explicit
+override, every team setting in `.tcl-lsp.ini` would be silently
+shadowed by the editor's default. To avoid that, the server only lets
+an editor value override the project layer when it differs from the
+schema default — an explicit user choice wins, an unset key does not.
+
+This means a project `.tcl-lsp.ini` is the team's authoritative
+default, and any developer who wants to override it adds an explicit
+non-default value to their editor settings.
 
 In addition to these three configuration layers, two **document-level
 directives** apply on top of the merged config for a single file:
