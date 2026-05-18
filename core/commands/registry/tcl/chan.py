@@ -107,7 +107,8 @@ _CONFIGURE_OPTIONS = (
         name="-profile",
         takes_value=True,
         value_hint="profile",
-        detail="Set encoding profile (strict, tcl8, replace).",
+        detail="Set encoding profile: strict | tcl8 | replace. (TIP 656, Tcl 9.0+)",
+        dialects=frozenset({"tcl9.0"}),
     ),
     OptionSpec(
         name="-translation",
@@ -183,6 +184,13 @@ class ChanCommand(CommandDef):
                         OptionSpec(name="-encoding", takes_value=True, value_hint="encoding"),
                         OptionSpec(name="-eofchar", takes_value=True, value_hint="chars"),
                         OptionSpec(name="-translation", takes_value=True, value_hint="mode"),
+                        OptionSpec(
+                            name="-profile",
+                            takes_value=True,
+                            value_hint="profile",
+                            detail="Encoding error profile: strict | tcl8 | replace. (TIP 656, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
                         OptionSpec(
                             name="-keepalive",
                             takes_value=True,

@@ -42,10 +42,13 @@ class SourceCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="source ?-encoding name? fileName",
                     options=(
+                        # -encoding: TIP 290, Tcl 8.5+.
                         OptionSpec(
                             name="-encoding",
                             takes_value=True,
                             value_hint="encoding",
+                            detail="Specify file encoding (TIP 290, Tcl 8.5+).",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                         ),
                     ),
                 ),

@@ -81,11 +81,13 @@ class EncodingCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="encoding subcommand ?arg ...?",
                     options=(
+                        # -profile: TIP 656, Tcl 9.0+.
                         OptionSpec(
                             name="-profile",
                             takes_value=True,
                             value_hint="profile",
-                            detail="Encoding profile (strict, tcl8, replace).",
+                            detail="Encoding profile: strict | tcl8 | replace. (TIP 656, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                     ),
                     arg_values={0: _SUBCOMMANDS},

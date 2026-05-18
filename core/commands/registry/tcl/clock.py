@@ -31,9 +31,25 @@ def _av(value: str, detail: str, synopsis: str = "") -> ArgumentValueSpec:
 
 
 def _opt(
-    name: str, detail: str = "", *, takes_value: bool = False, value_hint: str = ""
+    name: str,
+    detail: str = "",
+    *,
+    takes_value: bool = False,
+    value_hint: str = "",
+    dialects: frozenset[str] | None = None,
 ) -> OptionSpec:
-    return OptionSpec(name=name, detail=detail, takes_value=takes_value, value_hint=value_hint)
+    return OptionSpec(
+        name=name,
+        detail=detail,
+        takes_value=takes_value,
+        value_hint=value_hint,
+        dialects=dialects,
+    )
+
+
+# Tcl 8.5+ dialects (the clock command was rewritten by TIP 173 in 8.5;
+# 8.4's clock only recognised ``-base`` / ``-gmt`` / ``-format``-ish).
+_SCAN_85_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0"})
 
 
 _SUBCOMMANDS = (
@@ -67,11 +83,41 @@ _TIME_UNITS = (
 
 _FORMAT_SCAN_OPTIONS = (
     _opt("-base", "Base time for relative scanning.", takes_value=True, value_hint="timeVal"),
-    _opt("-format", "strftime-style format string.", takes_value=True, value_hint="format"),
-    _opt("-gmt", "Use GMT instead of local time.", takes_value=True, value_hint="boolean"),
-    _opt("-locale", "Locale for month/day names.", takes_value=True, value_hint="locale"),
-    _opt("-timezone", "Time zone for conversion.", takes_value=True, value_hint="zone"),
-    _opt("-validate", "Validate date fields strictly.", takes_value=True, value_hint="boolean"),
+    _opt(
+        "-format",
+        "strftime-style format string (Tcl 8.5+).",
+        takes_value=True,
+        value_hint="format",
+        dialects=_SCAN_85_PLUS,
+    ),
+    _opt(
+        "-gmt",
+        "Use GMT instead of local time (Tcl 8.5+).",
+        takes_value=True,
+        value_hint="boolean",
+        dialects=_SCAN_85_PLUS,
+    ),
+    _opt(
+        "-locale",
+        "Locale for month/day names (Tcl 8.5+).",
+        takes_value=True,
+        value_hint="locale",
+        dialects=_SCAN_85_PLUS,
+    ),
+    _opt(
+        "-timezone",
+        "Time zone for conversion (Tcl 8.5+).",
+        takes_value=True,
+        value_hint="zone",
+        dialects=_SCAN_85_PLUS,
+    ),
+    _opt(
+        "-validate",
+        "Validate date fields strictly (TIP 532, Tcl 9.0+).",
+        takes_value=True,
+        value_hint="boolean",
+        dialects=frozenset({"tcl9.0"}),
+    ),
 )
 
 
@@ -160,11 +206,40 @@ class ClockCommand(CommandDef):
                     synopsis="clock scan inputString ?-option value ...?",
                     return_type=TclType.INT,
                     options=(
-                        _opt("-base", "Reference clock value for relative inputs.", takes_value=True, value_hint="clockVal"),
-                        _opt("-format", "Format string controlling parsing.", takes_value=True, value_hint="formatString"),
-                        _opt("-gmt", "Interpret times as UTC.", takes_value=True, value_hint="boolean"),
-                        _opt("-locale", "Locale for month/day names.", takes_value=True, value_hint="locale"),
-                        _opt("-timezone", "Time zone for interpretation.", takes_value=True, value_hint="zone"),
+                        _opt(
+                            "-base",
+                            "Reference clock value for relative inputs.",
+                            takes_value=True,
+                            value_hint="clockVal",
+                        ),
+                        _opt(
+                            "-format",
+                            "Format string controlling parsing (Tcl 8.5+).",
+                            takes_value=True,
+                            value_hint="formatString",
+                            dialects=_SCAN_85_PLUS,
+                        ),
+                        _opt(
+                            "-gmt",
+                            "Interpret times as UTC (Tcl 8.5+).",
+                            takes_value=True,
+                            value_hint="boolean",
+                            dialects=_SCAN_85_PLUS,
+                        ),
+                        _opt(
+                            "-locale",
+                            "Locale for month/day names (Tcl 8.5+).",
+                            takes_value=True,
+                            value_hint="locale",
+                            dialects=_SCAN_85_PLUS,
+                        ),
+                        _opt(
+                            "-timezone",
+                            "Time zone for interpretation (Tcl 8.5+).",
+                            takes_value=True,
+                            value_hint="zone",
+                            dialects=_SCAN_85_PLUS,
+                        ),
                         OptionSpec(
                             name="-validate",
                             detail="Raise on out-of-range values (default true); set false for normalisation. (TIP 532, Tcl 9.0+)",

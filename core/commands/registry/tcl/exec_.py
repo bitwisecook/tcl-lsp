@@ -32,7 +32,11 @@ class ExecCommand(CommandDef):
                     kind=FormKind.DEFAULT,
                     synopsis="exec ?switches? arg ?arg ...?",
                     options=(
-                        OptionSpec(name="-ignorestderr"),
+                        # -ignorestderr: TIP 358, Tcl 8.5+.
+                        OptionSpec(
+                            name="-ignorestderr",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
                         OptionSpec(name="-keepnewline"),
                         OptionSpec(name="--"),
                     ),

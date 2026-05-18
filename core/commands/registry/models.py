@@ -931,9 +931,7 @@ class CommandSpec:
         """Whether this command accepts ``-normalized`` (derived from options)."""
         return self.option("-normalized") is not None
 
-    def option(
-        self, option_name: str, dialect: str | None = None
-    ) -> OptionSpec | None:
+    def option(self, option_name: str, dialect: str | None = None) -> OptionSpec | None:
         for form in self.forms:
             for option in form.options:
                 if option.name != option_name:
