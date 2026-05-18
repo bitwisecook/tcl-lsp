@@ -143,8 +143,9 @@ def _run_one_with_counters(
         rt_module = wasmtime.Module.from_file(engine, str(LEAKCHECK_WASM))
         linker = wasmtime.Linker(engine)
         linker.define_wasi()
-        tcl_box, mem_box = _define_call_compiled_proc(linker, store)
+        tcl_box, mem_box, rt_box = _define_call_compiled_proc(linker, store)
         rt_inst = linker.instantiate(store, rt_module)
+        rt_box[0] = rt_inst
         init = rt_inst.exports(store).get("_initialize")
         if init is not None:
             init(store)
