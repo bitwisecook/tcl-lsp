@@ -96,6 +96,16 @@ one in its own designated place. They are not interchangeable:
   parent directories, and a `.tcl-lsp.ini` in your home directory is
   ignored.
 
+The two filenames are **deliberately different**. We could have used
+`tcl-lsp.ini` (or `config.ini`) for both, but distinct names mean a
+user who copies one file to the other location does not silently
+change which precedence layer it applies to. If you `cp ~/.config/tcl-lsp/config.ini
+./` thinking it will pin a project-level rule, the file will simply
+not be picked up — instead of being read at a higher priority than
+you expected and overriding a teammate's setting. The same applies in
+the other direction: dropping `.tcl-lsp.ini` into your home config
+directory is a no-op rather than a stealth promotion to global.
+
 If you want a setting to follow you everywhere, put it in the global
 file. If you want it to travel with the project and apply to everyone
 who checks it out, put it in `.tcl-lsp.ini` and commit it.

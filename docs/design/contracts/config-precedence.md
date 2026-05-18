@@ -132,6 +132,32 @@ schema-default `tcl8.6` was blocking the iRules / iApps file-extension
 auto-switch. It is scoped to one key and one direction, and we have
 no plans to generalise it.
 
+## Why the two files have different names
+
+The global file is `config.ini` and the project file is `.tcl-lsp.ini`.
+We could have used the same filename and disambiguated by location,
+but the distinct names are an intentional safeguard against accidental
+layer-swapping:
+
+- A user who copies `~/.config/tcl-lsp/config.ini` into a workspace
+  root sees the copy ignored, rather than silently promoted to the
+  highest-priority layer (where it would override a teammate's
+  `.tcl-lsp.ini` if there were one, or be committed and override
+  everyone else's editor settings).
+- A user who copies `.tcl-lsp.ini` into their XDG config directory
+  sees the copy ignored, rather than silently demoted to global and
+  affecting every other workspace they open.
+
+Different names mean copying the file does not change which precedence
+layer it occupies. The cost is a small one-time learning of two
+filenames; the benefit is that "I'll just copy this over" never has
+silent side effects.
+
+Implementation: filename constants live in
+[`core/common/user_config.py`](../../../core/common/user_config.py)
+(`_config_path()` → `config.ini`, `PROJECT_CONFIG_FILENAME` →
+`.tcl-lsp.ini`). Do not unify them.
+
 ## Escape hatch (not implemented)
 
 If a future user reports that they cannot put a personal override
