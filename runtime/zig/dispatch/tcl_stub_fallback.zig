@@ -88,10 +88,13 @@ const STUB_TRAP: []const []const u8 = &.{
     // Without the library source bundled we trap rather than silently
     // return empty — callers relying on these can install shims.
     "auto_mkindex_old",
+    "foreachLine",
     "parray",
     "pkg_mkindex",
     "pkg::create",
+    "readFile",
     "tcl_findLibrary",
+    "writeFile",
     // Regexp-quoting helpers — several aliases cover historical
     // spellings.
     "re_quote",

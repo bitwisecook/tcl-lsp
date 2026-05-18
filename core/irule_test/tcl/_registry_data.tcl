@@ -156,6 +156,7 @@ namespace eval ::tmm {
         classvariable
         coroutine
         dict
+        foreachLine
         lassign
         ledit
         lmap
@@ -172,10 +173,12 @@ namespace eval ::tmm {
         oo::objdefine
         oo::object
         oo::singleton
+        readFile
         self
         tailcall
         throw
         try
+        writeFile
         yield
         yieldto
         zlib

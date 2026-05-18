@@ -46,6 +46,7 @@ from . import (
     flush,  # noqa: F401
     for_,  # noqa: F401
     foreach_,  # noqa: F401
+    foreachline,  # noqa: F401
     format,  # noqa: F401
     gets,  # noqa: F401
     glob_,  # noqa: F401
@@ -95,6 +96,7 @@ from . import (
     puts_,  # noqa: F401
     re_quote,  # noqa: F401
     read,  # noqa: F401
+    readfile,  # noqa: F401
     regex__quote,  # noqa: F401
     regex_quote,  # noqa: F401
     regexp_,  # noqa: F401
@@ -129,6 +131,7 @@ from . import (
     variable,  # noqa: F401
     vwait,  # noqa: F401
     while_,  # noqa: F401
+    writefile,  # noqa: F401
     yield_,  # noqa: F401
     yieldto,  # noqa: F401
     zlib,  # noqa: F401

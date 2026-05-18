@@ -1183,6 +1183,50 @@ class _Lowerer:
             raw_args=tuple(args),
         )
 
+    def _lower_foreachline(self, cmd: _Command, *, namespace: str) -> IRForeach | IRBarrier:
+        # foreachLine varName filename body (Tcl 9.0+, TIP 670).  The
+        # body executes once per line with varName set, so the analysis
+        # shape matches a single-iterator foreach.  We leave raw_args
+        # empty so the CFG builder bypasses the opaque-rewrite paths
+        # (used for ``dict for`` etc.) and recursively lowers the body
+        # — variables assigned inside the loop body then propagate to
+        # the enclosing scope just like plain ``foreach``.
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if len(args) != 3:
+            return IRBarrier(
+                range=cmd.range,
+                reason="malformed foreachLine",
+                command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
+                args=tuple(args),
+                tokens=cmd.cmd_tokens,
+            )
+
+        body_idx = 2
+        body_tok = arg_tokens[body_idx] if body_idx < len(arg_tokens) else None
+        if body_tok is None or not (body_idx < len(arg_single) and arg_single[body_idx]):
+            return IRBarrier(
+                range=cmd.range,
+                reason="foreachLine with dynamic body",
+                command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
+                args=tuple(args),
+                tokens=cmd.cmd_tokens,
+            )
+
+        var_names = _parse_param_names(args[0])
+        body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+
+        return IRForeach(
+            range=cmd.range,
+            iterators=((var_names, args[1]),),
+            body=body_script,
+            body_range=range_from_token(body_tok),
+            raw_args=(),
+        )
+
     def _lower_catch(self, cmd: _Command, *, namespace: str) -> IRCatch | IRBarrier:
         args = cmd.args
         arg_tokens = cmd.arg_tokens
@@ -2362,6 +2406,9 @@ class _Lowerer:
 
             case "lmap":
                 return self._lower_foreach(cmd, namespace=namespace, is_lmap=True)
+
+            case "foreachLine":
+                return self._lower_foreachline(cmd, namespace=namespace)
 
             case "catch":
                 return self._lower_catch(cmd, namespace=namespace)
