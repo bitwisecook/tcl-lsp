@@ -2030,6 +2030,30 @@ class _Lowerer:
         match cmd_name:
             case "proc" if len(args) == 3 and len(arg_tokens) >= 3:
                 proc_name = args[0]
+                # Empty-simple-name procs (``proc ::ns:: {args} {body}``):
+                # Tcl 9 lets a trailing ``::`` register a command named
+                # ``""`` inside the target namespace
+                # (``TclGetNamespaceForQualName`` returns simpleName=""
+                # rather than NULL for trailing colons on cmd/var
+                # lookups — see tclNamesp.c:2493).  Our static
+                # name-normaliser strips the trailing colons (since
+                # ``"a::".split("::")`` filters the empty trailing
+                # element), so an AOT-lifted empty-name proc would
+                # register under the namespace name itself.  Route the
+                # whole shape through the runtime ``proc`` builtin —
+                # ``proc_register`` accepts ``simple_len == 0`` natively
+                # and ``ns_find_command`` matches trailing ``::`` on
+                # lookup.  Carries namespace-old-1.27 / 2.1 / 2.2 and
+                # namespace-14.11.
+                if proc_name.endswith("::"):
+                    return IRBarrier(
+                        range=cmd.range,
+                        reason="empty-simple-name proc",
+                        command=cmd_name,
+                        canonical_command=self._canonicalise_command(cmd_name, namespace),
+                        args=tuple(args),
+                        tokens=cmd.cmd_tokens,
+                    )
                 # Dynamic proc names (containing $ or [) can only be
                 # resolved at runtime in general — BUT if the name is a
                 # bare ``$var`` and ``var`` is in the lowering

@@ -2119,31 +2119,64 @@ pub export fn local_set(name: i32, value: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
+        // Promote borrowed (parser-produced) string TclObjs to
+        // owning copies before the slot retains them.  Matches the
+        // var_set_scalar guard — see that function's docstring for
+        // the buffer-recycle scenario this avoids (cmdAH cascade).
+        const stored = ensure_local_obj_owned(value);
+        // When ``ensure_local_obj_owned`` minted a fresh copy, that
+        // copy arrives at rc=1 — already exactly the slot's share.
+        // Only retain when we kept the caller's original handle
+        // (parser-side release will balance that retain).
+        const needs_retain = (stored != 0 and stored == value);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + OFF_VALUE);
-            if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
-            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
+            if (v == ALIAS_GLOBAL) return globals.global_set(name, stored);
+            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, stored);
             // MM-B.3 refcount discipline: the frame slot owns a
             // reference to its value.  Retain the new value, release
             // the old one.  Without this the slot's hold is "free"
             // and the parser-side release at end-of-statement
             // (MM-B.4) would free param values out from under the
             // running proc body.
-            if (value != 0) obj.tcl_obj_retain(value);
-            write_i32(bucket + OFF_VALUE, value);
-            if (v != 0 and v != value) obj.tcl_obj_release(v);
-            fire_local_trace(sn.ptr, sn.len, value);
-            return value;
+            if (needs_retain) obj.tcl_obj_retain(stored);
+            write_i32(bucket + OFF_VALUE, stored);
+            if (v != 0 and v != stored) obj.tcl_obj_release(v);
+            fire_local_trace(sn.ptr, sn.len, stored);
+            return stored;
         }
         // Fresh insert — retain the new value (no old to release).
-        if (value != 0) obj.tcl_obj_retain(value);
-        frame_insert(base, sn.ptr, sn.len, hash, value);
-        fire_local_trace(sn.ptr, sn.len, value);
-        return value;
+        if (needs_retain) obj.tcl_obj_retain(stored);
+        frame_insert(base, sn.ptr, sn.len, hash, stored);
+        fire_local_trace(sn.ptr, sn.len, stored);
+        return stored;
     }
     // No frame active — set global (var_set_scalar handles
     // refcount on its end via MM-B.2).
     return globals.global_set(name, value);
+}
+
+/// Promote a possibly-borrowing string TclObj to an owning copy.
+/// Mirrors :func:`tcl_ns.ensure_var_obj_owned` — same rationale:
+/// parser-produced word TclObjs borrow bytes from the surrounding
+/// script source, and a long-lived variable slot must materialise
+/// its own copy so that buffer recycling can't surface as garbage
+/// reads later.  Non-string types and already-owning strings pass
+/// through unchanged.
+fn ensure_local_obj_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    // S6.4 — tagged immediates have no header to read.  See
+    // :func:`tcl_ns.ensure_var_obj_owned` for the rationale.
+    if (obj.is_immediate(o)) return o;
+    const addr: u32 = @bitCast(o);
+    const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+    if (tag != obj.TYPE_STRING) return o;
+    const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_LEN));
+    if (sptr == 0 or slen == 0) return o;
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 /// Phase 6 follow-up: fire any matching frame-local WRITE / UNSET
@@ -2176,18 +2209,21 @@ pub export fn local_set_silent(name: i32, value: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
+        const stored = ensure_local_obj_owned(value);
+        // Conditional retain — see local_set for the explanation.
+        const needs_retain = (stored != 0 and stored == value);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + OFF_VALUE);
-            if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
-            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
-            if (value != 0) obj.tcl_obj_retain(value);
-            write_i32(bucket + OFF_VALUE, value);
-            if (v != 0 and v != value) obj.tcl_obj_release(v);
-            return value;
+            if (v == ALIAS_GLOBAL) return globals.global_set(name, stored);
+            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, stored);
+            if (needs_retain) obj.tcl_obj_retain(stored);
+            write_i32(bucket + OFF_VALUE, stored);
+            if (v != 0 and v != stored) obj.tcl_obj_release(v);
+            return stored;
         }
-        if (value != 0) obj.tcl_obj_retain(value);
-        frame_insert(base, sn.ptr, sn.len, hash, value);
-        return value;
+        if (needs_retain) obj.tcl_obj_retain(stored);
+        frame_insert(base, sn.ptr, sn.len, hash, stored);
+        return stored;
     }
     return globals.global_set(name, value);
 }

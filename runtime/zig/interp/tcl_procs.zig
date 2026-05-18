@@ -308,13 +308,24 @@ pub fn alloc_command_export(name_ptr: u32, name_len: u32) u32 {
 /// return the existing ``*Command`` from that ns's ``cmd_table`` if
 /// any, plus the resolution result so the insert path can use it
 /// without re-walking.  ``existing == 0`` for a fresh registration.
+///
+/// Empty simple names are valid for command registration — trailing
+/// ``::`` on a proc name (``proc test_ns::``) creates a command
+/// named ``""`` inside ``test_ns``, mirroring Tcl 9's behaviour
+/// (``TclGetNamespaceForQualName`` returns simpleName="" not NULL
+/// for trailing colons on cmd/var lookups).  The hash table backing
+/// the cmd_table handles empty keys natively (see ``hash_table.zig``
+/// — empty-key find short-circuits on ``el == 0``, insert allocates
+/// a non-zero size-class buffer so ``ep != 0``).  We do still
+/// require ``target_ns != 0`` — a missing intermediate namespace
+/// can't be patched up here.
 fn resolve_for_register(name_ptr: u32, name_len: u32) struct {
     r: tcl_ns.QualifiedResult,
     existing: u32,
 } {
     const cxt = tcl_ns.ns_current();
     const r = tcl_ns.ns_resolve_qualified_creating(cxt, name_ptr, name_len);
-    if (r.target_ns == 0 or r.simple_len == 0) return .{ .r = r, .existing = 0 };
+    if (r.target_ns == 0) return .{ .r = r, .existing = 0 };
     const existing = tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
     return .{ .r = r, .existing = existing };
 }
@@ -367,7 +378,7 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const n_params = obj.list_count_elements(sp.ptr, sp.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
-    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return obj_new_int(0);
+    if (ctx.r.target_ns == 0) return obj_new_int(0);
 
     var cmd: u32 = ctx.existing;
     if (cmd == 0) {
@@ -567,21 +578,18 @@ pub export fn proc_register_compiled(
 /// original ``{p1 ?p2default? ... args}`` source list.  Codegen
 /// emits a call to this right after :func:`proc_set_body_source` in
 /// the compiled-proc registration prologue.
-/// Transfer-ownership variant: the caller hands over its rc=1
-/// reference and does **NOT** release after the call.  This sidesteps
-/// the cmdAH-cascade trap that ``tcl_obj_retain`` at module init
-/// triggers (root cause not yet pinned, but the empirical signature
-/// is that even one extra retain per proc-register at init breaks
-/// tcltest's bootstrap ``file mkdir`` — see the codegen comments
-/// for the matching "no caller release" pattern).
-/// Raw-bytes variant of params source stash.  Stores the data-
-/// segment ``(ptr, len)`` of the proc's params spec in
+///
+/// Raw-bytes variant of the params source stash.  Stores the
+/// data-segment ``(ptr, len)`` of the proc's params spec in
 /// ``OFF_PARAMS_SRC_*`` so ``info args`` / ``info default`` can
-/// materialise a fresh TclObj on demand.  Avoids the
-/// ``tcl_obj_retain`` cascade that hits tcltest's bootstrap when
-/// any extra retain runs at module-init time per proc — the bytes
-/// live in immutable WASM data segments and need neither retain
-/// nor release.
+/// materialise a fresh TclObj on demand.  The bytes live in the
+/// immutable WASM data segment and need neither retain nor release,
+/// which keeps the per-proc init prologue allocation-free for the
+/// params sidecar — useful at scale (cmdAH has ~300 compiled procs).
+/// The corresponding TclObj-passing variant
+/// (``proc_set_params_source``) is retained as well for callers
+/// that already hold an owning handle (interpreted-proc paths,
+/// runtime re-register).
 pub export fn proc_set_params_source_raw(
     name_ptr: i32,
     name_len: i32,
@@ -591,8 +599,8 @@ pub export fn proc_set_params_source_raw(
     if (name_ptr == 0 or name_len <= 0) return obj_new_int(0);
     if (params_ptr == 0 or params_len <= 0) return obj_new_int(0);
     // Look up the proc bucket directly by raw bytes — no TclObj
-    // allocation happens here.  Avoids the cmdAH-cascade trap that
-    // per-proc TclObj allocs at module init trigger.
+    // allocation, no retain.  Keeps the per-proc init prologue
+    // a sequence of plain ``i32.const`` + ``call`` instructions.
     const cmd_addr = tcl_ns.ns_find_command(
         tcl_ns.ns_current(),
         @bitCast(name_ptr),

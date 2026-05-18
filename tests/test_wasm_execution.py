@@ -3827,17 +3827,15 @@ set ::result $msg
         )
         assert result == b'bad level "1"'
 
-    def test_info_default_on_compiled_proc_raises_error(self):
+    def test_info_default_on_compiled_proc_missing_arg(self):
         """End-to-end, user procs reach this path as compiled procs
         (the WASM compiler routes every top-level ``proc`` through
-        ``proc_register_compiled``).  ``info default`` refuses
-        compiled procs with the same ``"X" isn't a procedure``
-        wording it uses for aliases and missing commands — the
-        compiled form has no retrievable params list.  The
-        ``"procedure \"X\" doesn't have an argument \"Y\""`` error
-        shape is still reachable for interpreted procs registered
-        via the runtime ``proc_register`` path (covered in
-        ``tests/runtime/test_tcl_info.py``)."""
+        ``proc_register_compiled``).  ``info default`` resolves
+        compiled procs via the raw-bytes params sidecar
+        (``proc_set_params_source_raw`` stashes the source spec at
+        registration time); a missing argument name surfaces the
+        canonical ``procedure "X" doesn't have an argument "Y"``
+        error rather than treating compiled procs as opaque."""
         result = self._run_and_read_global(
             """\
 proc p1 {a b} {}
@@ -3846,7 +3844,7 @@ set ::result $msg
 """,
             "::result",
         )
-        assert result == b'"p1" isn\'t a procedure'
+        assert result == b'procedure "p1" doesn\'t have an argument "missing_arg"'
 
 
 def _read_global_string(
