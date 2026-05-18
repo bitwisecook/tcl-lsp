@@ -49,13 +49,11 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("lsearch", None, "-inline"): "lsearch -inline {a} a",
     ("lsearch", None, "-not"): "lsearch -not {a b} a",
     ("lsearch", None, "-start"): "lsearch -start 0 {a b} b",
-
     # ---- lsort ----
     ("lsort", None, "-stride"): "lsort -stride 2 {a 1 b 2}",
     ("lsort", None, "-indices"): "lsort -indices {a b c}",
     ("lsort", None, "-unique"): "lsort -unique {a b c}",
     ("lsort", None, "-command"): "lsort -command {string compare} {a b c}",
-
     # ---- regsub ----
     ("regsub", None, "-command"): "regsub -command {a} {abc} {string toupper}",
     ("regsub", None, "-expanded"): "regsub -expanded {a} {abc} X",
@@ -64,7 +62,6 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("regsub", None, "-lineanchor"): "regsub -lineanchor {a} {abc} X",
     ("regsub", None, "-all"): "regsub -all {a} {aaa} X",
     ("regsub", None, "-start"): "regsub -start 0 {a} {abc} X",
-
     # ---- regexp ----
     ("regexp", None, "-expanded"): "regexp -expanded {a} {abc}",
     ("regexp", None, "-line"): "regexp -line {a} {abc}",
@@ -75,11 +72,9 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("regexp", None, "-indices"): "regexp -indices {a} {abc}",
     ("regexp", None, "-start"): "regexp -start 0 {a} {abc}",
     ("regexp", None, "-about"): "regexp -about {a}",
-
     # ---- exec ----
     ("exec", None, "-ignorestderr"): "exec -ignorestderr -- echo hi",
     ("exec", None, "-keepnewline"): "exec -keepnewline -- echo hi",
-
     # ---- glob ----
     ("glob", None, "-directory"): "glob -directory /tmp -nocomplain *",
     ("glob", None, "-join"): "glob -join -nocomplain /tmp *",
@@ -87,27 +82,60 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("glob", None, "-tails"): "glob -tails -directory /tmp -nocomplain *",
     ("glob", None, "-types"): "glob -types f -directory /tmp -nocomplain *",
     ("glob", None, "-nocomplain"): "glob -nocomplain /nonexistent/x/*",
-
     # ---- file copy / delete / rename / link ----
     ("file", "copy", "-force"): "file copy -force -- /tmp/_audit_a /tmp/_audit_b",
     ("file", "delete", "-force"): "file delete -force -- /tmp/_audit_z",
     ("file", "rename", "-force"): "file rename -force -- /tmp/_audit_a /tmp/_audit_c",
     ("file", "link", "-symbolic"): "file link -symbolic /tmp/_audit_link /tmp/_audit_target",
     ("file", "link", "-hard"): "file link -hard /tmp/_audit_link /tmp/_audit_target",
-
     # ---- chan / fconfigure (channel options) ----
     # These need a real channel; using a memory channel via [open] on a tempfile.
-    ("fconfigure", None, "-blocking"): "set f [open /tmp/_audit_ch w]; fconfigure $f -blocking 0; close $f",
-    ("fconfigure", None, "-buffering"): "set f [open /tmp/_audit_ch w]; fconfigure $f -buffering line; close $f",
-    ("fconfigure", None, "-buffersize"): "set f [open /tmp/_audit_ch w]; fconfigure $f -buffersize 4096; close $f",
-    ("fconfigure", None, "-encoding"): "set f [open /tmp/_audit_ch w]; fconfigure $f -encoding utf-8; close $f",
-    ("fconfigure", None, "-eofchar"): "set f [open /tmp/_audit_ch w]; fconfigure $f -eofchar {}; close $f",
-    ("fconfigure", None, "-translation"): "set f [open /tmp/_audit_ch w]; fconfigure $f -translation auto; close $f",
-    ("fconfigure", None, "-profile"): "set f [open /tmp/_audit_ch w]; fconfigure $f -profile strict; close $f",
-    ("fconfigure", None, "-keepalive"): "set s [socket -server {} -myaddr 127.0.0.1 0]; set p [lindex [fconfigure $s -sockname] 2]; set c [socket 127.0.0.1 $p]; fconfigure $c -keepalive 1; close $c; close $s",
-    ("fconfigure", None, "-nodelay"): "set s [socket -server {} -myaddr 127.0.0.1 0]; set p [lindex [fconfigure $s -sockname] 2]; set c [socket 127.0.0.1 $p]; fconfigure $c -nodelay 1; close $c; close $s",
+    (
+        "fconfigure",
+        None,
+        "-blocking",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -blocking 0; close $f",
+    (
+        "fconfigure",
+        None,
+        "-buffering",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -buffering line; close $f",
+    (
+        "fconfigure",
+        None,
+        "-buffersize",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -buffersize 4096; close $f",
+    (
+        "fconfigure",
+        None,
+        "-encoding",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -encoding utf-8; close $f",
+    (
+        "fconfigure",
+        None,
+        "-eofchar",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -eofchar {}; close $f",
+    (
+        "fconfigure",
+        None,
+        "-translation",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -translation auto; close $f",
+    (
+        "fconfigure",
+        None,
+        "-profile",
+    ): "set f [open /tmp/_audit_ch w]; fconfigure $f -profile strict; close $f",
+    (
+        "fconfigure",
+        None,
+        "-keepalive",
+    ): "set s [socket -server {} -myaddr 127.0.0.1 0]; set p [lindex [fconfigure $s -sockname] 2]; set c [socket 127.0.0.1 $p]; fconfigure $c -keepalive 1; close $c; close $s",
+    (
+        "fconfigure",
+        None,
+        "-nodelay",
+    ): "set s [socket -server {} -myaddr 127.0.0.1 0]; set p [lindex [fconfigure $s -sockname] 2]; set c [socket 127.0.0.1 $p]; fconfigure $c -nodelay 1; close $c; close $s",
     ("fconfigure", None, "-inputmode"): "fconfigure stdin -inputmode normal",
-
     # ---- clock scan options ----
     ("clock", "scan", "-base"): "clock scan now -base 0",
     ("clock", "scan", "-format"): "clock scan {2020-01-01} -format {%Y-%m-%d}",
@@ -115,21 +143,33 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("clock", "scan", "-locale"): "clock scan {2020-01-01} -locale C -format {%Y-%m-%d}",
     ("clock", "scan", "-timezone"): "clock scan {2020-01-01} -timezone :UTC -format {%Y-%m-%d}",
     ("clock", "scan", "-validate"): "clock scan {2020-13-01} -validate 0 -format {%Y-%m-%d}",
-
     # ---- socket ----
     ("socket", None, "-async"): "set s [socket -async 127.0.0.1 1]; close $s",
     ("socket", None, "-myaddr"): "set s [socket -server {} -myaddr 127.0.0.1 0]; close $s",
-    ("socket", None, "-myport"): "set s [socket -server {} -myport 0 -myaddr 127.0.0.1 0]; close $s",
+    (
+        "socket",
+        None,
+        "-myport",
+    ): "set s [socket -server {} -myport 0 -myaddr 127.0.0.1 0]; close $s",
     ("socket", None, "-server"): "set s [socket -server {} -myaddr 127.0.0.1 0]; close $s",
-    ("socket", None, "-reuseaddr"): "set s [socket -server {} -reuseaddr 1 -myaddr 127.0.0.1 0]; close $s",
-    ("socket", None, "-reuseport"): "set s [socket -server {} -reuseport 1 -myaddr 127.0.0.1 0]; close $s",
-
+    (
+        "socket",
+        None,
+        "-reuseaddr",
+    ): "set s [socket -server {} -reuseaddr 1 -myaddr 127.0.0.1 0]; close $s",
+    (
+        "socket",
+        None,
+        "-reuseport",
+    ): "set s [socket -server {} -reuseport 1 -myaddr 127.0.0.1 0]; close $s",
     # ---- source ----
-    ("source", None, "-encoding"): "set f [open /tmp/_audit_src w]; close $f; source -encoding utf-8 /tmp/_audit_src",
-
+    (
+        "source",
+        None,
+        "-encoding",
+    ): "set f [open /tmp/_audit_src w]; close $f; source -encoding utf-8 /tmp/_audit_src",
     # ---- unset ----
     ("unset", None, "-nocomplain"): "unset -nocomplain ::nonexistent_var_42",
-
     # ---- string compare/equal ----
     ("string", "compare", "-nocase"): "string compare -nocase A a",
     ("string", "compare", "-length"): "string compare -length 1 ab ac",
@@ -139,50 +179,69 @@ PROBES: dict[tuple[str, str | None, str], str] = {
     ("string", "is", "-failindex"): "string is integer -failindex foo 12X",
     ("string", "map", "-nocase"): "string map -nocase {A B} aA",
     ("string", "match", "-nocase"): "string match -nocase A a",
-
     # ---- switch ----
     ("switch", None, "-exact"): "switch -exact a {a {set x 1}}",
     ("switch", None, "-glob"): "switch -glob a {a* {set x 1}}",
     ("switch", None, "-regexp"): "switch -regexp a {{^a$} {set x 1}}",
     ("switch", None, "-nocase"): "switch -nocase A {a {set x 1}}",
     ("switch", None, "-matchvar"): "switch -regexp -matchvar m a {{(.*)} {set x 1}}",
-
     # ---- subst ----
     ("subst", None, "-nobackslashes"): "subst -nobackslashes {\\n}",
     ("subst", None, "-nocommands"): "subst -nocommands {[set x]}",
     ("subst", None, "-novariables"): "subst -novariables {\\$x}",
-
     # ---- interp ----
     ("interp", "create", "-safe"): "set i [interp create -safe]; interp delete $i",
     ("interp", "cancel", "-unwind"): "set i [interp create]; interp cancel -unwind -- $i {}",
-    ("interp", "invokehidden", "-global"): "set i [interp create]; interp hide $i set; interp invokehidden $i -global set x 1; interp delete $i",
-    ("interp", "invokehidden", "-namespace"): "set i [interp create]; interp hide $i set; interp invokehidden $i -namespace :: set x 1; interp delete $i",
-
+    (
+        "interp",
+        "invokehidden",
+        "-global",
+    ): "set i [interp create]; interp hide $i set; interp invokehidden $i -global set x 1; interp delete $i",
+    (
+        "interp",
+        "invokehidden",
+        "-namespace",
+    ): "set i [interp create]; interp hide $i set; interp invokehidden $i -namespace :: set x 1; interp delete $i",
     # ---- package ----
     ("package", "present", "-exact"): "catch {package present -exact Tcl 9.0}",
     ("package", "require", "-exact"): "catch {package require -exact Tcl 9.0}",
-
     # ---- puts ----
     ("puts", None, "-nonewline"): "puts -nonewline {}",
-
     # ---- load ----
     ("load", None, "-global"): "catch {load -global /nonexistent}",
     ("load", None, "-lazy"): "catch {load -lazy /nonexistent}",
-
     # ---- unload ----
     ("unload", None, "-nocomplain"): "catch {unload -nocomplain /nonexistent}",
     ("unload", None, "-keeplibrary"): "catch {unload -keeplibrary /nonexistent}",
-
     # ---- encoding ----
     ("encoding", None, "-profile"): "catch {encoding convertfrom -profile strict utf-8 hi}",
-
     # ---- vwait (Tcl 9.0 added many) ----
     ("vwait", None, "-all"): "after 1 {set ::vw 1}; catch {vwait -all -timeout 100 -variable ::vw}",
-    ("vwait", None, "-extended"): "after 1 {set ::vw 1}; catch {vwait -extended -timeout 100 -variable ::vw}",
-    ("vwait", None, "-nofileevents"): "after 1 {set ::vw 1}; catch {vwait -nofileevents -timeout 100 -variable ::vw}",
-    ("vwait", None, "-noidleevents"): "after 1 {set ::vw 1}; catch {vwait -noidleevents -timeout 100 -variable ::vw}",
-    ("vwait", None, "-notimerevents"): "after 1 {set ::vw 1}; catch {vwait -notimerevents -timeout 100 -variable ::vw}",
-    ("vwait", None, "-nowindowevents"): "after 1 {set ::vw 1}; catch {vwait -nowindowevents -timeout 100 -variable ::vw}",
+    (
+        "vwait",
+        None,
+        "-extended",
+    ): "after 1 {set ::vw 1}; catch {vwait -extended -timeout 100 -variable ::vw}",
+    (
+        "vwait",
+        None,
+        "-nofileevents",
+    ): "after 1 {set ::vw 1}; catch {vwait -nofileevents -timeout 100 -variable ::vw}",
+    (
+        "vwait",
+        None,
+        "-noidleevents",
+    ): "after 1 {set ::vw 1}; catch {vwait -noidleevents -timeout 100 -variable ::vw}",
+    (
+        "vwait",
+        None,
+        "-notimerevents",
+    ): "after 1 {set ::vw 1}; catch {vwait -notimerevents -timeout 100 -variable ::vw}",
+    (
+        "vwait",
+        None,
+        "-nowindowevents",
+    ): "after 1 {set ::vw 1}; catch {vwait -nowindowevents -timeout 100 -variable ::vw}",
     ("vwait", None, "-readable"): "catch {vwait -readable stdin -timeout 1}",
     ("vwait", None, "-timeout"): "after 1 {set ::vw 1}; catch {vwait -timeout 100 -variable ::vw}",
     ("vwait", None, "-variable"): "after 1 {set ::vw 1}; vwait ::vw",
@@ -276,7 +335,11 @@ def main() -> int:
         all_versions = set(TCL_DIRS.keys())
         supported = set(entry["supported_in"])
         if supported != all_versions:
-            label = entry["command"] + (f" {entry['subcommand']}" if entry["subcommand"] else "") + f" {entry['option']}"
+            label = (
+                entry["command"]
+                + (f" {entry['subcommand']}" if entry["subcommand"] else "")
+                + f" {entry['option']}"
+            )
             print(f"  {label:50s}  {sorted(supported)}")
 
     return 0
