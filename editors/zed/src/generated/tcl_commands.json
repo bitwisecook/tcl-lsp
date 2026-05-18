@@ -46,6 +46,16 @@
       "summary": "Return compile-time build metadata for the Tcl runtime."
     },
     {
+      "name": "::tcl::idna",
+      "summary": "Internationalised Domain Name (IDNA/Punycode) helpers.",
+      "subcommands": [
+        "decode",
+        "encode",
+        "puny",
+        "version"
+      ]
+    },
+    {
       "name": "::tcl::mathop::!",
       "summary": "logical NOT (unary)"
     },
@@ -156,6 +166,16 @@
     {
       "name": "::tcl::mathop::~",
       "summary": "bitwise NOT (unary)"
+    },
+    {
+      "name": "::tcl::process",
+      "summary": "Manage subprocesses started by exec / open |cmd.",
+      "subcommands": [
+        "autopurge",
+        "list",
+        "purge",
+        "status"
+      ]
     },
     {
       "name": "::tcl::unsupported::corotype",
@@ -393,6 +413,14 @@
     {
       "name": "continue",
       "summary": "Skip to the next iteration of a loop"
+    },
+    {
+      "name": "coroinject",
+      "summary": "Inject a command into a suspended coroutine."
+    },
+    {
+      "name": "coroprobe",
+      "summary": "Execute a command in the context of a suspended coroutine."
     },
     {
       "name": "coroutine",
@@ -753,6 +781,10 @@
     {
       "name": "foreach",
       "summary": "Iterate over list elements with one or more loop variables."
+    },
+    {
+      "name": "foreachLine",
+      "summary": "Iterate over the lines of a text file, one line at a time."
     },
     {
       "name": "format",
@@ -1174,6 +1206,10 @@
     {
       "name": "logger::walk",
       "summary": "Walk the logger tree applying a command to each service."
+    },
+    {
+      "name": "lpop",
+      "summary": "Get and remove an element in a list variable."
     },
     {
       "name": "lrange",
@@ -1778,6 +1814,10 @@
       "summary": "Read from a channel"
     },
     {
+      "name": "readFile",
+      "summary": "Read the contents of a file and return them."
+    },
+    {
       "name": "regex::quote",
       "summary": "Escape regex metacharacters in a string."
     },
@@ -2050,6 +2090,16 @@
       "summary": "Return compile-time build metadata for the Tcl runtime."
     },
     {
+      "name": "tcl::idna",
+      "summary": "Internationalised Domain Name (IDNA/Punycode) helpers.",
+      "subcommands": [
+        "decode",
+        "encode",
+        "puny",
+        "version"
+      ]
+    },
+    {
       "name": "tcl::idna::decode",
       "summary": "Decode a hostname from IDNA format to Unicode.",
       "pure": true
@@ -2170,6 +2220,16 @@
     {
       "name": "tcl::mathop::~",
       "summary": "bitwise NOT (unary)"
+    },
+    {
+      "name": "tcl::process",
+      "summary": "Manage subprocesses started by exec / open |cmd.",
+      "subcommands": [
+        "autopurge",
+        "list",
+        "purge",
+        "status"
+      ]
     },
     {
       "name": "tcl::tm::path",
@@ -2996,6 +3056,10 @@
     {
       "name": "while",
       "summary": "Execute script repeatedly as long as a condition is met"
+    },
+    {
+      "name": "writeFile",
+      "summary": "Write contents to a file."
     },
     {
       "name": "yaml::dict2yaml",
