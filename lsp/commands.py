@@ -353,10 +353,19 @@ def on_get_effective_config(uri: str | None = None) -> dict:
             "library_paths": list[str],      # resolved
             "line_length": int,
             "dialect_explicitly_set": bool,
+            "features": dict[str, bool],     # resolved feature toggles, camelCase keys
             "known_folder_uris": list[str],
         }``
+
+    ``features`` mirrors the ``[features]`` INI / ``tclLsp.features.*``
+    editor namespace and is keyed by the camelCase setting name
+    (``hover``, ``selectionRange``, ``inlayHints``, …).  Tests can poll
+    this command after a ``tclLsp.features.X = false`` config change to
+    confirm the server has applied the toggle, rather than sleeping on
+    wall-clock time.
     """
     from core.common.dialect import active_dialect
+    from lsp.settings import _FEATURE_TOGGLE_KEYS
 
     cfg = _state.config_for_uri(uri)
     fallback = _state.feature_config
@@ -386,6 +395,12 @@ def on_get_effective_config(uri: str | None = None) -> dict:
         resolved_library_paths = []
     resolved_non_ascii = cfg.non_ascii_mode or fallback.non_ascii_mode
 
+    features = {
+        camel: bool(getattr(cfg, attr))
+        for camel, attr in _FEATURE_TOGGLE_KEYS.items()
+        if hasattr(cfg, attr)
+    }
+
     return {
         "uri": uri or "",
         "folder_uri": folder_uri,
@@ -395,6 +410,7 @@ def on_get_effective_config(uri: str | None = None) -> dict:
         "library_paths": resolved_library_paths,
         "line_length": cfg.line_length,
         "dialect_explicitly_set": cfg.dialect_explicitly_set,
+        "features": features,
         "known_folder_uris": list(_state.workspace_folder_uris()),
     }
 

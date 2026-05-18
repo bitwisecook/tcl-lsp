@@ -1,6 +1,13 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, sleep, waitForDiagnostics, setTestContent } from "./helper";
+import {
+  getDocUri,
+  activate,
+  sleep,
+  waitForDiagnostics,
+  waitForFeatureToggle,
+  setTestContent,
+} from "./helper";
 
 suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
@@ -892,7 +899,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("selectionRange", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "selectionRange", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeSelectionRangeProvider",

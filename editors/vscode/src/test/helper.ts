@@ -74,6 +74,41 @@ export async function waitForServerLog(
 }
 
 /**
+ * Poll ``tcl-lsp.getEffectiveConfig`` until the server reports that the
+ * requested feature toggle has been applied for ``docUri``'s folder,
+ * or until ``opts.timeout`` elapses.
+ *
+ * Use this instead of ``sleep(N)`` after a ``tclLsp.features.X = Y``
+ * config change.  The wait completes as soon as the server's resolved
+ * ``FeatureConfig`` matches, so the test does not depend on the
+ * debounce timer or the ``workspace/configuration`` round-trip
+ * latency.  Throws if the toggle does not settle in time.
+ */
+export async function waitForFeatureToggle(
+  docUri: vscode.Uri,
+  key: string,
+  expected: boolean,
+  opts?: { timeout?: number },
+): Promise<void> {
+  const timeout = opts?.timeout ?? 5_000;
+  const deadline = Date.now() + timeout;
+  let last: unknown = undefined;
+  while (Date.now() < deadline) {
+    const cfg = (await vscode.commands.executeCommand(
+      "tcl-lsp.getEffectiveConfig",
+      docUri.toString(),
+    )) as { features?: Record<string, boolean> } | undefined;
+    last = cfg?.features?.[key];
+    if (last === expected) return;
+    await sleep(50);
+  }
+  throw new Error(
+    `Timeout waiting for tclLsp.features.${key} = ${expected} ` +
+      `(last seen: ${JSON.stringify(last)})`,
+  );
+}
+
+/**
  * Open a document and wait for the language server to finish its initial
  * analysis. Returns the opened TextDocument.
  *
