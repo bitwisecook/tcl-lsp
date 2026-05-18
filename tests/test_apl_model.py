@@ -194,6 +194,46 @@ class TestIappVarExtraction:
 class TestIappCrossFileDiagnostics:
     """Tests for cross-file presentation ↔ implementation diagnostics."""
 
+    def setup_method(self) -> None:
+        """iApp diagnostics gate on dialect — set ``f5-iapps`` per test.
+
+        The production dispatcher in ``lsp/diagnostics_pipeline.py``
+        only invokes these validators when ``_is_apl_source(uri)`` is
+        true, which is correlated with the ``f5-iapps`` dialect.  These
+        unit tests exercise the validators directly so we configure the
+        dialect explicitly.  ``configure_signatures`` updates a
+        ``ContextVar``; the per-method hook ensures every test starts in
+        the right context regardless of pytest's collection order.
+        """
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-iapps")
+
+    def teardown_method(self) -> None:
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-irules")
+
+    def test_validators_silent_outside_iapp_dialects(self):
+        """IAPP7001/7002/7003 must not fire in plain Tcl / iRules dialects."""
+        from core.commands.registry.runtime import configure_signatures
+
+        apl_source = "section basic {\n    string addr\n}\n"
+        impl_source = "set port $::basic__port\n"  # undefined
+        model = parse_apl(apl_source)
+        refs = extract_iapp_var_refs(impl_source)
+        try:
+            for dialect in ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"):
+                configure_signatures(dialect=dialect)
+                impl_diags = validate_iapp_implementation(refs, model)
+                pres_diags = validate_iapp_presentation(model, refs)
+                iapp_codes = {d.code for d in impl_diags} | {d.code for d in pres_diags}
+                assert not (iapp_codes & {"IAPP7001", "IAPP7002", "IAPP7003"}), (
+                    f"IAPP* diagnostics leaked into {dialect}: {iapp_codes}"
+                )
+        finally:
+            configure_signatures(dialect="f5-iapps")
+
     def test_undefined_variable_diagnostic(self):
         apl_source = "section basic {\n    string addr\n}\n"
         impl_source = (
