@@ -1411,9 +1411,7 @@ class TestIrule5003:
                 configure_signatures(dialect=dialect)
                 result = analyse(src)
                 irule_5003 = [d for d in result.diagnostics if d.code == "IRULE5003"]
-                assert irule_5003 == [], (
-                    f"IRULE5003 must not fire in {dialect}; got {irule_5003}"
-                )
+                assert irule_5003 == [], f"IRULE5003 must not fire in {dialect}; got {irule_5003}"
         finally:
             configure_signatures(dialect="f5-irules")
 
