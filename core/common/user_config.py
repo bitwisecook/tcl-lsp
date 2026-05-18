@@ -351,9 +351,16 @@ def get_all_settings(
     copying a file between locations never silently changes its
     precedence layer.  ``kind=None`` skips both sections, which is the
     safe default for callers that do not know the file's origin.
+
+    When *config* is omitted, ``load_user_config()`` is called for the
+    convenience no-arg path; in that case *kind* defaults to
+    ``"global"`` because the file being parsed is unambiguously the
+    XDG ``config.ini``.
     """
     if config is None:
         config = load_user_config()
+        if kind is None:
+            kind = "global"
 
     result: dict[str, object] = {}
 

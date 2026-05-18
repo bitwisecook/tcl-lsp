@@ -180,6 +180,17 @@ class TestGlobalAndProjectSections:
         get_all_settings(config, kind="global")
         assert any("Ignored [project] section" in rec.message for rec in caplog.records)
 
+    def test_no_arg_path_treats_file_as_global(self, tmp_path, monkeypatch):
+        """``get_all_settings()`` with no arguments parses the global file
+        as ``kind="global"``; the convenience path must not silently
+        drop ``[global]`` top-level keys."""
+        cfg_dir = tmp_path / "tcl-lsp"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.ini").write_text("[global]\ndialect = tcl9.0\n")
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        result = get_all_settings()
+        assert result["dialect"] == "tcl9.0"
+
     def test_combined_with_other_sections(self):
         """Top-level keys coexist with the regular nested sections."""
         config = _config_from_string("[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n")
