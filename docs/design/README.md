@@ -225,6 +225,11 @@ are its rules, and what are the failure modes". One contract per file.
   detection priority chain.
 - [xdg-config.md](contracts/xdg-config.md) — XDG configuration file
   format reference.
+- [config-precedence.md](contracts/config-precedence.md) — precedence
+  rules between global, project, and editor configuration layers, the
+  survey of how other language servers handle the same question, and
+  the reference implementations we copied each piece of behaviour
+  from.
 
 ## Templates
 
