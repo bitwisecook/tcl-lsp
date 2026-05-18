@@ -154,12 +154,15 @@ namespace eval ::tmm {
 
     variable _gen_post84_commands {
         classvariable
+        coroinject
+        coroprobe
         coroutine
         dict
         foreachLine
         lassign
         ledit
         lmap
+        lpop
         lremove
         lseq
         my

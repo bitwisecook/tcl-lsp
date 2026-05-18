@@ -83,6 +83,9 @@ const STUB_TRAP: []const []const u8 = &.{
     "memory",
     "bgerror",
     // Tcl 9.0 additions missing in the WASM runtime.
+    "coroinject",
+    "coroprobe",
+    "lpop",
     "lremove",
     // Standard-library procs Tcl ships in ``library/*.tcl``.
     // Without the library source bundled we trap rather than silently

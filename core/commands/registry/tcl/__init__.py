@@ -28,6 +28,8 @@ from . import (
     concat,  # noqa: F401
     const,  # noqa: F401
     continue_,  # noqa: F401
+    coroinject,  # noqa: F401
+    coroprobe,  # noqa: F401
     coroutine,  # noqa: F401
     dict,  # noqa: F401
     disabled_in_irules,  # noqa: F401
@@ -65,6 +67,7 @@ from . import (
     llength,  # noqa: F401
     lmap,  # noqa: F401
     load,  # noqa: F401
+    lpop,  # noqa: F401
     lrange,  # noqa: F401
     lremove,  # noqa: F401
     lrepeat,  # noqa: F401
