@@ -22,34 +22,42 @@ sets the same key:
 1. **Global user config — XDG `config.ini`.** A single file in your
    home directory that applies to every workspace you open. Use it for
    your personal defaults.
-2. **Project config — `.tcl-lsp.ini` at the workspace root.** A
+2. **Editor settings.** Whatever the editor sends over
+   `workspace/configuration`, typically under the `tclLsp.*` namespace
+   (for example `tclLsp.dialect`, `tclLsp.optimiser.O109`). VS Code,
+   Neovim, Zed, Helix, Emacs, Sublime Text, and JetBrains each have
+   their own way of populating these. Use it for personal overrides on
+   one machine.
+3. **Project config — `.tcl-lsp.ini` at the workspace root.** A
    per-project INI file committed with the source. Every developer who
    opens the project picks the same rules up, and they survive
-   switching editors. Use it for team-wide conventions.
-3. **Editor settings (non-default values only).** Whatever the editor
-   sends over `workspace/configuration`, typically under the `tclLsp.*`
-   namespace (for example `tclLsp.dialect`, `tclLsp.optimiser.O109`).
-   VS Code, Neovim, Zed, Helix, Emacs, Sublime Text, and JetBrains
-   each have their own way of populating these. Use it for the
-   override you want right now, on this machine, in this editor.
+   switching editors. Use it for team-wide conventions — and because
+   it sits at the top of the precedence chain, project config wins
+   even when a developer has a conflicting setting in their editor.
 
-The merge is per-key inside each section, so an editor setting that
+The merge is per-key inside each section, so a project config that
 pins `[optimiser] disabled = O109` still inherits `[optimiser] profile
-= readability` from the project or global config.
+= readability` from the editor or global config.
 
-### Why editor settings only override for non-default values
+### Why project config wins over editor settings
 
-Editors like VS Code respond to `workspace/configuration` by echoing
-back the schema default for every key the user has not explicitly set.
-If the server treated the schema default as if it were an explicit
-override, every team setting in `.tcl-lsp.ini` would be silently
-shadowed by the editor's default. To avoid that, the server only lets
-an editor value override the project layer when it differs from the
-schema default — an explicit user choice wins, an unset key does not.
+We copied this rule from **Pyright** (the Python language server
+behind Pylance), which silently overrides `python.analysis.*` editor
+settings whenever `pyrightconfig.json` or `pyproject.toml` is present.
+The TypeScript language server, ESLint, and clangd all follow the
+same convention for the same reason: the file checked into source
+control is authoritative, so what runs in CI agrees with what runs in
+everyone's editor. We surveyed how other mature language servers
+handle this and chose the convention with the fewest surprises — see
+[`docs/design/contracts/config-precedence.md`](../design/contracts/config-precedence.md)
+for the full rationale, the survey, and a list of which specific
+behaviours we copied from which tool.
 
-This means a project `.tcl-lsp.ini` is the team's authoritative
-default, and any developer who wants to override it adds an explicit
-non-default value to their editor settings.
+If you want a personal override of a setting your team has pinned in
+`.tcl-lsp.ini`, the project file is the wrong layer to fight. Edit
+`.tcl-lsp.ini` itself (and discuss the change with the team), or set
+the override in your editor and add the same key to the project file's
+local-only ignore list.
 
 In addition to these three configuration layers, two **document-level
 directives** apply on top of the merged config for a single file:
@@ -138,6 +146,66 @@ documented in
 So a `# tcl-dialect:` comment overrides any config file, and a recognised
 file extension overrides the user setting. Use the config file to choose
 the **default** dialect for files that have neither.
+
+### How to figure out where a setting is coming from
+
+When the analyser does something you did not expect for a specific
+file, trace it back through the four places it could be coming from,
+in this order:
+
+**1. Ask the server for the resolved value.** The server exposes a
+`tcl-lsp.getEffectiveConfig` command over `workspace/executeCommand`.
+Pass the URI of the file you are looking at and it returns the
+resolved `dialect`, `extra_commands`, `library_paths`, `line_length`,
+and the URI of the workspace folder the file matched. This is the
+single most reliable way to see what the server is actually applying:
+
+```jsonc
+// VS Code: open the Command Palette and run "Developer: Inspect
+// Context Keys", or run from a script:
+await vscode.commands.executeCommand(
+  "tcl-lsp.getEffectiveConfig",
+  vscode.window.activeTextEditor.document.uri.toString()
+);
+```
+
+Other editors expose `workspace/executeCommand` through their LSP
+client API — the Neovim, Emacs, and Sublime Text READMEs each show
+the local invocation.
+
+**2. Read the server log channel.** Open the **Tcl Language Server**
+output channel in VS Code (or your editor's equivalent). On every
+load and every config change the server logs `Loaded user config
+from <path>` and `Loaded project config from <path>`. If a `.tcl-lsp.ini`
+you expected to apply is missing from the log, the server did not
+find it — check the workspace folder and the file name.
+
+**3. Walk the layers manually, top-down.** If the resolved value is
+still surprising, check each source from highest priority to lowest:
+
+1. **Project file** at `<workspace-folder>/.tcl-lsp.ini`. Open it and
+   look for the section and key. In a multi-root workspace, check
+   the folder the file you are looking at belongs to — not any other
+   folder.
+2. **Editor settings.** In VS Code, run **Preferences: Open Workspace
+   Settings (JSON)** and **Preferences: Open User Settings (JSON)**
+   and search for `tclLsp`. The Settings UI also shows where each
+   value comes from with the small **User / Workspace / Folder**
+   chip next to each setting.
+3. **Global file.** Open the platform-native `config.ini` (see
+   "Where the global config lives" above). A typo in a section name
+   or a key turns into a silent no-op.
+4. **Document-level directives.** Scan the top of the file you are
+   looking at for `# tcl-lsp: disable=` or `# tcl-dialect:`, and the
+   line above each diagnostic for `# noqa`. These only affect
+   diagnostics and dialect, but they explain unexpected suppression.
+
+**4. If nothing matches, the value is the built-in default.** Every
+setting has a default that applies when no layer sets it; those
+defaults live in the source ship docs alongside each feature. Run
+**Tcl: Export Settings to Config File** (or `tcl-lsp.exportConfig`)
+to dump the *current* effective settings to your global config file
+as an anchor for what is in play.
 
 ### When changes take effect
 
