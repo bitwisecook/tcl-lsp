@@ -74,6 +74,37 @@ If you want a setting to follow you everywhere, put it in the global
 file. If you want it to travel with the project and apply to everyone
 who checks it out, put it in `.tcl-lsp.ini` and commit it.
 
+### Multi-root workspaces (VS Code and others)
+
+VS Code's multi-root workspaces — and the equivalent in Neovim, Zed,
+Helix, Emacs, Sublime Text, and JetBrains — open more than one folder
+in a single editor window. The server treats each folder as its own
+configuration scope:
+
+- **Each folder gets its own project layer.** The server reads a
+  `.tcl-lsp.ini` from every folder root independently. A `.tcl-lsp.ini`
+  in folder A never applies to files in folder B, even if both folders
+  share the same VS Code workspace file.
+- **Each folder gets its own editor layer.** When the editor responds
+  to `workspace/configuration`, the server pulls one payload per
+  folder. VS Code's folder-scoped settings (the **Workspace** and
+  **Folder** scopes in the Settings UI) override user-level settings
+  on a per-folder basis.
+- **The global layer is shared.** `config.ini` is loaded once and
+  applies to every folder in the window.
+- **Files are matched to their folder by longest URI prefix.** When
+  you open a file, the server walks the list of workspace folders and
+  picks the one whose URI is the longest prefix of the file's URI.
+  That folder's merged settings are the ones that apply.
+- **Files outside every folder fall back to the workspace level.** A
+  file you open with **File ▸ Open** that does not live under any
+  workspace folder uses the workspace-level fallback layers — the
+  same as a single-root window with no `.tcl-lsp.ini`.
+
+Adding or removing a workspace folder triggers a re-pull of editor
+settings for that scope and a re-load of its `.tcl-lsp.ini`. You do
+not need to restart the server when changing workspace folders.
+
 ### Dialect is special
 
 For a single document, the dialect is chosen by its own priority chain
