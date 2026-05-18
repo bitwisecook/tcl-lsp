@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import {
   getDocUri,
   activate,
-  sleep,
+  pollUntil,
   waitForDiagnostics,
   waitForEffectiveConfig,
   waitForFeatureToggle,
@@ -199,13 +199,18 @@ suite("Configuration Settings", () => {
   test("editor.codeLens=false suppresses code lenses via null inheritance", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
-    await sleep(500); // let initial code lenses populate
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeCodeLensProvider",
-      docUri,
-      100,
-    )) as vscode.CodeLens[] | undefined;
+    // Poll until the server publishes its initial code lens batch —
+    // ``activate()`` returns after didOpen but before the LSP
+    // codeLens/* round-trip completes, so a fixed sleep here would race.
+    const before = await pollUntil<vscode.CodeLens[] | undefined>(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeLensProvider", docUri, 100) as Thenable<
+          vscode.CodeLens[] | undefined
+        >,
+      (r) => Array.isArray(r) && r.length > 0,
+      { label: "initial code lens batch" },
+    );
     assert.ok(before && before.length > 0, "Code lenses should work with default editor globals");
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
@@ -973,11 +978,9 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
     try {
       await config.update("W100", false, undefined);
-      await waitForEffectiveConfig(
-        docUri,
-        (c) => c.disabled_diagnostics.includes("W100"),
-        { label: "W100 disabled" },
-      );
+      await waitForEffectiveConfig(docUri, (c) => c.disabled_diagnostics.includes("W100"), {
+        label: "W100 disabled",
+      });
 
       // Re-trigger: touch the document so the server re-analyses.
       // Then wait for a *fresh* diagnostics publish (onDidChangeDiagnostics)
@@ -1004,11 +1007,9 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("W100", undefined, undefined);
-      await waitForEffectiveConfig(
-        docUri,
-        (c) => !c.disabled_diagnostics.includes("W100"),
-        { label: "W100 re-enabled" },
-      );
+      await waitForEffectiveConfig(docUri, (c) => !c.disabled_diagnostics.includes("W100"), {
+        label: "W100 re-enabled",
+      });
     }
   });
 
@@ -1016,14 +1017,20 @@ suite("Configuration Settings", () => {
   test("disabling optimiser.enabled suppresses O1xx diagnostics", async () => {
     const docUri = getDocUri("diagnostics.tcl");
     await activate(docUri);
-    await sleep(500);
 
     const codeOf = (d: vscode.Diagnostic) =>
       String(typeof d.code === "object" ? d.code.value : d.code);
     const isO1xx = (code: string) => /^O1\d\d$/.test(code);
 
-    // Baseline: check for any O1xx hints (optimiser is enabled by default)
-    const before = await waitForDiagnostics(docUri, { timeout: 5000, minCount: 1 });
+    // Baseline: wait until the deep pass has produced at least one
+    // O1xx hint.  The deep pass fires asynchronously after the basic
+    // diagnostics batch, so polling on ``minCount: 1`` would return
+    // before the optimiser has run — use a predicate that names the
+    // class of codes we actually care about.
+    const before = await waitForDiagnostics(docUri, {
+      timeout: 5000,
+      predicate: (diags) => diags.some((d) => isO1xx(codeOf(d))),
+    });
     const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");

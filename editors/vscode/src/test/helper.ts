@@ -129,6 +129,37 @@ export async function waitForEffectiveConfig(
 }
 
 /**
+ * Poll ``fn`` every 50ms until ``predicate(result)`` returns true, or
+ * until ``opts.timeout`` elapses.  Returns the first result that
+ * satisfies the predicate.  Throws on timeout with the last-seen
+ * result included in the message.
+ *
+ * Useful for waiting on a VS Code command's response shape without
+ * sleeping on wall-clock time — for example, polling
+ * ``vscode.executeCodeLensProvider`` until the language server has
+ * published its first batch of lenses.
+ */
+export async function pollUntil<T>(
+  fn: () => Thenable<T> | T,
+  predicate: (value: T) => boolean,
+  opts?: { timeout?: number; interval?: number; label?: string },
+): Promise<T> {
+  const timeout = opts?.timeout ?? 5_000;
+  const interval = opts?.interval ?? 50;
+  const deadline = Date.now() + timeout;
+  let last: T | undefined;
+  while (Date.now() < deadline) {
+    last = await fn();
+    if (predicate(last)) return last;
+    await sleep(interval);
+  }
+  throw new Error(
+    `Timeout polling${opts?.label ? ` (${opts.label})` : ""} ` +
+      `(last seen: ${JSON.stringify(last)})`,
+  );
+}
+
+/**
  * Convenience wrapper around ``waitForEffectiveConfig`` for the common
  * case of waiting on a single ``tclLsp.features.X`` toggle.
  */
