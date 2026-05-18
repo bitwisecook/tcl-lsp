@@ -2184,5 +2184,26 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         }
         return obj_new_string(0, 0);
     }
+    if (str_eq(sp, sub_l, "library")) {
+        // ``info library`` returns the value of the global
+        // ``tcl_library`` variable, or raises ``no library has been
+        // specified for Tcl`` when the var isn't set.  Tcl 9 reference:
+        // ``Tcl_GetVar2Ex(interp, "tcl_library", NULL, TCL_GLOBAL_ONLY)``
+        // (tclCmdIL.c InfoLibraryCmd).  Mirrored here as a root-ns
+        // var_table probe so user reassignment (``set tcl_library 12345``)
+        // is observed correctly.
+        const lib_name = "tcl_library";
+        const root = tcl_ns.ns_root();
+        const v = tcl_ns.ns_var_find(root, @intFromPtr(lib_name.ptr), lib_name.len);
+        if (v != 0) {
+            const val: u32 = tcl_ns.var_get_scalar(v);
+            if (val != 0) return @bitCast(val);
+        }
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const msg_text = "no library has been specified for Tcl";
+        const msg = obj.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return obj_new_string(0, 0);
+    }
     return obj_new_string(0, 0);
 }
