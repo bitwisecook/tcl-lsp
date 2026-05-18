@@ -165,18 +165,35 @@ fi
 cd - && rm -rf /tmp/release-verify
 ```
 
-Also smoke-test the installer one-liner from a clean shell:
+Also smoke-test the installer one-liner from a clean shell and
+verify the installed payload — `scripts/smoke_installer.sh`
+wraps the full check matrix:
+
+1. installer exits 0;
+2. every installed `.pyz` matches its SHA256SUMS entry;
+3. `tcl --version` / `f5 --version` include the released version;
+4. `tcl --help` / `f5 --help` exit 0 with non-empty output;
+5. MCP zipapp launches and its `--help` banner mentions the version
+   (`--version` is intentionally empty there);
+6. the Claude-skills directory has at least `MIN_SKILLS` entries
+   (default 22).
 
 ```bash
-curl -fsSL "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/install.sh" \
-  | TCL_LSP_PREFIX=/tmp/verify-bin TCL_LSP_ASSUME_NO=1 sh
-ls -la /tmp/verify-bin/
-rm -rf /tmp/verify-bin/
+bash scripts/smoke_installer.sh "$tag"
 ```
 
-The installer aborts by default when `SHA256SUMS` is missing — this is
+Env knobs the script honours: `TCL_LSP_PREFIX` (install destination,
+default `/tmp/verify-bin`), `TCL_LSP_OS` (forced detection when
+`/etc/os-release` isn't readable in this environment), `MIN_SKILLS`,
+`KEEP_PREFIX=1` (skip the cleanup so you can poke at a failure).
+
+The installer aborts by default when `SHA256SUMS` is missing — that's
 the safety net for a CI regression that drops the `publish-checksums`
-job. If the smoke-test succeeds, integrity is intact.
+job. The post-install checks above catch the next failure modes after
+that: a successfully-completed installer that nevertheless landed
+stale or version-skewed binaries (e.g. cached artefact, partial
+upload, dev build leaking through). All checks must pass before
+step 7.
 
 ### 7. Editor publishing
 
