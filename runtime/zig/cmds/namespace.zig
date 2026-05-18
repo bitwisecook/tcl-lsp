@@ -910,6 +910,12 @@ fn do_ns_delete(h: u32) void {
     const parent = ns.parent;
     if (parent == 0) return; // can't delete root
     const parent_ns: *tcl_ns.Namespace = @ptrFromInt(parent);
+    // Drop ensemble commands whose target_ns matches the namespace
+    // being deleted.  ``namespace eval ns { namespace ensemble create
+    // }`` registers the dispatch command in the parent's cmd_table;
+    // when the ns goes away, the matching ensemble bucket should
+    // disappear too (namespace-42.1 / 42.2).
+    drop_parent_ensembles_for(parent_ns, h);
     if (parent_ns.child_table.buf == 0) return;
     const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
     var i: u32 = 0;
@@ -920,6 +926,36 @@ fn do_ns_delete(h: u32) void {
             obj_mod.write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
             return;
         }
+    }
+}
+
+/// Walk *parent_ns*'s ``cmd_table`` and clear every ensemble Command
+/// whose ``EnsembleRec.target_ns`` is *deleted_ns*.  Mirrors C Tcl's
+/// ``TclDeleteNamespace`` → ``TclMakeEnsemble`` teardown: an
+/// ensemble dispatcher tied to a deleted namespace must stop being
+/// reachable by name.
+fn drop_parent_ensembles_for(parent_ns: *tcl_ns.Namespace, deleted_ns: u32) void {
+    if (parent_ns.cmd_table.buf == 0) return;
+    const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
+    var i: u32 = 0;
+    while (i < parent_ns.cmd_table.cap) : (i += 1) {
+        const bucket = parent_ns.cmd_table.buf + i * bucket_size;
+        const np: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (np == 0) continue;
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue;
+        const flags: u32 = @bitCast(obj_mod.read_i32(cmd + procs.OFF_FLAGS));
+        if ((flags & procs.CMD_ENSEMBLE) == 0) continue;
+        const rec_addr: u32 = @bitCast(obj_mod.read_i32(cmd + procs.OFF_PARAMS_OBJ));
+        if (rec_addr == 0) continue;
+        const rec: *const EnsembleRec = @ptrFromInt(rec_addr);
+        if (rec.target_ns != deleted_ns) continue;
+        ensemble_rec_release(rec_addr);
+        obj_mod.write_i32(cmd + procs.OFF_PARAMS_OBJ, 0);
+        obj_mod.write_i32(cmd + procs.OFF_FLAGS, 0);
+        // Tombstone the cmd_table slot so ``info commands`` / proc
+        // lookups no longer surface this bucket.
+        obj_mod.write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
     }
 }
 
@@ -1435,6 +1471,72 @@ fn ensemble_rec_release(addr: u32) void {
     obj_mod.free_sized(addr, ENS_REC_SIZE);
 }
 
+/// Walk ``-map`` value pairs and rewrite each impl's first element
+/// to a fully-qualified name against *target_ns*.  Tcl 9 stores the
+/// FQ form so subsequent ``configure -map`` reads return what
+/// reference Tcl reports.  Returns a fresh owning TclObj when any
+/// element needed qualification; otherwise returns the input as-is
+/// (caller must not release in that case).
+fn qualify_map_impls(map_obj: i32, target_ns: u32) i32 {
+    if (target_ns == 0) return map_obj;
+    const ns_full = tcl_ns.ns_full_name(target_ns);
+    if (ns_full.len < 2) return map_obj;
+    const ms = obj_ensure_string(map_obj);
+    if (ms.len == 0) return map_obj;
+    const n = obj_mod.list_count_elements(ms.ptr, ms.len);
+    if (n <= 0 or @rem(n, 2) != 0) return map_obj;
+    // Build a new list element-by-element.  Use a Tcl-list helper to
+    // properly quote elements containing whitespace.
+    var i: i64 = 0;
+    var result: i32 = obj_mod.obj_new_string(0, 0);
+    while (i < n) : (i += 2) {
+        const k_el = obj_mod.list_element_at(ms.ptr, ms.len, i);
+        const v_el = obj_mod.list_element_at(ms.ptr, ms.len, i + 1);
+        const key_obj = obj_mod.obj_new_string(@bitCast(ms.ptr + k_el.start), @bitCast(k_el.len));
+        // Impl is itself a Tcl list (``cmd ?arg ...?``).  Qualify only
+        // the FIRST element.
+        const impl_ptr = ms.ptr + v_el.start;
+        const impl_len = v_el.len;
+        const impl_n = obj_mod.list_count_elements(impl_ptr, impl_len);
+        var impl_obj: i32 = 0;
+        if (impl_n > 0) {
+            const first = obj_mod.list_element_at(impl_ptr, impl_len, 0);
+            const fp: [*]const u8 = @ptrFromInt(impl_ptr + first.start);
+            const already_fq = first.len >= 2 and fp[0] == ':' and fp[1] == ':';
+            if (already_fq) {
+                impl_obj = obj_mod.obj_new_string(@bitCast(impl_ptr), @bitCast(impl_len));
+            } else {
+                // Build ``<ns_full>::<first> rest...``.
+                const list_mod = @import("../valtypes/tcl_list.zig");
+                const fq_first = ns_join_name(ns_full, impl_ptr + first.start, first.len);
+                var built: i32 = list_mod.tcl_list(obj_mod.obj_new_string(0, 0), fq_first);
+                obj_mod.tcl_obj_release(fq_first);
+                var j: i64 = 1;
+                while (j < impl_n) : (j += 1) {
+                    const rest_el = obj_mod.list_element_at(impl_ptr, impl_len, j);
+                    const rest_obj = obj_mod.obj_new_string(@bitCast(impl_ptr + rest_el.start), @bitCast(rest_el.len));
+                    const next = list_mod.tcl_list(built, rest_obj);
+                    obj_mod.tcl_obj_release(built);
+                    obj_mod.tcl_obj_release(rest_obj);
+                    built = next;
+                }
+                impl_obj = built;
+            }
+        } else {
+            impl_obj = obj_mod.obj_new_string(0, 0);
+        }
+        const list_mod = @import("../valtypes/tcl_list.zig");
+        const r1 = list_mod.tcl_list(result, key_obj);
+        obj_mod.tcl_obj_release(result);
+        obj_mod.tcl_obj_release(key_obj);
+        const r2 = list_mod.tcl_list(r1, impl_obj);
+        obj_mod.tcl_obj_release(r1);
+        obj_mod.tcl_obj_release(impl_obj);
+        result = r2;
+    }
+    return result;
+}
+
 fn ensemble_set_obj_slot(slot: *i32, new_val: i32) void {
     if (new_val != 0) obj_mod.tcl_obj_retain(new_val);
     const old = slot.*;
@@ -1519,7 +1621,13 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
                         return 0;
                     }
                 }
-                ensemble_set_obj_slot(&rec.map_obj, words[i + 1]);
+                // Tcl 9 auto-qualifies the first element of each impl
+                // against the target namespace when it's not already
+                // ``::``-anchored — so ``-map {A x}`` from inside
+                // ``::ns`` stores ``A ::ns::x``.
+                const qualified = qualify_map_impls(words[i + 1], rec.target_ns);
+                ensemble_set_obj_slot(&rec.map_obj, qualified);
+                if (qualified != words[i + 1]) obj_mod.tcl_obj_release(qualified);
             }
         } else if (slice_eq_ns(key.ptr, key.len, "-subcommands")) {
             if (val.len > 0) ensemble_set_obj_slot(&rec.sub_obj, words[i + 1]);
@@ -1805,10 +1913,11 @@ fn ensemble_match_in_exports(ns: u32, sub_ptr: u32, sub_len: u32, prefixes: u32)
         const bucket = namespace.cmd_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
         const np: u32 = @bitCast(obj_mod.read_i32(bucket));
         if (np == 0) continue;
+        const handle: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (handle == 0) continue; // dead bucket (rename → empty)
         const nl: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
         if (nl != sub_len) continue;
         if (!bytes_equal(np, sub_ptr, sub_len)) continue;
-        // Check export.
         if (!tcl_ns.ns_export_matches(ns, np, nl)) continue;
         const ns_full = tcl_ns.ns_full_name(ns);
         return ns_join_name(ns_full, np, nl);
@@ -2047,6 +2156,12 @@ fn std_keys_to_obj(rec: *EnsembleRec) i32 {
                 const bucket = namespace.cmd_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
                 const np: u32 = @bitCast(obj_mod.read_i32(bucket));
                 if (np == 0) continue;
+                // ``ns_cmd_clear`` (rename → empty target) zeroes the
+                // handle slot but leaves the name in place, so the
+                // export-match check alone would resurrect the dead
+                // bucket.  Skip handle == 0 too.
+                const handle: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+                if (handle == 0) continue;
                 const nl: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
                 if (!tcl_ns.ns_export_matches(rec.target_ns, np, nl)) continue;
                 names[count] = .{ np, nl };

@@ -1983,27 +1983,86 @@ fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) 
 /// multi-arg cases (``info default``) are routed via a separate
 /// entry; the interpreter's ``info`` handler picks whichever
 /// dispatcher matches the arity.
+// Canonical info subcommand names — used to expand abbreviations
+// (Tcl convention: any unique-prefix abbreviation works, e.g.
+// ``info a t1`` resolves to ``info args t1``).  Kept in sync with
+// ``inspect.info_subcommands``.
+const INFO_SUBCMDS = [_][]const u8{
+    "args",        "body",       "cmdcount",     "cmdtype",       "commands",
+    "complete",    "constant",   "consts",       "coroutine",     "default",
+    "errorstack",  "exists",     "frame",        "functions",     "globals",
+    "hostname",    "level",      "library",      "loaded",        "locals",
+    "nameofexecutable", "object", "patchlevel", "procs",          "script",
+    "sharedlibextension", "tclversion", "vars",
+};
+
+/// Expand an abbreviated subcommand name to its canonical form.
+/// Returns the original span when the input is already canonical OR
+/// the abbreviation matches multiple subcommands (ambiguous — the
+/// dispatcher's exact-match cascade will then surface the right
+/// error).  Tcl 9's ``info`` accepts any unique prefix.
+fn resolve_info_subcmd(sp: [*]const u8, sub_len: u32) struct { ptr: [*]const u8, len: u32 } {
+    // Exact match: walk the list and short-circuit.
+    for (INFO_SUBCMDS) |cand| {
+        if (cand.len == sub_len) {
+            var same = true;
+            var i: u32 = 0;
+            while (i < sub_len) : (i += 1) {
+                if (cand[i] != sp[i]) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) return .{ .ptr = sp, .len = sub_len };
+        }
+    }
+    // Prefix match: find a UNIQUE one.
+    var match_ptr: [*]const u8 = sp;
+    var match_len: u32 = 0;
+    var match_count: u32 = 0;
+    for (INFO_SUBCMDS) |cand| {
+        if (cand.len < sub_len) continue;
+        var ok = true;
+        var i: u32 = 0;
+        while (i < sub_len) : (i += 1) {
+            if (cand[i] != sp[i]) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) {
+            match_ptr = cand.ptr;
+            match_len = @intCast(cand.len);
+            match_count += 1;
+        }
+    }
+    if (match_count == 1) return .{ .ptr = match_ptr, .len = match_len };
+    return .{ .ptr = sp, .len = sub_len };
+}
+
 pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     const sub = obj_ensure_string(subcmd);
     if (sub.len == 0) return obj_new_string(0, 0);
-    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    const resolved = resolve_info_subcmd(@ptrFromInt(sub.ptr), sub.len);
+    const sp = resolved.ptr;
+    const sub_l = resolved.len;
 
-    if (str_eq(sp, sub.len, "exists")) return info_exists(arg);
-    if (str_eq(sp, sub.len, "body")) return info_body(arg);
-    if (str_eq(sp, sub.len, "args")) return info_args(arg);
-    if (str_eq(sp, sub.len, "complete")) return info_complete(arg);
-    if (str_eq(sp, sub.len, "nameofexecutable")) return info_nameofexecutable();
-    if (str_eq(sp, sub.len, "tclversion")) return info_tclversion();
-    if (str_eq(sp, sub.len, "patchlevel")) return info_patchlevel();
-    if (str_eq(sp, sub.len, "hostname")) return info_hostname();
-    if (str_eq(sp, sub.len, "commands")) return info_commands(arg);
-    if (str_eq(sp, sub.len, "procs")) return info_procs(arg);
-    if (str_eq(sp, sub.len, "level")) return info_level(arg);
-    if (str_eq(sp, sub.len, "script")) return info_script();
-    if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
-    if (str_eq(sp, sub.len, "constant")) return info_constant(arg);
-    if (str_eq(sp, sub.len, "consts")) return info_consts(arg);
-    if (str_eq(sp, sub.len, "locals")) {
+    if (str_eq(sp, sub_l, "exists")) return info_exists(arg);
+    if (str_eq(sp, sub_l, "body")) return info_body(arg);
+    if (str_eq(sp, sub_l, "args")) return info_args(arg);
+    if (str_eq(sp, sub_l, "complete")) return info_complete(arg);
+    if (str_eq(sp, sub_l, "nameofexecutable")) return info_nameofexecutable();
+    if (str_eq(sp, sub_l, "tclversion")) return info_tclversion();
+    if (str_eq(sp, sub_l, "patchlevel")) return info_patchlevel();
+    if (str_eq(sp, sub_l, "hostname")) return info_hostname();
+    if (str_eq(sp, sub_l, "commands")) return info_commands(arg);
+    if (str_eq(sp, sub_l, "procs")) return info_procs(arg);
+    if (str_eq(sp, sub_l, "level")) return info_level(arg);
+    if (str_eq(sp, sub_l, "script")) return info_script();
+    if (str_eq(sp, sub_l, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub_l, "constant")) return info_constant(arg);
+    if (str_eq(sp, sub_l, "consts")) return info_consts(arg);
+    if (str_eq(sp, sub_l, "locals")) {
         // ``info locals`` returns only local variables of the current
         // proc frame (no globals).  Outside a proc, an empty string.
         // Matches Tcl 9 semantics for info-12.x.
@@ -2019,8 +2078,8 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         }
         return frame_locals_names_matching(pat_ptr, pat_len, has_pattern);
     }
-    if (str_eq(sp, sub.len, "frame")) return info_frame(arg);
-    if (str_eq(sp, sub.len, "cmdcount")) {
+    if (str_eq(sp, sub_l, "frame")) return info_frame(arg);
+    if (str_eq(sp, sub_l, "cmdcount")) {
         // Mirrors C Tcl ``Interp.cmdCount`` — incremented per
         // ``eval_command`` dispatch in ``tcl_interp.zig``.  Compiled
         // procs that take the AOT fast path don't increment;
@@ -2030,7 +2089,7 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         const interp = @import("../interp/tcl_interp.zig");
         return obj_new_int(interp.cmd_count);
     }
-    if (str_eq(sp, sub.len, "coroutine")) {
+    if (str_eq(sp, sub_l, "coroutine")) {
         // ``info coroutine`` returns the FQN of the currently
         // executing coroutine, or the empty string outside a
         // coroutine context.  coroutine.test 11.1 feeds this
