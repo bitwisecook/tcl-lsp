@@ -28,6 +28,12 @@ fn eval_set(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
     if (words.len == 3) {
+        // Tcl 9 ``const`` semantics: a write to a constant variable
+        // raises ``can't set "<name>": variable is a constant``.
+        if (name_is_constant(words[1])) {
+            raise_const_set_error(words[1], "set");
+            return result_mod.from_globals(0);
+        }
         _ = frames.var_set(words[1], words[2]);
         return result_mod.from_globals(words[2]);
     }
@@ -48,6 +54,10 @@ fn eval_incr(words: []const i32) result_mod.InterpResult {
     if (words.len < 2 or words.len > 3) {
         const stubs = @import("../stubs/tcl_stubs.zig");
         stubs.raise("wrong # args: should be \"incr varName ?increment?\"");
+        return result_mod.from_globals(0);
+    }
+    if (name_is_constant(words[1])) {
+        raise_const_set_error(words[1], "incr");
         return result_mod.from_globals(0);
     }
     const amt_obj = if (words.len >= 3) words[2] else rt.obj_new_int(1);
@@ -99,6 +109,13 @@ fn eval_unset(words: []const i32) result_mod.InterpResult {
         // is an array but the element is missing.
         if (!nocomplain and !var_exists_for_unset(words[i])) {
             raise_unset_error(words[i]);
+            return result_mod.from_globals(0);
+        }
+        // Tcl 9 ``const``: ``unset`` of a constant variable raises
+        // even with ``-nocomplain``.  Match reference Tcl's wording
+        // (``can't unset "<name>": variable is a constant``).
+        if (name_is_constant(words[i])) {
+            raise_const_set_error(words[i], "unset");
             return result_mod.from_globals(0);
         }
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
@@ -202,6 +219,129 @@ fn pick_unset_suffix(s: anytype) []const u8 {
         return "\": no such variable";
     }
     return "\": no such variable";
+}
+
+/// Predicate: is *name* currently flagged as a Tcl 9 constant?
+/// Checks the per-frame const set first (proc-local consts) then
+/// the VAR_CONSTANT bit on a namespace-resolved ``Var`` record.
+/// Array-element forms (``arr(key)``) are never constants — TIP 590
+/// only allows whole scalars.
+fn name_is_constant(name: i32) bool {
+    const tcl_obj_mod = @import("../valtypes/tcl_obj.zig");
+    const sn = tcl_obj_mod.obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    // ``arr(key)`` shapes are never const-flagged — bail.
+    var k: u32 = 0;
+    while (k < sn.len) : (k += 1) {
+        if (sp[k] == '(') return false;
+    }
+    // Proc-local lookup: check the per-frame const set when a frame
+    // is active and the name has no namespace qualifier (qualified
+    // names always resolve through the ns variable table).
+    if (frames.frame_depth != 0) {
+        var has_colons = false;
+        var i: u32 = 0;
+        while (i + 1 < sn.len) : (i += 1) {
+            if (sp[i] == ':' and sp[i + 1] == ':') {
+                has_colons = true;
+                break;
+            }
+        }
+        if (!has_colons) {
+            const ht_mod = @import("../valtypes/hash_table.zig");
+            const hash = ht_mod.fnv1a(sn.ptr, sn.len);
+            if (frames.frame_const_check(sn.ptr, sn.len, hash)) return true;
+            // A frame-local non-const slot shadows the namespace.
+            const exists_obj = frames.var_exists(name);
+            if (tcl_obj_mod.obj_get_int(exists_obj) != 0) return false;
+        }
+    }
+    // Namespace probe: reach the ``Var`` and inspect its flags.
+    // Qualify against current_ns the same way the read / write
+    // paths in ``var_resolve`` / ``var_set`` do.
+    var key_ptr = sn.ptr;
+    var key_len = sn.len;
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        key_ptr = sn.ptr + 2;
+        key_len = sn.len - 2;
+    } else if (frames.frame_depth == 0 and tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
+        const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+        const ns_full_len = tcl_ns.current_ns_full_len();
+        var nfp = ns_full_ptr;
+        var nfl = ns_full_len;
+        if (nfl >= 2) {
+            const nsp: [*]const u8 = @ptrFromInt(nfp);
+            if (nsp[0] == ':' and nsp[1] == ':') {
+                nfp += 2;
+                nfl -= 2;
+            }
+        }
+        if (nfl > 0) {
+            const total: u32 = nfl + 2 + sn.len;
+            const buf = tcl_obj_mod.alloc(total);
+            if (buf == 0) return false;
+            const dst: [*]u8 = @ptrFromInt(buf);
+            const nsp: [*]const u8 = @ptrFromInt(nfp);
+            for (0..nfl) |i| dst[i] = nsp[i];
+            dst[nfl] = ':';
+            dst[nfl + 1] = ':';
+            for (0..sn.len) |i| dst[nfl + 2 + i] = sp[i];
+            const v_addr = tcl_ns.ns_var_find(tcl_ns.ns_root(), buf, total);
+            tcl_obj_mod.free_sized(buf, total);
+            if (v_addr == 0) return false;
+            const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
+            return (v.flags & tcl_ns.VAR_CONSTANT) != 0;
+        }
+    }
+    const v_addr = tcl_ns.ns_var_find(tcl_ns.ns_root(), key_ptr, key_len);
+    if (v_addr == 0) return false;
+    const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
+    return (v.flags & tcl_ns.VAR_CONSTANT) != 0;
+}
+
+/// Emit the canonical ``can't <op> "<name>": variable is a constant``
+/// diagnostic for an attempted write to a constant variable.  *op* is
+/// the user-visible verb (``"set"``, ``"incr"``, ``"unset"``) the
+/// dispatcher was running.
+fn raise_const_set_error(name: i32, op: []const u8) void {
+    const tcl_obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const sn = tcl_obj_mod.obj_ensure_string(name);
+    const prefix1: []const u8 = "can't ";
+    const prefix2: []const u8 = " \"";
+    const suffix: []const u8 = "\": variable is a constant";
+    const total: u32 = @as(u32, @intCast(prefix1.len + op.len + prefix2.len)) + sn.len + @as(u32, @intCast(suffix.len));
+    const buf = tcl_obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(tcl_obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix1) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (op) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (prefix2) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (sn.len > 0) {
+        const np: [*]const u8 = @ptrFromInt(sn.ptr);
+        for (0..sn.len) |k| dst[off + k] = np[k];
+        off += sn.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = tcl_obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
 }
 
 /// Tcl 9 ``const VARNAME VALUE`` — set a variable and flag it as a

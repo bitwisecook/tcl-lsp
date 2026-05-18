@@ -349,7 +349,6 @@ pub fn frame_const_mark(name_ptr: u32, name_len: u32, hash: u32) void {
     var i: u32 = 0;
     while (i < n) : (i += 1) {
         const r = frame_const_names[idx][i];
-        if (r.hash == hash and r.name_len == name_len and r.name_ptr == name_ptr) return;
         if (r.hash == hash and r.name_len == name_len) {
             const a: [*]const u8 = @ptrFromInt(r.name_ptr);
             const b: [*]const u8 = @ptrFromInt(name_ptr);
@@ -365,7 +364,21 @@ pub fn frame_const_mark(name_ptr: u32, name_len: u32, hash: u32) void {
         }
     }
     if (n >= FRAME_CONST_CAP) return;
-    frame_const_names[idx][n] = .{ .name_ptr = name_ptr, .name_len = name_len, .hash = hash };
+    // Copy the name bytes into an allocator-owned buffer.  The caller
+    // typically passes ``obj_ensure_string(name).ptr``, which points
+    // into a TclObj's borrowed string buffer; that obj is released by
+    // the parser at end-of-statement (MM-B.4), invalidating the
+    // pointer.  Heap-copying keeps every entry's lifetime bounded by
+    // the frame itself.
+    const nbuf = obj.alloc(name_len);
+    if (nbuf == 0) return;
+    if (name_len > 0) {
+        const dst: [*]u8 = @ptrFromInt(nbuf);
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) dst[k] = src[k];
+    }
+    frame_const_names[idx][n] = .{ .name_ptr = nbuf, .name_len = name_len, .hash = hash };
     frame_const_count[idx] = n + 1;
 }
 
@@ -614,7 +627,22 @@ pub export fn frame_pop() void {
         frame_locals_array_drop_current();
         // Phase B (const): drop the frame's const-name list so the
         // next tenant of this depth doesn't inherit ``const X`` flags.
-        frame_const_count[frame_depth - 1] = 0;
+        // Each entry owns a heap-copied name buffer (see
+        // ``frame_const_mark`` for the rationale); free those before
+        // resetting the count so the allocator can recycle the
+        // slabs.
+        {
+            const cur_depth = frame_depth - 1;
+            const cn = frame_const_count[cur_depth];
+            var ci: u32 = 0;
+            while (ci < cn) : (ci += 1) {
+                const r = frame_const_names[cur_depth][ci];
+                if (r.name_ptr != 0 and r.name_len > 0) {
+                    obj.free_sized(r.name_ptr, r.name_len);
+                }
+            }
+            frame_const_count[cur_depth] = 0;
+        }
         frame_depth -= 1;
         // MM-B.5: release the argv reference we retained in
         // frame_set_argv before clearing the slot.

@@ -1902,12 +1902,17 @@ fn ensemble_match_in_list(
 }
 
 fn ensemble_match_in_exports(ns: u32, sub_ptr: u32, sub_len: u32, prefixes: u32) i32 {
-    _ = prefixes;
-    // Iterate ns.cmd_table for commands whose simple name matches an
-    // export pattern.  Simple implementation: walk cmd_table once
-    // looking for an exact match on simple name AND export.
     const namespace: *tcl_ns.Namespace = @ptrFromInt(ns);
     if (namespace.cmd_table.buf == 0) return 0;
+    // Two passes — first looks for an exact match; second falls back
+    // to a unique-prefix match (when ``-prefixes`` is on).  Reference
+    // Tcl resolves exact subcommand names eagerly so that a longer
+    // exported name can't shadow a literal exact spelling.
+    var exact_np: u32 = 0;
+    var exact_nl: u32 = 0;
+    var prefix_np: u32 = 0;
+    var prefix_nl: u32 = 0;
+    var prefix_count: u32 = 0;
     var i: u32 = 0;
     while (i < namespace.cmd_table.cap) : (i += 1) {
         const bucket = namespace.cmd_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
@@ -1916,11 +1921,25 @@ fn ensemble_match_in_exports(ns: u32, sub_ptr: u32, sub_len: u32, prefixes: u32)
         const handle: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
         if (handle == 0) continue; // dead bucket (rename → empty)
         const nl: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
-        if (nl != sub_len) continue;
-        if (!bytes_equal(np, sub_ptr, sub_len)) continue;
         if (!tcl_ns.ns_export_matches(ns, np, nl)) continue;
+        if (nl == sub_len and bytes_equal(np, sub_ptr, sub_len)) {
+            exact_np = np;
+            exact_nl = nl;
+            break;
+        }
+        if (prefixes != 0 and nl > sub_len and bytes_equal(np, sub_ptr, sub_len)) {
+            prefix_np = np;
+            prefix_nl = nl;
+            prefix_count += 1;
+        }
+    }
+    if (exact_nl != 0) {
         const ns_full = tcl_ns.ns_full_name(ns);
-        return ns_join_name(ns_full, np, nl);
+        return ns_join_name(ns_full, exact_np, exact_nl);
+    }
+    if (prefix_count == 1) {
+        const ns_full = tcl_ns.ns_full_name(ns);
+        return ns_join_name(ns_full, prefix_np, prefix_nl);
     }
     return 0;
 }
