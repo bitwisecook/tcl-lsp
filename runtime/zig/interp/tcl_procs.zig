@@ -578,21 +578,18 @@ pub export fn proc_register_compiled(
 /// original ``{p1 ?p2default? ... args}`` source list.  Codegen
 /// emits a call to this right after :func:`proc_set_body_source` in
 /// the compiled-proc registration prologue.
-/// Transfer-ownership variant: the caller hands over its rc=1
-/// reference and does **NOT** release after the call.  This sidesteps
-/// the cmdAH-cascade trap that ``tcl_obj_retain`` at module init
-/// triggers (root cause not yet pinned, but the empirical signature
-/// is that even one extra retain per proc-register at init breaks
-/// tcltest's bootstrap ``file mkdir`` — see the codegen comments
-/// for the matching "no caller release" pattern).
-/// Raw-bytes variant of params source stash.  Stores the data-
-/// segment ``(ptr, len)`` of the proc's params spec in
+///
+/// Raw-bytes variant of the params source stash.  Stores the
+/// data-segment ``(ptr, len)`` of the proc's params spec in
 /// ``OFF_PARAMS_SRC_*`` so ``info args`` / ``info default`` can
-/// materialise a fresh TclObj on demand.  Avoids the
-/// ``tcl_obj_retain`` cascade that hits tcltest's bootstrap when
-/// any extra retain runs at module-init time per proc — the bytes
-/// live in immutable WASM data segments and need neither retain
-/// nor release.
+/// materialise a fresh TclObj on demand.  The bytes live in the
+/// immutable WASM data segment and need neither retain nor release,
+/// which keeps the per-proc init prologue allocation-free for the
+/// params sidecar — useful at scale (cmdAH has ~300 compiled procs).
+/// The corresponding TclObj-passing variant
+/// (``proc_set_params_source``) is retained as well for callers
+/// that already hold an owning handle (interpreted-proc paths,
+/// runtime re-register).
 pub export fn proc_set_params_source_raw(
     name_ptr: i32,
     name_len: i32,
@@ -602,8 +599,8 @@ pub export fn proc_set_params_source_raw(
     if (name_ptr == 0 or name_len <= 0) return obj_new_int(0);
     if (params_ptr == 0 or params_len <= 0) return obj_new_int(0);
     // Look up the proc bucket directly by raw bytes — no TclObj
-    // allocation happens here.  Avoids the cmdAH-cascade trap that
-    // per-proc TclObj allocs at module init trigger.
+    // allocation, no retain.  Keeps the per-proc init prologue
+    // a sequence of plain ``i32.const`` + ``call`` instructions.
     const cmd_addr = tcl_ns.ns_find_command(
         tcl_ns.ns_current(),
         @bitCast(name_ptr),
