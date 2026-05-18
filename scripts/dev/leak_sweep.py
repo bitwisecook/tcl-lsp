@@ -27,6 +27,7 @@ in-scope test:
         "subsystem": "parsing",
         "alloc_residual": 1234,
         "double_free": 0,
+        "retain_after_defer": 0,
         "trapped": false,
         "trap_message": null
     }
@@ -83,6 +84,7 @@ def _verify_leakcheck_binary() -> None:
     required = {
         "tcl_test_alloc_count",
         "tcl_test_double_free_count",
+        "tcl_test_retain_after_defer_count",
         "tcl_test_reset_counters",
         "tcl_test_finalize",
     }
@@ -166,6 +168,7 @@ def _run_one_with_counters(
         reset = rt_inst.exports(store)["tcl_test_reset_counters"]
         alloc_count = rt_inst.exports(store)["tcl_test_alloc_count"]
         double_free = rt_inst.exports(store)["tcl_test_double_free_count"]
+        retain_after_defer = rt_inst.exports(store)["tcl_test_retain_after_defer_count"]
         finalize = rt_inst.exports(store)["tcl_test_finalize"]
         _ = alloc_count  # readable mid-run if needed
 
@@ -221,6 +224,7 @@ def _run_one_with_counters(
             store.set_epoch_deadline(_epoch_count + 1_000_000)
             out["alloc_residual"] = int(finalize(store))
             out["double_free"] = int(double_free(store))
+            out["retain_after_defer"] = int(retain_after_defer(store))
         except BaseException as exc:
             out["counter_read_error"] = str(exc)[-200:]
         if watchdog_fired[0] and not out["trapped"]:
@@ -288,6 +292,7 @@ def main() -> int:
         print(
             f"  {stem}: residual={row.get('alloc_residual', '?'):>8}  "
             f"double_free={row.get('double_free', '?'):>3}  "
+            f"rad={row.get('retain_after_defer', '?'):>6}  "
             f"trapped={row.get('trapped', False)}  "
             f"({row['run_s']:.1f}s)",
             file=sys.stderr,

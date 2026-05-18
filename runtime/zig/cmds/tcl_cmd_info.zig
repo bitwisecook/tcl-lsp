@@ -2242,56 +2242,24 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
             }
         }
 
-        // Collect matching simple names into a fixed-size span table.
-        // The combined population is bounded by the mathfunc count
-        // (~30 builtins plus a handful of user-defined entries per ns)
-        // so a stack-sized cap of 256 is comfortably safe.
-        var name_ptrs: [256]u32 = undefined;
-        var name_lens: [256]u32 = undefined;
-        var count: u32 = 0;
+        // Two-pass build, matching the rest of this file: size first
+        // (so we can alloc the exact output buffer) then fill.  Dedup
+        // between the global and local mathfunc namespaces is implicit
+        // via ``ns_cmd_find`` — when the local namespace has an entry
+        // whose name already lives in the global namespace, we skip it
+        // on the local pass (the global pass already accounted for it).
         var total: u32 = 0;
-
-        if (global_ns_addr != 0) {
-            const gns: *const tcl_ns.Namespace = @ptrFromInt(global_ns_addr);
-            collect_function_names(
-                gns,
-                pat_ptr,
-                pat_len,
-                has_pattern,
-                &name_ptrs,
-                &name_lens,
-                &count,
-                &total,
-            );
-        }
-        if (local_ns_addr != 0) {
-            const lns: *const tcl_ns.Namespace = @ptrFromInt(local_ns_addr);
-            collect_function_names(
-                lns,
-                pat_ptr,
-                pat_len,
-                has_pattern,
-                &name_ptrs,
-                &name_lens,
-                &count,
-                &total,
-            );
-        }
+        var count: u32 = 0;
+        functions_count(global_ns_addr, 0, pat_ptr, pat_len, has_pattern, &total, &count);
+        functions_count(local_ns_addr, global_ns_addr, pat_ptr, pat_len, has_pattern, &total, &count);
         if (count == 0) return obj_new_string(0, 0);
 
         const buf = alloc(total);
         if (buf == 0) return obj_new_string(0, 0);
         var off: u32 = 0;
-        var w: u32 = 0;
-        while (w < count) : (w += 1) {
-            if (w > 0) {
-                const d: [*]u8 = @ptrFromInt(buf + off);
-                d[0] = ' ';
-                off += 1;
-            }
-            memcpy(buf + off, name_ptrs[w], name_lens[w]);
-            off += name_lens[w];
-        }
+        var written: u32 = 0;
+        functions_emit(global_ns_addr, 0, pat_ptr, pat_len, has_pattern, buf, &off, &written);
+        functions_emit(local_ns_addr, global_ns_addr, pat_ptr, pat_len, has_pattern, buf, &off, &written);
         return obj.obj_new_string_take(buf, total, total);
     }
     if (str_eq(sp, sub_l, "library")) {
@@ -2318,59 +2286,91 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     return obj_new_string(0, 0);
 }
 
-/// Walk *ns*'s ``cmd_table`` and append each simple name matching
-/// *pat_ptr* / *pat_len* (or every entry when ``!has_pattern``) into
-/// the ``(name_ptrs, name_lens)`` parallel arrays at offsets tracked
-/// by ``count`` / ``total``.  Skips duplicates already present —
-/// callers stack a global-namespace pass followed by a per-namespace
-/// pass so the dedup makes the second pass observe ``info commands
-/// tcl::mathfunc::$pat`` semantics from C Tcl (a single union).
-fn collect_function_names(
-    ns: *const tcl_ns.Namespace,
+/// Should the entry at ``(name_ptr, name_len)`` in *ns_addr* contribute
+/// to ``info functions`` output, given the optional *dedup_against*
+/// namespace (a previously-scanned namespace whose entries take
+/// precedence) and the optional glob *pat*?
+///
+/// Used by both :func:`functions_count` (sizing) and
+/// :func:`functions_emit` (filling); keeping the predicate in one
+/// place guarantees the two passes agree on which entries land in
+/// the output.
+fn functions_entry_matches(
+    name_ptr: u32,
+    name_len: u32,
+    dedup_against: u32,
     pat_ptr: u32,
     pat_len: u32,
     has_pattern: bool,
-    name_ptrs: *[256]u32,
-    name_lens: *[256]u32,
-    count: *u32,
+) bool {
+    if (name_ptr == 0 or name_len == 0) return false;
+    if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) return false;
+    if (dedup_against != 0 and tcl_ns.ns_cmd_find(dedup_against, name_ptr, name_len) != 0) {
+        // Same simple name already present in the dedup namespace —
+        // skip the local entry so we don't list it twice.
+        return false;
+    }
+    return true;
+}
+
+/// First pass for ``info functions``: bump *total* by the bytes each
+/// emitted name needs (name itself + space delimiter) and *count* by
+/// the number of names that pass the predicate.  No-op on an empty /
+/// missing ``cmd_table``.  ``dedup_against`` may be 0 for "no dedup".
+fn functions_count(
+    ns_addr: u32,
+    dedup_against: u32,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
     total: *u32,
+    count: *u32,
 ) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
     if (ns.cmd_table.buf == 0) return;
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
-        if (count.* >= name_ptrs.len) return;
         const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
         const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        if (name_len == 0) continue;
-        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
-        // Dedup against previously-collected names (small population,
-        // simple linear scan is fine).
-        var dup = false;
-        var k: u32 = 0;
-        while (k < count.*) : (k += 1) {
-            if (name_lens[k] != name_len) continue;
-            const a: [*]const u8 = @ptrFromInt(name_ptrs[k]);
-            const b: [*]const u8 = @ptrFromInt(name_ptr);
-            var same = true;
-            var m: u32 = 0;
-            while (m < name_len) : (m += 1) {
-                if (a[m] != b[m]) {
-                    same = false;
-                    break;
-                }
-            }
-            if (same) {
-                dup = true;
-                break;
-            }
-        }
-        if (dup) continue;
+        if (!functions_entry_matches(name_ptr, name_len, dedup_against, pat_ptr, pat_len, has_pattern)) continue;
         if (count.* > 0) total.* += 1;
         total.* += name_len;
-        name_ptrs[count.*] = name_ptr;
-        name_lens[count.*] = name_len;
         count.* += 1;
+    }
+}
+
+/// Second pass for ``info functions``: write each matching name into
+/// *buf* at offset ``*off_inout``, separating entries with a single
+/// space.  Mirrors :func:`functions_count`'s predicate exactly so the
+/// pre-sized buffer fits.
+fn functions_emit(
+    ns_addr: u32,
+    dedup_against: u32,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    buf: u32,
+    off_inout: *u32,
+    written_inout: *u32,
+) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (!functions_entry_matches(name_ptr, name_len, dedup_against, pat_ptr, pat_len, has_pattern)) continue;
+        if (written_inout.* > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off_inout.*);
+            d[0] = ' ';
+            off_inout.* += 1;
+        }
+        memcpy(buf + off_inout.*, name_ptr, name_len);
+        off_inout.* += name_len;
+        written_inout.* += 1;
     }
 }
