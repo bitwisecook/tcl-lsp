@@ -61,7 +61,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — the five places the server reads configuration from, and which
   layer wins when they disagree.
 - [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
-  — the seven INI sections, their keys, and which values are valid.
+  — the nine INI sections (seven shared plus the location-specific
+  `[global]` and `[project]`), their keys, and which values are valid.
 
 ## How-Tos
 
