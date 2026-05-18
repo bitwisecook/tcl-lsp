@@ -56,21 +56,71 @@ export function getServerLog(): string[] {
 }
 
 /**
- * Wait until at least one server log line matches *predicate*, or the
- * timeout expires.  Returns the matching line, or ``null`` on timeout.
+ * Number of server log lines captured so far.  Capture this **before**
+ * triggering an action and pass the value as ``waitForServerLog``'s
+ * ``since`` option so the wait only matches lines emitted by the
+ * action, not stale lines from earlier tests.
+ */
+export function getServerLogSize(): number {
+  return _serverLog.length;
+}
+
+/**
+ * Wait until at least one server log line at index ``opts.since`` or
+ * later matches *predicate*, or the timeout expires.  Returns the
+ * matching line, or ``null`` on timeout.
+ *
+ * The default ``since`` is ``0``, which keeps the legacy behaviour of
+ * searching the entire captured buffer.  Tests waiting for an event
+ * produced by a specific action should snapshot
+ * ``getServerLogSize()`` first.
  */
 export async function waitForServerLog(
   predicate: (line: string) => boolean,
-  opts?: { timeout?: number },
+  opts?: { timeout?: number; since?: number },
 ): Promise<string | null> {
   const timeout = opts?.timeout ?? 5_000;
+  const since = opts?.since ?? 0;
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    const hit = _serverLog.find(predicate);
-    if (hit !== undefined) return hit;
+    for (let i = since; i < _serverLog.length; i++) {
+      if (predicate(_serverLog[i])) return _serverLog[i];
+    }
     await sleep(50);
   }
-  return _serverLog.find(predicate) ?? null;
+  for (let i = since; i < _serverLog.length; i++) {
+    if (predicate(_serverLog[i])) return _serverLog[i];
+  }
+  return null;
+}
+
+/**
+ * Wait for the LSP server to emit its deep-diagnostics-complete log
+ * line for *docUri*.  The server logs ``[timing] deep diagnostics
+ * <Nms> (uri=<docUri>, diags=<N>)`` at INFO level after every deep
+ * pass, so this is a direct signal that codes like O1xx, IRULE1005,
+ * and the shimmer / taint diagnostics have been computed and
+ * published.
+ *
+ * Pass ``opts.since = getServerLogSize()`` captured **before** the
+ * triggering action (didOpen, edit, restart) so the wait only matches
+ * the run you care about, not a deep pass from an earlier test.
+ */
+export async function waitForDeepDiagnostics(
+  docUri: vscode.Uri,
+  opts?: { timeout?: number; since?: number },
+): Promise<void> {
+  const uri = docUri.toString();
+  const hit = await waitForServerLog(
+    (line) => line.includes("[timing] deep diagnostics") && line.includes(`uri=${uri}`),
+    opts,
+  );
+  if (hit === null) {
+    throw new Error(
+      `Timeout waiting for deep diagnostics on ${uri} ` +
+        `(since=${opts?.since ?? 0}, logSize=${_serverLog.length})`,
+    );
+  }
 }
 
 /**

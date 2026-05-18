@@ -3,7 +3,9 @@ import * as vscode from "vscode";
 import {
   getDocUri,
   activate,
+  getServerLogSize,
   pollUntil,
+  waitForDeepDiagnostics,
   waitForDiagnostics,
   waitForEffectiveConfig,
   waitForFeatureToggle,
@@ -1016,21 +1018,21 @@ suite("Configuration Settings", () => {
   // ── Optimiser enabled toggle behavioral test ─────────────────────
   test("disabling optimiser.enabled suppresses O1xx diagnostics", async () => {
     const docUri = getDocUri("diagnostics.tcl");
+    // Snapshot the server log index before activating so the
+    // ``waitForDeepDiagnostics`` calls below only match this test's
+    // deep-pass log lines, not stale ones from earlier tests.
+    const sinceOpen = getServerLogSize();
     await activate(docUri);
 
     const codeOf = (d: vscode.Diagnostic) =>
       String(typeof d.code === "object" ? d.code.value : d.code);
     const isO1xx = (code: string) => /^O1\d\d$/.test(code);
 
-    // Baseline: wait until the deep pass has produced at least one
-    // O1xx hint.  The deep pass fires asynchronously after the basic
-    // diagnostics batch, so polling on ``minCount: 1`` would return
-    // before the optimiser has run — use a predicate that names the
-    // class of codes we actually care about.
-    const before = await waitForDiagnostics(docUri, {
-      timeout: 5000,
-      predicate: (diags) => diags.some((d) => isO1xx(codeOf(d))),
-    });
+    // Wait for the server to publish its ``[timing] deep diagnostics``
+    // log line for this URI — that's the direct signal that the deep
+    // pass (where O1xx hints come from) has finished and published.
+    await waitForDeepDiagnostics(docUri, { since: sinceOpen });
+    const before = vscode.languages.getDiagnostics(docUri);
     const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
@@ -1040,10 +1042,13 @@ suite("Configuration Settings", () => {
         label: "optimiser disabled",
       });
 
-      // Re-trigger analysis
+      // Re-trigger analysis with a noop edit; snapshot the log
+      // index so the follow-up wait only matches the post-edit run.
+      const sinceEdit = getServerLogSize();
       const editor = vscode.window.activeTextEditor!;
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await waitForDiagnostics(docUri, { timeout: 5000, minCount: 1 });
+      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+      const after = vscode.languages.getDiagnostics(docUri);
       const o1xxAfter = after.filter((d) => isO1xx(codeOf(d)));
 
       if (o1xxBefore.length > 0) {
