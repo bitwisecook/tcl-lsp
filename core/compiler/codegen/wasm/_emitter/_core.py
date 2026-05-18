@@ -42,6 +42,46 @@ _I64_MIN = -(1 << 63)
 _I64_MAX = (1 << 63) - 1
 
 
+# Tcl list-quote special characters — any of these in an element force
+# brace-quoting on emission.  Used by :func:`_tcl_list_quote` to
+# reconstruct the params spec for ``info args`` parity.
+_TCL_LIST_SPECIAL = frozenset(' \t\n\r{}"\\$;[')
+
+
+def _tcl_list_quote(value: str) -> str:
+    """Brace-quote ``value`` as a Tcl list element when it contains any
+    structural character; otherwise emit as-is.  Empty values become
+    ``{}``.  Backslashes / unbalanced braces inside the value fall back
+    to backslash-quoting so the rebuilt list still parses.
+    """
+    if not value:
+        return "{}"
+    if any(c in _TCL_LIST_SPECIAL for c in value):
+        depth = 0
+        ok = True
+        for c in value:
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth < 0:
+                    ok = False
+                    break
+            elif c == "\\":
+                ok = False
+                break
+        if ok and depth == 0:
+            return "{" + value + "}"
+        out_chars: list[str] = []
+        for c in value:
+            if c in _TCL_LIST_SPECIAL:
+                out_chars.append("\\" + c)
+            else:
+                out_chars.append(c)
+        return "".join(out_chars)
+    return value
+
+
 class _WasmEmitterBase:
     if TYPE_CHECKING:
         # From sibling mixins — declared here so generate() and helpers in _core.py
@@ -843,9 +883,35 @@ class _WasmEmitterBase:
                 continue
             has_args_tail = bool(proc.params and proc.params[-1] == "args")
             n_required = self._compute_n_required(qname, proc.params)
+            params_source = self._build_params_source(qname, proc.params)
             self._compiled_proc_queue.append(
-                (qname, len(proc.params), has_args_tail, n_required, proc.body_source)
+                (
+                    qname,
+                    len(proc.params),
+                    has_args_tail,
+                    n_required,
+                    proc.body_source,
+                    params_source,
+                )
             )
+
+    def _build_params_source(self, qname: str, params: tuple[str, ...]) -> str:
+        """Reconstruct the proc's params spec as a Tcl list string.
+
+        ``info args``/``info default`` read this back as a list whose
+        elements are either bare ``name`` or two-element ``{name
+        default}`` pairs.  Defaults align with ``_proc_defaults[qname]``
+        (``None`` = required, otherwise the source-text default).
+        """
+        defaults = self._proc_defaults.get(qname, ())
+        out: list[str] = []
+        for i, name in enumerate(params):
+            default = defaults[i] if i < len(defaults) else None
+            if default is None:
+                out.append(_tcl_list_quote(name))
+            else:
+                out.append("{" + _tcl_list_quote(name) + " " + _tcl_list_quote(default) + "}")
+        return " ".join(out)
 
     def _compute_n_required(self, qname: str, params: tuple[str, ...]) -> int:
         """Count required (no-default) positional params, excluding ``args`` tail."""
@@ -895,8 +961,16 @@ class _WasmEmitterBase:
         if queue:
             reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
             body_idx = self._shared_imports.get("tcl_proc_set_body_source")
+            params_idx = self._shared_imports.get("tcl_proc_set_params_source_raw")
             if reg_idx is not None:
-                for qname, n_params, has_args_tail, n_required, body_source in queue:
+                for (
+                    qname,
+                    n_params,
+                    has_args_tail,
+                    n_required,
+                    body_source,
+                    params_source,
+                ) in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
                     self._emit_i32_const(1)  # func_idx marker (any non-zero)
@@ -914,6 +988,33 @@ class _WasmEmitterBase:
                         self._emit_obj_literal(qname)
                         self._emit_obj_literal(body_source)
                         self._emit_call(body_idx)
+                        self._emit(WasmOp.DROP)
+                    # Stash the source-text params spec for ``info
+                    # args`` parity.  Only emit when we actually
+                    # reconstructed a non-empty list; nullary procs
+                    # leave the slot at zero and ``info args`` on a
+                    # nullary proc returns an empty list either way.
+                    #
+                    # We pass raw (ptr, len) of the data-segment
+                    # bytes — no TclObj allocation, no retain.  The
+                    # earlier obj-passing form triggered a cmdAH
+                    # cascade tied to extra ``tcl_obj_retain`` at
+                    # module init (root cause not pinned; see
+                    # ``proc_set_params_source_raw``'s docstring).
+                    if params_idx is not None and params_source:
+                        params_encoded = params_source.encode("utf-8", errors="surrogatepass")
+                        params_offset = self._intern_string(params_source)
+                        qname_encoded = qname.encode("utf-8", errors="surrogatepass")
+                        qname_offset = self._intern_string(qname)
+                        # Push (name_ptr, name_len, params_ptr,
+                        # params_len) and call.  All four args are
+                        # raw data-segment offsets — no TclObj
+                        # allocation per proc at module init.
+                        self._emit_i32_const(qname_offset + 4)
+                        self._emit_i32_const(len(qname_encoded))
+                        self._emit_i32_const(params_offset + 4)
+                        self._emit_i32_const(len(params_encoded))
+                        self._emit_call(params_idx)
                         self._emit(WasmOp.DROP)
 
         # Compiled-proc entry prologue: push a frame and bind each

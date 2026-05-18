@@ -2677,6 +2677,16 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         catch_mod.error_invalid_command_name(words[0]);
         return 0;
     }
+    // ``CMD_ENSEMBLE`` Commands carry an ``*EnsembleRec`` in their
+    // ``params_obj`` slot (see ``cmds/namespace.zig``).  Route the
+    // call through the ensemble subcommand dispatcher; the
+    // dispatcher resolves the subcommand against the configured
+    // ``-map`` / ``-subcommands`` / target-ns exports, builds the
+    // final argv, and re-enters ``eval_command``.
+    if ((cmd_flags & procs.CMD_ENSEMBLE) != 0) {
+        const ns_mod = @import("../cmds/namespace.zig");
+        return ns_mod.dispatch_ensemble(bucket, words);
+    }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge

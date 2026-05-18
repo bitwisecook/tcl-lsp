@@ -26,6 +26,7 @@ from . import (
     clock,  # noqa: F401
     close_,  # noqa: F401
     concat,  # noqa: F401
+    const,  # noqa: F401
     continue_,  # noqa: F401
     coroutine,  # noqa: F401
     dict,  # noqa: F401

@@ -975,6 +975,27 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_obj_literal(body)
                 self._emit_call(body_idx)
                 self._emit(WasmOp.DROP)
+        # Re-stash the params spec so ``info args`` returns the
+        # original list after the proc_register_compiled call above
+        # cleared it.  Uses the raw (ptr, len) shape — no TclObj
+        # allocation per call, no retain — so this hook is safe to
+        # emit per-statement at runtime without the cmdAH-cascade
+        # trap that hits the obj-passing shape.  ``params`` here is
+        # the raw Tcl list source from the surrounding ``proc``
+        # statement (already parsed into a single literal string),
+        # interned in the data segment.
+        params_idx = self._shared_imports.get("tcl_proc_set_params_source_raw")
+        if params_idx is not None and params:
+            params_encoded = params.encode("utf-8", errors="surrogatepass")
+            params_offset = self._intern_string(params)
+            qname_encoded = qname.encode("utf-8", errors="surrogatepass")
+            qname_offset = self._intern_string(qname)
+            self._emit_i32_const(qname_offset + 4)
+            self._emit_i32_const(len(qname_encoded))
+            self._emit_i32_const(params_offset + 4)
+            self._emit_i32_const(len(params_encoded))
+            self._emit_call(params_idx)
+            self._emit(WasmOp.DROP)
 
     def _resolve_proc_qname(self, command: str) -> str | None:
         """Resolve ``command`` to the qualified proc name if it matches."""
@@ -1179,7 +1200,16 @@ class _WasmEmitterStmtMixin(_Base):
             if (
                 canonical_command == "::namespace"
                 and args
-                and args[0] in ("import", "export", "forget", "path", "unknown", "delete")
+                and args[0]
+                in (
+                    "import",
+                    "export",
+                    "forget",
+                    "path",
+                    "unknown",
+                    "delete",
+                    "ensemble",
+                )
             ):
                 # ``namespace path LIST`` mutates the current ns's
                 # command-resolution path; tcltest's mathop.test does
