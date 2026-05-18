@@ -57,6 +57,12 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   which `f5` verb to pick for filter / find / rename tasks.
 - [kcs-qa-tcl-lsp-annotations.md](kcs-qa-tcl-lsp-annotations.md) — which
   `# tcl-lsp:` and `# noqa` comments the analyser understands.
+- [kcs-qa-how-tcl-lsp-loads-configuration.md](kcs-qa-how-tcl-lsp-loads-configuration.md)
+  — the five places the server reads configuration from, and which
+  layer wins when they disagree.
+- [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
+  — the nine INI sections (seven shared plus the location-specific
+  `[global]` and `[project]`), their keys, and which values are valid.
 
 ## How-Tos
 
