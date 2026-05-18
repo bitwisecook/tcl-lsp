@@ -6300,7 +6300,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # Top-level stubs (300 commands)
+    # Top-level stubs (301 commands)
 
     proc cmd_accumulate {args} {
         ::itest::log_decision toplevel accumulate $args
@@ -6439,6 +6439,11 @@ namespace eval ::itest::cmd {
 
     proc cmd_connect {args} {
         ::itest::log_decision toplevel connect $args
+        return ""
+    }
+
+    proc cmd_const {args} {
+        ::itest::log_decision toplevel const $args
         return ""
     }
 
@@ -7804,4 +7809,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1472
+# Total stub mocks generated: 1473

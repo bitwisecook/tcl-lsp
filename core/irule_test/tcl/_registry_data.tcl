@@ -1743,7 +1743,7 @@ namespace eval ::itest::cmd {
     }
 
     # All f5-irules top-level commands.
-    # Count: 314
+    # Count: 315
 
     variable _gen_toplevel_commands {
         accumulate
@@ -1776,6 +1776,7 @@ namespace eval ::itest::cmd {
         close
         concat
         connect
+        const
         continue
         cpu
         crc32
