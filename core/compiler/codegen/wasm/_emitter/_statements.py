@@ -977,13 +977,11 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit(WasmOp.DROP)
         # Re-stash the params spec so ``info args`` returns the
         # original list after the proc_register_compiled call above
-        # cleared it.  Uses the raw (ptr, len) shape — no TclObj
-        # allocation per call, no retain — so this hook is safe to
-        # emit per-statement at runtime without the cmdAH-cascade
-        # trap that hits the obj-passing shape.  ``params`` here is
-        # the raw Tcl list source from the surrounding ``proc``
-        # statement (already parsed into a single literal string),
-        # interned in the data segment.
+        # cleared it.  Uses the raw (ptr, len) shape — the data-
+        # segment bytes are immutable so no TclObj wrapper / retain
+        # is needed.  ``params`` here is the raw Tcl list source from
+        # the surrounding ``proc`` statement (already parsed into a
+        # single literal string), interned in the data segment.
         params_idx = self._shared_imports.get("tcl_proc_set_params_source_raw")
         if params_idx is not None and params:
             params_encoded = params.encode("utf-8", errors="surrogatepass")

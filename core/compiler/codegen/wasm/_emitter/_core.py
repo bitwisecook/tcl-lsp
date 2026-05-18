@@ -995,12 +995,11 @@ class _WasmEmitterBase:
                     # leave the slot at zero and ``info args`` on a
                     # nullary proc returns an empty list either way.
                     #
-                    # We pass raw (ptr, len) of the data-segment
-                    # bytes — no TclObj allocation, no retain.  The
-                    # earlier obj-passing form triggered a cmdAH
-                    # cascade tied to extra ``tcl_obj_retain`` at
-                    # module init (root cause not pinned; see
-                    # ``proc_set_params_source_raw``'s docstring).
+                    # Raw (ptr, len) form — the data-segment bytes are
+                    # immutable and need no TclObj wrapper.  Keeps the
+                    # per-proc init prologue allocation-free for this
+                    # sidecar; cheap at scale (cmdAH has ~300 compiled
+                    # procs).
                     if params_idx is not None and params_source:
                         params_encoded = params_source.encode("utf-8", errors="surrogatepass")
                         params_offset = self._intern_string(params_source)

@@ -380,11 +380,38 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
 /// retaining the new value and releasing the prior occupant.  The
 /// array bucket owns one reference; without this helper, parser-side
 /// release (MM-B.4) would free values still held only by the bucket.
+///
+/// Promotion of borrowed (parser-produced) TclObjs happens at the
+/// :func:`array_set` entry point, not here — both this helper and
+/// :func:`ar_insert` need the promoted value to avoid storing a
+/// borrowed pointer that would surface a UAF when the parser's source
+/// TclObj is released (the cmdAH cascade).  See
+/// :func:`ensure_array_value_owned`.
 fn bucket_set_value(bucket: u32, value: i32) void {
     const old: i32 = read_i32(bucket + 12);
     if (value != 0) obj.tcl_obj_retain(value);
     write_i32(bucket + 12, value);
     if (old != 0 and old != value) obj.tcl_obj_release(old);
+}
+
+/// Promote a possibly-borrowing string TclObj to an owning copy.
+/// See :func:`tcl_ns.ensure_var_obj_owned` for the full rationale;
+/// short version: parser word TclObjs borrow from the surrounding
+/// script source, and an array bucket must materialise its own copy
+/// so buffer recycling doesn't surface as garbage reads later.
+fn ensure_array_value_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    // S6.4 — tagged immediates have no header to read.
+    if (obj.is_immediate(o)) return o;
+    const addr: u32 = @bitCast(o);
+    const tag = read_i32(addr + obj.OBJ_TYPE_TAG);
+    if (tag != obj.TYPE_STRING) return o;
+    const cap: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_LEN));
+    if (sptr == 0 or slen == 0) return o;
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 {
@@ -715,17 +742,26 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     if (t == 0) return 0;
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
+    // Promote borrowed (parser-produced) TclObjs to owning copies
+    // before storing — covers both overwrite (bucket_set_value) and
+    // fresh-insert (ar_insert) paths.  See ensure_array_value_owned
+    // for the cmdAH-cascade UAF this prevents.
+    const stored = ensure_array_value_owned(value);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
         // Overwrite: leaves the keyset intact, so any in-flight
         // ``array startsearch`` cursor is still valid (set-old-9.7).
-        bucket_set_value(bucket, value);
+        bucket_set_value(bucket, stored);
     } else {
         // Adding a new key shifts the keyset under any open cursor;
         // Tcl 9 auto-stops all searches on this array
         // (set-old-9.6).
         array_invalidate_searches_for(arr);
-        _ = ar_insert(t, sk.ptr, sk.len, hash, value);
+        _ = ar_insert(t, sk.ptr, sk.len, hash, stored);
     }
+    // If we minted a fresh copy, drop the rc=1 that
+    // obj_new_string_copy gave us — bucket_set_value / ar_insert
+    // have already retained, so the slot now owns exactly one ref.
+    if (stored != value and stored != 0) obj.tcl_obj_release(stored);
     // Phase 6: fire WRITE trace AFTER the update so the trace
     // observes the new value if it reads back.
     fire_var_trace_write(arr, sk.ptr, sk.len);

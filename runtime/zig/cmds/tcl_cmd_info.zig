@@ -999,10 +999,20 @@ fn emit_name_in_ns(
 
 /// Emit one FQN — sizing pass if ``ctx.buf == 0``, filling pass
 /// otherwise.  The separator is a single space between entries.
+///
+/// Empty names round-trip as ``{}`` so the list shape stays visible
+/// (Tcl 9's ``UpdateStringOfList`` does the same — an empty element
+/// would otherwise be invisible amid the inter-element spaces).
+/// Used by ``info procs`` / ``info commands`` for the trailing-``::``
+/// proc shape registered by ``proc <ns>:: {args} {body}``
+/// (namespace-old 2.2).  Names with whitespace / special characters
+/// still emit raw — that's a separate gap that no current test
+/// exercises.
 fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
+    const out_len: u32 = if (name_len == 0) 2 else name_len;
     if (ctx.buf == 0) {
         if (ctx.count > 0) ctx.total += 1;
-        ctx.total += name_len;
+        ctx.total += out_len;
         ctx.count += 1;
         return;
     }
@@ -1011,8 +1021,15 @@ fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
         d[0] = ' ';
         ctx.off += 1;
     }
-    memcpy(ctx.buf + ctx.off, name_ptr, name_len);
-    ctx.off += name_len;
+    if (name_len == 0) {
+        const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+        d[0] = '{';
+        d[1] = '}';
+        ctx.off += 2;
+    } else {
+        memcpy(ctx.buf + ctx.off, name_ptr, name_len);
+        ctx.off += name_len;
+    }
     ctx.count += 1;
 }
 
@@ -1025,11 +1042,27 @@ fn emit_name(ctx: *CmdWalkCtx, name_ptr: u32, name_len: u32) void {
 /// command reachable from the root ns appears once rather than
 /// twice.  Path entries pointing back at the context are skipped
 /// (mirrors ``ns_find_command``).
+///
+/// ``info procs`` differs from ``info commands``: reference Tcl 9
+/// (``InfoProcsCmd`` in ``tclCmdIL.c``) scans only the effective
+/// namespace's ``cmdTable`` — not the namespace path, not root.
+/// Without the path/root walks, ``info procs`` from inside a
+/// namespace reports only that namespace's procs (matching
+/// namespace-old 2.2).  We keep the path + root walk for
+/// ``info commands`` so the broader visibility model continues to
+/// match ``Tcl_FindCommand`` resolution.
 fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
     const root = tcl_ns.ns_root();
     const start: u32 = tcl_ns.ns_current();
 
     scan_ns_cmd_table(start, ctx);
+
+    if (ctx.kind == .procs) {
+        // ``info procs`` (unqualified) — Tcl 9 confines the walk to
+        // ``currNsPtr->cmdTable`` (``tclCmdIL.c:1854-1857``).  Skip
+        // the path + root probes here.
+        return;
+    }
 
     // Walk ``namespace path`` entries.  Track whether the path
     // already includes root so the trailing "always scan root"
@@ -1053,9 +1086,8 @@ fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
     // ``try``, ``trace``, ...) live in a static array assembled from
     // each ``cmds/<name>.zig`` rather than in any namespace's
     // ``cmd_table``, so without this pass ``info commands t*`` /
-    // ``info commands string`` etc. came back empty.  ``info procs``
-    // narrows to interpreted procs only, so it skips this pass.
-    if (ctx.kind == .commands) scan_builtin_table(ctx);
+    // ``info commands string`` etc. came back empty.
+    scan_builtin_table(ctx);
 }
 
 /// Walk the static BUILTINS slice from ``tcl_cmd_table.zig`` and emit
@@ -1199,6 +1231,19 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
         }
     }
 
+    // Qualified pattern that didn't resolve to a target namespace —
+    // tclCmdIL.c InfoCommandsCmd / InfoProcsCmd both return an empty
+    // list when ``TclGetNamespaceForQualName`` reports ``nsPtr == NULL``
+    // for the pattern's qualifier prefix.  Without this guard, the
+    // fall-through to ``walk_unqualified_path`` re-walks the current
+    // ns + path + root and returns every visible command — so a stale
+    // ``info commands test_ns_1::deleted_ns::*`` after a
+    // ``namespace delete`` would surface the entire root cmd_table
+    // instead of an empty list (namespace-8.3).
+    if (ctx.qualified_pattern and qualified_target == 0) {
+        return obj_new_string(0, 0);
+    }
+
     // Pass 1: size.
     if (qualified_target != 0) {
         walk_qualified(qualified_target, &ctx);
@@ -1266,32 +1311,77 @@ fn raise_missing_argument(proc_ptr: u32, proc_len: u32, arg_ptr: u32, arg_len: u
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Resolve a name to its Command and verify it's a proc whose params
+/// list is retrievable.  Accepts both interpreted procs (with a
+/// ``params_obj``) and AOT-compiled procs (where the params source
+/// is stashed as raw bytes via ``proc_set_params_source_raw``).
+/// Returns the bucket address with the params payload populated, or
+/// 0 on failure (after raising ``"X" isn't a procedure``).  Used by
+/// ``info default`` so compiled procs can still serve introspection.
+fn resolve_proc_with_params(name: i32) struct { cmd: u32, params_ptr: u32, params_len: u32 } {
+    const sn = obj_ensure_string(name);
+    const bucket = procs.proc_lookup(name);
+    if (bucket == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    const cmd: u32 = @bitCast(bucket);
+    const flags: u32 = @bitCast(read_i32(cmd + procs.OFF_FLAGS));
+    if ((flags & procs.CMD_ALIAS) != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    if ((flags & procs.CMD_BUILTIN_FORWARD) != 0 or
+        (flags & procs.CMD_BUILTIN_MASKED) != 0)
+    {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    // Interpreted proc path — params live in a TclObj.
+    const params_obj = procs.proc_get_params(@bitCast(bucket));
+    if (params_obj != 0) {
+        const ps = obj_ensure_string(params_obj);
+        return .{ .cmd = cmd, .params_ptr = ps.ptr, .params_len = ps.len };
+    }
+    // Compiled proc path — params source stashed as raw data-segment
+    // bytes.  No allocation, no retain — just point the lookup at
+    // the immutable WASM data segment.
+    const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
+    if (func_idx != 0) {
+        const src = procs.proc_get_params_src(cmd);
+        if (src.ptr != 0 and src.len > 0) {
+            return .{ .cmd = cmd, .params_ptr = src.ptr, .params_len = src.len };
+        }
+    }
+    // Neither path found a params payload — treat as non-proc for the
+    // info-default purposes (interpreted proc without params would be a
+    // contradiction; the only realistic path here is a synthetic
+    // compiled proc lacking the params sidecar).
+    raise_not_a_procedure(sn.ptr, sn.len);
+    return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+}
+
 /// info default proc arg varName — write the default value of
 /// parameter ``arg`` in proc ``proc`` into the caller's variable
 /// ``varName`` and return 1 when a default is present.  When the
 /// arg has no default, set ``varName`` to the empty string and
 /// return 0.  When ``arg`` isn't in the proc's params list, raise
 /// ``procedure "X" doesn't have an argument "Y"`` (tclsh parity).
-/// Non-interpreted-proc resolution failures are handled in
-/// ``resolve_interpreted_proc``.
+/// Works on both interpreted procs (params via ``OFF_PARAMS_OBJ``)
+/// and AOT-compiled procs (params via the raw-bytes sidecar at
+/// ``OFF_PARAMS_SRC_PTR`` / ``OFF_PARAMS_SRC_LEN``).
 pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
-    const cmd = resolve_interpreted_proc(proc_name);
-    if (cmd == 0) return obj_new_int(0);
-    const params_obj = procs.proc_get_params(@bitCast(cmd));
+    const res = resolve_proc_with_params(proc_name);
+    if (res.cmd == 0) return obj_new_int(0);
     const arg_s = obj_ensure_string(arg_name);
     const proc_s = obj_ensure_string(proc_name);
-    if (params_obj == 0) {
-        raise_missing_argument(proc_s.ptr, proc_s.len, arg_s.ptr, arg_s.len);
-        return obj_new_int(0);
-    }
-    const params_s = obj_ensure_string(params_obj);
 
-    const count = obj.list_count_elements(params_s.ptr, params_s.len);
+    const count = obj.list_count_elements(res.params_ptr, res.params_len);
     var i: i64 = 0;
     while (i < count) : (i += 1) {
-        const elt = obj.list_element_at(params_s.ptr, params_s.len, i);
-        // elt.start is an offset from params_s.ptr, not an absolute address.
-        const elt_ptr = params_s.ptr + elt.start;
+        const elt = obj.list_element_at(res.params_ptr, res.params_len, i);
+        // elt.start is an offset from params_ptr, not an absolute address.
+        const elt_ptr = res.params_ptr + elt.start;
         // Is this a two-element ``{name default}`` pair?  Split the
         // element into its own sub-elements and compare.
         const sub_count = obj.list_count_elements(elt_ptr, elt.len);
@@ -2107,5 +2197,180 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         }
         return obj_new_string(0, 0);
     }
+    if (str_eq(sp, sub_l, "functions")) {
+        // ``info functions ?pattern?`` — list the math functions
+        // available to ``expr``.  Tcl 9 reference: ``InfoFunctionsCmd``
+        // in ``tclCmdIL.c`` runs a small ``::apply`` script that
+        // unions ``info commands ::tcl::mathfunc::$pattern`` with
+        // ``info commands tcl::mathfunc::$pattern`` (relative to
+        // ``[namespace current]``).  We mirror that union here: scan
+        // ``::tcl::mathfunc`` first (the always-present global
+        // mathfunc namespace, materialised on demand from BUILTINs),
+        // then scan ``<current_ns>::tcl::mathfunc`` if it exists,
+        // deduping simple names already collected from the global.
+        const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+        const global_prefix = "::tcl::mathfunc";
+        const global_ns_addr = builtin_ns.materialise(
+            @intFromPtr(global_prefix.ptr),
+            global_prefix.len,
+        );
+
+        var pat_ptr: u32 = 0;
+        var pat_len: u32 = 0;
+        var has_pattern = false;
+        if (arg != 0) {
+            const ps = obj_ensure_string(arg);
+            if (ps.len > 0) {
+                pat_ptr = ps.ptr;
+                pat_len = ps.len;
+                has_pattern = true;
+            }
+        }
+
+        // Walk the namespace tree from current to root looking for a
+        // ``tcl::mathfunc`` child.  Mirrors Tcl 9's relative ``info
+        // commands tcl::mathfunc::$pattern`` resolution.  Skipped when
+        // current is root (the global pass already covers it).
+        var local_ns_addr: u32 = 0;
+        const cur = tcl_ns.ns_current();
+        if (cur != 0 and cur != tcl_ns.ns_root()) {
+            const tcl_name = "tcl";
+            const tcl_ns_addr = tcl_ns.ns_lookup(cur, @intFromPtr(tcl_name.ptr), tcl_name.len);
+            if (tcl_ns_addr != 0) {
+                const mf_name = "mathfunc";
+                local_ns_addr = tcl_ns.ns_lookup(tcl_ns_addr, @intFromPtr(mf_name.ptr), mf_name.len);
+            }
+        }
+
+        // Two-pass build, matching the rest of this file: size first
+        // (so we can alloc the exact output buffer) then fill.  Dedup
+        // between the global and local mathfunc namespaces is implicit
+        // via ``ns_cmd_find`` — when the local namespace has an entry
+        // whose name already lives in the global namespace, we skip it
+        // on the local pass (the global pass already accounted for it).
+        var total: u32 = 0;
+        var count: u32 = 0;
+        functions_count(global_ns_addr, 0, pat_ptr, pat_len, has_pattern, &total, &count);
+        functions_count(local_ns_addr, global_ns_addr, pat_ptr, pat_len, has_pattern, &total, &count);
+        if (count == 0) return obj_new_string(0, 0);
+
+        const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
+        var off: u32 = 0;
+        var written: u32 = 0;
+        functions_emit(global_ns_addr, 0, pat_ptr, pat_len, has_pattern, buf, &off, &written);
+        functions_emit(local_ns_addr, global_ns_addr, pat_ptr, pat_len, has_pattern, buf, &off, &written);
+        return obj.obj_new_string_take(buf, total, total);
+    }
+    if (str_eq(sp, sub_l, "library")) {
+        // ``info library`` returns the value of the global
+        // ``tcl_library`` variable, or raises ``no library has been
+        // specified for Tcl`` when the var isn't set.  Tcl 9 reference:
+        // ``Tcl_GetVar2Ex(interp, "tcl_library", NULL, TCL_GLOBAL_ONLY)``
+        // (tclCmdIL.c InfoLibraryCmd).  Mirrored here as a root-ns
+        // var_table probe so user reassignment (``set tcl_library 12345``)
+        // is observed correctly.
+        const lib_name = "tcl_library";
+        const root = tcl_ns.ns_root();
+        const v = tcl_ns.ns_var_find(root, @intFromPtr(lib_name.ptr), lib_name.len);
+        if (v != 0) {
+            const val: u32 = tcl_ns.var_get_scalar(v);
+            if (val != 0) return @bitCast(val);
+        }
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const msg_text = "no library has been specified for Tcl";
+        const msg = obj.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return obj_new_string(0, 0);
+    }
     return obj_new_string(0, 0);
+}
+
+/// Should the entry at ``(name_ptr, name_len)`` in *ns_addr* contribute
+/// to ``info functions`` output, given the optional *dedup_against*
+/// namespace (a previously-scanned namespace whose entries take
+/// precedence) and the optional glob *pat*?
+///
+/// Used by both :func:`functions_count` (sizing) and
+/// :func:`functions_emit` (filling); keeping the predicate in one
+/// place guarantees the two passes agree on which entries land in
+/// the output.
+fn functions_entry_matches(
+    name_ptr: u32,
+    name_len: u32,
+    dedup_against: u32,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+) bool {
+    if (name_ptr == 0 or name_len == 0) return false;
+    if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) return false;
+    if (dedup_against != 0 and tcl_ns.ns_cmd_find(dedup_against, name_ptr, name_len) != 0) {
+        // Same simple name already present in the dedup namespace —
+        // skip the local entry so we don't list it twice.
+        return false;
+    }
+    return true;
+}
+
+/// First pass for ``info functions``: bump *total* by the bytes each
+/// emitted name needs (name itself + space delimiter) and *count* by
+/// the number of names that pass the predicate.  No-op on an empty /
+/// missing ``cmd_table``.  ``dedup_against`` may be 0 for "no dedup".
+fn functions_count(
+    ns_addr: u32,
+    dedup_against: u32,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    total: *u32,
+    count: *u32,
+) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (!functions_entry_matches(name_ptr, name_len, dedup_against, pat_ptr, pat_len, has_pattern)) continue;
+        if (count.* > 0) total.* += 1;
+        total.* += name_len;
+        count.* += 1;
+    }
+}
+
+/// Second pass for ``info functions``: write each matching name into
+/// *buf* at offset ``*off_inout``, separating entries with a single
+/// space.  Mirrors :func:`functions_count`'s predicate exactly so the
+/// pre-sized buffer fits.
+fn functions_emit(
+    ns_addr: u32,
+    dedup_against: u32,
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    buf: u32,
+    off_inout: *u32,
+    written_inout: *u32,
+) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (!functions_entry_matches(name_ptr, name_len, dedup_against, pat_ptr, pat_len, has_pattern)) continue;
+        if (written_inout.* > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off_inout.*);
+            d[0] = ' ';
+            off_inout.* += 1;
+        }
+        memcpy(buf + off_inout.*, name_ptr, name_len);
+        off_inout.* += name_len;
+        written_inout.* += 1;
+    }
 }

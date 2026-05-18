@@ -375,6 +375,38 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             const cxt = tcl_ns.ns_current();
             var cmd = tcl_ns.ns_find_command(cxt, name_obj.ptr, name_obj.len);
             if (cmd == 0) {
+                // BUILTIN fallback — core commands (``set``, ``string``,
+                // ``puts``, ...) live in the static BUILTINS slice
+                // rather than any namespace's cmd_table.  Reference
+                // Tcl 9 considers them rooted at ``::`` for the
+                // purposes of :func:`Tcl_GetCommandFullName`, so
+                // ``namespace origin set`` returns ``::set``.  Probe
+                // the BUILTINS lookup first; on hit, fabricate the
+                // canonical FQN ``::<name>``.  Also tolerate an input
+                // already prefixed with ``::`` (e.g. ``namespace origin
+                // ::set``) — strip the prefix before the BUILTINS
+                // probe so the lookup matches.
+                const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+                var probe_ptr: u32 = name_obj.ptr;
+                var probe_len: u32 = name_obj.len;
+                if (name_obj.len >= 2) {
+                    const pp: [*]const u8 = @ptrFromInt(name_obj.ptr);
+                    if (pp[0] == ':' and pp[1] == ':') {
+                        probe_ptr = name_obj.ptr + 2;
+                        probe_len = name_obj.len - 2;
+                    }
+                }
+                if (cmd_table.lookup(probe_ptr, probe_len) != null) {
+                    const fqn_total: u32 = probe_len + 2;
+                    const fqn_buf = alloc(fqn_total);
+                    if (fqn_buf == 0) return result_mod.from_globals(obj_new_string(0, 0));
+                    const fqn_dst: [*]u8 = @ptrFromInt(fqn_buf);
+                    fqn_dst[0] = ':';
+                    fqn_dst[1] = ':';
+                    const sp: [*]const u8 = @ptrFromInt(probe_ptr);
+                    for (0..probe_len) |k| fqn_dst[2 + k] = sp[k];
+                    return result_mod.from_globals(obj_mod.obj_new_string_take(fqn_buf, fqn_total, fqn_total));
+                }
                 // Mirror ``Tcl_NamespaceOriginCmd``: missing command
                 // raises ``invalid command name "<name>"``.  Use the
                 // catch_mod helper so an outer ``catch`` (e.g.
@@ -906,7 +938,17 @@ fn do_ns_delete(h: u32) void {
     // import redirect that pointed at the live command.  After
     // delete, ``info commands`` queries downstream stop returning
     // the orphaned imports (namespace-8.4).
+    //
+    // ``invalidate_ns_command_imports`` already tombstones every
+    // non-root cmd_table bucket's OFF_HANDLE to 0, so future
+    // ``ns_cmd_find`` calls on those tables miss.  The proc-lookup
+    // LRU, however, caches resolved bucket addresses directly —
+    // post-delete LRU hits would still hand back the orphaned
+    // Command pointer and ``test_ns_1::q`` would keep running its
+    // body (namespace-old-7.1, namespace-35.2).  Drop the LRU
+    // unconditionally on every namespace teardown.
     invalidate_ns_command_imports(h);
+    procs.lru_invalidate_all();
     const parent = ns.parent;
     if (parent == 0) return; // can't delete root
     const parent_ns: *tcl_ns.Namespace = @ptrFromInt(parent);
