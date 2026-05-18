@@ -68,10 +68,18 @@ TCL_OPERATOR_HOVER: dict[str, HoverSnippet] = {
 }
 
 
+_8_5_PLUS = frozenset({"tcl8.5", "tcl8.6", "tcl9.0"})
+
 # Per-operator dialect restrictions.  ``None`` (or absent) means available
-# in every Tcl dialect.  ``lt`` / ``le`` / ``gt`` / ``ge`` were added by
-# TIP 461 in Tcl 9.0; 8.5 and 8.6 reject them with ``invalid bareword``.
+# in every Tcl dialect.
+#
+# * ``in`` / ``ni`` — added by TIP 201 in Tcl 8.5; tclsh 8.4 rejects them
+#   with ``syntax error in expression``.
+# * ``lt`` / ``le`` / ``gt`` / ``ge`` — added by TIP 461 in Tcl 9.0;
+#   tclsh 8.5 and 8.6 reject them with ``invalid bareword``.
 TCL_OPERATOR_DIALECTS: dict[str, frozenset[str]] = {
+    "in": _8_5_PLUS,
+    "ni": _8_5_PLUS,
     "lt": frozenset({"tcl9.0"}),
     "le": frozenset({"tcl9.0"}),
     "gt": frozenset({"tcl9.0"}),

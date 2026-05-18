@@ -198,10 +198,10 @@ def _find_dialect_invalid_ops(node, dialect: str):
     """Walk expression AST and collect operators whose dialect gate doesn't
     include *dialect*.
 
-    Returns a list of ``(BinOp, op_name)`` pairs.  Today this catches
-    ``lt`` / ``le`` / ``gt`` / ``ge`` in pre-Tcl-9.0 dialects (TIP 461);
-    new gated operators just need their entry in
-    :data:`TCL_OPERATOR_DIALECTS`.
+    Returns a list of ``(BinOp, op_name)`` pairs.  Catches ``in`` / ``ni``
+    in pre-Tcl-8.5 dialects (TIP 201) and ``lt`` / ``le`` / ``gt`` / ``ge``
+    in pre-Tcl-9.0 dialects (TIP 461).  New gated operators just need
+    their entry in :data:`TCL_OPERATOR_DIALECTS`.
     """
     from ...commands.registry.operators import operator_supports_dialect
     from ...compiler.expr_ast import (
@@ -213,7 +213,13 @@ def _find_dialect_invalid_ops(node, dialect: str):
     )
 
     found: list[tuple[BinOp, str]] = []
-    _STR_CMP_NAMES = {
+    # Operators with version-dependent dialect availability.  ``in`` / ``ni``
+    # were added in Tcl 8.5 (TIP 201); ``lt`` / ``le`` / ``gt`` / ``ge``
+    # were added in Tcl 9.0 (TIP 461).  Both groups are gated through
+    # :data:`TCL_OPERATOR_DIALECTS` in ``commands.registry.operators``.
+    _GATED_OP_NAMES = {
+        BinOp.IN: "in",
+        BinOp.NI: "ni",
         BinOp.STR_LT: "lt",
         BinOp.STR_LE: "le",
         BinOp.STR_GT: "gt",
@@ -224,7 +230,7 @@ def _find_dialect_invalid_ops(node, dialect: str):
         case ExprBinary(op=op, left=left, right=right):
             found.extend(_find_dialect_invalid_ops(left, dialect))
             found.extend(_find_dialect_invalid_ops(right, dialect))
-            name = _STR_CMP_NAMES.get(op)
+            name = _GATED_OP_NAMES.get(op)
             if name is not None and not operator_supports_dialect(name, dialect):
                 found.append((op, name))
         case ExprUnary(operand=operand):
@@ -253,10 +259,16 @@ def check_dialect_invalid_expr_operator(
 ) -> list[Diagnostic]:
     """W003: Warn when an expr operator unavailable in the active dialect is used.
 
-    Currently fires for ``lt`` / ``le`` / ``gt`` / ``ge`` (TIP 461,
-    Tcl 9.0+) when the active dialect is Tcl 8.5 / 8.6 or any
-    Tcl-8-based dialect (f5-irules, f5-iapps, f5-tmsh, EDA tools).
-    Stock tclsh 8.x rejects these as ``invalid bareword``.
+    Currently fires for:
+
+    * ``in`` / ``ni`` (TIP 201, Tcl 8.5+) — tclsh 8.4 and iRules
+      (which is locked to 8.4.6) reject them with ``syntax error in
+      expression``.
+    * ``lt`` / ``le`` / ``gt`` / ``ge`` (TIP 461, Tcl 9.0+) — tclsh
+      8.5 / 8.6 reject them with ``invalid bareword``.
+
+    The :data:`TCL_OPERATOR_DIALECTS` table is the source of truth;
+    adding a new gated operator there is enough to extend this check.
     """
     from ...compiler.expr_ast import ExprRaw
     from ...parsing.expr_parser import parse_expr
@@ -285,16 +297,28 @@ def check_dialect_invalid_expr_operator(
         offenders = _find_dialect_invalid_ops(parsed, dialect)
         # Deduplicate (we only need one diagnostic per op name per call).
         seen: set[str] = set()
+        # Per-op introduction hint so the message points the reader at the
+        # right Tcl version / TIP without us having to special-case dialects
+        # at every call site.
+        intro_hint = {
+            "in": "Tcl 8.5+ (TIP 201)",
+            "ni": "Tcl 8.5+ (TIP 201)",
+            "lt": "Tcl 9.0+ (TIP 461)",
+            "le": "Tcl 9.0+ (TIP 461)",
+            "gt": "Tcl 9.0+ (TIP 461)",
+            "ge": "Tcl 9.0+ (TIP 461)",
+        }
         for _op, name in offenders:
             if name in seen:
                 continue
             seen.add(name)
+            hint = intro_hint.get(name, "a later Tcl version")
             diagnostics.append(
                 Diagnostic(
                     range=range_from_token(tok),
                     message=(
                         f"Expression operator '{name}' is not available in the "
-                        f"active dialect ({dialect}); requires Tcl 9.0+ (TIP 461)."
+                        f"active dialect ({dialect}); requires {hint}."
                     ),
                     severity=Severity.WARNING,
                     code="W003",
