@@ -13,14 +13,24 @@ name: CodeQL
 # `zed_extension_api`, with a small attack surface; the cost-benefit
 # of fighting CodeQL Rust's wasm-target handling isn't there yet.
 # Revisit when CodeQL Rust supports `build-mode: none` GA.
+#
+# Triggers:
+#   - push to main: continuous analysis of trunk after every merge.  The
+#     release skill (see `.claude/skills/release/SKILL.md`) waits for
+#     these runs to finish on the release-notes commit and on the
+#     version-bump commit, and refuses to tag if any open alert on main
+#     has security-severity high/critical.  That is the actual security
+#     gate — CodeQL is no longer a pre-merge PR check.
+#   - workflow_dispatch: lets the release skill (or a maintainer) force
+#     a re-run on the current HEAD if the push-triggered run was missed
+#     or cancelled by concurrency.
+#   - schedule: weekly scan picks up newly-published advisories against
+#     dependencies that haven't otherwise changed.
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
   schedule:
-    # Weekly scan picks up newly-published advisories against deps that
-    # haven't otherwise changed.
     - cron: "37 6 * * 1"
 
 permissions:

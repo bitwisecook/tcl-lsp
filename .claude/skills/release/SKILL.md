@@ -117,7 +117,7 @@ with these sections (omit empty sections):
 Focus on user-visible changes. Group related changes. Use UK spelling. Do not
 list every file touched; summarise the meaningful changes.
 
-### 6. Land RELEASE_NOTES.md, then tag
+### 6. Land RELEASE_NOTES.md via PR
 
 Main is protected, so the release-notes commit lands via a PR:
 
@@ -137,9 +137,38 @@ git checkout main
 git pull origin main
 ```
 
-Now create + push the annotated tag. `make release-tag` handles validation
-(clean tree, correct branch, no existing tag) and pushes only the tag —
-no source-file edits, no commit on main:
+### 7. Security gate (CodeQL on tag candidate)
+
+CodeQL is the release gate, not a pre-merge PR check. After pulling the
+merged release-notes commit, HEAD on `main` is the commit the tag will
+point at. Wait for CodeQL on that commit and verify no open high/critical
+alerts remain on `main`:
+
+```bash
+tag_sha="$(git rev-parse HEAD)"
+make release-codeql-gate SHA="$tag_sha"
+```
+
+`release-codeql-gate` runs `scripts/release_codeql_gate.sh`, which:
+
+1. Locates the push-triggered CodeQL run for `$tag_sha` (polling for up to
+   2 min; dispatches `workflow_dispatch` as a fallback if none appears).
+2. Watches the run with `gh run watch --exit-status` and fails if it does
+   not succeed.
+3. Queries the Code Scanning API for open alerts on `refs/heads/main` and
+   fails if any have `security_severity_level` of `high` or `critical`.
+
+If the gate fails, **do not tag**. Investigate the alerts, fix or dismiss
+them via PR (dismissals must include a justification), pull `main` again,
+and re-run the gate. Override the severity threshold only with strong
+justification by setting `CODEQL_GATE_MIN_SEVERITY=critical` in the
+environment.
+
+### 8. Create and push the tag
+
+`make release-tag` handles validation (clean tree, correct branch, no
+existing tag) and pushes only the tag — no source-file edits, no commit on
+main:
 
 ```bash
 make release-tag V=X.Y.Z
@@ -148,7 +177,7 @@ make release-tag V=X.Y.Z
 The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
 `publish-checksums`, and publish the GitHub release.
 
-### 6.5. Verify published artefacts
+### 9. Verify published artefacts
 
 After `make release-tag` pushes the tag, CI builds and uploads every
 artefact, then the `publish-checksums` job aggregates them into a
@@ -158,7 +187,7 @@ installer (`scripts/install.sh`) verifies downloads against this file.
 **Wait for CI to finish, then verify locally** before publishing to any
 editor marketplace. A SUMS mismatch means an artefact was modified
 after upload or the build was non-reproducible — either way, **do not
-proceed to step 7**.
+proceed to step 10**.
 
 ```bash
 tag="vX.Y.Z"
@@ -215,9 +244,9 @@ job. The post-install checks above catch the next failure modes after
 that: a successfully-completed installer that nevertheless landed
 stale or version-skewed binaries (e.g. cached artefact, partial
 upload, dev build leaking through). All checks must pass before
-step 7.
+step 10.
 
-### 7. Editor publishing
+### 10. Editor publishing
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
@@ -282,7 +311,7 @@ external repositories — any external-repo PR (JetBrains first-time
 upload, Package Control channel submission, Zed extensions registry,
 nvim-lspconfig, Helix) is raised by the user.
 
-### 8. Summary
+### 11. Summary
 
 Print a summary of what was done:
 

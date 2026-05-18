@@ -37,8 +37,9 @@
 #   make sublime       Build the Sublime Text package (.sublime-package)
 #   make zed           Build the Zed extension archive (.tar.gz)
 #   make screenshots   Capture extension screenshots and build demo GIF (macOS)
-#   make release       Build all release artifacts (parity with tagged CI release jobs)
-#   make release-tag   Bump version, tag, and push (V=x.y.z)
+#   make release             Build all release artifacts (parity with tagged CI release jobs)
+#   make release-tag         Create + push the annotated release tag (V=x.y.z)
+#   make release-codeql-gate Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
 #   make coverage      Generate all coverage reports (Python + VS Code)
 #   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
 #   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
@@ -135,7 +136,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -1267,8 +1268,11 @@ release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-m
 	    fi
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
-release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
+release-tag: ## Create + push the annotated release tag (V=x.y.z); run release-codeql-gate first
 	@bash $(ROOT)scripts/release.sh $(V)
+
+release-codeql-gate: ## Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
+	@bash $(ROOT)scripts/release_codeql_gate.sh $(SHA)
 
 publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
