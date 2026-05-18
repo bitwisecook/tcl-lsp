@@ -938,7 +938,17 @@ fn do_ns_delete(h: u32) void {
     // import redirect that pointed at the live command.  After
     // delete, ``info commands`` queries downstream stop returning
     // the orphaned imports (namespace-8.4).
+    //
+    // ``invalidate_ns_command_imports`` already tombstones every
+    // non-root cmd_table bucket's OFF_HANDLE to 0, so future
+    // ``ns_cmd_find`` calls on those tables miss.  The proc-lookup
+    // LRU, however, caches resolved bucket addresses directly —
+    // post-delete LRU hits would still hand back the orphaned
+    // Command pointer and ``test_ns_1::q`` would keep running its
+    // body (namespace-old-7.1, namespace-35.2).  Drop the LRU
+    // unconditionally on every namespace teardown.
     invalidate_ns_command_imports(h);
+    procs.lru_invalidate_all();
     const parent = ns.parent;
     if (parent == 0) return; // can't delete root
     const parent_ns: *tcl_ns.Namespace = @ptrFromInt(parent);
