@@ -279,12 +279,19 @@ fn lru_insert(ns: u32, hash: u32, len: u32, first_byte: u8, cmd: u32) void {
 fn alloc_command(name_ptr: u32, name_len: u32, hash: u32) u32 {
     _ = hash;
     const addr = alloc(COMMAND_SIZE);
+    if (addr == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(addr);
     @memset(slice[0..COMMAND_SIZE], 0);
-    const nbuf = alloc(name_len);
-    if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
-    write_i32(addr, @bitCast(nbuf));
-    write_i32(addr + 4, @bitCast(name_len));
+    if (name_len > 0) {
+        const nbuf = alloc(name_len);
+        if (nbuf == 0) {
+            obj.free_sized(addr, COMMAND_SIZE);
+            return 0;
+        }
+        memcpy(nbuf, name_ptr, name_len);
+        write_i32(addr, @bitCast(nbuf));
+        write_i32(addr + 4, @bitCast(name_len));
+    }
     // flags slot at offset 8 stays zero — set later for imports.
     return addr;
 }

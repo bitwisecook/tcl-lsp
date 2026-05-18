@@ -202,8 +202,14 @@ pub export fn info_args(name: i32) i32 {
     // bundles built without the params-source emit).
     const src = procs.proc_get_params_src(@bitCast(bucket));
     if (src.ptr != 0 and src.len > 0) {
+        // ``obj_new_string`` allocates with rc=1.  ``strip_param_defaults``
+        // reads its string and returns a fresh TclObj; release the
+        // temporary handle once the result is computed so the obj
+        // header doesn't leak on every ``info args`` call.
         const raw = obj_new_string(@bitCast(src.ptr), @bitCast(src.len));
-        return strip_param_defaults(raw);
+        const stripped = strip_param_defaults(raw);
+        obj.tcl_obj_release(raw);
+        return stripped;
     }
     return obj_new_string(0, 0);
 }
@@ -218,28 +224,15 @@ fn strip_param_defaults(params: i32) i32 {
     if (ps.len == 0 or ps.ptr == 0) return obj_new_string(0, 0);
     const n = obj.list_count_elements(ps.ptr, ps.len);
     if (n <= 0) return obj_new_string(0, 0);
-    // Two passes: size then emit.
+    // Walk each element, extract just the parameter name (first
+    // sub-element when the param has a default, else the element
+    // itself), and re-assemble through ``tcl_list`` so the result
+    // is properly list-quoted.  A bare byte-concat with spaces
+    // would round-trip incorrectly for parameter names that contain
+    // whitespace, braces, or other Tcl special characters.
+    const list_mod = @import("../valtypes/tcl_list.zig");
+    var result: i32 = obj_new_string(0, 0);
     var i: i64 = 0;
-    var total: u32 = 0;
-    var emit_count: u32 = 0;
-    while (i < n) : (i += 1) {
-        const elem = obj.list_element_at(ps.ptr, ps.len, i);
-        if (elem.len == 0) continue;
-        const sub_n = obj.list_count_elements(ps.ptr + elem.start, elem.len);
-        const name_len: u32 = if (sub_n > 0)
-            obj.list_element_at(ps.ptr + elem.start, elem.len, 0).len
-        else
-            elem.len;
-        if (emit_count > 0) total += 1;
-        total += name_len;
-        emit_count += 1;
-    }
-    if (emit_count == 0) return obj_new_string(0, 0);
-    const buf = alloc(total);
-    if (buf == 0) return obj_new_string(0, 0);
-    var off: u32 = 0;
-    var written: u32 = 0;
-    i = 0;
     while (i < n) : (i += 1) {
         const elem = obj.list_element_at(ps.ptr, ps.len, i);
         if (elem.len == 0) continue;
@@ -251,16 +244,13 @@ fn strip_param_defaults(params: i32) i32 {
             name_ptr = ps.ptr + elem.start + sub.start;
             name_len = sub.len;
         }
-        if (written > 0) {
-            const dp: [*]u8 = @ptrFromInt(buf + off);
-            dp[0] = ' ';
-            off += 1;
-        }
-        memcpy(buf + off, name_ptr, name_len);
-        off += name_len;
-        written += 1;
+        const name_obj = obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+        const next = list_mod.tcl_list(result, name_obj);
+        obj.tcl_obj_release(result);
+        obj.tcl_obj_release(name_obj);
+        result = next;
     }
-    return obj.obj_new_string_take(buf, off, total);
+    return result;
 }
 
 /// ``info complete script`` — returns 1 iff the script can be
@@ -1378,25 +1368,21 @@ pub fn info_constant(name: i32) i32 {
     // Namespace / global probe.  Reach the ``Var`` record directly
     // and inspect its flags.  Qualify bare names against current_ns
     // the way ``var_set`` would.
-    var ns_addr = tcl_ns.ns_root();
+    const ns_addr = tcl_ns.ns_root();
     var key_ptr = sn.ptr;
     var key_len = sn.len;
+    // Tracks an allocator-owned buffer we synthesised for the
+    // qualified-key probe; freed on every return path to avoid the
+    // per-call leak that previously persisted across each
+    // ``info constant`` invocation at namespace scope.
+    var owned_buf: u32 = 0;
+    var owned_len: u32 = 0;
     if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') {
-        // Already absolute — strip the leading ``::`` to match the
-        // flat-key form used by root.var_table.
         key_ptr = sn.ptr + 2;
         key_len = sn.len - 2;
     } else if (frames.frame_depth == 0 and tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
-        // Unqualified at namespace top-level: qualify against current_ns.
-        ns_addr = tcl_ns.ns_root();
-        // No allocation: the namespace var_table uses the FQN-ish
-        // ``ns::name`` form for nested vars (see :func:`var_set`'s
-        // namespace branch).  Skipping the alloc here means we
-        // synthesise the key on the stack via a temporary buffer.
         const ns_full_ptr = tcl_ns.current_ns_full_ptr();
         const ns_full_len = tcl_ns.current_ns_full_len();
-        // Strip leading ``::`` from ns_full_ptr too (current_ns_full
-        // returns the ``::A`` form).
         var nfp = ns_full_ptr;
         var nfl = ns_full_len;
         if (nfl >= 2) {
@@ -1417,8 +1403,11 @@ pub fn info_constant(name: i32) i32 {
         for (0..sn.len) |i| dst[nfl + 2 + i] = sp[i];
         key_ptr = buf;
         key_len = total;
+        owned_buf = buf;
+        owned_len = total;
     }
     const v_addr = tcl_ns.ns_var_find(ns_addr, key_ptr, key_len);
+    if (owned_buf != 0) obj.free_sized(owned_buf, owned_len);
     if (v_addr == 0) return obj_new_int(0);
     const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
     if ((v.flags & tcl_ns.VAR_CONSTANT) != 0) return obj_new_int(1);
@@ -1512,6 +1501,10 @@ pub fn info_consts(pattern: i32) i32 {
     var match_pat_ptr: u32 = pat_ptr;
     var match_pat_len: u32 = pat_len;
     var emit_prefix_colons: bool = is_qualified; // ``::`` on emit for qualified queries
+    // Track whether the match pattern is allocator-owned so the
+    // qualified-pattern synthesis below cleans up before we return.
+    var owned_pat_buf: u32 = 0;
+    var owned_pat_len: u32 = 0;
     if (is_qualified and pat_len >= 2) {
         const pp_check: [*]const u8 = @ptrFromInt(pat_ptr);
         if (pp_check[0] == ':' and pp_check[1] == ':') {
@@ -1552,6 +1545,8 @@ pub fn info_consts(pattern: i32) i32 {
             match_pat_ptr = pb;
             match_pat_len = total_pat;
             has_pattern = true;
+            owned_pat_buf = pb;
+            owned_pat_len = total_pat;
             // Don't prefix output with ``::`` for the unqualified
             // form — var-30.5 expects the bare simple name ``X``.
             emit_prefix_colons = false;
@@ -1560,7 +1555,10 @@ pub fn info_consts(pattern: i32) i32 {
 
     const root = tcl_ns.ns_root();
     const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
-    if (ns.var_table.buf == 0) return obj_new_string(0, 0);
+    if (ns.var_table.buf == 0) {
+        if (owned_pat_buf != 0) obj.free_sized(owned_pat_buf, owned_pat_len);
+        return obj_new_string(0, 0);
+    }
 
     const prefix_len: u32 = if (emit_prefix_colons) 2 else 0;
     var total_bytes: u32 = 0;
@@ -1593,9 +1591,15 @@ pub fn info_consts(pattern: i32) i32 {
         }
         count += 1;
     }
-    if (count == 0) return obj_new_string(0, 0);
+    if (count == 0) {
+        if (owned_pat_buf != 0) obj.free_sized(owned_pat_buf, owned_pat_len);
+        return obj_new_string(0, 0);
+    }
     const buf = alloc(total_bytes);
-    if (buf == 0) return obj_new_string(0, 0);
+    if (buf == 0) {
+        if (owned_pat_buf != 0) obj.free_sized(owned_pat_buf, owned_pat_len);
+        return obj_new_string(0, 0);
+    }
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1634,6 +1638,7 @@ pub fn info_consts(pattern: i32) i32 {
         }
         written += 1;
     }
+    if (owned_pat_buf != 0) obj.free_sized(owned_pat_buf, owned_pat_len);
     return obj.obj_new_string_take(buf, off, total_bytes);
 }
 

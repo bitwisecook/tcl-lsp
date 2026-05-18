@@ -937,6 +937,13 @@ fn do_ns_delete(h: u32) void {
 fn drop_parent_ensembles_for(parent_ns: *tcl_ns.Namespace, deleted_ns: u32) void {
     if (parent_ns.cmd_table.buf == 0) return;
     const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
+    // Capture the parent address up-front so we can route the
+    // tombstone through ``ns_cmd_clear`` (which bumps the namespace's
+    // ``cmd_ref_epoch`` to invalidate stale command-resolution
+    // caches).  Direct ``write_i32`` of OFF_HANDLE to zero leaves
+    // the epoch unchanged and stale ``::path`` lookups keep
+    // resolving to the dead bucket.
+    const parent_addr: u32 = @intFromPtr(parent_ns);
     var i: u32 = 0;
     while (i < parent_ns.cmd_table.cap) : (i += 1) {
         const bucket = parent_ns.cmd_table.buf + i * bucket_size;
@@ -953,9 +960,8 @@ fn drop_parent_ensembles_for(parent_ns: *tcl_ns.Namespace, deleted_ns: u32) void
         ensemble_rec_release(rec_addr);
         obj_mod.write_i32(cmd + procs.OFF_PARAMS_OBJ, 0);
         obj_mod.write_i32(cmd + procs.OFF_FLAGS, 0);
-        // Tombstone the cmd_table slot so ``info commands`` / proc
-        // lookups no longer surface this bucket.
-        obj_mod.write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
+        const nl: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
+        _ = tcl_ns.ns_cmd_clear(parent_addr, np, nl);
     }
 }
 
@@ -1186,15 +1192,23 @@ fn eval_ns_ensemble(words: []const i32) i32 {
     if (slice_eq_ns(sub2.ptr, sub2.len, "create")) {
         return eval_ns_ensemble_create(words);
     }
-    if (slice_eq_ns(sub2.ptr, sub2.len, "exists") and words.len >= 4) {
+    if (slice_eq_ns(sub2.ptr, sub2.len, "exists")) {
+        if (words.len != 4) {
+            raise_ns_error("wrong # args: should be \"namespace ensemble exists cmdname\"");
+            return 0;
+        }
         const bucket = ensemble_find_cmd(words[3]);
         if (bucket == 0) return obj_new_int(0);
         const flags: u32 = @bitCast(obj_mod.read_i32(bucket + procs.OFF_FLAGS));
         return obj_new_int(if ((flags & procs.CMD_ENSEMBLE) != 0) 1 else 0);
     }
-    if ((slice_eq_ns(sub2.ptr, sub2.len, "configure") or
-        slice_eq_ns(sub2.ptr, sub2.len, "config")) and words.len >= 4)
+    if (slice_eq_ns(sub2.ptr, sub2.len, "configure") or
+        slice_eq_ns(sub2.ptr, sub2.len, "config"))
     {
+        if (words.len < 4) {
+            raise_ns_error("wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...?\"");
+            return 0;
+        }
         return eval_ns_ensemble_configure(words);
     }
     raise_bad_ensemble_subcmd(sub2.ptr, sub2.len);
@@ -1231,7 +1245,13 @@ fn eval_ns_ensemble_configure(words: []const i32) i32 {
     if (words.len == 5) {
         return read_ensemble_option(rec, words[4]);
     }
-    // Setter form: pairs from words[4..].
+    // Setter form: pairs from words[4..].  Reject odd-length tails
+    // (each option needs a value) up front so the loop below can't
+    // silently drop the last option / value.
+    if (((words.len - 4) & 1) != 0) {
+        raise_ns_error("missing value to go with key");
+        return 0;
+    }
     var i: u32 = 4;
     while (i + 1 < words.len) : (i += 2) {
         const key = obj_ensure_string(words[i]);
@@ -1249,7 +1269,22 @@ fn eval_ns_ensemble_configure(words: []const i32) i32 {
                     raise_ns_error("missing value to go with key");
                     return 0;
                 }
-                ensemble_set_obj_slot(&rec.map_obj, val_obj);
+                // Validate non-empty impls and auto-qualify the
+                // first impl element against the ensemble's target
+                // namespace — mirrors the ``create`` path so a
+                // subsequent ``configure -map`` read returns the
+                // FQ form (namespace-46.1 semantics).
+                var k: i64 = 1;
+                while (k < n) : (k += 2) {
+                    const impl = obj_mod.list_element_at(val.ptr, val.len, k);
+                    if (impl.len == 0) {
+                        raise_ns_error("ensemble subcommand implementations must be non-empty lists");
+                        return 0;
+                    }
+                }
+                const qualified = qualify_map_impls(val_obj, rec.target_ns);
+                ensemble_set_obj_slot(&rec.map_obj, qualified);
+                if (qualified != val_obj) obj_mod.tcl_obj_release(qualified);
             }
         } else if (slice_eq_ns(key.ptr, key.len, "-subcommands") or slice_eq_ns(key.ptr, key.len, "-subcommand")) {
             if (val.len == 0) {
@@ -1281,6 +1316,11 @@ fn eval_ns_ensemble_configure(words: []const i32) i32 {
         } else if (slice_eq_ns(key.ptr, key.len, "-prefixes")) {
             const b = obj_get_int(val_obj);
             rec.prefixes = if (b != 0) 1 else 0;
+        } else {
+            // Unknown option — reference Tcl errors rather than
+            // silently dropping.  Match its ``bad option`` shape.
+            raise_unknown_ensemble_option(key.ptr, key.len);
+            return 0;
         }
     }
     return obj_new_string(0, 0);
@@ -1374,6 +1414,31 @@ fn brace_wrap(value: i32) i32 {
     for (0..s.len) |i| dst[1 + i] = sp[i];
     dst[total - 1] = '}';
     return obj_mod.obj_new_string_take(buf, total, total);
+}
+
+fn raise_unknown_ensemble_option(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "bad option \"";
+    const suffix: []const u8 = "\": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_len > 0) {
+        const np: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |i| dst[off + i] = np[i];
+        off += name_len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    catch_mod.tcl_cmd_error(obj_mod.obj_new_string_take(buf, total, total));
 }
 
 fn raise_not_an_ensemble(name: i32) void {
@@ -1711,6 +1776,11 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
     var cmd: u32 = existing;
     if (cmd == 0) {
         cmd = procs.alloc_command_export(simple_ptr, simple_len);
+        if (cmd == 0) {
+            ensemble_rec_release(rec_addr);
+            raise_ns_error("out of memory creating ensemble");
+            return 0;
+        }
         _ = tcl_ns.ns_cmd_put(register_ns, simple_ptr, simple_len, cmd);
     } else {
         // Re-use: if the existing bucket already held an ensemble
@@ -1736,6 +1806,7 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
     if (ns_full.len > 2) {
         const total: u32 = ns_full.len + 2 + simple_len;
         const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
         const dst: [*]u8 = @ptrFromInt(buf);
         const np: [*]const u8 = @ptrFromInt(ns_full.ptr);
         for (0..ns_full.len) |k| dst[k] = np[k];
@@ -1749,6 +1820,7 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
         // Root namespace ``::`` — ``::simple``.
         const total: u32 = 2 + simple_len;
         const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
         const dst: [*]u8 = @ptrFromInt(buf);
         dst[0] = ':';
         dst[1] = ':';

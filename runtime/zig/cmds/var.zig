@@ -413,12 +413,32 @@ fn eval_const(words: []const i32) result_mod.InterpResult {
     const qname = qualify_for_ns(name, sn);
     const qs = obj_ensure_string(qname);
     const stripped = strip_double_colon(qs.ptr, qs.len);
+    // Reject ``const X V`` when ``X`` already exists as an array
+    // at the resolved storage key.  Arrays live in the parallel
+    // ``tcl_array`` directory, not the ``ns_var_find`` table, so
+    // the ``Var`` probe below would miss them.
+    if (tcl_array.array_exists_raw(stripped.ptr, stripped.len)) {
+        raise_const_array_var_error(sn.ptr, sn.len);
+        if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
+        return result_mod.from_globals(0);
+    }
     const v_addr = tcl_ns.ns_var_find(tcl_ns.ns_root(), stripped.ptr, stripped.len);
     if (v_addr != 0) {
         const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
         if ((v.flags & tcl_ns.VAR_CONSTANT) != 0) {
             if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
             return result_mod.from_globals(value);
+        }
+        // Belt-and-braces: a ``Var`` record carrying ``VAR_ARRAY``
+        // (e.g. a future direct ns-var array shape) is also a
+        // non-scalar — reject just like the array-directory probe
+        // above.  ``var_get_scalar`` returns 0 for arrays, which
+        // would otherwise let the slot look like an undefined
+        // scalar and slip into the ``promote-to-const`` branch.
+        if ((v.flags & tcl_ns.VAR_ARRAY) != 0) {
+            raise_const_array_var_error(sn.ptr, sn.len);
+            if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
+            return result_mod.from_globals(0);
         }
         // Existing non-const var: error iff it has a value.  An
         // undefined slot (created by ``variable X`` with no value)
@@ -484,6 +504,32 @@ fn raise_const_exists_error(name_ptr: u32, name_len: u32) void {
     const catch_mod = @import("../interp/tcl_catch.zig");
     const prefix: []const u8 = "can't make constant \"";
     const suffix: []const u8 = "\": variable already exists";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = rt.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(name_ptr);
+    for (0..name_len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = rt.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+fn raise_const_array_var_error(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "can't make constant \"";
+    const suffix: []const u8 = "\": variable is array";
     const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
     const buf = rt.alloc(total);
     if (buf == 0) return;
