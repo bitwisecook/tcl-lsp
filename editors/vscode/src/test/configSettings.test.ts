@@ -4,6 +4,7 @@ import {
   getDocUri,
   activate,
   getServerLogSize,
+  nextDiagnosticsPublish,
   pollUntil,
   waitForDeepDiagnostics,
   waitForDiagnostics,
@@ -971,9 +972,15 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("diagnostics.tcl");
     await activate(docUri);
 
-    // Baseline: W100 should be present
-    const before = await waitForDiagnostics(docUri, { minCount: 1 });
+    // Baseline: wait for the specific code we are about to disable
+    // rather than the first publish that happens to have any
+    // diagnostic — that way a fixture change that no longer triggers
+    // W100 fails the wait directly rather than racing the assertion
+    // below.
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const before = await waitForDiagnostics(docUri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "W100"),
+    });
     const hasW100Before = before.some((d) => codeOf(d) === "W100");
     assert.ok(hasW100Before, `W100 should be present by default, got [${before.map(codeOf)}]`);
 
@@ -985,21 +992,11 @@ suite("Configuration Settings", () => {
       });
 
       // Re-trigger: touch the document so the server re-analyses.
-      // Then wait for a *fresh* diagnostics publish (onDidChangeDiagnostics)
-      // to avoid reading stale pre-toggle results.
+      // Register the publish listener *before* the edit so the fresh
+      // publish event is not missed and we do not read stale
+      // pre-toggle results.
       const editor = vscode.window.activeTextEditor!;
-      const freshDiags = new Promise<vscode.Diagnostic[]>((resolve) => {
-        const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
-          if (e.uris.some((u) => u.toString() === docUri.toString())) {
-            disposable.dispose();
-            resolve(vscode.languages.getDiagnostics(docUri));
-          }
-        });
-        setTimeout(() => {
-          disposable.dispose();
-          resolve(vscode.languages.getDiagnostics(docUri));
-        }, 5000);
-      });
+      const freshDiags = nextDiagnosticsPublish(docUri);
       await setTestContent(editor, editor.document.getText() + " ");
       const after = await freshDiags;
       const hasW100After = after.some((d) => codeOf(d) === "W100");
@@ -1081,11 +1078,15 @@ suite("Configuration Settings", () => {
       // used to pick the right per-folder FeatureConfig.
       await waitForFeatureToggle(docUri, "diagnostics", false);
 
-      // Open a file that normally produces many diagnostics.
+      // Register the listener *before* opening the file so the
+      // server's first publish for this URI is not missed.  When the
+      // master switch is off, ``_publish_diagnostics`` skips both
+      // passes and emits a single empty publish — there is no
+      // ``[timing]`` server log on this path, so the publish event
+      // itself is the signal.
+      const firstPublish = nextDiagnosticsPublish(docUri, { timeout: 3000 });
       await activate(docUri);
-
-      // Give the server time to analyse and (incorrectly) publish.
-      const diags = await waitForDiagnostics(docUri, { timeout: 3000, minCount: 1 });
+      const diags = await firstPublish;
       assert.strictEqual(
         diags.length,
         0,

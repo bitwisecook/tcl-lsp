@@ -46,6 +46,41 @@ async function _ensureServerLogSubscribed(): Promise<void> {
 }
 
 /**
+ * Resolve on the next ``onDidChangeDiagnostics`` event for *docUri*,
+ * or on timeout.  Returns the current diagnostics for *docUri* either
+ * way.
+ *
+ * Use this when a test needs to observe a single server publish for a
+ * URI — typically to assert that an empty publish arrived (no signal
+ * shows up via ``[timing]`` logs when the server skips analysis), or
+ * to read a *fresh* set of diagnostics after a config change rather
+ * than the stale pre-change set.
+ *
+ * Register the listener **before** the action that triggers the
+ * publish (e.g. ``activate(docUri)`` or an edit) so the event is not
+ * missed.
+ */
+export function nextDiagnosticsPublish(
+  docUri: vscode.Uri,
+  opts?: { timeout?: number },
+): Promise<vscode.Diagnostic[]> {
+  const timeout = opts?.timeout ?? 5_000;
+  return new Promise<vscode.Diagnostic[]>((resolve) => {
+    const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
+      if (e.uris.some((u) => u.toString() === docUri.toString())) {
+        disposable.dispose();
+        clearTimeout(timer);
+        resolve(vscode.languages.getDiagnostics(docUri));
+      }
+    });
+    const timer = setTimeout(() => {
+      disposable.dispose();
+      resolve(vscode.languages.getDiagnostics(docUri));
+    }, timeout);
+  });
+}
+
+/**
  * Snapshot of LSP server log lines captured since the extension started.
  * Tests can use ``getServerLog().filter(...)`` to assert on server-side
  * behaviour (dialect switches, diagnostic-pipeline activity, …) without
