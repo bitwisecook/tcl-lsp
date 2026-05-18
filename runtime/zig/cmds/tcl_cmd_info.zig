@@ -1266,32 +1266,77 @@ fn raise_missing_argument(proc_ptr: u32, proc_len: u32, arg_ptr: u32, arg_len: u
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Resolve a name to its Command and verify it's a proc whose params
+/// list is retrievable.  Accepts both interpreted procs (with a
+/// ``params_obj``) and AOT-compiled procs (where the params source
+/// is stashed as raw bytes via ``proc_set_params_source_raw``).
+/// Returns the bucket address with the params payload populated, or
+/// 0 on failure (after raising ``"X" isn't a procedure``).  Used by
+/// ``info default`` so compiled procs can still serve introspection.
+fn resolve_proc_with_params(name: i32) struct { cmd: u32, params_ptr: u32, params_len: u32 } {
+    const sn = obj_ensure_string(name);
+    const bucket = procs.proc_lookup(name);
+    if (bucket == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    const cmd: u32 = @bitCast(bucket);
+    const flags: u32 = @bitCast(read_i32(cmd + procs.OFF_FLAGS));
+    if ((flags & procs.CMD_ALIAS) != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    if ((flags & procs.CMD_BUILTIN_FORWARD) != 0 or
+        (flags & procs.CMD_BUILTIN_MASKED) != 0)
+    {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+    }
+    // Interpreted proc path — params live in a TclObj.
+    const params_obj = procs.proc_get_params(@bitCast(bucket));
+    if (params_obj != 0) {
+        const ps = obj_ensure_string(params_obj);
+        return .{ .cmd = cmd, .params_ptr = ps.ptr, .params_len = ps.len };
+    }
+    // Compiled proc path — params source stashed as raw data-segment
+    // bytes.  No allocation, no retain — just point the lookup at
+    // the immutable WASM data segment.
+    const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
+    if (func_idx != 0) {
+        const src = procs.proc_get_params_src(cmd);
+        if (src.ptr != 0 and src.len > 0) {
+            return .{ .cmd = cmd, .params_ptr = src.ptr, .params_len = src.len };
+        }
+    }
+    // Neither path found a params payload — treat as non-proc for the
+    // info-default purposes (interpreted proc without params would be a
+    // contradiction; the only realistic path here is a synthetic
+    // compiled proc lacking the params sidecar).
+    raise_not_a_procedure(sn.ptr, sn.len);
+    return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
+}
+
 /// info default proc arg varName — write the default value of
 /// parameter ``arg`` in proc ``proc`` into the caller's variable
 /// ``varName`` and return 1 when a default is present.  When the
 /// arg has no default, set ``varName`` to the empty string and
 /// return 0.  When ``arg`` isn't in the proc's params list, raise
 /// ``procedure "X" doesn't have an argument "Y"`` (tclsh parity).
-/// Non-interpreted-proc resolution failures are handled in
-/// ``resolve_interpreted_proc``.
+/// Works on both interpreted procs (params via ``OFF_PARAMS_OBJ``)
+/// and AOT-compiled procs (params via the raw-bytes sidecar at
+/// ``OFF_PARAMS_SRC_PTR`` / ``OFF_PARAMS_SRC_LEN``).
 pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
-    const cmd = resolve_interpreted_proc(proc_name);
-    if (cmd == 0) return obj_new_int(0);
-    const params_obj = procs.proc_get_params(@bitCast(cmd));
+    const res = resolve_proc_with_params(proc_name);
+    if (res.cmd == 0) return obj_new_int(0);
     const arg_s = obj_ensure_string(arg_name);
     const proc_s = obj_ensure_string(proc_name);
-    if (params_obj == 0) {
-        raise_missing_argument(proc_s.ptr, proc_s.len, arg_s.ptr, arg_s.len);
-        return obj_new_int(0);
-    }
-    const params_s = obj_ensure_string(params_obj);
 
-    const count = obj.list_count_elements(params_s.ptr, params_s.len);
+    const count = obj.list_count_elements(res.params_ptr, res.params_len);
     var i: i64 = 0;
     while (i < count) : (i += 1) {
-        const elt = obj.list_element_at(params_s.ptr, params_s.len, i);
-        // elt.start is an offset from params_s.ptr, not an absolute address.
-        const elt_ptr = params_s.ptr + elt.start;
+        const elt = obj.list_element_at(res.params_ptr, res.params_len, i);
+        // elt.start is an offset from params_ptr, not an absolute address.
+        const elt_ptr = res.params_ptr + elt.start;
         // Is this a two-element ``{name default}`` pair?  Split the
         // element into its own sub-elements and compare.
         const sub_count = obj.list_count_elements(elt_ptr, elt.len);
