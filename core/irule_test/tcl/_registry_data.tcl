@@ -153,6 +153,8 @@ namespace eval ::tmm {
     # Derived from: (tcl8.5 | tcl8.6 | tcl9.0) - tcl8.4 - f5-irules.
 
     variable _gen_post84_commands {
+        ::tcl::idna
+        ::tcl::process
         classvariable
         coroinject
         coroprobe
@@ -179,6 +181,8 @@ namespace eval ::tmm {
         readFile
         self
         tailcall
+        tcl::idna
+        tcl::process
         throw
         try
         writeFile

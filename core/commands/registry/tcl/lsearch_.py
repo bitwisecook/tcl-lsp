@@ -40,6 +40,14 @@ class LsearchCommand(CommandDef):
                         OptionSpec(name="-decreasing"),
                         OptionSpec(name="-bisect"),
                         OptionSpec(name="-index", takes_value=True, value_hint="index"),
+                        # -stride added by TIP 351 in Tcl 8.6.
+                        OptionSpec(
+                            name="-stride",
+                            takes_value=True,
+                            value_hint="strideLength",
+                            detail="Treat the list as groups of N elements (TIP 351, Tcl 8.6+).",
+                            dialects=frozenset({"tcl8.6", "tcl9.0"}),
+                        ),
                         OptionSpec(name="-subindices"),
                     ),
                 ),

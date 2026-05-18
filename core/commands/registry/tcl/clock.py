@@ -159,6 +159,20 @@ class ClockCommand(CommandDef):
                     detail="Parse a date/time string to a clock value.",
                     synopsis="clock scan inputString ?-option value ...?",
                     return_type=TclType.INT,
+                    options=(
+                        _opt("-base", "Reference clock value for relative inputs.", takes_value=True, value_hint="clockVal"),
+                        _opt("-format", "Format string controlling parsing.", takes_value=True, value_hint="formatString"),
+                        _opt("-gmt", "Interpret times as UTC.", takes_value=True, value_hint="boolean"),
+                        _opt("-locale", "Locale for month/day names.", takes_value=True, value_hint="locale"),
+                        _opt("-timezone", "Time zone for interpretation.", takes_value=True, value_hint="zone"),
+                        OptionSpec(
+                            name="-validate",
+                            detail="Raise on out-of-range values (default true); set false for normalisation. (TIP 532, Tcl 9.0+)",
+                            takes_value=True,
+                            value_hint="boolean",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                    ),
                 ),
                 "seconds": SubCommand(
                     name="seconds",

@@ -47,6 +47,29 @@ class FconfigureCommand(CommandDef):
                         OptionSpec(name="-encoding", takes_value=True, value_hint="encoding"),
                         OptionSpec(name="-eofchar", takes_value=True, value_hint="chars"),
                         OptionSpec(name="-translation", takes_value=True, value_hint="mode"),
+                        # Socket channel options (-nodelay, -keepalive: TIP 528, Tcl 9.0).
+                        OptionSpec(
+                            name="-keepalive",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Query or set TCP keepalive on a socket channel. (TIP 528, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        OptionSpec(
+                            name="-nodelay",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Query or set TCP_NODELAY on a socket channel. (TIP 528, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        # Console input mode (TIP 160, Tcl 9.0).
+                        OptionSpec(
+                            name="-inputmode",
+                            takes_value=True,
+                            value_hint="mode",
+                            detail="Console input mode: normal | password | raw | reset. (TIP 160, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
                     ),
                 ),
             ),

@@ -73,6 +73,20 @@ class RegsubCommand(CommandDef):
                         OptionSpec(name="-lineanchor"),
                         OptionSpec(name="-all"),
                         OptionSpec(name="-start", takes_value=True, value_hint="index"),
+                        OptionSpec(
+                            name="-command",
+                            detail="Treat subSpec as a command prefix called with each match.",
+                            dialects=frozenset({"tcl9.0"}),
+                            hover=HoverSnippet(
+                                summary=(
+                                    "Treat *subSpec* as a command prefix invoked with the matched "
+                                    "substrings appended as arguments; its return value is the "
+                                    "replacement text. (TIP 463, Tcl 9.0+)"
+                                ),
+                                synopsis=("regsub -command exp string cmdPrefix ?varName?",),
+                                source="Tcl regsub(1)",
+                            ),
+                        ),
                         OptionSpec(name="--"),
                     ),
                 ),

@@ -3,7 +3,7 @@ ByteCode ::top, 8 instructions, 13 bytes, 4 literals, 0 variables
     0: "x"
     1: "10"
     2: "apply"
-    3: "\u0000{} {\n    upvar 1 x local\n   ..."
+    3: "\u0000\u0002{} {\n    upvar 1 x local..."
   Instructions:
   # entry_1:
     (0) push1 0	# "x"

@@ -650,24 +650,28 @@ class CommandRegistry:
             if sub_obj is not None:
                 if not sub_obj.supports_dialect(dialect, spec.dialects):
                     return DialectStatus.DISALLOWED
+                # Inherited dialect set for option gating: the sub's own
+                # dialects if set, else the parent's.
+                parent_dialects = sub_obj.dialects or spec.dialects
                 for o in sub_obj.options:
                     if o.name == option:
+                        if not o.supports_dialect(dialect, parent_dialects):
+                            return DialectStatus.DISALLOWED
                         opt = o
                         break
 
         # Fall back to command-level options.
         if opt is None:
-            opt = spec.option(option)
+            opt = spec.option(option, dialect)
+            if opt is None and spec.option(option) is not None:
+                # Option exists at command level but not in this dialect.
+                return DialectStatus.DISALLOWED
 
         if opt is None:
             return DialectStatus.NOT_EXISTS
 
-        # Options inherit dialect from their parent.
-        if sub is not None:
-            sub_obj = spec.subcommands.get(sub)
-            if sub_obj is not None and not sub_obj.supports_dialect(dialect, spec.dialects):
-                return DialectStatus.DISALLOWED
-        elif not spec.supports_dialect(dialect):
+        # Parent dialect (command or sub) was already verified above.
+        if sub is None and not spec.supports_dialect(dialect):
             return DialectStatus.DISALLOWED
 
         return DialectStatus.EXISTS
@@ -681,7 +685,7 @@ class CommandRegistry:
         spec = self.get(name, dialect, active_packages)
         if spec is None:
             return ()
-        return spec.switch_names()
+        return spec.switch_names(dialect)
 
     def option(
         self,
@@ -693,7 +697,7 @@ class CommandRegistry:
         spec = self.get(name, dialect, active_packages)
         if spec is None:
             return None
-        return spec.option(option_name)
+        return spec.option(option_name, dialect)
 
     def argument_values(
         self,
@@ -903,12 +907,14 @@ class CommandRegistry:
         self,
         name: str,
         subcommand: str | None = None,
+        dialect: str | None = None,
     ) -> frozenset[str]:
         """Derive the set of option names that consume a value argument.
 
         Returns option names where ``OptionSpec.takes_value`` is ``True``,
         collected from the relevant scope (subcommand options if *subcommand*
-        is given, otherwise form-level options).
+        is given, otherwise form-level options).  When *dialect* is given,
+        options gated to a different dialect are skipped.
         """
         specs = self.specs_by_name.get(name)
         if specs is None:
@@ -918,13 +924,20 @@ class CommandRegistry:
             if subcommand is not None:
                 sub = spec.subcommands.get(subcommand)
                 if sub is not None:
+                    parent_dialects = sub.dialects or spec.dialects
                     for opt in sub.options:
-                        if opt.takes_value:
-                            result.add(opt.name)
+                        if not opt.takes_value:
+                            continue
+                        if not opt.supports_dialect(dialect, parent_dialects):
+                            continue
+                        result.add(opt.name)
             for form in spec.forms:
                 for opt in form.options:
-                    if opt.takes_value:
-                        result.add(opt.name)
+                    if not opt.takes_value:
+                        continue
+                    if not opt.supports_dialect(dialect, spec.dialects):
+                        continue
+                    result.add(opt.name)
         return frozenset(result)
 
     def dynamic_barrier_commands(self, dialect: str | None = None) -> frozenset[str]:

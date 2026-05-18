@@ -1,0 +1,50 @@
+ByteCode ::top, 17 instructions, 31 bytes, 7 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "setter"
+    2: ""
+    3: "\n    uplevel 1 {set y 99}\n"
+    4: "caller"
+    5: "\n    set y 0\n    setter\n    return..."
+    6: "puts"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "setter"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    uplevel 1 {set y 99}\n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 0	# "proc"
+    (13) push1 4	# "caller"
+    (15) push1 2	# ""
+    (17) push1 5	# "\n    set y 0\n    setter\n    return..."
+    (19) invokeStk1 4	# proc
+  # cmd_end_1:
+    (21) pop
+    (22) push1 6	# "puts"
+    (24) push1 4	# "caller"
+    (26) invokeStk1 1
+    (28) invokeStk1 2	# puts
+  # cmd_end_2:
+  # exit_2:
+    (30) done
+
+ByteCode ::caller, 9 instructions, 28 bytes, 1 literals, 1 variables
+  Literals:
+    0: "0"
+  Local variables:
+    %v0: "y"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "0"
+    (2) storeScalar1 %v0	# var "y"
+    (4) pop
+    (5) startCommand +10 1	# next cmd at pc 15, 1 cmds start here
+    (14) nop	# IRBlock without source_args
+  # cmd_end_1:
+    (15) startCommand +12 1	# next cmd at pc 27, 1 cmds start here
+    (24) loadScalar1 %v0	# var "y"
+    (26) done
+  # ret_end_2:
+    (27) done
