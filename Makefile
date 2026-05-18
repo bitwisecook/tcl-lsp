@@ -1156,14 +1156,10 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@ls -lh $(JB_PLUGIN)
 
 publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
-	@echo "==> Verifying JetBrains Marketplace credentials"
-	@if [ -z "$$JETBRAINS_TOKEN" ]; then \
-		echo "error: JETBRAINS_TOKEN environment variable is not set"; \
-		echo "       Create a token at https://plugins.jetbrains.com/author/me/tokens"; \
-		echo "       Plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support"; \
-		exit 1; \
-	fi
-	@echo "==> Publishing JetBrains plugin to Marketplace"
+	@echo "==> Resolving JetBrains Marketplace credentials"
+	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/jetbrains_token.sh)" || exit 1; \
+	export JETBRAINS_TOKEN; \
+	echo "==> Publishing JetBrains plugin to Marketplace"; \
 	cd $(JB_DIR) && ./gradlew publishPlugin
 
 # Sublime Text package

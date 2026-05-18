@@ -66,25 +66,49 @@ else
     err "gradlew missing in $JB_DIR"
 fi
 
+JETBRAINS_TOKEN_SRC=""
 if [ -n "${JETBRAINS_TOKEN:-}" ]; then
-    ok "JETBRAINS_TOKEN env var is set"
+    JETBRAINS_TOKEN_RESOLVED="$JETBRAINS_TOKEN"
+    JETBRAINS_TOKEN_SRC="env"
+elif JETBRAINS_TOKEN_RESOLVED="$(bash "$ROOT/scripts/jetbrains_token.sh" 2>/dev/null)" \
+        && [ -n "$JETBRAINS_TOKEN_RESOLVED" ]; then
+    case "$(uname -s)" in
+        Darwin) JETBRAINS_TOKEN_SRC="macOS Keychain" ;;
+        Linux)  JETBRAINS_TOKEN_SRC="libsecret" ;;
+        *)      JETBRAINS_TOKEN_SRC="keystore" ;;
+    esac
+fi
+
+if [ -n "$JETBRAINS_TOKEN_SRC" ]; then
+    ok "JetBrains token resolved from $JETBRAINS_TOKEN_SRC"
     # The marketplace REST API exposes /api/auth/me when called with the
     # uploader token. A 200 confirms the token is live.
     if command -v curl >/dev/null 2>&1; then
-        HTTP="$(curl -fsS -o /dev/null -w '%{http_code}' \
-            -H "Authorization: Bearer $JETBRAINS_TOKEN" \
-            "https://plugins.jetbrains.com/api/auth/me" 2>/dev/null || echo "000")"
+        # Drop -f so non-2xx still emits %{http_code} instead of curl
+        # itself failing and producing a concatenated "404000" garbage
+        # status. /api/auth/me is the documented liveness endpoint for
+        # the uploader-token scope.
+        HTTP="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $JETBRAINS_TOKEN_RESOLVED" \
+            "https://plugins.jetbrains.com/api/auth/me" 2>/dev/null)"
+        HTTP="${HTTP:-000}"
         if [ "$HTTP" = "200" ]; then
-            ok "JETBRAINS_TOKEN is accepted by plugins.jetbrains.com"
+            ok "JetBrains token is accepted by plugins.jetbrains.com"
+        elif [ "$HTTP" = "404" ]; then
+            warn "JetBrains /api/auth/me returned 404. The endpoint may have
+        moved; the token is still passed verbatim to gradle publishPlugin,
+        which is the source of truth."
         else
-            warn "JETBRAINS_TOKEN did not return 200 from /api/auth/me (got $HTTP).
+            warn "JetBrains token did not return 200 from /api/auth/me (got $HTTP).
         Token may be expired or wrong scope (need 'Plugin uploader')."
         fi
     fi
 else
-    warn "JETBRAINS_TOKEN not set. Create one at"
-    warn "  https://plugins.jetbrains.com/author/me/tokens (scope: Plugin uploader)"
+    warn "JetBrains token not found. Either set \$JETBRAINS_TOKEN, or store it"
+    warn "  in the OS keystore (see scripts/jetbrains_token.sh header for the"
+    warn "  exact 'security add-generic-password' / 'secret-tool store' incantation)."
 fi
+unset JETBRAINS_TOKEN_RESOLVED JETBRAINS_TOKEN_SRC
 
 ok "plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support"
 
