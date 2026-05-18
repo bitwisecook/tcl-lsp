@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from lsprotocol import types
 
+from core.commands.registry.dialects import dialects_since
 from core.formatting.config import BraceStyle
 
 # Context passed to every generator
@@ -311,7 +312,14 @@ _register("tcl-namespace", "Namespace Eval", "Create a namespace eval block", _g
 _register(
     "tcl-package", "Package Boilerplate", "Create package provide/require boilerplate", _gen_package
 )
-_register("tcl-class", "OO Class", "Create an oo::class", _gen_class)
+# ``oo::class`` is TclOO — Tcl 8.6+.
+_register(
+    "tcl-class",
+    "OO Class",
+    "Create an oo::class",
+    _gen_class,
+    dialects=dialects_since("tcl8.6"),
+)
 _register("tcl-if", "If Else", "Create braced if/else block", _gen_if)
 _register("tcl-foreach", "Foreach", "Create a foreach loop", _gen_foreach)
 _register("tcl-for", "For Loop", "Create a for loop with braced expressions", _gen_for)
@@ -322,8 +330,22 @@ _register(
     "Create a catch pattern that preserves result and options",
     _gen_catch,
 )
-_register("tcl-try", "Try Trap", "Create a try/trap block", _gen_try)
-_register("tcl-dict-for", "Dict For", "Iterate key/value pairs in a dict", _gen_dict_for)
+# ``try`` / ``trap`` — TIP 329, Tcl 8.6+.
+_register(
+    "tcl-try",
+    "Try Trap",
+    "Create a try/trap block",
+    _gen_try,
+    dialects=dialects_since("tcl8.6"),
+)
+# ``dict for`` — TIP 111, Tcl 8.5+.
+_register(
+    "tcl-dict-for",
+    "Dict For",
+    "Iterate key/value pairs in a dict",
+    _gen_dict_for,
+    dialects=dialects_since("tcl8.5"),
+)
 
 _register(
     "irule-rule-init",

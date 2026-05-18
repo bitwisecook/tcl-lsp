@@ -1392,6 +1392,22 @@ class TestIrule5003:
         diags = _diag_with_code(src, "IRULE5003")
         assert len(diags) == 0
 
+    def test_does_not_fire_in_plain_tcl_dialect(self):
+        """IRULE5003 is iRules-specific and must not appear in plain Tcl.
+
+        The runaway-loop consequence (TMOS runtime-budget kill) only
+        applies to iRules; plain Tcl just takes a long time, so the
+        diagnostic would be noise for non-iRules users.
+        """
+        src = "while {$count != 0} { incr count -1 }"
+        for dialect in ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"):
+            configure_signatures(dialect=dialect)
+            result = analyse(src)
+            irule_5003 = [d for d in result.diagnostics if d.code == "IRULE5003"]
+            assert irule_5003 == [], f"IRULE5003 must not fire in {dialect}; got {irule_5003}"
+        # Restore irules for any subsequent tests.
+        configure_signatures(dialect="f5-irules")
+
 
 # IRULE4004: Hoist constant set from per-request to per-connection
 
