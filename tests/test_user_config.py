@@ -109,6 +109,93 @@ class TestGetAllSettings:
         assert diag["T100"] is False
 
 
+class TestGlobalAndProjectSections:
+    """``[global]`` in config.ini and ``[project]`` in .tcl-lsp.ini.
+
+    Mirrors the location-based safeguard documented in
+    ``docs/design/contracts/config-precedence.md`` — the section name
+    must match the file's role, and a mismatched section is ignored.
+    """
+
+    def test_global_dialect(self):
+        config = _config_from_string("[global]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="global")
+        assert result["dialect"] == "tcl9.0"
+
+    def test_project_dialect(self):
+        config = _config_from_string("[project]\ndialect = tcl8.4\n")
+        result = get_all_settings(config, kind="project")
+        assert result["dialect"] == "tcl8.4"
+
+    def test_global_section_in_project_file_is_ignored(self):
+        config = _config_from_string("[global]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="project")
+        assert "dialect" not in result
+
+    def test_project_section_in_global_file_is_ignored(self):
+        config = _config_from_string("[project]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="global")
+        assert "dialect" not in result
+
+    def test_kind_none_skips_both_sections(self):
+        """Backward-compat: callers without a known origin get neither section."""
+        config = _config_from_string(
+            "[global]\ndialect = tcl9.0\n[project]\ndialect = tcl8.4\n"
+        )
+        result = get_all_settings(config)
+        assert "dialect" not in result
+
+    def test_extra_commands_comma_separated(self):
+        config = _config_from_string(
+            "[global]\nextraCommands = mylib::send, mylib::recv\n"
+        )
+        result = get_all_settings(config, kind="global")
+        assert result["extraCommands"] == ["mylib::send", "mylib::recv"]
+
+    def test_extra_commands_multiline(self):
+        config = _config_from_string(
+            "[project]\nextraCommands =\n    mylib::send\n    mylib::recv\n"
+        )
+        result = get_all_settings(config, kind="project")
+        assert result["extraCommands"] == ["mylib::send", "mylib::recv"]
+
+    def test_library_paths_multiline(self):
+        config = _config_from_string(
+            "[global]\nlibraryPaths =\n    /opt/tcl/lib\n    /home/me/stubs\n"
+        )
+        result = get_all_settings(config, kind="global")
+        assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
+
+    def test_library_paths_comma_one_line(self):
+        config = _config_from_string(
+            "[project]\nlibraryPaths = /opt/tcl/lib, /home/me/stubs\n"
+        )
+        result = get_all_settings(config, kind="project")
+        assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
+
+    def test_empty_dialect_is_ignored(self):
+        config = _config_from_string("[global]\ndialect =\n")
+        result = get_all_settings(config, kind="global")
+        assert "dialect" not in result
+
+    def test_wrong_section_logged_at_warning_level(self, caplog):
+        import logging
+
+        caplog.set_level(logging.WARNING, logger="core.common.user_config")
+        config = _config_from_string("[project]\ndialect = tcl9.0\n")
+        get_all_settings(config, kind="global")
+        assert any("Ignored [project] section" in rec.message for rec in caplog.records)
+
+    def test_combined_with_other_sections(self):
+        """Top-level keys coexist with the regular nested sections."""
+        config = _config_from_string(
+            "[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n"
+        )
+        result = get_all_settings(config, kind="global")
+        assert result["dialect"] == "tcl9.0"
+        assert result["diagnostics"]["W111"] is False
+
+
 class TestSaveSettings:
     """Tests for save_settings_to_config()."""
 

@@ -313,7 +313,9 @@ def on_did_change_workspace_folders(params: types.DidChangeWorkspaceFoldersParam
         _state.get_or_init_folder_feature_config(folder_uri)
         _state.get_or_init_folder_formatter_config(folder_uri)
         if folder_path:
-            project_settings = get_all_settings(load_project_config(folder_path))
+            project_settings = get_all_settings(
+                load_project_config(folder_path), kind="project"
+            )
             _state.project_config_settings_per_folder[folder_uri] = project_settings
 
     # If the fallback project layer was sourced from a removed folder

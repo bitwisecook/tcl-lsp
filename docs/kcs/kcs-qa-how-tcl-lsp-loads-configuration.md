@@ -150,12 +150,20 @@ documented in
 1. `# tcl-dialect:` directive in the first five lines of the file.
 2. File-name and extension auto-detection (for example `.irul` files
    pick `f5-irules`).
-3. The user setting — `tclLsp.dialect` from editor settings or the
-   global `config.ini`.
+3. The user setting — `tclLsp.dialect` from editor settings, or
+   `dialect = ...` under `[project]` in `.tcl-lsp.ini`, or `dialect = ...`
+   under `[global]` in `config.ini`. The same precedence rules as every
+   other setting apply: project beats editor beats global.
 
 So a `# tcl-dialect:` comment overrides any config file, and a recognised
 file extension overrides the user setting. Use the config file to choose
 the **default** dialect for files that have neither.
+
+The section names are location-specific on purpose: `[global]` is only
+read from `config.ini` and `[project]` is only read from `.tcl-lsp.ini`.
+Putting `[global]` into a project file (or vice versa) is logged and
+ignored — see the "Each file is only read from its own location"
+subsection above for why.
 
 ### How to figure out where a setting is coming from
 

@@ -14,6 +14,16 @@ Uses Python's built-in :mod:`configparser` module (INI format).
 
 Example ``config.ini``::
 
+    [global]
+    # Default dialect for files that have no per-file hint.
+    dialect = tcl9.0
+    # Comma- or newline-separated.
+    extraCommands = mylib::send, mylib::recv
+    # One path per line (or comma-separated for one-liners).
+    libraryPaths =
+        /opt/tcl-extras/lib
+        /home/me/tcl-stubs
+
     [diagnostics]
     # Regex patterns matching generic static:: variable bare names.
     # One pattern per line; matched case-insensitively.
@@ -275,8 +285,52 @@ def _parse_bool(value: str) -> bool | None:
     return None
 
 
+def _read_top_level_section(
+    config: configparser.ConfigParser,
+    section: str,
+    result: dict[str, object],
+) -> None:
+    """Read ``dialect``, ``extraCommands``, and ``libraryPaths`` from *section*.
+
+    These are settings the LSP normally surfaces at the top level of the
+    ``tclLsp.*`` namespace (no enclosing sub-section).  We honour them in
+    a single per-file section — ``[global]`` in ``config.ini`` or
+    ``[project]`` in ``.tcl-lsp.ini`` — because the section name encodes
+    which precedence layer the file occupies, mirroring the
+    location-based safeguard documented in
+    ``docs/design/contracts/config-precedence.md``.
+    """
+    if not config.has_section(section):
+        return
+
+    if config.has_option(section, "dialect"):
+        dialect = config.get(section, "dialect").strip()
+        if dialect:
+            result["dialect"] = dialect
+
+    if config.has_option(section, "extraCommands"):
+        raw = config.get(section, "extraCommands", fallback="")
+        commands = [tok for tok in _parse_comma_list(raw) if tok]
+        if commands:
+            result["extraCommands"] = commands
+
+    if config.has_option(section, "libraryPaths"):
+        raw = config.get(section, "libraryPaths", fallback="")
+        # Library paths can contain commas in pathological cases; split
+        # on newlines first, then fall back to comma if it's a one-liner.
+        lines = [line.strip() for line in raw.splitlines() if line.strip()]
+        if len(lines) <= 1 and "," in raw:
+            paths = [tok for tok in _parse_comma_list(raw) if tok]
+        else:
+            paths = lines
+        if paths:
+            result["libraryPaths"] = paths
+
+
 def get_all_settings(
     config: configparser.ConfigParser | None = None,
+    *,
+    kind: str | None = None,
 ) -> dict:
     """Build a settings dict from all config file sections.
 
@@ -287,11 +341,36 @@ def get_all_settings(
     Only keys that are explicitly set in the config file are included;
     missing sections or keys are omitted so that built-in defaults are
     preserved.
+
+    *kind* names which file is being parsed: ``"global"`` for the XDG
+    ``config.ini`` or ``"project"`` for ``.tcl-lsp.ini``.  When set, the
+    matching ``[global]`` or ``[project]`` section is read for the
+    top-level ``dialect``, ``extraCommands``, and ``libraryPaths`` keys.
+    A ``[global]`` section in a project file (or vice versa) is logged
+    and ignored — the section name has to match the file's location, so
+    copying a file between locations never silently changes its
+    precedence layer.  ``kind=None`` skips both sections, which is the
+    safe default for callers that do not know the file's origin.
     """
     if config is None:
         config = load_user_config()
 
     result: dict[str, object] = {}
+
+    if kind == "global":
+        _read_top_level_section(config, "global", result)
+        if config.has_section("project"):
+            log.warning(
+                "Ignored [project] section in the global config file — "
+                "use [global] in config.ini and [project] in .tcl-lsp.ini."
+            )
+    elif kind == "project":
+        _read_top_level_section(config, "project", result)
+        if config.has_section("global"):
+            log.warning(
+                "Ignored [global] section in the project config file — "
+                "use [project] in .tcl-lsp.ini and [global] in config.ini."
+            )
 
     # [diagnostics]
     if config.has_section("diagnostics"):

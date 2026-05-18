@@ -15,15 +15,41 @@ does each section accept, and what values are valid?
 ## Answer
 
 Both the global `config.ini` and the project `.tcl-lsp.ini` use the
-same INI schema. Seven sections are recognised. Any section or key
-the parser does not know is silently ignored, so a typo turns into a
-no-op rather than an error — check your config takes effect after
-editing.
+same INI schema. Nine sections are recognised in total — seven of
+them work in either file, plus one location-specific section for each
+file (`[global]` and `[project]`). Any section or key the parser does
+not know is silently ignored, so a typo turns into a no-op rather
+than an error — check your config takes effect after editing.
 
 Keys inside INI sections are **snake_case** (`indent_size`,
 `line_length`). The same settings exposed through editor settings
 use **camelCase** (`indentSize`, `lineLength`); the server converts
 between the two automatically.
+
+### `[global]` (only in `config.ini`)
+
+Top-level settings that have no other natural section. Only honoured
+when this section appears in the **global** XDG `config.ini`; a
+`[global]` section in `.tcl-lsp.ini` is logged and ignored.
+
+- `dialect` — default dialect for files that have no per-file hint.
+  One of `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `expect`.
+- `extraCommands` — comma- or newline-separated list of extra Tcl
+  command names the analyser should recognise.
+- `libraryPaths` — one path per line, or comma-separated for one-line
+  values. Extra directories for the package and source resolver.
+
+### `[project]` (only in `.tcl-lsp.ini`)
+
+Exactly the same keys as `[global]`, but only honoured when the
+section appears in the **project** `.tcl-lsp.ini`. A `[project]`
+section in `config.ini` is logged and ignored.
+
+The two section names are deliberately different so that copying a
+file between locations does not silently change which precedence
+layer the values occupy — see
+[kcs-qa-how-tcl-lsp-loads-configuration.md](kcs-qa-how-tcl-lsp-loads-configuration.md)
+for the location-based safeguard this mirrors.
 
 ### `[diagnostics]`
 
@@ -109,11 +135,8 @@ Style settings that affect linting but not formatting.
 
 A handful of settings are only honoured when they come from editor
 settings via `workspace/configuration`; the INI parser ignores them.
-Today this includes:
-
-- `tclLsp.dialect`, `tclLsp.extraCommands`, `tclLsp.libraryPaths`
-  (top-level keys, not in any INI section).
-- The `runtimeValidation`, `ai`, and `packageManager` sections.
+Today this includes the `runtimeValidation`, `ai`, and
+`packageManager` sections.
 
 If you set one of these in `config.ini` or `.tcl-lsp.ini` it has no
 effect — use your editor's settings instead. See

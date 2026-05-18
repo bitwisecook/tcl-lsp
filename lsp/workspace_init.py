@@ -254,7 +254,7 @@ def on_initialized(params: types.InitializedParams) -> None:
         _pull_and_apply_configuration,
     )
 
-    _state.global_config_settings = get_all_settings(load_user_config())
+    _state.global_config_settings = get_all_settings(load_user_config(), kind="global")
     # Formatter config is rebuilt fresh from global here rather than via the
     # layered apply because the layered path only *updates* a dict — a baseline
     # FormatterConfig instance needs to exist first.
@@ -286,7 +286,9 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     if folder_paths:
         for folder_uri, folder_path in folder_paths:
-            project_settings = get_all_settings(load_project_config(folder_path))
+            project_settings = get_all_settings(
+                load_project_config(folder_path), kind="project"
+            )
             _state.project_config_settings_per_folder[folder_uri] = project_settings
             # Initialise per-folder configs so later pulls and lookups have
             # somewhere to write into.
@@ -300,7 +302,9 @@ def on_initialized(params: types.InitializedParams) -> None:
     else:
         project_settings: dict = {}
         if ws.root_path:
-            project_settings = get_all_settings(load_project_config(ws.root_path))
+            project_settings = get_all_settings(
+                load_project_config(ws.root_path), kind="project"
+            )
         _state.project_config_settings = project_settings
 
     # Apply the current (global + project) layers so server state is

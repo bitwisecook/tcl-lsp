@@ -158,6 +158,24 @@ Implementation: filename constants live in
 (`_config_path()` → `config.ini`, `PROJECT_CONFIG_FILENAME` →
 `.tcl-lsp.ini`). Do not unify them.
 
+The same safeguard is applied at the **section** level for top-level
+keys (`dialect`, `extraCommands`, `libraryPaths`):
+
+- The XDG `config.ini` only honours these keys under a `[global]`
+  section.
+- The project `.tcl-lsp.ini` only honours them under a `[project]`
+  section.
+- A `[global]` block in the project file (or `[project]` in the
+  global file) is logged at warning level and ignored.
+
+The double safeguard means a user who both copies the file AND
+forgets to rename the section is still caught: the wrong location
+ignores the file, and the wrong section name within the file ignores
+the keys. The implementation lives in
+[`core/common/user_config.py::get_all_settings`](../../../core/common/user_config.py)
+behind a `kind` parameter that callers set to `"global"` or
+`"project"` based on which file they loaded.
+
 ## Escape hatch (not implemented)
 
 If a future user reports that they cannot put a personal override
