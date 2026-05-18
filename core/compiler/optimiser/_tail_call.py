@@ -14,7 +14,9 @@ import re
 from dataclasses import dataclass
 
 from ...analysis.semantic_model import Range
+from ...commands.registry.dialects import dialects_since
 from ...common.codes import opt
+from ...common.dialect import active_dialect
 from ...common.naming import normalise_qualified_name as _normalise_qualified_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
@@ -52,10 +54,19 @@ class _TailCallSite:
 # Entry point
 
 
+_TAILCALL_DIALECTS = dialects_since("tcl8.6")
+
+
 def optimise_tail_calls(ctx: PassContext) -> None:
-    """Scan all procedures for recursion patterns (O121–O123)."""
+    """Scan all procedures for recursion patterns (O121–O123).
+
+    ``tailcall`` is Tcl 8.6+ (TIP 327), so O121 is gated to 8.6+
+    dialects.  In Tcl 8.4 / 8.5 the recursion-to-loop hint (O122)
+    is still useful and remains active.
+    """
     if ctx.ir_module is None:
         return
+    tailcall_supported = active_dialect() in _TAILCALL_DIALECTS
     for qname, proc in ctx.ir_module.procedures.items():
         short_name = qname.rsplit("::", 1)[-1] if "::" in qname else qname
         if not short_name:
@@ -65,9 +76,10 @@ def optimise_tail_calls(ctx: PassContext) -> None:
         # Collect tail-call sites with their arguments.
         sites = _collect_tail_call_sites(ctx.source, proc.body, self_names)
 
-        # O121: suggest tailcall for each site.
-        for site in sites:
-            _emit_o121(ctx, site, short_name)
+        # O121: suggest tailcall for each site (Tcl 8.6+ only).
+        if tailcall_supported:
+            for site in sites:
+                _emit_o121(ctx, site, short_name)
 
         # O122: convert to loop if ALL self-calls are in tail position.
         if sites and proc.params:
@@ -450,14 +462,33 @@ def _suggest_loop_conversion(
     )
 
 
+_LASSIGN_DIALECTS = dialects_since("tcl8.5")
+
+
 def _make_reassignment(params: tuple[str, ...], args: tuple[str, ...]) -> str:
-    """Generate parameter reassignment text for loop conversion."""
+    """Generate parameter reassignment text for loop conversion.
+
+    Uses ``lassign`` for the multi-parameter case so the assignments
+    happen simultaneously (avoiding evaluation-order bugs when a
+    later arg refers to an earlier param's old value).  ``lassign``
+    was introduced in Tcl 8.5; for older dialects (notably
+    ``f5-irules`` which is locked to 8.4.6) we fall back to a temp-
+    list expansion that uses only ``set`` / ``lindex``.
+    """
     if len(params) == 1:
         return f"set {params[0]} {args[0]}"
-    # Use lassign for safe simultaneous assignment (avoids evaluation-order bugs).
     arg_list = " ".join(args)
     param_list = " ".join(params)
-    return f"lassign [list {arg_list}] {param_list}"
+    if active_dialect() in _LASSIGN_DIALECTS:
+        return f"lassign [list {arg_list}] {param_list}"
+    # 8.4-compatible fallback — capture into a temp list and extract by
+    # index so the assignments are simultaneous (avoids the
+    # evaluation-order bug a sequence of bare ``set`` calls would have).
+    pieces = [f"set __tcllsp_tmp [list {arg_list}]"]
+    for i, p in enumerate(params):
+        pieces.append(f"set {p} [lindex $__tcllsp_tmp {i}]")
+    pieces.append("unset __tcllsp_tmp")
+    return "; ".join(pieces)
 
 
 # O123: accumulator-eligible non-tail recursion detection

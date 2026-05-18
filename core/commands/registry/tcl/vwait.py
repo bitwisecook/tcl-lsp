@@ -47,55 +47,71 @@ class VwaitCommand(CommandDef):
                         OptionSpec(
                             name="--", detail="Marks the end of options.", takes_value=False
                         ),
+                        # All option-driven vwait forms are Tcl 9.0+ (TIP
+                        # 555).  In 8.x ``vwait`` takes only a single
+                        # variable name (``vwait varName``); a leading
+                        # ``-foo`` is treated as the variable name and
+                        # fails the "wrong # args" arity check when
+                        # extra positional args follow.
                         OptionSpec(
                             name="-all",
-                            detail="All conditions for the wait operation must be met to complete the wait operation.",
+                            detail="All wait conditions must be met to complete (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-extended",
-                            detail="An extended result in list form is returned, see below for explanation.",
+                            detail="Return an extended list-form result (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-nofileevents",
-                            detail="File events are not handled in the wait operation.",
+                            detail="File events not handled during the wait (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-noidleevents",
-                            detail="Idle handlers are not invoked during the wait operation.",
+                            detail="Idle handlers not invoked during the wait (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-notimerevents",
-                            detail="Timer handlers are not serviced during the wait operation.",
+                            detail="Timer handlers not serviced during the wait (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-nowindowevents",
-                            detail="Events of the windowing system are not handled during the wait operation.",
+                            detail="Window-system events not handled during the wait (Tcl 9.0+).",
                             takes_value=False,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-readable",
-                            detail="Channel must name a Tcl channel open for reading.",
+                            detail="Channel must be open for reading (Tcl 9.0+).",
                             takes_value=True,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-timeout",
-                            detail="The wait operation is constrained to milliseconds.",
+                            detail="Bound the wait to N milliseconds (Tcl 9.0+).",
                             takes_value=True,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-variable",
-                            detail="VarName must be the name of a global variable.",
+                            detail="VarName must name a global variable (Tcl 9.0+).",
                             takes_value=True,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-writable",
-                            detail="Channel must name a Tcl channel open for writing.",
+                            detail="Channel must be open for writing (Tcl 9.0+).",
                             takes_value=True,
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                     ),
                 ),

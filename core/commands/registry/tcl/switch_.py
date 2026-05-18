@@ -85,18 +85,25 @@ class SwitchCommand(CommandDef):
                         OptionSpec(name="-exact", detail="Exact string compare mode."),
                         OptionSpec(name="-glob", detail="Glob pattern mode."),
                         OptionSpec(name="-regexp", detail="Regular expression mode."),
-                        OptionSpec(name="-nocase", detail="Case-insensitive matching."),
+                        # -nocase / -matchvar / -indexvar: Tcl 8.5+.
+                        OptionSpec(
+                            name="-nocase",
+                            detail="Case-insensitive matching (Tcl 8.5+).",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
+                        ),
                         OptionSpec(
                             name="-matchvar",
-                            detail="Store match in variable (regexp mode).",
+                            detail="Store match in variable, regexp mode (Tcl 8.5+).",
                             takes_value=True,
                             value_hint="varName",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-indexvar",
-                            detail="Store match indices in variable (regexp mode).",
+                            detail="Store match indices in variable, regexp mode (Tcl 8.5+).",
                             takes_value=True,
                             value_hint="varName",
+                            dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
                         ),
                         OptionSpec(name="--", detail="End of options."),
                     ),

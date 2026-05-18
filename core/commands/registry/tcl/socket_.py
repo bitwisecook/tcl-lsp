@@ -103,17 +103,22 @@ class SocketCommand(CommandDef):
                                 source=_SOURCE,
                             ),
                         ),
+                        # -reuseaddr / -reuseport: Tcl 9.0+ (rejected as
+                        # "bad option" in 8.x where SO_REUSEADDR is
+                        # always on for server sockets and not exposed).
                         OptionSpec(
                             name="-reuseaddr",
                             takes_value=True,
                             value_hint="boolean",
-                            detail="Allow server address reuse (default 1).",
+                            detail="Allow server address reuse, default 1 (Tcl 9.0+).",
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-reuseport",
                             takes_value=True,
                             value_hint="boolean",
-                            detail="Allow server port reuse (default 0).",
+                            detail="Allow server port reuse, default 0 (Tcl 9.0+).",
+                            dialects=frozenset({"tcl9.0"}),
                         ),
                         OptionSpec(
                             name="-myaddr",

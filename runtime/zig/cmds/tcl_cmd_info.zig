@@ -1338,20 +1338,23 @@ fn resolve_proc_with_params(name: i32) struct { cmd: u32, params_ptr: u32, param
         return .{ .cmd = 0, .params_ptr = 0, .params_len = 0 };
     }
     // Interpreted proc path — params live in a TclObj.
-    const params_obj = procs.proc_get_params(@bitCast(bucket));
+    const params_obj = procs.proc_get_params(bucket);
     if (params_obj != 0) {
         const ps = obj_ensure_string(params_obj);
         return .{ .cmd = cmd, .params_ptr = ps.ptr, .params_len = ps.len };
     }
     // Compiled proc path — params source stashed as raw data-segment
-    // bytes.  No allocation, no retain — just point the lookup at
-    // the immutable WASM data segment.
-    const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
-    if (func_idx != 0) {
-        const src = procs.proc_get_params_src(cmd);
-        if (src.ptr != 0 and src.len > 0) {
-            return .{ .cmd = cmd, .params_ptr = src.ptr, .params_len = src.len };
-        }
+    // bytes.  Mirror :func:`info_args` (line 203): probe the sidecar
+    // unconditionally rather than gating on ``OFF_FUNC_IDX != 0``.
+    // Some compiled-proc registration paths leave ``OFF_FUNC_IDX`` at
+    // zero (interpreted re-register over an AOT bucket, or vice versa)
+    // while still keeping the raw params source valid for introspection
+    // — gating on ``func_idx`` then caused :func:`info_default` on
+    // those buckets to raise ``"X" isn't a procedure`` even though
+    // :func:`info_args` happily returned the param list.
+    const src = procs.proc_get_params_src(cmd);
+    if (src.ptr != 0 and src.len > 0) {
+        return .{ .cmd = cmd, .params_ptr = src.ptr, .params_len = src.len };
     }
     // Neither path found a params payload — treat as non-proc for the
     // info-default purposes (interpreted proc without params would be a

@@ -3624,194 +3624,208 @@
             "markdownDescription": "**W002:** Command is disabled in active dialect profile.",
             "order": 1
           },
+          "tclLsp.diagnostics.W003": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W003:** Expression operator not available in active dialect.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.W004": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W004:** Command option is not available in the active dialect.",
+            "order": 3
+          },
           "tclLsp.diagnostics.W100": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution.",
-            "order": 2
+            "order": 4
           },
           "tclLsp.diagnostics.W104": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W104:** String concatenation for list building — use `lappend` instead.",
-            "order": 3
+            "order": 5
           },
           "tclLsp.diagnostics.W105": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`.",
-            "order": 4
+            "order": 6
           },
           "tclLsp.diagnostics.W106": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W106:** Dangerous unbraced `switch` body — risks double substitution.",
-            "order": 5
+            "order": 7
           },
           "tclLsp.diagnostics.W108": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W108:** Non-ASCII characters in token content.",
-            "order": 6
+            "order": 8
           },
           "tclLsp.diagnostics.W110": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W110:** Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
-            "order": 7
+            "order": 9
           },
           "tclLsp.diagnostics.W111": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W111:** Line exceeds maximum length (see `tclLsp.style.lineLength`).",
-            "order": 8
+            "order": 10
           },
           "tclLsp.diagnostics.W112": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W112:** Trailing whitespace.",
-            "order": 9
+            "order": 11
           },
           "tclLsp.diagnostics.W113": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W113:** Procedure shadows built-in command.",
-            "order": 10
+            "order": 12
           },
           "tclLsp.diagnostics.W114": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W114:** Redundant nested `[expr {...}]` — already in expression context.",
-            "order": 11
+            "order": 13
           },
           "tclLsp.diagnostics.W115": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W115:** Backslash-newline in comment silently swallows the next line.",
-            "order": 12
+            "order": 14
           },
           "tclLsp.diagnostics.W116": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W116:** Stub command shadows built-in command.",
-            "order": 13
+            "order": 15
           },
           "tclLsp.diagnostics.W117": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W117:** Stub expression definition shadows built-in function or operator.",
-            "order": 14
+            "order": 16
           },
           "tclLsp.diagnostics.W118": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W118:** Inconsistent line endings.",
-            "order": 15
+            "order": 17
           },
           "tclLsp.diagnostics.W120": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
-            "order": 16
+            "order": 18
           },
           "tclLsp.diagnostics.W121": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
-            "order": 17
+            "order": 19
           },
           "tclLsp.diagnostics.W122": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
-            "order": 18
+            "order": 20
           },
           "tclLsp.diagnostics.W124": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W124:** Invalid IP address literal.",
-            "order": 19
+            "order": 21
           },
           "tclLsp.diagnostics.W125": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W125:** Orphaned control-flow keyword used as standalone command.",
-            "order": 20
+            "order": 22
           },
           "tclLsp.diagnostics.W126": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W126:** Non-channel value in channel argument position.",
-            "order": 21
+            "order": 23
           },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 22
+            "order": 24
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 23
+            "order": 25
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 24
+            "order": 26
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 25
+            "order": 27
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 26
+            "order": 28
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 27
+            "order": 29
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 28
+            "order": 30
           }
         }
       },

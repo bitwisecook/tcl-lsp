@@ -1,0 +1,159 @@
+ByteCode ::top, 105 instructions, 341 bytes, 19 literals, 0 variables
+  Literals:
+    0: "a 1 b 2"
+    1: "\u0000\u0002literal kv: "
+    2: ""
+    3: "empty dict create not empty"
+    4: "d"
+    5: "x 10 y 20"
+    6: "y"
+    7: "20"
+    8: "round-trip through dict get broke"
+    9: "::tcl::dict::size"
+    10: "2"
+    11: "dict size wrong"
+    12: "k"
+    13: "apple"
+    14: "d2"
+    15: "::tcl::dict::create"
+    16: "7"
+    17: "non-literal key broke"
+    18: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a 1 b 2"
+    (2) dup
+    (3) verifyDict
+    (4) push1 0	# "a 1 b 2"
+    (6) strneq
+    (7) jumpFalse1 +41	# pc 48
+  # if_then_3:
+    (9) startCommand +37 1	# next cmd at pc 46, 1 cmds start here
+    (18) push1 1	# "literal kv: "
+    (20) startCommand +13 1	# next cmd at pc 33, 1 cmds start here
+    (29) push1 0	# "a 1 b 2"
+    (31) dup
+    (32) verifyDict
+  # interp_cmd_end_2:
+    (33) strcat 2
+    (35) push1 2	# ""
+    (37) returnImm +1 0
+  # cmd_end_1:
+    (46) jump1 +4	# pc 50
+  # if_next_4:
+    (48) push1 2	# ""
+  # if_end_2:
+    (50) pop
+    (51) startCommand +44 2	# next cmd at pc 95, 2 cmds start here
+    (60) push1 2	# ""
+    (62) dup
+    (63) verifyDict
+    (64) push1 2	# ""
+    (66) strneq
+    (67) jumpFalse1 +26	# pc 93
+  # if_then_6:
+    (69) startCommand +22 1	# next cmd at pc 91, 1 cmds start here
+    (78) push1 3	# "empty dict create not empty"
+    (80) push1 2	# ""
+    (82) returnImm +1 0
+  # cmd_end_4:
+    (91) jump1 +4	# pc 95
+  # if_next_7:
+    (93) push1 2	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (95) pop
+    (96) startCommand +25 1	# next cmd at pc 121, 1 cmds start here
+    (105) push1 4	# "d"
+    (107) startCommand +13 1	# next cmd at pc 120, 1 cmds start here
+    (116) push1 5	# "x 10 y 20"
+    (118) dup
+    (119) verifyDict
+  # cmd_end_6:
+    (120) storeStk
+  # cmd_end_5:
+    (121) pop
+    (122) startCommand +50 2	# next cmd at pc 172, 2 cmds start here
+    (131) push1 4	# "d"
+    (133) loadStk
+    (134) push1 6	# "y"
+    (136) dictGet 1
+    (141) push1 7	# "20"
+    (143) neq
+    (144) jumpFalse1 +26	# pc 170
+  # if_then_9:
+    (146) startCommand +22 1	# next cmd at pc 168, 1 cmds start here
+    (155) push1 8	# "round-trip through dict get broke"
+    (157) push1 2	# ""
+    (159) returnImm +1 0
+  # cmd_end_8:
+    (168) jump1 +4	# pc 172
+  # if_next_10:
+    (170) push1 2	# ""
+  # if_end_8:
+  # if_cmd_end_7:
+    (172) pop
+    (173) startCommand +47 2	# next cmd at pc 220, 2 cmds start here
+    (182) push1 9	# "::tcl::dict::size"
+    (184) push1 4	# "d"
+    (186) loadStk
+    (187) invokeStk1 2
+    (189) push1 10	# "2"
+    (191) neq
+    (192) jumpFalse1 +26	# pc 218
+  # if_then_12:
+    (194) startCommand +22 1	# next cmd at pc 216, 1 cmds start here
+    (203) push1 11	# "dict size wrong"
+    (205) push1 2	# ""
+    (207) returnImm +1 0
+  # cmd_end_10:
+    (216) jump1 +4	# pc 220
+  # if_next_13:
+    (218) push1 2	# ""
+  # if_end_11:
+  # if_cmd_end_9:
+    (220) pop
+    (221) startCommand +14 1	# next cmd at pc 235, 1 cmds start here
+    (230) push1 12	# "k"
+    (232) push1 13	# "apple"
+    (234) storeStk
+  # cmd_end_11:
+    (235) pop
+    (236) startCommand +30 1	# next cmd at pc 266, 1 cmds start here
+    (245) push1 14	# "d2"
+    (247) startCommand +18 1	# next cmd at pc 265, 1 cmds start here
+    (256) push1 15	# "::tcl::dict::create"
+    (258) push1 12	# "k"
+    (260) loadStk
+    (261) push1 16	# "7"
+    (263) invokeStk1 3
+  # cmd_end_13:
+    (265) storeStk
+  # cmd_end_12:
+    (266) pop
+    (267) startCommand +50 2	# next cmd at pc 317, 2 cmds start here
+    (276) push1 14	# "d2"
+    (278) loadStk
+    (279) push1 13	# "apple"
+    (281) dictGet 1
+    (286) push1 16	# "7"
+    (288) neq
+    (289) jumpFalse1 +26	# pc 315
+  # if_then_15:
+    (291) startCommand +22 1	# next cmd at pc 313, 1 cmds start here
+    (300) push1 17	# "non-literal key broke"
+    (302) push1 2	# ""
+    (304) returnImm +1 0
+  # cmd_end_15:
+    (313) jump1 +4	# pc 317
+  # if_next_16:
+    (315) push1 2	# ""
+  # if_end_14:
+  # if_cmd_end_14:
+    (317) pop
+    (318) startCommand +22 1	# next cmd at pc 340, 1 cmds start here
+    (327) push1 18	# "ok"
+    (329) push1 2	# ""
+    (331) returnImm +0 1
+  # ret_end_16:
+    (340) done

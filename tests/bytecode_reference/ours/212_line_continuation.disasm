@@ -1,0 +1,70 @@
+ByteCode ::top, 44 instructions, 93 bytes, 10 literals, 0 variables
+  Literals:
+    0: "r"
+    1: "fred julie carol bill"
+    2: "4"
+    3: "\u0000\u0002llength="
+    4: "\u0000\u0002, want 4, r=<"
+    5: "\u0000\u0002>"
+    6: ""
+    7: "carol"
+    8: "\u0000\u0002elem 2 = '"
+    9: "\u0000\u0002', want 'carol'"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "r"
+    (2) push1 1	# "fred julie carol bill"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "r"
+    (8) loadStk
+    (9) listLength
+    (10) push1 2	# "4"
+    (12) neq
+    (13) jumpFalse1 +30	# pc 43
+  # if_then_3:
+    (15) push1 3	# "llength="
+    (17) push1 0	# "r"
+    (19) loadStk
+    (20) listLength
+    (21) push1 4	# ", want 4, r=<"
+    (23) push1 0	# "r"
+    (25) loadStk
+    (26) push1 5	# ">"
+    (28) strcat 5
+    (30) push1 6	# ""
+    (32) returnImm +1 0
+  # cmd_end_2:
+    (41) jump1 +4	# pc 45
+  # if_next_4:
+    (43) push1 6	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (45) pop
+    (46) push1 0	# "r"
+    (48) loadStk
+    (49) listIndexImm 2
+    (54) push1 7	# "carol"
+    (56) strneq
+    (57) jumpFalse1 +29	# pc 86
+  # if_then_6:
+    (59) push1 8	# "elem 2 = '"
+    (61) push1 0	# "r"
+    (63) loadStk
+    (64) listIndexImm 2
+    (69) push1 9	# "', want 'carol'"
+    (71) strcat 3
+    (73) push1 6	# ""
+    (75) returnImm +1 0
+  # cmd_end_4:
+    (84) jump1 +4	# pc 88
+  # if_next_7:
+    (86) push1 6	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (88) pop
+    (89) push1 0	# "r"
+    (91) loadStk
+  # cmd_end_5:
+  # exit_8:
+    (92) done

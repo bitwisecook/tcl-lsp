@@ -1,0 +1,81 @@
+ByteCode ::top, 52 instructions, 146 bytes, 12 literals, 0 variables
+  Literals:
+    0: "r"
+    1: "join"
+    2: "a b c"
+    3: "\u0000\u0002join {a b c} = '"
+    4: "\u0000\u0002', want 'a b c'"
+    5: ""
+    6: "r2"
+    7: "x y z"
+    8: "-"
+    9: "x-y-z"
+    10: "\u0000\u0002join with '-' = '"
+    11: "\u0000\u0002', want 'x-y-z'"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "r"
+    (2) push1 1	# "join"
+    (4) push1 2	# "a b c"
+    (6) invokeStk1 2
+    (8) storeStk
+    (9) pop
+    (10) startCommand +50 1	# next cmd at pc 60, 1 cmds start here
+    (19) push1 0	# "r"
+    (21) loadStk
+    (22) push1 2	# "a b c"
+    (24) strneq
+    (25) jumpFalse1 +33	# pc 58
+  # if_then_3:
+    (27) startCommand +29 1	# next cmd at pc 56, 1 cmds start here
+    (36) push1 3	# "join {a b c} = '"
+    (38) push1 0	# "r"
+    (40) loadStk
+    (41) push1 4	# "', want 'a b c'"
+    (43) strcat 3
+    (45) push1 5	# ""
+    (47) returnImm +1 0
+  # cmd_end_2:
+    (56) jump1 +4	# pc 60
+  # if_next_4:
+    (58) push1 5	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (60) pop
+    (61) startCommand +20 1	# next cmd at pc 81, 1 cmds start here
+    (70) push1 6	# "r2"
+    (72) push1 1	# "join"
+    (74) push1 7	# "x y z"
+    (76) push1 8	# "-"
+    (78) invokeStk1 3
+    (80) storeStk
+  # cmd_end_3:
+    (81) pop
+    (82) startCommand +50 1	# next cmd at pc 132, 1 cmds start here
+    (91) push1 6	# "r2"
+    (93) loadStk
+    (94) push1 9	# "x-y-z"
+    (96) strneq
+    (97) jumpFalse1 +33	# pc 130
+  # if_then_6:
+    (99) startCommand +29 1	# next cmd at pc 128, 1 cmds start here
+    (108) push1 10	# "join with '-' = '"
+    (110) push1 6	# "r2"
+    (112) loadStk
+    (113) push1 11	# "', want 'x-y-z'"
+    (115) strcat 3
+    (117) push1 5	# ""
+    (119) returnImm +1 0
+  # cmd_end_5:
+    (128) jump1 +4	# pc 132
+  # if_next_7:
+    (130) push1 5	# ""
+  # if_end_5:
+  # if_cmd_end_4:
+    (132) pop
+    (133) startCommand +12 1	# next cmd at pc 145, 1 cmds start here
+    (142) push1 0	# "r"
+    (144) loadStk
+  # cmd_end_6:
+  # exit_8:
+    (145) done

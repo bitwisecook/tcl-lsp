@@ -1,0 +1,114 @@
+ByteCode ::top, 71 instructions, 218 bytes, 17 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "abc bdef abcdef bcdefg"
+    2: "lsearch"
+    3: "bcd*"
+    4: "3"
+    5: "glob prefix match failed"
+    6: ""
+    7: "*cd*"
+    8: "0"
+    9: "wildcard middle match failed"
+    10: "nosuch"
+    11: "-1"
+    12: "no-match should return -1"
+    13: "a b c d"
+    14: "c"
+    15: "2"
+    16: "exact-as-glob failed"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "abc bdef abcdef bcdefg"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +49 1	# next cmd at pc 55, 1 cmds start here
+    (15) push1 2	# "lsearch"
+    (17) push1 0	# "x"
+    (19) loadStk
+    (20) push1 3	# "bcd*"
+    (22) invokeStk1 3
+    (24) push1 4	# "3"
+    (26) neq
+    (27) jumpFalse1 +26	# pc 53
+  # if_then_3:
+    (29) startCommand +22 1	# next cmd at pc 51, 1 cmds start here
+    (38) push1 5	# "glob prefix match failed"
+    (40) push1 6	# ""
+    (42) returnImm +1 0
+  # cmd_end_2:
+    (51) jump1 +4	# pc 55
+  # if_next_4:
+    (53) push1 6	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (55) pop
+    (56) startCommand +49 1	# next cmd at pc 105, 1 cmds start here
+    (65) push1 2	# "lsearch"
+    (67) push1 0	# "x"
+    (69) loadStk
+    (70) push1 7	# "*cd*"
+    (72) invokeStk1 3
+    (74) push1 8	# "0"
+    (76) neq
+    (77) jumpFalse1 +26	# pc 103
+  # if_then_6:
+    (79) startCommand +22 1	# next cmd at pc 101, 1 cmds start here
+    (88) push1 9	# "wildcard middle match failed"
+    (90) push1 6	# ""
+    (92) returnImm +1 0
+  # cmd_end_4:
+    (101) jump1 +4	# pc 105
+  # if_next_7:
+    (103) push1 6	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (105) pop
+    (106) startCommand +49 1	# next cmd at pc 155, 1 cmds start here
+    (115) push1 2	# "lsearch"
+    (117) push1 0	# "x"
+    (119) loadStk
+    (120) push1 10	# "nosuch"
+    (122) invokeStk1 3
+    (124) push1 11	# "-1"
+    (126) neq
+    (127) jumpFalse1 +26	# pc 153
+  # if_then_9:
+    (129) startCommand +22 1	# next cmd at pc 151, 1 cmds start here
+    (138) push1 12	# "no-match should return -1"
+    (140) push1 6	# ""
+    (142) returnImm +1 0
+  # cmd_end_6:
+    (151) jump1 +4	# pc 155
+  # if_next_10:
+    (153) push1 6	# ""
+  # if_end_8:
+  # if_cmd_end_5:
+    (155) pop
+    (156) startCommand +48 1	# next cmd at pc 204, 1 cmds start here
+    (165) push1 2	# "lsearch"
+    (167) push1 13	# "a b c d"
+    (169) push1 14	# "c"
+    (171) invokeStk1 3
+    (173) push1 15	# "2"
+    (175) neq
+    (176) jumpFalse1 +26	# pc 202
+  # if_then_12:
+    (178) startCommand +22 1	# next cmd at pc 200, 1 cmds start here
+    (187) push1 16	# "exact-as-glob failed"
+    (189) push1 6	# ""
+    (191) returnImm +1 0
+  # cmd_end_8:
+    (200) jump1 +4	# pc 204
+  # if_next_13:
+    (202) push1 6	# ""
+  # if_end_11:
+  # if_cmd_end_7:
+    (204) pop
+    (205) startCommand +12 1	# next cmd at pc 217, 1 cmds start here
+    (214) push1 0	# "x"
+    (216) loadStk
+  # cmd_end_9:
+  # exit_14:
+    (217) done

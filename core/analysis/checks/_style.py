@@ -1337,8 +1337,13 @@ def check_loop_bound_inequality(
     """IRULE5003: ``while {$var != 0} { incr var -1 }`` can miss zero.
 
     If the counter starts negative, it decrements past zero and loops ~2^63
-    times.  Suggest ``$var > 0`` instead.
+    times.  Suggest ``$var > 0`` instead.  Classified as iRules-specific
+    because TMOS kills runaway iRules via the runtime budget; plain
+    Tcl just takes a long time.  Only fires when the active dialect is
+    ``f5-irules``.
     """
+    if active_dialect() != "f5-irules":
+        return []
     if cmd_name != "while" or len(args) < 2:
         return []
 

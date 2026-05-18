@@ -28,6 +28,8 @@ from . import (
     concat,  # noqa: F401
     const,  # noqa: F401
     continue_,  # noqa: F401
+    coroinject,  # noqa: F401
+    coroprobe,  # noqa: F401
     coroutine,  # noqa: F401
     dict,  # noqa: F401
     disabled_in_irules,  # noqa: F401
@@ -46,6 +48,7 @@ from . import (
     flush,  # noqa: F401
     for_,  # noqa: F401
     foreach_,  # noqa: F401
+    foreachline,  # noqa: F401
     format,  # noqa: F401
     gets,  # noqa: F401
     glob_,  # noqa: F401
@@ -64,6 +67,7 @@ from . import (
     llength,  # noqa: F401
     lmap,  # noqa: F401
     load,  # noqa: F401
+    lpop,  # noqa: F401
     lrange,  # noqa: F401
     lremove,  # noqa: F401
     lrepeat,  # noqa: F401
@@ -95,6 +99,7 @@ from . import (
     puts_,  # noqa: F401
     re_quote,  # noqa: F401
     read,  # noqa: F401
+    readfile,  # noqa: F401
     regex__quote,  # noqa: F401
     regex_quote,  # noqa: F401
     regexp_,  # noqa: F401
@@ -114,6 +119,8 @@ from . import (
     switch_,  # noqa: F401
     tailcall,  # noqa: F401
     tcl_build_info,  # noqa: F401
+    tcl_idna,  # noqa: F401
+    tcl_process,  # noqa: F401
     tcl_unsupported_corotype,  # noqa: F401
     tell,  # noqa: F401
     throw,  # noqa: F401
@@ -129,6 +136,7 @@ from . import (
     variable,  # noqa: F401
     vwait,  # noqa: F401
     while_,  # noqa: F401
+    writefile,  # noqa: F401
     yield_,  # noqa: F401
     yieldto,  # noqa: F401
     zlib,  # noqa: F401

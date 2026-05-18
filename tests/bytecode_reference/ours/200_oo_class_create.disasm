@@ -1,0 +1,32 @@
+ByteCode ::top, 18 instructions, 38 bytes, 7 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "Dog"
+    3: "\n    method bark {} { return \"woof\..."
+    4: "obj"
+    5: "new"
+    6: "bark"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "Dog"
+    (6) push1 3	# "\n    method bark {} { return \"woof\..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) startCommand +18 1	# next cmd at pc 29, 1 cmds start here
+    (20) push1 4	# "obj"
+    (22) push1 2	# "Dog"
+    (24) push1 5	# "new"
+    (26) invokeStk1 2
+    (28) storeStk
+  # cmd_end_1:
+    (29) pop
+    (30) push1 4	# "obj"
+    (32) loadStk
+    (33) push1 6	# "bark"
+    (35) invokeStk1 2	# ${obj}
+  # cmd_end_2:
+  # exit_2:
+    (37) done

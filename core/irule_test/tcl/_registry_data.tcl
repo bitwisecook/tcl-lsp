@@ -153,12 +153,18 @@ namespace eval ::tmm {
     # Derived from: (tcl8.5 | tcl8.6 | tcl9.0) - tcl8.4 - f5-irules.
 
     variable _gen_post84_commands {
+        ::tcl::idna
+        ::tcl::process
         classvariable
+        coroinject
+        coroprobe
         coroutine
         dict
+        foreachLine
         lassign
         ledit
         lmap
+        lpop
         lremove
         lseq
         my
@@ -172,10 +178,14 @@ namespace eval ::tmm {
         oo::objdefine
         oo::object
         oo::singleton
+        readFile
         self
         tailcall
+        tcl::idna
+        tcl::process
         throw
         try
+        writeFile
         yield
         yieldto
         zlib

@@ -1,0 +1,52 @@
+ByteCode ::top, 32 instructions, 79 bytes, 11 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "foo"
+    3: "\n    method bar {} {lappend ::result..."
+    4: "foo2"
+    5: "\n    superclass foo\n    method bar ..."
+    6: "result"
+    7: ""
+    8: "catch"
+    9: "{[foo2 new] bar}"
+    10: "msg"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "foo"
+    (6) push1 3	# "\n    method bar {} {lappend ::result..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) push1 0	# "oo::class"
+    (13) push1 1	# "create"
+    (15) push1 4	# "foo2"
+    (17) push1 5	# "\n    superclass foo\n    method bar ..."
+    (19) invokeStk1 4	# oo::class
+  # cmd_end_1:
+    (21) pop
+    (22) startCommand +14 1	# next cmd at pc 36, 1 cmds start here
+    (31) push1 6	# "result"
+    (33) push1 7	# ""
+    (35) storeStk
+  # cmd_end_2:
+    (36) pop
+    (37) startCommand +28 1	# next cmd at pc 65, 1 cmds start here
+    (46) push1 6	# "result"
+    (48) push1 8	# "catch"
+    (50) push1 9	# "{[foo2 new] bar}"
+    (52) push1 10	# "msg"
+    (54) invokeStk1 3
+    (56) push1 10	# "msg"
+    (58) loadStk
+    (59) list 2
+    (64) lappendListStk
+  # cmd_end_3:
+    (65) pop
+    (66) startCommand +12 1	# next cmd at pc 78, 1 cmds start here
+    (75) push1 6	# "result"
+    (77) loadStk
+  # cmd_end_4:
+  # exit_2:
+    (78) done

@@ -52,6 +52,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W003",
+    section: "warning",
+    description: "Expression operator not available in active dialect.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W004",
+    section: "warning",
+    description: "Command option is not available in the active dialect.",
+    defaultEnabled: true,
+  },
+  {
     code: "W100",
     section: "warning",
     description:

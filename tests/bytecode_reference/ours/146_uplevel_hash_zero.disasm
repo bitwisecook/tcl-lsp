@@ -1,0 +1,27 @@
+ByteCode ::top, 14 instructions, 24 bytes, 6 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "set_global"
+    2: ""
+    3: "\n    uplevel #0 {set ::g 42}\n"
+    4: "puts"
+    5: "::g"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "set_global"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    uplevel #0 {set ::g 42}\n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 1	# "set_global"
+    (13) invokeStk1 1	# set_global
+  # cmd_end_1:
+    (15) pop
+    (16) push1 4	# "puts"
+    (18) push1 5	# "::g"
+    (20) loadStk
+    (21) invokeStk1 2	# puts
+  # cmd_end_2:
+  # exit_2:
+    (23) done

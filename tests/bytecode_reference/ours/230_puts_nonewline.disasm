@@ -1,0 +1,38 @@
+ByteCode ::top, 23 instructions, 55 bytes, 7 literals, 0 variables
+  Literals:
+    0: "puts"
+    1: "-nonewline"
+    2: "abc"
+    3: "def"
+    4: ""
+    5: "line"
+    6: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "puts"
+    (2) push1 1	# "-nonewline"
+    (4) push1 2	# "abc"
+    (6) invokeStk1 3	# puts
+    (8) pop
+    (9) push1 0	# "puts"
+    (11) push1 3	# "def"
+    (13) invokeStk1 2	# puts
+  # cmd_end_1:
+    (15) pop
+    (16) push1 0	# "puts"
+    (18) push1 1	# "-nonewline"
+    (20) push1 4	# ""
+    (22) invokeStk1 3	# puts
+  # cmd_end_2:
+    (24) pop
+    (25) push1 0	# "puts"
+    (27) push1 5	# "line"
+    (29) invokeStk1 2	# puts
+  # cmd_end_3:
+    (31) pop
+    (32) startCommand +22 1	# next cmd at pc 54, 1 cmds start here
+    (41) push1 6	# "ok"
+    (43) push1 4	# ""
+    (45) returnImm +0 1
+  # ret_end_4:
+    (54) done

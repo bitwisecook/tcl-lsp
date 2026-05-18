@@ -107,7 +107,8 @@ _CONFIGURE_OPTIONS = (
         name="-profile",
         takes_value=True,
         value_hint="profile",
-        detail="Set encoding profile (strict, tcl8, replace).",
+        detail="Set encoding profile: strict | tcl8 | replace. (TIP 656, Tcl 9.0+)",
+        dialects=frozenset({"tcl9.0"}),
     ),
     OptionSpec(
         name="-translation",
@@ -176,6 +177,42 @@ class ChanCommand(CommandDef):
                     detail="Query or set channel options.",
                     synopsis="chan configure channelId ?optionName? ?value ...?",
                     return_type=TclType.STRING,
+                    options=(
+                        OptionSpec(name="-blocking", takes_value=True, value_hint="boolean"),
+                        OptionSpec(name="-buffering", takes_value=True, value_hint="mode"),
+                        OptionSpec(name="-buffersize", takes_value=True, value_hint="size"),
+                        OptionSpec(name="-encoding", takes_value=True, value_hint="encoding"),
+                        OptionSpec(name="-eofchar", takes_value=True, value_hint="chars"),
+                        OptionSpec(name="-translation", takes_value=True, value_hint="mode"),
+                        OptionSpec(
+                            name="-profile",
+                            takes_value=True,
+                            value_hint="profile",
+                            detail="Encoding error profile: strict | tcl8 | replace. (TIP 656, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        OptionSpec(
+                            name="-keepalive",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Query or set TCP keepalive on a socket channel. (TIP 528, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        OptionSpec(
+                            name="-nodelay",
+                            takes_value=True,
+                            value_hint="boolean",
+                            detail="Query or set TCP_NODELAY on a socket channel. (TIP 528, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                        OptionSpec(
+                            name="-inputmode",
+                            takes_value=True,
+                            value_hint="mode",
+                            detail="Console input mode: normal | password | raw | reset. (TIP 160, Tcl 9.0+)",
+                            dialects=frozenset({"tcl9.0"}),
+                        ),
+                    ),
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,
