@@ -32,13 +32,20 @@
 //! `is_safe_symbol_name` / `is_builtin_command_name` gates
 //! apply.
 //!
+//! Method / classmethod / property renames also land: when
+//! the cursor sits on a member name inside the class body
+//! (either at the declaration or at a call site), the
+//! provider rewrites the declaration's name span plus every
+//! same-name command invocation inside the class body.
+//!
 //! What is *still deferred* (planned as further
 //! `S-rename-rich` sub-strips):
 //!
-//! * Method rename — the Python provider has a separate code
-//!   path for method-name renames inside a class body.
 //! * Cross-document rename — the workspace-index integration
 //!   that lands alongside `S-workspace-symbols`.
+//! * `$obj method` call sites *outside* the class body —
+//!   needs analyser-side variable-type tracking so the
+//!   provider knows which object's class to rename against.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -161,6 +168,32 @@ pub fn prepare_rename(
             });
         }
     }
+    // Method / classmethod / property inside a class body?
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        if let Some(m) = class_def.methods.get(&word) {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, m.name_span),
+                placeholder: m.name.clone(),
+            });
+        }
+        if let Some(m) = class_def.class_methods.get(&word) {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, m.name_span),
+                placeholder: m.name.clone(),
+            });
+        }
+        if let Some(p) = class_def.properties.get(&word) {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, p.name_span),
+                placeholder: p.name.clone(),
+            });
+        }
+    }
     None
 }
 
@@ -202,6 +235,19 @@ pub fn rename(
         return edits;
     }
     if let Some(edits) = rename_class(&word, new_name, analysis, registry, &line_index) {
+        return edits;
+    }
+    // Method rename — match `word` against any class's methods
+    // / classmethods / properties at the cursor's byte offset.
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    if let Some(edits) = rename_method(
+        source,
+        &word,
+        new_name,
+        analysis,
+        cursor_offset,
+        &line_index,
+    ) {
         return edits;
     }
     Vec::new()
@@ -344,6 +390,138 @@ fn rename_class(
     }
     dedup_edits(&mut edits);
     Some(edits)
+}
+
+/// Method / property rename — locate the class whose body
+/// contains the cursor, match `word` against its members,
+/// then rewrite the declaration's name span plus every call
+/// site inside any sibling method body that targets the same
+/// name.
+///
+/// The analyser's `command_invocations` collection records
+/// invocations at the top level only; method bodies aren't
+/// walked.  To find call sites we re-segment each sibling
+/// method body via [`tcl_compiler::segmenter::segment_commands_with_offset`]
+/// and match on the segmented command's head token.
+///
+/// Returns `Some(edits)` when a class member matched `word`,
+/// `None` otherwise.  `cursor_offset` is the byte offset for
+/// containment filtering.
+fn rename_method(
+    source: &str,
+    word: &str,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    use tcl_lexer::Span;
+
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        // Try methods, then class_methods, then properties.
+        let member_name_span: Option<Span> = class_def
+            .methods
+            .get(word)
+            .map(|m| m.name_span)
+            .or_else(|| class_def.class_methods.get(word).map(|m| m.name_span))
+            .or_else(|| class_def.properties.get(word).map(|p| p.name_span));
+        let name_span = member_name_span?;
+        let mut edits = vec![TextEdit {
+            range: span_to_range(line_index, name_span),
+            new_text: new_name.to_owned(),
+        }];
+        // Scan every method / classmethod / constructor /
+        // destructor body for command invocations whose head
+        // matches `word`.  Re-segments each body via the
+        // segmenter — analyser-side `command_invocations`
+        // only carries top-level invocations.
+        let mut body_spans: Vec<Span> = class_def
+            .methods
+            .values()
+            .map(|m| m.body_span)
+            .chain(class_def.class_methods.values().map(|m| m.body_span))
+            .chain(class_def.constructors.iter().map(|c| c.body_span))
+            .collect();
+        if let Some(d) = &class_def.destructor {
+            body_spans.push(d.body_span);
+        }
+        for span in body_spans {
+            scan_body_for_method_calls(
+                source, span, word, new_name, name_span, line_index, &mut edits,
+            );
+        }
+        dedup_edits(&mut edits);
+        return Some(edits);
+    }
+    None
+}
+
+/// Re-segment a method body and append a rewrite edit for
+/// every command invocation whose head matches `word` (and
+/// isn't the declaration site itself).  Uses
+/// [`tcl_compiler::segmenter::segment_commands_with_offset`]
+/// so the resulting token spans use absolute source offsets.
+fn scan_body_for_method_calls(
+    source: &str,
+    body_span: tcl_lexer::Span,
+    word: &str,
+    new_name: &str,
+    name_span: tcl_lexer::Span,
+    line_index: &LineIndex,
+    edits: &mut Vec<TextEdit>,
+) {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    if body_span.is_empty() {
+        return;
+    }
+    let mut start = body_span.start() as usize;
+    let mut end = body_span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return;
+    }
+    // The analyser records body spans inclusive of the
+    // braces (`{...}`).  The segmenter treats a leading `{`
+    // as a braced literal opener and would refuse to
+    // segment the inner content, so strip the surrounding
+    // braces before re-segmenting.
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    let body_text = &source[start..end];
+    let commands =
+        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    for cmd in &commands {
+        let Some(head) = cmd.argv.first() else {
+            continue;
+        };
+        let head_span = head.span;
+        // Match the head token text against `word`.  We could
+        // use `cmd.texts[0]` but spans are sufficient here.
+        let head_start = head_span.start() as usize;
+        let head_end = head_span.end() as usize;
+        if head_start >= source.len() || head_end > source.len() {
+            continue;
+        }
+        let head_text = &source[head_start..head_end];
+        if head_text != word {
+            continue;
+        }
+        // Skip the declaration site itself.
+        if head_span.start() == name_span.start() && head_span.end() == name_span.end() {
+            continue;
+        }
+        edits.push(TextEdit {
+            range: span_to_range(line_index, head_span),
+            new_text: new_name.to_owned(),
+        });
+    }
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -808,5 +986,63 @@ mod tests {
         assert_eq!(p.range.start_line, 0);
         // The span sits at column 17.
         assert_eq!(p.range.start_character, 17);
+    }
+
+    // -- S-rename-rich: method rename --------------------------------
+
+    #[test]
+    fn rename_method_at_decl_rewrites_decl_and_calls() {
+        // Method declared on line 1, called from line 2's body
+        // twice — should rewrite the declaration plus both
+        // call sites.
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `greet` declaration (line 1 col 11).
+        let edits = rename(src, 1, 11, "salute", &analysis, None);
+        assert!(!edits.is_empty(), "{edits:?}");
+        // All three sites should be present.
+        assert!(edits.len() >= 3, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "salute");
+        }
+    }
+
+    #[test]
+    fn rename_method_at_call_site_also_works() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first `greet` call site (line 2 col 22).
+        let edits = rename(src, 2, 22, "salute", &analysis, None);
+        assert!(edits.len() >= 3, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "salute");
+        }
+    }
+
+    #[test]
+    fn rename_method_skipped_outside_class_body() {
+        // Cursor on bare `greet` outside the class — no class
+        // method named `greet` is visible, so the rename
+        // returns empty.
+        let src = "oo::class create C {\n    method greet {} {}\n}\ngreet\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 3, 2, "salute", &analysis, None);
+        assert!(edits.is_empty(), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_method_rejects_unsafe_new_name() {
+        let src = "oo::class create C {\n    method greet {} {}\n}\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 1, 11, "1bad", &analysis, None);
+        assert!(edits.is_empty(), "{edits:?}");
+    }
+
+    #[test]
+    fn prepare_rename_returns_range_for_method() {
+        let src = "oo::class create C {\n    method greet {} {}\n}\n";
+        let analysis = analyse(src);
+        let p = prepare_rename(src, 1, 11, &analysis).expect("expected prepare_rename on method");
+        assert_eq!(p.placeholder, "greet");
     }
 }
