@@ -2595,6 +2595,13 @@ fn foreach_append_var_frame(var_name_obj: i32) void {
 pub export fn proc_stamp_error_frame(name_ptr: u32, name_len: u32) void {
     const tcl_catch = @import("tcl_catch.zig");
     if (tcl_catch.state.error_flag == 0) return;
+    // ``return -code error msg`` from inside the body should NOT
+    // add a procedure frame — Tcl 9's ``TclUpdateReturnInfo`` path
+    // bypasses ``MakeProcError``.  Consume the marker flag and bail.
+    if (tcl_catch.state.return_via_error_code != 0) {
+        tcl_catch.state.return_via_error_code = 0;
+        return;
+    }
     // Strip the namespace prefix so the frame uses only the simple
     // (last-segment) name — reference Tcl reports
     // ``(procedure "foo" line N)`` for ``::tcl::test::error::foo``.
@@ -2645,6 +2652,13 @@ fn proc_dispatch_stamp_error_frame(bucket: i32, result: i32) void {
     const ir = result_mod.snapshot(result);
     if (ir.code != .ERROR) return;
     const tcl_catch = @import("tcl_catch.zig");
+    // ``return -code error msg`` skips the procedure frame — see
+    // ``proc_stamp_error_frame`` for the rationale.  Consume the
+    // marker and bail.
+    if (tcl_catch.state.return_via_error_code != 0) {
+        tcl_catch.state.return_via_error_code = 0;
+        return;
+    }
     const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
     const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
     // Strip the full namespace qualifier so the frame uses only the

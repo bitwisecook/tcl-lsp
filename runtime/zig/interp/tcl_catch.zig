@@ -85,6 +85,17 @@ pub const State = struct {
     /// line.  Cleared on every ``catch_leave`` so a subsequent error
     /// doesn't reuse the previous error's line.
     error_frame_line: u32 = 0,
+    /// 1 = the most-recent error was raised via ``return -code error``
+    /// (or ``return -options {-code error ...}``), NOT a direct
+    /// ``error`` / ``throw`` call.  Tcl 9's ``InterpProcNR2`` skips
+    /// ``MakeProcError`` for ``return -code error`` because the
+    /// proc body returned via ``TclUpdateReturnInfo``-converted
+    /// TCL_RETURN rather than a body-level TCL_ERROR — proc-old-7.2
+    /// expects no ``(procedure "tproc" line N)`` frame in this path.
+    /// :func:`proc_stamp_error_frame` and
+    /// :func:`proc_dispatch_stamp_error_frame` consult the flag and
+    /// skip the procedure-frame stamp when set, then clear the slot.
+    return_via_error_code: u32 = 0,
     /// Pending arbitrary ``-OPT VALUE`` pairs supplied to ``return``
     /// (cmdMZ-return-2.1: ``return -bar soom``).  Encoded as a
     /// pre-built dict TclObj.  Snapshotted into
@@ -515,6 +526,7 @@ pub export fn catch_leave() i32 {
     state.last_log_script = 0;
     state.last_log_pos = 0;
     state.error_info_supplied = 0;
+    state.return_via_error_code = 0;
     // ``error_frame_line`` is NOT reset here — reference Tcl's
     // ``Tcl_ResetResult`` (called from ``INST_END_CATCH``) clears
     // ``errorInfo`` and the ``ERR_ALREADY_LOGGED`` flag, but leaves
@@ -864,6 +876,21 @@ pub export fn tcl_cmd_error(msg: i32) void {
     fd_write_all(2, "\n", 1);
     diag.write_eval_ctx(2);
     @trap();
+}
+
+// Exported: ``return -code error msg`` shortcut — equivalent to
+// :func:`tcl_cmd_error` but ALSO sets the
+// :attr:`return_via_error_code` flag so the procedure-frame stamps
+// (compiled epilogue + interpreted dispatch) skip the
+// ``(procedure "X" line N)`` line.  Mirrors Tcl 9's distinction
+// between body-level ``error msg`` (which ``MakeProcError``
+// annotates) and ``return -code error msg`` (which goes through
+// ``TclUpdateReturnInfo`` and bypasses the frame stamp) — proc-old-
+// 7.2's expected ``::errorInfo`` lacks the ``(procedure …)``
+// line in this exact form.
+pub export fn tcl_cmd_error_via_return(msg: i32) void {
+    state.return_via_error_code = 1;
+    tcl_cmd_error(msg);
 }
 
 // Exported: error with explicit ``info`` / ``code`` arguments —

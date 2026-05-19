@@ -1400,6 +1400,7 @@ def _scan_needed_imports(
     # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
+    needed.add("tcl_error_via_return")
     needed.add("tcl_eval")
     needed.add("tcl_ns_set")
     needed.add("tcl_ns_restore")

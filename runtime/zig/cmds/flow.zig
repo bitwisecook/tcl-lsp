@@ -370,6 +370,16 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         // ``-errorcode`` so cmdMZ-return-2.15..17 see the expected
         // ``::errorCode {a b}`` after the apply unwinds.
         catch_mod.tcl_cmd_error_full(result_obj, errorinfo_obj, errorcode_obj);
+        // Tcl 9 distinguishes a body-level ``error msg`` (which
+        // ``InterpProcNR2`` annotates with ``MakeProcError``) from
+        // a ``return -code error msg`` (which goes through
+        // ``TclUpdateReturnInfo`` and skips the procedure frame).
+        // Our shortcut above goes straight to the error path; flag
+        // it so the procedure-frame stamps (compiled epilogue +
+        // interpreted dispatch) skip the frame.  proc-old-7.2's
+        // expected ``::errorInfo`` carries no ``(procedure "tproc"
+        // line N)`` line for this exact reason.
+        catch_mod.state.return_via_error_code = 1;
         return result_mod.from_globals(0);
     }
     // ``return -code break`` / ``return -code continue`` aren't yet
