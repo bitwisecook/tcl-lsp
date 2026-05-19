@@ -694,21 +694,112 @@ impl LanguageServer for Backend {
 
     async fn incoming_calls(
         &self,
-        _params: CallHierarchyIncomingCallsParams,
+        params: CallHierarchyIncomingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
-        // S-call-hierarchy-rich: incoming-call enumeration
-        // requires the call-graph index that the analyser
-        // doesn't surface today.  Stub-empty.
-        Ok(Some(Vec::new()))
+        let item = params.item;
+        let uri = item.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let core_item = core_call_hierarchy::CallHierarchyItem {
+            name: item.name,
+            detail: item.detail,
+            range: CoreLspRange {
+                start_line: item.range.start.line,
+                start_character: item.range.start.character,
+                end_line: item.range.end.line,
+                end_character: item.range.end.character,
+            },
+            selection_range: CoreLspRange {
+                start_line: item.selection_range.start.line,
+                start_character: item.selection_range.start.character,
+                end_line: item.selection_range.end.line,
+                end_character: item.selection_range.end.character,
+            },
+        };
+        let incoming = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_call_hierarchy::incoming_calls(&doc.text, &core_item, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("incoming_calls worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted = incoming
+            .into_iter()
+            .map(|c| CallHierarchyIncomingCall {
+                from: CallHierarchyItem {
+                    name: c.from.name,
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    detail: c.from.detail,
+                    uri: uri.clone(),
+                    range: lift_lsp_range(c.from.range),
+                    selection_range: lift_lsp_range(c.from.selection_range),
+                    data: None,
+                },
+                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
+            })
+            .collect();
+        Ok(Some(lifted))
     }
 
     async fn outgoing_calls(
         &self,
-        _params: CallHierarchyOutgoingCallsParams,
+        params: CallHierarchyOutgoingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
-        // S-call-hierarchy-rich: outgoing-call enumeration
-        // requires the per-proc callee list.  Stub-empty.
-        Ok(Some(Vec::new()))
+        let item = params.item;
+        let uri = item.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let core_item = core_call_hierarchy::CallHierarchyItem {
+            name: item.name,
+            detail: item.detail,
+            range: CoreLspRange {
+                start_line: item.range.start.line,
+                start_character: item.range.start.character,
+                end_line: item.range.end.line,
+                end_character: item.range.end.character,
+            },
+            selection_range: CoreLspRange {
+                start_line: item.selection_range.start.line,
+                start_character: item.selection_range.start.character,
+                end_line: item.selection_range.end.line,
+                end_character: item.selection_range.end.character,
+            },
+        };
+        let outgoing = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("outgoing_calls worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted = outgoing
+            .into_iter()
+            .map(|c| CallHierarchyOutgoingCall {
+                to: CallHierarchyItem {
+                    name: c.to.name,
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    detail: c.to.detail,
+                    uri: uri.clone(),
+                    range: lift_lsp_range(c.to.range),
+                    selection_range: lift_lsp_range(c.to.selection_range),
+                    data: None,
+                },
+                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
+            })
+            .collect();
+        Ok(Some(lifted))
     }
 
     // Note: type_hierarchy LSP methods aren't exposed by
