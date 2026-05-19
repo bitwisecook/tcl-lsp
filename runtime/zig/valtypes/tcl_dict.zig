@@ -782,7 +782,9 @@ pub export fn dict_keys(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 2) {
@@ -806,7 +808,7 @@ pub export fn dict_keys(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: dict values — return a list of all values in the dict.
@@ -814,7 +816,9 @@ pub export fn dict_values(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 1;
     while (idx < n) : (idx += 2) {
@@ -838,7 +842,7 @@ pub export fn dict_values(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: dict size — number of UNIQUE key-value pairs.  When the
