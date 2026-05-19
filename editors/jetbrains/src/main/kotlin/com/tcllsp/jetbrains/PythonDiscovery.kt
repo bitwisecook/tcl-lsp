@@ -151,7 +151,14 @@ fun discoverPython(configured: String = "auto"): PythonInfo? {
 internal fun describeInterpreter(command: String): String = describePath(command)
 
 private fun describePath(command: String): String {
-    if (command.contains(File.separator)) return command
+    // Anything that looks like a filesystem path (absolute, or contains
+    // either platform's separator) is already self-describing.  We treat
+    // ``\\`` and ``/`` interchangeably so Windows paths spelled
+    // ``C:/Python/python.exe`` aren't misclassified as bare PATH names
+    // and re-resolved against PATH for logging (Copilot review, PR #438).
+    if (command.contains('/') || command.contains('\\') || File(command).isAbsolute) {
+        return command
+    }
     val resolved = resolveOnPath(command) ?: return command
     return "$command (-> $resolved)"
 }
@@ -159,7 +166,11 @@ private fun describePath(command: String): String {
 private fun resolveOnPath(command: String): String? {
     val pathEnv = System.getenv("PATH") ?: return null
     val pathSep = System.getProperty("path.separator") ?: ":"
-    val isWindows = System.getProperty("os.name").lowercase().contains("win")
+    // ``os.name.contains("win")`` matches ``"Darwin"`` (macOS), which
+    // would prevent PATH resolution on macOS and apply Windows-only
+    // ``PATHEXT`` logic to other Unixes.  Match the official prefix
+    // instead (Copilot review, PR #438).
+    val isWindows = System.getProperty("os.name").lowercase().startsWith("windows")
     val pathExts = if (isWindows) {
         (System.getenv("PATHEXT") ?: ".EXE;.BAT;.CMD;.COM").split(";")
     } else {

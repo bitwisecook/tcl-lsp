@@ -44,6 +44,37 @@ from ._helpers import (
     _upvar_local_name_args,
 )
 
+
+def _widen_for_close_delim(
+    source: str,
+    start_offset: int,
+    inclusive_end: SourcePosition,
+) -> tuple[int, SourcePosition]:
+    """Widen ``inclusive_end`` by one character when the next char is the
+    matching closing ``"``/``}`` of an opening delimiter at
+    ``source[start_offset]``.
+
+    Returns ``(exclusive_end_offset, new_inclusive_end)``.  When no
+    widening is needed, the inputs are returned unchanged (with the
+    exclusive offset being ``inclusive_end.offset + 1``).  Used by
+    quick-fix builders that previously left a stray closing delimiter
+    in the document because the replacement text spanned the full
+    argument but the fix range stopped one character short (Copilot
+    review, PR #438).
+    """
+    raw_end = inclusive_end.offset + 1
+    if 0 <= start_offset < len(source) and source[start_offset] in ('"', "{"):
+        close = '"' if source[start_offset] == '"' else "}"
+        if raw_end < len(source) and source[raw_end] == close:
+            new_inclusive = SourcePosition(
+                line=inclusive_end.line,
+                character=inclusive_end.character + 1,
+                offset=raw_end,
+            )
+            return raw_end + 1, new_inclusive
+    return raw_end, inclusive_end
+
+
 # W100: Unbraced expr
 
 
@@ -93,12 +124,13 @@ def check_unbraced_expr(
                 # The token range stops at the last *content* character;
                 # widen by one when the next char is the matching closing
                 # delimiter of an opening quote/brace so the fix span
-                # covers the entire argument, not just its prefix.
-                raw_end = end + 1
-                if 0 <= start < len(source) and source[start] in ('"', "{"):
-                    close = '"' if source[start] == '"' else "}"
-                    if raw_end < len(source) and source[raw_end] == close:
-                        raw_end += 1
+                # covers the entire argument, not just its prefix.  Widen
+                # ``range_for_diag.end`` in lockstep — otherwise the
+                # replacement text covers the delimiter but the fix range
+                # doesn't, leaving a stray ``"``/``}`` in the document.
+                raw_end, new_end_pos = _widen_for_close_delim(source, start, range_for_diag.end)
+                if new_end_pos is not range_for_diag.end:
+                    range_for_diag = Range(start=range_for_diag.start, end=new_end_pos)
                 text = source[start:raw_end]
             else:
                 text = " ".join(args)
@@ -109,11 +141,9 @@ def check_unbraced_expr(
             start = range_for_diag.start.offset
             end = range_for_diag.end.offset
             if 0 <= start <= end < len(source):
-                raw_end = end + 1
-                if 0 <= start < len(source) and source[start] in ('"', "{"):
-                    close = '"' if source[start] == '"' else "}"
-                    if raw_end < len(source) and source[raw_end] == close:
-                        raw_end += 1
+                raw_end, new_end_pos = _widen_for_close_delim(source, start, range_for_diag.end)
+                if new_end_pos is not range_for_diag.end:
+                    range_for_diag = Range(start=range_for_diag.start, end=new_end_pos)
                 text = source[start:raw_end]
 
         # A braced argument is safe
@@ -294,11 +324,10 @@ def check_unbraced_body(
         # variable reference into a literal — exactly the bug we're
         # warning the user about.  Slice the raw source instead so the
         # replacement preserves the original substitution syntax.
-        raw_end = tok.end.offset + 1
-        if raw_end < len(source) and source[tok.start.offset] in ('"', "{"):
-            close = '"' if source[tok.start.offset] == '"' else "}"
-            if raw_end < len(source) and source[raw_end] == close:
-                raw_end += 1
+        # ``_widen_for_close_delim`` also widens the corresponding
+        # range end so the fix replaces the closing ``"``/``}`` instead
+        # of leaving it behind in the document.
+        raw_end, fix_end_pos = _widen_for_close_delim(source, tok.start.offset, tok.end)
         raw_text = source[tok.start.offset : raw_end]
         # Strip outer ``"..."`` quotes before bracing — otherwise the
         # fix wraps a quoted string and changes a multi-word body into
@@ -309,7 +338,7 @@ def check_unbraced_body(
         if len(raw_text) >= 2 and raw_text[0] == '"' and raw_text[-1] == '"':
             raw_text = raw_text[1:-1]
         fix = CodeFix(
-            range=range_from_token(tok),
+            range=Range(start=tok.start, end=fix_end_pos),
             new_text="{" + raw_text + "}",
             description="Wrap code block in braces",
         )

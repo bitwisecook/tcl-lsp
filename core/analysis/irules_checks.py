@@ -206,9 +206,28 @@ def check_matchclass(
     if len(args) >= 2 and len(all_tokens) >= 3 and len(arg_tokens) >= 2:
         first_tok = all_tokens[0]
         last_tok = all_tokens[-1]
+        # Token end offsets point at the last *content* character, so a
+        # quoted/braced final argument leaves the closing ``"``/``}``
+        # outside the fix range.  Widen the end by one when the next
+        # source char is the matching delimiter — otherwise applying
+        # the fix leaves a stray delimiter trailing the rewrite
+        # (Copilot review, PR #438).
+        fix_end = last_tok.end
+        next_off = last_tok.end.offset + 1
+        if 0 <= last_tok.start.offset < len(source) and source[last_tok.start.offset] in (
+            '"',
+            "{",
+        ):
+            close = '"' if source[last_tok.start.offset] == '"' else "}"
+            if next_off < len(source) and source[next_off] == close:
+                fix_end = type(last_tok.end)(
+                    line=last_tok.end.line,
+                    character=last_tok.end.character + 1,
+                    offset=next_off,
+                )
         fix_range = Range(
             start=first_tok.start,
-            end=last_tok.end,
+            end=fix_end,
         )
         # ``args[idx]`` holds the *substituted* value of each word.  For
         # ``matchclass $url ::lib`` that gives ``"url"`` instead of
