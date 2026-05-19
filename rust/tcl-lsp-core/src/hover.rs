@@ -146,6 +146,10 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
         return Some(Hover::markdown(class_hover_text(class_def)));
     }
 
+    if let Some(text) = ip_address_hover_text(&word) {
+        return Some(Hover::markdown(text));
+    }
+
     None
 }
 
@@ -973,6 +977,92 @@ fn regex_pattern_at_position(source: &str, line: u32, character: u32) -> Option<
     Some(literal)
 }
 
+/// Format hover markdown for an IPv4 / IPv6 literal at the
+/// cursor's word.  Mirrors `_ip_address_hover` in
+/// `lsp/features/hover.py:877-885`.
+///
+/// Returns `None` when `word` isn't a valid IP literal.  An
+/// optional `/prefix` suffix is supported; the prefix is
+/// rendered as a CIDR network in the result.
+fn ip_address_hover_text(word: &str) -> Option<String> {
+    use std::fmt::Write;
+    if !word.contains('.') && !word.contains(':') {
+        return None;
+    }
+    // Strip the optional `/prefix` suffix before parsing.
+    let (addr, prefix) = match word.split_once('/') {
+        Some((a, p)) => (a, p.parse::<u8>().ok()),
+        None => (word, None),
+    };
+    if let Ok(v4) = addr.parse::<std::net::Ipv4Addr>() {
+        let class = classify_ipv4(v4);
+        let mut out = format!("**IPv4 address** `{addr}`\n\n* Classification: {class}\n");
+        if let Some(p) = prefix {
+            if p <= 32 {
+                let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
+            }
+        }
+        return Some(out);
+    }
+    if let Ok(v6) = addr.parse::<std::net::Ipv6Addr>() {
+        let class = classify_ipv6(v6);
+        let mut out = format!("**IPv6 address** `{addr}`\n\n* Classification: {class}\n");
+        if let Some(p) = prefix {
+            if p <= 128 {
+                let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
+            }
+        }
+        // IPv4-mapped form (`::ffff:x.x.x.x`).
+        if let Some(mapped) = v6.to_ipv4_mapped() {
+            let _ = writeln!(out, "* IPv4-mapped form: `{mapped}`");
+        }
+        return Some(out);
+    }
+    None
+}
+
+/// Classify an IPv4 address by RFC category — loopback,
+/// private, multicast, broadcast, link-local, unspecified,
+/// or public.
+fn classify_ipv4(addr: std::net::Ipv4Addr) -> &'static str {
+    if addr.is_unspecified() {
+        "Unspecified (`0.0.0.0`)"
+    } else if addr.is_loopback() {
+        "Loopback (RFC 1122)"
+    } else if addr.is_private() {
+        "Private (RFC 1918)"
+    } else if addr.is_link_local() {
+        "Link-local (RFC 3927)"
+    } else if addr.is_multicast() {
+        "Multicast (RFC 5771)"
+    } else if addr.is_broadcast() {
+        "Broadcast"
+    } else if addr.is_documentation() {
+        "Documentation (RFC 5737)"
+    } else {
+        "Public / global"
+    }
+}
+
+/// Classify an IPv6 address by RFC category.
+fn classify_ipv6(addr: std::net::Ipv6Addr) -> &'static str {
+    if addr.is_unspecified() {
+        "Unspecified (`::`)"
+    } else if addr.is_loopback() {
+        "Loopback (`::1`)"
+    } else if addr.is_multicast() {
+        "Multicast (RFC 4291)"
+    } else if addr.to_ipv4_mapped().is_some() {
+        "IPv4-mapped (RFC 4291)"
+    } else if addr.segments()[0] & 0xffc0 == 0xfe80 {
+        "Link-local (RFC 4291)"
+    } else if addr.segments()[0] & 0xfe00 == 0xfc00 {
+        "Unique local (RFC 4193)"
+    } else {
+        "Global unicast"
+    }
+}
+
 /// Detect when the cursor sits on a `clock format` /
 /// `clock scan` format-string argument and return the
 /// literal text.  Single-line only — multi-line literals
@@ -1717,5 +1807,62 @@ mod tests {
         // Cursor inside the pattern literal.
         let h = hover(src, 0, 10, &analysis).expect("hover");
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: IP address hover -----------------------------
+
+    #[test]
+    fn ip_hover_classifies_private_ipv4() {
+        let t = ip_address_hover_text("10.0.0.1").expect("hover");
+        assert!(t.contains("IPv4 address"), "{t}");
+        assert!(t.contains("Private (RFC 1918)"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_classifies_loopback() {
+        let t = ip_address_hover_text("127.0.0.1").expect("hover");
+        assert!(t.contains("Loopback"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_classifies_public_ipv4() {
+        let t = ip_address_hover_text("8.8.8.8").expect("hover");
+        assert!(t.contains("Public"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_renders_cidr_prefix() {
+        let t = ip_address_hover_text("10.0.0.0/8").expect("hover");
+        assert!(t.contains("CIDR network: `10.0.0.0/8`"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_classifies_ipv6_loopback() {
+        let t = ip_address_hover_text("::1").expect("hover");
+        assert!(t.contains("IPv6 address"), "{t}");
+        assert!(t.contains("Loopback"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_detects_ipv4_mapped_ipv6() {
+        let t = ip_address_hover_text("::ffff:192.0.2.1").expect("hover");
+        assert!(t.contains("IPv4-mapped"), "{t}");
+    }
+
+    #[test]
+    fn ip_hover_rejects_non_ip_strings() {
+        assert!(ip_address_hover_text("hello").is_none());
+        assert!(ip_address_hover_text("256.256.256.256").is_none());
+        assert!(ip_address_hover_text("not.an.ip.address").is_none());
+    }
+
+    #[test]
+    fn hover_fires_for_ip_address_word() {
+        let src = "set host 10.0.0.1\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // Cursor on `10.0.0.1`.
+        let h = hover(src, 0, 11, &analysis).expect("hover");
+        assert!(h.value.contains("IPv4 address"), "{}", h.value);
     }
 }
