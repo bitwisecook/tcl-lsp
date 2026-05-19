@@ -55,6 +55,7 @@ pub fn eval_fconfigure(words: []const i32) result_mod.InterpResult {
     }
     if (total_cap == 0) total_cap = 1;
     const buf = alloc(total_cap);
+    if (buf == 0) return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, 0));
     var off: u32 = 0;
     i = 2;
     while (i < words.len) : (i += 1) {
@@ -66,7 +67,7 @@ pub fn eval_fconfigure(words: []const i32) result_mod.InterpResult {
         const s = obj.obj_ensure_string(words[i]);
         off = list_quote.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    const args_obj = obj_new_string(@bitCast(buf), @bitCast(off));
+    const args_obj = rt.obj_new_string_take(buf, off, total_cap);
     return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, args_obj));
 }
 
