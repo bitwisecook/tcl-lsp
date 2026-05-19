@@ -863,7 +863,7 @@ class _WasmEmitterCtrlMixin(_Base):
                 continue
             if kw in ("on", "trap") and i + 3 < n:
                 parts.append(kw)
-                parts.append(raw_args[i + 1])         # code / pattern
+                parts.append(raw_args[i + 1])  # code / pattern
                 parts.append("{" + raw_args[i + 2] + "}")  # varlist
                 parts.append("{" + raw_args[i + 3] + "}")  # handler body
                 i += 4
