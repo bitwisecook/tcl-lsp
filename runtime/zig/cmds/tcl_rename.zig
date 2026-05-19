@@ -154,7 +154,10 @@ fn alias_rename_would_loop(rec: *const @import("tcl_alias.zig").AliasRec, new_na
             var same = true;
             var k: u32 = 0;
             while (k < new_simple.len) : (k += 1) {
-                if (np[k] != cp[k]) { same = false; break; }
+                if (np[k] != cp[k]) {
+                    same = false;
+                    break;
+                }
             }
             if (same) return true;
         }
