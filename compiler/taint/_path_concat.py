@@ -20,9 +20,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from analyser.checks._helpers import _build_file_join_fix
-from analyser.semantic_model import CodeFix
 from compiler.registry.taint_hints import TaintColour
 from shared.codes import diag
+from shared.diagnostic import CodeFix
 from shared.ranges import range_from_token
 
 from ..cfg import CFGFunction

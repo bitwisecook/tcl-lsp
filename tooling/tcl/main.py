@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from server._build_info import BUILD_TIMESTAMP, FULL_VERSION
+    from shared._build_info import BUILD_TIMESTAMP, FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""

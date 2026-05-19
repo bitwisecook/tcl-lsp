@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import CodeFix, Range
+from shared.diagnostic import CodeFix, Range
 
 if TYPE_CHECKING:
     from ..ssa import SSAValueKey

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections import deque
 
+from compiler.interprocedural import resolve_call_target
+
 from ..cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn
 from ..compilation_unit import CompilationUnit
-from ..interprocedural import resolve_call_target
 from ..ir import IRAssignValue, IRCall
 from ..ssa import SSAFunction, SSAValueKey
 from ..value_shapes import parse_command_substitution

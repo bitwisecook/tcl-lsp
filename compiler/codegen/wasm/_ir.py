@@ -26,7 +26,7 @@ from ._encoding import (
 )
 
 if TYPE_CHECKING:
-    from analyser.semantic_model import Range
+    from shared.diagnostic import Range
 
 # WASM type constants
 

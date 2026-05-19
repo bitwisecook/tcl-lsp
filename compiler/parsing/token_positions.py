@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 from shared.tokens import SourcePosition, Token, TokenType
 
 

@@ -148,7 +148,7 @@ _DISPATCH = {
 
 def _get_version() -> str:
     try:
-        from server._build_info import FULL_VERSION
+        from shared._build_info import FULL_VERSION
 
         return FULL_VERSION
     except ImportError:

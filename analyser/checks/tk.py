@@ -18,20 +18,19 @@ from analyser.semantic_model import (
     Severity,
 )
 from compiler.registry import REGISTRY
-from shared.codes import diag
-
-from .common import (
+from dialects.tk.dialect.common import (
     GEOMETRY_COMMANDS as _GEOMETRY_COMMANDS,
 )
-from .common import (
+from dialects.tk.dialect.common import (
     WIDGET_COMMANDS as _WIDGET_COMMANDS,
 )
-from .common import (
+from dialects.tk.dialect.common import (
     is_widget_path as _is_widget_path,
 )
-from .common import (
+from dialects.tk.dialect.common import (
     parent_widget_path as _parent_path,
 )
+from shared.codes import diag
 
 diag("TK1001", "Tk widget command validation.", section="warning", internal=True)
 diag("TK1002", "Tk geometry manager validation.", section="warning", internal=True)

@@ -19,10 +19,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
 from compiler.registry.runtime import TYPE_HINTS
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.codes import diag
+from shared.diagnostic import Range
 from shared.naming import normalise_var_name as _normalise_var_name
 from shared.tokens import SourcePosition
 

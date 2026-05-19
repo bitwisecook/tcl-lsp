@@ -18,6 +18,10 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.11",
     "ty==0.0.37",
+    # Architectural dependency contracts — see `.importlinter`.  Keeps the
+    # seven-concern Python layout (shared/, compiler/, dialects/, analyser/,
+    # server/, tooling/, ai/) from drifting back into a tangle.
+    "import-linter>=2.0",
     # Available at runtime so ``scripts/print_version.py`` can compute the
     # wheel filename the Makefile expects (hatch-vcs is also a
     # ``[build-system].requires`` entry — listing it here just makes it
@@ -100,7 +104,7 @@ fixable = ["ALL"]
 [tool.coverage.run]
 source = ["server", "compiler", "analyser", "dialects", "shared", "tooling", "ai"]
 omit = [
-    "server/_build_info.py",
+    "shared/_build_info.py",
     "*/test_*",
     "*/__pycache__/*",
 ]

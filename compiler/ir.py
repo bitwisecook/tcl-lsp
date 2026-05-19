@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 from .expr_ast import ExprNode
 

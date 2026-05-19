@@ -13,8 +13,11 @@ import analyser.checks._domain  # noqa: F401
 import analyser.checks._security  # noqa: F401
 import analyser.checks._style  # noqa: F401
 import analyser.checks._syntax  # noqa: F401
+
+# extensions
+import analyser.checks.tk  # noqa: F401
+import analyser.compiler_checks  # noqa: F401
 import analyser.irules_checks  # noqa: F401
-import compiler.compiler_checks  # noqa: F401
 import compiler.gvn  # noqa: F401
 import compiler.irules_flow  # noqa: F401
 import compiler.optimiser._branch_folding  # noqa: F401
@@ -31,6 +34,3 @@ import compiler.taint._uri_split  # noqa: F401
 import dialects.f5.bigip.iapp_diagnostics  # noqa: F401
 import dialects.f5.bigip.validator  # noqa: F401
 import dialects.f5.xc.translator  # noqa: F401
-
-# extensions
-import dialects.tk.dialect.diagnostics  # noqa: F401

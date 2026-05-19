@@ -18,11 +18,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from analyser import analyse
 from analyser.packages import PackageResolver
 from analyser.semantic_model import AnalysisResult, PackageRequire, Range
+from analyser.tk_detection import has_tk_require
 from compiler.registry import REGISTRY
 from compiler.registry.command_registry import CommandRegistry
 from dialects.stdlib import stdlib_command_specs
 from dialects.tcllib import tcllib_command_specs
-from dialects.tk.dialect.detection import has_tk_require
 from dialects.tk.specs import tk_command_specs
 from server.features.package_suggestions import rank_package_suggestions
 from server.workspace.workspace_index import EntrySource, WorkspaceIndex

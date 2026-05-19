@@ -22,8 +22,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from analyser.semantic_model import Range
 from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from shared.diagnostic import Range
 from shared.tokens import TokenType
 
 from ...cfg import (

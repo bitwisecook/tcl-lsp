@@ -1,21 +1,16 @@
-"""Shared position-based lookup helpers for editor features.
+"""Shared position predicates and offset conversion.
 
-These helpers centralise common "find the thing at position" logic that
-was previously duplicated across feature modules (code_actions,
-selection_range, etc.).
+`position_in_range` and `offset_at_position` are leaf-safe helpers that
+only depend on `shared.diagnostic.Range` and `shared.document_buffer`.
+The richer "find the command/token at a position" helpers — which need
+the compiler's lexer/segmenter — live in `compiler.position_lookup`.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from shared.diagnostic import Range
-from shared.tokens import Token
 
 from .document_buffer import DocumentBuffer
-
-if TYPE_CHECKING:
-    from compiler.parsing.command_segmenter import SegmentedCommand
 
 
 def position_in_range(line: int, character: int, r: Range) -> bool:
@@ -31,33 +26,6 @@ def position_in_range(line: int, character: int, r: Range) -> bool:
     if line == r.end.line and character > r.end.character:
         return False
     return True
-
-
-def find_command_at_position(
-    source: str,
-    line: int,
-    character: int,
-    body_token: Token | None = None,
-) -> SegmentedCommand | None:
-    """Find the :class:`SegmentedCommand` whose range contains the position."""
-    from compiler.parsing.command_segmenter import segment_commands
-
-    for cmd in segment_commands(source, body_token):
-        if position_in_range(line, character, cmd.range):
-            return cmd
-    return None
-
-
-def find_token_in_command(
-    cmd: SegmentedCommand,
-    line: int,
-    character: int,
-) -> Token | None:
-    """Find the argument token in *cmd* that contains the position."""
-    for tok in cmd.argv:
-        if position_in_range(line, character, Range(start=tok.start, end=tok.end)):
-            return tok
-    return None
 
 
 def offset_at_position(source: str, line: int, character: int) -> int:

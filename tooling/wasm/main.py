@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 try:
-    from server._build_info import FULL_VERSION
+    from shared._build_info import FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
 

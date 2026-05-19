@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 # Bundles 17-20 — shared minimal shape for the long-tail ltm.*
 # kinds (CGNAT / LSN, global-settings singletons, classification /

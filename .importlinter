@@ -1,0 +1,263 @@
+; Architectural dependency contracts for the seven-concern Python layout.
+;
+; The repo is partitioned into seven top-level Python packages:
+;
+;   shared/    — leaf utilities (Range, Token, Position, codes, ranges,
+;                source_map, document_buffer, …).  May depend on nothing.
+;
+;   compiler/  — Tcl lexer/parser, IR, lowering, passes, optimiser, codegen,
+;                WASM emitter, compiler-internal taint / var_escape /
+;                interprocedural analyses, command registry runtime + the
+;                Dialect enum.
+;
+;   dialects/  — Tcl dialect packs + spec data (vanilla Tcl, tcllib, expect,
+;                EDA tools, F5 BigIP/iRules/iApps/XC, Tk).  Pure data plus a
+;                small amount of parsing per dialect.
+;
+;   analyser/  — IDE-facing semantic model + checks (semantic_model.py,
+;                proc_lookup, var_scoping, class_hierarchy, mro, signature_scan,
+;                checks/, _analyser/, irules_checks, conf_wrapped,
+;                auto_path_eval, packages/).
+;
+;   server/    — LSP protocol surface (pygls wiring, features, workspace
+;                indexing, diagnostics pipeline) + LSP conversion helpers
+;                + the codes_init side-effect module.
+;
+;   tooling/   — CLIs (tcl, f5, wasm), bytecode VM, debugger, fuzzer,
+;                compiler explorer (web GUI + shared CLI infra),
+;                refactoring/formatter/minifier/diagram/irule_test
+;                codemods, the Tcl package manager.
+;
+;   ai/        — Claude integrations (irule analysis skill, code reviewer
+;                helpers, MCP server, prompt templates).
+;
+; Allowed dependency direction (top → bottom):
+;
+;     ai → server, tooling
+;             ↓
+;          server → analyser → compiler → shared
+;             ↓        ↓          ↑↓         ↑
+;           tooling — — — — — — →compiler.registry ←→ dialects
+;                                              ↓
+;                                            shared (leaf)
+;
+; Note the deliberate cycle: `dialects/` consumes `compiler.registry`'s
+; spec-definition dataclasses (CommandSpec, OptionSpec, …) when declaring
+; per-command metadata; `compiler.registry` consumes `dialects/` data
+; (vanilla Tcl + tcllib + dialect packs) when populating the runtime
+; registry.  This is the one acknowledged module-graph cycle and the
+; contracts below carve it out explicitly.
+;
+; tests/ is exempted from contracts — tests legitimately import across
+; the whole graph.  scripts/ is similarly exempted (developer one-offs).
+
+[importlinter]
+root_packages =
+    shared
+    compiler
+    dialects
+    analyser
+    server
+    tooling
+    ai
+include_external_packages = False
+
+; ---------------------------------------------------------------------------
+; 1.  shared/ is a graph leaf.
+;
+; The whole point of shared/ is to be importable from anywhere without
+; pulling other concerns in.
+; ---------------------------------------------------------------------------
+[importlinter:contract:shared-is-leaf]
+name = shared/ does not depend on any other top-level concern
+type = forbidden
+source_modules =
+    shared
+forbidden_modules =
+    compiler
+    dialects
+    analyser
+    server
+    tooling
+    ai
+
+; ---------------------------------------------------------------------------
+; 2.  compiler/ does not depend on analyser/server/tooling/ai.
+;
+; compiler.registry/ is allowed to import from dialects/ (vanilla Tcl,
+; tcllib, stdlib spec data is loaded eagerly; dialect packs are loaded
+; lazily via importlib).
+; ---------------------------------------------------------------------------
+[importlinter:contract:compiler-direction]
+name = compiler/ does not depend on analyser/server/tooling/ai
+type = forbidden
+source_modules =
+    compiler
+forbidden_modules =
+    analyser
+    server
+    tooling
+    ai
+ignore_imports =
+    ; Two tiny helpers reachable through lazy local imports — both are
+    ; pure-data utilities the analyser also publishes for its own
+    ; diagnostics.  Carving them out instead of duplicating the
+    ; module-level cache state they piggyback on.
+    compiler.irules_flow -> analyser.irules_checks
+    compiler.taint._path_concat -> analyser.checks._helpers
+
+; ---------------------------------------------------------------------------
+; 3.  dialects/ may depend on shared/, compiler.registry/, compiler.parsing/,
+;     and a handful of pure-data compiler modules.
+;
+; Per-command spec files use CommandSpec, SubCommand, OptionSpec, Arity,
+; ValidationSpec, etc. from compiler.registry — that's the primary edge
+; from dialects/ into compiler/.  Some dialects additionally need:
+;
+;   - compiler.parsing  — to tokenise dialect-specific syntax (e.g. the
+;                          F5 BigIP iRules reference extractor lexes
+;                          embedded Tcl).
+;   - compiler.expr_ast / compiler.ir / compiler.lowering / compiler.token_helpers
+;                       — the F5 XC translator lowers iRules into XC IR.
+;   - compiler.tcl_expr_eval — vanilla Tcl const-fold helpers reach the
+;                              expression evaluator.
+;   - compiler.side_effects / compiler.types — pure dataclasses /
+;                              enums consumed by spec definitions.
+;
+; Reaching into compiler.codegen, compiler.optimiser, compiler.passes,
+; compiler.taint, compiler.var_escape, or compiler.interprocedural
+; remains forbidden — those are compiler internals, not dialect
+; integration points.
+; ---------------------------------------------------------------------------
+[importlinter:contract:dialects-into-compiler]
+name = dialects/ may only import compiler.registry / parsing / data classes
+type = forbidden
+source_modules =
+    dialects
+forbidden_modules =
+    compiler.codegen
+    compiler.optimiser
+    compiler.passes
+    compiler.taint
+    compiler.var_escape
+    compiler.interprocedural
+    compiler.shimmer
+    compiler.gvn
+    compiler.memory_ssa
+    compiler.ssa
+    compiler.dataflow_graph
+    compiler.def_use
+    compiler.cfg
+    compiler.compilation_unit
+    compiler.execution_intent
+    compiler.connection_scope
+    compiler.core_analyses
+    compiler.static_loops
+    compiler.inline_uplevel
+    compiler.inlining
+    compiler.irules_flow
+    compiler.rendered_properties
+    compiler.value_shapes
+    compiler.source_inliner
+    compiler.eval_helpers
+    compiler.position_lookup
+    compiler.proc_arg_traits
+    compiler.var_refs
+    compiler.var_scoping
+    compiler.lowering_hooks
+ignore_imports =
+    ; The F5 XC translator legitimately consumes IR / lowering /
+    ; expr-AST / token-walker primitives — its entire job is
+    ; iRules-Tcl → XC compilation, so it needs the compiler pipeline,
+    ; not just spec data.  Carved out as a one-file exception.
+    dialects.f5.xc.translator -> compiler.expr_ast
+    dialects.f5.xc.translator -> compiler.ir
+    dialects.f5.xc.translator -> compiler.lowering
+    dialects.f5.xc.translator -> compiler.token_helpers
+    ; The vanilla-Tcl const_fold spec uses compiler.tcl_expr_eval to
+    ; evaluate the constant expressions baked into command specs.
+    ; That edge pulls expr_ast → ssa → cfg → var_refs transitively;
+    ; carve out the direct edge so the deeper graph stays unflagged.
+    dialects.tcl.const_fold -> compiler.tcl_expr_eval
+
+[importlinter:contract:dialects-direction]
+name = dialects/ does not depend on analyser/server/tooling/ai
+type = forbidden
+source_modules =
+    dialects
+forbidden_modules =
+    analyser
+    server
+    tooling
+    ai
+ignore_imports =
+    ; explain_flow.py optionally drives the iRule test framework for a
+    ; richer trace when it's available.  Lazy import behind a try/except
+    ; ImportError so dialects/ stays usable without tooling/ installed.
+    dialects.f5.bigip.explain_flow -> tooling.irule_test
+
+; ---------------------------------------------------------------------------
+; 4.  analyser/ depends on shared/, compiler/, dialects/.
+; ---------------------------------------------------------------------------
+[importlinter:contract:analyser-direction]
+name = analyser/ does not depend on server/tooling/ai
+type = forbidden
+source_modules =
+    analyser
+forbidden_modules =
+    server
+    tooling
+    ai
+ignore_imports =
+    ; _proc.py lazy-imports the formatter's docstring extractor as a
+    ; fallback when the proc has no preceding comment.  It's purely
+    ; metadata enrichment — analyser still works without tooling/.
+    analyser._analyser._proc -> tooling.formatter.docstring
+
+; ---------------------------------------------------------------------------
+; 5.  server/ may depend on shared/, compiler/, dialects/, analyser/, tooling/.
+;
+; The LSP server is at the top of the IDE-facing stack — it orchestrates
+; everything below to deliver editor features.  In particular it uses
+; tooling/ for the refactorings exposed via code actions
+; (extract-variable, inline-variable, brace-expr, switch↔dict, …), the
+; formatter exposed via `textDocument/formatting`, the minifier exposed
+; as a workspace command, the explorer's compile pipeline + serialiser
+; (for richer hover / lens responses), the diagram extractor, and the
+; Tcl package manager surface (manifest/lockfile/registry).
+;
+; What server/ may NOT depend on is `ai/` — AI integrations sit ABOVE
+; the LSP, not below it.
+; ---------------------------------------------------------------------------
+[importlinter:contract:server-direction]
+name = server/ does not depend on ai
+type = forbidden
+source_modules =
+    server
+forbidden_modules =
+    ai
+
+; ---------------------------------------------------------------------------
+; 6.  tooling/ does not depend on server/ or ai/.
+;
+; CLIs run the compiler directly.  Anything an LSP needs that a CLI also
+; needs (caching, workspace indexing) should live in analyser/ or below.
+; ---------------------------------------------------------------------------
+[importlinter:contract:tooling-direction]
+name = tooling/ does not depend on server/ai
+type = forbidden
+source_modules =
+    tooling
+forbidden_modules =
+    server
+    ai
+ignore_imports =
+    ; The `f5-query irule context` verb wraps ai.shared.irule_context to
+    ; produce a context bundle from the CLI.  Lazy import behind the
+    ; verb dispatcher so the CLI itself stays usable without ai/
+    ; installed.
+    tooling.explorer.verbs.f5.irule -> ai.shared.irule_context
+
+; ---------------------------------------------------------------------------
+; 7.  ai/ may sit on top of any concern — no outbound restriction.
+; ---------------------------------------------------------------------------

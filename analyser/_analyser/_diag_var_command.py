@@ -44,7 +44,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
         ):
             return
 
-        from compiler.compiler_checks import _collect_unconditional_top_level_procs
+        from analyser.compiler_checks import _collect_unconditional_top_level_procs
         from compiler.core_analyses import (
             _extract_foreach_elements,
             _parse_literal_value,

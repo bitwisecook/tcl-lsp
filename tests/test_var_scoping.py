@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from analyser.var_scoping import (
+from compiler.var_scoping import (
     global_declaration_indices,
     upvar_local_declaration_indices,
     variable_declaration_indices,

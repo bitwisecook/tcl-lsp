@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import re
 
+from compiler.interprocedural import (
+    evaluate_proc_with_constants,
+    fold_static_proc_call,
+)
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -15,10 +19,6 @@ from shared.naming import (
 from shared.ranges import range_from_token
 from shared.tokens import Token, TokenType
 
-from ..interprocedural import (
-    evaluate_proc_with_constants,
-    fold_static_proc_call,
-)
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
 from ..types import TypeLattice
 from ._expr_simplify import (
@@ -935,7 +935,7 @@ def optimise_load_forwarding(
             if isinstance(between_stmt, IRCall):
                 callee_summary = None
                 if ctx.interproc is not None:
-                    from ..interprocedural import resolve_call_target
+                    from compiler.interprocedural import resolve_call_target
 
                     known = set(ctx.interproc.procedures)
                     target = resolve_call_target(

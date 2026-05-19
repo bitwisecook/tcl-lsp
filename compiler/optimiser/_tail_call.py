@@ -13,11 +13,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.dialect import active_dialect
 from compiler.registry.dialects import dialects_since
 from shared.codes import opt
+from shared.diagnostic import Range
 from shared.naming import normalise_qualified_name as _normalise_qualified_name
 from shared.tokens import TokenType
 

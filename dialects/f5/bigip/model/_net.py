@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 if TYPE_CHECKING:
     from ..types import IPAddress, Network

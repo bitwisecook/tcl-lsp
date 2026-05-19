@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from analyser.semantic_model import Diagnostic, Range, Severity
+from shared.diagnostic import Diagnostic, Range, Severity
 
 from .lint import Finding, run_lint
 from .model import BigipConfig

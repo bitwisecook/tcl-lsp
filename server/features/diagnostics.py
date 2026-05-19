@@ -18,6 +18,7 @@ from analyser.semantic_model import (
     Severity,
     WorkspaceDiagnosticContext,
 )
+from analyser.tk_detection import has_tk_require
 from compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from compiler.gvn import RedundantComputation, find_redundant_computations
 from compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
@@ -29,7 +30,6 @@ from compiler.taint import (
     TaintWarning,
     find_taint_warnings,
 )
-from dialects.tk.dialect.detection import has_tk_require
 from server._lsp_conv import to_lsp_range
 from shared.codes import diag
 from shared.tokens import SourcePosition
@@ -1002,7 +1002,7 @@ def get_deep_diagnostics(
         analysis = analyse(source, cu=cu)
     if has_tk_require(analysis):
         try:
-            from dialects.tk.dialect.diagnostics import check_tk_diagnostics
+            from analyser.checks.tk import check_tk_diagnostics
 
             for tk_diag in check_tk_diagnostics(source, analysis):
                 if disabled_diagnostics and tk_diag.code in disabled_diagnostics:

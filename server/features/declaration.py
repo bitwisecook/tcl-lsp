@@ -22,13 +22,13 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, Range, Scope
-from analyser.var_scoping import (
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.registry.runtime import iter_body_arguments
+from compiler.var_scoping import (
     global_declaration_indices,
     upvar_local_declaration_indices,
     variable_declaration_indices,
 )
-from compiler.parsing.command_segmenter import segment_commands
-from compiler.registry.runtime import iter_body_arguments
 from server._lsp_conv import to_lsp_location
 from shared.tokens import Token
 

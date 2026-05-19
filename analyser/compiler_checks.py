@@ -14,8 +14,23 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 
-from analyser.checks import run_all_checks
-from analyser.semantic_model import Diagnostic, Range, Severity
+from compiler.ir import (
+    CommandTokens,
+    IRBarrier,
+    IRBlock,
+    IRCall,
+    IRCatch,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRModule,
+    IRScript,
+    IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
+)
+from compiler.lowering import lower_to_ir
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.lexer import TclLexer
@@ -32,28 +47,13 @@ from compiler.registry.runtime import (
     iter_body_arguments,
 )
 from shared.codes import diag
+from shared.diagnostic import Diagnostic, Range, Severity
 from shared.naming import normalise_qualified_name
 from shared.ranges import position_from_relative, range_from_token
 from shared.text import suggest_similar as _suggest_similar_impl
 from shared.tokens import Token, TokenType
 
-from .ir import (
-    CommandTokens,
-    IRBarrier,
-    IRBlock,
-    IRCall,
-    IRCatch,
-    IRFor,
-    IRForeach,
-    IRIf,
-    IRModule,
-    IRScript,
-    IRStatement,
-    IRSwitch,
-    IRTry,
-    IRWhile,
-)
-from .lowering import lower_to_ir
+from .checks import run_all_checks
 
 log = logging.getLogger(__name__)
 
@@ -694,10 +694,9 @@ def _resolve_expansion_elements(
       semantics where ``{*}`` calls ``Tcl_ListObjGetElements`` to
       shimmer the value to a list at call time.
     """
+    from compiler.core_analyses import _extract_foreach_elements
+    from compiler.tcl_expr_eval import _split_tcl_list
     from shared.tokens import TokenType
-
-    from .core_analyses import _extract_foreach_elements
-    from .tcl_expr_eval import _split_tcl_list
 
     if not single_token or tok is None:
         return None

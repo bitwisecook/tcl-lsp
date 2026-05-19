@@ -6,8 +6,8 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, Range, Scope
+from compiler.position_lookup import find_command_at_position, find_token_in_command
 from server._lsp_conv import to_lsp_range
-from shared.position import find_command_at_position, find_token_in_command
 
 from .symbol_resolution import find_scope_at_line, find_word_span_at_position
 

@@ -10,15 +10,16 @@ import logging
 import time
 from dataclasses import dataclass
 
-from .cfg import CFGFunction, CFGModule, build_cfg_function, prepare_cfg_context
-from .connection_scope import ConnectionScope, build_connection_scope
-from .core_analyses import FunctionAnalysis, analyse_function
-from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
-from .interprocedural import (
+from compiler.interprocedural import (
     InterproceduralAnalysis,
     ProcLocalSummary,
     analyse_interprocedural_ir,
 )
+
+from .cfg import CFGFunction, CFGModule, build_cfg_function, prepare_cfg_context
+from .connection_scope import ConnectionScope, build_connection_scope
+from .core_analyses import FunctionAnalysis, analyse_function
+from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
 from .ir import IRBarrier, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
 from .ssa import SSAFunction, build_ssa
@@ -155,8 +156,8 @@ def compute_stub_fingerprint(source: str) -> int:
     source declares no stubs — the empty-overlay case stays compatible
     with callers that omit the fingerprint argument.
     """
-    from analyser.stub_comments import scan_source_for_stubs
     from compiler.registry.runtime import signatures_from_stubs
+    from compiler.registry.stub_comments import scan_source_for_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
     if not cmd_stubs:
@@ -192,8 +193,8 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
-    from analyser.stub_comments import scan_source_for_stubs
     from compiler.registry.runtime import stub_signature_scope
+    from compiler.registry.stub_comments import scan_source_for_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
     # Fingerprint the stub overlay so cached proc / interproc summaries

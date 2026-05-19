@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
 from shared.ranges import range_from_tokens
 

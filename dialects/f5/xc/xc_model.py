@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 # Enums
 

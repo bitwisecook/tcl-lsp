@@ -147,7 +147,7 @@ command stubs and expression stubs.
 
 | File | Purpose |
 |------|---------|
-| `analyser/stub_comments.py` | Stub parser (inline + file) |
+| `compiler/registry/stub_comments.py` | Stub parser (inline + file) |
 | `analyser/semantic_model.py` | `StubCommandDef`, `StubExprDef`, `StubArgDef` |
 | `analyser/analyser.py` | Pre-scan integration |
 | `samples/synopsys.tcl.stubs` | Example external stubs file |

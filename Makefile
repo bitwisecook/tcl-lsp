@@ -110,7 +110,7 @@ SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
 VSCE_PUBLISHER := bitwisecook
 
 # Build-info files (generated, gitignored)
-BUILD_INFO      := $(ROOT)server/_build_info.py
+BUILD_INFO      := $(ROOT)shared/_build_info.py
 BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 
 # Zipapps
@@ -295,6 +295,8 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	cd $(ROOT) && $(UV) run --extra dev ruff check .
 	@echo "==> Checking Python formatting with Ruff"
 	cd $(ROOT) && $(UV) run --extra dev ruff format --check .
+	@echo "==> Checking architectural dependency contracts with import-linter"
+	cd $(ROOT) && $(UV) run --extra dev lint-imports
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"

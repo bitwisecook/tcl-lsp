@@ -1,11 +1,11 @@
 """Tests for proc argument trait inference."""
 
-from analyser.proc_arg_traits import (
+from analyser.semantic_model import ProcArgTrait
+from compiler.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
     merge_traits,
 )
-from analyser.semantic_model import ProcArgTrait
 
 
 class TestEvalTrait:

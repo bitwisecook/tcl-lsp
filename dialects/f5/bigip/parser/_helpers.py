@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
 
 # Low-level brace-balanced block extraction

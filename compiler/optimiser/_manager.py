@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import re
 
+from compiler.interprocedural import InterproceduralAnalysis
 from shared.naming import normalise_var_name as _NORMALISE
 
 from ..cfg import CFGFunction
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
-from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
 from . import (
     _branch_folding,

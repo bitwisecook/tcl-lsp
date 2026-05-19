@@ -20,8 +20,8 @@ from collections import defaultdict, deque
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
-from analyser.semantic_model import Range
 from compiler.registry.runtime import active_signature_profile, configure_signatures
+from shared.diagnostic import Range
 from shared.ip_utils import IPV4_RE, IPV6_RE
 
 from .link_extract import (

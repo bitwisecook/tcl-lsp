@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 from ....cfg import (
     CFGFunction,

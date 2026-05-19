@@ -281,7 +281,7 @@ analysis layers handle these at different levels:
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
   The parent's `arg_role_resolver` inspects the subcommand word to assign
   roles to the remaining arguments.
-- **Variable scoping** (`analyser/var_scoping.py`) has explicit
+- **Variable scoping** (`compiler/var_scoping.py`) has explicit
   handlers for compound forms like `namespace upvar`, `dict set`,
   `dict update`, and `dict with`.
 - **Lowering hooks** (`compiler/lowering_hooks/`) have per-command

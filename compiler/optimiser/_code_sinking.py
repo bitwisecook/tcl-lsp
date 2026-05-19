@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import re
 
-from analyser.semantic_model import Range
 from shared.codes import opt
+from shared.diagnostic import Range
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from ..expr_ast import vars_in_expr_node

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from .opcodes import _OP_INFO, Op
 
 if TYPE_CHECKING:
-    from analyser.semantic_model import Range
+    from shared.diagnostic import Range
 
 
 @dataclass(slots=True)

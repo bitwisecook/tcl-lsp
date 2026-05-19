@@ -6,7 +6,7 @@ objects (from ``semantic_model``) for the LSP diagnostics pipeline.
 
 from __future__ import annotations
 
-from analyser.semantic_model import Diagnostic, Severity
+from shared.diagnostic import Diagnostic, Severity
 
 from .translator import translate_irule
 from .xc_model import TranslationItem

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.compiler_checks import iter_ir_statements
+from analyser.compiler_checks import iter_ir_statements
 from compiler.ir import (
     IRBarrier,
     IRCall,

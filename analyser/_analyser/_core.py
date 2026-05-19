@@ -18,6 +18,7 @@ from compiler.parsing.expr_lexer import (
 from compiler.parsing.recovery import segment_with_recovery
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
+from compiler.registry.stub_comments import scan_source_for_stubs
 from shared.ranges import position_from_relative, range_from_token
 from shared.tokens import Token, TokenType
 
@@ -30,7 +31,6 @@ from ..semantic_model import (
     Scope,
     Severity,
 )
-from ..stub_comments import scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
 from ._utils import parse_file_suppression, parse_noqa_line_suppressions
 

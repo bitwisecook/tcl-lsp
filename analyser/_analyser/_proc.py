@@ -9,6 +9,7 @@ else:
     _Base = object
 
 from compiler.parsing.lexer import TclLexer
+from compiler.proc_arg_traits import infer_param_traits
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.signatures import Arity
@@ -18,7 +19,6 @@ from shared.naming import (
 from shared.ranges import range_from_token
 from shared.tokens import Token, TokenType
 
-from ..proc_arg_traits import infer_param_traits
 from ..semantic_model import (
     Diagnostic,
     ProcDef,

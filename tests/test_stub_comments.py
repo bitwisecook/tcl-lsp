@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from analyser.semantic_model import ProcArgTrait, Range
-from analyser.stub_comments import (
+from compiler.registry.stub_comments import (
     is_stubs_begin,
     is_stubs_end,
     parse_expr_stub_line,

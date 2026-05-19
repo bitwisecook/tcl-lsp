@@ -86,7 +86,7 @@ param_traits: dict[str, frozenset[ProcArgTrait]]
 
 | File | Purpose |
 |------|---------|
-| `analyser/proc_arg_traits.py` | Trait inference (shallow + deep) |
+| `compiler/proc_arg_traits.py` | Trait inference (shallow + deep) |
 | `analyser/semantic_model.py` | `ProcArgTrait` enum, `ProcDef.param_traits` |
 | `compiler/interprocedural.py` | `ProcSummary.param_traits` |
 | `tests/test_proc_arg_traits.py` | Unit tests |

@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser import analyse
-from dialects.tk.dialect.diagnostics import check_tk_diagnostics
+from analyser.checks.tk import check_tk_diagnostics
 
 
 class TestTK1001GeometryConflict:

@@ -757,7 +757,7 @@ analysis passes handle these at different levels:
 - **Subcommand dispatch** in the registry uses `SubCommand` entries on the
   parent spec. The `arg_role_resolver` on the parent inspects the
   subcommand word to assign roles.
-- **Variable scoping** (`analyser/var_scoping.py`) has explicit
+- **Variable scoping** (`compiler/var_scoping.py`) has explicit
   handling for compound forms like `namespace upvar`, `dict set`,
   `dict update`, etc. — these are not in `server/features/declaration.py`
   which only handles single-word commands (`global`, `variable`, `upvar`).

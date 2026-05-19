@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from analyser import analyse
+from analyser.checks.tk import check_tk_diagnostics
 from dialects.tk.dialect.common import is_widget_path, parent_widget_path
-from dialects.tk.dialect.diagnostics import check_tk_diagnostics
 from dialects.tk.dialect.extract import extract_tk_layout
 
 

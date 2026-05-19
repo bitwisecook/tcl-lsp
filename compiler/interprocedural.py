@@ -16,28 +16,11 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-from analyser.proc_arg_traits import (
-    infer_param_traits,
-    infer_param_traits_deep,
-    merge_traits,
-)
-from analyser.semantic_model import ProcArgTrait
-from compiler.parsing.lexer import TclLexer
-from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
-from compiler.registry.signatures import ArgRole, Arity
-from shared.naming import (
-    normalise_qualified_name as _normalise_qualified_name,
-)
-from shared.naming import (
-    normalise_var_name as _normalise_var_name,
-)
-from shared.tokens import TokenType
-
-from .cfg import CFGFunction, CFGReturn, build_cfg
-from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
-from .core_analyses import _expr_has_command as _expr_has_command_sub
-from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
-from .expr_ast import (
+from compiler.cfg import CFGFunction, CFGReturn, build_cfg
+from compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
+from compiler.core_analyses import _expr_has_command as _expr_has_command_sub
+from compiler.eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
+from compiler.expr_ast import (
     ExprBinary,
     ExprCall,
     ExprCommand,
@@ -47,7 +30,7 @@ from .expr_ast import (
     ExprTernary,
     ExprUnary,
 )
-from .ir import (
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -66,11 +49,27 @@ from .ir import (
     IRTry,
     IRWhile,
 )
-from .lowering import lower_to_ir
-from .side_effects import EffectRegion, classify_side_effects
-from .ssa import SSAFunction, SSAValueKey, build_ssa
-from .static_loops import evaluate_expr_with_constants as _evaluate_expr
-from .var_refs import VarReferenceScanner, VarScanOptions
+from compiler.lowering import lower_to_ir
+from compiler.parsing.lexer import TclLexer
+from compiler.proc_arg_traits import (
+    infer_param_traits,
+    infer_param_traits_deep,
+    merge_traits,
+)
+from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
+from compiler.registry.signatures import ArgRole, Arity
+from compiler.side_effects import EffectRegion, classify_side_effects
+from compiler.ssa import SSAFunction, SSAValueKey, build_ssa
+from compiler.static_loops import evaluate_expr_with_constants as _evaluate_expr
+from compiler.var_refs import VarReferenceScanner, VarScanOptions
+from shared.naming import (
+    normalise_qualified_name as _normalise_qualified_name,
+)
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
+from shared.proc_traits import ProcArgTrait
+from shared.tokens import TokenType
 
 log = logging.getLogger(__name__)
 
@@ -565,8 +564,8 @@ def _scan_local_facts(
         # semantics for interprocedural analysis — the body may
         # clobber arbitrary state, same as the classic ``uplevel``
         # / ``eval`` IRBarrier it replaces.
-        from .ir import IRBlock as _IRBlock
-        from .ir import IRUpFrame as _IRUpFrame
+        from compiler.ir import IRBlock as _IRBlock
+        from compiler.ir import IRUpFrame as _IRUpFrame
 
         if isinstance(stmt, _IRUpFrame) or (
             isinstance(stmt, _IRBlock)

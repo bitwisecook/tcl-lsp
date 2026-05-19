@@ -14,13 +14,14 @@ from compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warni
 from compiler.optimiser import demorgan_transform, invert_expression
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
+from compiler.position_lookup import find_command_at_position
 from compiler.registry import REGISTRY
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect, taint_double_encode_map
 from compiler.taint import find_taint_warnings
 from server._lsp_conv import to_lsp_range
 from shared.ip_utils import ipv4_to_ipv6_mapped, parse_ip
-from shared.position import find_command_at_position, offset_at_position
+from shared.position import offset_at_position
 from shared.ranges import position_from_relative
 from shared.tokens import Token, TokenType
 from tooling.refactoring import RefactoringResult

@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import Range
+from compiler.interprocedural import InterproceduralAnalysis
+from shared.diagnostic import Range
 
-from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRModule
 
 if TYPE_CHECKING:

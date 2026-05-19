@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 import re
 
-from analyser.semantic_model import Range
+from compiler.interprocedural import InterproceduralAnalysis
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
 from compiler.registry import REGISTRY
+from shared.diagnostic import Range
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -19,7 +20,6 @@ from shared.naming import (
 from shared.tokens import SourcePosition, Token, TokenType
 
 from ..core_analyses import LatticeKind, LatticeValue
-from ..interprocedural import InterproceduralAnalysis
 from ..ir import CommandTokens
 from ..token_helpers import parse_command_words as _parse_command_words
 from ..token_helpers import parse_decimal_int as _parse_decimal_int

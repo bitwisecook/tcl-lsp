@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 
 @dataclass(frozen=True, slots=True)

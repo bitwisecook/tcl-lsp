@@ -31,8 +31,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from analyser.semantic_model import CodeFix, Diagnostic, Range, Severity
 from shared.codes import diag
+from shared.diagnostic import CodeFix, Diagnostic, Range, Severity
 from shared.ranges import position_from_relative
 from shared.tokens import SourcePosition, Token, TokenType
 

@@ -76,7 +76,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .semantic_model import Range, StubArgDef, StubCommandDef, StubExprDef
+from compiler.registry.stub_types import StubArgDef, StubCommandDef, StubExprDef
+from shared.diagnostic import Range
 
 _VALID_ROLES: frozenset[str] = frozenset(
     {"body", "expr", "var", "var_read", "name", "pattern", "channel", "value"}

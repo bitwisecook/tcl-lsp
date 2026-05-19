@@ -23,8 +23,8 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from analyser.semantic_model import Range
 from compiler.registry.runtime import active_signature_profile, configure_signatures
+from shared.diagnostic import Range
 
 from .link_extract import (
     BigipObjectEdge,

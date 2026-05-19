@@ -19,11 +19,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import arg_indices_for_role
 from compiler.registry.signatures import ArgRole
+from shared.diagnostic import Range
 from shared.naming import normalise_var_name as _normalise_var_name
 from shared.tokens import TokenType
 

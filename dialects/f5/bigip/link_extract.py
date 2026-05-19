@@ -7,7 +7,7 @@ import re
 from collections import defaultdict, deque
 from dataclasses import dataclass
 
-from analyser.semantic_model import Range
+from shared.diagnostic import Range
 
 from .irules_refs import extract_irules_object_references
 from .model import BigipConfig

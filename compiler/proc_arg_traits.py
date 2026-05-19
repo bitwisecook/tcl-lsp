@@ -28,8 +28,7 @@ from compiler.parsing.lexer import TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from compiler.registry.signatures import ArgRole
-
-from .semantic_model import ProcArgTrait
+from shared.proc_traits import ProcArgTrait
 
 # Simple $varName reference pattern.
 _SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
