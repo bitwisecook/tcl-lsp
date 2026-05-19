@@ -1708,12 +1708,13 @@ pub fn qualify_name(name: i32) i32 {
     const ns_ptr: [*]const u8 = @ptrFromInt(ns_full.ptr);
     const total: u32 = ns_full.len + 2 + s.len;
     const buf_addr: u32 = obj_mod.alloc(total);
+    if (buf_addr == 0) return name;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (0..ns_full.len) |i| buf[i] = ns_ptr[i];
     buf[ns_full.len] = ':';
     buf[ns_full.len + 1] = ':';
     for (0..s.len) |i| buf[ns_full.len + 2 + i] = sp[i];
-    return obj_mod.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    return obj_mod.obj_new_string_take(buf_addr, total, total);
 }
 
 // -- upvar / uplevel helpers --
@@ -3363,7 +3364,12 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
     // ``interp`` dispatcher with a synthesised ``path`` slot.  Build
     // ``["interp", subcmd, <child_path>, words[2..]]``.
     const c: *interp_reg.Interp = @ptrFromInt(child);
+    // ``child_path_obj`` is a fresh +1 owned TclObj wrapping the
+    // child interp's name bytes; release after the sub-handler
+    // returns or the slot leaks one TclObj header per
+    // ``<child> SUBCOMMAND`` dispatch.
     const child_path_obj = rt.obj_new_string(@bitCast(c.name_ptr), @bitCast(c.name_len));
+    defer obj_mod.tcl_obj_release(child_path_obj);
 
     const new_len: u32 = @as(u32, @intCast(words.len)) + 1;
     if (new_len > parse.MAX_WORDS) {
@@ -3375,7 +3381,10 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
     }
     var new_words: [parse.MAX_WORDS]i32 = undefined;
     const interp_str: []const u8 = "interp";
+    // ``new_words[0]`` (``"interp"`` copy) is +1 owned; release on
+    // every return path via defer.
     new_words[0] = rt.obj_new_string_copy(@intFromPtr(interp_str.ptr), interp_str.len);
+    defer obj_mod.tcl_obj_release(new_words[0]);
     new_words[1] = words[1]; // subcmd (re-use caller's TclObj)
     new_words[2] = child_path_obj;
     var j: u32 = 3;
@@ -4592,7 +4601,12 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
             return 0;
         }
         var bwords: [parse.MAX_WORDS]i32 = undefined;
+        // ``bwords[0]`` is a fresh +1 owned TclObj wrapping the hidden
+        // name's bytes; release after the dispatch — without this each
+        // ``interp invokehidden`` (builtin path) leaked one TclObj
+        // header per call.
         bwords[0] = rt.obj_new_string(@bitCast(hidden_name.ptr), @bitCast(hidden_name.len));
+        defer obj_mod.tcl_obj_release(bwords[0]);
         var bk: u32 = 0;
         while (bk < tail_count_b) : (bk += 1) {
             bwords[1 + bk] = words[idx + 1 + bk];
@@ -4628,7 +4642,12 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
         return 0;
     }
     var new_words: [parse.MAX_WORDS]i32 = undefined;
+    // ``new_words[0]`` is a fresh +1 owned TclObj wrapping the hidden
+    // name's bytes; release after the dispatch — see the builtin path
+    // above for the same rationale.  Without this each
+    // ``interp invokehidden`` (proc path) leaked one TclObj header.
     new_words[0] = rt.obj_new_string(@bitCast(hidden_name.ptr), @bitCast(hidden_name.len));
+    defer obj_mod.tcl_obj_release(new_words[0]);
     var k: u32 = 0;
     while (k < tail_count) : (k += 1) {
         new_words[1 + k] = words[idx + 1 + k];

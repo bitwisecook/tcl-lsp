@@ -1156,6 +1156,11 @@ pub fn capture_match_for_switch(
     var index_buf: u32 = alloc(256);
     var index_cap: u32 = 256;
     var index_off: u32 = 0;
+    if (match_buf == 0 or index_buf == 0) {
+        if (match_buf != 0) obj.free_sized(match_buf, match_cap);
+        if (index_buf != 0) obj.free_sized(index_buf, index_cap);
+        return .{ .match_list = 0, .index_list = 0 };
+    }
 
     const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
     var g: usize = 0;
@@ -1194,8 +1199,11 @@ pub fn capture_match_for_switch(
     arena.arena_free(sub_u.alloc);
     arena.arena_free(pat_u.alloc);
 
-    const match_obj = obj_new_string(@bitCast(match_buf), @bitCast(match_off));
-    const index_obj = obj_new_string(@bitCast(index_buf), @bitCast(index_off));
+    // ``obj_new_string_take`` so each result obj owns its buffer and
+    // ``release_now`` reclaims the slab — the borrow form would let
+    // both match_buf and index_buf leak permanently per match call.
+    const match_obj = obj.obj_new_string_take(match_buf, match_off, match_cap);
+    const index_obj = obj.obj_new_string_take(index_buf, index_off, index_cap);
     return .{ .match_list = match_obj, .index_list = index_obj };
 }
 

@@ -211,7 +211,12 @@ fn path_cstr(path: i32) [*:0]const u8 {
 // No call site preserves the stat buffer beyond a single command
 // invocation, so a single shared buffer is safe and eliminates the
 // permanent ~160-byte leak per ``file exists`` / ``file stat``.
-var stat_buf_static: [STAT_SIZE]u8 = undefined;
+//
+// 8-byte alignment is mandatory: the stat fields include ``i64``
+// time/size values that ``stat_size`` reads via ``*i64`` deref.
+// A bare ``[STAT_SIZE]u8`` lands at byte-1 alignment and Debug
+// builds trap with ``incorrectAlignment``.
+var stat_buf_static: [STAT_SIZE]u8 align(8) = undefined;
 
 /// Run ``stat(2)`` on *path*.  Returns the static-buffer address
 /// of the filled struct, or 0 if the call failed (path doesn't
