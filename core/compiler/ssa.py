@@ -164,7 +164,7 @@ def _is_braced_arg(tokens: CommandTokens | None, arg_index: int) -> bool:
     tok_index = arg_index + 1
     if tok_index >= len(tokens.argv):
         return True
-    from ..parsing.tokens import TokenType
+    from compiler.parsing.tokens import TokenType
 
     return tokens.argv[tok_index].type is TokenType.STR
 

@@ -11,7 +11,7 @@ Semantics (matching ``tclsh 9.0``'s ``subst -nocommands``):
   evaluation by returning ``None`` (the caller keeps the dynamic
   dispatch path in that case).
 * ``\\…`` — standard backslash processing via
-  :func:`core.parsing.substitution.backslash_subst`.  Handles
+  :func:`compiler.parsing.substitution.backslash_subst`.  Handles
   ``\\n \\t \\xNN \\uNNNN`` and octal / continuation-line forms.
 * ``[…]`` — left as a literal ``[…]`` string (the ``-nocommands``
   flag is exactly this: skip command substitution).  Unbalanced

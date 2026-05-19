@@ -8,9 +8,9 @@ from pathlib import Path
 # Allow imports from the server package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.lexer import TclLexer
-from core.parsing.substitution import backslash_subst
-from core.parsing.tokens import Token, TokenType
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.substitution import backslash_subst
+from compiler.parsing.tokens import Token, TokenType
 
 
 def _tokens(source: str, *, include_sep: bool = False) -> list[Token]:

@@ -1,6 +1,6 @@
 """Offset → ``(line, column)`` lookup for the source-text errors.
 
-The bigger document buffer in :mod:`core.parsing.document_buffer` does
+The bigger document buffer in :mod:`compiler.parsing.document_buffer` does
 the same job for the full LSP pipeline, but it pulls in tokeniser
 state we do not need here.  This is the trimmed-down version: build a
 prefix-sum of newline offsets once, binary-search per lookup.

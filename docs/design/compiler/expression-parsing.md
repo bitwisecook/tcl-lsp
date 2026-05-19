@@ -13,7 +13,7 @@ precedence without recursive-descent ambiguity.  Braced expressions (`expr {…}
 are parsed into `ExprNode` AST trees; unbraced expressions fall back to
 `ExprRaw` and cannot be statically analysed (diagnostic W100).
 
-Source: [`core/parsing/expr_parser.py`](../../../core/parsing/expr_parser.py),
+Source: [`compiler/parsing/expr_parser.py`](../../../compiler/parsing/expr_parser.py),
 [`core/compiler/expr_ast.py`](../../../core/compiler/expr_ast.py)
 
 ## Content

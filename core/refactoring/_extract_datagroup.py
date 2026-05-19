@@ -18,7 +18,8 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from ..parsing.command_segmenter import SegmentedCommand
+from compiler.parsing.command_segmenter import SegmentedCommand
+
 from . import DataGroupDefinition, DataGroupExtractionResult, RefactoringEdit
 from ._spans import command_replacement_range, find_command_at, walk_all_commands
 

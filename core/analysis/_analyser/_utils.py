@@ -11,6 +11,8 @@ import io
 import logging
 import re
 
+from compiler.parsing.argv import widen_argv_tokens_to_word_spans
+from compiler.parsing.tokens import Token
 from shared.codes import diag
 
 from ...commands.registry import REGISTRY
@@ -19,8 +21,6 @@ from ...compiler.ir import (
     IRAssignValue,
     IRStatement,
 )
-from ...parsing.argv import widen_argv_tokens_to_word_spans
-from ...parsing.tokens import Token
 from ..semantic_model import (
     _NOQA_ALL,
     ParamDef,

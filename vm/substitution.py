@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.parsing.lexer import TclLexer
-from core.parsing.lexer import _thread_local as _lexer_thread_local
-from core.parsing.substitution import _BACKSLASH_MAP, backslash_subst
-from core.parsing.tokens import TokenType
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.lexer import _thread_local as _lexer_thread_local
+from compiler.parsing.substitution import _BACKSLASH_MAP, backslash_subst
+from compiler.parsing.tokens import TokenType
 
 from .types import TclBreak, TclContinue, TclError, TclReturn
 
@@ -123,7 +123,7 @@ def substitute(
     # thread-local force-off escape hatch).  The scope helper preserves
     # the previous force-off value so nested ``substitute()`` calls don't
     # clobber an outer ``True``.
-    from core.parsing.lexer import expand_syntax_disabled_scope
+    from compiler.parsing.lexer import expand_syntax_disabled_scope
 
     with expand_syntax_disabled_scope():
         lexer = TclLexer(text)
@@ -328,7 +328,7 @@ def subst_command(
                             # but don't execute (no side effects).
                             _stripped = _single_cmd.strip()
                             if _stripped:
-                                from core.parsing.lexer import TclParseError
+                                from compiler.parsing.lexer import TclParseError
 
                                 _lexer_thread_local.strict_quoting = True
                                 try:

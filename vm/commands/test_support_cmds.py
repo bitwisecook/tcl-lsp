@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from core.parsing.substitution import backslash_subst
+from compiler.parsing.substitution import backslash_subst
 
 from ..types import TclError, TclResult
 

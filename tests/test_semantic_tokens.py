@@ -1141,7 +1141,7 @@ class TestE100StrayBracketRecovery:
         no stray ``]`` is present, so no virtual CMD should be
         injected into argv.
         """
-        from core.parsing.tokens import SourcePosition, Token, TokenType
+        from compiler.parsing.tokens import SourcePosition, Token, TokenType
         from lsp.features import _recover_stray_close_bracket_in_flush
 
         def pos(offset: int) -> SourcePosition:

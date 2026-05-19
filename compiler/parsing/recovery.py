@@ -31,13 +31,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from core.analysis.semantic_model import CodeFix, Diagnostic, Range, Severity
 from shared.codes import diag
 from shared.ranges import position_from_relative
 
-from ..analysis.semantic_model import CodeFix, Diagnostic, Range, Severity
-from ..parsing.command_segmenter import SegmentedCommand, segment_commands
-from ..parsing.tokens import SourcePosition, Token, TokenType
+from .command_segmenter import SegmentedCommand, segment_commands
 from .known_commands import known_command_names
+from .tokens import SourcePosition, Token, TokenType
 
 # Module-level registrations for codes emitted from multiple detector functions.
 diag("E201", "Parser recovery — unclosed brace.", section="error", internal=True)

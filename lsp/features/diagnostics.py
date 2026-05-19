@@ -7,6 +7,7 @@ import time
 
 from lsprotocol import types
 
+from compiler.parsing.tokens import SourcePosition
 from core.analysis import analyse
 from core.analysis.semantic_model import (
     _FILE_SUPPRESS_KEY,
@@ -28,7 +29,6 @@ from core.compiler.taint import (
     TaintWarning,
     find_taint_warnings,
 )
-from core.parsing.tokens import SourcePosition
 from core.tk.detection import has_tk_require
 from shared.codes import diag
 from shared.dialect import active_dialect

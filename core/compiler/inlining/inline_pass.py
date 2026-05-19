@@ -59,7 +59,8 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 
-from ...parsing.tokens import TokenType as _ParseTokenType
+from compiler.parsing.tokens import TokenType as _ParseTokenType
+
 from ..expr_ast import ExprLiteral
 from ..ir import (
     InlineDecision,

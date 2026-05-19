@@ -36,9 +36,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.naming import is_bare_var_name
 
-from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 
 

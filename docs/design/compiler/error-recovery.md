@@ -15,7 +15,7 @@ unterminated tokens via heuristics, injects `VirtualToken` objects, and
 re-parses to produce clean commands.  Diagnostics (E201–E206) are emitted for
 the user while the rest of the pipeline proceeds on the repaired parse.
 
-Source: [`core/parsing/recovery.py`](../../../core/parsing/recovery.py)
+Source: [`compiler/parsing/recovery.py`](../../../compiler/parsing/recovery.py)
 
 ## Content
 

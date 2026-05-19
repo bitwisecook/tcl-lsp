@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import TokenType
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import TokenType
 
 
 def find_enclosing_when_event(

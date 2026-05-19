@@ -25,11 +25,11 @@ from __future__ import annotations
 import ipaddress
 import re
 
+from compiler.parsing.tokens import SourcePosition
 from shared.codes import diag
 from shared.document_buffer import DocumentBuffer
 
 from ..analysis.semantic_model import Diagnostic, Range, Severity
-from ..parsing.tokens import SourcePosition
 from .model import BigipConfig, BigipRule, ProfileType
 
 # BIG-IP config validation codes (all internal — controlled by dialect toggle)

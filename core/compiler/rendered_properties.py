@@ -24,10 +24,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Flag, auto
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.substitution import backslash_subst
+from compiler.parsing.tokens import TokenType
+
 from ..commands.registry import REGISTRY
-from ..parsing.lexer import TclLexer
-from ..parsing.substitution import backslash_subst
-from ..parsing.tokens import TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .ir import (
     IRAssignConst,

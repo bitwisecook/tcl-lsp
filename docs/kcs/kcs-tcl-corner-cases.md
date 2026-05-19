@@ -208,7 +208,7 @@ Quoted-arg parsing applies backslash substitution **left-to-right**, scanning ea
 
 ### `${...}` form -- aligned with Tcl 9.0.3 since 78d7437
 
-`core/parsing/lexer.py::_parse_var` previously read chars until the
+`compiler/parsing/lexer.py::_parse_var` previously read chars until the
 first `}`, treating backslashes as literal.  This PR updates the
 brace-form scan to mirror Tcl 9.0.3's `Tcl_ParseVarName` exactly:
 inner `{...}` are tracked with brace-depth counting, and `\X`

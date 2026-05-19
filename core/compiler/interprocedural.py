@@ -16,6 +16,8 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -31,8 +33,6 @@ from ..analysis.proc_arg_traits import (
 from ..analysis.semantic_model import ProcArgTrait
 from ..commands.registry.runtime import arg_indices_for_role, resolve_arg_role_map
 from ..commands.registry.signatures import ArgRole, Arity
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import TokenType
 from .cfg import CFGFunction, CFGReturn, build_cfg
 from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
 from .core_analyses import _expr_has_command as _expr_has_command_sub

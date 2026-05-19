@@ -7,6 +7,8 @@ import re
 from collections.abc import Callable
 from contextlib import contextmanager as _contextmanager
 
+from compiler.parsing.expr_parser import parse_expr
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token, range_from_tokens
@@ -25,8 +27,6 @@ from ...compiler.expr_ast import (
     ExprTernary,
     ExprUnary,
 )
-from ...parsing.expr_parser import parse_expr
-from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
     _first_arg_name,

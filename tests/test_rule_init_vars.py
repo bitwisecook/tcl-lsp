@@ -179,8 +179,8 @@ class TestWorkspaceIndexRuleInitVars:
         priority: int = 500,
         is_array: bool = False,
     ) -> RuleInitExport:
+        from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
-        from core.parsing.tokens import SourcePosition
 
         r = Range(
             start=SourcePosition(0, 0, 0),
@@ -468,8 +468,8 @@ class TestWorkspaceIndexStaticVars:
         priority: int = 500,
         is_array: bool = False,
     ) -> RuleInitExport:
+        from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
-        from core.parsing.tokens import SourcePosition
 
         r = Range(
             start=SourcePosition(0, 0, 0),

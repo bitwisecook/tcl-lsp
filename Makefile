@@ -67,7 +67,7 @@ EXPLORER_STATIC := $(EXPLORER_DIR)/static
 
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
-KCS_DB     := core/help/kcs_help.db
+KCS_DB     := shared/help/kcs_help.db
 
 # Tools
 UV       := uv

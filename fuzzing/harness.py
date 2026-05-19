@@ -163,7 +163,7 @@ def _run_vm(script: str, *, optimise: bool = False, timeout: float = 5.0) -> Run
 
 def _check_parse(script: str) -> str | None:
     """Try to tokenise the script; return error message or None."""
-    from core.parsing.lexer import TclLexer, TclParseError
+    from compiler.parsing.lexer import TclLexer, TclParseError
 
     try:
         lexer = TclLexer(script)

@@ -20,8 +20,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 
 from .helpers import lex
 

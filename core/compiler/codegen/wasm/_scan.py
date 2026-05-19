@@ -251,7 +251,7 @@ def _scan_expr_body_imports_from_node(node: object, needed: set[str]) -> None:
 
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     """Parse an expression body and add any runtime imports it needs."""
-    from ....parsing.expr_parser import parse_expr
+    from compiler.parsing.expr_parser import parse_expr
 
     try:
         node = parse_expr(expr_text)

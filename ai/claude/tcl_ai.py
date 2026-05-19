@@ -2305,7 +2305,7 @@ def cmd_refactor(source: str, file_path: str) -> None:
     """List all available refactorings in the source file."""
     _configure_dialect_from_path(file_path)
 
-    from core.parsing.command_segmenter import segment_commands
+    from compiler.parsing.command_segmenter import segment_commands
     from core.refactoring._brace_expr import brace_expr
     from core.refactoring._extract_datagroup import extract_to_datagroup
     from core.refactoring._if_to_switch import if_to_switch

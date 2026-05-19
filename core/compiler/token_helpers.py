@@ -7,8 +7,9 @@ compiler modules that walk raw token streams.
 
 from __future__ import annotations
 
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import Token, TokenType
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
+
 from .eval_helpers import DECIMAL_INT_RE
 
 

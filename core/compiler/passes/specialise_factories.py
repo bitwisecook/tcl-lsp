@@ -30,7 +30,7 @@ P8.1 is the detector.  It recognises factory procs and records the
 shape needed by P8.2 (the call-site rewriter): which param becomes
 the child proc's name, the literal params-spec, and the template
 string ready to feed through
-:func:`core.parsing.subst_nocommands.subst_nocommands` with a
+:func:`compiler.parsing.subst_nocommands.subst_nocommands` with a
 ``param -> literal-arg`` map.
 """
 
@@ -38,9 +38,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...parsing.command_segmenter import segment_commands
-from ...parsing.subst_nocommands import subst_nocommands
-from ...parsing.tokens import TokenType
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.subst_nocommands import subst_nocommands
+from compiler.parsing.tokens import TokenType
+
 from ..ir import (
     IRBarrier,
     IRBlock,
@@ -208,7 +209,7 @@ def specialise_factories(module: IRModule, *, cap: int = _DEFAULT_FACTORY_CAP) -
     * Every arg token is a literal (``ESC`` bareword with no
       ``\\$`` / ``[``, or ``STR`` braced).
     * The materialised template produced by
-      :func:`core.parsing.subst_nocommands.subst_nocommands` is
+      :func:`compiler.parsing.subst_nocommands.subst_nocommands` is
       non-None (no unresolved ``\\$`` references, no refused
       constructs).
     * The per-factory specialisation count (tracked in

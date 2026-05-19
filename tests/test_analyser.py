@@ -462,8 +462,8 @@ class TestDiagnostics:
         ``_expand_syntax_active()`` rather than a mutable class attribute,
         so per-folder dialect resolution affects only the current scope.
         """
+        from compiler.parsing.lexer import _expand_syntax_active
         from core.commands.registry.runtime import configure_signatures
-        from core.parsing.lexer import _expand_syntax_active
 
         try:
             configure_signatures(dialect="tcl8.4")

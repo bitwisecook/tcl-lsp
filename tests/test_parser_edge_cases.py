@@ -16,9 +16,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.lexer import TclLexer, TclParseError
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 
 from .helpers import lex
 
@@ -53,7 +53,7 @@ def lex_with_warnings(source: str) -> tuple[list[Token], list[tuple[SourcePositi
 
 def lex_strict(source: str) -> list[Token]:
     """Lex with strict_quoting enabled (raises on errors like C Tcl)."""
-    from core.parsing.lexer import _thread_local as _lexer_tl
+    from compiler.parsing.lexer import _thread_local as _lexer_tl
 
     old = getattr(_lexer_tl, "strict_quoting", False)
     _lexer_tl.strict_quoting = True

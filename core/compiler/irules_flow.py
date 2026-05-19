@@ -37,6 +37,8 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token
@@ -44,8 +46,6 @@ from shared.ranges import position_from_relative, range_from_token
 from ..analysis.semantic_model import CodeFix, Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import SourcePosition, Token, TokenType
 from .compilation_unit import CompilationUnit, ensure_compilation_unit
 from .ir import (
     IRAssignConst,

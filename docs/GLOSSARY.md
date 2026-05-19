@@ -43,7 +43,7 @@ tokens with exact source ranges, handling Tcl's substitution rules
 lexer is also responsible for preserving the whitespace and range
 information every later pass relies on to point diagnostics at the
 right character. Implemented in
-[`lexer.py`](../core/parsing/lexer.py).
+[`lexer.py`](../compiler/parsing/lexer.py).
 
 ```mermaid
 flowchart LR

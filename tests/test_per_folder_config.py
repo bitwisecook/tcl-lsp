@@ -269,7 +269,7 @@ class TestPerFolderDialect:
         assert dia == "tcl9.0"
 
     def test_dialect_scope_swaps_lexer_expand_flag(self, reset_per_folder_state):
-        from core.parsing.lexer import _expand_syntax_active
+        from compiler.parsing.lexer import _expand_syntax_active
 
         a = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-84")
         b = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-86")

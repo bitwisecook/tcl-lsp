@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.parsing.tokens import TokenType
 from core.formatting import BraceStyle, FormatterConfig, IndentStyle, format_tcl
 from core.formatting.engine import (
     ArgKind,
@@ -16,7 +17,6 @@ from core.formatting.engine import (
     _reconstruct_raw,
     parse_commands,
 )
-from core.parsing.tokens import TokenType
 
 
 class TestFormatterConfig:
@@ -142,28 +142,28 @@ class TestParseCommands:
 
 class TestReconstruction:
     def test_reconstruct_esc(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.ESC, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "hello"
 
     def test_reconstruct_str(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.STR, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "{hello}"
 
     def test_reconstruct_cmd(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.CMD, text="expr 1+2", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "[expr 1+2]"
 
     def test_reconstruct_var(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.VAR, text="name", start=pos, end=pos)
@@ -171,7 +171,7 @@ class TestReconstruction:
 
     def test_reconstruct_braced_var(self):
         """${name} form is preserved when token byte span indicates braces."""
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         # For ${name}: start.offset=0 (at $), end.offset=5 (at 'e' in name)
         # Span (5 - 0) = 5 > len("name") = 4 → braced
@@ -182,7 +182,7 @@ class TestReconstruction:
 
     def test_reconstruct_expand(self):
         """{*} expansion prefix is reconstructed."""
-        from core.parsing.tokens import SourcePosition, Token
+        from compiler.parsing.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.EXPAND, text="", start=pos, end=pos)

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.parsing.lexer import TclLexer
-from core.parsing.token_positions import (
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.token_positions import (
     classify_quoted_contexts,
     token_content_base,
     token_content_shift,
 )
-from core.parsing.tokens import Token, TokenType
+from compiler.parsing.tokens import Token, TokenType
 
 
 def _first_token(

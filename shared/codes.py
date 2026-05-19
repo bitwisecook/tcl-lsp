@@ -139,8 +139,7 @@ def diag(
         raise ValueError(f"Duplicate diagnostic code: {code}")
     if section not in SECTION_KEYS:
         raise ValueError(
-            f"Unknown section {section!r} for code {code}. "
-            f"Add it to SECTIONS in core/common/codes.py."
+            f"Unknown section {section!r} for code {code}. Add it to SECTIONS in shared/codes.py."
         )
     if ai_category is not None and ai_category not in AI_CATEGORIES:
         raise ValueError(

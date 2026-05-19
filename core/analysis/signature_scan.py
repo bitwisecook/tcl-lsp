@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import Token, TokenType
 from core.analysis import parse_param_list
 from core.analysis.semantic_model import (
     AnalysisResult,
@@ -37,8 +39,6 @@ from core.analysis.semantic_model import (
     ProcDef,
     SourceTarget,
 )
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import Token, TokenType
 from shared.ranges import range_from_token
 
 

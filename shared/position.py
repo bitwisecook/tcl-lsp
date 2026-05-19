@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from compiler.parsing.tokens import Token
 from core.analysis.semantic_model import Range
-from core.parsing.tokens import Token
 
 from .document_buffer import DocumentBuffer
 
 if TYPE_CHECKING:
-    from core.parsing.command_segmenter import SegmentedCommand
+    from compiler.parsing.command_segmenter import SegmentedCommand
 
 
 def position_in_range(line: int, character: int, r: Range) -> bool:
@@ -40,7 +40,7 @@ def find_command_at_position(
     body_token: Token | None = None,
 ) -> SegmentedCommand | None:
     """Find the :class:`SegmentedCommand` whose range contains the position."""
-    from core.parsing.command_segmenter import segment_commands
+    from compiler.parsing.command_segmenter import segment_commands
 
     for cmd in segment_commands(source, body_token):
         if position_in_range(line, character, cmd.range):

@@ -562,7 +562,7 @@ effect until the server process is restarted.
 
 ## Lexer token types
 
-The Tcl lexer (`core/parsing/lexer.py`) produces tokens with a `TokenType`
+The Tcl lexer (`compiler/parsing/lexer.py`) produces tokens with a `TokenType`
 enum. Key conventions that affect downstream consumers:
 
 - **`ESC`** — plain word fragment, possibly containing backslash escapes.

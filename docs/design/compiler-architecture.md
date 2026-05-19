@@ -74,7 +74,7 @@ flowchart TD
 
 ### 1. Lexer
 
-**File:** `core/parsing/lexer.py` — class `TclLexer`
+**File:** `compiler/parsing/lexer.py` — class `TclLexer`
 
 Converts raw source text into a flat stream of `Token` values.  Each token
 carries its `TokenType`, text content, and precise `SourcePosition`
@@ -115,7 +115,7 @@ be re-entered for nested bodies (brace/bracket contents).
 
 ### 2. Command Segmenter
 
-**File:** `core/parsing/command_segmenter.py` — function `segment_commands()`
+**File:** `compiler/parsing/command_segmenter.py` — function `segment_commands()`
 
 Tcl has no traditional grammar — a "program" is a sequence of commands, each
 being a list of whitespace-separated words terminated by a newline or
@@ -145,7 +145,7 @@ record which words are atomic — important for downstream constant tracking.
 
 ### 3. Error Recovery
 
-**File:** `core/parsing/recovery.py` — function `segment_with_recovery()`
+**File:** `compiler/parsing/recovery.py` — function `segment_with_recovery()`
 
 When the segmenter encounters an unclosed delimiter (`{`, `[`, `"`), recovery
 kicks in:
@@ -740,13 +740,13 @@ consumer must treat it as opaque and conservative.
 
 | File | Responsibility |
 |------|---------------|
-| `core/parsing/lexer.py` | Tokenisation with position tracking |
-| `core/parsing/tokens.py` | Token, SourcePosition, TokenType definitions |
-| `core/parsing/command_segmenter.py` | Command segmentation and chunking |
-| `core/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
-| `core/parsing/expr_lexer.py` | Expression tokenisation |
-| `core/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
-| `core/parsing/substitution.py` | Tcl backslash substitution helpers |
+| `compiler/parsing/lexer.py` | Tokenisation with position tracking |
+| `compiler/parsing/tokens.py` | Token, SourcePosition, TokenType definitions |
+| `compiler/parsing/command_segmenter.py` | Command segmentation and chunking |
+| `compiler/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
+| `compiler/parsing/expr_lexer.py` | Expression tokenisation |
+| `compiler/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
+| `compiler/parsing/substitution.py` | Tcl backslash substitution helpers |
 | `core/analysis/analyser.py` | Semantic analysis, scope tracking |
 | `core/analysis/checks/` | Best-practice and security checks (W-series) |
 | `core/analysis/irules_checks.py` | iRules-specific checks (IRULE-series) |

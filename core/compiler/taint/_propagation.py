@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from ...commands.registry import REGISTRY
@@ -13,8 +15,6 @@ from ...commands.registry.runtime import (
     taint_transform_map,
 )
 from ...commands.registry.taint_hints import TaintColour
-from ...parsing.lexer import TclLexer
-from ...parsing.tokens import TokenType
 from ..cfg import CFGBranch, CFGFunction, CFGGoto
 from ..ir import (
     IRAssignConst,
@@ -204,7 +204,7 @@ def _leading_literal_prefix_char(value: str) -> str | None:
     ESC tokens are rendered via ``backslash_subst()`` so that escape
     sequences like ``\\x2f`` (``/``) are correctly resolved.
     """
-    from ...parsing.substitution import backslash_subst as _bss
+    from compiler.parsing.substitution import backslash_subst as _bss
 
     lexer = TclLexer(value)
     while True:
@@ -230,7 +230,7 @@ def _literal_contains_crlf(value: str) -> bool:
     ESC tokens are rendered via ``backslash_subst()`` so that escape
     sequences like ``\\n`` are correctly resolved to actual newlines.
     """
-    from ...parsing.substitution import backslash_subst as _bss
+    from compiler.parsing.substitution import backslash_subst as _bss
 
     lexer = TclLexer(value)
     while True:

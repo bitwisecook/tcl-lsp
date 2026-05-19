@@ -202,7 +202,7 @@ class _ValuesMixin:
 
     def _emit_incr(self: _Emitter, name: str, amount: str | None) -> None:
         """Emit incr bytecode, leaving the new value on TOS."""
-        from ...parsing.expr_parser import parse_expr as _parse_expr_ast
+        from compiler.parsing.expr_parser import parse_expr as _parse_expr_ast
 
         if self._is_proc and not self._is_qualified(name):
             slot = self._lvt.intern(name)

@@ -14,13 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from core.analysis.semantic_model import Diagnostic
 from core.commands.registry import REGISTRY
 from core.formatting.config import FormatterConfig
 from core.packages import PackageResolver
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
 
 from ..pipeline import AVAILABLE_DIALECTS
 

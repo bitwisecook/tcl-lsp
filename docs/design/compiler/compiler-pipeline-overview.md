@@ -11,7 +11,7 @@ The compiler pipeline spans parsing, lowering, control/data-flow analysis, speci
 ## Pipeline layers
 
 1. Parse and segment
-   - source: `core/parsing/*`
+   - source: `compiler/parsing/*`
 2. Lowering to IR
    - source: `core/compiler/lowering.py`, `core/compiler/ir.py`
 3. CFG + SSA + core analyses

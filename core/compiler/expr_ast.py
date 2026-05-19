@@ -2,7 +2,7 @@
 
 Replaces the opaque ``str`` representation used in ``IRAssignExpr.expr``,
 ``IRIfClause.condition``, ``IRFor.condition``, and ``CFGBranch.condition``.
-Parsed once at lowering time via :func:`core.parsing.expr_parser.parse_expr`,
+Parsed once at lowering time via :func:`compiler.parsing.expr_parser.parse_expr`,
 then walked by downstream analyses (SSA, SCCP, type inference, shimmer).
 
 The ``ExprRaw`` node is a fallback for any expression the parser cannot

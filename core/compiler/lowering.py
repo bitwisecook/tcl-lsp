@@ -19,6 +19,11 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import cast
 
+from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
+from compiler.parsing.command_shapes import extract_single_expr_argument
+from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
+from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.tokens import Token, TokenType
 from shared.alias import (
     detect_interp_alias,
 )
@@ -43,11 +48,6 @@ from shared.ranges import range_from_token
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
-from ..parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
-from ..parsing.command_shapes import extract_single_expr_argument
-from ..parsing.expr_parser import parse_expr as _std_parse_expr
-from ..parsing.lexer import TclLexer, TclParseError
-from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
     CommandTrace,
@@ -1528,7 +1528,7 @@ class _Lowerer:
         # can't accidentally mutate lowering state.
         if self._proc_depth <= 0 or not self._const_map_stack:
             return None
-        from ..parsing.subst_nocommands import subst_nocommands
+        from compiler.parsing.subst_nocommands import subst_nocommands
 
         const_map = dict(self._const_map_stack[-1])
         return subst_nocommands(template_text, const_map)
@@ -2286,7 +2286,7 @@ class _Lowerer:
                 # else (CMD / VAR / ESC with substitutions) means
                 # dynamic.  The namespace arg must likewise be a
                 # plain identifier.
-                from ..parsing.tokens import TokenType as _TT
+                from compiler.parsing.tokens import TokenType as _TT
 
                 body_tok = arg_tokens[2]
                 ns_tok = arg_tokens[1]

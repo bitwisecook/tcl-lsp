@@ -6,6 +6,9 @@ bytecode that the VM can execute.
 
 from __future__ import annotations
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.lexer import _thread_local as _lexer_thread_local
+from compiler.parsing.tokens import TokenType
 from core.analysis.semantic_model import Range
 from core.compiler.cfg import CFGModule, build_cfg_function
 from core.compiler.codegen import ModuleAsm, codegen_module
@@ -29,9 +32,6 @@ from core.compiler.ir import (
     IRWhile,
 )
 from core.compiler.lowering import lower_to_ir
-from core.parsing.lexer import TclLexer
-from core.parsing.lexer import _thread_local as _lexer_thread_local
-from core.parsing.tokens import TokenType
 from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 
 from .substitution import backslash_subst

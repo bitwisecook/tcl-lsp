@@ -35,7 +35,7 @@ source-fidelity passes (formatter, refactor)."""
 def is_bare_var_name(name: str) -> bool:
     """Return True when ``$name`` would lex as a single bare variable token.
 
-    Mirrors ``core.parsing.lexer._parse_var``'s bare-form rule: a name is
+    Mirrors ``compiler.parsing.lexer._parse_var``'s bare-form rule: a name is
     one or more ``::``-separated segments, each consisting of Unicode
     alnum or ``_`` characters.  An optional leading ``::`` is allowed.
 

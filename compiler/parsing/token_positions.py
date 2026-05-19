@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ..analysis.semantic_model import Range
+from core.analysis.semantic_model import Range
+
 from .tokens import SourcePosition, Token, TokenType
 
 

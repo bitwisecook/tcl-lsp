@@ -7,8 +7,8 @@ import difflib
 import json
 from typing import Any, cast
 
+from compiler.parsing.command_segmenter import segment_commands
 from core.commands.registry import REGISTRY
-from core.parsing.command_segmenter import segment_commands
 
 from ..formatters import range_dict
 from ..pipeline import AVAILABLE_DIALECTS, run_pipeline

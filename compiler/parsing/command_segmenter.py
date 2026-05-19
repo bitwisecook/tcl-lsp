@@ -16,14 +16,14 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from core.analysis.semantic_model import Range
 from shared.document_buffer import DocumentBuffer
 from shared.ranges import range_from_tokens
 
-from ..analysis.semantic_model import Range
 from .known_commands import known_command_names
 
 if TYPE_CHECKING:
-    from ..commands.registry.command_registry import CommandRegistry
+    from core.commands.registry.command_registry import CommandRegistry
 from .lexer import TclLexer
 from .tokens import SourcePosition, Token, TokenType
 

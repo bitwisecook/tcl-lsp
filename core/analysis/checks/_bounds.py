@@ -35,9 +35,9 @@ from __future__ import annotations
 
 import re
 
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import diag
 
-from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Range, Severity
 
 # Constant-index parsing helpers

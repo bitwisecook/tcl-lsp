@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 import re
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.token_positions import token_content_base
+from compiler.parsing.tokens import Token, TokenType
 from core.commands.registry.command_registry import REGISTRY
 from core.commands.registry.runtime import (
     SIGNATURES,
@@ -11,9 +14,6 @@ from core.commands.registry.runtime import (
     regexp_pattern_index,
     skip_options,
 )
-from core.parsing.lexer import TclLexer
-from core.parsing.token_positions import token_content_base
-from core.parsing.tokens import Token, TokenType
 from shared.dialect import active_dialect
 from shared.ranges import position_from_offset
 

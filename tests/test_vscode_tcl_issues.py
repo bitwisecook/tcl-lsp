@@ -18,10 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from core.analysis import analyse
-from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
 from lsp.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
 from lsp.features.completion import get_completions
 from lsp.features.definition import get_definition

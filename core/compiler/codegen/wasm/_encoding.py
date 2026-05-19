@@ -9,7 +9,7 @@ list semantics.
 
 from __future__ import annotations
 
-from ....parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 
 
 def _leb128_unsigned(value: int) -> bytes:

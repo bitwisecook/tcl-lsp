@@ -41,10 +41,10 @@ Shared utility modules were lifted to provide one internal contract surface acro
 - `shared/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
 - `shared/ranges.py` — `position_from_offset`, `position_from_relative`
 - `shared/position.py` — `offset_at_position`, `find_command_at_position`
-- `core/parsing/known_commands.py`
-- `core/parsing/argv.py`
-- `core/parsing/command_shapes.py`
-- `core/parsing/token_positions.py`
+- `compiler/parsing/known_commands.py`
+- `compiler/parsing/argv.py`
+- `compiler/parsing/command_shapes.py`
+- `compiler/parsing/token_positions.py`
 - `core/compiler/value_shapes.py`
 - `core/compiler/var_refs.py`
 - `core/analysis/proc_lookup.py`

@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py) (`tokenise_all` at line 494),
-[`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
-[`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py) (`segment_commands` at line 390)
+Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 494),
+[`compiler/parsing/tokens.py`](../../../compiler/parsing/tokens.py),
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 390)
 
 ## Content
 

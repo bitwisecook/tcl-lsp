@@ -6,6 +6,8 @@ import logging
 
 from lsprotocol import types
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
@@ -16,8 +18,6 @@ from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from core.compiler.core_analyses import analyse_source
 from core.compiler.taint import TaintLattice
 from core.compiler.types import TypeKind
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
 from shared.alias import lookup_alias_for_word
 from shared.dialect import active_dialect
 from shared.ip_utils import format_ip_hover, parse_ip

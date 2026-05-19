@@ -11,10 +11,11 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.tokens import TokenType
+
 from .....commands.registry import REGISTRY as _REGISTRY
 from .....commands.registry import EmitContext
-from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
-from .....parsing.tokens import TokenType
 from ....ir import (
     CommandTokens,
     IRAssignConst,
@@ -390,7 +391,7 @@ class _WasmEmitterStmtMixin(_Base):
                         # bare.  Add the braces back so the
                         # reconstructed script re-parses to the same
                         # word shape the user wrote.
-                        from .....parsing.tokens import TokenType
+                        from compiler.parsing.tokens import TokenType
 
                         if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
@@ -639,7 +640,7 @@ class _WasmEmitterStmtMixin(_Base):
                                 else ()
                             )
                             argv = barrier_tokens.argv if barrier_tokens.argv is not None else ()
-                            from .....parsing.tokens import TokenType
+                            from compiler.parsing.tokens import TokenType
 
                             parts: list[str] = []
                             for i, t in enumerate(barrier_tokens.argv_texts):

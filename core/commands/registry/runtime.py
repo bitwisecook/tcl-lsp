@@ -18,8 +18,9 @@ if TYPE_CHECKING:
     from ...analysis.semantic_model import StubCommandDef
     from ...compiler.side_effects import StorageType
 
+from compiler.parsing.tokens import Token
+
 from ...compiler.types import TclType
-from ...parsing.tokens import Token
 from .command_registry import REGISTRY
 from .models import CommandSpec, PatternType, ValidationSpec
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
@@ -229,7 +230,7 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     signatures_for.cache_clear()
 
     # Also clear the parser's known-command cache.
-    from ...parsing.known_commands import known_command_names
+    from compiler.parsing.known_commands import known_command_names
 
     known_command_names.cache_clear()
 
@@ -778,7 +779,7 @@ def configure_signatures(
 
     # Lexer flags (``{*}`` word expansion, iRules ``}{`` brace-word
     # separator) are read per-call from ``_dialect_var`` via
-    # :func:`core.parsing.lexer._expand_syntax_active` /
+    # :func:`compiler.parsing.lexer._expand_syntax_active` /
     # :func:`_irules_brace_separator_active`, so no class-attribute
     # mutation is needed here.
 
@@ -1039,8 +1040,8 @@ def iter_switch_case_list(
     list (i.e. the ``Token.text`` of the STR token, not including the
     surrounding ``{`` ``}``).
     """
-    from ...parsing.lexer import TclLexer
-    from ...parsing.tokens import TokenType
+    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.tokens import TokenType
 
     lexer = TclLexer(
         case_list_text,

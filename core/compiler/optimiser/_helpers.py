@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 import re
 
+from compiler.parsing.command_shapes import extract_single_expr_argument
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.token_positions import token_content_shift
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -14,10 +18,6 @@ from shared.naming import (
 
 from ...analysis.semantic_model import Range
 from ...commands.registry import REGISTRY
-from ...parsing.command_shapes import extract_single_expr_argument
-from ...parsing.lexer import TclLexer
-from ...parsing.token_positions import token_content_shift
-from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..core_analyses import LatticeKind, LatticeValue
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import CommandTokens
@@ -603,9 +603,9 @@ def _try_incr_idiom(
     argv_single: list[bool],
 ) -> str | None:
     """Detect ``set var [expr {$var + N}]`` -> ``incr var N``."""
+    from compiler.parsing.expr_parser import parse_expr
     from shared.dialect import active_dialect
 
-    from ...parsing.expr_parser import parse_expr
     from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprRaw, ExprVar
 
     if len(argv_texts) != 3 or argv_texts[0] != "set":
@@ -693,9 +693,9 @@ def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | N
     result would be one past the last index, so this helper returns ``None``
     for that shape.
     """
+    from compiler.parsing.expr_parser import parse_expr
     from shared.dialect import active_dialect
 
-    from ...parsing.expr_parser import parse_expr
     from ..expr_ast import BinOp, ExprBinary, ExprCommand, ExprLiteral, ExprRaw
 
     stripped = expr_text.strip()

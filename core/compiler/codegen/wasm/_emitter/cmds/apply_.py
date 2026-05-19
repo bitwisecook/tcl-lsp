@@ -83,7 +83,7 @@ def _emit_apply(
     # ``x {puts }`` and the runtime traps reading ``x``.  Tcl
     # semantics: braced words suppress all substitution, so the
     # lambda must reach the runtime byte-identical to the source.
-    from ......parsing.tokens import TokenType
+    from compiler.parsing.tokens import TokenType
 
     tokens = getattr(emitter, "_current_call_tokens", None)
     lambda_was_braced = False

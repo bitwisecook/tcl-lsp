@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import Token, TokenType
 from core.analysis.semantic_model import AnalysisResult, Scope
 from core.commands.registry.runtime import iter_body_arguments
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import Token, TokenType
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:

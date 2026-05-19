@@ -8,10 +8,10 @@ a single file share procs and RULE_INIT variables (flat sharing).
 
 from __future__ import annotations
 
+from compiler.parsing.tokens import SourcePosition
 from shared.document_buffer import DocumentBuffer
 
 from ..bigip.rule_extract import EmbeddedRule, find_embedded_rules
-from ..parsing.tokens import SourcePosition
 from . import Analyser
 from .semantic_model import (
     AnalysisResult,

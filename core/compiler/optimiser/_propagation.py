@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (
@@ -13,8 +15,6 @@ from shared.ranges import range_from_token
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import ArgRole, arg_indices_for_role
-from ...parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ...parsing.tokens import Token, TokenType
 from ..interprocedural import (
     evaluate_proc_with_constants,
     fold_static_proc_call,

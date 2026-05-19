@@ -11,8 +11,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.tokens import TokenType
+
 from .....commands.registry import EmitContext, WasmRuntimeImport
-from .....parsing.tokens import TokenType
 from ....ir import (
     CommandTokens,
 )

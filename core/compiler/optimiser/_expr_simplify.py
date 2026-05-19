@@ -5,10 +5,10 @@ from __future__ import annotations
 import math
 import re
 
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.expr_parser import parse_expr
 from shared.dialect import active_dialect
 
-from ...parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ...parsing.expr_parser import parse_expr
 from ..expr_ast import (
     BinOp,
     ExprBinary,

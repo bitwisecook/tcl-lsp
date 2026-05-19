@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import re
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.dialect import active_dialect
 from shared.ranges import range_from_token
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.command_registry import ResolvedTerminator
 from ...commands.registry.runtime import regexp_pattern_index
-from ...parsing.command_segmenter import segment_commands
-from ...parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ...parsing.lexer import TclLexer
-from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Range
 
 

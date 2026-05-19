@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (
@@ -12,7 +13,6 @@ from shared.naming import (
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import variable_writing_commands
-from ...parsing.tokens import Token, TokenType
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -778,7 +778,7 @@ def _parse_cmd_token_contents(
     correct ``base_offset``/``base_line``/``base_col`` to the lexer keeps
     every re-parsed inner token's range pointing into the original source.
     """
-    from ...parsing.lexer import TclLexer
+    from compiler.parsing.lexer import TclLexer
 
     lexer = TclLexer(
         cmd_tok.text,

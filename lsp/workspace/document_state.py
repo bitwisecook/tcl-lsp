@@ -23,6 +23,13 @@ import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from compiler.parsing.command_segmenter import (
+    TopLevelChunk,
+    find_first_dirty_chunk,
+    segment_top_level_chunks,
+)
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token
 from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
@@ -30,13 +37,6 @@ from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compil
 from core.compiler.interprocedural import ProcLocalSummary
 from core.compiler.ir import IRProcedure, IRStatement
 from core.compiler.lowering import lower_to_ir
-from core.parsing.command_segmenter import (
-    TopLevelChunk,
-    find_first_dirty_chunk,
-    segment_top_level_chunks,
-)
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token
 from shared.codes import default_disabled_diagnostics
 from shared.dialect import detect_dialect_from_source, dialect_scope
 from shared.document_buffer import DocumentBuffer

@@ -13,7 +13,7 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 1. Command metadata belongs in registry models/runtime, not in scattered hardcoded sets.
 2. Event validity/ordering rules should be centralized in event registry/flow definitions.
 3. Consumers should query registry APIs rather than duplicating command/event classification logic.
-4. Parser/recovery known-command lookups must use the shared cache helper (`core/parsing/known_commands.py`) backed by registry command names.
+4. Parser/recovery known-command lookups must use the shared cache helper (`compiler/parsing/known_commands.py`) backed by registry command names.
 5. When BIG-IP source data introduces profile aliases (`MSSQL`, `RADIUS_AAA`, `SIPSESSION`, `DIAMETERSESSION`, etc.), keep the shared profile/event/namespace tables aligned rather than hardcoding alias fixes in a consumer.
 6. `VALID DURING` in BIG-IP command manpages is the source of truth for iRules command legality; avoid synthetic profile requirements unless some event in the shared model can actually satisfy them.
 7. Utility/control iRules prefixes (`ILX`, `CRYPTO`, `URI`, `X509`, `PROFILE`, etc.) still need `ProtocolNamespaceSpec` entries even when they are not profile-backed; represent them with an empty `profiles` set instead of leaving the namespace table incomplete.
@@ -31,7 +31,7 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 - `core/commands/registry/namespace_models.py`
 - `core/commands/registry/taint_hints.py`
 - `core/commands/registry/type_hints.py`
-- `core/parsing/known_commands.py`
+- `compiler/parsing/known_commands.py`
 
 ## Failure modes
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
 from core.analysis.semantic_model import Range, Scope
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token, TokenType
 
 _WORD_DELIMS = ' \t\n;{}[]"$'
 

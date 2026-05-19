@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...parsing.expr_parser import parse_expr as _parse_expr_ast
-from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.expr_parser import parse_expr as _parse_expr_ast
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from ._helpers import _regexp_to_glob
 from .opcodes import (
     _INDEX_END,

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from compiler.parsing.token_positions import classify_quoted_contexts
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import diag
 
-from ...parsing.token_positions import classify_quoted_contexts
-from ...parsing.tokens import Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
     _find_bracket_insertion_point,
@@ -35,7 +35,7 @@ def check_unmatched_close_bracket(
     detection is centralised in :func:`classify_quoted_contexts` —
     see its docstring for the underlying lexer contract.
     """
-    from ...parsing.tokens import SourcePosition
+    from compiler.parsing.tokens import SourcePosition
 
     diagnostics: list[Diagnostic] = []
     in_quoted = classify_quoted_contexts(all_tokens)

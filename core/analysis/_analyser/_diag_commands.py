@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.known_commands import known_command_names
 from shared.dialect import active_dialect, active_extra_commands
 
 from ...commands.registry import REGISTRY
@@ -21,7 +22,6 @@ from ...compiler.ir import (
     IRCall,
     IRIncr,
 )
-from ...parsing.known_commands import known_command_names
 from ..semantic_model import (
     CodeFix,
     Diagnostic,

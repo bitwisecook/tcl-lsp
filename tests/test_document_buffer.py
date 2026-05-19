@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.parsing.tokens import SourcePosition
+from compiler.parsing.tokens import SourcePosition
 from shared.document_buffer import (
     DocumentBuffer,
     compute_line_starts,
@@ -184,7 +184,7 @@ class TestChunkLineRange:
         source = "proc foo {} {\n    set x 1\n}\n\nproc bar {} {\n    set y 2\n}\n"
         buf = DocumentBuffer.from_source(source)
 
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:
@@ -240,7 +240,7 @@ class TestChunkLineRangeCompat:
     def test_semicolon_separated(self):
         source = "set x 1; set y 2\n"
         buf = DocumentBuffer.from_source(source)
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:
@@ -260,7 +260,7 @@ class TestChunkLineRangeCompat:
     def test_proc_with_body(self):
         source = "proc foo {a b} {\n    set x $a\n    return $x\n}\n"
         buf = DocumentBuffer.from_source(source)
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:

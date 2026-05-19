@@ -22,9 +22,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.tokens import TokenType
+
 from ....analysis.semantic_model import Range
-from ....parsing.substitution import backslash_subst as _tcl_backslash_subst
-from ....parsing.tokens import TokenType
 from ...cfg import (
     CFGBranch,
     CFGFunction,

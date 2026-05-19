@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from ....expr_ast import (
     BinOp,
     ExprBinary,
@@ -732,7 +733,7 @@ class _WasmEmitterExprMixin(_Base):
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
-            from .....parsing.expr_parser import parse_expr
+            from compiler.parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)

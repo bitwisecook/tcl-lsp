@@ -8,12 +8,12 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.command_segmenter import SegmentedCommand
+from compiler.parsing.known_commands import known_command_names
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.ranges import position_from_relative
 
 from ...commands.registry import REGISTRY
-from ...parsing.command_segmenter import SegmentedCommand
-from ...parsing.known_commands import known_command_names
-from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import (
     CodeFix,
     Diagnostic,
@@ -44,7 +44,7 @@ class _AnalyserRecoveryMixin(_Base):
         A ``]`` inside a double-quoted string is a literal character, not
         a stray bracket — quoted-context ESC tokens must be skipped.
         """
-        from ...parsing.token_positions import classify_quoted_contexts
+        from compiler.parsing.token_positions import classify_quoted_contexts
 
         # Step 1: Find an ESC token containing ']' at its end.
         # Skip ESC tokens whose ']' is inside a double-quoted string

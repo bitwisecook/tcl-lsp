@@ -120,7 +120,7 @@ class _ControlFlowMixin:
         wrapped in ``startCommand``; generic ``invokeStk1`` calls do not
         — the invoke opcode already handles command counting.
         """
-        from ...parsing.expr_parser import parse_expr as _parse_expr_ast
+        from compiler.parsing.expr_parser import parse_expr as _parse_expr_ast
 
         body_parts = self._parse_cmd_parts(body)
         if not body_parts:

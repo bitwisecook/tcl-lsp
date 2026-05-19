@@ -39,6 +39,8 @@ import logging
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (
@@ -49,8 +51,6 @@ from shared.ranges import range_from_token
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import loop_list_header_commands
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import SourcePosition, Token, TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, ensure_compilation_unit
 from .core_analyses import FunctionAnalysis

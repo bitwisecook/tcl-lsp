@@ -25,7 +25,7 @@ This repository is split into a reusable language core and an LSP runtime:
 
 ## File-path anchors
 
-- `core/parsing/`
+- `compiler/parsing/`
 - `core/compiler/`
 - `core/analysis/`
 - `core/commands/registry/`

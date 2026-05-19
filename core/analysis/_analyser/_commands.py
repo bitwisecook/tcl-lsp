@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.tokens import Token, TokenType
 from shared.dialect import active_dialect
 from shared.ranges import range_from_token
 
@@ -21,7 +22,6 @@ from ...commands.registry.runtime import (
     body_arg_implicit_args_for_command,
     iter_body_arguments,
 )
-from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     AutoPathEntry,
     CodeFix,

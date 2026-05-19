@@ -20,8 +20,9 @@ import os
 import re
 from dataclasses import dataclass, field
 
+from compiler.parsing.tokens import SourcePosition
+
 from ..analysis.semantic_model import Range
-from ..parsing.tokens import SourcePosition
 from ._text_utils import find_brace_end, offset_to_line_char
 from .apl_parser import _FIELD_TYPE_KEYWORDS
 

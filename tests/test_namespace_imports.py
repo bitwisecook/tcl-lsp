@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from compiler.parsing.tokens import SourcePosition
 from core.analysis import analyse
 from core.analysis.auto_path_eval import evaluate_auto_path_expr
 from core.analysis.namespace_imports import rewrite_via_imports
 from core.analysis.semantic_model import NamespaceImport, Range
 from core.analysis.signature_scan import extract_signatures
-from core.parsing.tokens import SourcePosition
 
 
 def _zero_range() -> Range:

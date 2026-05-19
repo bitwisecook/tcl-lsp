@@ -12,14 +12,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import Analyser
-from core.compiler.lowering import lower_commands_to_ir, lower_to_ir
-from core.parsing.command_segmenter import (
+from compiler.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
-from core.parsing.token_positions import shift_position, shift_range, shift_token
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.parsing.token_positions import shift_position, shift_range, shift_token
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from core.analysis import Analyser
+from core.compiler.lowering import lower_commands_to_ir, lower_to_ir
 from lsp.workspace.document_state import DocumentState
 
 

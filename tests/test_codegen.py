@@ -236,9 +236,9 @@ class TestIRulesExprOps:
         )
         _cfg = CFGFunction(name="test", entry="entry", blocks={"entry": blk})  # noqa: F841
         # Hack: inject an IRAssignExpr to exercise the expression emitter
+        from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
         from core.compiler.ir import IRAssignExpr
-        from core.parsing.tokens import SourcePosition
 
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))
         stmt = IRAssignExpr(range=r, name="r", expr=expr)
@@ -247,11 +247,11 @@ class TestIRulesExprOps:
         return codegen_function(cfg2)
 
     def _emit_unaryop(self, unaryop):
+        from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
         from core.compiler.cfg import CFGBlock, CFGFunction, CFGReturn
         from core.compiler.expr_ast import ExprUnary, ExprVar
         from core.compiler.ir import IRAssignExpr
-        from core.parsing.tokens import SourcePosition
 
         expr = ExprUnary(op=unaryop, operand=ExprVar("$a", "a", 0, 2))
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))

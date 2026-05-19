@@ -13,14 +13,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name as _normalise_qualified_name
 
 from ...analysis.semantic_model import Range
 from ...commands.registry.dialects import dialects_since
-from ...parsing.lexer import TclLexer
-from ...parsing.tokens import TokenType
 from ..ir import (
     IRAssignValue,
     IRBarrier,

@@ -27,9 +27,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from shared.naming import normalise_var_name as _normalise_var_name
-
-from ..compiler.expr_ast import (
+from core.compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -43,6 +41,8 @@ from ..compiler.expr_ast import (
     ExprVar,
     UnaryOp,
 )
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from .expr_lexer import ExprToken, ExprTokenType, tokenise_expr_checked
 
 

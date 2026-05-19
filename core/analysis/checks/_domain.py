@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name
@@ -16,7 +17,6 @@ from ...commands.registry.runtime import (
     arg_indices_for_role,
     normalized_flag_commands,
 )
-from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (
     _first_token_is_braced,
@@ -271,8 +271,9 @@ def check_dialect_invalid_expr_operator(
     The :data:`TCL_OPERATOR_DIALECTS` table is the source of truth;
     adding a new gated operator there is enough to extend this check.
     """
+    from compiler.parsing.expr_parser import parse_expr
+
     from ...compiler.expr_ast import ExprRaw
-    from ...parsing.expr_parser import parse_expr
 
     dialect = active_dialect()
     expr_indices = arg_indices_for_role(cmd_name, args, ArgRole.EXPR)

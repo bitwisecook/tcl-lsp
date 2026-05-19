@@ -101,7 +101,7 @@ def test_registry_covers_compiler_codes():
     uncovered = compiler_codes - registry_codes
     assert not uncovered, (
         f"Compiler emits codes not in registry: {sorted(uncovered)}\n"
-        "Register them via diag() or opt() in core/common/codes_*.py."
+        "Register them via diag() or opt() in shared/codes_*.py."
     )
 
 
@@ -112,7 +112,7 @@ def test_internal_codes_are_real():
     stale = internal_codes() - compiler_codes
     assert not stale, (
         f"Internal codes not found in compiler source: {sorted(stale)}\n"
-        "Remove stale entries from core/common/codes_*.py."
+        "Remove stale entries from shared/codes_*.py."
     )
 
 

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import TokenType
 from shared.document_buffer import DocumentBuffer
 
 from ..commands.registry.runtime import iter_body_arguments
-from ..parsing.command_segmenter import segment_commands
-from ..parsing.tokens import TokenType
 
 if TYPE_CHECKING:
-    from ..parsing.command_segmenter import SegmentedCommand
-    from ..parsing.tokens import Token
+    from compiler.parsing.command_segmenter import SegmentedCommand
+    from compiler.parsing.tokens import Token
 
 _CLOSER_BY_OPENER = {
     '"': '"',

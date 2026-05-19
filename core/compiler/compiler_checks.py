@@ -14,6 +14,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 
+from compiler.parsing.argv import widen_argv_tokens_to_word_spans
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name
@@ -33,10 +37,6 @@ from ..commands.registry.runtime import (
     arg_indices_for_role,
     iter_body_arguments,
 )
-from ..parsing.argv import widen_argv_tokens_to_word_spans
-from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
     IRBarrier,
@@ -694,7 +694,8 @@ def _resolve_expansion_elements(
       semantics where ``{*}`` calls ``Tcl_ListObjGetElements`` to
       shimmer the value to a list at call time.
     """
-    from ..parsing.tokens import TokenType
+    from compiler.parsing.tokens import TokenType
+
     from .core_analyses import _extract_foreach_elements
     from .tcl_expr_eval import _split_tcl_list
 

@@ -24,14 +24,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
 from core.commands.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
     is_switch_case_list_form,
     iter_switch_case_list,
 )
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token, TokenType
 from shared.suffix_array import build_lcp_array, build_suffix_array
 from shared.text_edits import apply_edits, name_generator
 
@@ -2175,11 +2175,11 @@ def _shrink_expr_ast(text: str, *, dialect: str | None = None) -> str:
     - Double negation: ``!!$x`` → ``$x``
     """
     try:
+        from compiler.parsing.expr_parser import parse_expr
         from core.compiler.expr_ast import (
             ExprRaw,
             render_expr,
         )
-        from core.parsing.expr_parser import parse_expr
     except Exception:
         return text
 

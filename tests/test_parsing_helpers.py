@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from compiler.parsing.argv import widen_argv_tokens_to_word_spans
+from compiler.parsing.command_shapes import extract_single_expr_argument
+from compiler.parsing.known_commands import known_command_names
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
 from core.commands.registry import REGISTRY
-from core.parsing.argv import widen_argv_tokens_to_word_spans
-from core.parsing.command_shapes import extract_single_expr_argument
-from core.parsing.known_commands import known_command_names
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token, TokenType
 
 
 def _first_command_tokens(source: str) -> tuple[list[Token], list[Token]]:

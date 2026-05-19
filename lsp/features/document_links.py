@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import TokenType
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import TokenType
 from shared.lsp import to_lsp_range
 
 

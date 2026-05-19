@@ -72,7 +72,7 @@ Source text
 Before diving into examples, here are the key types that appear at each stage.
 All types live under `core/` and are frozen dataclasses unless noted.
 
-### Stage 1 — Lexer types ([`core/parsing/tokens.py`](../../core/parsing/tokens.py))
+### Stage 1 — Lexer types ([`compiler/parsing/tokens.py`](../../compiler/parsing/tokens.py))
 
 ```python
 class TokenType(Enum):              # tokens.py:9
@@ -107,7 +107,7 @@ class Token:                        # tokens.py:33
 - `SourcePosition` tracks the exact location in source text.  `offset` is
   the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
 
-### Stage 2 — Segmenter types ([`core/parsing/command_segmenter.py`](../../core/parsing/command_segmenter.py))
+### Stage 2 — Segmenter types ([`compiler/parsing/command_segmenter.py`](../../compiler/parsing/command_segmenter.py))
 
 ```python
 @dataclass(slots=True)
@@ -2696,7 +2696,7 @@ end of the line without a matching `]`.
 
 ### Stage 0 — Error recovery
 
-[`recovery.py`](../../core/parsing/recovery.py) runs a first-pass parse via
+[`recovery.py`](../../compiler/parsing/recovery.py) runs a first-pass parse via
 `segment_commands()`.  The segmenter detects that the `CMD` token starting
 at `[` is unterminated (the character after the CMD text is not `]`).
 
@@ -2773,7 +2773,7 @@ ExprToken(NUM, "2")
 ```
 
 **Pratt parsing** (`_PrattParser` in
-[`expr_parser.py`](../../core/parsing/expr_parser.py)):
+[`expr_parser.py`](../../compiler/parsing/expr_parser.py)):
 
 The parser uses binding powers to handle precedence:
 - `*` has binding power (22, 23) — higher than `+` at (20, 21).

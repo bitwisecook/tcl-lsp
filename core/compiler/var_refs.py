@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from shared.naming import normalise_var_name
 
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
-from ..parsing.lexer import TclLexer
-from ..parsing.tokens import TokenType
 
 _DEFAULT_CACHE_SIZE = 512
 

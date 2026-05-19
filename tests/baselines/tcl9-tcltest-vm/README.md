@@ -18,7 +18,7 @@ by construction.
 
 What this work *is* good for:
 
-- Triaging shared compiler / parser bugs in `core/parsing/` and
+- Triaging shared compiler / parser bugs in `compiler/parsing/` and
   `core/compiler/`, where fixes propagate to both backends.
 - Tightening the Python-side command implementations under
   `core/commands/` and `vm/commands/` whose specs the WASM parity
@@ -207,7 +207,7 @@ how a future reviewer can tell whether to revisit the classification.
    `tmp/tcl9.0.3/generic/` (e.g. `tclParse.c`, `tclBasic.c`,
    `tclCmdAH.c`) is the spec.  Match its error wording and return-code
    path exactly.
-4. **Fix in `vm/`, `core/parsing/`, `core/compiler/`, or `core/commands/`.**
+4. **Fix in `vm/`, `compiler/parsing/`, `core/compiler/`, or `core/commands/`.**
    Never in `tcltest.tcl`, never in `.test`, never in `init.tcl`,
    and never by adding a new monkey-patch.  Note: this gate does *not*
    see `runtime/zig/`; if the same bug exists on the WASM side, it

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import TokenType
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_var_name as _normalise_var_name
@@ -19,8 +21,6 @@ from ...commands.registry.runtime import (
     taint_sink_safe_colours,
 )
 from ...commands.registry.taint_hints import TaintColour
-from ...parsing.lexer import TclLexer
-from ...parsing.tokens import TokenType
 from ..cfg import CFGBranch, CFGFunction, CFGGoto
 from ..ir import (
     IRAssignExpr,

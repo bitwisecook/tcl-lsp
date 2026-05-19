@@ -11,8 +11,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from compiler.parsing.tokens import SourcePosition
+
 from ..analysis.semantic_model import Range
-from ..parsing.tokens import SourcePosition
 from ._text_utils import offset_to_line_char
 
 # Match $::name__name or ${::name__name} or ${::name__name(index)}

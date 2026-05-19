@@ -27,7 +27,7 @@ file.
 | 5.6 — In-flight `expr` const-folding | passes exist pre-codegen | `core/compiler/codegen/wasm/_emitter/_expressions.py` |
 | 6.1 — TclOO scaffolding | not started | new module under `runtime/zig/cmds/oo_*.zig` |
 | 6.2 — Coroutines + NRE | not started | architecture decision needed first |
-| 6.3 — Parser strict mode | not started | `core/parsing/expr_parser.py` |
+| 6.3 — Parser strict mode | not started | `compiler/parsing/expr_parser.py` |
 
 ---
 
@@ -337,9 +337,9 @@ shows the divergence.
 
 **What's required:**
 
-- `core/parsing/expr_parser.py` — promote bareword detection
+- `compiler/parsing/expr_parser.py` — promote bareword detection
   from warning to error in `expr` context.
-- `core/parsing/lexer.py` — stricter unbalanced-quote handling
+- `compiler/parsing/lexer.py` — stricter unbalanced-quote handling
   for unbraced word forms.
 - An audit pass against `tcl9.0.3/generic/tclParse.c` to find
   every case where our parser is more permissive than reference.

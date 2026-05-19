@@ -16,9 +16,9 @@ Lexer output is the positional source of truth for segmentation, recovery, seman
 
 ## File-path anchors
 
-- `core/parsing/lexer.py`
-- `core/parsing/tokens.py`
-- `core/parsing/substitution.py`
+- `compiler/parsing/lexer.py`
+- `compiler/parsing/tokens.py`
+- `compiler/parsing/substitution.py`
 
 ## Failure modes
 

@@ -8,12 +8,13 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.known_commands import known_command_names
+
 from ...compiler.compilation_unit import CompilationUnit
 from ...compiler.ir import (
     IRBarrier,
     IRCall,
 )
-from ...parsing.known_commands import known_command_names
 from ..semantic_model import Diagnostic, Severity
 
 

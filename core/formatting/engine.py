@@ -10,6 +10,8 @@ import re
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.tokens import Token, TokenType
 from core.commands.registry import REGISTRY
 from core.commands.registry.runtime import (
     SIGNATURES,
@@ -19,8 +21,6 @@ from core.commands.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
 )
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token, TokenType
 
 from .config import FormatterConfig, IndentStyle
 

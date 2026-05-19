@@ -7,9 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
-from core.parsing.command_segmenter import (
+from compiler.parsing.command_segmenter import (
     SegmentedCommand,
     UnclosedDelimiter,
     _find_recovery_offset,
@@ -18,7 +16,9 @@ from core.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from core.analysis import analyse
+from core.analysis.semantic_model import Range
 
 
 class TestSegmentCommands:

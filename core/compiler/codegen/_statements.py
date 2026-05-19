@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -503,7 +504,7 @@ class _StatementsMixin:
             self._emit_value(cmd, interpolate=True)
         else:
             self._push_lit(cmd)
-        from core.parsing.tokens import TokenType
+        from compiler.parsing.tokens import TokenType
 
         for i, a in enumerate(args):
             # When the matching token is a real ``[cmd]`` substitution,
@@ -550,7 +551,7 @@ class _StatementsMixin:
         (pre-substitution) command text so that the VM can produce
         accurate errorInfo "invoked from within" frames.
         """
-        from core.parsing.tokens import TokenType
+        from compiler.parsing.tokens import TokenType
 
         _INVOKE_OPS = (Op.INVOKE_STK1, Op.INVOKE_STK4, Op.INVOKE_EXPANDED)
         for i in range(len(self._instrs) - 1, -1, -1):

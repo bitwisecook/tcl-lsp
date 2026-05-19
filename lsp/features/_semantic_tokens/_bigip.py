@@ -4,6 +4,7 @@ import logging
 import re
 from bisect import bisect_right
 
+from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
 from core.bigip.iapp_extract import find_embedded_iapp_sections
 from core.bigip.irules_refs import extract_irules_object_references
@@ -15,7 +16,6 @@ from core.bigip.parser._helpers import (
 from core.bigip.registry import references_via_spec
 from core.bigip.registry.pilot import pilot_property_spec_for
 from core.bigip.rule_extract import find_embedded_rules
-from core.parsing.tokens import SourcePosition, Token, TokenType
 from shared.document_buffer import DocumentBuffer
 
 from ._collect import _collect_tokens

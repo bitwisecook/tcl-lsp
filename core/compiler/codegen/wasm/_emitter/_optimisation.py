@@ -843,7 +843,7 @@ class _WasmEmitterOptMixin(_Base):
                         else ()
                     )
                     argv = last_tokens.argv if last_tokens.argv is not None else ()
-                    from .....parsing.tokens import TokenType
+                    from compiler.parsing.tokens import TokenType
 
                     parts: list[str] = []
                     for i, t in enumerate(last_tokens.argv_texts):
@@ -982,7 +982,7 @@ class _WasmEmitterOptMixin(_Base):
                                 else ()
                             )
                             argv = last_tokens_b.argv if last_tokens_b.argv is not None else ()
-                            from .....parsing.tokens import TokenType
+                            from compiler.parsing.tokens import TokenType
 
                             parts: list[str] = []
                             for i, t in enumerate(last_tokens_b.argv_texts):

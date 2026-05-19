@@ -16,20 +16,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
+    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.tokens import TokenType
     from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
-    from core.parsing.lexer import TclLexer
-    from core.parsing.tokens import TokenType
     from shared.source_map import offset_to_line_col as _offset_to_line_col
 except ModuleNotFoundError:
     # Allow running this file directly from anywhere.
     ROOT = Path(__file__).resolve().parents[2]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
+    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.tokens import TokenType
     from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
-    from core.parsing.lexer import TclLexer
-    from core.parsing.tokens import TokenType
     from shared.source_map import offset_to_line_col as _offset_to_line_col
 
 
@@ -301,7 +301,7 @@ def _resolve_expression_args(cmd: CommandNode) -> None:
 
 def _expand_expression_word(word: WordNode) -> None:
     """Expand command substitutions that appear inside expression arguments."""
-    from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
+    from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 
     for fragment in word.fragments:
         if fragment.type is not TokenType.STR or not fragment.text.strip():

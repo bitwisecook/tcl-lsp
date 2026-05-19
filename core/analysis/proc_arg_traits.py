@@ -24,10 +24,11 @@ from __future__ import annotations
 
 import re
 
+from compiler.parsing.lexer import TclParseError
+
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from ..commands.registry.signatures import ArgRole
-from ..parsing.lexer import TclParseError
 from .semantic_model import ProcArgTrait
 
 # Simple $varName reference pattern.
@@ -58,7 +59,7 @@ def _extract_var_name(text: str) -> str | None:
 
 def _extract_commands(source: str) -> list[tuple[str, list[str]]]:
     """Extract (command_name, args) pairs from source via command segmenter."""
-    from ..parsing.command_segmenter import segment_commands
+    from compiler.parsing.command_segmenter import segment_commands
 
     commands: list[tuple[str, list[str]]] = []
     try:
@@ -261,7 +262,7 @@ def _scan_deep(
     _scan_commands(commands, param_set, traits, upvar_aliases)
 
     # Now recurse into body arguments to find deeper usage.
-    from ..parsing.command_segmenter import segment_commands
+    from compiler.parsing.command_segmenter import segment_commands
 
     try:
         segments = segment_commands(source)

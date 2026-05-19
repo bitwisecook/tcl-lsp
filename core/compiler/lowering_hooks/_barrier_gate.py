@@ -25,10 +25,11 @@ This is NOT a full static-analysis pass — we do not chase ``set body
 
 from __future__ import annotations
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.lexer import TclParseError
+from compiler.parsing.tokens import Token, TokenType
+
 from ...commands.registry import REGISTRY
-from ...parsing.command_segmenter import segment_commands
-from ...parsing.lexer import TclParseError
-from ...parsing.tokens import Token, TokenType
 
 _DYNAMIC_BARRIER_COMMANDS = REGISTRY.dynamic_barrier_commands()
 

@@ -8,6 +8,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.parsing.recovery import segment_with_recovery
+from compiler.parsing.tokens import Token
 from shared.ranges import range_from_token
 
 from ...compiler.compiler_checks import iter_ir_statements
@@ -16,8 +18,6 @@ from ...compiler.ir import (
     IRCall,
     IRSwitch,
 )
-from ...parsing.recovery import segment_with_recovery
-from ...parsing.tokens import Token
 from ..semantic_model import (
     ClassDef,
     MethodDef,

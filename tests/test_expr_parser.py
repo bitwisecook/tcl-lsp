@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from compiler.parsing.expr_parser import parse_expr
 from core.compiler.expr_ast import (
     BinOp,
     ExprBinary,
@@ -17,7 +18,6 @@ from core.compiler.expr_ast import (
     render_expr,
     vars_in_expr_node,
 )
-from core.parsing.expr_parser import parse_expr
 
 
 class TestLiterals:

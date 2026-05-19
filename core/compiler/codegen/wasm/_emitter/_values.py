@@ -11,9 +11,10 @@ else:
 
 from collections.abc import Callable
 
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from .....commands.registry import REGISTRY as _REGISTRY
 from .....commands.registry import EmitContext as _EmitContext
-from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
 from .._encoding import (
     _tcl_list_quote,
 )
@@ -63,7 +64,7 @@ def _contains_expand_prefix(text: str) -> bool:
     and the byte after must be non-whitespace — that's what tells the
     parser ``{*}`` is the magic prefix and not a literal three-char
     brace word.  Mirrors the lexer's check in
-    :meth:`core.parsing.lexer.TclLexer._parse_string`.
+    :meth:`compiler.parsing.lexer.TclLexer._parse_string`.
     """
     n = len(text)
     i = 0
@@ -735,8 +736,9 @@ class _WasmEmitterValuesMixin(_Base):
             was_braced = expr_arg.startswith("{") and expr_arg.endswith("}")
             if was_braced:
                 expr_arg = expr_arg[1:-1]
+            from compiler.parsing.expr_parser import parse_expr
+
             from .....compiler.expr_ast import ExprLiteral, ExprString, ExprVar
-            from .....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)

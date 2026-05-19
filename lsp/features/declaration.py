@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.tokens import Token
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range, Scope
 from core.analysis.var_scoping import (
@@ -28,8 +30,6 @@ from core.analysis.var_scoping import (
     variable_declaration_indices,
 )
 from core.commands.registry.runtime import iter_body_arguments
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import Token
 from shared.lsp import to_lsp_location
 
 from .definition import get_definition

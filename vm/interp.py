@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
+from compiler.parsing.expr_parser import parse_expr
+from compiler.parsing.lexer import TclParseError
+from compiler.parsing.lexer import _thread_local as _lexer_thread_local
 from core.compiler.codegen import FunctionAsm
 from core.compiler.expr_ast import (
     BinOp,
@@ -28,9 +31,6 @@ from core.compiler.expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from core.parsing.expr_parser import parse_expr
-from core.parsing.lexer import TclParseError
-from core.parsing.lexer import _thread_local as _lexer_thread_local
 
 from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
@@ -1099,7 +1099,7 @@ class TclInterp:
                     content = text[1:-1]
                     # Collapse backslash-newline continuations inside braces
                     if "\\\n" in content:
-                        from core.parsing.substitution import backslash_subst
+                        from compiler.parsing.substitution import backslash_subst
 
                         content = backslash_subst(content)
                     return content

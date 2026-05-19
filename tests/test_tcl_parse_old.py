@@ -20,9 +20,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.tokens import Token, TokenType
 from core.analysis import analyse
-from core.parsing.lexer import TclLexer, TclParseError
-from core.parsing.tokens import Token, TokenType
 
 from .helpers import lex
 
@@ -520,7 +520,7 @@ class TestSyntaxErrors:
 
     def test_10_5_chars_after_quote(self):
         """parseOld-10.5: Characters after close-quote raises TclParseError in strict mode."""
-        from core.parsing.lexer import _thread_local as _lexer_tl
+        from compiler.parsing.lexer import _thread_local as _lexer_tl
 
         old = getattr(_lexer_tl, "strict_quoting", False)
         _lexer_tl.strict_quoting = True

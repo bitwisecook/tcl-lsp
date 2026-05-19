@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from ..cfg import CFGBlock, CFGBranch, CFGGoto, CFGReturn
 from ..expr_ast import (
     BinOp,

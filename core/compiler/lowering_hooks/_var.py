@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+from compiler.parsing.substitution import backslash_subst as _tcl_backsubst
 from shared.alias import CommandAliasMap
 from shared.alias import expr_alias_names as _expr_alias_names
 from shared.naming import normalise_var_name as _normalise_var_name
 
-from ...parsing.substitution import backslash_subst as _tcl_backsubst
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -34,7 +34,7 @@ class _LowererLike(Protocol):
 
 def _parse_expr(expr_text: str):  # noqa: ANN202
     """Parse an expr argument lazily (avoids circular import at module level)."""
-    from ...parsing.expr_parser import parse_expr as _std_parse_expr
+    from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
 
     return _std_parse_expr(expr_text)
 
@@ -45,14 +45,14 @@ def _expr_arg_from_expr_command(
     expr_aliases: frozenset[str] | None = None,
 ) -> str | None:
     """Extract the expr argument from a [expr {...}] command substitution."""
-    from ...parsing.command_shapes import extract_single_expr_argument
+    from compiler.parsing.command_shapes import extract_single_expr_argument
 
     return extract_single_expr_argument(text, expr_aliases=expr_aliases)
 
 
 def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``set`` to IRAssignConst/IRAssignExpr/IRAssignValue."""
-    from ...parsing.tokens import TokenType
+    from compiler.parsing.tokens import TokenType
 
     args = cmd.args
     arg_tokens = cmd.arg_tokens
