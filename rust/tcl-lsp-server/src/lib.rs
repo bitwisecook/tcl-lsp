@@ -358,16 +358,19 @@ impl Backend {
         let mut best: Option<(usize, &str)> = None;
         let target = uri.as_str();
         for (folder, dialect) in folders.iter() {
-            let prefix = folder.as_str();
-            if !target.starts_with(prefix) {
+            if !uri_under_folder(target, folder.as_str()) {
                 continue;
             }
+            // Track the longest-prefix match so nested folder
+            // mappings (`file:///workspace/irules/` inside
+            // `file:///workspace/`) shadow their parents.
+            let len = folder.as_str().len();
             let take = match best {
-                Some((len, _)) => prefix.len() > len,
+                Some((existing, _)) => len > existing,
                 None => true,
             };
             if take {
-                best = Some((prefix.len(), dialect));
+                best = Some((len, dialect));
             }
         }
         best.map(|(_, d)| d.to_owned())
@@ -719,6 +722,13 @@ impl LanguageServer for Backend {
         // returns a fresh full result instead of an empty edit
         // list against an outdated baseline.
         self.semantic_tokens_cache.lock().await.remove(&uri);
+        // Evict the stale `AnalysisResult` so any request that
+        // arrives before `publish_analyser_diagnostics` finishes
+        // re-running the analyser falls through to a fresh
+        // run via `analysis_for` rather than serving pre-edit
+        // results (PR #454 Codex review P1).  `publish_*` will
+        // reinsert the fresh entry when it completes.
+        self.analyses.lock().await.remove(&uri);
         self.publish_analyser_diagnostics(uri, text, dialect).await;
     }
 
@@ -1972,6 +1982,30 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
     ))
 }
 
+/// `true` when `uri` sits under the workspace folder `folder`.
+///
+/// Performs the directory-boundary check the prefix-only
+/// `target.starts_with(folder)` form gets wrong — without
+/// the boundary check `file:///workspace/app` would also
+/// match `file:///workspace/app2/...` (PR #454 Codex review P2).
+/// The match succeeds when:
+///
+/// * `uri == folder`, OR
+/// * `uri == folder` with the folder's trailing slash trimmed, OR
+/// * `uri` starts with `folder + "/"`.
+fn uri_under_folder(uri: &str, folder: &str) -> bool {
+    let folder_trimmed = folder.trim_end_matches('/');
+    if uri == folder_trimmed || uri == folder {
+        return true;
+    }
+    // The boundary check: the byte immediately after the
+    // folder prefix in `uri` must be `/`.  Compare against the
+    // trimmed form so a trailing slash on `folder` doesn't
+    // change the behaviour.
+    let needle = format!("{folder_trimmed}/");
+    uri.starts_with(&needle)
+}
+
 /// Return a fresh `result_id` for a semantic-tokens response.
 /// Monotonically increasing via an atomic counter so each
 /// snapshot we hand out is uniquely identifiable, letting
@@ -2335,6 +2369,61 @@ mod tests {
         );
         let unrelated = Url::parse("file:///elsewhere/x.tcl").unwrap();
         assert_eq!(backend.resolve_folder_dialect(&unrelated).await, None);
+    }
+
+    #[tokio::test]
+    async fn resolve_folder_dialect_respects_directory_boundary() {
+        // Regression for PR #454 Codex review P2: a prefix-only
+        // match would incorrectly select `file:///workspace/app`'s
+        // dialect for a document inside `file:///workspace/app2/`.
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![
+            (
+                Url::parse("file:///workspace/app").unwrap(),
+                "f5-irules".to_owned(),
+            ),
+            (
+                Url::parse("file:///workspace/app2/").unwrap(),
+                "tcl9.0".to_owned(),
+            ),
+        ];
+        let sibling = Url::parse("file:///workspace/app2/main.tcl").unwrap();
+        assert_eq!(
+            backend.resolve_folder_dialect(&sibling).await,
+            Some("tcl9.0".to_owned()),
+            "sibling folder must not inherit prefix-matched dialect",
+        );
+        let inside_app = Url::parse("file:///workspace/app/inner.tcl").unwrap();
+        assert_eq!(
+            backend.resolve_folder_dialect(&inside_app).await,
+            Some("f5-irules".to_owned()),
+        );
+    }
+
+    #[test]
+    fn uri_under_folder_handles_trailing_slash_and_boundary() {
+        assert!(uri_under_folder(
+            "file:///ws/app/file.tcl",
+            "file:///ws/app/",
+        ));
+        assert!(uri_under_folder(
+            "file:///ws/app/file.tcl",
+            "file:///ws/app",
+        ));
+        // The folder itself counts as a match.
+        assert!(uri_under_folder(
+            "file:///ws/app",
+            "file:///ws/app/",
+        ));
+        // A sibling folder does not.
+        assert!(!uri_under_folder(
+            "file:///ws/app2/file.tcl",
+            "file:///ws/app",
+        ));
+        assert!(!uri_under_folder(
+            "file:///ws/app2/file.tcl",
+            "file:///ws/app/",
+        ));
     }
 
     #[test]

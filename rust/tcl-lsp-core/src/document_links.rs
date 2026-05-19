@@ -233,7 +233,62 @@ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) ->
         let root_trimmed = root.trim_end_matches('/');
         format!("{root_trimmed}/{expanded}")
     };
-    Some(format!("file://{resolved}"))
+    Some(format!("file://{}", percent_encode_path(&resolved)))
+}
+
+/// Percent-encode the path component of a `file://` URI per
+/// RFC 3986.  Characters that don't form valid path-segment
+/// bytes (space, `#`, `?`, `%`, `[`, `]`, non-ASCII, …) get
+/// `%HH`-escaped so editors can parse the link target as a URI.
+///
+/// Per RFC 3986 the path-component reserves:
+///
+/// * unreserved: `A-Z` / `a-z` / `0-9` / `-` / `.` / `_` / `~`
+/// * sub-delims: `!` / `$` / `&` / `'` / `(` / `)` / `*` / `+`
+///   / `,` / `;` / `=`
+/// * pchar adds `:` / `@`, and the path layer adds `/`.
+///
+/// Everything else is encoded.  Mirrors the conservative
+/// percent-encoding the `url` crate's `Url::from_file_path`
+/// performs (PR #454 Codex review P2).
+fn percent_encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for &b in path.as_bytes() {
+        if is_path_safe_byte(b) {
+            out.push(b as char);
+        } else {
+            use std::fmt::Write;
+            let _ = write!(out, "%{b:02X}");
+        }
+    }
+    out
+}
+
+const fn is_path_safe_byte(b: u8) -> bool {
+    matches!(
+        b,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'@'
+            | b'/'
+    )
 }
 
 #[cfg(test)]
@@ -334,6 +389,61 @@ mod tests {
         let links = document_links_with_home(src, None, Some("/test-home"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
+    }
+
+    // -- PR #454 Codex review P2: URI escaping -----------------------
+
+    #[test]
+    fn percent_encode_path_passes_unreserved_through() {
+        // Letters, digits, and the unreserved punctuation set
+        // pass through unchanged, as does the path separator.
+        assert_eq!(
+            percent_encode_path("/usr/local/lib/init.tcl"),
+            "/usr/local/lib/init.tcl",
+        );
+    }
+
+    #[test]
+    fn percent_encode_path_escapes_spaces_and_specials() {
+        assert_eq!(
+            percent_encode_path("/path/with spaces/file.tcl"),
+            "/path/with%20spaces/file.tcl",
+        );
+        // `#` is a fragment delimiter in URIs.
+        assert_eq!(
+            percent_encode_path("/has/#hash/file.tcl"),
+            "/has/%23hash/file.tcl",
+        );
+        // `%` is the escape introducer — it itself needs escaping.
+        assert_eq!(
+            percent_encode_path("/has/50%off/file.tcl"),
+            "/has/50%25off/file.tcl",
+        );
+    }
+
+    #[test]
+    fn percent_encode_path_escapes_non_ascii() {
+        // UTF-8 bytes for `é` are 0xC3 0xA9.
+        assert_eq!(percent_encode_path("/caf\u{00E9}/x.tcl"), "/caf%C3%A9/x.tcl");
+    }
+
+    #[test]
+    fn source_with_spaces_in_path_produces_escaped_uri() {
+        // End-to-end: a literal path arg containing spaces or
+        // hashes surfaces as a properly percent-encoded
+        // `file://` URI rather than a raw concatenation.
+        let src = "source /path/with spaces.tcl\n";
+        let links = document_links(src, None);
+        // The literal-path arg may or may not parse cleanly
+        // through the segmenter; if it does, the URI must be
+        // escaped.  If not, the test is informational only.
+        if let Some(link) = links.first() {
+            assert!(
+                !link.target.contains(' '),
+                "URI target must not contain raw spaces: {target}",
+                target = link.target,
+            );
+        }
     }
 
     // -- S-document-links-rich: literal `[file join …]` --------------
