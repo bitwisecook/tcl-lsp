@@ -1031,7 +1031,7 @@ to the chunk-log entry that has the full spec.
 | 1 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241.  Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
 | 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question.  Status sibling of the postpass row: the override the chunk was supposed to flip is gone since #241; the work closes with `S*`. |
 | — | `C44-irules-flow` | Landed via PR #389 — all nine codes (IRULE1005 / 1006 / 1007 / 1008 / 1201 / 1202 / 3102 / 4004 / 5002 / 5004) have working Rust emitters in `irules_checks.rs`.  Two targeted follow-ups remain (path-sensitive coverage on IRULE1201 / 1202; branch-aware reassign tracking on IRULE4004) — see chunk-log row. |
-| 3 | `C43` (residual: per-form runtime dispatch migration) | **Partial landed via PR #389 + follow-up sub-commits** — `_barrier_gate.py` ported as `body_has_dynamic_barrier`; all 14 structured-command `LoweringHookId` variants (`Proc`, `When`, `NamespaceEval`, `If`, `Switch`, `For`, `While`, `Foreach`, `Lmap`, `Catch`, `Try`, `Dict`, `Eval`, `Uplevel`) stamped on every relevant `CommandSpec`; `Lowerer::try_dispatch_structured_hook` routes calls through `resolve_call().lowering_hook` for migrated forms.  **Migrated forms (8 / 14):** `eval`, `uplevel` (sub-strip 1, first-form pilot); `if`, `switch`, `for`, `while`, `catch`, `try` (sub-strip 2, straightforward single-method dispatch).  **Remaining (6):** `proc` (arity precondition), `when` (iRules dialect load-path blocker), `namespace eval` (subcommand match + arity), `foreach` / `lmap` (shared `lower_foreach(is_lmap)` method), `foreachLine` (`fileutil::foreachLine` name mismatch + tcllib load-path blocker), `dict` (non-empty args precondition).  The `when` / `foreachLine` migrations are blocked on unifying the registry-load path across test and production harnesses. |
+| 3 | `C43` (residual: dialect-load-path unification gates the last two forms) | **Largely landed via PR #389 + 3 follow-up sub-strips** — `_barrier_gate.py` ported as `body_has_dynamic_barrier`; all 14 structured-command `LoweringHookId` variants (`Proc`, `When`, `NamespaceEval`, `If`, `Switch`, `For`, `While`, `Foreach`, `Lmap`, `Catch`, `Try`, `Dict`, `Eval`, `Uplevel`) stamped on every relevant `CommandSpec`; `Lowerer::try_dispatch_structured_hook` routes calls through `resolve_call().lowering_hook`.  **Migrated forms (12 / 14):** `eval`, `uplevel` (sub-strip 1); `if`, `switch`, `for`, `while`, `catch`, `try` (sub-strip 2); `proc`, `namespace eval`, `foreach`, `lmap`, `dict` (sub-strip 3, preconditions inside the match arm).  **Remaining (2):** `when` (iRules dialect) and `foreachLine` (`fileutil::foreachLine` tcllib) — registered only when their dialect loaders run, and `build_default()` doesn't invoke either, so routing them through `resolve_call` would silently regress to `lower_default` under test harnesses.  Their migration is gated on unifying the dialect-load path across test and production callers (a follow-up strip that promotes the iRules / tcllib loaders into `build_default()` or makes `lower_command` aware of dialect activation). |
 | 4 | clippy-cleanup Chunk D (`too_many_lines`) | After waves 1–7 (PR #380 first wave + PR #389 waves 2–6 + wave 7 retiring `Lowerer::lower_proc`) the running total is **14 of 27 fn-level allows retired** plus 2 stale file-level allows permanently removed — **the 50% milestone is met**.  13 fn-level allows remain — mostly codegen emitters (`codegen::expressions` / `format` / `mod` / `statements` / `values` / `cmd_subst` / `control_flow` / `emitter::generate`), optimiser passes (`gvn::find_redundancies`, `sccp::run_sccp_pass`, `interprocedural::propagate_summaries`, `optimiser::elimination`), and large registry-list functions (`stdlib_command_specs` / `tcllib_command_specs` / `irules_command_specs`).  These remaining cases are genuinely complex match dispatchers where extracting arms loses register-allocation context — lower priority. |
 | — | `SYNC-MAY19-option-dialects` | Landed 2026-05-19 — `OptionSpec.dialects` field + `supports_dialect` method; `SubCommand::destructive` field removed. |
 | — | `SYNC-MAY19-W003-W004` | Landed 2026-05-19 — emitters in `rust/tcl-compiler/src/analyser/diagnostics.rs`, wired into `commands.rs` alongside W110 / W304. |
@@ -1068,16 +1068,20 @@ the priority queue:
   notes the work closes with the `S*` LSP-server port.  No direct
   work is pending today; the rows persist as the audit trail for
   the post-#241 dispatch removal.
-* **Priority 3** (`C43` residual — runtime dispatch migration)
-  — sub-strips 1 + 2 landed: `eval`, `uplevel`, `if`, `switch`,
-  `for`, `while`, `catch`, `try` (8 / 14) now route through
+* **Priority 3** (`C43` residual — dialect-load-path
+  unification) — sub-strips 1 + 2 + 3 landed: 12 of 14
+  structured forms now route through
   `Lowerer::try_dispatch_structured_hook` calling
-  `resolve_call().lowering_hook`.  Remaining structured forms
-  (`proc`, `when`, `namespace eval`, `foreach`, `lmap`,
-  `foreachLine`, `dict`) migrate as their own sub-commits.
-  The `when` / `foreachLine` migrations are gated on unifying
-  the registry-load path across test and production harnesses
-  (iRules / tcllib dialects not loaded under `build_default()`).
+  `resolve_call().lowering_hook` (`eval`, `uplevel`, `if`,
+  `switch`, `for`, `while`, `catch`, `try`, `proc`,
+  `namespace eval`, `foreach`, `lmap`, `dict`).  The residual
+  `match cmd_name` block now holds only `when` and
+  `foreachLine` — both gated on unifying the dialect-load
+  path across test and production harnesses, since iRules /
+  tcllib loaders aren't invoked under `build_default()` and
+  routing them through `resolve_call` would silently regress
+  to `lower_default`.  The follow-up is a load-path strip
+  rather than another per-form migration.
 * **Priority 4** (clippy Chunk D, `too_many_lines`) — mechanical
   hygiene continuing the cleanup from PRs #340 / #342 / #350 /
   #380 / #389 plus wave 7 (`Lowerer::lower_proc` split).
