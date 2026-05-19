@@ -214,6 +214,17 @@ pub var frame_ns: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 // than the intervening parent frame (interp-20.35 .. 20.44).
 pub var frame_interp: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 
+// Sticky flag — set whenever :fn:`frame_push` records a frame
+// whose interp differs from the previously-seen interp anywhere
+// in the live stack window.  When this flag is ``false`` the
+// upvar walker can take the arithmetic fast path without scanning
+// every slot below the current frame.  Set conservatively (never
+// cleared) — once the run has seen any cross-interp dispatch, the
+// scan-on-walk overhead is paid for the duration of the program.
+// Tests that never cross interps (the bulk of the corpus) pay
+// only one extra branch per ``frame_push``.
+pub var any_cross_interp_frame: bool = false;
+
 // Per-frame "is global invocation" flag.  Set by ``interp
 // invokehidden -global`` before pushing the hidden command's
 // frame so an ``upvar`` from within that frame resolves to
@@ -539,7 +550,16 @@ pub export fn frame_push() i32 {
     // ``upvar`` walk can skip foreign frames sandwiched into the
     // global stack by alias / invokehidden trampolines.
     const interp_reg = @import("tcl_interp_registry.zig");
-    frame_interp[idx] = interp_reg.interp_current();
+    const me = interp_reg.interp_current();
+    frame_interp[idx] = me;
+    // Latch the sticky cross-interp flag the moment a slot below
+    // us belongs to a different interp.  This lets the
+    // ``upvar_walk_*`` fast path skip the per-call scan in the
+    // common (single-interp) run.
+    if (!any_cross_interp_frame and idx > 0) {
+        const prev = frame_interp[idx - 1];
+        if (prev != 0 and prev != me) any_cross_interp_frame = true;
+    }
     // Honour any pending ``interp invokehidden -global`` marker
     // set by the caller; the flag is one-shot (cleared after the
     // first push so nested calls inside the hidden body don't
@@ -553,15 +573,6 @@ pub export fn frame_push() i32 {
     }
     frame_depth += 1;
     return @intCast(idx);
-}
-
-/// Mark the current top frame as a global-anchored invocation
-/// (``interp invokehidden -global``), so an ``upvar`` from
-/// within its body resolves to ``#0`` rather than chasing the
-/// stacked caller chain.  Idempotent at frame_depth==0.
-pub export fn frame_mark_global_invocation() void {
-    if (frame_depth == 0) return;
-    frame_is_global[frame_depth - 1] = true;
 }
 
 /// Grow the frame at *base* to double its current bucket capacity
@@ -2186,12 +2197,16 @@ fn upvar_walk_same_interp(cur_depth: i32, rel: i32) i32 {
     // global-anchored invocation — any ``upvar`` from within
     // resolves to ``#0`` (global scope) regardless of ``rel``.
     if (frame_is_global[@intCast(cur_depth - 1)]) return 0;
+    // Fast path: the run has never observed a cross-interp frame
+    // dispatch, so every live frame belongs to the same interp.
+    // The relative walk collapses to ``cur_depth - rel`` with no
+    // per-slot scan.  Bulk of the test corpus stays on this path.
+    if (!any_cross_interp_frame) return cur_depth - rel;
     const interp_reg = @import("tcl_interp_registry.zig");
     const me = interp_reg.interp_current();
-    // Common case: single-interp run.  When every frame slot below
-    // is tagged with ``me`` (or 0, meaning untagged-top-level), the
-    // walk reduces to arithmetic.  Bail out into the slow path only
-    // when we actually detect a foreign frame in the relevant span.
+    // Slow path: scan the live stack window for a foreign frame.
+    // If none surfaces (the latch was set by a now-popped frame),
+    // fall back to plain arithmetic.
     var probe_idx: i32 = cur_depth - 1;
     var any_foreign = false;
     while (probe_idx >= 0) : (probe_idx -= 1) {
