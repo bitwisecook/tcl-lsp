@@ -484,6 +484,52 @@ mod tests {
     }
 
     #[test]
+    fn tcl9_commands_from_pr_433_are_registered() {
+        // SYNC-MAY19-tcl9-commands: mirrors PR #433 (0f9288d2).
+        let reg = CommandRegistry::build_default();
+        for name in [
+            "foreachLine",
+            "readFile",
+            "writeFile",
+            "lpop",
+            "const",
+            "tcl::idna",
+            "::tcl::idna",
+            "tcl::process",
+            "::tcl::process",
+        ] {
+            assert!(
+                reg.get(name).is_some(),
+                "{name} not registered after SYNC-MAY19-tcl9-commands",
+            );
+        }
+    }
+
+    #[test]
+    fn coroinject_coroprobe_registered() {
+        // Python PR #433 also fixed the missing import that made
+        // these two commands invisible to the LSP.  Rust always
+        // registered them — verify they remain registered.
+        let reg = CommandRegistry::build_default();
+        assert!(reg.get("coroinject").is_some());
+        assert!(reg.get("coroprobe").is_some());
+    }
+
+    #[test]
+    fn tcl9_commands_gated_to_tcl90() {
+        use crate::dialects::DialectSet;
+        let reg = CommandRegistry::build_default();
+        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
+            let spec = reg.get(name).expect("registered");
+            assert_eq!(
+                spec.dialects,
+                Some(DialectSet::TCL90),
+                "{name} should be Tcl 9.0-only",
+            );
+        }
+    }
+
+    #[test]
     fn lookup_for_command() {
         let reg = CommandRegistry::build_default();
         let spec = reg.get("for").unwrap();
