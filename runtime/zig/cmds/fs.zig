@@ -167,13 +167,14 @@ fn list_concat(a: i32, b: i32) i32 {
     if (sb.len == 0) return a;
     const total: u32 = sa.len + 1 + sb.len;
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     const out: [*]u8 = @ptrFromInt(buf);
     const ap: [*]const u8 = @ptrFromInt(sa.ptr);
     const bp: [*]const u8 = @ptrFromInt(sb.ptr);
     for (0..sa.len) |i| out[i] = ap[i];
     out[sa.len] = ' ';
     for (0..sb.len) |i| out[sa.len + 1 + i] = bp[i];
-    return obj.obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 pub const registrations = [_]reg.CmdEntry{
