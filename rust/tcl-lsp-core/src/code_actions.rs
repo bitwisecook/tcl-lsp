@@ -7,6 +7,13 @@
 //! as the title and a single-edit `WorkspaceEdit` carrying
 //! the fix's `(span, new_text)`.
 //!
+//! What landed:
+//!
+//! * Catch-result-variable actions — when the analyser emits
+//!   W302 (`catch` without result variable), the provider
+//!   offers two quick-fixes that splice a trailing ` result`
+//!   or ` result opts` after the body's closing brace.
+//!
 //! What is *deferred*:
 //!
 //! * Package-suggestion actions (`Add 'package require ...'`)
@@ -15,10 +22,6 @@
 //!   when an unresolved call matches.  Needs a stub-aware
 //!   catalogue lookup (lands alongside
 //!   `S-package-suggestions-rich`).
-//! * Catch-result-variable actions — Python emits "wrap with
-//!   catch" / "add result variable" actions for `catch
-//!   {body}` shapes; needs the same body-walk machinery used
-//!   by the diagnostic emitters.
 //! * Cross-document refactors (move to file, split namespace)
 //!   — lands alongside the workspace-index integration.
 
@@ -65,6 +68,34 @@ pub fn code_actions(
         };
         if !ranges_overlap(diag_range, range) {
             continue;
+        }
+        // `S-code-actions-rich`: surface synthetic
+        // catch-result-variable actions for W302 diagnostics
+        // even when the analyser didn't attach a `CodeFix`.
+        // Two actions: append ` result` (capture the result)
+        // or ` result opts` (capture result + options).  The
+        // diagnostic's span end sits past the body's closing
+        // `}`, so the insertion point is exactly the diag-end
+        // position.
+        if diag.code == "W302" {
+            let insertion = LspRange {
+                start_line: diag_end.line,
+                start_character: diag_end.character,
+                end_line: diag_end.line,
+                end_character: diag_end.character,
+            };
+            for (title, suffix) in [
+                ("Add catch result variable", " result"),
+                ("Add catch result + options variables", " result opts"),
+            ] {
+                actions.push(CodeAction {
+                    title: title.to_string(),
+                    edits: vec![crate::rename::TextEdit {
+                        range: insertion,
+                        new_text: suffix.to_string(),
+                    }],
+                });
+            }
         }
         for fix in &diag.fixes {
             let fix_start = line_index.position_at(fix.span.start());
@@ -237,5 +268,51 @@ mod tests {
         assert_eq!(actions.len(), 2);
         let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
         assert!(titles.contains(&"A") && titles.contains(&"B"));
+    }
+
+    // -- S-code-actions-rich: catch-result-variable actions ----------
+
+    #[test]
+    fn w302_emits_catch_result_variable_actions() {
+        // The real analyser emits W302 for `catch {body}` with
+        // no result variable.  The provider should surface two
+        // synthetic actions appending ` result` / ` result opts`.
+        let src = "catch { puts hi }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // Sanity-check the analyser actually emitted W302.
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == "W302"),
+            "expected W302 from {:?}",
+            analysis.diagnostics,
+        );
+        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
+        assert!(
+            titles.contains(&"Add catch result variable"),
+            "{titles:?}",
+        );
+        assert!(
+            titles.contains(&"Add catch result + options variables"),
+            "{titles:?}",
+        );
+        // Verify the insertion text shapes.
+        let result_act = actions
+            .iter()
+            .find(|a| a.title == "Add catch result variable")
+            .unwrap();
+        assert_eq!(result_act.edits[0].new_text, " result");
+        let opts_act = actions
+            .iter()
+            .find(|a| a.title == "Add catch result + options variables")
+            .unwrap();
+        assert_eq!(opts_act.edits[0].new_text, " result opts");
+        // Both insertions land at the same position (a zero-
+        // width range immediately after the body's closing `}`).
+        for act in [result_act, opts_act] {
+            let r = act.edits[0].range;
+            assert_eq!(r.start_line, r.end_line);
+            assert_eq!(r.start_character, r.end_character);
+        }
     }
 }
