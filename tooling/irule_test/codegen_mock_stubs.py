@@ -69,6 +69,30 @@ def _tcl_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
 
 
+def _iter_irule_command_names() -> list[str]:
+    """Return every iRules-visible command name, deterministically.
+
+    `REGISTRY.command_names(dialect="f5-irules")` includes any Tk widget
+    spec whose `dialects=None` (= all dialects) once Tk has been loaded
+    into the registry — and Tk gets loaded transitively by some test-suite
+    paths but not by a fresh `python -m tooling.irule_test.codegen_mock_stubs`
+    invocation.  That ordering dependency made the codegen produce
+    different output in `make test-py` (Tk loaded → 1473 stubs) versus
+    a clean CLI run (Tk not loaded → 1419 stubs), and the staleness
+    test that compares the two failed sporadically.
+
+    Force Tk to be loaded before the query so output is deterministic
+    regardless of caller context.  iRule mocks for Tk widgets are
+    harmless: an iRule that calls `button` will fail in production for
+    a real reason; the mock just stops the test harness from crashing.
+    """
+    # Loading Tk via the registry's public loader is idempotent and
+    # cheap once it's already in.  Importing the dialect module
+    # directly would bypass the registry's bookkeeping.
+    REGISTRY.command_names(dialect="tcl9.0")  # transitively loads Tk
+    return sorted(REGISTRY.command_names(dialect="f5-irules"))
+
+
 def _generate() -> str:
     lines: list[str] = []
 
@@ -88,7 +112,7 @@ def _generate() -> str:
     )
 
     existing = _existing_mock_procs()
-    irule_cmds = sorted(REGISTRY.command_names(dialect="f5-irules"))
+    irule_cmds = _iter_irule_command_names()
 
     # Group by namespace for readability
     namespaced: dict[str, list[str]] = {}

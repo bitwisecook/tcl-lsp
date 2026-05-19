@@ -396,7 +396,8 @@ async function resolvePython(configured: string): Promise<PythonInfo | undefined
 
 function hasServerBundle(dir: string): boolean {
   return (
-    existsSync(path.join(dir, "lsp", "__main__.py")) && existsSync(path.join(dir, "pyproject.toml"))
+    existsSync(path.join(dir, "server", "__main__.py")) &&
+    existsSync(path.join(dir, "pyproject.toml"))
   );
 }
 
@@ -498,7 +499,7 @@ export async function activate(context: ExtensionContext) {
     ch.appendLine(`Dev mode: using uv in ${serverDir}`);
     serverOptions = {
       command: "uv",
-      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "lsp"],
+      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
       options: { cwd: serverDir },
     };
   } else {

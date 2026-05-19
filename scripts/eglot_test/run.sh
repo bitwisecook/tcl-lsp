@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Headless eglot reproducer for tcl-lsp issue #333.
 #
-# Drives a real eglot 1.23 (GNU ELPA) against `uv run python -m lsp` and
+# Drives a real eglot 1.23 (GNU ELPA) against `uv run python -m server` and
 # diffs eglot's `face` text-properties between (a) an in-buffer edit
 # sequence with delta semantic-token updates and (b) a fresh didOpen of
 # the same final content.  Mismatches reproduce the bug.

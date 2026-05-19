@@ -148,17 +148,20 @@ class _LspLogHandler(logging.Handler):
 
 
 def _install_lsp_log_handler() -> None:
-    """Attach the LSP handler to our own loggers (not the root logger).
+    """Attach the LSP handler to our own concern loggers (not the root logger).
 
     Attaching to the root logger caused a feedback loop: every pygls
     internal debug message triggered another ``window/logMessage`` send
-    which logged again.  Instead we attach only to the ``lsp`` and
-    ``core`` loggers that carry our application messages.
+    which logged again.  Instead we attach only to the seven Python
+    concern packages that carry our application messages.  Each
+    package's modules log via ``logging.getLogger(__name__)``, so e.g.
+    ``server.async_diagnostics`` is a child of the ``server`` logger
+    and inherits the handler.
     """
     handler = _LspLogHandler()
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
-    for name in ("lsp", "core"):
+    for name in ("server", "compiler", "analyser", "dialects", "tooling", "ai", "shared"):
         lgr = logging.getLogger(name)
         lgr.addHandler(handler)
         # Ensure messages at DEBUG and above reach the handler.

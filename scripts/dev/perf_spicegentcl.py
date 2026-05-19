@@ -52,7 +52,7 @@ REPO_URL = "https://github.com/georgtree/SpiceGenTcl.git"
 
 LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
 
-# All versions use ``python -m lsp`` (the __main__.py docstring in early
+# All versions use ``python -m server`` (the __main__.py docstring in early
 # versions misleadingly says ``python -m server``, but the package is ``lsp``).
 
 # ---------------------------------------------------------------------------

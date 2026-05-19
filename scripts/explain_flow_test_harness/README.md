@@ -248,7 +248,7 @@ correlate timestamps with the BIG-IP capture.
 ### 5. Feed everything to `f5 explain-flow`
 
 ```bash
-python -m explorer.f5_cli explain-flow \
+python -m tooling.f5.main explain-flow \
     --tshark \
     --keylog ./keys.log \
     --simulate \

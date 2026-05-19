@@ -1,7 +1,7 @@
 ;; -*- lexical-binding: t -*-
 ;;; test_issue333.el — headless eglot reproduction harness for issue #333
 ;;
-;; Drives eglot 1.23 (GNU ELPA) against `uv run python -m lsp` from a
+;; Drives eglot 1.23 (GNU ELPA) against `uv run python -m server` from a
 ;; batch Emacs.  For each defined SCENARIO:
 ;;   1. open a Tcl file
 ;;   2. make a series of edits (each triggers didChange, possibly without
@@ -42,7 +42,7 @@
 
 (setq eglot-server-programs
       `((tcl-mode . ("uv" "run" "--directory" ,t333-repo
-                     "--no-dev" "python" "-m" "lsp"))))
+                     "--no-dev" "python" "-m" "server"))))
 
 
 ;;; -----------------------------------------------------------------------

@@ -42,7 +42,7 @@ ssh-key for non-interactive use).
 
 Requires: openssl, ssh, scp, curl on the local machine; tmsh + tcpdump
 on the BIG-IP.  ``f5 explain-flow`` is invoked as
-``python -m explorer.f5_cli explain-flow`` from the repo root if
+``python -m tooling.f5.main explain-flow`` from the repo root if
 present, otherwise skipped with a warning.
 """
 
