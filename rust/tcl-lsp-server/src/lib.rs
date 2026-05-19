@@ -1717,6 +1717,7 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
         detail: item.detail,
+        sort_text: item.sort_text,
         ..CompletionItem::default()
     }
 }

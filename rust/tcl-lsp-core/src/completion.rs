@@ -73,6 +73,12 @@ pub struct CompletionItem {
     /// summary for procs / a synopsis line for built-in
     /// commands.  `None` for items without extra detail.
     pub detail: Option<String>,
+    /// Optional sort key.  When `Some`, the editor uses this
+    /// string instead of the label for ordering completion
+    /// results.  `S-completion-rich`'s usage-bucket scheme:
+    /// `A<tier><usage>_<name>` for user procs, `B<usage>_<name>`
+    /// for built-in commands.  Lower buckets sort first.
+    pub sort_text: Option<String>,
 }
 
 /// Compute completions for a position in `source`.
@@ -139,9 +145,10 @@ pub fn completions(
         }
     }
 
-    let mut items = proc_completions(analysis, &partial);
+    let usage = document_usage_counts(analysis);
+    let mut items = proc_completions(analysis, &partial, &usage);
     if let Some(registry) = registry {
-        items.extend(builtin_completions(registry, &partial));
+        items.extend(builtin_completions(registry, &partial, &usage));
     }
     items
 }
@@ -229,6 +236,7 @@ fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<Comp
             insert_text: name.to_owned(),
             kind: CompletionKind::Variable,
             detail: None,
+            sort_text: None,
         });
     }
     items
@@ -319,6 +327,7 @@ fn switch_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<Co
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
             detail: None,
+            sort_text: None,
         })
         .collect()
 }
@@ -338,6 +347,7 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
             detail: None,
+            sort_text: None,
         })
         .collect()
 }
@@ -349,7 +359,49 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
 /// `lsp/features/completion.py::426-428`.
 const SKIP_BUILTIN_NAMES: &[&str] = &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="];
 
-fn builtin_completions(registry: &CommandRegistry, partial: &str) -> Vec<CompletionItem> {
+/// Map a usage count to its sort bucket (lower is better).
+/// Mirrors `_usage_bucket` in `lsp/features/completion.py`.
+fn usage_bucket(count: usize) -> u8 {
+    match count {
+        c if c >= 50 => 0,
+        c if c >= 20 => 1,
+        c if c >= 8 => 2,
+        c if c >= 3 => 3,
+        c if c >= 1 => 4,
+        _ => 5,
+    }
+}
+
+/// Build a `HashMap<command_name, usage_count>` from the
+/// analyser's per-document `command_invocations`.  Used as a
+/// best-effort proxy for the Python provider's
+/// workspace-wide usage counts until a workspace index lands.
+fn document_usage_counts(analysis: &AnalysisResult) -> std::collections::HashMap<String, usize> {
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for inv in &analysis.command_invocations {
+        *counts.entry(inv.name.clone()).or_insert(0) += 1;
+        if let Some(q) = inv.resolved_qualified_name.as_deref() {
+            if q != inv.name {
+                *counts.entry(q.to_owned()).or_insert(0) += 1;
+            }
+        }
+    }
+    counts
+}
+
+fn builtin_sort_text(name: &str, usage: usize) -> String {
+    // `B<usage>_<name>` — built-ins sort after user procs (`A…`)
+    // but before any item with no `sort_text`.  The two-digit
+    // bucket prevents lexicographic confusion between 1 and 10.
+    let rank = usage_bucket(usage);
+    format!("B{rank:02}_{name}")
+}
+
+fn builtin_completions(
+    registry: &CommandRegistry,
+    partial: &str,
+    usage: &std::collections::HashMap<String, usize>,
+) -> Vec<CompletionItem> {
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
@@ -358,11 +410,15 @@ fn builtin_completions(registry: &CommandRegistry, partial: &str) -> Vec<Complet
     names.sort_unstable();
     names
         .into_iter()
-        .map(|name| CompletionItem {
-            label: name.to_owned(),
-            insert_text: name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: None,
+        .map(|name| {
+            let count = usage.get(name).copied().unwrap_or(0);
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: None,
+                sort_text: Some(builtin_sort_text(name, count)),
+            }
         })
         .collect()
 }
@@ -391,7 +447,20 @@ fn proc_signature_str(proc_def: &ProcDef) -> String {
         .join(" ")
 }
 
-fn proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionItem> {
+fn proc_sort_text(name: &str, usage: usize) -> String {
+    // `A<tier><usage>_<name>` — `tier = 0` reserved for
+    // single-document user procs (the current minimal port);
+    // `tier = 1` opens up once workspace-index lands and
+    // we differentiate same-file procs from workspace ones.
+    let rank = usage_bucket(usage);
+    format!("A0{rank:02}_{name}")
+}
+
+fn proc_completions(
+    analysis: &AnalysisResult,
+    partial: &str,
+    usage: &std::collections::HashMap<String, usize>,
+) -> Vec<CompletionItem> {
     let mut items = Vec::new();
     let mut names: Vec<(&str, &ProcDef)> = analysis
         .all_procs
@@ -408,11 +477,17 @@ fn proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionI
         .collect();
     names.sort_unstable_by_key(|(qname, _)| *qname);
     for (qname, proc_def) in names {
+        let count = usage
+            .get(proc_def.name.as_str())
+            .copied()
+            .max(usage.get(qname).copied())
+            .unwrap_or(0);
         items.push(CompletionItem {
             label: proc_def.name.clone(),
             insert_text: qname.to_owned(),
             kind: CompletionKind::Function,
             detail: Some(proc_signature_str(proc_def)),
+            sort_text: Some(proc_sort_text(&proc_def.name, count)),
         });
     }
     items
@@ -491,6 +566,57 @@ mod tests {
         assert_eq!(items.len(), 1, "{items:?}");
         assert_eq!(items[0].kind, CompletionKind::Function);
         assert_eq!(items[0].label, "greet");
+    }
+
+    // -- S-completion-rich: usage-bucket sort-text --------------------
+
+    #[test]
+    fn usage_bucket_buckets_per_python_thresholds() {
+        // Exhaustive bucket table parity with
+        // `lsp/features/completion.py::_usage_bucket`.
+        assert_eq!(usage_bucket(0), 5);
+        assert_eq!(usage_bucket(1), 4);
+        assert_eq!(usage_bucket(2), 4);
+        assert_eq!(usage_bucket(3), 3);
+        assert_eq!(usage_bucket(7), 3);
+        assert_eq!(usage_bucket(8), 2);
+        assert_eq!(usage_bucket(19), 2);
+        assert_eq!(usage_bucket(20), 1);
+        assert_eq!(usage_bucket(49), 1);
+        assert_eq!(usage_bucket(50), 0);
+        assert_eq!(usage_bucket(1000), 0);
+    }
+
+    #[test]
+    fn proc_sort_text_has_lower_bucket_for_used_procs() {
+        // Three calls to `greet` and zero calls to `shout`.
+        // The completion-list partial is empty (cursor on
+        // line 6 col 0), so both procs surface — `greet` in
+        // bucket 3 (≥3 calls) and `shout` in bucket 5 (no
+        // calls).
+        let src = "proc greet {} {}\nproc shout {} {}\ngreet\ngreet\ngreet\n\n";
+        let analysis = analyse(src);
+        let items = completions(src, 5, 0, &analysis, None);
+        let greet = items
+            .iter()
+            .find(|i| i.label == "greet")
+            .unwrap_or_else(|| panic!("greet missing from {items:?}"));
+        let greet_sort = greet.sort_text.as_deref().unwrap_or("");
+        assert!(
+            greet_sort.starts_with("A003_"),
+            "greet sort_text {greet_sort:?} should land in bucket 3",
+        );
+        let shout = items
+            .iter()
+            .find(|i| i.label == "shout")
+            .unwrap_or_else(|| panic!("shout missing from {items:?}"));
+        let shout_sort = shout.sort_text.as_deref().unwrap_or("");
+        assert!(
+            shout_sort.starts_with("A005_"),
+            "shout sort_text {shout_sort:?} should land in bucket 5",
+        );
+        // Lower bucket sorts first.
+        assert!(greet_sort < shout_sort);
     }
 
     #[test]
