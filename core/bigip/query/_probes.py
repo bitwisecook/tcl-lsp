@@ -39,6 +39,19 @@ PROBES_ENABLED: ContextVar[bool] = ContextVar("_bigip_query_probes_enabled", def
 # internal / self-signed CA.
 TLS_CA_BUNDLE: ContextVar[str | None] = ContextVar("_bigip_query_tls_ca_bundle", default=None)
 
+
+# NOTE: this module is the live network-probe layer for the ``f5 query``
+# DSL.  The ``url_*`` and ``tls_handshake`` builtins MUST accept whatever
+# legacy TLS versions the probed server still speaks — restricting them
+# to TLS 1.2+ would silently make audit queries unable to detect a
+# device pinned to TLSv1.0 / TLSv1.1, which is exactly the kind of
+# finding the probes exist to surface.  CodeQL flags
+# ``ssl.create_default_context`` / ``ssl.SSLContext`` here as
+# ``py/insecure-protocol``; the alerts are dismissed with this
+# justification.  Test / script harness servers in ``scripts/`` and
+# ``tests/`` *do* pin TLS 1.2+ — see their respective ``_harden_tls``
+# helpers.
+
 # Process-lifetime caches.
 _PING_CACHE: dict[str, dict[str, Any]] = {}
 _PORTPING_CACHE: dict[tuple[str, int, str], dict[str, Any]] = {}

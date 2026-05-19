@@ -73,7 +73,17 @@ const CHAT_SUBMIT_COMMANDS = [
   "interactive.acceptInput",
   "workbench.action.chat.send",
 ];
-const SCENE_SCRATCH_DIR = path.join(os.tmpdir(), "tcl-lsp-screenshot-scenes");
+// Allocated lazily on first call to ``getSceneScratchDir`` rather than
+// pinning a predictable path under ``os.tmpdir()``.  ``mkdtempSync``
+// gives us a fresh, attacker-unwritable directory per run, satisfying
+// CodeQL ``js/insecure-temporary-file``.
+let _sceneScratchDir: string | undefined;
+function getSceneScratchDir(): string {
+  if (_sceneScratchDir === undefined) {
+    _sceneScratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "tcl-lsp-screenshot-scenes-"));
+  }
+  return _sceneScratchDir;
+}
 const SAMPLE_CARET_MARKER_SUFFIX = "^--- cursor";
 const SAMPLE_LEFT_MARGIN_MARKER = /^(\s*)#\s*<<---\s*cursor on left margin\s*$/;
 const SAMPLE_ONE_IN_MARGIN_MARKER = /^(\s*)#\s*`---\s*cursor one in from left margin\s*$/;
@@ -549,9 +559,9 @@ async function openSplitScratchEditorsWithContent(
 ): Promise<{ left: vscode.TextEditor; right: vscode.TextEditor }> {
   await ensureTwoColumnEditorLayout();
 
-  fs.mkdirSync(SCENE_SCRATCH_DIR, { recursive: true });
-  const leftPath = path.join(SCENE_SCRATCH_DIR, leftFileName);
-  const rightPath = path.join(SCENE_SCRATCH_DIR, rightFileName);
+  const sceneDir = getSceneScratchDir();
+  const leftPath = path.join(sceneDir, leftFileName);
+  const rightPath = path.join(sceneDir, rightFileName);
   fs.writeFileSync(leftPath, leftContent, "utf8");
   fs.writeFileSync(rightPath, rightContent, "utf8");
 
@@ -585,8 +595,7 @@ async function openScratchEditor(
   viewColumn = vscode.ViewColumn.One,
 ): Promise<vscode.TextEditor> {
   await ensureSingleEditorLayout();
-  fs.mkdirSync(SCENE_SCRATCH_DIR, { recursive: true });
-  const filePath = path.join(SCENE_SCRATCH_DIR, fileName);
+  const filePath = path.join(getSceneScratchDir(), fileName);
   fs.writeFileSync(filePath, content, "utf8");
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
   return vscode.window.showTextDocument(doc, {

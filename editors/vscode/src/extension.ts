@@ -1,10 +1,13 @@
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
-  readFileSync,
+  mkdtempSync,
+  openSync,
+  readSync,
   realpathSync,
-  statSync,
-  unlinkSync,
+  rmSync,
   writeFileSync,
 } from "fs";
 import * as path from "path";
@@ -1761,12 +1764,17 @@ async function runRuntimeValidationForDocument(
   const dialect = detectDialectFromDocument(document);
   const adapter = resolveRuntimeValidationAdapter(adapterMode, dialect);
   const adapterLabel = runtimeValidationAdapterLabel(adapter);
-  const base = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-  const checkerPath = path.join(tmpdir(), `tcl-lsp-checker-${base}.tcl`);
+  // Per-invocation temp dir — replaces the previous shape where two
+  // sibling files lived directly in the shared OS temp dir under a
+  // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
+  // a fresh, attacker-unwriteable directory and lets us tear the whole
+  // thing down with a single ``rmSync`` (CodeQL
+  // ``js/insecure-temporary-file``).
+  const tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
+  const checkerPath = path.join(tmpDir, "checker.tcl");
   const checkerScript = buildRuntimeValidationChecker(adapter);
-
-  const targetPath = path.join(tmpdir(), `tcl-lsp-target-${base}.tcl`);
+  const targetPath = path.join(tmpDir, "target.tcl");
 
   try {
     writeFileSync(checkerPath, checkerScript, "utf8");
@@ -1793,12 +1801,7 @@ async function runRuntimeValidationForDocument(
     }
   } finally {
     try {
-      unlinkSync(checkerPath);
-    } catch {
-      // ignore cleanup errors
-    }
-    try {
-      unlinkSync(targetPath);
+      rmSync(tmpDir, { recursive: true, force: true });
     } catch {
       // ignore cleanup errors
     }
@@ -1934,31 +1937,58 @@ async function base64DecodeSelection(): Promise<void> {
 
 const MAX_FILE_BYTES = 8192;
 
-async function copyFileAsBase64(uri: vscode.Uri): Promise<void> {
-  const fsPath = uri.fsPath;
-  const size = statSync(fsPath).size;
-  if (size > MAX_FILE_BYTES) {
-    window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
-    return;
+/**
+ * Read up to ``MAX_FILE_BYTES`` from ``fsPath`` via an open fd so the
+ * size check and the read both observe the *same* inode.  A raw
+ * ``statSync`` → ``readFileSync`` pair is a TOCTOU window (CodeQL
+ * ``js/file-system-race``): an attacker who controls the path could
+ * swap a small placeholder for a huge file between the two calls and
+ * defeat the limit.
+ *
+ * Returns ``undefined`` when the file exceeds the cap (caller surfaces
+ * a warning to the user).
+ */
+function readCappedSync(fsPath: string): Buffer | undefined {
+  const fd = openSync(fsPath, "r");
+  try {
+    const size = fstatSync(fd).size;
+    if (size > MAX_FILE_BYTES) {
+      window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
+      return undefined;
+    }
+    const buf = Buffer.allocUnsafe(size);
+    let read = 0;
+    while (read < size) {
+      const n = readSync(fd, buf, read, size - read, read);
+      if (n === 0) break;
+      read += n;
+    }
+    return buf.subarray(0, read);
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      // ignore close errors
+    }
   }
-  const encoded = readFileSync(fsPath).toString("base64");
+}
+
+async function copyFileAsBase64(uri: vscode.Uri): Promise<void> {
+  const raw = readCappedSync(uri.fsPath);
+  if (raw === undefined) return;
+  const encoded = raw.toString("base64");
   await vscode.env.clipboard.writeText(encoded);
-  window.showInformationMessage(`Copied ${size} bytes as base64 (${encoded.length} chars).`);
+  window.showInformationMessage(`Copied ${raw.length} bytes as base64 (${encoded.length} chars).`);
 }
 
 async function copyFileAsGzipBase64(uri: vscode.Uri): Promise<void> {
-  const fsPath = uri.fsPath;
-  const size = statSync(fsPath).size;
-  if (size > MAX_FILE_BYTES) {
-    window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
-    return;
-  }
-  const raw = readFileSync(fsPath);
+  const raw = readCappedSync(uri.fsPath);
+  if (raw === undefined) return;
   const compressed = gzipSync(raw, { level: 9 });
   const encoded = compressed.toString("base64");
   await vscode.env.clipboard.writeText(encoded);
   window.showInformationMessage(
-    `Copied ${size} → ${compressed.length} bytes gzipped as base64 (${encoded.length} chars).`,
+    `Copied ${raw.length} → ${compressed.length} bytes gzipped as base64 (${encoded.length} chars).`,
   );
 }
 
