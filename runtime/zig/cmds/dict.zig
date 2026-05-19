@@ -113,15 +113,29 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         str_eq(sp, sub.len, "getwithdefault")) and words.len >= 5)
     {
         // Walk nested keys: dict, key1, key2, ..., default.
+        // ``cur`` starts borrowed (``words[2]``) and after the first
+        // ``dict_get`` becomes +1 owned.  Each subsequent ``dict_get``
+        // overwrites ``cur`` with another +1 owned obj; release the
+        // prior one or the chain leaks one obj per drill level.
         const default_obj = words[words.len - 1];
         var cur: i32 = words[2];
+        var owns_cur: bool = false;
         var ki: u32 = 3;
         while (ki + 1 < words.len) : (ki += 1) {
-            if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
+            const exists_obj = rt.dict_exists(cur, words[ki]);
+            const exists = rt.obj_get_int(exists_obj) != 0;
+            if (!exists) {
+                if (owns_cur) obj.tcl_obj_release(cur);
                 return result_mod.from_globals(default_obj);
             }
-            cur = rt.dict_get(cur, words[ki]);
+            const next = rt.dict_get(cur, words[ki]);
+            if (owns_cur) obj.tcl_obj_release(cur);
+            cur = next;
+            owns_cur = true;
         }
+        // ``result_mod.from_globals`` doesn't take ownership; the
+        // dispatcher's retain-then-release pair on the return value
+        // covers our +1 transfer when ``owns_cur``.
         return result_mod.from_globals(cur);
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 5) {
@@ -461,12 +475,14 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
     while (pairs_left > 0) : (pairs_left -= 1) {
         const k = list_parse.cursor_next(sd.ptr, sd.len, &cur);
         const v = list_parse.cursor_next(sd.ptr, sd.len, &cur);
-        // Each iteration allocates fresh +1 key/val/body_result objs.
-        // ``frames.var_set`` and ``rt.dict_set`` retain what they
-        // need; the caller-side +1s here must be explicitly released
-        // every iteration or the loop leaks 2 (or 3 with collect)
-        // TclObjs per pair.  On non-OK exits release any partially-
-        // accumulated state too.
+        // ``key_obj`` and ``val_obj`` are fresh +1 owned; ``var_set``
+        // retains them, so release our +1 once the bind is done.
+        // ``body_result`` is left alone — ``eval_script`` may return
+        // a BORROWED handle into a variable's live slot (see the
+        // contract at tcl_interp.zig:775); releasing it could
+        // corrupt that var.  ``dict_set`` copies the body_result's
+        // bytes, so the bytes stay valid even after we drop our
+        // key/val refs.
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         _ = frames.var_set(kvar, key_obj);
@@ -478,21 +494,18 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
             .ERROR, .RETURN => {
                 obj.tcl_obj_release(key_obj);
                 obj.tcl_obj_release(val_obj);
-                if (body_result != 0) obj.tcl_obj_release(body_result);
                 if (collect and collected != 0) obj.tcl_obj_release(collected);
                 return 0;
             },
             .BREAK => {
                 obj.tcl_obj_release(key_obj);
                 obj.tcl_obj_release(val_obj);
-                if (body_result != 0) obj.tcl_obj_release(body_result);
                 result_mod.consume(.BREAK);
                 break;
             },
             .CONTINUE => {
                 obj.tcl_obj_release(key_obj);
                 obj.tcl_obj_release(val_obj);
-                if (body_result != 0) obj.tcl_obj_release(body_result);
                 result_mod.consume(.CONTINUE);
                 continue;
             },
@@ -504,7 +517,6 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
         }
         obj.tcl_obj_release(key_obj);
         obj.tcl_obj_release(val_obj);
-        if (body_result != 0) obj.tcl_obj_release(body_result);
     }
     return if (collect) collected else 0;
 }

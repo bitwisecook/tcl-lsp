@@ -192,19 +192,32 @@ fn eval_lset(words: []const i32) result_mod.InterpResult {
     }
     const current = frames.var_resolve(words[1]);
     const newval = words[words.len - 1];
-    const indices: i32 = if (words.len == 3)
-        obj_new_string(0, 0)
-    else if (words.len == 4)
+    // ``indices`` ownership:
+    //   words.len == 3 — fresh empty-string obj (owned, must release);
+    //   words.len == 4 — borrowed ``words[2]`` (do NOT release);
+    //   words.len  > 4 — fresh +1 owned list built by ``tcl_list``.
+    // Tracking ``owns_indices`` lets the multi-index loop release
+    // the per-step intermediate ``acc`` returned by each ``tcl_list``
+    // call without breaking the borrowed single-index case.
+    var owns_indices: bool = false;
+    const indices: i32 = if (words.len == 3) blk_empty: {
+        owns_indices = true;
+        break :blk_empty obj_new_string(0, 0);
+    } else if (words.len == 4)
         words[2]
     else blk: {
         var acc: i32 = rt.tcl_list(words[2], words[3]);
         var wi: u32 = 4;
         while (wi + 1 < words.len) : (wi += 1) {
-            acc = rt.tcl_list(acc, words[wi]);
+            const next = rt.tcl_list(acc, words[wi]);
+            obj_mod.tcl_obj_release(acc);
+            acc = next;
         }
+        owns_indices = true;
         break :blk acc;
     };
     const result = rt.tcl_cmd_list_set(current, indices, newval);
+    if (owns_indices) obj_mod.tcl_obj_release(indices);
     _ = frames.var_set(words[1], result);
     return result_mod.from_globals(result);
 }
