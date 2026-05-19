@@ -2,6 +2,21 @@
 
 ## Bug Fixes
 
+- **JetBrains plugin: Compiler Explorer tool window now receives source
+  from the editor.** Since v1.10.0 the tool window stayed stuck on
+  "Waiting for source from editor..." with the status line reading
+  "webview API unavailable". The JCEF adapter in
+  `CompilerExplorerHtml.kt` was rewriting a `const vscode =
+  acquireVsCodeApi();` string that the VS Code webview HTML no longer
+  contained — recent revisions capture the API via
+  `var __vscodeApi = typeof acquireVsCodeApi === 'function' ?
+  acquireVsCodeApi() : undefined` instead, so the replacement was a
+  silent no-op and `acquireVsCodeApi` stayed undefined. The adapter now
+  injects a `<head>` shim that defines `acquireVsCodeApi` to return a
+  bridge object whose `postMessage` queues requests until the Kotlin
+  host installs `window.__tcllspBridge` on load-end, at which point the
+  queue is drained. Compile, hover-highlight, and clear-highlight
+  messages reach the LSP server again.
 - **JetBrains plugin: bundle LSP server outside the plugin jar.**
   v1.10.6 shipped the source-level W105 quick-fix that preserves `$`
   in variable references (`$script` → `{$script}` instead of
