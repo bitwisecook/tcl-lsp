@@ -881,7 +881,9 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     // existing element plus the inserted value.  Inserted-value
     // worst-case is ``2 * len + 2`` because list_elem_quote_*
     // may brace-wrap.
-    const buf = alloc(s.len + n * 3 + sv.len * 2 + 8);
+    const buf_size: u32 = s.len + n * 3 + sv.len * 2 + 8;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var i: u32 = 0;
     while (i < n) : (i += 1) {
@@ -918,7 +920,7 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
         const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
         off = quoter(buf, off, sv.ptr, sv.len);
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: list replace — ``lreplace list first last ?value1 ...?``.
@@ -952,7 +954,9 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
 
     // Over-allocate to fit worst-case brace-wrapping on every
     // preserved element plus the canonically-quoted value.
-    const buf = alloc(s.len + n * 3 + sv_len * 2 + 8);
+    const buf_size: u32 = s.len + n * 3 + sv_len * 2 + 8;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var i: u32 = 0;
     const uf: u32 = @intCast(if (f < 0) 0 else f);
@@ -998,7 +1002,7 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
         const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
         off = quoter(buf, off, sv_ptr, sv_len);
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: multi-value lreplace driven by a Tcl LIST of inserts.
@@ -1191,7 +1195,9 @@ fn lset_recurse(
     // Build the result list by copying elements, substituting the
     // replacement at ``uidx``.  Over-allocate to fit worst-case
     // brace-wrapping on every element.
-    const buf = alloc(src_len + n_src * 3 + s_rep.len * 2 + 8);
+    const buf_size: u32 = src_len + n_src * 3 + s_rep.len * 2 + 8;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var i: u32 = 0;
     while (i < n_src) : (i += 1) {
@@ -1212,7 +1218,7 @@ fn lset_recurse(
             off = append_list_element(buf, off, src_ptr, elem, off == 0);
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: list repeat — ``lrepeat count value1 ?value2 ...?``.
@@ -1235,15 +1241,30 @@ pub export fn tcl_cmd_list_repeat(count: i32, value: i32) i32 {
     // result parses back as ``count`` elements rather than splitting
     // on the literal whitespace.  Worst-case quoted length is
     // ``2 * sv.len + 2``.
-    const first_buf = alloc(sv.len * 2 + 4);
+    const scratch_size: u32 = sv.len * 2 + 4;
+    const first_buf = alloc(scratch_size);
+    if (first_buf == 0) return obj_new_string(0, 0);
     const first_len = list_elem_quote(first_buf, 0, sv.ptr, sv.len);
-    const next_buf = alloc(sv.len * 2 + 4);
+    const next_buf = alloc(scratch_size);
+    if (next_buf == 0) {
+        obj.free_sized(first_buf, scratch_size);
+        return obj_new_string(0, 0);
+    }
     const next_len = list_elem_quote_nth(next_buf, 0, sv.ptr, sv.len);
 
     const sep_count: u32 = if (ucnt == 0) 0 else ucnt - 1;
     const total: u32 = first_len + sep_count * (1 + next_len);
-    if (total == 0) return obj_new_string(0, 0);
+    if (total == 0) {
+        obj.free_sized(first_buf, scratch_size);
+        obj.free_sized(next_buf, scratch_size);
+        return obj_new_string(0, 0);
+    }
     const buf = alloc(total);
+    if (buf == 0) {
+        obj.free_sized(first_buf, scratch_size);
+        obj.free_sized(next_buf, scratch_size);
+        return obj_new_string(0, 0);
+    }
     var off: u32 = 0;
     if (first_len > 0) {
         memcpy(buf + off, first_buf, first_len);
@@ -1259,5 +1280,7 @@ pub export fn tcl_cmd_list_repeat(count: i32, value: i32) i32 {
             off += next_len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    obj.free_sized(first_buf, scratch_size);
+    obj.free_sized(next_buf, scratch_size);
+    return obj.obj_new_string_take(buf, off, total);
 }
