@@ -178,6 +178,7 @@ def _run_wasm(
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
     preopen_tmpdir: str | None = None,
+    extra_preopens: tuple[tuple[str, str], ...] = (),
     timeout_s: float | None = None,
     memory_size: int | None = None,
     capabilities: int = 0,
@@ -200,6 +201,13 @@ def _run_wasm(
     "doesn't exist" regardless of the host filesystem state.  The
     ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
     exercise the real filesystem paths.
+
+    ``extra_preopens`` — additional ``(host_path, guest_path)`` pairs
+    granted alongside ``preopen_tmpdir``.  The Tcl 9 test harness uses
+    this to expose the C Tcl ``library/`` tree under ``/library`` so
+    bundle scripts (safe-stock, opt, etc.) resolve ``[info library]``
+    + ``file exists`` checks against the upstream library files
+    without copying 6 MB per test invocation.
     """
     engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
@@ -245,6 +253,11 @@ def _run_wasm(
         # and the guest path as ``guest_path``; wasmtime's Python
         # binding follows that order.
         wasi_config.preopen_dir(preopen_tmpdir, "/")
+    for host_path, guest_path in extra_preopens:
+        # Additional dir grants — ``preopen_dir`` supports multiple
+        # mappings.  Each (host, guest) pair becomes an independent
+        # capability the guest can ``open`` paths under.
+        wasi_config.preopen_dir(host_path, guest_path)
 
     store.set_wasi(wasi_config)
 
