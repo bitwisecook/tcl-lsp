@@ -393,8 +393,14 @@ impl LanguageServer for Backend {
                         SemanticTokensOptions {
                             work_done_progress_options: WorkDoneProgressOptions::default(),
                             legend: SemanticTokensLegend {
-                                token_types: Vec::new(),
-                                token_modifiers: Vec::new(),
+                                token_types: core_semantic_tokens::legend_token_types()
+                                    .into_iter()
+                                    .map(tower_lsp::lsp_types::SemanticTokenType::new)
+                                    .collect(),
+                                token_modifiers: core_semantic_tokens::legend_token_modifiers()
+                                    .into_iter()
+                                    .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
+                                    .collect(),
                             },
                             range: Some(false),
                             full: Some(SemanticTokensFullOptions::Bool(true)),
@@ -911,10 +917,26 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
-        let _ = core_semantic_tokens::full(&doc.text);
+        // `S-semantic-tokens-rich`: real classification.  The
+        // packed integer stream is 5 ints per token
+        // `[deltaLine, deltaCol, length, type, modifiers]`.
+        // Translate from the core's `u32` stream to
+        // `tower_lsp`'s `SemanticToken` records.
+        let core_data = core_semantic_tokens::full(&doc.text).data;
+        let mut tokens: Vec<tower_lsp::lsp_types::SemanticToken> =
+            Vec::with_capacity(core_data.len() / 5);
+        for chunk in core_data.chunks_exact(5) {
+            tokens.push(tower_lsp::lsp_types::SemanticToken {
+                delta_line: chunk[0],
+                delta_start: chunk[1],
+                length: chunk[2],
+                token_type: chunk[3],
+                token_modifiers_bitset: chunk[4],
+            });
+        }
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
             result_id: None,
-            data: Vec::new(),
+            data: tokens,
         })))
     }
 
