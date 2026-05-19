@@ -489,9 +489,9 @@ pub export fn tcl_test_reset_counters() void {
 }
 
 // Pending-bucket capture buffer — when a release hits the rc==0
-// path, sample the obj's address and the first 32 bytes of its
-// string buffer to a ring so a host-side triage script can read
-// them out and classify what's being over-released.
+// path, sample the obj's address and the first ``PENDING_SAMPLE_BYTES``
+// of its string buffer to a ring so a host-side triage script can
+// read them out and classify what's being over-released.
 const PENDING_SAMPLE_CAP: u32 = 32;
 const PENDING_SAMPLE_BYTES: u32 = 48;
 var pending_sample_addr: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
@@ -500,10 +500,45 @@ var pending_sample_str: [PENDING_SAMPLE_CAP][PENDING_SAMPLE_BYTES]u8 = .{.{0} **
 var pending_sample_len: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
 var pending_sample_count: u32 = 0;
 
+/// Search the deferred-free queue for ``addr``.  Used by
+/// :func:`capture_pending_sample` to gate the
+/// ``OBJ_STR_PTR``/``OBJ_STR_LEN`` dereference on the slab actually
+/// being a live queued obj.  Linear scan over ``pending_free`` —
+/// O(``pending_free_count``) per call — but the capture buffer caps
+/// at 32 samples per workload and the queue drains often, so the
+/// total cost is bounded.
+inline fn is_addr_in_pending(addr: u32) bool {
+    var i: u32 = 0;
+    while (i < pending_free_count) : (i += 1) {
+        if (pending_free[i] == addr) return true;
+    }
+    return false;
+}
+
 inline fn capture_pending_sample(addr: u32) void {
     if (pending_sample_count >= PENDING_SAMPLE_CAP) return;
     pending_sample_addr[pending_sample_count] = addr;
     pending_sample_type[pending_sample_count] = read_i32(addr + OBJ_TYPE_TAG);
+    pending_sample_len[pending_sample_count] = 0;
+    // The ``rc == 0`` release path also covers stale handles to
+    // libc-freed slabs whose first word happens to be zero — the
+    // existing comment in ``tcl_obj_release`` says "or freed" and
+    // the ``bad_rc`` guard below is the catch-all.  In that case
+    // ``OBJ_STR_PTR`` is garbage and the ``src[i]`` copy would
+    // dereference an arbitrary linear-memory address, OOB-trapping
+    // leak_sweep and losing the diagnostic counters (Codex /
+    // Copilot review on PR #444).
+    //
+    // Gate the buffer copy on the address actually being on the
+    // deferred-free queue: any rc==0 obj NOT on the queue must be
+    // either freed or recycled, so its header fields can't be
+    // trusted.  When skipped, we still record the addr + type tag
+    // so host-side triage knows a non-queue-resident over-release
+    // fired (sample_len stays 0 to mark "no content captured").
+    if (!is_addr_in_pending(addr)) {
+        pending_sample_count += 1;
+        return;
+    }
     const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
     const sl: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
     var copy_len: u32 = sl;
