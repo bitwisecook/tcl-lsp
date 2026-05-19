@@ -1,19 +1,32 @@
-# KCS: Core/LSP shared utility contracts
+# KCS: Shared-utility contracts
 
 ## Symptom
 
-Behaviour drifts between features/passes because equivalent logic (offset mapping, proc lookup, package ranking, event context, word-shape parsing) is reimplemented in multiple places.
+Behaviour drifts between features/passes because equivalent logic
+(offset mapping, proc lookup, package ranking, event context,
+word-shape parsing) is reimplemented in multiple places.
 
 ## Operational context
 
-Shared utility modules were lifted to provide one internal contract surface across `core/` and `server/`:
+A cross-cutting set of utilities is shared by every Python concern.
+The position primitives, ranges, codes registry, document buffer, and
+naming helpers live in the leaf `shared/` package; the
+language-aware helpers (word shapes, command knownness, proc lookup,
+value shapes, var refs) live in `compiler/` and `analyser/`.
+Together these are the canonical implementations — features and
+passes must consume them, not reimplement them locally.
 
-- source/position mapping
-- parsing word-shape helpers
-- compiler word/value-shape helpers
-- proc reference matching
-- package ranking
-- iRules enclosing-event discovery
+Shared surfaces this contract covers:
+
+- source/position mapping (`shared/document_buffer.py`,
+  `shared/ranges.py`, `shared/source_map.py`,
+  `compiler/position_lookup.py`)
+- parsing word-shape helpers (`compiler/parsing/`)
+- compiler word/value-shape helpers (`compiler/value_shapes.py`,
+  `compiler/var_refs.py`)
+- proc reference matching (`analyser/proc_lookup.py`)
+- package ranking (`server/features/package_suggestions.py`)
+- iRules enclosing-event discovery (`server/features/irules_context.py`)
 
 ## Decision rules / contracts
 
@@ -23,7 +36,8 @@ Shared utility modules were lifted to provide one internal contract surface acro
 2. `DocumentState.buffer` is the canonical `DocumentBuffer` for an open document. It is lazily created and invalidated when `source` changes.
 3. Use `DocumentBuffer.lines` instead of `source.split("\n")`. The result is cached per buffer.
 4. Use `position_from_offset()` (`shared/ranges.py`) instead of `position_from_relative()` when a `line_starts` array is available. It is O(log n) vs O(text_len).
-5. `SourceMap` (`shared/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `server/` or `core/` hot paths.
+5. `SourceMap` (`shared/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `server/` hot paths.
+6. Position lookups that need the lexer / segmenter (`find_command_at_position`, `find_token_in_command`) live in `compiler/position_lookup.py` so that `shared/position.py` stays a leaf.  The leaf module retains only `position_in_range` and `offset_at_position`.
 
 ### Other contracts
 

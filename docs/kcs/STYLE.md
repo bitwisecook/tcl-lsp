@@ -171,8 +171,8 @@ belongs in a design doc and the KCS note should link to it.
 a list of twelve file paths.
 
 **Good** — a KCS note that says "The core and LSP packages share a set
-of position helpers. For the full contract, see [core/LSP shared
-utilities](../design/contracts/core-lsp-shared-utility.md)."
+of position helpers. For the full contract, see [shared
+utilities](../design/contracts/shared-utility-contracts.md)."
 
 ### 9. One screen
 

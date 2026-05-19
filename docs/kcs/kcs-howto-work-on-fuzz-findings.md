@@ -94,9 +94,9 @@ surfaces at VM runtime, because the user gets immediate editor feedback.
 2. **Compiler checks / diagnostics** (`compiler/compiler_checks.py`) —
    emit an `E0xx` diagnostic for the `IRBarrier` so the LSP shows an
    error squiggle in the editor *before* the user runs the code.
-3. **Interpreter command handler** (`tooling/tooling/vm/commands/`) — add runtime
+3. **Interpreter command handler** (`tooling/vm/commands/`) — add runtime
    validation for the same pattern so the interpreter path also rejects it.
-4. **Bytecode VM** (`tooling/tooling/vm/machine.py`) — catch Python exceptions and
+4. **Bytecode VM** (`tooling/vm/machine.py`) — catch Python exceptions and
    convert to `TclError`.
 
 Not every fix needs all four layers, but always consider whether earlier
@@ -112,11 +112,11 @@ detectable. Fixes were applied at three layers:
 - **Runtime**: `_cmd_if` pre-validates args before evaluating any branch
 
 Key files:
-- `tooling/tooling/vm/machine.py` — bytecode VM (arithmetic, bitwise, incr opcodes)
-- `tooling/tooling/vm/interp.py` — AST-based expression evaluator
-- `tooling/tooling/vm/commands/control.py` — `for`, `while`, `foreach` commands
-- `tooling/tooling/vm/commands/math_cmds.py` — `incr` command
-- `tooling/tooling/vm/commands/string_cmds.py` — `string` subcommands
+- `tooling/vm/machine.py` — bytecode VM (arithmetic, bitwise, incr opcodes)
+- `tooling/vm/interp.py` — AST-based expression evaluator
+- `tooling/vm/commands/control.py` — `for`, `while`, `foreach` commands
+- `tooling/vm/commands/math_cmds.py` — `incr` command
+- `tooling/vm/commands/string_cmds.py` — `string` subcommands
 - `compiler/lowering.py` — IR lowering (structural validation)
 - `compiler/compiler_checks.py` — IR-based diagnostics
 

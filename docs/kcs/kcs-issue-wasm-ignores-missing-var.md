@@ -23,7 +23,7 @@ VM and reference Tcl do?
   returned 0, the comparison was true, and `incr` operated on the
   same null TclObj.  This drove a measurable fraction of the
   `wasm-timeout` finding cluster.
-- The Python VM (`tooling/tooling/vm/scope.py`) and `vm_opt` correctly raised the
+- The Python VM (`tooling/vm/scope.py`) and `vm_opt` correctly raised the
   standard error; only the compiled WASM path was lenient.
 
 ## Answer

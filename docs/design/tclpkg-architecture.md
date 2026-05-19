@@ -22,7 +22,7 @@ tclpkg.tcl (manifest)
        │
        ▼
   Sandboxed TclInterp  ──────────►  ManifestAST
-  (vm/interp.py safe mode)              │
+  (tooling/vm/interp.py safe mode)              │
                                         ▼
                                MVS Resolver (tooling/tclpkg/resolver.py)
                                         │
@@ -108,8 +108,8 @@ tclpkg.tcl (manifest)
 - `tooling/tclpkg/ui.py` — CLI output helpers
 - `tooling/explorer/verbs/pkg.py` — `tcl pkg` CLI verb handlers
 - `tooling/explorer/verbs/venv.py` — `tcl venv` CLI verb handlers
-- `tooling/tooling/vm/interp.py:102` — `TclInterp(safe=…)` parameter
-- `tooling/tooling/vm/commands/interp_cmds.py:65` — `interp issafe` handler
+- `tooling/vm/interp.py:102` — `TclInterp(safe=…)` parameter
+- `tooling/vm/commands/interp_cmds.py:65` — `interp issafe` handler
 - `shared/user_config.py:126` — `_cache_dir()` helper
 - `server/settings.py:58` — `_KNOWN_TCL_LSP_SECTIONS`
 - `server/commands.py:825` — `tcl-lsp.tclpkg.install` command handler

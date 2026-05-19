@@ -9,19 +9,65 @@ tool dialects.
 
 ## Repository layout
 
+The Python code is partitioned into seven concern packages with a fixed
+dependency direction enforced by `import-linter` (see `.importlinter`
+at the repo root). Each concern is also documented by `make
+lint-imports` errors when crossed.
+
 ```
-server/             Python LSP server runtime and feature wiring
-core/            Reusable Tcl parser/compiler/analysis modules
-tooling/tooling/vm/              Bytecode VM, interpreter, and REPL
-tooling/debugger/        Interactive Tcl debugger (CLI, VM/tclsh/tkinter backends)
-editors/vscode/  VS Code extension (TypeScript)
-editors/         Other editor integrations (Neovim, Zed, Emacs, Helix, Sublime, JetBrains)
-tooling/explorer/        Web-based compiler explorer (Pyodide GUI)
-tests/           Python test suite (pytest)
-scripts/         Build and release automation
-ai/              AI integrations (Claude skills, MCP server)
-samples/         Sample Tcl and iRules code
+shared/           Leaf utilities — Range/Token/SourcePosition, document
+                  buffer, source-map, ranges, codes, naming, dialect-
+                  agnostic text helpers.  Depends on nothing.
+compiler/         Tcl pipeline — lexer, parser, IR, lowering, passes,
+                  optimiser, codegen, WASM emitter, compiler-internal
+                  analyses (taint, var_escape, interprocedural,
+                  proc_arg_traits, var_scoping), command registry +
+                  per-command runtime, position lookup, Dialect enum.
+                  Consumes shared/.
+dialects/         Per-dialect command spec packs and dialect-aware
+                  data.  Sub-packages: stdlib/, tcl/, tcllib/, expect/,
+                  eda/<vendor>, f5/{bigip,irules,iapps,query,xc}/,
+                  tk/{dialect,specs}/.  Consumes shared/ and
+                  compiler.registry / compiler.parsing.
+analyser/         IDE-facing semantic model + checks — semantic_model,
+                  proc_lookup, var_scoping bridges, signature_scan,
+                  class_hierarchy, MRO, checks/, _analyser/,
+                  irules_checks, conf_wrapped, packages/,
+                  compiler_checks (the check orchestrator that runs
+                  over compiler IR).  Consumes shared/ + compiler/ +
+                  dialects/.
+server/           LSP protocol surface — pygls wiring (`server.py`),
+                  feature handlers (`features/`), workspace indexing
+                  (`workspace/`), diagnostics pipeline, LSP conversion
+                  helpers (`_lsp_conv.py`), `_codes_init.py` side-
+                  effect module.  Console-script entry point:
+                  ``tcl-lsp``.  Consumes everything below.
+tooling/          Developer tools that consume the compiler stack.
+                  Sub-packages:
+                    tcl/    — `tcl` CLI       (`tcl`)
+                    f5/     — `f5-query` CLI  (`f5-query`)
+                    wasm/   — Tcl→WASM CLI    (`tcl-wasm`)
+                    vm/     — bytecode VM     (`tcl-vm`)
+                    explorer/   — Pyodide web GUI + shared CLI verbs   (`tcl-explorer`)
+                    debugger/   — interactive debugger
+                    fuzzing/    — differential fuzzer
+                    tclpkg/     — Tcl package manager
+                    refactoring/  formatter/  minifier/  diagram/  irule_test/
+ai/               AI integrations — Claude skills, MCP server, irule
+                  context helpers.  Sits on top of server/tooling.
+
+editors/          Editor integrations (VS Code, Zed, JetBrains,
+                  Neovim, Emacs, Helix, Sublime).
+runtime/zig/      Zig-compiled WASM runtime that the compiler's WASM
+                  codegen targets.
+tests/            Pytest test suite — exempt from layering contracts.
+scripts/          Build, release, codegen, and dev automation.
+samples/          Sample Tcl, iRules, and BigIP configs.
+docs/             Design docs, KCS notes, references, perf reports.
 ```
+
+The seven `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
+`f5-query`, `tcl-wasm`, `tcl-explorer`, `tcl-vm`.
 
 ## Prerequisites
 
@@ -485,7 +531,7 @@ link or define locally.
 | KCS style guide and templates | `docs/kcs/STYLE.md`, `docs/kcs/templates/` | — |
 | Architecture and pipeline walkthroughs | `docs/design/` | `compiler-architecture.md` |
 | Compiler pass, stage, or analysis internals | `docs/design/compiler/` | `cfg-construction.md` |
-| Module ownership or API contract | `docs/design/contracts/` | `core-lsp-shared-utility.md` |
+| Module ownership or API contract | `docs/design/contracts/` | `shared-utility-contracts.md` |
 | Design-doc templates | `docs/design/templates/` | `template-contract.md` |
 | Definitions of complex terms | `docs/GLOSSARY.md` | `CFG`, `SSA`, `lattice`, `shimmer` |
 
@@ -711,7 +757,7 @@ position type. Use it instead of constructing `SourceMap` or calling
   `position_from_relative()` when a `line_starts` array is available
   (O(log n) instead of O(text_len)).
 
-See `docs/kcs/kcs-core-lsp-shared-utility-contracts.md` for the full contract.
+See `docs/kcs/kcs-shared-utility-contracts.md` for the full contract.
 
 ## Command registry
 

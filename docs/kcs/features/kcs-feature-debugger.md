@@ -81,7 +81,7 @@ The debugger consists of:
 - `tooling/debugger/backends/tkinter_backend.py` — tkinter in-process backend
 - `tooling/debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
 - `shared/tcl_discovery.py` — shared tclsh/tkinter detection
-- `tooling/tooling/vm/machine.py` — debug hook insertion point
+- `tooling/vm/machine.py` — debug hook insertion point
 
 ## Failure modes
 

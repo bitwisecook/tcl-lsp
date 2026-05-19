@@ -18,7 +18,8 @@ accommodate it in a way that works upstream.
 
 ## AI Use
 
-All code in `core/` and `server/` must be human reviewed before merging to main.
+All code in the seven concern packages (`shared/`, `compiler/`, `dialects/`,
+`analyser/`, `server/`, `tooling/`, `ai/`) must be human reviewed before merging to main.
 Front-end code, editor integrations, CI/CD, build pipelines, AI integrations are
 all vibe-coded. You may contribute to any area of this project using AI. AI generated code
 must come with tests, and I would encourage you to at least use your organic brain
@@ -235,8 +236,10 @@ instances through constructors over importing module globals where practical.
 
 ## Python source of truth
 
-The Python source of truth is split between `server/` (LSP runtime) and `core/`
-(reusable parser/compiler/analysis modules).
+The Python source of truth is partitioned into seven concern packages
+(see [`AGENTS.md`](AGENTS.md) "Repository layout" and
+[`.importlinter`](.importlinter)): `shared/`, `compiler/`,
+`dialects/`, `analyser/`, `server/`, `tooling/`, `ai/`.
 
 - The extension package does not keep a mirrored Python tree under `editors/vscode/`.
 - `make vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.

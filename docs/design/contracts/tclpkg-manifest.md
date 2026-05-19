@@ -23,8 +23,8 @@ during evaluation.
 ## File-path anchors
 
 - ``tooling/tclpkg/manifest.py`` — ``ManifestAST``, ``load_manifest_text()``, ``_build_directives()``
-- ``tooling/tooling/vm/interp.py:102`` — ``TclInterp.__init__(safe=, safe_whitelist=)``
-- ``tooling/tooling/vm/interp.py:530`` — safe-mode check in ``_invoke_inner``
+- ``tooling/vm/interp.py:102`` — ``TclInterp.__init__(safe=, safe_whitelist=)``
+- ``tooling/vm/interp.py:530`` — safe-mode check in ``_invoke_inner``
 
 ## Test anchors
 

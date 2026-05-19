@@ -15,7 +15,7 @@
 
 ## File-path anchors
 
-- `core/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
 - `server/...`
 - `docs/...`
 

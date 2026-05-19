@@ -53,5 +53,5 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 
 - [KCS index](../../../docs/design/README.md)
 - [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
-- [shared utility contracts](../../../docs/design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)
 - [compiler pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)

@@ -26,7 +26,7 @@ The formatter rewrites source using the configurable style engine. It is idempot
 
 ## File-path anchors
 
-- `core/formatter/engine.py`
+- `tooling/formatter/engine.py`
 - `server/features/formatting.py`
 
 ## Failure modes

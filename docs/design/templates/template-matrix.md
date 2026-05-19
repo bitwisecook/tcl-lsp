@@ -22,9 +22,9 @@
 
 ## File-path anchors
 
-- `core/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
 - `server/...`
-- `core/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
 - `server/...`
 
 ## Failure modes

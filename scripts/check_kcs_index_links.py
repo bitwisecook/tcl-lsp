@@ -55,6 +55,11 @@ def _check_local_markdown_links() -> list[str]:
     files = list(DOCS.rglob("*.md")) + [ROOT / "CONTRIBUTING.md", ROOT / "AGENTS.md"]
     problems: list[str] = []
     for file_path in files:
+        # docs/archive/ holds historical snapshots of completed projects.
+        # Their links reference the codebase as it stood at the time of
+        # capture and are expected to rot; skip link-validation for them.
+        if "archive" in file_path.parts:
+            continue
         text = _strip_fenced_code(file_path.read_text(encoding="utf-8"))
         for link in LINK_RE.findall(text):
             if link.startswith(("http://", "https://", "#", "mailto:")):

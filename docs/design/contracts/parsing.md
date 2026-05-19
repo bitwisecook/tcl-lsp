@@ -45,5 +45,5 @@ The parsing layer tokenises source, segments commands, and performs recovery for
 
 - [KCS index](../../../docs/design/README.md)
 - [lexing contracts](../../../docs/design/contracts/lexing.md)
-- [shared utility contracts](../../../docs/design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)
 - [compiler pipeline overview](../../../docs/design/compiler/compiler-pipeline-overview.md)

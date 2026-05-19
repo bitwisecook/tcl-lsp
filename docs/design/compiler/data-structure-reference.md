@@ -9,7 +9,7 @@ the next.
 ## Context
 
 Every Tcl source string passes through 7 stages, each producing typed
-dataclasses.  All types live under `core/` and are frozen dataclasses
+dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 

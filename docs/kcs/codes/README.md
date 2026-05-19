@@ -21,10 +21,10 @@ The [diagnostics feature page](../features/kcs-feature-diagnostics.md)
 is the user-facing entry point for the whole family; it links here
 for per-code details.
 
-This index is filled in as the KCS completeness work progresses. See
-[`docs/design/kcs-completeness-plan.md`](../../design/kcs-completeness-plan.md)
-for the phase plan. Phase 0 scaffolds the directory; Phases 4-6 fill
-in the pages; Phase 7 cross-links.
+This index lists every per-code KCS page.  The original phased plan
+that set out the coverage targets is archived at
+[`docs/archive/kcs-completeness-plan-2026.md`](../../archive/kcs-completeness-plan-2026.md)
+for historical reference.
 
 ## Errors (E-codes)
 
