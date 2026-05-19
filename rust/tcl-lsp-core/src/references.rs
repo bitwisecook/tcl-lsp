@@ -26,18 +26,23 @@
 //!   `command_invocations` doesn't currently surface read /
 //!   write semantics on call-head matches.
 //!
+//! Class-member references also land: when the cursor sits
+//! on a method, classmethod, or property name inside the
+//! class body, the provider re-segments every sibling method
+//! body and surfaces each invocation that names the same
+//! member.  `document_highlights` returns the declaration as
+//! `Write` and every call site as `Text`.
+//!
 //! What is *still deferred* (planned as `S-references-rich`
 //! follow-ups):
 //!
-//! * Resolved-qualified-name matching for command invocations
-//!   (Python's `invocation.resolved_qualified_name`) — the
-//!   Rust analyser doesn't populate that field today, so the
-//!   port falls back to literal-name matching.
-//! * Method-name references inside a class body.
 //! * Cross-document references — the workspace-index integration
 //!   that surfaces references across every open document; lands
 //!   alongside `S-workspace-symbols` and the workspace-index
 //!   chunks.
+//! * `$obj method` call sites *outside* the class body —
+//!   needs analyser-side variable-type tracking so the
+//!   provider knows which object's class to match against.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -130,7 +135,112 @@ pub fn references(
         }
     }
 
+    // Class-member references — when the cursor sits inside a
+    // class body and `word` matches a method / classmethod /
+    // property, re-segment the sibling method bodies to find
+    // every invocation that names the same member.  Mirrors
+    // the `rename_method` walk in `crate::rename`.
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    if let Some(spans) = find_class_member_references(source, &word, analysis, cursor_offset) {
+        let (decl_span, call_spans) = spans;
+        let mut out = Vec::new();
+        if include_declaration {
+            out.push(span_to_range(&line_index, decl_span));
+        }
+        for s in call_spans {
+            out.push(span_to_range(&line_index, s));
+        }
+        dedup_ranges(&mut out);
+        return out;
+    }
+
     Vec::new()
+}
+
+/// Find a class member's declaration span plus every call
+/// site inside any sibling method body.  Returns
+/// `Some((decl_span, call_spans))` when the cursor sits
+/// inside a class body and `word` matches one of that
+/// class's members.
+fn find_class_member_references(
+    source: &str,
+    word: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_lexer::Span;
+
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        let name_span: Option<Span> = class_def
+            .methods
+            .get(word)
+            .map(|m| m.name_span)
+            .or_else(|| class_def.class_methods.get(word).map(|m| m.name_span))
+            .or_else(|| class_def.properties.get(word).map(|p| p.name_span));
+        let decl_span = name_span?;
+        // Collect call-site spans by re-segmenting every
+        // method body (the analyser doesn't walk into method
+        // bodies for the `command_invocations` collection).
+        let mut bodies: Vec<Span> = class_def
+            .methods
+            .values()
+            .map(|m| m.body_span)
+            .chain(class_def.class_methods.values().map(|m| m.body_span))
+            .chain(class_def.constructors.iter().map(|c| c.body_span))
+            .collect();
+        if let Some(d) = &class_def.destructor {
+            bodies.push(d.body_span);
+        }
+        let mut call_spans: Vec<Span> = Vec::new();
+        for body_span in bodies {
+            if body_span.is_empty() {
+                continue;
+            }
+            let mut start = body_span.start() as usize;
+            let mut end = body_span.end() as usize;
+            if start >= source.len() || end > source.len() || start > end {
+                continue;
+            }
+            if source.as_bytes().get(start) == Some(&b'{') {
+                start += 1;
+            }
+            if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+                end -= 1;
+            }
+            let body_text = &source[start..end];
+            let commands = segment_commands_with_offset(
+                body_text,
+                u32::try_from(start).unwrap_or(body_span.start()),
+            );
+            for cmd in &commands {
+                let Some(head) = cmd.argv.first() else {
+                    continue;
+                };
+                let h_start = head.span.start() as usize;
+                let h_end = head.span.end() as usize;
+                if h_start >= source.len() || h_end > source.len() {
+                    continue;
+                }
+                if &source[h_start..h_end] != word {
+                    continue;
+                }
+                // Skip the declaration site itself (cannot
+                // happen — declaration sits outside method
+                // bodies — but defensive).
+                if head.span.start() == decl_span.start() && head.span.end() == decl_span.end() {
+                    continue;
+                }
+                call_spans.push(head.span);
+            }
+        }
+        return Some((decl_span, call_spans));
+    }
+    None
 }
 
 /// Read / write kind for a document-highlight span.  Mirrors
@@ -233,6 +343,21 @@ pub fn document_highlights(
             }
             return dedup_kinded(out);
         }
+    }
+
+    // Class-member highlights — re-segment sibling method
+    // bodies via `find_class_member_references` and mark the
+    // declaration as Write, every call site as Text.
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    if let Some((decl_span, call_spans)) =
+        find_class_member_references(source, &word, analysis, cursor_offset)
+    {
+        let mut out = Vec::new();
+        out.push((span_to_range(&line_index, decl_span), HighlightKind::Write));
+        for s in call_spans {
+            out.push((span_to_range(&line_index, s), HighlightKind::Text));
+        }
+        return dedup_kinded(out);
     }
 
     Vec::new()
@@ -525,5 +650,43 @@ mod tests {
             Some("::greet"),
             "expected resolved name to be `::greet`; got {inv:?}",
         );
+    }
+
+    // -- S-references-rich: class-member references -----------------
+
+    #[test]
+    fn references_for_method_includes_decl_and_call_sites() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `greet` declaration (line 1, col 11).
+        let refs = references(src, 1, 11, &analysis, true);
+        assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+    }
+
+    #[test]
+    fn references_for_method_excludes_decl_when_requested() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(src, 1, 11, &analysis, false);
+        // Only the two call sites — the declaration is
+        // excluded when include_declaration=false.
+        assert_eq!(refs.len(), 2, "{refs:?}");
+    }
+
+    #[test]
+    fn document_highlights_for_method_marks_decl_write_calls_text() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        let h = document_highlights(src, 1, 11, &analysis);
+        let writes: Vec<_> = h
+            .iter()
+            .filter(|(_, k)| *k == HighlightKind::Write)
+            .collect();
+        let texts: Vec<_> = h
+            .iter()
+            .filter(|(_, k)| *k == HighlightKind::Text)
+            .collect();
+        assert_eq!(writes.len(), 1, "{h:?}");
+        assert_eq!(texts.len(), 2, "{h:?}");
     }
 }
