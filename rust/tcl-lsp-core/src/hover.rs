@@ -1968,10 +1968,7 @@ fn class_member_hover_text(
             return Some(format!("**property** `{qname}::{name}`", name = p.name));
         }
         if word == "constructor" && !class_def.constructors.is_empty() {
-            let nparam = class_def
-                .constructors
-                .first()
-                .map_or(0, |c| c.params.len());
+            let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
             return Some(format!("**constructor** of `{qname}` ({nparam} param(s))",));
         }
         if word == "destructor" && class_def.destructor.is_some() {
