@@ -76,9 +76,11 @@ use tower_lsp::lsp_types::{
     LinkedEditingRanges, Location, MarkupContent, MarkupKind, MessageType, OneOf,
     ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    PrepareRenameResponse, RenameOptions, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions,
+    DiagnosticOptions, DiagnosticServerCapabilities, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, FullDocumentDiagnosticReport,
+    PrepareRenameResponse, RelatedFullDocumentDiagnosticReport, RenameOptions,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
     SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
     SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
     SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
@@ -487,50 +489,7 @@ impl Backend {
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&text, &dialect).clone();
-            // Translate analyser-result diagnostics into
-            // LSP wire shape.  Severity maps verbatim;
-            // spans translate via a local LineIndex.
-            let line_index = tcl_lexer::LineIndex::new(&text);
-            let diagnostics: Vec<tower_lsp::lsp_types::Diagnostic> = analysis
-                .diagnostics
-                .iter()
-                .cloned()
-                .map(|d| {
-                    let start = line_index.position_at(d.span.start());
-                    let end = line_index.position_at(d.span.end());
-                    tower_lsp::lsp_types::Diagnostic {
-                        range: Range {
-                            start: Position {
-                                line: start.line,
-                                character: start.character,
-                            },
-                            end: Position {
-                                line: end.line,
-                                character: end.character,
-                            },
-                        },
-                        severity: Some(match d.severity {
-                            tcl_compiler::analyser::Severity::Error => {
-                                tower_lsp::lsp_types::DiagnosticSeverity::ERROR
-                            }
-                            tcl_compiler::analyser::Severity::Warning => {
-                                tower_lsp::lsp_types::DiagnosticSeverity::WARNING
-                            }
-                            tcl_compiler::analyser::Severity::Hint
-                            | tcl_compiler::analyser::Severity::Suggestion => {
-                                tower_lsp::lsp_types::DiagnosticSeverity::HINT
-                            }
-                        }),
-                        code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
-                        code_description: None,
-                        source: Some("tcl-lsp".to_string()),
-                        message: d.message,
-                        related_information: None,
-                        tags: None,
-                        data: None,
-                    }
-                })
-                .collect();
+            let diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             (analysis, diagnostics)
         })
         .await;
@@ -556,6 +515,7 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
+    #[allow(clippy::too_many_lines)]
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         // `S-workspace-init`: capture the workspace folders
         // the editor sent so cross-document features can
@@ -674,6 +634,18 @@ impl LanguageServer for Backend {
                 linked_editing_range_provider: Some(
                     tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
                 ),
+                // `S-diagnostics-pipeline`: advertise pull-based
+                // diagnostics so editors that support it can
+                // request diagnostics on demand alongside the
+                // existing push-based `publish_diagnostics`.
+                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                    DiagnosticOptions {
+                        identifier: Some("tcl-lsp".to_string()),
+                        inter_file_dependencies: false,
+                        workspace_diagnostics: false,
+                        work_done_progress_options: WorkDoneProgressOptions::default(),
+                    },
+                )),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -1228,6 +1200,43 @@ impl LanguageServer for Backend {
             ranges: linked.ranges.into_iter().map(lift_lsp_range).collect(),
             word_pattern: Some(linked.word_pattern),
         }))
+    }
+
+    async fn diagnostic(
+        &self,
+        params: DocumentDiagnosticParams,
+    ) -> jsonrpc::Result<DocumentDiagnosticReportResult> {
+        // `S-diagnostics-pipeline`: pull-based diagnostic
+        // report.  Editors that support
+        // `textDocument/diagnostic` request diagnostics on
+        // demand rather than relying on the
+        // `publish_diagnostics` push.  We run the analyser via
+        // the cached-analysis surface (the same shape every
+        // other request uses) and lift each analyser
+        // diagnostic to the LSP wire shape.
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(empty_diagnostic_report());
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let items = tokio::task::spawn_blocking(move || lift_analyser_diagnostics(&doc.text, &analysis.diagnostics))
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("diagnostic worker panicked: {err}").into(),
+                data: None,
+            })?;
+        Ok(DocumentDiagnosticReportResult::Report(
+            DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                related_documents: None,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: None,
+                    items,
+                },
+            }),
+        ))
     }
 
     async fn semantic_tokens_full(
@@ -1897,6 +1906,70 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             character: r.end_character,
         },
     }
+}
+
+/// Lift the analyser's diagnostic records into the LSP wire
+/// shape.  Shared by both the push-based `publish_diagnostics`
+/// path (via `publish_analyser_diagnostics`) and the pull-
+/// based `textDocument/diagnostic` handler.
+fn lift_analyser_diagnostics(
+    text: &str,
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    let line_index = tcl_lexer::LineIndex::new(text);
+    diagnostics
+        .iter()
+        .cloned()
+        .map(|d| {
+            let start = line_index.position_at(d.span.start());
+            let end = line_index.position_at(d.span.end());
+            tower_lsp::lsp_types::Diagnostic {
+                range: Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character,
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character,
+                    },
+                },
+                severity: Some(match d.severity {
+                    tcl_compiler::analyser::Severity::Error => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                    }
+                    tcl_compiler::analyser::Severity::Warning => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                    }
+                    tcl_compiler::analyser::Severity::Hint
+                    | tcl_compiler::analyser::Severity::Suggestion => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                    }
+                }),
+                code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+                code_description: None,
+                source: Some("tcl-lsp".to_string()),
+                message: d.message,
+                related_information: None,
+                tags: None,
+                data: None,
+            }
+        })
+        .collect()
+}
+
+/// Build an empty `DocumentDiagnosticReportResult` for callers
+/// that hit a no-document or no-analysis path.
+fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
+    DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(
+        RelatedFullDocumentDiagnosticReport {
+            related_documents: None,
+            full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                result_id: None,
+                items: Vec::new(),
+            },
+        },
+    ))
 }
 
 /// Return a fresh `result_id` for a semantic-tokens response.
