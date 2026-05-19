@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.subst_nocommands import subst_nocommands
-from compiler.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 from ..ir import (
     IRBarrier,

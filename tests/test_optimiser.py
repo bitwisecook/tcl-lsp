@@ -17,8 +17,8 @@ from compiler.optimiser import (
     optimise_source,
 )
 from compiler.optimiser._helpers import _full_command_range
-from compiler.parsing.tokens import SourcePosition
 from compiler.registry.runtime import configure_signatures
+from shared.tokens import SourcePosition
 
 
 class TestOptimiser:

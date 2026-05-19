@@ -9,7 +9,6 @@ else:
     _Base = object
 
 from compiler.parsing.substitution import backslash_subst as _backslash_subst
-from compiler.parsing.tokens import Token, TokenType
 from shared.naming import (
     is_brace_substitutable,
 )
@@ -23,6 +22,7 @@ from shared.naming import (
     split_array_name as _split_array_name,
 )
 from shared.ranges import position_from_relative, range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import (
     Diagnostic,

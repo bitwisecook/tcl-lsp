@@ -24,8 +24,9 @@ from .known_commands import known_command_names
 
 if TYPE_CHECKING:
     from compiler.registry.command_registry import CommandRegistry
+from shared.tokens import SourcePosition, Token, TokenType
+
 from .lexer import TclLexer
-from .tokens import SourcePosition, Token, TokenType
 
 log = logging.getLogger(__name__)
 

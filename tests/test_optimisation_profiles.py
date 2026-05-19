@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import shared.codes_all  # noqa: F401  # trigger all code registrations
+import server._codes_init  # noqa: F401  # trigger all code registrations
 from shared.codes import optimisation_codes
 from shared.optimisation_profiles import (
     CODE_MOTION_CODES,

@@ -6,7 +6,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
 
 from .symbol_resolution import find_word_at_position
 

@@ -20,7 +20,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult
-from shared.lsp import find_var_in_scopes, to_lsp_range
+from server._lsp_conv import find_var_in_scopes, to_lsp_range
 
 from .references import get_references
 from .symbol_resolution import find_scope_at_line, find_var_at_position

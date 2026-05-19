@@ -8,10 +8,10 @@ from analyser import analyse
 from analyser.proc_lookup import find_proc_by_reference
 from analyser.semantic_model import AnalysisResult, ProcDef
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.models import CommandSpec
 from compiler.registry.runtime import SIGNATURES, SubcommandSig
 from shared.alias import lookup_alias_for_word
-from shared.dialect import active_dialect
 from tooling.formatter.docstring import format_docstring
 
 from .symbol_resolution import find_command_context_details_at_position

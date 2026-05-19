@@ -16,7 +16,7 @@ from lsprotocol import types
 
 from analyser.semantic_model import AnalysisResult, SourceTarget
 from analyser.source_resolver import resolve_source_target
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
 
 from ..workspace.scanner import path_to_uri, uri_to_path  # noqa: F401  (path_to_uri re-exported)
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shared.dialect import detect_dialect_from_source
+from compiler.registry.dialect import detect_dialect_from_source
 
 
 def test_shebang_tclsh84():

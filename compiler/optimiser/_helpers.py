@@ -9,7 +9,6 @@ from analyser.semantic_model import Range
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry import REGISTRY
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -17,6 +16,7 @@ from shared.naming import (
 from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from shared.tokens import SourcePosition, Token, TokenType
 
 from ..core_analyses import LatticeKind, LatticeValue
 from ..interprocedural import InterproceduralAnalysis
@@ -604,7 +604,7 @@ def _try_incr_idiom(
 ) -> str | None:
     """Detect ``set var [expr {$var + N}]`` -> ``incr var N``."""
     from compiler.parsing.expr_parser import parse_expr
-    from shared.dialect import active_dialect
+    from compiler.registry.dialect import active_dialect
 
     from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprRaw, ExprVar
 
@@ -694,7 +694,7 @@ def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | N
     for that shape.
     """
     from compiler.parsing.expr_parser import parse_expr
-    from shared.dialect import active_dialect
+    from compiler.registry.dialect import active_dialect
 
     from ..expr_ast import BinOp, ExprBinary, ExprCommand, ExprLiteral, ExprRaw
 

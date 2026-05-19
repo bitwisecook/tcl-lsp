@@ -17,9 +17,9 @@ from compiler.ir import (
     IRStatement,
 )
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
-from compiler.parsing.tokens import Token
 from compiler.registry import REGISTRY
 from shared.codes import diag
+from shared.tokens import Token
 
 from ..semantic_model import (
     _NOQA_ALL,

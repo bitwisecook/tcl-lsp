@@ -9,14 +9,14 @@ else:
     _Base = object
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.signatures import Arity
-from shared.dialect import active_dialect
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from ..proc_arg_traits import infer_param_traits
 from ..semantic_model import (

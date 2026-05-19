@@ -16,8 +16,8 @@ from compiler.parsing.recovery import (
     compute_virtual_insertions,
     segment_with_recovery,
 )
-from compiler.parsing.tokens import TokenType
 from server.features import semantic_tokens_full
+from shared.tokens import TokenType
 
 
 class TestVirtualTokenLexer:

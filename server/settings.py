@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 from lsprotocol import types
 
+import server._codes_init  # noqa: F401  # trigger all code registrations
 import server.state as _state
-import shared.codes_all  # noqa: F401  # trigger all code registrations
 from compiler.registry.runtime import configure_signatures
 from shared.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from shared.optimisation_profiles import (
@@ -631,7 +631,7 @@ def _apply_merged_settings_now() -> None:
         extra_commands=extra_commands,
     )
     if signatures_changed:
-        from shared.dialect import active_dialect
+        from compiler.registry.dialect import active_dialect
 
         log.info(
             "Dialect changed to %s (explicit=%s)",

@@ -7,7 +7,7 @@ import re
 
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.expr_parser import parse_expr
-from shared.dialect import active_dialect
+from compiler.registry.dialect import active_dialect
 
 from ..expr_ast import (
     BinOp,

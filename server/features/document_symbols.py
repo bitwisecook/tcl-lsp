@@ -6,7 +6,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
 
 
 def _proc_detail(proc_def: ProcDef) -> str:

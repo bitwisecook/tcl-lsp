@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
-from compiler.registry.runtime import (
+from .runtime import (
     _canonical_dialect,
     _dialect_var,
     _extra_commands_var,

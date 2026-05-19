@@ -34,12 +34,12 @@ from compiler.parsing.command_segmenter import (
     segment_top_level_chunks,
 )
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token
+from compiler.registry.dialect import detect_dialect_from_source, dialect_scope
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect
 from shared.codes import default_disabled_diagnostics
-from shared.dialect import detect_dialect_from_source, dialect_scope
 from shared.document_buffer import DocumentBuffer
+from shared.tokens import Token
 
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
@@ -219,7 +219,7 @@ def _analyse_document_fresh(
     forwarded explicitly and re-applied here.  See issue #407.
     """
     # Ensure diagnostic codes are registered in the subprocess.
-    import shared.codes_all  # noqa: F401
+    import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect, extra_commands=list(extra_commands))

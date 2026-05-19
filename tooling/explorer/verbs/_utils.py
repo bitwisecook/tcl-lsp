@@ -18,8 +18,8 @@ from analyser.packages import PackageResolver
 from analyser.semantic_model import Diagnostic
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
+from shared.tokens import TokenType
 from tooling.formatter.config import FormatterConfig
 
 from ..pipeline import AVAILABLE_DIALECTS

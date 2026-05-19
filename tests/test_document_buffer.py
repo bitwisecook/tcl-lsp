@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from compiler.parsing.tokens import SourcePosition
 from shared.document_buffer import (
     DocumentBuffer,
     compute_line_starts,
 )
+from shared.tokens import SourcePosition
 
 # compute_line_starts
 

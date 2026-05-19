@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import re
 
-from compiler.parsing.tokens import Token
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_data import (
     deprecated_events,
     hot_events,
@@ -35,8 +35,8 @@ from compiler.registry.namespace_models import EventRequires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import variable_writing_commands
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.ranges import range_from_token
+from shared.tokens import Token
 
 from .semantic_model import CodeFix, Diagnostic, Range, Severity
 

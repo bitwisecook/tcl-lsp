@@ -335,7 +335,7 @@ class TestPerFolderDialect:
         into ``registry_names``.
         """
         from analyser import Analyser
-        from shared.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         src = "cmd_alpha foo bar\n"
         with dialect_scope("tcl8.6", extra_commands=["cmd_alpha"]):

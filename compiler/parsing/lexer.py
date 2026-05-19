@@ -6,7 +6,7 @@ import bisect
 import threading
 from contextlib import contextmanager as _contextmanager
 
-from .tokens import SourcePosition, Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
 _bisect_right = bisect.bisect_right
 

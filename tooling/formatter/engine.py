@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import (
     SIGNATURES,
@@ -21,6 +20,7 @@ from compiler.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
 )
+from shared.tokens import Token, TokenType
 
 from .config import FormatterConfig, IndentStyle
 

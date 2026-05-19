@@ -15,7 +15,7 @@ from analyser.semantic_model import Range
 from .expr_ast import ExprNode
 
 if TYPE_CHECKING:
-    from compiler.parsing.tokens import Token
+    from shared.tokens import Token
 
 
 class InlineDecision(Enum):

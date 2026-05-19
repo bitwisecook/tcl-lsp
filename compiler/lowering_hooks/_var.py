@@ -52,7 +52,7 @@ def _expr_arg_from_expr_command(
 
 def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``set`` to IRAssignConst/IRAssignExpr/IRAssignValue."""
-    from compiler.parsing.tokens import TokenType
+    from shared.tokens import TokenType
 
     args = cmd.args
     arg_tokens = cmd.arg_tokens
@@ -159,7 +159,7 @@ def lower_incr(lowerer: _LowererLike, cmd: _Command) -> object | None:
 def _check_safe_on_uninit(command: str, subcommand: str | None = None) -> bool:
     """Query the registry for the ``safe_on_uninit`` trait."""
     from compiler.registry import REGISTRY
-    from shared.dialect import active_dialect
+    from compiler.registry.dialect import active_dialect
 
     return REGISTRY.is_safe_on_uninit(command, subcommand, active_dialect())
 

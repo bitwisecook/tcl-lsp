@@ -7,15 +7,15 @@ from compiler.parsing.known_commands import known_command_names
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.recovery import compute_virtual_insertions
 from compiler.parsing.token_positions import token_content_base, token_content_shift
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry.command_registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     ArgRole,
     arg_indices_for_roles,
     iter_switch_case_list,
 )
-from shared.dialect import active_dialect
 from shared.ranges import position_from_offset
+from shared.tokens import SourcePosition, Token, TokenType
 
 from ._constants import (
     _BUILTIN_COMMANDS,

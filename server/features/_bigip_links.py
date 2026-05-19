@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from analyser.semantic_model import Range, SourcePosition
 from dialects.f5.bigip.irules_refs import extract_irules_object_references
 from dialects.f5.bigip.model import BigipConfig
 from dialects.f5.bigip.object_registry import resolve_kind_in_configs
@@ -41,8 +40,10 @@ from dialects.f5.bigip.registry import (
     references_via_spec,
 )
 from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
+from server._lsp_conv import to_lsp_range
+from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
-from shared.lsp import to_lsp_range
+from shared.tokens import SourcePosition
 
 
 def get_bigip_document_links(

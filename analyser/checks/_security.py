@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import canonical_list_commands
 from shared.codes import diag
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (

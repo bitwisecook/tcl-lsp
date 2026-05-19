@@ -504,7 +504,7 @@ class _StatementsMixin:
             self._emit_value(cmd, interpolate=True)
         else:
             self._push_lit(cmd)
-        from compiler.parsing.tokens import TokenType
+        from shared.tokens import TokenType
 
         for i, a in enumerate(args):
             # When the matching token is a real ``[cmd]`` substitution,
@@ -551,7 +551,7 @@ class _StatementsMixin:
         (pre-substitution) command text so that the VM can produce
         accurate errorInfo "invoked from within" frames.
         """
-        from compiler.parsing.tokens import TokenType
+        from shared.tokens import TokenType
 
         _INVOKE_OPS = (Op.INVOKE_STK1, Op.INVOKE_STK4, Op.INVOKE_EXPANDED)
         for i in range(len(self._instrs) - 1, -1, -1):

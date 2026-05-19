@@ -364,8 +364,8 @@ def on_get_effective_config(uri: str = "") -> dict:
     confirm the server has applied the toggle, rather than sleeping on
     wall-clock time.
     """
+    from compiler.registry.dialect import active_dialect
     from server.settings import _FEATURE_TOGGLE_KEYS
-    from shared.dialect import active_dialect
 
     cfg = _state.config_for_uri(uri)
     fallback = _state.feature_config
@@ -1016,8 +1016,8 @@ def on_export_config() -> dict:
 
 def _switch_dialect(dialect: str) -> dict:
     """Switch the active dialect and re-publish diagnostics."""
+    from compiler.registry.dialect import active_dialect
     from compiler.registry.dialects import KNOWN_DIALECTS
-    from shared.dialect import active_dialect
 
     if dialect and dialect not in KNOWN_DIALECTS:
         return {"success": False, "error": f"Unknown dialect: {dialect!r}"}

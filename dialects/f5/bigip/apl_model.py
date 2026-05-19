@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass, field
 
 from analyser.semantic_model import Range
-from compiler.parsing.tokens import SourcePosition
+from shared.tokens import SourcePosition
 
 from ._text_utils import find_brace_end, offset_to_line_char
 from .apl_parser import _FIELD_TYPE_KEYWORDS

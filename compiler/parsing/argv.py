@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .tokens import Token
+from shared.tokens import Token
 
 
 def widen_argv_tokens_to_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[Token]:

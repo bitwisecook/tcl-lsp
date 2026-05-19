@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from bisect import bisect_right
 
-from analyser.semantic_model import Range
-from compiler.parsing.tokens import SourcePosition, Token
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition, Token
 
 
 def range_from_token(tok: Token) -> Range:

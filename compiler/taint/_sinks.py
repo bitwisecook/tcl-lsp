@@ -7,8 +7,8 @@ from __future__ import annotations
 from functools import lru_cache
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     TAINT_HINTS,
     regex_pattern_commands,
@@ -18,8 +18,8 @@ from compiler.registry.runtime import (
 )
 from compiler.registry.taint_hints import TaintColour
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.tokens import TokenType
 
 from ..cfg import CFGBranch, CFGFunction, CFGGoto
 from ..ir import (

@@ -72,7 +72,7 @@ Source text
 Before diving into examples, here are the key types that appear at each stage.
 All types live under `core/` and are frozen dataclasses unless noted.
 
-### Stage 1 — Lexer types ([`compiler/parsing/tokens.py`](../../compiler/parsing/tokens.py))
+### Stage 1 — Lexer types ([`shared/tokens.py`](../../shared/tokens.py))
 
 ```python
 class TokenType(Enum):              # tokens.py:9

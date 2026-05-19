@@ -18,14 +18,14 @@ from compiler.expr_ast import (
     ExprUnary,
 )
 from compiler.parsing.expr_parser import parse_expr
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token, range_from_tokens
+from shared.tokens import SourcePosition, Token, TokenType
 
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (

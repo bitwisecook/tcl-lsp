@@ -17,9 +17,9 @@ Diagnostic codes
 from __future__ import annotations
 
 from analyser.semantic_model import Diagnostic, Range, Severity
-from compiler.parsing.tokens import SourcePosition
+from compiler.registry.dialect import active_dialect
 from shared.codes import diag
-from shared.dialect import active_dialect
+from shared.tokens import SourcePosition
 
 from .apl_model import AplModel
 from .iapp_vars import IappVarRef

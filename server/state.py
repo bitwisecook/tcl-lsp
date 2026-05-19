@@ -9,7 +9,7 @@ import threading
 from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING
 
-import shared.codes_all  # noqa: F401  # must precede feature_config import so profile categories are computed with full registry
+import server._codes_init  # noqa: F401  # must precede feature_config import so profile categories are computed with full registry
 from analyser.packages import PackageResolver
 from tooling.formatter import FormatterConfig
 
@@ -92,7 +92,7 @@ def dialect_scope_for_uri(doc_uri: str | None, source: str | None = None):
         with _state.dialect_scope_for_uri(uri, source):
             ...
     """
-    from shared.dialect import dialect_scope
+    from compiler.registry.dialect import dialect_scope
 
     dialect, extras = resolve_dialect_for_uri(doc_uri, source)
     return dialect_scope(dialect=dialect, extra_commands=extras)
@@ -200,10 +200,10 @@ def resolve_dialect_for_uri(
     Each component may independently be ``None`` (meaning "inherit the
     process default that ``configure_signatures`` set at server startup /
     on workspace config change").  Callers wrap their work in
-    :func:`shared.dialect.dialect_scope` with the result; ``None``
+    :func:`compiler.registry.dialect.dialect_scope` with the result; ``None``
     values leave the corresponding ContextVar untouched.
     """
-    from shared.dialect import detect_dialect_from_source
+    from compiler.registry.dialect import detect_dialect_from_source
 
     dialect: str | None = None
     extras: tuple[str, ...] | None = None

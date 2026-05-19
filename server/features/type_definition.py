@@ -18,7 +18,7 @@ from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef
 from compiler.core_analyses import analyse_source
 from compiler.types import TclType, TypeKind
-from shared.lsp import to_lsp_location
+from server._lsp_conv import to_lsp_location
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position
 

@@ -8,7 +8,7 @@ from compiler.parsing.token_positions import (
     token_content_base,
     token_content_shift,
 )
-from compiler.parsing.tokens import Token, TokenType
+from shared.tokens import Token, TokenType
 
 
 def _first_token(

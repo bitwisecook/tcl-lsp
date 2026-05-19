@@ -43,7 +43,7 @@ def _was_braced(emitter, call_arg_idx: int) -> bool:
     surfaces as ``OptIsOpt cmd`` returning 1 instead of 0 and is the
     root cause of the opt-10.5..10 / 11.1 / 3.1 silent successes.
     """
-    from compiler.parsing.tokens import TokenType
+    from shared.tokens import TokenType
 
     tokens = getattr(emitter, "_current_call_tokens", None)
     if tokens is None or tokens.argv is None:

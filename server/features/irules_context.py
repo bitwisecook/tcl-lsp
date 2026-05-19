@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 
 def find_enclosing_when_event(

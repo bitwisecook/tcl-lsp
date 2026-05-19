@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.models import DialectStatus, FormKind
 from compiler.registry.runtime import (
     ArgRole,
@@ -13,9 +13,9 @@ from compiler.registry.runtime import (
     normalized_flag_commands,
 )
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (

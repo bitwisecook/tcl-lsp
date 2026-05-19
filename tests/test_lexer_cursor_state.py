@@ -22,7 +22,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 
 def _sample_sources() -> list[str]:

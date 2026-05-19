@@ -25,7 +25,7 @@ The parsing layer tokenises source, segments commands, and performs recovery for
 - `compiler/parsing/argv.py`
 - `compiler/parsing/command_shapes.py`
 - `compiler/parsing/token_positions.py`
-- `compiler/parsing/tokens.py`
+- `shared/tokens.py`
 
 ## Failure modes
 

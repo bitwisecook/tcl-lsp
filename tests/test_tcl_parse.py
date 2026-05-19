@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token, TokenType
+from shared.tokens import Token, TokenType
 
 from .helpers import lex
 
@@ -459,7 +459,7 @@ class TestExpansion:
 
     def test_no_expand_in_84_dialect(self):
         """{*} should not expand under a Tcl 8.4 dialect scope."""
-        from shared.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("tcl8.4"):
             tokens = lex("cmd {*}$args")

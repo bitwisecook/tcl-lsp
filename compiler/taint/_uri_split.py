@@ -27,8 +27,8 @@ from __future__ import annotations
 from functools import lru_cache
 
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from ..cfg import CFGBranch, CFGFunction

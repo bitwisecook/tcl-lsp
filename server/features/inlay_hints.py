@@ -11,8 +11,8 @@ from analyser.semantic_model import AnalysisResult
 from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
-from compiler.parsing.tokens import TokenType
 from compiler.types import TypeKind
+from shared.tokens import TokenType
 
 from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,

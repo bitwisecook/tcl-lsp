@@ -1,7 +1,7 @@
 """Generated at build time — do not edit."""
 
-VERSION: str = "1.10.5-7-g63a1e-dev"
-GIT_DESCRIBE: str = "v1.10.5-7-g63a1e-dev"
-GIT_HASH: str = "63a1e0a2"
-FULL_VERSION: str = "1.10.5-7-g63a1e-dev"
-BUILD_TIMESTAMP: str = "2026-05-19T12:53:46Z"
+VERSION: str = "1.10.5-8-g7e69d-dev"
+GIT_DESCRIBE: str = "v1.10.5-8-g7e69d-dev"
+GIT_HASH: str = "7e69d614"
+FULL_VERSION: str = "1.10.5-8-g7e69d-dev"
+BUILD_TIMESTAMP: str = "2026-05-19T13:07:59Z"

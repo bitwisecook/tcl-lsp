@@ -106,7 +106,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from compiler.parsing.lexer import TclParseError
-from compiler.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 from .ir import (
     IRBarrier,

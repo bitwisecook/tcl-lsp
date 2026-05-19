@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import (
     canonical_list_commands,
@@ -14,6 +13,7 @@ from compiler.registry.runtime import (
 )
 from compiler.registry.taint_hints import TaintColour
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.tokens import TokenType
 
 from ..cfg import CFGBranch, CFGFunction, CFGGoto
 from ..ir import (

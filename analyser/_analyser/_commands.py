@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     SIGNATURES,
     ArgRole,
@@ -19,8 +19,8 @@ from compiler.registry.runtime import (
     body_arg_implicit_args_for_command,
     iter_body_arguments,
 )
-from shared.dialect import active_dialect
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import (
     AutoPathEntry,

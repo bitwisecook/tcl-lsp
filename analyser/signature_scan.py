@@ -38,8 +38,8 @@ from analyser.semantic_model import (
     SourceTarget,
 )
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.tokens import Token, TokenType
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 
 @dataclass

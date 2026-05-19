@@ -7,7 +7,7 @@ from lsprotocol import types
 from analyser import analyse
 from analyser.proc_lookup import find_proc_by_reference
 from analyser.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
 
 from .references import find_proc_call_sites
 from .symbol_resolution import find_word_at_position

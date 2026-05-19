@@ -46,8 +46,8 @@ def lower_return(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``return`` to IRReturn or IRBarrier for options."""
     from compiler.parsing.command_shapes import extract_single_expr_argument
     from compiler.parsing.expr_parser import parse_expr as _parse_expr
-    from compiler.parsing.tokens import TokenType
     from shared.alias import expr_alias_names as _expr_alias_names
+    from shared.tokens import TokenType
 
     args = cmd.args
     # {*} expansion makes the argument list unknown at compile time —

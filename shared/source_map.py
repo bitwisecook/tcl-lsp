@@ -5,8 +5,8 @@ from __future__ import annotations
 from bisect import bisect_right
 from dataclasses import dataclass, field
 
-from analyser.semantic_model import Range
-from compiler.parsing.tokens import SourcePosition
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition
 
 
 def offset_to_line_col(

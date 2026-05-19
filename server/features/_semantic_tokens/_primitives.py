@@ -4,12 +4,12 @@ import logging
 
 from compiler.parsing.expr_lexer import ExprTokenType
 from compiler.parsing.token_positions import token_content_base
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )
 from shared.ranges import position_from_offset
+from shared.tokens import SourcePosition, Token, TokenType
 
 from ._constants import (
     _ESCAPE_RE,

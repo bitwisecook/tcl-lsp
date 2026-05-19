@@ -22,17 +22,17 @@ from compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from compiler.gvn import RedundantComputation, find_redundant_computations
 from compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
 from compiler.optimiser import Optimisation, find_optimisations
-from compiler.parsing.tokens import SourcePosition
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
 from compiler.taint import (
     TaintWarning,
     find_taint_warnings,
 )
 from dialects.tk.dialect.detection import has_tk_require
+from server._lsp_conv import to_lsp_range
 from shared.codes import diag
-from shared.dialect import active_dialect
-from shared.lsp import to_lsp_range
+from shared.tokens import SourcePosition
 
 log = logging.getLogger(__name__)
 
@@ -820,7 +820,7 @@ def _run_deep_diagnostics(
     analysis needed) so the only data crossing the process boundary
     is the source string and config flags.
     """
-    import shared.codes_all  # noqa: F401
+    import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)

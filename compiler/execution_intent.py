@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
+from shared.tokens import TokenType
 
 from .cfg import CFGFunction
 from .ir import IRAssignValue

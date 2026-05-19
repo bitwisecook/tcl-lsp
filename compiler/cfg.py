@@ -21,11 +21,11 @@ from dataclasses import dataclass, field
 
 from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import arg_indices_for_role
 from compiler.registry.signatures import ArgRole
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.tokens import TokenType
 
 from .expr_ast import (
     BinOp,

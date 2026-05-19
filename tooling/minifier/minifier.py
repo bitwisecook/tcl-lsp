@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from typing import Literal, overload
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
@@ -34,6 +33,7 @@ from compiler.registry.runtime import (
 )
 from shared.suffix_array import build_lcp_array, build_suffix_array
 from shared.text_edits import apply_edits, name_generator
+from shared.tokens import Token, TokenType
 
 # Commands whose presence in a proc body makes variable renaming unsafe
 # because they reference variables by name as strings at runtime.
@@ -229,7 +229,7 @@ def _resolve_dialect(dialect: str | None) -> str:
     if dialect is not None:
         return dialect
     try:
-        from shared.dialect import active_dialect
+        from compiler.registry.dialect import active_dialect
 
         return active_dialect()
     except Exception:

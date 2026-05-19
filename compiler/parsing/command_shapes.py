@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from shared.tokens import Token, TokenType
+
 from .lexer import TclLexer
-from .tokens import Token, TokenType
 
 
 def _word_piece(tok: Token) -> str:

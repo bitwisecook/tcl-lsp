@@ -19,8 +19,8 @@ try:
     from analyser import analyse
     from analyser.semantic_model import Diagnostic, Severity
     from compiler.parsing.lexer import TclLexer
-    from compiler.parsing.tokens import TokenType
     from shared.source_map import offset_to_line_col as _offset_to_line_col
+    from shared.tokens import TokenType
 except ModuleNotFoundError:
     # Allow running this file directly from anywhere.
     ROOT = Path(__file__).resolve().parents[2]
@@ -29,8 +29,8 @@ except ModuleNotFoundError:
     from analyser import analyse
     from analyser.semantic_model import Diagnostic, Severity
     from compiler.parsing.lexer import TclLexer
-    from compiler.parsing.tokens import TokenType
     from shared.source_map import offset_to_line_col as _offset_to_line_col
+    from shared.tokens import TokenType
 
 
 class Ansi:

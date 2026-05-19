@@ -21,12 +21,12 @@ from lsprotocol import types
 from analyser import analyse
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from server.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
 from server.features.completion import get_completions
 from server.features.definition import get_definition
 from server.features.hover import get_hover
 from server.features.references import get_references
+from shared.tokens import TokenType
 
 from .helpers import lex
 

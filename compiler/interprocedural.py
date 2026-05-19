@@ -23,7 +23,6 @@ from analyser.proc_arg_traits import (
 )
 from analyser.semantic_model import ProcArgTrait
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
 from compiler.registry.signatures import ArgRole, Arity
 from shared.naming import (
@@ -32,6 +31,7 @@ from shared.naming import (
 from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from shared.tokens import TokenType
 
 from .cfg import CFGFunction, CFGReturn, build_cfg
 from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function

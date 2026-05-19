@@ -15,8 +15,8 @@ from compiler.ir import (
     IRSwitch,
 )
 from compiler.parsing.recovery import segment_with_recovery
-from compiler.parsing.tokens import Token
 from shared.ranges import range_from_token
+from shared.tokens import Token
 
 from ..semantic_model import (
     ClassDef,

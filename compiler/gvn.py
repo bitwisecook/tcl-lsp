@@ -41,15 +41,15 @@ from typing import TypeAlias
 
 from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import loop_list_header_commands
 from shared.codes import opt
-from shared.dialect import active_dialect
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
 from shared.ranges import range_from_token
+from shared.tokens import SourcePosition, Token, TokenType
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, ensure_compilation_unit

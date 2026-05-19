@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser import analyse
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 
 def lex(source: str) -> list:

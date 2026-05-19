@@ -13,12 +13,12 @@ from analyser.conf_wrapped import (
     analyse_conf_wrapped,
 )
 from analyser.semantic_model import Range
-from compiler.parsing.tokens import SourcePosition
+from compiler.registry.dialect import detect_dialect_from_source
 from compiler.registry.runtime import configure_signatures
 from dialects.f5.bigip.rule_extract import find_embedded_rules, is_conf_wrapped_irules
 from server.features.document_symbols import get_document_symbols
 from server.features.irules_context import find_enclosing_when_event
-from shared.dialect import detect_dialect_from_source
+from shared.tokens import SourcePosition
 
 # -- Detection ----------------------------------------------------------------
 

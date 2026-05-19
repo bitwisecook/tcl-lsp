@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.substitution import backslash_subst
-from compiler.parsing.tokens import Token, TokenType
+from shared.tokens import Token, TokenType
 
 
 def _tokens(source: str, *, include_sep: bool = False) -> list[Token]:

@@ -7,12 +7,12 @@ from lsprotocol import types
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ProcDef, Scope
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
 )
-from shared.dialect import active_dialect
 from shared.naming import is_bare_var_name
 from tooling.formatter.config import FormatterConfig, IndentStyle
 from tooling.formatter.docstring import format_docstring

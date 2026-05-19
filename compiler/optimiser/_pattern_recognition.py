@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import variable_writing_commands
 from shared.codes import opt
-from shared.dialect import active_dialect
 from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from shared.tokens import Token, TokenType
 
 from ..ir import (
     IRAssignConst,

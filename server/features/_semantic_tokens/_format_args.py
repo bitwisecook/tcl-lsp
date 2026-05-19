@@ -5,8 +5,8 @@ import re
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_base
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry.command_registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
@@ -14,8 +14,8 @@ from compiler.registry.runtime import (
     regexp_pattern_index,
     skip_options,
 )
-from shared.dialect import active_dialect
 from shared.ranges import position_from_offset
+from shared.tokens import Token, TokenType
 
 from ._constants import (
     _BINARY_FORMAT_SPECIFIERS,

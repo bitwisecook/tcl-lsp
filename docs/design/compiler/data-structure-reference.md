@@ -13,7 +13,7 @@ dataclasses.  All types live under `core/` and are frozen dataclasses
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 
-Source: [`compiler/parsing/tokens.py`](../../../compiler/parsing/tokens.py),
+Source: [`shared/tokens.py`](../../../shared/tokens.py),
 [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py),
 [`compiler/ir.py`](../../../compiler/ir.py),
 [`compiler/cfg.py`](../../../compiler/cfg.py),

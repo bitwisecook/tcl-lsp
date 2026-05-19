@@ -18,7 +18,7 @@ from compiler.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
 
 class TestSegmentCommands:

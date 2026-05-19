@@ -1141,8 +1141,8 @@ class TestE100StrayBracketRecovery:
         no stray ``]`` is present, so no virtual CMD should be
         injected into argv.
         """
-        from compiler.parsing.tokens import SourcePosition, Token, TokenType
         from server.features import _recover_stray_close_bracket_in_flush
+        from shared.tokens import SourcePosition, Token, TokenType
 
         def pos(offset: int) -> SourcePosition:
             return SourcePosition(line=0, character=offset, offset=offset)

@@ -741,7 +741,7 @@ consumer must treat it as opaque and conservative.
 | File | Responsibility |
 |------|---------------|
 | `compiler/parsing/lexer.py` | Tokenisation with position tracking |
-| `compiler/parsing/tokens.py` | Token, SourcePosition, TokenType definitions |
+| `shared/tokens.py` | Token, SourcePosition, TokenType definitions |
 | `compiler/parsing/command_segmenter.py` | Command segmentation and chunking |
 | `compiler/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
 | `compiler/parsing/expr_lexer.py` | Expression tokenisation |

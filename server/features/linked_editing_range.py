@@ -12,7 +12,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ProcDef, Range
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
 from shared.position import position_in_range
 
 from .references import find_proc_call_sites

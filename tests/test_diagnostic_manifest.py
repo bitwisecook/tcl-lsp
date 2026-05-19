@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-import shared.codes_all  # noqa: F401
+import server._codes_init  # noqa: F401
 from shared.codes import (
     SECTION_KEYS,
     all_codes,

@@ -19,8 +19,8 @@ from analyser.semantic_model import Diagnostic, Range, Severity
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import (
     SIGNATURES,
@@ -32,10 +32,10 @@ from compiler.registry.runtime import (
     iter_body_arguments,
 )
 from shared.codes import diag
-from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name
 from shared.ranges import position_from_relative, range_from_token
 from shared.text import suggest_similar as _suggest_similar_impl
+from shared.tokens import Token, TokenType
 
 from .ir import (
     CommandTokens,
@@ -694,7 +694,7 @@ def _resolve_expansion_elements(
       semantics where ``{*}`` calls ``Tcl_ListObjGetElements`` to
       shimmer the value to a list at call time.
     """
-    from compiler.parsing.tokens import TokenType
+    from shared.tokens import TokenType
 
     from .core_analyses import _extract_foreach_elements
     from .tcl_expr_eval import _split_tcl_list

@@ -24,8 +24,8 @@ from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, 
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
 from compiler.parsing.lexer import TclLexer, TclParseError
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect as _active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from shared.alias import (
     detect_interp_alias,
@@ -39,7 +39,6 @@ from shared.alias import (
 from shared.alias import (
     to_canonical_command as _to_canonical_command,
 )
-from shared.dialect import active_dialect as _active_dialect
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -47,6 +46,7 @@ from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from .ir import (
     CommandTokens,
@@ -2286,7 +2286,7 @@ class _Lowerer:
                 # else (CMD / VAR / ESC with substitutions) means
                 # dynamic.  The namespace arg must likewise be a
                 # plain identifier.
-                from compiler.parsing.tokens import TokenType as _TT
+                from shared.tokens import TokenType as _TT
 
                 body_tok = arg_tokens[2]
                 ns_tok = arg_tokens[1]

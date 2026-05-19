@@ -20,11 +20,11 @@ import logging
 from dataclasses import dataclass
 
 from analyser.semantic_model import Range
-from compiler.parsing.tokens import SourcePosition
 from compiler.registry.runtime import TYPE_HINTS
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.codes import diag
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.tokens import SourcePosition
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, ensure_compilation_unit

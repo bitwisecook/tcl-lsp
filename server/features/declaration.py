@@ -28,9 +28,9 @@ from analyser.var_scoping import (
     variable_declaration_indices,
 )
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.tokens import Token
 from compiler.registry.runtime import iter_body_arguments
-from shared.lsp import to_lsp_location
+from server._lsp_conv import to_lsp_location
+from shared.tokens import Token
 
 from .definition import get_definition
 from .symbol_resolution import find_scope_at_line, find_var_at_position

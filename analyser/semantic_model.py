@@ -9,7 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from compiler.parsing.tokens import SourcePosition
+from shared.diagnostic import (  # noqa: F401  re-export for back-compat; new code: import from shared.diagnostic
+    CodeFix,
+    Diagnostic,
+    Range,
+    Severity,
+)
 
 
 # Proc argument traits
@@ -27,51 +32,6 @@ class ProcArgTrait(Enum):
     VAR_READ = auto()  # Argument names a variable that the proc reads (upvar read-only)
     EXPR = auto()  # Argument is evaluated as an expression
     LOOP_LIST = auto()  # Argument is used as the list in a foreach/lmap
-
-
-# Source ranges
-@dataclass(frozen=True, slots=True)
-class Range:
-    """A span in source text."""
-
-    start: SourcePosition
-    end: SourcePosition
-
-    @classmethod
-    def zero(cls) -> Range:
-        """Return a zero-length range at position (0, 0, 0)."""
-        pos = SourcePosition(line=0, character=0, offset=0)
-        return cls(start=pos, end=pos)
-
-
-# Diagnostic severity
-class Severity(Enum):
-    ERROR = auto()
-    WARNING = auto()
-    INFO = auto()
-    HINT = auto()
-
-
-# Diagnostic
-@dataclass(frozen=True, slots=True)
-class CodeFix:
-    """A suggested fix for a diagnostic -- maps to an LSP TextEdit."""
-
-    range: Range
-    new_text: str
-    description: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class Diagnostic:
-    """A single error, warning, or info message attached to a source range."""
-
-    range: Range
-    message: str
-    severity: Severity = Severity.ERROR
-    code: str = ""
-    fixes: tuple[CodeFix, ...] = ()
-    related_ranges: tuple[tuple[Range, str], ...] = ()
 
 
 # Variable definition

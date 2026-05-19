@@ -4,7 +4,6 @@ import logging
 import re
 from bisect import bisect_right
 
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from dialects.f5.bigip.apl_parser import AplTokenKind, tokenise_apl
 from dialects.f5.bigip.iapp_extract import find_embedded_iapp_sections
 from dialects.f5.bigip.irules_refs import extract_irules_object_references
@@ -17,6 +16,7 @@ from dialects.f5.bigip.registry import references_via_spec
 from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 from dialects.f5.bigip.rule_extract import find_embedded_rules
 from shared.document_buffer import DocumentBuffer
+from shared.tokens import SourcePosition, Token, TokenType
 
 from ._collect import _collect_tokens
 from ._constants import (

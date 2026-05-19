@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping
 
-from compiler.parsing.tokens import Token
 from compiler.registry import REGISTRY
+from shared.tokens import Token
 
 from ..irules_checks import check_deprecated_event as check_deprecated_irules_event
 from ..irules_checks import check_when_missing_priority

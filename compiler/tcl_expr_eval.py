@@ -22,7 +22,7 @@ from collections.abc import Callable
 from typing import TypeAlias
 
 from compiler.parsing.expr_parser import parse_expr
-from shared.dialect import active_dialect
+from compiler.registry.dialect import active_dialect
 
 from .expr_ast import (
     BinOp,

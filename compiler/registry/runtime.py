@@ -18,8 +18,8 @@ if TYPE_CHECKING:
     from analyser.semantic_model import StubCommandDef
     from compiler.side_effects import StorageType
 
-from compiler.parsing.tokens import Token
 from compiler.types import TclType
+from shared.tokens import Token
 
 from .command_registry import REGISTRY
 from .models import CommandSpec, PatternType, ValidationSpec
@@ -743,7 +743,7 @@ def configure_signatures(
 
     This sets the ContextVar values in the *current* context.  For
     per-request scoping (the common case in the LSP), prefer
-    :func:`shared.dialect.dialect_scope` which uses a
+    :func:`compiler.registry.dialect.dialect_scope` which uses a
     ``with``-statement and restores the previous value on exit.
     ``configure_signatures`` remains as the long-lived default-setter
     used at server startup and on workspace-level configuration changes.
@@ -1041,7 +1041,7 @@ def iter_switch_case_list(
     surrounding ``{`` ``}``).
     """
     from compiler.parsing.lexer import TclLexer
-    from compiler.parsing.tokens import TokenType
+    from shared.tokens import TokenType
 
     lexer = TclLexer(
         case_list_text,
@@ -1567,5 +1567,5 @@ _cmd_reg._on_specs_loaded = _invalidate_runtime_caches
 
 # Eagerly populate the signature cache for the default profile so the first
 # request doesn't pay the build cost.  Per-request scoping via
-# ``dialect_scope`` (see shared.dialect) overrides this default.
+# ``dialect_scope`` (see compiler.registry.dialect) overrides this default.
 signatures_for("tcl8.6", ())

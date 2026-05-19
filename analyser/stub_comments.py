@@ -196,7 +196,7 @@ def parse_stubs_file(
 
     Returns a tuple of (command_stubs, expr_stubs).
     """
-    from compiler.parsing.tokens import SourcePosition
+    from shared.tokens import SourcePosition
 
     cmd_stubs: list[StubCommandDef] = []
     expr_stubs: list[StubExprDef] = []
@@ -237,7 +237,7 @@ def scan_source_for_stubs(
     This is a line-based scan independent of the Tcl parser, so it works
     even before lexing.  Stubs outside a begin/end block are ignored.
     """
-    from compiler.parsing.tokens import SourcePosition
+    from shared.tokens import SourcePosition
 
     cmd_stubs: list[StubCommandDef] = []
     expr_stubs: list[StubExprDef] = []

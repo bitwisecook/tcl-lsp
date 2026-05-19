@@ -10,7 +10,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef
-from shared.lsp import to_lsp_location
+from server._lsp_conv import to_lsp_location
 
 from .symbol_resolution import find_scope_at_line, find_word_at_position
 

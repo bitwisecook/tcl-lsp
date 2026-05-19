@@ -26,11 +26,12 @@ import re
 
 from lsprotocol import types
 
-from analyser.semantic_model import Range, SourcePosition
 from dialects.f5.bigip.model import BigipConfig
 from dialects.f5.bigip.parser import parse_bigip_conf
 from dialects.f5.bigip.rewrite import rename_object
-from shared.lsp import to_lsp_location, to_lsp_range
+from server._lsp_conv import to_lsp_location, to_lsp_range
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition
 
 # Identifier-shaped token at the cursor: a TMSH path
 # (``/Partition/Name``) or a bare name.  Matches the same character

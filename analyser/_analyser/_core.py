@@ -16,10 +16,10 @@ from compiler.parsing.expr_lexer import (
     tokenise_expr,
 )
 from compiler.parsing.recovery import segment_with_recovery
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
-from shared.dialect import active_dialect
+from compiler.registry.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import (
     _FILE_SUPPRESS_KEY,

@@ -238,7 +238,7 @@ class TestIRulesExprOps:
         # Hack: inject an IRAssignExpr to exercise the expression emitter
         from analyser.semantic_model import Range
         from compiler.ir import IRAssignExpr
-        from compiler.parsing.tokens import SourcePosition
+        from shared.tokens import SourcePosition
 
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))
         stmt = IRAssignExpr(range=r, name="r", expr=expr)
@@ -251,7 +251,7 @@ class TestIRulesExprOps:
         from compiler.cfg import CFGBlock, CFGFunction, CFGReturn
         from compiler.expr_ast import ExprUnary, ExprVar
         from compiler.ir import IRAssignExpr
-        from compiler.parsing.tokens import SourcePosition
+        from shared.tokens import SourcePosition
 
         expr = ExprUnary(op=unaryop, operand=ExprVar("$a", "a", 0, 2))
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))

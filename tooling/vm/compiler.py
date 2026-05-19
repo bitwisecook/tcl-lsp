@@ -31,8 +31,8 @@ from compiler.ir import (
 from compiler.lowering import lower_to_ir
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.lexer import _thread_local as _lexer_thread_local
-from compiler.parsing.tokens import TokenType
 from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
+from shared.tokens import TokenType
 
 from .substitution import backslash_subst
 

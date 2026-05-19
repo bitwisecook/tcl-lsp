@@ -12,8 +12,8 @@ from compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, b
 from compiler.expr_ast import ExprRaw
 from compiler.ir import IRAssignConst, IRAssignExpr
 from compiler.lowering import lower_to_ir
-from compiler.parsing.tokens import SourcePosition
 from compiler.ssa import build_ssa
+from shared.tokens import SourcePosition
 
 
 def _dummy_range() -> Range:

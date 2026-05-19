@@ -26,9 +26,9 @@ import ipaddress
 import re
 
 from analyser.semantic_model import Diagnostic, Range, Severity
-from compiler.parsing.tokens import SourcePosition
 from shared.codes import diag
 from shared.document_buffer import DocumentBuffer
+from shared.tokens import SourcePosition
 
 from .model import BigipConfig, BigipRule, ProfileType
 

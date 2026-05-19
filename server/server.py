@@ -11,8 +11,8 @@ from collections import OrderedDict
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
-import shared.codes_all  # noqa: F401  # trigger all code registrations
-from shared.lsp import to_lsp_location
+import server._codes_init  # noqa: F401  # trigger all code registrations
+from server._lsp_conv import to_lsp_location
 
 from .features import (
     SEMANTIC_TOKEN_MODIFIERS,

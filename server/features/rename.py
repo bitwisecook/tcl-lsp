@@ -9,9 +9,9 @@ from lsprotocol import types
 from analyser import analyse
 from analyser.proc_lookup import find_proc_by_reference
 from analyser.semantic_model import AnalysisResult, Range, Scope, VarDef
-from compiler.parsing.tokens import SourcePosition
 from compiler.registry import REGISTRY
-from shared.lsp import find_var_in_scopes, to_lsp_range
+from server._lsp_conv import find_var_in_scopes, to_lsp_range
+from shared.tokens import SourcePosition
 
 from .references import find_proc_call_sites
 from .symbol_resolution import (

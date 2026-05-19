@@ -57,7 +57,7 @@ def _ts_description_field(value: str, *, indent: int = 4) -> str:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import shared.codes_all  # noqa: F401, E402
+import server._codes_init  # noqa: F401, E402
 from shared.codes import (  # noqa: E402
     SECTIONS,
     ai_category_overrides,

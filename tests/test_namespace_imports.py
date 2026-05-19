@@ -7,7 +7,7 @@ from analyser.auto_path_eval import evaluate_auto_path_expr
 from analyser.namespace_imports import rewrite_via_imports
 from analyser.semantic_model import NamespaceImport, Range
 from analyser.signature_scan import extract_signatures
-from compiler.parsing.tokens import SourcePosition
+from shared.tokens import SourcePosition
 
 
 def _zero_range() -> Range:

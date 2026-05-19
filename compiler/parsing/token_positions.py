@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from analyser.semantic_model import Range
-
-from .tokens import SourcePosition, Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
 
 def token_content_shift(token: Token) -> int:

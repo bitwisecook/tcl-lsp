@@ -180,7 +180,7 @@ class TestWorkspaceIndexRuleInitVars:
         is_array: bool = False,
     ) -> RuleInitExport:
         from analyser.semantic_model import Range
-        from compiler.parsing.tokens import SourcePosition
+        from shared.tokens import SourcePosition
 
         r = Range(
             start=SourcePosition(0, 0, 0),
@@ -469,7 +469,7 @@ class TestWorkspaceIndexStaticVars:
         is_array: bool = False,
     ) -> RuleInitExport:
         from analyser.semantic_model import Range
-        from compiler.parsing.tokens import SourcePosition
+        from shared.tokens import SourcePosition
 
         r = Range(
             start=SourcePosition(0, 0, 0),

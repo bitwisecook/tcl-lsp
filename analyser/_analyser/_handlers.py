@@ -8,11 +8,11 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from shared.alias import detect_interp_alias, resolve_alias
-from shared.dialect import active_dialect
 from shared.ranges import range_from_token
+from shared.tokens import Token, TokenType
 
 from ..semantic_model import (
     Scope,

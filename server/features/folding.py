@@ -6,8 +6,8 @@ from lsprotocol import types
 
 from analyser.semantic_model import AnalysisResult, Scope
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.tokens import Token, TokenType
 from compiler.registry.runtime import iter_body_arguments
+from shared.tokens import Token, TokenType
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:

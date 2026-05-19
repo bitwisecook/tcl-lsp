@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser.class_hierarchy import build_class_hierarchy
 from analyser.semantic_model import ClassDef, MethodDef, ParamDef, Range
-from compiler.parsing.tokens import SourcePosition
+from shared.tokens import SourcePosition
 
 
 def _range(line: int = 0, col: int = 0) -> Range:

@@ -10,8 +10,8 @@ from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
 from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
 from compiler.registry.info import effective_event_requires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.operators import operator_hover
@@ -19,8 +19,8 @@ from compiler.registry.runtime import SIGNATURES, SubcommandSig
 from compiler.taint import TaintLattice
 from compiler.types import TypeKind
 from shared.alias import lookup_alias_for_word
-from shared.dialect import active_dialect
 from shared.ip_utils import format_ip_hover, parse_ip
+from shared.tokens import TokenType
 
 from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,

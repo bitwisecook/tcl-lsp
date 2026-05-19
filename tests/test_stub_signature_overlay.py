@@ -16,8 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser.semantic_graph import build_call_graph
 from analyser.semantic_model import (
-    Range,
-    SourcePosition,
     StubArgDef,
     StubCommandDef,
 )
@@ -31,6 +29,8 @@ from compiler.registry.runtime import (
     stub_to_command_sig,
 )
 from compiler.registry.signatures import ArgRole
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition
 
 _ZERO = Range(
     start=SourcePosition(line=0, character=0, offset=0),

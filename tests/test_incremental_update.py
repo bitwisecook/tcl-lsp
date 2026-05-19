@@ -19,8 +19,8 @@ from compiler.parsing.command_segmenter import (
     segment_top_level_chunks,
 )
 from compiler.parsing.token_positions import shift_position, shift_range, shift_token
-from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from server.workspace.document_state import DocumentState
+from shared.tokens import SourcePosition, Token, TokenType
 
 
 class TestPositionShifting:

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from analyser.semantic_model import Range
-from compiler.parsing.tokens import Token
+from shared.diagnostic import Range
+from shared.tokens import Token
 
 from .document_buffer import DocumentBuffer
 

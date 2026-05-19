@@ -15,11 +15,11 @@ from dataclasses import dataclass
 
 from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.tokens import TokenType
+from compiler.registry.dialect import active_dialect
 from compiler.registry.dialects import dialects_since
 from shared.codes import opt
-from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name as _normalise_qualified_name
+from shared.tokens import TokenType
 
 from ..ir import (
     IRAssignValue,

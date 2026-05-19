@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser import analyse
 from compiler.parsing.lexer import TclLexer, TclParseError
-from compiler.parsing.tokens import Token, TokenType
+from shared.tokens import Token, TokenType
 
 from .helpers import lex
 

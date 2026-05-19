@@ -596,7 +596,7 @@ class _WasmEmitterCtrlMixin(_Base):
                         tokens.single_token_word if tokens.single_token_word is not None else ()
                     )
                     argv = tokens.argv if tokens.argv is not None else ()
-                    from compiler.parsing.tokens import TokenType
+                    from shared.tokens import TokenType
 
                     parts: list[str] = []
                     for i, t in enumerate(tokens.argv_texts):

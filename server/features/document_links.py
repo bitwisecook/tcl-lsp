@@ -7,8 +7,8 @@ from lsprotocol import types
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, Range
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.tokens import TokenType
-from shared.lsp import to_lsp_range
+from server._lsp_conv import to_lsp_range
+from shared.tokens import TokenType
 
 
 def _collect_source_links(source: str) -> list[types.DocumentLink]:
