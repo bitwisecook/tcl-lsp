@@ -65,6 +65,17 @@ pub const State = struct {
     /// ``catch_leave`` / ``catch_enter`` and after the first
     /// ``log_command_info`` skip.
     error_info_supplied: u32 = 0,
+    /// Non-zero when the most recent command-handler return is from
+    /// a *transparent* command — ``while`` / ``for`` / ``foreach``
+    /// in their bytecode-compiled C-Tcl equivalents — and the outer
+    /// :func:`log_command_info` should NOT add an ``invoked from
+    /// within "while ..."`` frame for this command.  The body's own
+    /// commands have already populated ``::errorInfo`` with the
+    /// proper context.  Mirrors Tcl 9's bytecode behaviour where
+    /// the loop command is inlined and never appears in the
+    /// traceback.  Consumed (cleared) by the first
+    /// :func:`log_command_info` call after the handler returns.
+    transparent_error: u32 = 0,
     /// Pending arbitrary ``-OPT VALUE`` pairs supplied to ``return``
     /// (cmdMZ-return-2.1: ``return -bar soom``).  Encoded as a
     /// pre-built dict TclObj.  Snapshotted into

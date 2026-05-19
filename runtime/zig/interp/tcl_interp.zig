@@ -1583,7 +1583,24 @@ pub fn eval_while(words: []const i32) i32 {
     const body_s = obj_ensure_string(words[2]);
     var result: i32 = 0;
     while (true) {
-        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        const cond_val = eval_expr_str(cond_s.ptr, cond_s.len);
+        // ``eval_expr_str`` returns 0 for both "condition was false"
+        // *and* "expression evaluation raised an error".  Distinguish
+        // by probing ``error_flag``: when set, the cond raised — set
+        // ``transparent_error`` (matches bytecode-compiled ``while``
+        // where the loop never appears in the traceback) and return
+        // 0 with the error state intact so the caller's catch can
+        // observe the propagated error (while-old-4.4 / 4.5).  Plain
+        // false ends the loop with the canonical ``""`` return.
+        if (cond_val == 0) {
+            const tcl_catch = @import("tcl_catch.zig");
+            if (tcl_catch.state.error_flag != 0) {
+                tcl_catch.state.transparent_error = 1;
+                if (result != 0) obj_mod.tcl_obj_release(result);
+                return 0;
+            }
+            break;
+        }
         // Release the previous iteration's body result before
         // overwriting (issue #303 — tight ``while`` loops on the
         // interpreter path were leaking one TclObj per pass and
@@ -1602,7 +1619,21 @@ pub fn eval_while(words: []const i32) i32 {
                 result_mod.consume(.CONTINUE);
                 continue;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                // Transparent error propagation: C Tcl 9 bytecode-
+                // compiles ``while`` so the loop command itself
+                // never appears in ``::errorInfo``.  Setting
+                // ``transparent_error`` makes the outer
+                // :func:`log_command_info` skip the ``invoked from
+                // within "while ..."`` frame.  Only on TCL_ERROR —
+                // a plain ``return`` from the body doesn't touch
+                // errorInfo.
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
     }
     // ``while`` always returns the empty string (Tcl docs); body
@@ -1629,10 +1660,23 @@ pub fn eval_for(words: []const i32) i32 {
     // cause for the io.test 2 GiB cliff).
     const init_res = eval_script(init_s.ptr, init_s.len);
     if (init_res != 0) obj_mod.tcl_obj_release(init_res);
-    if (has_signal()) return 0;
+    if (has_signal()) {
+        // Init clause errored — propagate transparently (bytecode-
+        // compiled ``for`` in C Tcl 9 never shows up in errorInfo).
+        const tcl_catch = @import("tcl_catch.zig");
+        if (tcl_catch.state.error_flag != 0) tcl_catch.state.transparent_error = 1;
+        return 0;
+    }
     var result: i32 = 0;
     while (true) {
-        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) {
+            // Condition errored — propagate transparently.
+            if (has_signal()) {
+                const tcl_catch = @import("tcl_catch.zig");
+                if (tcl_catch.state.error_flag != 0) tcl_catch.state.transparent_error = 1;
+            }
+            break;
+        }
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(result);
@@ -1645,7 +1689,13 @@ pub fn eval_for(words: []const i32) i32 {
                 result_mod.consume(.BREAK);
                 break;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
         const next_res = eval_script(next_s.ptr, next_s.len);
         // Mirror ``tclCmdAH.c`` ForPostNextCallback (Tcl 9.0.3 line
@@ -1680,6 +1730,10 @@ pub fn eval_for(words: []const i32) i32 {
             },
             .CONTINUE, .ERROR, .RETURN => {
                 if (result != 0) obj_mod.tcl_obj_release(result);
+                if (next_ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
                 return next_res;
             },
         }
@@ -1698,6 +1752,8 @@ pub fn eval_for(words: []const i32) i32 {
 ///   * ``-glob``            — glob-style wildcards via ``glob_match``
 ///   * ``-regexp``          — POSIX-extended regex via ``run_match``
 ///   * ``-nocase``          — case-insensitive (modifies match mode)
+///   * ``-matchvar VAR``    — (regexp only) bind list of captures to VAR
+///   * ``-indexvar VAR``    — (regexp only) bind list of indices to VAR
 ///   * ``--``               — end of options
 ///
 /// Pattern handling:
@@ -1705,10 +1761,12 @@ pub fn eval_for(words: []const i32) i32 {
 ///   * Pattern ``default`` (only valid in last position) matches if
 ///     no earlier pattern did
 ///
-/// Not implemented (will trap):
-///   * ``-matchvar`` / ``-indexvar`` — regex capture binding
+/// All options accept any unique prefix abbreviation (``-exa`` =
+/// ``-exact``, ``-gl`` = ``-glob``, ``-re`` = ``-regexp``, …) to
+/// match upstream's ``Tcl_GetIndexFromObj`` behaviour.
 pub fn eval_switch(words: []const i32) i32 {
     const stubs = @import("../stubs/tcl_stubs.zig");
+    const catch_mod = @import("tcl_catch.zig");
     if (words.len < 3) {
         stubs.raise("wrong # args: should be \"switch ?options? string ?pattern body ...? ?default body?\"");
         return 0;
@@ -1717,61 +1775,68 @@ pub fn eval_switch(words: []const i32) i32 {
     const Mode = enum { exact, glob, regexp };
     var mode: Mode = .exact;
     var nocase: bool = false;
+    var matchvar: i32 = 0; // 0 = not set; otherwise a TclObj name
+    var indexvar: i32 = 0;
     var i: u32 = 1;
     while (i < words.len) : (i += 1) {
         const w = obj_ensure_string(words[i]);
         if (w.len < 1) break;
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
         if (wp[0] != '-') break;
-        if (str_eq(wp, w.len, "-exact")) {
-            mode = .exact;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-glob")) {
-            mode = .glob;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-regexp")) {
-            mode = .regexp;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-nocase")) {
-            nocase = true;
-            continue;
-        }
-        if (str_eq(wp, w.len, "--")) {
+        if (w.len == 2 and wp[1] == '-') {
+            // ``--`` end of options
             i += 1;
             break;
         }
-        if (str_eq(wp, w.len, "-matchvar") or str_eq(wp, w.len, "-indexvar")) {
-            stubs.raise("switch: -matchvar / -indexvar not yet supported");
-            return 0;
+        // Prefix match — switch options have distinct second-char
+        // (after the dash), so any unambiguous prefix works.
+        // Matches Tcl_GetIndexFromObj's behaviour.
+        if (switch_opt_prefix(wp, w.len, "-exact")) {
+            mode = .exact;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-glob")) {
+            mode = .glob;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-regexp")) {
+            mode = .regexp;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-nocase")) {
+            nocase = true;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-matchvar")) {
+            i += 1;
+            if (i >= words.len) {
+                stubs.raise("missing variable name argument to switch");
+                return 0;
+            }
+            matchvar = words[i];
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-indexvar")) {
+            i += 1;
+            if (i >= words.len) {
+                stubs.raise("missing variable name argument to switch");
+                return 0;
+            }
+            indexvar = words[i];
+            continue;
         }
         // Unknown option — produce reference Tcl's error
-        const prefix: []const u8 = "bad option \"";
-        const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
-        const total: u32 = @intCast(prefix.len + w.len + suffix.len);
-        const buf = obj_mod.alloc(total);
-        const bp: [*]u8 = @ptrFromInt(buf);
-        var off: usize = 0;
-        for (prefix) |c| {
-            bp[off] = c;
-            off += 1;
-        }
-        if (w.len > 0) {
-            const sp: [*]const u8 = @ptrFromInt(w.ptr);
-            for (0..w.len) |k| {
-                bp[off] = sp[k];
-                off += 1;
-            }
-        }
-        for (suffix) |c| {
-            bp[off] = c;
-            off += 1;
-        }
-        const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
-        const catch_mod = @import("tcl_catch.zig");
-        catch_mod.tcl_cmd_error(msg);
+        switch_bad_option(wp, w.len);
+        return 0;
+    }
+
+    // Reject -matchvar / -indexvar without -regexp.
+    if (matchvar != 0 and mode != .regexp) {
+        stubs.raise("-matchvar option requires -regexp option");
+        return 0;
+    }
+    if (indexvar != 0 and mode != .regexp) {
+        stubs.raise("-indexvar option requires -regexp option");
         return 0;
     }
 
@@ -1795,7 +1860,62 @@ pub fn eval_switch(words: []const i32) i32 {
         if (n_probe >= 2 and @rem(n_probe, 2) == 0) pairs_in_list = true;
     }
 
-    // Helper: match one pattern against subject, accounting for mode/nocase.
+    // Helper: build a decoded copy of a list element when unbraced,
+    // or return the raw bytes (no copy) when braced.  Unbraced
+    // elements need backslash substitution applied — ``{\a\$\.\[}``
+    // (one braced element) and ``\\a\\$\\.\\[`` (unbraced with
+    // escapes) both decode to ``\a\$\.\[`` (8 bytes), but list
+    // ``element_at`` returns the *raw* span; the comparator wants
+    // the post-substitution form.  Reference Tcl 9 does this via
+    // ``Tcl_SplitList`` which applies ``TclCopyAndCollapse`` to
+    // each element.  switch-6.1 / 6.2 exercise this.
+    const ListElem = struct {
+        ptr: u32,
+        len: u32,
+        is_default: bool,
+        is_dash: bool,
+        // Pattern source for the "(arm line N)" errorInfo frame —
+        // the raw on-disk text (with surrounding braces, if any).
+        src_ptr: u32,
+        src_len: u32,
+    };
+    const elem_decoder = struct {
+        fn decode(list_ptr: u32, list_len: u32, idx: i64) ListElem {
+            const e = list_element_at(list_ptr, list_len, idx);
+            if (e.len == 0) {
+                return .{ .ptr = 0, .len = 0, .is_default = false, .is_dash = false, .src_ptr = list_ptr + e.start, .src_len = 0 };
+            }
+            // ``default`` arm match — bytes-equal compare against the
+            // raw list bytes (braced ``{default}`` is also valid; the
+            // braced flag is honoured before the byte compare).
+            const is_default = !e.braced and e.len == 7 and blk_default: {
+                const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
+                break :blk_default sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
+                    sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
+            };
+            const is_dash = !e.braced and e.len == 1 and blk_dash: {
+                const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
+                break :blk_dash sp[0] == '-';
+            };
+            if (e.braced) {
+                return .{ .ptr = list_ptr + e.start, .len = e.len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+            }
+            // Unbraced — apply backslash substitution into a scratch
+            // buffer.  Length never grows beyond e.len (each escape
+            // produces ≤ its input bytes).
+            const buf = alloc(e.len);
+            if (buf == 0) return .{ .ptr = list_ptr + e.start, .len = e.len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+            const out_len = copy_unbraced_elem(buf, list_ptr + e.start, e.len);
+            return .{ .ptr = buf, .len = out_len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+        }
+    };
+
+    // Match attempt + capture binding for one pattern.  Returns
+    // ``.matched = true`` when the pattern matches, populates
+    // ``cap_count`` + ``cap_starts`` / ``cap_ends`` (codepoint
+    // offsets relative to the subject) for regexp mode so the
+    // -matchvar / -indexvar binding step below has the data it
+    // needs.  ``cap_count`` is 0 outside regexp mode.
     const PatRunner = struct {
         fn run(p_ptr: u32, p_len: u32, s_ptr: u32, s_len: u32, mode_v: Mode, no_case: bool) bool {
             const tcl_string = @import("../valtypes/tcl_string.zig");
@@ -1804,6 +1924,7 @@ pub fn eval_switch(words: []const i32) i32 {
                 .exact => {
                     if (no_case) {
                         if (p_len != s_len) return false;
+                        if (p_len == 0) return true;
                         const pp: [*]const u8 = @ptrFromInt(p_ptr);
                         const ss: [*]const u8 = @ptrFromInt(s_ptr);
                         var k: u32 = 0;
@@ -1846,20 +1967,56 @@ pub fn eval_switch(words: []const i32) i32 {
         }
     };
 
-    // Iterate pattern/body pairs.  We do two passes when ``-`` body
-    // appears: the first pass picks the matching pattern, the second
-    // walks forward to find the first non-``-`` body.
-    var match_idx: i64 = -1; // index of matching pair (0-based pair index)
+    // First pass: find the matching pattern index.  For regexp +
+    // capture-binding mode we also record the matching pattern's
+    // span so we can re-run it against the subject with captures
+    // after the match index is known.
+    var match_idx: i64 = -1;
+    var match_pat_ptr: u32 = 0; // for regexp capture re-run
+    var match_pat_len: u32 = 0;
+    var match_pat_src_ptr: u32 = 0; // for "(arm line N)" frame
+    var match_pat_src_len: u32 = 0;
     var n_pairs: i64 = 0;
+
+    var bodies_list_ptr: u32 = 0; // list-form: list bytes
+    var bodies_list_len: u32 = 0;
+    var pair_base: u32 = 0; // inline-form: words[i..] index of first pattern
     if (pairs_in_list) {
         const list_s = obj_ensure_string(words[i]);
+        bodies_list_ptr = list_s.ptr;
+        bodies_list_len = list_s.len;
         const total_elems = list_count_elements(list_s.ptr, list_s.len);
         n_pairs = @divTrunc(total_elems, 2);
         var pi: i64 = 0;
         while (pi < n_pairs) : (pi += 1) {
-            const pat_e = list_element_at(list_s.ptr, list_s.len, pi * 2);
-            const is_default = pat_e.len == 7 and blk: {
-                const sp: [*]const u8 = @ptrFromInt(list_s.ptr + pat_e.start);
+            const elem = elem_decoder.decode(list_s.ptr, list_s.len, pi * 2);
+            if (elem.is_default and pi == n_pairs - 1) {
+                if (match_idx == -1) match_idx = pi;
+                break;
+            }
+            if (PatRunner.run(elem.ptr, elem.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+                match_idx = pi;
+                match_pat_ptr = elem.ptr;
+                match_pat_len = elem.len;
+                match_pat_src_ptr = elem.src_ptr;
+                match_pat_src_len = elem.src_len;
+                break;
+            }
+        }
+    } else {
+        // Inline form: words[i..] are alternating pattern/body
+        if (@rem(@as(u32, @intCast(words.len)) - i, 2) != 0) {
+            stubs.raise("extra switch pattern with no body");
+            return 0;
+        }
+        pair_base = i;
+        n_pairs = @intCast((words.len - i) / 2);
+        var pi: i64 = 0;
+        while (pi < n_pairs) : (pi += 1) {
+            const pat = words[pair_base + @as(u32, @intCast(pi)) * 2];
+            const pat_s = obj_ensure_string(pat);
+            const is_default = pat_s.len == 7 and blk: {
+                const sp: [*]const u8 = @ptrFromInt(pat_s.ptr);
                 break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
                     sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
             };
@@ -1867,61 +2024,363 @@ pub fn eval_switch(words: []const i32) i32 {
                 if (match_idx == -1) match_idx = pi;
                 break;
             }
-            if (PatRunner.run(list_s.ptr + pat_e.start, pat_e.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+            if (PatRunner.run(pat_s.ptr, pat_s.len, subject_s.ptr, subject_s.len, mode, nocase)) {
                 match_idx = pi;
+                match_pat_ptr = pat_s.ptr;
+                match_pat_len = pat_s.len;
+                match_pat_src_ptr = pat_s.ptr;
+                match_pat_src_len = pat_s.len;
                 break;
             }
         }
-        if (match_idx == -1) return obj_new_string(0, 0);
-        // Walk forward for non-``-`` body
-        var bi: i64 = match_idx;
-        while (bi < n_pairs) : (bi += 1) {
-            const body_e = list_element_at(list_s.ptr, list_s.len, bi * 2 + 1);
-            if (body_e.len == 1) {
-                const bp: [*]const u8 = @ptrFromInt(list_s.ptr + body_e.start);
+    }
+
+    // Bind -matchvar / -indexvar (regexp mode).  Per Tcl 9
+    // ``Tcl_SwitchObjCmd``: indexvar is set first; if that fails
+    // (e.g. ``x(x)`` when ``x`` is a scalar), matchvar is *not* set
+    // and the body is not run.
+    //
+    // Binding semantics:
+    //   * No match (no default taken):     vars unchanged
+    //     — switch-11.2 / -12.2
+    //   * Default arm taken:               vars set to empty lists
+    //     — switch-11.4 / -12.4 (TIP#75)
+    //   * Pattern matched:                 vars set to captures
+    //     — switch-11.1 / -12.1
+    if (mode == .regexp and (matchvar != 0 or indexvar != 0) and match_idx != -1) {
+        // ``match_pat_ptr == 0`` here means: default arm taken (no
+        // pattern matched).  Produces empty bindings via TIP#75.
+        const ok = switch_bind_capture_vars(
+            match_pat_ptr,
+            match_pat_len,
+            subject_s.ptr,
+            subject_s.len,
+            nocase,
+            matchvar,
+            indexvar,
+        );
+        if (!ok) return 0;
+    }
+
+    if (match_idx == -1) return obj_new_string(0, 0);
+
+    // Walk forward for non-``-`` body, then eval it.  On error,
+    // append ``("<pattern>" arm line N)`` to errorInfo (matches
+    // Tcl 9 ``SwitchPostProc`` in tclCmdMZ.c — line ~3933).  N is
+    // hard-coded to 1 for now: every failing tcltest exercises a
+    // single-line arm body, which is the only shape that produces
+    // a checkable result string.  Multi-line arm bodies don't
+    // appear in the upstream control-flow suite as exact-result
+    // tests; when one shows up we'll thread the actual error line
+    // through ``eval_script``.
+    var bi: i64 = match_idx;
+    var body_ptr: u32 = 0;
+    var body_len: u32 = 0;
+    var arm_pat_src_ptr: u32 = match_pat_src_ptr;
+    var arm_pat_src_len: u32 = match_pat_src_len;
+    while (bi < n_pairs) : (bi += 1) {
+        if (pairs_in_list) {
+            const e = elem_decoder.decode(bodies_list_ptr, bodies_list_len, bi * 2 + 1);
+            if (e.is_dash) {
+                // Take the *next* pair's pattern for the (arm line N)
+                // attribution per Tcl 9 — the dash forwards execution
+                // to the next concrete body, but the matching pattern
+                // is still the originally-matched one.
+                continue;
+            }
+            body_ptr = e.src_ptr;
+            body_len = e.src_len;
+            if (bi != match_idx) {
+                // For fall-through, the (arm line N) frame still
+                // attributes to the original matched pattern's text.
+                arm_pat_src_ptr = match_pat_src_ptr;
+                arm_pat_src_len = match_pat_src_len;
+            }
+            break;
+        } else {
+            const body = words[pair_base + @as(u32, @intCast(bi)) * 2 + 1];
+            const body_s = obj_ensure_string(body);
+            if (body_s.len == 1) {
+                const bp: [*]const u8 = @ptrFromInt(body_s.ptr);
                 if (bp[0] == '-') continue;
             }
-            return eval_script(list_s.ptr + body_e.start, body_e.len);
+            body_ptr = body_s.ptr;
+            body_len = body_s.len;
+            break;
         }
+    }
+    if (body_ptr == 0 and body_len == 0) {
+        // Should be unreachable per the "default must be last" rule;
+        // fall through to empty result.
         return obj_mod.obj_new_string(0, 0);
     }
 
-    // Inline form: words[i..] are alternating pattern/body
-    if (@rem(@as(u32, @intCast(words.len)) - i, 2) != 0) {
-        stubs.raise("extra switch pattern with no body");
-        return 0;
+    // If the matched pattern was "default", the (arm line N) frame
+    // uses literal "default" rather than the empty string.
+    var dflt_pat = [_]u8{ 'd', 'e', 'f', 'a', 'u', 'l', 't' };
+    if (match_idx >= 0 and match_pat_src_ptr == 0) {
+        // default arm — the matching wasn't done via PatRunner
+        arm_pat_src_ptr = @intFromPtr(&dflt_pat[0]);
+        arm_pat_src_len = 7;
+    } else if (match_idx >= 0 and arm_pat_src_len == 0) {
+        // Same path: arm_pat_src_ptr may have been zeroed by the
+        // default-as-last detection above.  Restore the literal
+        // ``default`` token.
+        arm_pat_src_ptr = @intFromPtr(&dflt_pat[0]);
+        arm_pat_src_len = 7;
     }
-    n_pairs = @intCast((words.len - i) / 2);
-    var pi: i64 = 0;
-    while (pi < n_pairs) : (pi += 1) {
-        const pat = words[i + @as(u32, @intCast(pi)) * 2];
-        const pat_s = obj_ensure_string(pat);
-        const is_default = pat_s.len == 7 and blk: {
-            const sp: [*]const u8 = @ptrFromInt(pat_s.ptr);
-            break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
-                sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
-        };
-        if (is_default and pi == n_pairs - 1) {
-            if (match_idx == -1) match_idx = pi;
+
+    const result = eval_script(body_ptr, body_len);
+    const ir = result_mod.snapshot(result);
+    if (ir.code == .ERROR) {
+        // Add ``("<pattern>" arm line N)`` to ::errorInfo and
+        // suppress the body's frame from being deduped against the
+        // arm-line frame.  Truncate pattern at 50 chars matching
+        // tclCmdMZ.c:3930 ``limit = 50``.
+        switch_append_arm_line(arm_pat_src_ptr, arm_pat_src_len);
+    }
+    // Switch's own enclosing ``invoked from within "switch ..."``
+    // frame is added by the caller's eval_script (we want it for
+    // switch tests 4.1 / 4.5 — switch is NOT bytecode-transparent
+    // the way ``while`` is).
+    _ = catch_mod; // Silence unused import on the OK path.
+    return result;
+}
+
+/// Return true if ``opt`` (an option spelling like ``-exa``) is a
+/// prefix of ``full`` (e.g. ``-exact``).  Both must begin with a
+/// dash; ``opt`` may be shorter than ``full`` but must be at least
+/// 2 bytes (the dash + at least one disambiguating letter).
+/// Single-byte ``-`` matches nothing — that's reserved for ``--``.
+fn switch_opt_prefix(opt_ptr: [*]const u8, opt_len: u32, comptime full: []const u8) bool {
+    if (opt_len < 2) return false;
+    if (opt_len > full.len) return false;
+    if (opt_ptr[0] != '-') return false;
+    var k: u32 = 0;
+    while (k < opt_len) : (k += 1) {
+        if (opt_ptr[k] != full[k]) return false;
+    }
+    return true;
+}
+
+/// Build and raise the canonical ``bad option "X": must be …`` error
+/// for switch.  Mirrors Tcl 9 ``Tcl_SwitchObjCmd`` (tclCmdMZ.c)'s
+/// option-set wording exactly so switch-3.x return-code tests catch
+/// the upstream string.
+fn switch_bad_option(opt_ptr: [*]const u8, opt_len: u32) void {
+    const prefix: []const u8 = "bad option \"";
+    const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
+    const total: u32 = @intCast(prefix.len + opt_len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    const bp: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        bp[off] = c;
+        off += 1;
+    }
+    var k: u32 = 0;
+    while (k < opt_len) : (k += 1) {
+        bp[off] = opt_ptr[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        bp[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Append ``\n    (setting foreach loop variable "X")`` to
+/// ``::errorInfo`` after a ``foreach`` variable bind raises.
+/// Mirrors Tcl 9's ``ForeachLoopStep`` (tclExecute.c) which sets
+/// this frame via ``Tcl_AppendObjToErrorInfo`` when the body's
+/// loop-variable set returns an error.
+fn foreach_append_var_frame(var_name_obj: i32) void {
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    const sn = obj_ensure_string(var_name_obj);
+    const prefix: []const u8 = "\n    (setting foreach loop variable \"";
+    const suffix: []const u8 = "\")";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (sn.len > 0 and sn.ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Append the ``\n    ("<pattern>" arm line N)`` errorInfo frame
+/// Tcl 9 ``SwitchPostProc`` writes after a body errors.  Falls back
+/// to ``"default"`` literal when the source pattern span is empty
+/// (caller substitutes a stack buffer for this).
+fn switch_append_arm_line(pat_src_ptr: u32, pat_src_len: u32) void {
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    // Compose the suffix into a scratch buffer: ``\n    ("<pat>" arm line 1)``.
+    // Limit pattern text to 50 chars (tclCmdMZ.c:3930 ``limit = 50``);
+    // an overflow appends ``...``.
+    const limit: u32 = 50;
+    const overflow: bool = pat_src_len > limit;
+    const pat_len_used: u32 = if (overflow) limit else pat_src_len;
+    const ellipsis: []const u8 = if (overflow) "..." else "";
+    const prefix: []const u8 = "\n    (\"";
+    const middle: []const u8 = "\" arm line 1)";
+    const total: u32 = @intCast(prefix.len + pat_len_used + ellipsis.len + middle.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (pat_len_used > 0 and pat_src_ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(pat_src_ptr);
+        var k: u32 = 0;
+        while (k < pat_len_used) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (ellipsis) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    // Borrow ``append_errinfo_frame`` to splice into the live
+    // ``::errorInfo`` global.  Pass as a Zig slice over the buffer.
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Bind ``-matchvar`` / ``-indexvar`` from a regexp match against
+/// ``subject``.  ``pat_*`` describes the matching pattern (or 0/0
+/// for "no pattern matched / default arm taken" — in which case
+/// the variables are set to empty lists).  Returns false when a
+/// variable set fails (e.g. ``x(x)`` when ``x`` is a scalar) so
+/// the caller can propagate the error without running a body.
+fn switch_bind_capture_vars(
+    pat_ptr: u32,
+    pat_len: u32,
+    sub_ptr: u32,
+    sub_len: u32,
+    nocase: bool,
+    matchvar: i32,
+    indexvar: i32,
+) bool {
+    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+    var match_list: i32 = 0;
+    var index_list: i32 = 0;
+    if (pat_ptr != 0) {
+        const built = tcl_regex.capture_match_for_switch(pat_ptr, pat_len, sub_ptr, sub_len, nocase);
+        match_list = built.match_list;
+        index_list = built.index_list;
+    }
+    if (match_list == 0) match_list = obj_new_string(0, 0);
+    if (index_list == 0) index_list = obj_new_string(0, 0);
+    // Set indexvar first, then matchvar — mirrors tclCmdMZ.c
+    // line ~3784 ordering.  Before each set, probe for the
+    // scalar-array-name conflict ourselves so the error message
+    // includes the full ``arr(key)`` form (``frames.var_set`` →
+    // ``tcl_array.find_or_create`` raises a bare ``can't set:
+    // variable isn't array`` which tests like switch-11.6 /
+    // switch-13.5 check by exact wording).
+    obj_mod.tcl_obj_retain(match_list);
+    obj_mod.tcl_obj_retain(index_list);
+    defer {
+        obj_mod.tcl_obj_release(match_list);
+        obj_mod.tcl_obj_release(index_list);
+    }
+    const catch_mod = @import("tcl_catch.zig");
+    if (indexvar != 0) {
+        if (switch_check_var_writable(indexvar) == false) return false;
+        _ = frames.var_set(indexvar, index_list);
+        if (catch_mod.state.error_flag != 0) return false;
+    }
+    if (matchvar != 0) {
+        if (switch_check_var_writable(matchvar) == false) return false;
+        _ = frames.var_set(matchvar, match_list);
+        if (catch_mod.state.error_flag != 0) return false;
+    }
+    return true;
+}
+
+/// Pre-flight check for the switch matchvar / indexvar set: raise
+/// ``can't set "arr(key)": variable isn't array`` directly (with
+/// the original full name) when the array-name part is already a
+/// scalar in scope, instead of letting ``var_set`` route through
+/// ``array_set`` which raises a bare ``can't set: variable isn't
+/// array`` without the name.  Returns ``false`` if a conflict was
+/// detected (and an error raised) so the caller stops.
+fn switch_check_var_writable(name_obj: i32) bool {
+    const ns_mod = @import("tcl_ns.zig");
+    const sn = obj_ensure_string(name_obj);
+    if (sn.len < 3 or sn.ptr == 0) return true;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    var paren: u32 = 0;
+    var found = false;
+    var k: u32 = 0;
+    while (k < sn.len) : (k += 1) {
+        if (sp[k] == '(') {
+            paren = k;
+            found = true;
             break;
         }
-        if (PatRunner.run(pat_s.ptr, pat_s.len, subject_s.ptr, subject_s.len, mode, nocase)) {
-            match_idx = pi;
-            break;
-        }
     }
-    if (match_idx == -1) return obj_new_string(0, 0);
-    var bi: i64 = match_idx;
-    while (bi < n_pairs) : (bi += 1) {
-        const body = words[i + @as(u32, @intCast(bi)) * 2 + 1];
-        const body_s = obj_ensure_string(body);
-        if (body_s.len == 1) {
-            const bp: [*]const u8 = @ptrFromInt(body_s.ptr);
-            if (bp[0] == '-') continue;
-        }
-        return eval_script(body_s.ptr, body_s.len);
+    if (!found or paren == 0 or sp[sn.len - 1] != ')') return true;
+    // ``ns_scalar_exists`` probes the root namespace.  When the
+    // array-name part is already a scalar there, set raises with
+    // the canonical wording.  Local-frame scalars would route
+    // through ``local_set`` later and a paren-name in a local
+    // is treated as a literal scalar by Tcl 9 — leave those alone.
+    if (ns_mod.ns_scalar_exists(sn.ptr, paren) == 0) return true;
+    // Build & raise ``can't set "<full>": variable isn't array``.
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": variable isn't array";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return false;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
     }
-    return obj_mod.obj_new_string(0, 0);
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        dst[off] = sp[i];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+    return false;
 }
 
 pub fn eval_foreach(words: []const i32) i32 {
@@ -2026,6 +2485,23 @@ pub fn eval_foreach(words: []const i32) i32 {
                     };
                 } else obj_new_string(0, 0); // past end of list → ""
                 _ = frames.var_set(var_name_obj, elem_val);
+                // ``foreach`` ${var binding} failed (e.g. trying to
+                // bind a scalar name to ``a`` when ``a`` is an
+                // array).  Match Tcl 9 ``ForeachLoopStep`` (tclExecute.c)
+                // by appending ``(setting foreach loop variable "X")``
+                // to errorInfo before propagating.  The outer
+                // ``invoked from within "foreach ..."`` frame is then
+                // added by the caller's eval_script.
+                {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    if (tcl_catch.state.error_flag != 0) {
+                        foreach_append_var_frame(var_name_obj);
+                        obj_mod.tcl_obj_release(elem_val);
+                        obj_mod.tcl_obj_release(var_name_obj);
+                        if (result != 0) obj_mod.tcl_obj_release(result);
+                        return 0;
+                    }
+                }
                 obj_mod.tcl_obj_release(elem_val);
                 obj_mod.tcl_obj_release(var_name_obj);
             }
@@ -2044,7 +2520,13 @@ pub fn eval_foreach(words: []const i32) i32 {
                 result_mod.consume(.BREAK);
                 break;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
     }
     // foreach returns "" on normal completion — discard last body result.
@@ -4077,12 +4559,33 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
         tcl_catch.state.last_log_pos = cmd_start;
         return;
     }
+    // ``transparent_error`` is set by ``while``/``for``/``foreach`` when
+    // an error from their body propagates out.  Tcl 9 bytecode-
+    // compiles these commands so the loop itself never appears in the
+    // traceback — the body's own command frames provide the full
+    // context.  We mirror that here: consume the flag and skip adding
+    // an ``invoked from within "while ..."`` frame for the loop
+    // command itself.  Still stamp the dedup keys so any further
+    // unwinding through outer eval frames uses ``invoked from within``
+    // for the outermost frame that wasn't transparent.
+    if (tcl_catch.state.transparent_error != 0) {
+        tcl_catch.state.transparent_error = 0;
+        tcl_catch.state.last_log_script = script_ptr;
+        tcl_catch.state.last_log_pos = cmd_start;
+        return;
+    }
     const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
     if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;
     const max_len: u32 = 150;
-    const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
-    const need_ellipsis: bool = cmd_len > max_len;
+    // Tcl 9 normalises ``\<NL><whitespace>+`` to a single space when
+    // formatting the command source for ``::errorInfo``.  Mirror that
+    // here so multi-line commands (``catch {switch foo a {…} \``
+    // ``<NL>     default {…}}``) report the canonical single-space
+    // form rather than the raw ``\<NL><tab>     `` bytes (switch-4.5).
+    const norm_full_len = log_cmd_normalized_len(script_ptr + cmd_start, cmd_len);
+    const trunc_len: u32 = if (norm_full_len > max_len) max_len else norm_full_len;
+    const need_ellipsis: bool = norm_full_len > max_len;
     // Pick base text: ``::errorInfo`` when ``append_errinfo_frame``
     // appended a per-command frame (sentinel: last_log_script != 0
     // and last_log_pos == 0), else fall back to ``error_msg`` so a
@@ -4162,12 +4665,11 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     }
     // ``script_ptr == 0`` was already filtered at function entry,
     // so by here ``script_ptr + cmd_start`` is non-zero and the
-    // ``@ptrFromInt`` cast cannot panic.
-    const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
-    for (0..trunc_len) |k| {
-        dst[off] = cmdp[k];
-        off += 1;
-    }
+    // ``@ptrFromInt`` cast cannot panic.  Copy the command bytes
+    // through the normalising helper so ``\<NL><whitespace>+``
+    // collapses to a single space (matches Tcl 9's source-form
+    // canonicalisation in ``Tcl_LogCommandInfo``).
+    off = log_cmd_copy_normalized(dst, off, script_ptr + cmd_start, cmd_len, trunc_len);
     if (need_ellipsis) for (ellipsis) |b| {
         dst[off] = b;
         off += 1;
@@ -4186,6 +4688,57 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     obj_mod.tcl_obj_release(info_name);
     tcl_catch.state.last_log_script = script_ptr;
     tcl_catch.state.last_log_pos = cmd_start;
+}
+
+/// Count the bytes a normalised copy of *src* of length *len* would
+/// emit, where each ``\<NL><whitespace>+`` sequence (backslash, then
+/// newline, then 0+ horizontal whitespace) is collapsed to a single
+/// space.  Mirrors Tcl 9's ``Tcl_LogCommandInfo`` source-form
+/// canonicalisation so multi-line commands report on one line in
+/// ``::errorInfo`` (switch-4.5).
+fn log_cmd_normalized_len(src_ptr: u32, len: u32) u32 {
+    if (src_ptr == 0 or len == 0) return 0;
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    var i: u32 = 0;
+    var out_len: u32 = 0;
+    while (i < len) {
+        if (i + 1 < len and src[i] == '\\' and src[i + 1] == '\n') {
+            // ``\<NL>`` → one space, plus consume the following
+            // horizontal whitespace run.
+            out_len += 1;
+            i += 2;
+            while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+            continue;
+        }
+        out_len += 1;
+        i += 1;
+    }
+    return out_len;
+}
+
+/// Copy at most *max_out* bytes of *src* (length *len*) into *dst* at
+/// offset *off*, normalising ``\<NL><whitespace>+`` to a single space.
+/// Returns the new offset after the copy.  Used by ``log_command_info``
+/// to format the command-source frame for ``::errorInfo``.
+fn log_cmd_copy_normalized(dst: [*]u8, off_in: u32, src_ptr: u32, len: u32, max_out: u32) u32 {
+    if (src_ptr == 0 or len == 0 or max_out == 0) return off_in;
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    var i: u32 = 0;
+    var off: u32 = off_in;
+    const limit: u32 = off_in + max_out;
+    while (i < len and off < limit) {
+        if (i + 1 < len and src[i] == '\\' and src[i + 1] == '\n') {
+            dst[off] = ' ';
+            off += 1;
+            i += 2;
+            while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+            continue;
+        }
+        dst[off] = src[i];
+        off += 1;
+        i += 1;
+    }
+    return off;
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.

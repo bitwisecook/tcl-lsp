@@ -649,7 +649,15 @@ fn lsort_compare(a: *const LsortKey, b: *const LsortKey, opts: *const LsortOpts)
 fn lsort_parse_opts(words: []const i32, opts: *LsortOpts) struct { ok: bool, list_idx: u32 } {
     const stubs = @import("../stubs/tcl_stubs.zig");
     var wi: u32 = 1;
-    while (wi < words.len) : (wi += 1) {
+    // ``lsort ?options ...? list`` — the *last* word is always the
+    // list to sort, even when its string starts with ``-`` (e.g.
+    // ``lsort -stride 2 {-code 0 -level 0}`` — the list happens to
+    // begin with a dash but is not an option).  Stop option parsing
+    // before the last word so a leading-dash list never triggers an
+    // ``bad option`` raise.  Mirrors Tcl 9 ``Tcl_LsortObjCmd`` which
+    // iterates ``for (i = 1; i < objc-1; i++)`` over options.
+    const max_opt_wi: u32 = if (words.len >= 1) @intCast(words.len - 1) else 0;
+    while (wi < max_opt_wi) : (wi += 1) {
         const sv = obj_ensure_string(words[wi]);
         if (sv.len == 0 or sv.ptr == 0) break;
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);

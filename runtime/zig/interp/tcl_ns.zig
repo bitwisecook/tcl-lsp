@@ -1932,7 +1932,7 @@ fn raise_expected_integer(o: i32) void {
 /// (no quoting / wrapping).  Sets ``last_log_script != 0`` so the
 /// next ``log_command_info`` call uses the ``invoked from within``
 /// preamble instead of ``while executing``.
-fn append_errinfo_frame(suffix: []const u8) void {
+pub fn append_errinfo_frame(suffix: []const u8) void {
     const tcl_catch = @import("tcl_catch.zig");
     const ec_name = obj.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     defer obj.tcl_obj_release(ec_name);
