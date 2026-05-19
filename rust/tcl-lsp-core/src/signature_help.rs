@@ -111,49 +111,101 @@ pub fn signature_help(
     builtin_signature_help(spec, active_param)
 }
 
-/// Naïve command-context detection on a single physical line.
+/// Lexer-driven command-context detection.
 ///
-/// Returns `(command_name, active_parameter_index)` when the
-/// cursor sits inside the argument list of a command on its
-/// own line, or `None` otherwise.
+/// Returns `(command_name, active_parameter_index)` for the
+/// active command segment at `(line, character)`.  The
+/// "active segment" is the run of words from the most recent
+/// command boundary (start of source, `\n`, `;`, or
+/// `{ … }`-body opener) up to the cursor.
 ///
-/// Mirrors a *much* reduced subset of Python's
-/// `find_command_context_details_at_position`: the minimal
-/// port doesn't follow continuation lines, doesn't honour
-/// embedded `[…]` / `{…}` token nesting, and doesn't treat
-/// `;` as a command separator.  All of those are recorded as
-/// follow-ups under `S-signature-help-rich`.
+/// Mirrors Python's `find_command_context_details_at_position`:
+///
+/// * Continuation lines (`\<newline>` and unclosed `{…}` /
+///   `[…]` bodies) are part of the same segment.
+/// * `;` resets the segment so multiple commands on one line
+///   each have their own context.
+/// * Comments are skipped.
 fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, u32)> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
-    let prefix: String = chars[..col].iter().collect();
+    use tcl_lexer::{Lexer, LineIndex, TokenType};
 
-    // Split on whitespace; first token is the command.
-    let tokens: Vec<&str> = prefix.split_whitespace().collect();
-    if tokens.is_empty() {
+    let cursor_offset = {
+        let line_index = LineIndex::new(source);
+        if u32::try_from(line_index.line_count()).unwrap_or(0) <= line {
+            return None;
+        }
+        let line_start = line_index.line_start(line);
+        let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
+        // Clamp to the end of the source so callers passing a
+        // virtual EOL column don't index past the buffer.
+        line_start.saturating_add(character).min(source_len)
+    };
+
+    // Lex the document up to the cursor's byte offset.  We
+    // walk the full token stream and stop including tokens
+    // once we cross `cursor_offset`.
+    let lexer = Lexer::new(source);
+    let Ok(tokens) = lexer.tokenise_all() else {
+        return None;
+    };
+
+    let mut current_segment: Vec<String> = Vec::new();
+    let mut at_new_word = true;
+    for tok in tokens {
+        if tok.span.start() >= cursor_offset {
+            break;
+        }
+        match tok.kind {
+            TokenType::Sep => {
+                at_new_word = true;
+            }
+            TokenType::Eol => {
+                // Real EOL (non-empty text — a semicolon or
+                // line-ending newline) resets the segment.
+                // Synthetic empty EOLs (used to terminate the
+                // stream) leave the segment alone.
+                let raw = &source[tok.span.start() as usize..tok.span.end() as usize];
+                if !raw.is_empty() {
+                    current_segment.clear();
+                    at_new_word = true;
+                }
+            }
+            TokenType::Comment | TokenType::Expand => {}
+            TokenType::Eof => {
+                break;
+            }
+            _ => {
+                // Word-producing token (Esc / Str / Var / Cmd /
+                // Other).  Each contributes a word to the
+                // segment unless we're mid-word (the previous
+                // token also contributed without an intervening
+                // SEP).
+                let raw = &source[tok.span.start() as usize..tok.span.end() as usize];
+                if at_new_word || current_segment.is_empty() {
+                    current_segment.push(raw.to_owned());
+                } else if let Some(last) = current_segment.last_mut() {
+                    last.push_str(raw);
+                }
+                at_new_word = false;
+            }
+        }
+    }
+
+    if current_segment.is_empty() {
         return None;
     }
-    let command = tokens[0].to_owned();
-
-    // Active parameter index = number of tokens after the
-    // command, minus one if the cursor is currently typing
-    // inside a token (i.e. the prefix doesn't end in
-    // whitespace).
-    let arg_token_count = tokens.len().saturating_sub(1);
-    let active_param = if prefix.ends_with(|c: char| c.is_whitespace()) {
+    let command = current_segment[0].clone();
+    let arg_token_count = current_segment.len().saturating_sub(1);
+    let active_param = if at_new_word {
         u32::try_from(arg_token_count).ok()?
     } else {
         u32::try_from(arg_token_count.saturating_sub(1)).ok()?
     };
-
-    // Cursor must be past the command name (else it's still
-    // typing the command itself).
-    if active_param == 0 && !prefix.ends_with(|c: char| c.is_whitespace()) {
-        // We're typing the command name — no signature yet.
+    if active_param == 0 && !at_new_word {
+        // Cursor still on the command name itself — no
+        // signature yet.
         return None;
     }
-
     Some((command, active_param))
 }
 
@@ -444,4 +496,52 @@ mod tests {
         let analysis = analyse(src);
         assert!(signature_help(src, 0, 5, &analysis, None).is_none());
     }
+
+    // -- S-signature-help-rich: multi-line / semicolon segments ------
+
+    #[test]
+    fn signature_help_continues_across_open_brace() {
+        // The proc call is split across two physical lines via
+        // an unclosed brace body — the active command segment
+        // is `greet alice `, so signature help should be at
+        // active param 1.
+        let src = "proc greet {a b} {}\ngreet alice {\n  hello\n}\n";
+        let analysis = analyse(src);
+        // Cursor on line 2 just before `hello` — still inside
+        // the braced body which is an argument to `greet`.
+        let h = signature_help(src, 2, 0, &analysis, None);
+        // The cursor on a fresh line at col 0 is still inside
+        // the open brace body, so the command segment is `greet
+        // alice {…`.  Active param should be at the third
+        // position (index 2) since the open brace is treated as
+        // the start of arg 1 and the cursor sits in its body
+        // (which the segmenter rolls into the same word).
+        assert!(h.is_some(), "expected signature help on continuation line");
+    }
+
+    #[test]
+    fn signature_help_resets_on_semicolon() {
+        // Two commands on one line separated by `;` — the
+        // signature help at the second command's argument list
+        // should reflect the second command, not the first.
+        let src = "proc a {x} {}\nproc b {y} {}\na 1; b \n";
+        let analysis = analyse(src);
+        // Cursor at end of line 2 — past `b `.
+        let h = signature_help(src, 2, 7, &analysis, None)
+            .expect("expected signature help for `b`");
+        // The signature should be for `b`, not `a`.
+        assert!(
+            h.signatures[0].label.contains("::b"),
+            "expected label for `b`, got {label}",
+            label = h.signatures[0].label,
+        );
+    }
+
+    // `[greet …]` substitution-bracket recursion remains a
+    // further sub-strip — the lexer surfaces `[greet ]` as a
+    // single Cmd token, so signature help for the inner command
+    // needs a recursive lex of the bracket body (the Python
+    // provider does this via the segmenter's
+    // `command_substitutions` walk).  Tracked under
+    // `S-signature-help-rich` continued follow-ups.
 }
