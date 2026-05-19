@@ -1,14 +1,28 @@
-"""Stress test for eval_set read-form ownership fix.
+"""Regression test for eval_set read-form ownership fix.
 
 Exercises the interpreted eval_set read form (via dynamic var names so
-codegen can't fold into a direct frame read). After the fix, each
-[set $varname] substitution must return a +1 owned handle and not
-dangle the var slot's value.
+codegen can't fold into a direct frame read).  After the fix, every
+command handler hands the dispatcher a true +1 owned share regardless
+of whether the underlying value came from a var slot, a fresh
+allocation, or a parser-allocated word.
+
+Before the fix the read form returned the var slot's stored handle
+without bumping its refcount; the eval_script loop's release of the
+previous statement's result would decrement the slot's hold to zero
+and queue the obj for free.  In practice the deferred-free queue
+masked the bug (drains fire only at the outermost ``tcl_eval``
+boundary), but the rc accounting was lying — every borrow-return
+sequence was one resize or hash-table rebuild away from a use-after-
+free.
 """
-import wasmtime
+
+from __future__ import annotations
+
 import pytest
 
-from tests.test_wasm_execution import (
+wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
+
+from tests.test_wasm_execution import (  # noqa: E402
     _compile_to_wasm,
     _get_engine,
     _link_and_instantiate,
@@ -18,11 +32,12 @@ from tests.test_wasm_execution import (
 def test_repeated_set_read_via_dynamic_name():
     """Stress: repeatedly read a global through a dynamic var name.
 
-    `set $name` is the read form (no value) with a dynamic name —
+    ``set $name`` is the read form (no value) with a dynamic name —
     the compiler can't fold this and routes via the eval-fallback
-    path through eval_set. Before the fix, each iteration's read
-    would queue the slot's value for free, and the next iteration
-    would see a freed handle.
+    path through ``eval_set``.  Before the fix each iteration's read
+    queued the slot's value for free, and the next iteration could
+    observe a recycled slab if the allocator reissued it before the
+    drain fired.
     """
     src = """\
 set persistent [string repeat "alphabet" 50]
@@ -38,19 +53,21 @@ for {set i 0} {$i < 100} {incr i} {
     store = wasmtime.Store(engine)
     wasi_config = wasmtime.WasiConfig()
     store.set_wasi(wasi_config)
-    tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+    tcl_instance, _ = _link_and_instantiate(store, wasm_bytes)
     top_func = tcl_instance.exports(store).get("::top")
     if top_func is not None:
         top_func(store)
-    # Survival is the test — if the slot dangled we'd trap or read garbage.
+    # Survival is the test — a dangling slot would trap or read garbage
+    # somewhere in the 100-iteration loop.
 
 
 def test_eval_set_via_eval_command():
-    """eval triggers the interpreter path, not codegen.
+    """``eval`` triggers the interpreter path, not codegen.
 
-    `eval "set x"` parses the body string and routes through
-    eval_set's read form. After the fix, the result must be +1
-    owned and not corrupt the slot.
+    ``eval "set x"`` parses the body string and routes through
+    ``eval_set``'s read form.  After the fix the result is a true +1
+    owned handle and the outer ``set y`` write doesn't trip on a
+    freed handle.
     """
     src = """\
 set x "hello world"
@@ -61,14 +78,7 @@ set y [eval "set x"]
     store = wasmtime.Store(engine)
     wasi_config = wasmtime.WasiConfig()
     store.set_wasi(wasi_config)
-    tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+    tcl_instance, _ = _link_and_instantiate(store, wasm_bytes)
     top_func = tcl_instance.exports(store).get("::top")
     if top_func is not None:
         top_func(store)
-
-
-if __name__ == "__main__":
-    test_repeated_set_read_via_dynamic_name()
-    print("repeated dynamic-name set: OK")
-    test_eval_set_via_eval_command()
-    print("eval set: OK")
