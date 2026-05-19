@@ -619,12 +619,11 @@ fn scan_call_facts(
     // a plain identifier, treat it as a direct invocation
     // of that proc. Matches the Python
     // ``_unused_procs._collect_callees`` handling.
-    let internal_target =
-        if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
-            resolve_internal_call(&args[0], caller, known)
-        } else {
-            resolve_internal_call(command, caller, known)
-        };
+    let internal_target = if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
+        resolve_internal_call(&args[0], caller, known)
+    } else {
+        resolve_internal_call(command, caller, known)
+    };
     if let Some(target) = &internal_target {
         facts.direct_calls.insert(target.clone());
     } else if registry.get(command).is_none() {
@@ -708,13 +707,24 @@ fn scan_statement(
             facts.returns.push(kind);
         }
         Statement::Call { command, args, .. } => {
-            scan_call_facts(command, args, caller, known, registry, dialect, facts, params);
+            scan_call_facts(
+                command, args, caller, known, registry, dialect, facts, params,
+            );
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
                 note_params_in_expr(&c.condition, params, facts);
+                scan_expr_for_calls(
+                    &c.condition,
+                    caller,
+                    known,
+                    registry,
+                    dialect,
+                    facts,
+                    params,
+                );
                 scan_script(&c.body, caller, known, registry, dialect, facts, params);
             }
             if let Some(body) = else_body {
@@ -729,6 +739,7 @@ fn scan_statement(
             ..
         } => {
             note_params_in_expr(condition, params, facts);
+            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
             scan_script(init, caller, known, registry, dialect, facts, params);
             scan_script(next, caller, known, registry, dialect, facts, params);
             scan_script(body, caller, known, registry, dialect, facts, params);
@@ -737,10 +748,12 @@ fn scan_statement(
             condition, body, ..
         } => {
             note_params_in_expr(condition, params, facts);
+            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
             scan_script(body, caller, known, registry, dialect, facts, params);
         }
         Statement::ExprEval { expr, .. } => {
             note_params_in_expr(expr, params, facts);
+            scan_expr_for_calls(expr, caller, known, registry, dialect, facts, params);
         }
         Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
             scan_script(body, caller, known, registry, dialect, facts, params);
@@ -776,6 +789,124 @@ fn scan_statement(
 
 fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
+}
+
+/// Walk an expression AST and record call-graph edges (and Body
+/// recursion) for every `[cmd ...]` command substitution embedded
+/// in the expression.
+///
+/// Mirrors `_scan_expr_for_calls` in
+/// `core/compiler/interprocedural.py` (PR #410, 7578a480): call-
+/// graph edges and unused-proc detection used to miss proc calls
+/// embedded in control-flow predicates because the per-proc fact
+/// scanner walked statement bodies but skipped expression operands.
+/// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
+/// ...` left `q` unrecorded as a callee — flagging it as dead code
+/// and missing the edge in `tcl callgraph`.
+fn scan_expr_for_calls(
+    node: &crate::expr_ast::ExprNode,
+    caller: &str,
+    known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    facts: &mut LocalFacts,
+    params: &HashSet<String>,
+) {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Command { text, .. } => {
+            // Strip the outer `[…]` and segment the inner script.
+            // Each top-level command becomes a `Statement::Call`
+            // shape we can hand to `scan_call_facts` and recurse
+            // into BODY-role args.
+            let inner = text
+                .strip_prefix('[')
+                .and_then(|s| s.strip_suffix(']'))
+                .unwrap_or(text.as_str());
+            scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
+        }
+        ExprNode::String { text, .. } => {
+            // Quoted strings may contain command substitutions
+            // (`"[q]"`), so descend through the source text the same
+            // way as for `Command`.  Skip braced-string literals
+            // since `{…}` doesn't interpret substitutions; the
+            // expression parser uses `String` for both forms, so we
+            // gate on the actual delimiter.
+            if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
+                let inner = &text[1..text.len() - 1];
+                if inner.contains('[') {
+                    scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
+                }
+            }
+        }
+        ExprNode::Binary { left, right, .. } => {
+            scan_expr_for_calls(left, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(right, caller, known, registry, dialect, facts, params);
+        }
+        ExprNode::Unary { operand, .. } => {
+            scan_expr_for_calls(operand, caller, known, registry, dialect, facts, params);
+        }
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            scan_expr_for_calls(condition, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(true_branch, caller, known, registry, dialect, facts, params);
+            scan_expr_for_calls(
+                false_branch,
+                caller,
+                known,
+                registry,
+                dialect,
+                facts,
+                params,
+            );
+        }
+        ExprNode::Call { args, .. } => {
+            for a in args {
+                scan_expr_for_calls(a, caller, known, registry, dialect, facts, params);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Segment a raw Tcl source string into top-level commands and
+/// record call-graph edges for each one.  Recurses into
+/// `ArgRole::Body`-role arguments so `if {[catch {p}]} ...` also
+/// sees `p` as a call.
+fn scan_source_for_calls(
+    source: &str,
+    caller: &str,
+    known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    facts: &mut LocalFacts,
+    params: &HashSet<String>,
+) {
+    let commands = crate::segmenter::segment_commands(source);
+    for cmd in commands {
+        // Skip empty / non-literal command names — they're not
+        // call-graph edges we can resolve at compile time.
+        let name = cmd.name();
+        if name.is_empty() {
+            continue;
+        }
+        let texts = cmd.args();
+        scan_call_facts(name, texts, caller, known, registry, dialect, facts, params);
+        // Recurse into BODY-role args (e.g. `catch {p}` → `{p}` is
+        // BODY).  The registry resolves the role using the same
+        // logic as the top-level scanner.
+        let arg_strs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        let body_indices =
+            registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Body);
+        for idx in body_indices {
+            if let Some(body_text) = texts.get(idx) {
+                scan_source_for_calls(body_text, caller, known, registry, dialect, facts, params);
+            }
+        }
+    }
 }
 
 /// Scan a raw Tcl source word for `$name` / `${name}`
@@ -1242,6 +1373,54 @@ mod tests {
         let s = ia.procedures.get("::greet").expect("proc summary");
         assert_eq!(s.params, vec!["name".to_string()]);
         assert_eq!(s.arity, Arity::exact(1));
+    }
+
+    #[test]
+    fn call_in_if_condition_is_recorded() {
+        // SYNC-MAY19-stub-overlay (sub-strip b, PR #410): call-graph
+        // edges and unused-proc detection used to miss proc calls
+        // embedded in `if {[q]} ...` predicates.  Verify ::q now
+        // appears in ::a's direct calls.
+        let ia = build(
+            "proc ::q {} { return 1 }\n\
+             proc ::a {} { if {[::q]} { puts hi } }",
+        );
+        let a = ia.procedures.get("::a").expect("::a recorded");
+        assert!(
+            a.calls.contains(&"::q".to_string()),
+            "expected ::q in ::a's call graph, got {:?}",
+            a.calls
+        );
+    }
+
+    #[test]
+    fn call_inside_catch_in_if_condition_is_recorded() {
+        // `if {[catch {p}]} ...` — ::p is reached via BODY-role
+        // recursion into the `catch` argument.
+        let ia = build(
+            "proc ::p {} { return 1 }\n\
+             proc ::a {} { if {[catch {::p}]} { puts hi } }",
+        );
+        let a = ia.procedures.get("::a").expect("::a recorded");
+        assert!(
+            a.calls.contains(&"::p".to_string()),
+            "expected ::p in ::a's call graph via BODY recursion, got {:?}",
+            a.calls
+        );
+    }
+
+    #[test]
+    fn call_in_while_condition_is_recorded() {
+        let ia = build(
+            "proc ::q {} { return 1 }\n\
+             proc ::a {} { while {[::q]} { break } }",
+        );
+        let a = ia.procedures.get("::a").expect("::a recorded");
+        assert!(
+            a.calls.contains(&"::q".to_string()),
+            "expected ::q via while-condition expr scan, got {:?}",
+            a.calls
+        );
     }
 
     #[test]

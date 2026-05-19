@@ -1,6 +1,6 @@
 //! Expression AST compilation to bytecode.
 //!
-//! Extends [`CodegenCtx`] with [`emit_expr`] which walks an
+//! Extends [`CodegenCtx`] with [`CodegenCtx::emit_expr`] which walks an
 //! [`ExprNode`] tree and produces the corresponding bytecode
 //! instructions.  Ported from `core/compiler/codegen/_expressions.py`.
 
@@ -74,13 +74,7 @@ impl CodegenCtx<'_> {
     /// Emit a `Binary` expression — short-circuits `&&` / `||`
     /// (with synthetic labels) and falls back to exprStk for
     /// operators without a direct opcode.
-    fn emit_expr_binary(
-        &mut self,
-        node: &ExprNode,
-        op: BinOp,
-        left: &ExprNode,
-        right: &ExprNode,
-    ) {
+    fn emit_expr_binary(&mut self, node: &ExprNode, op: BinOp, left: &ExprNode, right: &ExprNode) {
         match op {
             BinOp::And => {
                 let false_lbl = self.fresh_label("and_f");

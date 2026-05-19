@@ -30,7 +30,7 @@
 //! `O117`,
 //! [`super::helpers::expr_simplify::try_eq_ne_string_compare_simplify_expr`]
 //! `O120`) fire through the
-//! [`super::branch_folding::propagate_into_branches`] cascade
+//! `branch_folding::propagate_into_branches` cascade
 //! that has the richer context (SSA uses, interprocedural
 //! summaries) those rewrites need to be sound on branch
 //! conditions.  The two passes deliberately do not overlap on

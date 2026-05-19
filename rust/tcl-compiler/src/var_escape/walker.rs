@@ -206,7 +206,10 @@ fn handle_eval(args: &[String], state: &mut EscapeState) {
 fn handle_uplevel(args: &[String], state: &mut EscapeState) {
     use crate::var_escape::types::{Barrier, BarrierKind};
     if args.is_empty() {
-        state.record_barrier(Barrier::with_detail(BarrierKind::Upvar, "uplevel (no body)"));
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Upvar,
+            "uplevel (no body)",
+        ));
         return;
     }
     let first = &args[0];
@@ -314,8 +317,7 @@ pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeS
 /// Returns `true` when *stmt* matched.
 fn escape_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
     match stmt {
-        Statement::AssignConst { name, value, .. }
-        | Statement::AssignValue { name, value, .. } => {
+        Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
             if name.is_empty() || is_dynamic_token(name) {
                 state.mark_pessimistic();
                 return true;
@@ -385,7 +387,9 @@ fn escape_call_or_barrier(stmt: &Statement, state: &mut EscapeState) -> bool {
 /// `Block` / `UpFrame`).
 fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
     match stmt {
-        Statement::If { clauses, else_body, .. } => {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
             for c in clauses {
                 apply_expr_scan(Some(&c.condition), state);
                 escape_every_name_touched(&c.body.statements, state);
@@ -394,24 +398,39 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
                 escape_every_name_touched(&b.statements, state);
             }
         }
-        Statement::For { init, condition, next, body, .. } => {
+        Statement::For {
+            init,
+            condition,
+            next,
+            body,
+            ..
+        } => {
             escape_every_name_touched(&init.statements, state);
             apply_expr_scan(Some(condition), state);
             escape_every_name_touched(&next.statements, state);
             escape_every_name_touched(&body.statements, state);
         }
-        Statement::While { condition, body, .. } => {
+        Statement::While {
+            condition, body, ..
+        } => {
             apply_expr_scan(Some(condition), state);
             escape_every_name_touched(&body.statements, state);
         }
-        Statement::Foreach { iterators, body, .. } => {
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
             for it in iterators {
                 apply_value_scan(&it.list_arg, state);
             }
             escape_every_name_touched(&body.statements, state);
         }
         Statement::Catch { body, .. } => escape_every_name_touched(&body.statements, state),
-        Statement::Try { body, handlers, finally_body, .. } => {
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
             escape_every_name_touched(&body.statements, state);
             for h in handlers {
                 escape_every_name_touched(&h.body.statements, state);
@@ -420,7 +439,9 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
                 escape_every_name_touched(&f.statements, state);
             }
         }
-        Statement::Switch { arms, default_body, .. } => {
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
             for a in arms {
                 if let Some(b) = &a.body {
                     escape_every_name_touched(&b.statements, state);
@@ -756,7 +777,9 @@ mod tests {
         assert!(s.is_frame("x"));
         let reasons = s.tag_reasons.get("x").expect("x reasons");
         assert!(
-            reasons.iter().any(|r| r.kind == EscapeReasonKind::UpvarSource),
+            reasons
+                .iter()
+                .any(|r| r.kind == EscapeReasonKind::UpvarSource),
             "expected UpvarSource reason, got {reasons:?}",
         );
     }

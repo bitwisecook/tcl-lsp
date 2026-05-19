@@ -137,10 +137,7 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
 /// `upvar` are handled by `var_scoping`, not by SSA's per-arg
 /// `VarWrite` walk).
 #[must_use]
-pub fn defs_of_with_registry(
-    stmt: &Statement,
-    registry: Option<&CommandRegistry>,
-) -> Vec<String> {
+pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry>) -> Vec<String> {
     use tcl_registry::{ArgRole, Traits};
 
     match stmt {
@@ -175,9 +172,7 @@ pub fn defs_of_with_registry(
                 if !indices.is_empty() {
                     return indices
                         .into_iter()
-                        .filter_map(|idx| {
-                            args.get(idx).map(|s| normalise_var_name(s).to_owned())
-                        })
+                        .filter_map(|idx| args.get(idx).map(|s| normalise_var_name(s).to_owned()))
                         .filter(|n| !n.is_empty())
                         .collect();
                 }

@@ -242,7 +242,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
         arg_roles: &[(0, ArgRole::VarWrite)],
-        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {

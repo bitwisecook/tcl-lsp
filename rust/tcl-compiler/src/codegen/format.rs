@@ -86,15 +86,16 @@ fn format_operand(
                 Some(Operand::Imm(c)) => *c,
                 Some(_) | None => 1,
             };
-            (part, format!("\t# next cmd at pc {target}, {count} cmds start here"))
+            (
+                part,
+                format!("\t# next cmd at pc {target}, {count} cmds start here"),
+            )
         }
         Operand::Label(label) => {
             let target = labels.get(label.as_str()).copied().unwrap_or(0);
             (format!("pc {target}"), String::new())
         }
-        Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => {
-            (format!("%v{val}"), String::new())
-        }
+        Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
         Operand::Imm(val)
             if matches!(instr.op, Op::DICT_SET | Op::DICT_UNSET | Op::DICT_INCR_IMM) && j == 1 =>
         {

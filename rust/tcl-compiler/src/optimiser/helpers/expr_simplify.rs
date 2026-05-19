@@ -27,7 +27,7 @@
 //! · C30e6 `try_strlen_simplify_expr` · C30e7
 //! `try_eq_ne_string_compare_simplify_expr`.  The four AST
 //! rewriters are wired into
-//! [`super::super::branch_folding::propagate_into_branches`]:
+//! `branch_folding::propagate_into_branches`:
 //! `substitute_expr_constants` runs first to build a working
 //! text, then the AST rewriters are probed in priority order —
 //! `strength_reduce` → `strlen` → `streq` → `instcombine`.  The

@@ -6,7 +6,7 @@
 //! building, interprocedural analysis, and interleaves pass
 //! execution. In Rust that orchestration is already implicit in
 //! the layered pipeline: [`CompilationUnit::build_for`] runs the
-//! analyses, [`build_interprocedural_analysis`](crate::interprocedural::build_interprocedural_analysis)
+//! analyses, [`build_interprocedural_analysis`]
 //! builds the summaries, and [`super::run_passes`] dispatches
 //! each pass. The only value-add of a dedicated manager is the
 //! thin façade below — a single entry point that plumbs these

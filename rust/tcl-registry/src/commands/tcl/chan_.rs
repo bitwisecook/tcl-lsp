@@ -1,6 +1,77 @@
 //! `chan` — channel operations.
 use crate::prelude::*;
 
+/// Shared option table for `chan configure` — same shape as
+/// `fconfigure` options.  The Tcl 9.0+ entries (`-nodelay`,
+/// `-keepalive`, `-inputmode`) carry their own dialect gate so
+/// W004 fires when they're used on pre-9.0 dialects.
+static CONFIGURE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-blocking",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-buffering",
+        takes_value: true,
+        value_hint: "mode",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-buffersize",
+        takes_value: true,
+        value_hint: "size",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-encoding",
+        takes_value: true,
+        value_hint: "encoding",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-eofchar",
+        takes_value: true,
+        value_hint: "chars",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-translation",
+        takes_value: true,
+        value_hint: "mode",
+        detail: "",
+        dialects: None,
+    },
+    // Tcl 9.0+ socket / terminal options (TIPs 528 / 160).
+    OptionSpec {
+        name: "-nodelay",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Disable Nagle's algorithm on TCP sockets (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90),
+    },
+    OptionSpec {
+        name: "-keepalive",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Enable TCP keepalive on sockets (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90),
+    },
+    OptionSpec {
+        name: "-inputmode",
+        takes_value: true,
+        value_hint: "mode",
+        detail: "Terminal input mode: normal/password/raw (Tcl 9.0+).",
+        dialects: Some(DialectSet::TCL90),
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "blocked",
@@ -16,7 +87,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Close a channel.",
         synopsis: "chan close channelId ?direction?",
-        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -24,6 +94,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Get or set channel configuration.",
         synopsis: "chan configure channelId ?-option value ...?",
+        options: CONFIGURE_OPTIONS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -155,7 +226,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Truncate a channel.",
         synopsis: "chan truncate channelId ?length?",
-        destructive: true,
         ..SubCommand::DEFAULT
     },
 ];

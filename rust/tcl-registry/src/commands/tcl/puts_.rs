@@ -20,6 +20,7 @@ pub fn spec() -> CommandSpec {
             takes_value: false,
             value_hint: "",
             detail: "Do not output a newline character.",
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Write to a channel.",

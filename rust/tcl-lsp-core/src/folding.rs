@@ -12,7 +12,7 @@
 //! The result is a fully line-resolved `Vec<FoldingRange>`.  The
 //! `PyO3` binding (`super::folding_binding`) emits these as plain
 //! dicts; the Python dispatcher in `lsp/features/folding.py`
-//! materialises [`lsprotocol.types.FoldingRange`] values and re-runs
+//! materialises `lsprotocol.types.FoldingRange` values and re-runs
 //! its own `_normalise_overlaps` over them — running the
 //! idempotent normalisation pass twice is harmless and keeps the
 //! Python `_normalise_overlaps` test surface in

@@ -35,7 +35,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Delete namespaces and their contents.",
         synopsis: "namespace delete ?namespace namespace ...?",
-        destructive: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },

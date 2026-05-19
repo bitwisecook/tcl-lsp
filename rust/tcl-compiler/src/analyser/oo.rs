@@ -326,8 +326,7 @@ fn apply_oo_private(sub_args: &[String], sub_tokens: &[Token], class_def: &mut C
     };
     match inner_subcmd {
         "method" => {
-            if let Some(md) =
-                extract_method_def(inner_args, inner_tokens, "method", "private", "")
+            if let Some(md) = extract_method_def(inner_args, inner_tokens, "method", "private", "")
             {
                 class_def.methods.insert(md.name.clone(), md);
             }

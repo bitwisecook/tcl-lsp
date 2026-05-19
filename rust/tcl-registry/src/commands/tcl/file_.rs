@@ -40,13 +40,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
         ],
         ..SubCommand::DEFAULT
     },
@@ -57,20 +59,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file delete ?-force? ?--? ?pathname ...?",
         return_type: Some(TclType::String),
         mutator: true,
-        destructive: true,
         options: &[
             OptionSpec {
                 name: "-force",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
         ],
         ..SubCommand::DEFAULT
     },
@@ -154,13 +157,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
             OptionSpec {
                 name: "-hard",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
         ],
         ..SubCommand::DEFAULT
     },
@@ -180,7 +185,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file mkdir ?dir ...?",
         return_type: Some(TclType::String),
         mutator: true,
-        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -248,20 +252,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file rename ?-force? ?--? source target",
         return_type: Some(TclType::String),
         mutator: true,
-        destructive: true,
         options: &[
             OptionSpec {
                 name: "-force",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            },
+            dialects: None,
+        },
         ],
         ..SubCommand::DEFAULT
     },

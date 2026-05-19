@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
             takes_value: false,
             value_hint: "",
             detail: "Return the canonicalised path (URL evasion patterns rejected).",
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Returns or sets the path part of the HTTP request.",

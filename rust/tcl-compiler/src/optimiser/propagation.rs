@@ -42,7 +42,7 @@
 //! in the Python source operate on the condition sub-expressions
 //! of `if` / `while` / `for` and the bodies of standalone `expr`
 //! commands. Both are already covered by this Rust port's
-//! [`super::branch_folding::propagate_into_branches`] (for
+//! `branch_folding::propagate_into_branches` (for
 //! branch conditions) and [`super::expr_simplify::run`] (for
 //! standalone `expr` commands) — no separate port is needed.
 

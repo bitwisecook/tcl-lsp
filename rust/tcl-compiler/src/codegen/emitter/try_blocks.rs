@@ -8,7 +8,7 @@
 //!
 //! This module walks the chain and records where to splice in the
 //! inline `beginCatch4`/`endCatch` bytecodes. The emission itself
-//! lives in [`super::super::control_flow::emit_try_finally_inline`].
+//! lives in `crate::codegen::control_flow::CodegenCtx::emit_try_finally_inline`.
 
 #![allow(dead_code)]
 

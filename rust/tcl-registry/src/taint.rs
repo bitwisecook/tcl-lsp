@@ -3,7 +3,7 @@
 //! Owns the small subcommand-shaped facts (`chan gets`, `chan read`,
 //! `encoding convertfrom`) and the iRules namespace-prefix table that
 //! used to live as hardcoded lists inside the compiler's taint
-//! analyser. The compiler's [`tcl_compiler::taint`] module now asks
+//! analyser. The compiler's `tcl_compiler::taint` module now asks
 //! the registry "is this call a source / sink / sanitiser?" rather
 //! than maintaining its own command-name set.
 

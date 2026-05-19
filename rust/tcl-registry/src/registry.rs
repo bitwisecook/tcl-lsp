@@ -252,7 +252,7 @@ impl CommandRegistry {
 
     /// Resolve the option-terminator profile for a command invocation.
     ///
-    /// Mirrors [`core/commands/registry/command_registry.py::resolve_option_terminator`].
+    /// Mirrors Python's `core/commands/registry/command_registry.py::resolve_option_terminator`.
     /// Matches the invocation's first argument against subcommands
     /// that declare an [`OptionSpec`](crate::hover::OptionSpec) with
     /// `name == "--"`, then falls back to form-level `--` declarations.
@@ -390,7 +390,7 @@ pub struct ResolvedTerminator {
     /// match was subcommand-scoped.  `None` for form-level matches.
     pub subcommand: Option<&'static str>,
     /// Borrowed slice of every option declared on the matched
-    /// command (or subcommand).  Callers consult [`OptionSpec::takes_value`]
+    /// command (or subcommand).  Callers consult [`crate::hover::OptionSpec::takes_value`]
     /// on each entry to determine whether an option name consumes a
     /// following value argument — done at the call site to avoid the
     /// per-resolve `HashSet` allocation a precomputed name set would
@@ -481,6 +481,52 @@ mod tests {
         assert!(reg.get("for").is_some());
         assert!(reg.get("set").is_some());
         assert!(reg.get("nonexistent_command").is_none());
+    }
+
+    #[test]
+    fn tcl9_commands_from_pr_433_are_registered() {
+        // SYNC-MAY19-tcl9-commands: mirrors PR #433 (0f9288d2).
+        let reg = CommandRegistry::build_default();
+        for name in [
+            "foreachLine",
+            "readFile",
+            "writeFile",
+            "lpop",
+            "const",
+            "tcl::idna",
+            "::tcl::idna",
+            "tcl::process",
+            "::tcl::process",
+        ] {
+            assert!(
+                reg.get(name).is_some(),
+                "{name} not registered after SYNC-MAY19-tcl9-commands",
+            );
+        }
+    }
+
+    #[test]
+    fn coroinject_coroprobe_registered() {
+        // Python PR #433 also fixed the missing import that made
+        // these two commands invisible to the LSP.  Rust always
+        // registered them — verify they remain registered.
+        let reg = CommandRegistry::build_default();
+        assert!(reg.get("coroinject").is_some());
+        assert!(reg.get("coroprobe").is_some());
+    }
+
+    #[test]
+    fn tcl9_commands_gated_to_tcl90() {
+        use crate::dialects::DialectSet;
+        let reg = CommandRegistry::build_default();
+        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
+            let spec = reg.get(name).expect("registered");
+            assert_eq!(
+                spec.dialects,
+                Some(DialectSet::TCL90),
+                "{name} should be Tcl 9.0-only",
+            );
+        }
     }
 
     #[test]
@@ -608,12 +654,11 @@ mod tests {
         }
         // `set` does NOT carry the trait — its VarWrite at arg 0 is
         // a single-target def, not a vararg list.
-        assert!(
-            !reg.get("set")
-                .unwrap()
-                .traits
-                .contains(Traits::CREATES_DYNAMIC_BARRIER),
-        );
+        assert!(!reg
+            .get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::CREATES_DYNAMIC_BARRIER));
     }
 
     /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
@@ -643,12 +688,30 @@ mod tests {
         use crate::body_kind::BodyKind;
         let reg = CommandRegistry::build_default();
         assert_eq!(reg.get("proc").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::class").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::define").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::objdefine").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("snit::method").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("snit::typemethod").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("uri::register").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(
+            reg.get("oo::class").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("oo::define").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("oo::objdefine").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("snit::method").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("snit::typemethod").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("uri::register").unwrap().body_kind,
+            BodyKind::Structural
+        );
     }
 
     /// SYNC2: iRules `when` event handler bodies are structural.
@@ -679,16 +742,8 @@ mod tests {
     #[test]
     fn arg_indices_for_role_dict_with_multirole() {
         let reg = CommandRegistry::build_default();
-        let reads = reg.arg_indices_for_role(
-            "dict",
-            &["with", "$var", "body"],
-            ArgRole::VarRead,
-        );
-        let writes = reg.arg_indices_for_role(
-            "dict",
-            &["with", "$var", "body"],
-            ArgRole::VarWrite,
-        );
+        let reads = reg.arg_indices_for_role("dict", &["with", "$var", "body"], ArgRole::VarRead);
+        let writes = reg.arg_indices_for_role("dict", &["with", "$var", "body"], ArgRole::VarWrite);
         assert!(reads.contains(&1), "VarRead reads={reads:?}");
         assert!(writes.contains(&1), "VarWrite writes={writes:?}");
     }

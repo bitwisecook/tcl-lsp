@@ -5,9 +5,9 @@
 //! Parsed once at lowering time, then walked by downstream analyses
 //! (SSA, SCCP, type inference, shimmer).
 //!
-//! The [`ExprRaw`] variant is a fallback for any expression the parser
-//! cannot handle — every consumer must treat it as "give up, use the
-//! string".
+//! The [`ExprNode::Raw`] variant is a fallback for any expression the
+//! parser cannot handle — every consumer must treat it as "give up,
+//! use the string".
 
 use std::collections::HashSet;
 use std::fmt;
@@ -158,9 +158,8 @@ impl BinOp {
 
     /// Operator precedence (higher = tighter binding).
     ///
-    /// Used by [`render_expr`] to determine when parentheses are needed.
-    ///
-    /// [`render_expr`]: super::render_expr
+    /// Used by [`render_expr`] to
+    /// determine when parentheses are needed.
     #[must_use]
     pub const fn precedence(self) -> u8 {
         match self {
@@ -251,7 +250,7 @@ impl fmt::Display for UnaryOp {
 /// An expression AST node.
 ///
 /// This is a sum type covering every expression construct the parser
-/// can produce, plus [`ExprRaw`] as the "give up" fallback. Expression
+/// can produce, plus [`Self::Raw`] as the "give up" fallback. Expression
 /// trees are immutable once built (no interior mutability). Recursive
 /// children are `Box<ExprNode>` to keep the enum size bounded.
 #[derive(Debug, Clone, PartialEq)]

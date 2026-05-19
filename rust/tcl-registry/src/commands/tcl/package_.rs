@@ -57,7 +57,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             takes_value: false,
             value_hint: "",
             detail: "",
-        }],
+        dialects: None,
+    }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -79,7 +80,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             takes_value: false,
             value_hint: "",
             detail: "",
-        }],
+        dialects: None,
+    }],
         ..SubCommand::DEFAULT
     },
     SubCommand {

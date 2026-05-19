@@ -96,11 +96,29 @@ fn shift_span(span: Span, by: u32) -> Span {
 ///
 /// Variables are prefixed with `$` and command substitutions are
 /// wrapped in `[...]` so that the result mirrors what the user wrote.
+///
+/// Bare `$arr(idx)` whose index contains a `$` or `[` substitution
+/// round-trips verbatim — wrapping in braces would disable array-
+/// element interpretation and turn the recursive substitution into a
+/// literal scalar lookup (cmdAH-1.4 / 1.5 `$numargErrors($cmd)`).
+/// Bare-vs-braced is decided by `content_offset`: the Rust lexer
+/// emits `content_offset = 1` for bare `$name` / `$arr(idx)` (skips
+/// the `$`) and `content_offset = 2` for braced `${name}` (skips
+/// `${`).  See `core/parsing/command_segmenter.py::_word_piece` for
+/// the Python reference (PR #391).
 #[must_use]
 pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
     let text = sm.token_text(tok);
     match tok.kind {
         TokenType::Var => {
+            let is_braced = tok.content_offset >= 2;
+            if !is_braced
+                && text.contains('(')
+                && text.ends_with(')')
+                && (text.contains('$') || text.contains('['))
+            {
+                return format!("${text}");
+            }
             if text.contains('}') {
                 format!("${text}")
             } else {
@@ -536,6 +554,44 @@ mod tests {
         assert_eq!(cmds.len(), 1);
         // Variable should be wrapped as ${name}.
         assert_eq!(cmds[0].texts[1], "${name}");
+    }
+
+    #[test]
+    fn array_with_literal_index_braces_canonically() {
+        // Literal-index bare `$arr(idx)` normalises to `${arr(idx)}`
+        // so the bytecode codegen can emit array loads.
+        let cmds = segment_commands("puts $arr(idx)");
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].texts[1], "${arr(idx)}");
+    }
+
+    #[test]
+    fn array_with_dollar_substituted_index_round_trips_bare() {
+        // Bare `$arr($idx)` with a `$`-substituted index must NOT be
+        // braced — wrapping in `${...}` would disable array-element
+        // interpretation and turn the recursive substitution into a
+        // literal scalar lookup (cmdAH-1.4 / 1.5 idiom).
+        let cmds = segment_commands("puts $numargErrors($cmd)");
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].texts[1], "$numargErrors($cmd)");
+    }
+
+    #[test]
+    fn array_with_cmd_substituted_index_round_trips_bare() {
+        // Same as above but with a `[…]` command substitution in the
+        // index — must also stay bare.
+        let cmds = segment_commands("puts $arr([f x])");
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].texts[1], "$arr([f x])");
+    }
+
+    #[test]
+    fn braced_var_form_preserved_when_explicit() {
+        // Explicit `${arr(idx)}` keeps the braced form since
+        // `content_offset == 2` marks the token as braced.
+        let cmds = segment_commands("puts ${arr(idx)}");
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].texts[1], "${arr(idx)}");
     }
 
     #[test]

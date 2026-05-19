@@ -205,8 +205,8 @@ impl CompilationUnit {
     }
 
     /// Populate [`InterproceduralAnalysis`] via
-    /// [`build_interprocedural_analysis`]. Call after
-    /// [`build_for`] when a consumer (optimiser, compiler-checks)
+    /// [`crate::interprocedural::build_interprocedural_analysis`]. Call after
+    /// [`Self::build_for`] when a consumer (optimiser, compiler-checks)
     /// needs proc summaries.
     ///
     /// Re-runs `propagate_taints` on every function unit using the

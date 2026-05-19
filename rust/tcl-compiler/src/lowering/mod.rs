@@ -1,7 +1,7 @@
 //! Lower Tcl source to structured analysis IR.
 //!
 //! Translates a flat token stream (via the segmenter) into the tree of
-//! IR nodes defined in [`ir`]. Each Tcl command is pattern-matched by
+//! IR nodes defined in [`crate::ir`]. Each Tcl command is pattern-matched by
 //! name and converted to a typed IR statement.
 //!
 //! Ports `core/compiler/lowering.py`.
@@ -292,7 +292,10 @@ fn body_has_dynamic_barrier(body_text: &str) -> bool {
             let level = &args[0];
             let level_is_int = !level.is_empty()
                 && (level.starts_with('#')
-                    || level.trim_start_matches('-').chars().all(|c| c.is_ascii_digit()));
+                    || level
+                        .trim_start_matches('-')
+                        .chars()
+                        .all(|c| c.is_ascii_digit()));
             if level_is_int {
                 if args.len() < 2 {
                     return true;
@@ -744,6 +747,7 @@ impl<'r> Lowerer<'r> {
             "for" => Some(self.lower_for(seg, namespace)),
             "while" => Some(self.lower_while(seg, namespace)),
             "foreach" => Some(self.lower_foreach(seg, namespace, false)),
+            "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
             "lmap" => Some(self.lower_foreach(seg, namespace, true)),
             "catch" => Some(self.lower_catch(seg, namespace)),
             "try" => Some(self.lower_try(seg, namespace)),
@@ -754,9 +758,34 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower `proc name params body`.
+    #[allow(clippy::too_many_lines)] // sequential, comment-heavy
     fn lower_proc(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
+
+        // Empty-simple-name procs (`proc ::ns:: {args} {body}`): Tcl
+        // 9 lets a trailing `::` register a command named `""` inside
+        // the target namespace (`TclGetNamespaceForQualName` returns
+        // `simpleName=""` rather than NULL for trailing colons on
+        // cmd/var lookups — tclNamesp.c:2493).  Our static
+        // `normalise_qualified_name` strips the trailing colons
+        // (`"a::".split("::")` filters the empty trailing element),
+        // so an AOT-lifted empty-name proc would register under the
+        // namespace name itself — a different command than the
+        // runtime lookup needs.  Route the whole shape through the
+        // runtime `proc` builtin via `Statement::Barrier`.  Carries
+        // namespace-old-1.27 / 2.1 / 2.2 and namespace-14.11.
+        // Mirrors `core/compiler/lowering.py` after PR #430.
+        if proc_name_initial.ends_with("::") {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: "empty-simple-name proc".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        }
 
         // Dynamic proc names: a bare ``$var`` whose value is in the
         // const-map can be resolved at lowering time (C36b — main
@@ -765,6 +794,7 @@ impl<'r> Lowerer<'r> {
         // the runtime path.
         let proc_name_owned: String;
         let mut args_owned: Vec<String>;
+        let name_was_substituted: bool;
         if proc_name_initial.contains('$') || proc_name_initial.contains('[') {
             let arg_tokens = seg.arg_tokens();
             let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
@@ -791,32 +821,90 @@ impl<'r> Lowerer<'r> {
             proc_name_owned = literal;
             args_owned = args_borrow.to_vec();
             args_owned[0].clone_from(&proc_name_owned);
+            name_was_substituted = true;
         } else {
             proc_name_owned = proc_name_initial.clone();
             args_owned = args_borrow.to_vec();
+            name_was_substituted = false;
         }
         // Re-bind ``args`` and ``proc_name`` to the (possibly
         // substituted) owned values.
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
 
+        // Dynamic body / params materialisation (PR #393, 0fc2d6a9).
+        //
+        // A body that is a single ``$var`` / ``[cmd]`` token (and not
+        // a multi-token word like ``"foo$bar"``) can be materialised:
+        //   * ``[subst -nocommands {…}]`` evaluates when every
+        //     ``$var`` inside is const-tracked.
+        //   * Bare ``$var`` looks up the const-map.
+        // A multi-token body (single-token-word == false) is always
+        // dynamic — the source text contains runtime substitutions we
+        // can't compile.  Dynamic params have no static arg-list, so
+        // any dynamic-params shape bails to a runtime barrier.
+        //
+        // When the body is dynamic and we can't materialise it BUT
+        // the proc name resolved via the const-map, we still register
+        // the IRProcedure (with an empty body) so static analysis
+        // sees the proc; the IRCall below carries the correct dynamic
+        // body bytes to the runtime ``proc`` command.
+        let arg_tokens = seg.arg_tokens();
+        let params_tok = arg_tokens[1];
+        let body_tok = arg_tokens[2];
+        // `single_token_word[0]` covers the command itself; args[0..]
+        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
+        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
+        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
+        let body_is_dynamic = matches!(
+            body_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !body_is_single;
+        let params_is_dynamic = matches!(
+            params_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !params_is_single;
+        let materialised_body: Option<String> =
+            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
+                // `args[2]` is the `word_piece`-reconstructed source — for
+                // a Cmd token that's `[subst -nocommands {…}]` (with the
+                // brackets re-added).  `eval_subst_nocommands_body`
+                // segments its input as a top-level Tcl command stream
+                // and expects the inner content, so strip the outer
+                // `[…]` before handing it over.  Mirrors Python's
+                // `body_tok.text`, which the lexer already stores without
+                // brackets.
+                args[2]
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
+            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
+                self.const_map_lookup(&args[2])
+            } else {
+                None
+            };
+        if params_is_dynamic
+            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
+        {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: if params_is_dynamic {
+                    "dynamic proc params"
+                } else {
+                    "dynamic proc body"
+                }
+                .into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        }
+
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
-        let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        // C36c: if the body is a ``[subst -nocommands {template}]``
-        // command sub and every ``\$var`` inside *template* is in the
-        // current const-map, evaluate the subst at compile time and
-        // lower the resulting string as a fresh script. Catches the
-        // tcltest ``Option`` factory shape where the accessor body
-        // is built from a template plus const-known option name /
-        // default / description. Mirrors main commit `d4d2cdd5`.
-        let materialised_body = if body_tok.kind == tcl_lexer::TokenType::Cmd {
-            self.eval_subst_nocommands_body(&args[2])
-        } else {
-            None
-        };
         // C37b: fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
@@ -828,8 +916,16 @@ impl<'r> Lowerer<'r> {
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
-            // Lower the substituted text as a fresh script.
+            // Lower the materialised text as a fresh script.
             self.lower_script(&text, namespace)
+        } else if body_is_dynamic {
+            // Dynamic body, no materialisation possible — but the
+            // proc name resolved via the const-map (otherwise we'd
+            // have bailed above).  Leave the IRProcedure body empty
+            // so static analysis doesn't try to compile the literal
+            // ``$body`` source text as a script.  The runtime
+            // ``proc`` IRCall below carries the actual body bytes.
+            Script::default()
         } else {
             self.lower_body(body_text, body_offset, namespace)
         };
@@ -1274,11 +1370,7 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
 fn populate_trace_facts(module: &mut Module) {
     let top_level = module.top_level.clone();
     walk_for_trace(&top_level, module);
-    let proc_bodies: Vec<Script> = module
-        .procedures
-        .values()
-        .map(|p| p.body.clone())
-        .collect();
+    let proc_bodies: Vec<Script> = module.procedures.values().map(|p| p.body.clone()).collect();
     for body in &proc_bodies {
         walk_for_trace(body, module);
     }
@@ -1305,7 +1397,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     }
                 }
             }
-            Statement::If { clauses, else_body, .. } => {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
                 for c in clauses {
                     walk_for_trace(&c.body, module);
                 }
@@ -1313,7 +1407,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     walk_for_trace(e, module);
                 }
             }
-            Statement::For { init, next, body, .. } => {
+            Statement::For {
+                init, next, body, ..
+            } => {
                 walk_for_trace(init, module);
                 walk_for_trace(next, module);
                 walk_for_trace(body, module);
@@ -1323,7 +1419,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
             | Statement::Catch { body, .. }
             | Statement::Block { body, .. }
             | Statement::UpFrame { body, .. } => walk_for_trace(body, module),
-            Statement::Switch { arms, default_body, .. } => {
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
                         walk_for_trace(b, module);
@@ -1333,7 +1431,12 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     walk_for_trace(b, module);
                 }
             }
-            Statement::Try { body, handlers, finally_body, .. } => {
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
                 walk_for_trace(body, module);
                 for h in handlers {
                     walk_for_trace(&h.body, module);
@@ -1769,6 +1872,46 @@ mod tests {
     }
 
     #[test]
+    fn proc_with_trailing_colons_routes_through_barrier() {
+        // Tcl 9 ``proc ::ns:: {args} {body}`` registers a command
+        // named ``""`` inside ``::ns``.  Static normalisation would
+        // strip the trailing ``::`` and register the proc under the
+        // namespace name itself — wrong cmd.  Route through
+        // Statement::Barrier so the runtime ``proc`` builtin handles
+        // the registration.  PR #430 (3ff02ff2).
+        let m = lower_to_ir("proc ::ns:: {a b} { puts $a$b }", &reg());
+        // No procedure entry should have been AOT-registered under
+        // ``::ns`` (which is what the bug would produce) or any
+        // empty-key variant.
+        assert!(
+            !m.procedures.contains_key("::ns")
+                && !m.procedures.contains_key("::ns::")
+                && !m.procedures.contains_key(""),
+            "trailing-:: proc should not be AOT-registered; got {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        // The top-level statement should be a Barrier with the
+        // empty-simple-name reason.
+        let top = m
+            .top_level
+            .statements
+            .last()
+            .expect("at least one top-level statement");
+        match top {
+            Statement::Barrier {
+                reason, command, ..
+            } => {
+                assert_eq!(command, "proc");
+                assert!(
+                    reason.contains("empty-simple-name"),
+                    "unexpected barrier reason: {reason}"
+                );
+            }
+            other => panic!("expected Statement::Barrier, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn proc_with_command_substitution_in_name_stays_barrier() {
         // ``proc \$name[suffix]`` — multi-token name with a command
         // substitution. The const-map gate only covers single-VAR
@@ -1799,6 +1942,145 @@ mod tests {
             !inner.body.statements.is_empty(),
             "expected lowered body, got empty"
         );
+    }
+
+    #[test]
+    fn foreach_line_lowers_to_foreach_statement() {
+        // PR #433 (0f9288d2): `foreachLine var filename body` lowers
+        // to a single-iterator IRForeach so variables assigned
+        // inside the body propagate to the enclosing scope.  The
+        // generic stdlib-proc path would route through IRBarrier and
+        // lose that lattice information.
+        let m = lower_to_ir(
+            "foreachLine line /etc/hosts { set count [expr {$count + 1}] }",
+            &reg(),
+        );
+        let stmts = &m.top_level.statements;
+        let last = stmts.last().expect("at least one statement");
+        match last {
+            Statement::Foreach {
+                iterators, is_lmap, ..
+            } => {
+                assert!(!is_lmap);
+                assert_eq!(iterators.len(), 1);
+                assert_eq!(iterators[0].vars, vec!["line".to_owned()]);
+            }
+            other => panic!("expected Statement::Foreach, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn foreach_line_var_body_routes_through_barrier() {
+        // `foreachLine line file $body` — the body is a Var token,
+        // which is single-token but NOT a braced literal.  Compiling
+        // the literal `$body` text as a static loop body would
+        // produce incorrect IR / data-flow; the lowering must fall
+        // through to the runtime command via Barrier.
+        let m = lower_to_ir("foreachLine line /etc/hosts $body", &reg());
+        let last = m.top_level.statements.last().expect("top-level statement");
+        match last {
+            Statement::Barrier {
+                reason, command, ..
+            } => {
+                assert_eq!(command, "foreachLine");
+                assert!(
+                    reason.contains("dynamic body"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected Barrier for Var body, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn foreach_line_cmd_body_routes_through_barrier() {
+        // Same guard for a `[cmd]` body — single-token but a Cmd
+        // substitution, not a braced literal.
+        let m = lower_to_ir("foreachLine line /etc/hosts [build-body]", &reg());
+        let last = m.top_level.statements.last().expect("top-level statement");
+        assert!(
+            matches!(last, Statement::Barrier { .. }),
+            "expected Barrier for Cmd body, got {last:?}"
+        );
+    }
+
+    #[test]
+    fn proc_var_body_const_map_materialised() {
+        // PR #393 (0fc2d6a9): a bare `$body` body word whose value
+        // is in the const-map materialises into the IRProcedure body
+        // (matching the `proc $name {x} $body` shape).
+        let m = lower_to_ir(
+            "proc factory {} { set name {Greeter}\n set body {return hi}\n proc $name {} $body }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        // The body was const-resolved to "return hi"; lowering it
+        // produces a Return statement.
+        assert!(
+            !inner.body.statements.is_empty(),
+            "expected lowered body, got empty"
+        );
+    }
+
+    #[test]
+    fn proc_var_body_unresolved_keeps_empty_body() {
+        // `$body` has no const-map binding but `$name` does — the
+        // proc name resolves, but the body stays empty (the runtime
+        // proc call below carries the dynamic body text).
+        let m = lower_to_ir(
+            "proc factory {} { set name {Greeter}\n proc $name {} $body }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        assert!(
+            inner.body.statements.is_empty(),
+            "expected empty body for unresolved dynamic body, got {:?}",
+            inner.body.statements
+        );
+    }
+
+    #[test]
+    fn proc_dynamic_params_routes_through_barrier() {
+        // A dynamic params word — there's no static arg-list to
+        // build a real IRProcedure from, so the whole proc shape
+        // bails to a Barrier.  Even when the name resolves via the
+        // const-map.  PR #393 (0fc2d6a9).
+        let m = lower_to_ir(
+            "proc factory {} { set name {x}\n proc $name $params { puts hi } }",
+            &reg(),
+        );
+        // No inner procedure should be registered — params couldn't
+        // be parsed statically.
+        assert!(
+            !m.procedures.contains_key("::x"),
+            "dynamic-params shape must not AOT-register: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn proc_multi_token_body_word_is_dynamic() {
+        // `proc foo {} "pre${body}post"` — the body is a quoted
+        // multi-token word.  Even though the first token is Str,
+        // single_token_word is false so the whole word is dynamic
+        // and we route through Barrier (matching Python's
+        // multi-token guard).
+        let m = lower_to_ir(
+            r#"proc factory {} { set body {return hi}; proc inner {} "pre${body}post" }"#,
+            &reg(),
+        );
+        // `::inner` would only be registered if the body was
+        // materialised — which can't happen for multi-token words.
+        // We allow either no entry or an empty-body entry; the key
+        // assertion is that the literal source text isn't compiled
+        // as a script.
+        if let Some(inner) = m.procedures.get("::inner") {
+            assert!(
+                inner.body.statements.is_empty(),
+                "multi-token body must not be statically lowered, got {:?}",
+                inner.body.statements
+            );
+        }
     }
 
     #[test]
@@ -1964,10 +2246,7 @@ mod tests {
 
     #[test]
     fn trace_add_execution_inside_proc_recorded() {
-        let m = lower_to_ir(
-            "proc init {} { trace add execution foo enter h }",
-            &reg(),
-        );
+        let m = lower_to_ir("proc init {} { trace add execution foo enter h }", &reg());
         assert!(
             m.traced_commands.contains("foo"),
             "traced_commands={:?}",
@@ -1984,9 +2263,7 @@ mod tests {
         // Barrier with a fully literal body.
         assert!(!body_has_dynamic_barrier("eval { set x 1 }"));
         // Nested literal.
-        assert!(!body_has_dynamic_barrier(
-            "if { 1 } { eval { set x 1 } }"
-        ));
+        assert!(!body_has_dynamic_barrier("if { 1 } { eval { set x 1 } }"));
     }
 
     #[test]

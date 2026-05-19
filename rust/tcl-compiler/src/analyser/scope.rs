@@ -67,7 +67,7 @@ impl Analyser {
             .unwrap_or(&self.result.global_scope)
     }
 
-    /// Mutable counterpart to [`current_scope`].
+    /// Mutable counterpart to [`Self::current_scope`].
     pub fn current_scope_mut(&mut self) -> &mut Scope {
         let path = self.current_scope_path.clone();
         scope_at_mut(&mut self.result.global_scope, &path)

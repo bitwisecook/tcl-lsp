@@ -12,6 +12,7 @@ mod chan_;
 mod clock_;
 mod close_;
 mod concat_;
+mod const_;
 mod continue_;
 mod coroinject;
 mod coroprobe;
@@ -33,6 +34,7 @@ mod fileevent;
 mod flush_;
 mod for_;
 mod foreach_;
+mod foreachline;
 mod format_;
 mod gets_;
 mod glob_;
@@ -50,6 +52,7 @@ mod list_;
 mod llength;
 mod lmap_;
 mod load;
+mod lpop;
 mod lrange;
 mod lremove;
 mod lrepeat;
@@ -81,6 +84,7 @@ mod proc_;
 mod puts_;
 mod re_quote;
 mod read_;
+mod readfile;
 mod regex_quote;
 mod regexp_;
 mod regexp_quote;
@@ -98,6 +102,8 @@ mod string_;
 mod subst_;
 mod switch_;
 mod tailcall_;
+mod tcl_idna;
+mod tcl_process;
 mod tcl_unsupported_corotype;
 mod tell_;
 mod throw_;
@@ -113,6 +119,7 @@ mod upvar_;
 mod variable_;
 mod vwait;
 mod while_;
+mod writefile;
 mod yield_;
 mod yieldto;
 mod zlib;
@@ -146,6 +153,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         clock_::spec(),
         close_::spec(),
         concat_::spec(),
+        const_::spec(),
         continue_::spec(),
         coroinject::spec(),
         coroprobe::spec(),
@@ -167,6 +175,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         flush_::spec(),
         for_::spec(),
         foreach_::spec(),
+        foreachline::spec(),
         format_::spec(),
         gets_::spec(),
         glob_::spec(),
@@ -184,6 +193,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         llength::spec(),
         lmap_::spec(),
         load::spec(),
+        lpop::spec(),
         lrange::spec(),
         lremove::spec(),
         lrepeat::spec(),
@@ -222,6 +232,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         puts_::spec(),
         re_quote::spec(),
         read_::spec(),
+        readfile::spec(),
         regex_quote::spec(),
         regexp_::spec(),
         regexp_quote::spec(),
@@ -239,6 +250,10 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         subst_::spec(),
         switch_::spec(),
         tailcall_::spec(),
+        tcl_idna::spec(),
+        tcl_idna::spec_qualified(),
+        tcl_process::spec(),
+        tcl_process::spec_qualified(),
         tcl_unsupported_corotype::spec(),
         tell_::spec(),
         throw_::spec(),
@@ -254,6 +269,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         variable_::spec(),
         vwait::spec(),
         while_::spec(),
+        writefile::spec(),
         yield_::spec(),
         yieldto::spec(),
         zlib::spec(),

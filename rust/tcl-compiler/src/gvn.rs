@@ -608,7 +608,7 @@ pub fn is_pure_command(
 /// Same purity classification as [`is_pure_command`] but additionally
 /// returns `false` for any command targeted by an active execution
 /// trace (`trace add execution NAME enter|leave HANDLER`) AND for
-/// every command when [`Module::has_dynamic_trace`] is set.  Mirrors
+/// every command when [`crate::ir::Module::has_dynamic_trace`] is set.  Mirrors
 /// `core/compiler/gvn.py:151-158`.
 ///
 /// Calls to a command with an active execution trace are never pure
@@ -1303,8 +1303,7 @@ fn transfer_occurrence_keys(
 /// Matches the Python `gvn.py::_find_partial_redundancies`
 /// pipeline on a per-function basis.
 /// Maps tracked by the partial-redundancy dataflow fixpoint.
-type ExprKeySetMap =
-    std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
+type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
 
 /// Run the partial-redundancy may/must-availability dataflow
 /// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
@@ -1439,14 +1438,8 @@ pub fn find_partial_redundancies(
         }
     }
 
-    let (may_in, _may_out, must_in, _must_out) = run_partial_redundancy_fixpoint(
-        cfg,
-        ssa,
-        &executable,
-        &events_by_block,
-        &universe,
-        &order,
-    );
+    let (may_in, _may_out, must_in, _must_out) =
+        run_partial_redundancy_fixpoint(cfg, ssa, &executable, &events_by_block, &universe, &order);
 
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
@@ -1512,7 +1505,7 @@ pub fn find_partial_redundancies(
 /// iteration order.
 ///
 /// Convenience wrapper for callers (LSP, `PyO3` bindings, the future
-/// native server) that already hold a [`CompilationUnit`] and don't
+/// native server) that already hold a [`crate::compilation_unit::CompilationUnit`] and don't
 /// want to re-implement the per-function loop. The pure-crate
 /// version is the public API; `PyO3` binding code should call this
 /// rather than duplicating the iteration shape.

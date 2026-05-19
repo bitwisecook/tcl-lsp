@@ -13,7 +13,7 @@
 //!    derived from string content (`STARTS_WITH_SLASH` →
 //!    `PATH_PREFIXED`, absence of `STARTS_WITH_DASH` →
 //!    `NON_DASH_PREFIXED`), and an
-//!    [`InterproceduralAnalysis`](crate::interprocedural::InterproceduralAnalysis)
+//!    [`InterproceduralAnalysis`]
 //!    to transfer taint across proc boundaries via passthrough
 //!    parameters.
 //! 3. **`find_taint_warnings`** — sink check: emits **T100** when a

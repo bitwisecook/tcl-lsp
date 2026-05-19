@@ -313,6 +313,84 @@ impl Lowerer<'_> {
         }
     }
 
+    /// Lower `foreachLine varName filename body` (Tcl 9.0+, TIP 670)
+    /// as a single-iterator [`Statement::Foreach`] so variables
+    /// assigned inside the body propagate to the enclosing scope —
+    /// matching plain `foreach`'s lattice behaviour rather than the
+    /// opaque [`Statement::Barrier`] treatment used for generic
+    /// stdlib procs.  Mirrors `core/compiler/lowering.py` after
+    /// PR #433.
+    ///
+    /// # Analyser IR only
+    ///
+    /// The resulting [`Statement::Foreach`] is for **static-analysis
+    /// dataflow only** — it gives the analyser the same lattice
+    /// shape it would see for a real `foreach` loop (body-scope
+    /// variable propagation, def-use over the iteration variable,
+    /// W-code emitters that walk loop bodies, etc.).  The runtime
+    /// semantics of `foreachLine` are different: it reads lines from
+    /// a file rather than iterating a Tcl list.
+    ///
+    /// **Downstream codegen / runtime-emission consumers MUST NOT
+    /// treat this IR as a real list-iteration `foreach`.**  Today
+    /// the Rust path emits no runtime instructions from
+    /// [`Statement::Foreach`] (codegen happens via the Python WASM /
+    /// bytecode pipeline, which dispatches on the command name
+    /// before lowering); if a Rust runtime codegen is added in the
+    /// future, it must detect `raw_args[0] == "foreachLine"` (or
+    /// equivalent) before treating this as a list iteration.  The
+    /// Python lowerer carries the same invariant.
+    pub(super) fn lower_foreach_line(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Statement {
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let arg_single = seg.arg_single_token();
+
+        // `foreachLine varName filename body` — exactly three args.
+        if args.len() != 3 {
+            return Self::barrier(seg, "malformed foreachLine");
+        }
+
+        // Body must be a single static brace-string literal; dynamic
+        // bodies (`$body`, `[cmd]`, multi-token) fall through to the
+        // runtime command via `Statement::Barrier`.  Mirrors the
+        // `lower_catch` body guard — a `Var` / `Cmd` single-token
+        // word is still dynamic and must not be compiled as a
+        // static loop body.
+        let body_tok = arg_tokens.get(2);
+        let body_is_braced_literal = body_tok.is_some_and(|t| t.kind == TokenType::Str);
+        if !body_is_braced_literal || arg_single.get(2).copied() != Some(true) {
+            return Self::barrier(seg, "foreachLine with dynamic body");
+        }
+
+        // Single iterator binding the loop variable.  `list_arg`
+        // semantically carries "the iteration source" — for plain
+        // `foreach` that's the list; for `foreachLine` it's the
+        // filename (the runtime reads lines from it).  Downstream
+        // dataflow doesn't care: the lattice-propagation matters,
+        // not the literal value.  See the type-level doc-comment
+        // above for the runtime-semantics caveat.
+        let iterators = vec![ForeachIterator {
+            vars: parse_param_names(&args[0]),
+            list_arg: args[1].clone(),
+        }];
+
+        let body = self.lower_body_from_tok(&args[2], body_tok, namespace);
+
+        Statement::Foreach {
+            span: seg.span,
+            iterators,
+            body,
+            body_span: body_tok.map_or(seg.span, |t| t.span),
+            is_lmap: false,
+            raw_args: args.to_vec(),
+            is_dict_iteration: false,
+        }
+    }
+
     // ── catch ─────────────────────────────────────────────────────
 
     /// Lower `catch body ?resultVar? ?optionsVar?`.

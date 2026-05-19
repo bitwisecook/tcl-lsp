@@ -138,7 +138,7 @@ CARGO      := MAKEFLAGS= MFLAGS= MAKEOVERRIDES= cargo
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-py-rust test-slow test-opt test-ext test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated rust-build rust-test rust-lint rust-format .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-py-rust test-slow test-opt test-ext test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated rust-build rust-test rust-lint rust-format rust-doctest rust-deny rust-coverage rust-mutants .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -309,15 +309,51 @@ rust-test: ## Run the Rust workspace test suite (cargo test)
 	@echo "==> Running cargo test on Rust workspace"
 	cd $(ROOT) && $(CARGO) test --workspace --quiet
 
-rust-lint: ## Lint the Rust workspace (cargo fmt --check + cargo clippy -D warnings)
+rust-lint: ## Lint the Rust workspace (cargo fmt --check + cargo clippy -D warnings + doc-link check)
 	@echo "==> Checking Rust formatting with cargo fmt"
 	cd $(ROOT) && $(CARGO) fmt --all -- --check
 	@echo "==> Linting Rust code with cargo clippy"
 	cd $(ROOT) && $(CARGO) clippy --workspace --all-targets -- -D warnings
+	@echo "==> Checking rustdoc intra-doc links (broken/redundant links fail)"
+	cd $(ROOT) && RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links -D rustdoc::redundant-explicit-links -A rustdoc::private-intra-doc-links" $(CARGO) doc --workspace --no-deps --quiet
 
 rust-format: ## Auto-format the Rust workspace with cargo fmt
 	@echo "==> Formatting Rust code with cargo fmt"
 	cd $(ROOT) && $(CARGO) fmt --all
+
+rust-doctest: ## Run doctests on the Rust workspace (cargo test --doc)
+	@echo "==> Running cargo test --doc on Rust workspace"
+	cd $(ROOT) && $(CARGO) test --workspace --doc --quiet
+
+rust-deny: ## Audit Rust dependencies with cargo-deny (advisories + licenses + sources)
+	@echo "==> Auditing Rust dependencies with cargo-deny"
+	@command -v cargo-deny >/dev/null 2>&1 || { \
+	  echo "cargo-deny not installed.  Install with:"; \
+	  echo "  cargo install cargo-deny --locked"; \
+	  exit 1; \
+	}
+	cd $(ROOT) && $(CARGO) deny --all-features check
+
+rust-coverage: ## Measure Rust workspace test coverage with cargo-llvm-cov (HTML report in tmp/coverage/rust/)
+	@echo "==> Measuring Rust workspace coverage"
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
+	  echo "cargo-llvm-cov not installed.  Install with:"; \
+	  echo "  cargo install cargo-llvm-cov --locked"; \
+	  echo "  rustup component add llvm-tools-preview"; \
+	  exit 1; \
+	}
+	@mkdir -p $(ROOT)tmp/coverage/rust
+	cd $(ROOT) && $(CARGO) llvm-cov --workspace --html --output-dir tmp/coverage/rust
+	cd $(ROOT) && $(CARGO) llvm-cov --workspace --summary-only
+
+rust-mutants: ## Run mutation tests on the Rust workspace with cargo-mutants (SLOW — hours)
+	@echo "==> Running cargo-mutants (this is slow — expect hours)"
+	@command -v cargo-mutants >/dev/null 2>&1 || { \
+	  echo "cargo-mutants not installed.  Install with:"; \
+	  echo "  cargo install cargo-mutants --locked"; \
+	  exit 1; \
+	}
+	cd $(ROOT) && $(CARGO) mutants --workspace --no-shuffle --in-place
 
 test-py-rust: $(UV_STAMP) $(RUST_STAMP) ## Run the Python test suite with the Rust wheel pre-built
 	@echo "==> Running Python tests (with Rust wheel)"
