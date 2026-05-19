@@ -175,18 +175,10 @@ def _run_redact(args: argparse.Namespace) -> int:
         map_path.parent.mkdir(parents=True, exist_ok=True)
         map_path.write_text(report.redaction_map.to_toml(), encoding="utf-8")
 
-    # CodeQL's ``py/clear-text-logging-sensitive-data`` rule taints
-    # any attribute whose name contains ``secret`` and follows it
-    # through to log sinks.  These are *counts* (ints), not secret
-    # values — extract into plainly-named locals so the taint flow
-    # is broken without changing the API on ``RedactReport``.
-    secret_count = int(report.secrets_replaced)
-    pem_count = int(report.pem_blocks_replaced)
-    ip_count = int(report.ips_remapped)
     print(
-        f"redacted: {secret_count} secret(s), "
-        f"{pem_count} PEM block(s), "
-        f"{ip_count} IP(s) remapped" + (f"; map -> {map_path}" if map_path else ""),
+        f"redacted: {report.redactions_count} secret(s), "
+        f"{report.pem_blocks_replaced} PEM block(s), "
+        f"{report.ips_remapped} IP(s) remapped" + (f"; map -> {map_path}" if map_path else ""),
         file=sys.stderr,
     )
     return 0
