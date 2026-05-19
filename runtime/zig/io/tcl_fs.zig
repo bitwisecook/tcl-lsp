@@ -179,6 +179,13 @@ const S_IFIFO: u32 = 0o010000;
 // clobber the first when materialising the second.  The bump
 // allocator can't free so a per-call alloc would leak the bytes
 // permanently.
+//
+// PATH_BUF_CAP is sized to match WASI's path-length ceiling (most
+// hosts cap at 4096); inputs longer than ``PATH_BUF_CAP - 1`` are
+// rejected by emptying the buffer rather than silently truncated —
+// truncation would let ``file delete /very/long/path`` operate on a
+// different (shorter) path with destructive results (Codex P2 on
+// PR #453).
 const PATH_BUF_CAP: u32 = 4096;
 var path_buf_a: [PATH_BUF_CAP]u8 = undefined;
 var path_buf_b: [PATH_BUF_CAP]u8 = undefined;
@@ -190,12 +197,23 @@ var path_buf_toggle: u32 = 0;
 /// caller (``rename old new``) can hold two valid path C-strings
 /// at once; a third concurrent call within the same statement
 /// would alias the first slot — none exist today.
+///
+/// Paths whose byte length is ``PATH_BUF_CAP - 1`` or more land at
+/// an empty NUL buffer so the receiving syscall fails with ENOENT
+/// (or the equivalent ``open``/``stat`` error).  Failing loudly is
+/// safer than silently truncating to a shorter pathname.
 fn path_cstr(path: i32) [*:0]const u8 {
     const s = obj_ensure_string(path);
     const buf: *[PATH_BUF_CAP]u8 = if (path_buf_toggle == 0) &path_buf_a else &path_buf_b;
     path_buf_toggle ^= 1;
-    var copy_len: u32 = s.len;
-    if (copy_len >= PATH_BUF_CAP) copy_len = PATH_BUF_CAP - 1;
+    // Reject overlong paths — empty C-string lets every wasi-libc
+    // path syscall surface a clean failure instead of operating on
+    // a silently-shortened name.
+    if (s.len >= PATH_BUF_CAP) {
+        buf[0] = 0;
+        return @ptrCast(buf);
+    }
+    const copy_len: u32 = s.len;
     if (copy_len > 0) {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
         for (0..copy_len) |i| buf[i] = src[i];
@@ -312,10 +330,11 @@ pub export fn tcl_cmd_source(path: i32) i32 {
         return 0;
     }
     const size_i64 = stat_size(stat_buf);
-    // Free the stat scratch buffer immediately — repeated sources of
-    // a missing file used to leak STAT_SIZE bytes per call.  After
-    // this point ``stat_buf`` must not be dereferenced.
-    obj.free_sized(stat_buf, STAT_SIZE);
+    // ``stat_buf`` is a static shared buffer (see ``stat_buf_static``
+    // in this file) — it must NOT be returned to the allocator.  An
+    // earlier revision routed it through ``obj.free_sized``, which
+    // would have corrupted the size-class free-list with a non-
+    // allocator address (Codex review on PR #453).
     if (size_i64 < 0 or size_i64 > 64 * 1024 * 1024) {
         stubs.raise("source: file size out of range");
         return 0;
