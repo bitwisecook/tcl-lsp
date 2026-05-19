@@ -1239,135 +1239,157 @@ fn regex_escape_desc(token: &str) -> Option<&'static str> {
     }
 }
 
+/// One emitted regex-token entry — `(consumed, key, tok, desc)`.
+/// `consumed` is the number of source chars the token covers;
+/// `key` is the dedup key; `tok` is what the table renders;
+/// `desc` is the explanation.  Returned by each sub-scanner so
+/// the outer loop in [`scan_regex_components`] stays readable.
+type RegexComp = (usize, String, String, String);
+
 /// Scan a regex pattern for metacharacters / classes /
 /// escapes.  Simplified version of Python's `_REGEX_PART_RE`
 /// and `_describe_regex_component`; handles common cases:
 /// anchors, quantifiers, alternation, character classes,
 /// shorthand escapes, capture-group parens, lazy
 /// quantifiers.
-#[allow(clippy::too_many_lines)]
 fn scan_regex_components(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
     let mut out: Vec<(String, String)> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut push = |key: String, tok: String, desc: String| {
-        if !seen.contains(&key) {
-            seen.insert(key);
-            out.push((tok, desc));
-        }
-    };
-    let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        let c = chars[i];
-        // Escape sequences: `\<char>` and special shorthand
-        // classes.
-        if c == '\\' && i + 1 < chars.len() {
-            let next = chars[i + 1];
-            let tok = format!("\\{next}");
-            if next.is_ascii_digit() {
-                push(
-                    tok.clone(),
-                    tok.clone(),
-                    format!("Backreference to group {next}"),
-                );
-            } else if let Some(desc) = regex_escape_desc(&tok) {
-                push(tok.clone(), tok.clone(), desc.to_string());
-            } else if ".*+?(){}[]|^$\\".contains(next) {
-                push(
-                    tok.clone(),
-                    tok.clone(),
-                    format!("Escaped literal `{next}`"),
-                );
-            } else {
-                push(tok.clone(), tok.clone(), format!("Escape sequence `{tok}`"));
-            }
-            i += 2;
-            continue;
-        }
-        // Character class.
-        if c == '[' {
-            let start = i;
-            let mut end = i + 1;
-            // Allow leading `^` and `]` as first char per
-            // regex grammar.
-            if end < chars.len() && chars[end] == '^' {
-                end += 1;
-            }
-            if end < chars.len() && chars[end] == ']' {
-                end += 1;
-            }
-            while end < chars.len() && chars[end] != ']' {
-                if chars[end] == '\\' && end + 1 < chars.len() {
-                    end += 2;
-                } else {
-                    end += 1;
+        // The sub-scanners are tried in order: escape and char
+        // class are eager (they consume multi-char windows);
+        // lazy-quantifier has to run before single-char meta so
+        // `*?` doesn't get split.  Group-open also runs before
+        // single-char meta so `(?:` / `(` get attributed
+        // correctly.
+        let token = scan_regex_escape(&chars, i)
+            .or_else(|| scan_regex_char_class(&chars, i))
+            .or_else(|| scan_regex_lazy_quantifier(&chars, i))
+            .or_else(|| scan_regex_group(&chars, i))
+            .or_else(|| scan_regex_single_meta(chars[i]));
+        match token {
+            Some((consumed, key, tok, desc)) => {
+                if seen.insert(key) {
+                    out.push((tok, desc));
                 }
+                i += consumed.max(1);
             }
-            let tok: String = if end < chars.len() {
-                chars[start..=end].iter().collect()
-            } else {
-                chars[start..end].iter().collect()
-            };
-            let inner: String = if tok.starts_with('[') && tok.ends_with(']') {
-                tok[1..tok.len() - 1].to_string()
-            } else {
-                tok[1..].to_string()
-            };
-            push(
-                tok.clone(),
-                tok.clone(),
-                format!("Character class: matches any of `{inner}`"),
-            );
-            i = end + 1;
-            continue;
+            None => i += 1,
         }
-        // Lazy quantifiers (`*?` / `+?` / `??`) — peek for the
-        // trailing `?`.
-        if matches!(c, '*' | '+' | '?') && i + 1 < chars.len() && chars[i + 1] == '?' {
-            let tok = format!("{c}?");
-            if let Some(desc) = regex_meta_desc(&tok) {
-                push(tok.clone(), tok.clone(), desc.to_string());
-            }
-            i += 2;
-            continue;
-        }
-        if let Some(desc) = regex_meta_desc(&c.to_string()) {
-            push(c.to_string(), c.to_string(), desc.to_string());
-            i += 1;
-            continue;
-        }
-        // Grouping.
-        if c == '(' {
-            // Look ahead for `(?:` / `(?=` / `(?!` / `(?>`.
-            if i + 2 < chars.len() && chars[i + 1] == '?' {
-                let trail = chars[i + 2];
-                let (tok, desc) = match trail {
-                    ':' => ("(?:", "Non-capturing group"),
-                    '=' => ("(?=", "Positive lookahead"),
-                    '!' => ("(?!", "Negative lookahead"),
-                    '>' => ("(?>", "Atomic (possessive) group"),
-                    _ => {
-                        i += 1;
-                        push("(".into(), "(".into(), "Capture group open".into());
-                        continue;
-                    }
-                };
-                push(tok.to_string(), tok.to_string(), desc.to_string());
-                i += 3;
-                continue;
-            }
-            push("(".into(), "(".into(), "Capture group open".into());
-            i += 1;
-            continue;
-        }
-        if c == ')' {
-            push(")".into(), ")".into(), "Group close".into());
-            i += 1;
-            continue;
-        }
-        i += 1;
     }
     out
+}
+
+/// `\<char>` escape sequences — shorthand classes (`\d`, `\w`),
+/// numbered backreferences (`\1`-`\9`), and escaped literals
+/// (`\.`, `\*`, …).  Falls back to a generic "Escape sequence"
+/// label for unknown payloads.
+fn scan_regex_escape(chars: &[char], i: usize) -> Option<RegexComp> {
+    if chars.get(i)? != &'\\' {
+        return None;
+    }
+    let next = *chars.get(i + 1)?;
+    let tok = format!("\\{next}");
+    let desc = if next.is_ascii_digit() {
+        format!("Backreference to group {next}")
+    } else if let Some(d) = regex_escape_desc(&tok) {
+        d.to_string()
+    } else if ".*+?(){}[]|^$\\".contains(next) {
+        format!("Escaped literal `{next}`")
+    } else {
+        format!("Escape sequence `{tok}`")
+    };
+    Some((2, tok.clone(), tok, desc))
+}
+
+/// `[...]` character classes, including leading `^` negation
+/// and a literal `]` as first char per regex grammar.
+/// Consumes the entire class including the closing `]` (or to
+/// EOL when the pattern is malformed).
+fn scan_regex_char_class(chars: &[char], i: usize) -> Option<RegexComp> {
+    if chars.get(i)? != &'[' {
+        return None;
+    }
+    let start = i;
+    let mut end = i + 1;
+    if chars.get(end) == Some(&'^') {
+        end += 1;
+    }
+    if chars.get(end) == Some(&']') {
+        end += 1;
+    }
+    while end < chars.len() && chars[end] != ']' {
+        if chars[end] == '\\' && end + 1 < chars.len() {
+            end += 2;
+        } else {
+            end += 1;
+        }
+    }
+    let (tok_slice, consumed) = if end < chars.len() {
+        (&chars[start..=end], end + 1 - start)
+    } else {
+        (&chars[start..end], end - start)
+    };
+    let tok: String = tok_slice.iter().collect();
+    let inner: String = if tok.starts_with('[') && tok.ends_with(']') {
+        tok[1..tok.len() - 1].to_string()
+    } else {
+        tok[1..].to_string()
+    };
+    let desc = format!("Character class: matches any of `{inner}`");
+    Some((consumed, tok.clone(), tok, desc))
+}
+
+/// Lazy quantifiers — `*?`, `+?`, `??`.  Must run before
+/// [`scan_regex_single_meta`] so `*` alone doesn't claim the
+/// pair.
+fn scan_regex_lazy_quantifier(chars: &[char], i: usize) -> Option<RegexComp> {
+    let c = *chars.get(i)?;
+    if !matches!(c, '*' | '+' | '?') {
+        return None;
+    }
+    if chars.get(i + 1) != Some(&'?') {
+        return None;
+    }
+    let tok = format!("{c}?");
+    let desc = regex_meta_desc(&tok)?.to_string();
+    Some((2, tok.clone(), tok, desc))
+}
+
+/// Grouping — `(?:`, `(?=`, `(?!`, `(?>`, and bare `(` / `)`.
+fn scan_regex_group(chars: &[char], i: usize) -> Option<RegexComp> {
+    let c = *chars.get(i)?;
+    if c == ')' {
+        return Some((1, ")".into(), ")".into(), "Group close".into()));
+    }
+    if c != '(' {
+        return None;
+    }
+    if chars.get(i + 1) == Some(&'?') {
+        if let Some(trail) = chars.get(i + 2) {
+            let pair = match trail {
+                ':' => Some(("(?:", "Non-capturing group")),
+                '=' => Some(("(?=", "Positive lookahead")),
+                '!' => Some(("(?!", "Negative lookahead")),
+                '>' => Some(("(?>", "Atomic (possessive) group")),
+                _ => None,
+            };
+            if let Some((tok, desc)) = pair {
+                return Some((3, tok.to_string(), tok.to_string(), desc.to_string()));
+            }
+        }
+    }
+    Some((1, "(".into(), "(".into(), "Capture group open".into()))
+}
+
+/// Single-char metacharacters — `^`, `$`, `.`, `*`, `+`, `?`,
+/// `|`.  Anything [`regex_meta_desc`] knows about.
+fn scan_regex_single_meta(c: char) -> Option<RegexComp> {
+    let key = c.to_string();
+    let desc = regex_meta_desc(&key)?.to_string();
+    Some((1, key.clone(), key, desc))
 }
 
 /// Render a regex-pattern hover markdown.  Mirrors
