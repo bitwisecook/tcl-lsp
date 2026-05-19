@@ -794,6 +794,17 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
     // The save+clear preserves a handler-issued return/break/continue across
     // the finally body so a clean finally completion restores them.
     if (finally_body != 0) {
+        // Snapshot the body/handler's effective options dict BEFORE
+        // running the finally.  Tcl 9 ``TryPostFinally`` (tclCmdMZ.c)
+        // builds the ``-during`` field of the finally's options when
+        // the finally raises an error AND a prior body/handler had
+        // also raised.  We capture unconditionally — including OK
+        // outcomes — so error-18.8 / -18.9 (body=OK, finally=error)
+        // see ``-during -code 0`` as well.  The snapshot is owned by
+        // this scope and either consumed into ``state.during_options``
+        // for the catch's options dict, or released on the OK path.
+        const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+        const during_snap = catch_mod.catch_options();
         const snap = result_mod.flow_save_and_clear();
         rt.catch_enter();
         const fb_s = obj_ensure_string(finally_body);
@@ -802,10 +813,44 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
         // ``catch_leave`` before ``catch_result`` — see ``eval_catch``.
         const finally_code = rt.catch_leave();
         const fb_val = rt.catch_result();
-        if (rt.obj_get_int(finally_code) != 0) {
-            // Finally raised an error — propagate it, overriding handler result.
-            catch_mod.tcl_cmd_error(fb_val);
+        const fb_code = rt.obj_get_int(finally_code);
+        if (fb_code == 1) {
+            // Finally raised an error — propagate it via the standard
+            // ``tcl_cmd_error_full`` path so refcount + globals are
+            // managed consistently with the throw/error code.  Read
+            // back ``::errorCode`` first so the finally's class (set
+            // by ``throw CODE MSG``) survives — passing it as the
+            // ``code`` arg keeps ``stamp_error_globals`` from resetting
+            // it to the default ``NONE``.
+            const ec_name = rt.obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
+            const tcl_ns_mod = @import("../interp/tcl_ns.zig");
+            const ec_obj = tcl_ns_mod.global_get(ec_name);
+            obj_mod_try.tcl_obj_release(ec_name);
+            catch_mod.tcl_cmd_error_full(fb_val, 0, ec_obj);
+            if (ec_obj != 0) obj_mod_try.tcl_obj_release(ec_obj);
+            // Stash the prior chain under ``-during`` so the catch's
+            // options dict reflects which earlier completion was
+            // overridden by the finally's error.  Tcl 9
+            // ``TryPostFinal`` mirrors this with
+            // ``During(interp, ERROR, options, ...)`` — error-16.21 /
+            // -18.7 / -18.10 check this.  ``catch_options`` consumes
+            // the slot exactly once.
+            if (during_snap != 0) {
+                catch_mod.state.during_options = during_snap;
+            }
             return result_mod.from_globals(fb_result);
+        }
+        // Finally exited non-OK without an error (TCL_RETURN/BREAK/
+        // CONTINUE) OR cleanly (TCL_OK) — the during snapshot is no
+        // longer relevant since the finally itself produced the new
+        // outcome; release it.  The flow signal (if any) was already
+        // absorbed by the inner catch_leave; the fall-through below
+        // either re-raises a pre-existing handler error, or restores
+        // the saved signal so a return / break / continue from the
+        // finally propagates back to the caller's enclosing
+        // proc / loop.
+        if (during_snap != 0) {
+            obj_mod_try.tcl_obj_release(during_snap);
         }
         // If finally set a return/break/continue signal, propagate it.
         const fb_ir = result_mod.snapshot(fb_result);

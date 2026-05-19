@@ -92,6 +92,17 @@ pub const State = struct {
     /// surrounding catch's :func:`catch_options` can merge them
     /// into its output dict.
     pending_return_extras: i32 = 0,
+    /// Tcl 9 ``-during`` options-dict slot for ``try ... finally ...``
+    /// exception chaining.  When a ``try`` body (or matched handler)
+    /// completes and its options dict is captured here just before
+    /// the ``finally`` body runs, an error raised by the finally body
+    /// propagates as the catch's effective error AND its options dict
+    /// gains a ``-during <captured>`` entry pointing at the original
+    /// completion's full options dict (error-16.21 / -18.7 etc.).
+    /// :func:`catch_options` consumes it into the output dict; the
+    /// slot's lifecycle is owned by ``eval_try`` which snapshots a
+    /// retained handle here and clears it again on the way out.
+    during_options: i32 = 0,
     /// Snapshot of :attr:`pending_return_extras` at catch_leave
     /// time.  :func:`catch_options` reads this to populate the
     /// options dict with the user-supplied ``-OPT VALUE`` pairs.
@@ -650,6 +661,18 @@ pub export fn catch_options() i32 {
         } else if (state.error_msg != 0) {
             d = dict_set_str_keep(d, "-errorinfo", state.error_msg);
         }
+    }
+    // ``try { ... } finally { ... }`` chaining (error-16.21 /
+    // -18.7..10): if ``eval_try`` captured the body's completion
+    // options before running the finally and the finally raised,
+    // attach the captured dict here under ``-during``.  We consume
+    // the slot — dict_set retains for the new dict, and we release
+    // our handle so a subsequent try doesn't double-add or leak.
+    if (state.during_options != 0) {
+        const during = state.during_options;
+        state.during_options = 0;
+        d = dict_set_str_keep(d, "-during", during);
+        obj.tcl_obj_release(during);
     }
     return d;
 }

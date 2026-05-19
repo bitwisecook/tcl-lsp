@@ -1003,6 +1003,13 @@ class _WasmEmitterValuesMixin(_Base):
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = cmd_args[1:]
+                # ``dict get DICT KEY ?KEY...?`` — multi-key chain
+                # descent into nested dicts.  The 2-param fast path
+                # only sees the first key; route extra keys through
+                # eval so the runtime walks the chain (error-18.10).
+                if subcmd == "get" and len(sub_args) > 2:
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                    return
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):

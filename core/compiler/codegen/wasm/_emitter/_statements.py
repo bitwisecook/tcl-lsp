@@ -853,8 +853,8 @@ class _WasmEmitterStmtMixin(_Base):
             case IRCatch(body=body, result_var=result_var, options_var=options_var):
                 self._emit_catch(body, result_var, options_var=options_var)
 
-            case IRTry(body=body, handlers=handlers, finally_body=finally_body):
-                self._emit_try(body, handlers, finally_body)
+            case IRTry(body=body, handlers=handlers, finally_body=finally_body) as ir_try:
+                self._emit_try(body, handlers, finally_body, raw_args=ir_try.raw_args)
 
     def _resolve_import(self, command: str) -> str | None:
         """Resolve an unqualified ``command`` via ``namespace import``.

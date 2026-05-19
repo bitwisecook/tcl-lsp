@@ -61,7 +61,47 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return result_mod.from_globals(0);
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    if (str_eq(sp, sub.len, "get") and words.len >= 4) return result_mod.from_globals(rt.dict_get(words[2], words[3]));
+    if (str_eq(sp, sub.len, "get") and words.len >= 4) {
+        // ``dict get DICT KEY ?KEY KEY ...?`` — Tcl 9 supports
+        // chained-key descent into nested dicts (error-18.10's
+        // ``dict get $opts -during -during -errorcode`` checks
+        // a two-level chain).  Walk the chain from words[2] (the
+        // dict) through words[3..] (the keys).  Missing keys raise
+        // ``key "K" not known in dictionary``.
+        var cur: i32 = words[2];
+        var ki: u32 = 3;
+        while (ki < words.len) : (ki += 1) {
+            if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
+                const stubs_mod = @import("../stubs/tcl_stubs.zig");
+                const obj_mod_dict = @import("../valtypes/tcl_obj.zig");
+                // Build ``key "<key>" not known in dictionary``.
+                const ks = obj_ensure_string(words[ki]);
+                const prefix: []const u8 = "key \"";
+                const middle: []const u8 = "\" not known in dictionary";
+                const total: u32 = @intCast(prefix.len + ks.len + middle.len);
+                const buf = obj_mod_dict.alloc(total);
+                if (buf == 0) {
+                    stubs_mod.raise("dict get: key not found");
+                    return result_mod.from_globals(0);
+                }
+                const dst: [*]u8 = @ptrFromInt(buf);
+                var off: u32 = 0;
+                for (prefix) |c| { dst[off] = c; off += 1; }
+                if (ks.len > 0 and ks.ptr != 0) {
+                    const sp_k: [*]const u8 = @ptrFromInt(ks.ptr);
+                    var k: u32 = 0;
+                    while (k < ks.len) : (k += 1) { dst[off] = sp_k[k]; off += 1; }
+                }
+                for (middle) |c| { dst[off] = c; off += 1; }
+                const msg = obj_mod_dict.obj_new_string_take(buf, total, total);
+                const catch_mod_dict = @import("../interp/tcl_catch.zig");
+                catch_mod_dict.tcl_cmd_error(msg);
+                return result_mod.from_globals(0);
+            }
+            cur = rt.dict_get(cur, words[ki]);
+        }
+        return result_mod.from_globals(cur);
+    }
     // ``dict getd DICT KEY ?KEY ...? DEFAULT`` — Tcl 9's
     // default-value lookup form.  Returns the existing value when
     // the key chain resolves; otherwise returns the trailing
