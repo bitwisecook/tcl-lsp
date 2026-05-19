@@ -10,6 +10,8 @@ import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.eclipse.lsp4j.ConfigurationItem
 import java.io.File
+import java.net.JarURLConnection
+import java.nio.file.Paths
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.TclLspServerDescriptor")
 
@@ -97,24 +99,24 @@ class TclLspServerDescriptor(project: Project) :
     }
 
     private fun findPluginInstallDir(): File? {
-        // Try to determine the plugin installation directory from the classloader
+        // Locate the jar containing this class, then walk up to the plugin
+        // root (parent of ``lib/``).  Go through ``JarURLConnection`` →
+        // ``URI`` → ``Path`` rather than parsing ``classResource.path``
+        // directly — URLs are percent-encoded, so on macOS the raw path
+        // string contains ``Application%20Support`` and ``Tcl%20Language%20Support``
+        // and ``File(path)`` resolves to a non-existent directory, leaving
+        // the user with a "bundled server not found" error.  ``Paths.get(URI)``
+        // handles the decoding correctly (Codex review on PR #448).
         val classResource = this::class.java.getResource("/${this::class.java.name.replace('.', '/')}.class")
             ?: return null
-        val path = classResource.path
-        // jar:file:/path/to/plugin/lib/plugin.jar!/com/...
-        val jarPrefix = "file:"
-        val jarSuffix = "!"
-        val jarIdx = path.indexOf(jarSuffix)
-        if (jarIdx > 0) {
-            val jarPath = path.substring(
-                if (path.startsWith(jarPrefix)) jarPrefix.length else 0,
-                jarIdx
-            )
-            val jarFile = File(jarPath)
-            // Plugin dir is typically parent of lib/
-            return jarFile.parentFile?.parentFile
+        return try {
+            val conn = classResource.openConnection() as? JarURLConnection ?: return null
+            val jarFile = Paths.get(conn.jarFileURL.toURI()).toFile()
+            jarFile.parentFile?.parentFile
+        } catch (e: Exception) {
+            LOG.warn("Failed to locate plugin install directory", e)
+            null
         }
-        return null
     }
 
     private fun notifyError(message: String) {
