@@ -1395,6 +1395,11 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     // ``release_now`` doesn't try to free a non-existent buffer.
     if (len <= MAX_INLINE_STR) {
         const obj = obj_alloc();
+        // OOM on the inline path: the non-inline branch (below)
+        // checks ``buf == 0`` but this branch used to write straight
+        // through ``@ptrFromInt(0)`` (offsets 4 / 8 / 12 / 16 / 20
+        // of low memory).  Debug panics, release silently corrupts.
+        if (obj == 0) return 0;
         write_i32(obj + OBJ_TYPE_TAG, TYPE_INLINE_STRING);
         memcpy(obj + OBJ_INT_CACHE, src, len);
         // Point str_ptr at the inline buffer so callers reading

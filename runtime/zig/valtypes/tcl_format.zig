@@ -147,13 +147,28 @@ pub export fn tcl_cmd_format_list(fmt: i32, args_list: i32) i32 {
     // ``tcl_cmd_list_index`` (handles braced + quoted elements
     // and backslash decoding) so the format routine can pull
     // integer widths and string values uniformly.
-    const objs_addr = alloc(n * 4);
+    //
+    // Every ``tcl_cmd_list_index`` returns a fresh +1 owned obj
+    // and every immediate ``obj_new_int(i)`` past 2^30 is also
+    // heap-allocated.  Previously these were just dropped on the
+    // floor — N+1 leaked TclObjs per ``format`` call plus the
+    // ``objs_addr`` indexer buffer.  Release each element AFTER
+    // ``format_internal`` is done reading it, and free the buffer.
+    const objs_size: u32 = n * 4;
+    const objs_addr = alloc(objs_size);
+    if (objs_addr == 0) return format_internal(fmt, &[_]i32{});
+    defer obj.free_sized(objs_addr, objs_size);
     const objs: [*]i32 = @ptrFromInt(objs_addr);
     var i: u32 = 0;
     while (i < n) : (i += 1) {
-        objs[i] = list_mod.tcl_cmd_list_index(args_list, obj.obj_new_int(@intCast(i)));
+        const idx_obj = obj.obj_new_int(@intCast(i));
+        objs[i] = list_mod.tcl_cmd_list_index(args_list, idx_obj);
+        obj.tcl_obj_release(idx_obj);
     }
-    return format_internal(fmt, objs[0..n]);
+    const result = format_internal(fmt, objs[0..n]);
+    i = 0;
+    while (i < n) : (i += 1) obj.tcl_obj_release(objs[i]);
+    return result;
 }
 
 /// Scan a format string for the maximum literal width / precision

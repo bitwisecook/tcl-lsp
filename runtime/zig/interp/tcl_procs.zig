@@ -475,6 +475,25 @@ pub fn register_builtin_masked(name_ptr: u32, name_len: u32) void {
 pub fn unregister_command(name_ptr: u32, name_len: u32) bool {
     const ctx = resolve_for_register(name_ptr, name_len);
     if (ctx.existing == 0) return false;
+    // Release any retained ``params_obj`` / ``body_obj`` slots
+    // before clearing the table entry — every ``rename foo {}``
+    // (and every inverse-rename through here) used to leak the
+    // proc's params + body retains.
+    const cmd = ctx.existing;
+    const flags: u32 = @bitCast(read_i32(cmd + OFF_FLAGS));
+    // Only release for plain interpreted procs — imports / aliases /
+    // hidden child Interp pointers stash other things in PARAMS_OBJ
+    // / BODY_OBJ that aren't TclObj refs.
+    const is_special = (flags & (CMD_IMPORTED | CMD_ALIAS | CMD_INTERP_CHILD |
+        CMD_COROUTINE | CMD_BUILTIN_FORWARD | CMD_BUILTIN_MASKED | CMD_ENSEMBLE)) != 0;
+    if (!is_special) {
+        const prev_params: i32 = read_i32(cmd + OFF_PARAMS_OBJ);
+        const prev_body: i32 = read_i32(cmd + OFF_BODY_OBJ);
+        if (prev_params != 0) obj.tcl_obj_release(prev_params);
+        if (prev_body != 0) obj.tcl_obj_release(prev_body);
+        write_i32(cmd + OFF_PARAMS_OBJ, 0);
+        write_i32(cmd + OFF_BODY_OBJ, 0);
+    }
     _ = tcl_ns.ns_cmd_clear(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len);
     lru_invalidate_all();
     return true;

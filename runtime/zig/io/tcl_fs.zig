@@ -173,27 +173,52 @@ const S_IFDIR: u32 = 0o040000;
 const S_IFCHR: u32 = 0o020000;
 const S_IFIFO: u32 = 0o010000;
 
-/// Copy *path*'s bytes onto the bump allocator with a trailing
+// Static 2-slot toggle for ``path_cstr`` — mirrors the pattern in
+// ``io/tcl_chan.zig``.  Two slots so a caller that needs both a
+// source and destination path (``rename`` / ``copy``) doesn't
+// clobber the first when materialising the second.  The bump
+// allocator can't free so a per-call alloc would leak the bytes
+// permanently.
+const PATH_BUF_CAP: u32 = 4096;
+var path_buf_a: [PATH_BUF_CAP]u8 = undefined;
+var path_buf_b: [PATH_BUF_CAP]u8 = undefined;
+var path_buf_toggle: u32 = 0;
+
+/// Copy *path*'s bytes into a static toggle slot with a trailing
 /// NUL so it can be passed to wasi-libc APIs that expect
-/// C-strings.
+/// C-strings.  Each call alternates between two slots so a single
+/// caller (``rename old new``) can hold two valid path C-strings
+/// at once; a third concurrent call within the same statement
+/// would alias the first slot — none exist today.
 fn path_cstr(path: i32) [*:0]const u8 {
     const s = obj_ensure_string(path);
-    const buf_addr = obj.alloc(s.len + 1);
-    const out: [*]u8 = @ptrFromInt(buf_addr);
-    if (s.len > 0) {
+    const buf: *[PATH_BUF_CAP]u8 = if (path_buf_toggle == 0) &path_buf_a else &path_buf_b;
+    path_buf_toggle ^= 1;
+    var copy_len: u32 = s.len;
+    if (copy_len >= PATH_BUF_CAP) copy_len = PATH_BUF_CAP - 1;
+    if (copy_len > 0) {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| out[i] = src[i];
+        for (0..copy_len) |i| buf[i] = src[i];
     }
-    out[s.len] = 0;
-    return @ptrCast(out);
+    buf[copy_len] = 0;
+    return @ptrCast(buf);
 }
 
-/// Run ``stat(2)`` on *path*.  Returns the bump-allocator address
+// Static buffer for stat results — stat_path / lstat_path return
+// the address of this buffer.  Callers read the fields then either
+// use the address-stable shape (followed by another stat call which
+// overwrites the buffer) or copy the fields into a Tcl-side result.
+// No call site preserves the stat buffer beyond a single command
+// invocation, so a single shared buffer is safe and eliminates the
+// permanent ~160-byte leak per ``file exists`` / ``file stat``.
+var stat_buf_static: [STAT_SIZE]u8 = undefined;
+
+/// Run ``stat(2)`` on *path*.  Returns the static-buffer address
 /// of the filled struct, or 0 if the call failed (path doesn't
 /// exist, not accessible, etc.).
 fn stat_path(path: i32) u32 {
-    const buf_addr = obj.alloc(STAT_SIZE);
-    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const buf_addr: u32 = @intFromPtr(&stat_buf_static);
+    const buf: *anyopaque = @ptrCast(&stat_buf_static);
     const rc = stat(path_cstr(path), buf);
     if (rc != 0) return 0;
     return buf_addr;
@@ -202,8 +227,8 @@ fn stat_path(path: i32) u32 {
 /// Same as :func:`stat_path` but uses ``lstat(2)`` — does not
 /// follow symbolic links on the final path component.
 fn lstat_path(path: i32) u32 {
-    const buf_addr = obj.alloc(STAT_SIZE);
-    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const buf_addr: u32 = @intFromPtr(&stat_buf_static);
+    const buf: *anyopaque = @ptrCast(&stat_buf_static);
     const rc = lstat(path_cstr(path), buf);
     if (rc != 0) return 0;
     return buf_addr;

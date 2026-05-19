@@ -372,6 +372,25 @@ pub fn alias_clear(cmd: u32) void {
     if (real_parent != 0) {
         interp_reg.alias_chain_remove(real_parent, rec_addr, .target);
     }
+    // ``alias_alloc`` retains every prefix-args TclObj for the
+    // alias's lifetime; release them here or every
+    // ``interp alias {} foo {}`` (delete) leaks ``n_prefix``
+    // TclObjs.  Also free the heap-allocated arrays so they
+    // don't leak the slab.
+    const objm = @import("../valtypes/tcl_obj.zig");
+    if (r.n_prefix > 0 and r.prefix_args_addr != 0) {
+        var i: u32 = 0;
+        while (i < r.n_prefix) : (i += 1) {
+            const handle = read_i32(r.prefix_args_addr + i * 4);
+            if (handle != 0) objm.tcl_obj_release(handle);
+        }
+        objm.free_sized(r.prefix_args_addr, r.n_prefix * 4);
+    }
+    // ``target_name_ptr`` is a heap-allocated byte copy from
+    // ``alias_alloc``; free the slab so it doesn't leak.
+    if (r.target_name_len > 0 and r.target_name_ptr != 0) {
+        objm.free_sized(r.target_name_ptr, r.target_name_len);
+    }
     r.target_name_len = 0;
     r.target_name_ptr = 0;
     r.n_prefix = 0;

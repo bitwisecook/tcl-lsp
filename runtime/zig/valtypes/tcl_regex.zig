@@ -915,6 +915,14 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             while (v < var_words.len and v < nmatch) : (v += 1) {
                 const so = pm[v * 2];
                 const eo = pm[v * 2 + 1];
+                // ``build_capture_value`` returns a fresh +1 owned obj.
+                // ``var_set`` retains internally (via the array/global
+                // store), so the extra ``tcl_obj_retain`` on top
+                // double-counted the var slot's ref AND the original
+                // +1 from ``build_capture_value`` was never released.
+                // Net effect: every captured group leaked +2.  Just
+                // release after ``var_set`` to match the caller-owned
+                // contract.
                 const value = build_capture_value(
                     indices_mode,
                     sub_s,
@@ -923,12 +931,14 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                     so,
                     eo,
                 );
-                obj.tcl_obj_retain(value);
                 _ = frames.var_set(var_words[v], value);
+                obj.tcl_obj_release(value);
             }
             // Remaining unset vars get empty (Tcl matches set "").
             while (v < var_words.len) : (v += 1) {
-                _ = frames.var_set(var_words[v], obj_new_string(0, 0));
+                const empty = obj_new_string(0, 0);
+                _ = frames.var_set(var_words[v], empty);
+                obj.tcl_obj_release(empty);
             }
         }
 

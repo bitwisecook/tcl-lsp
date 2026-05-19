@@ -553,9 +553,15 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
             target_ext = dict_clone_ext(ext);
         }
         obj.write_i32(new_addr + obj.OBJ_DICT_EXT, @bitCast(target_ext));
-        const v_obj = obj_new_string_copy(sv.ptr, sv.len);
-        dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
-        obj.tcl_obj_release(v_obj);
+        // ``dict_clone_ext`` returns 0 on OOM; ``dict_hash_insert``
+        // would then read/write addresses 4/8/12 of low memory.
+        // Skip the cache plumbing on the OOM path — the dict's
+        // list-rep is correct either way.
+        if (target_ext != 0) {
+            const v_obj = obj_new_string_copy(sv.ptr, sv.len);
+            dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
+            obj.tcl_obj_release(v_obj);
+        }
     } else {
         dict_invalidate_cache(dict);
     }
