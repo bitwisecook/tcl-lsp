@@ -44,6 +44,7 @@ const interp_reg = @import("../interp/tcl_interp_registry.zig");
 pub fn rename_error(template_prefix: []const u8, name_ptr: u32, name_len: u32, template_suffix: []const u8) void {
     const total: u32 = @intCast(template_prefix.len + name_len + template_suffix.len);
     const buf = alloc(total);
+    if (buf == 0) return;
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     for (template_prefix) |c| {
@@ -59,7 +60,7 @@ pub fn rename_error(template_prefix: []const u8, name_ptr: u32, name_len: u32, t
         dst[off] = c;
         off += 1;
     }
-    const msg = obj_new_string(@bitCast(buf), @bitCast(off));
+    const msg = rt.obj_new_string_take(buf, off, total);
     const catch_mod = @import("../interp/tcl_catch.zig");
     catch_mod.tcl_cmd_error(msg);
 }
@@ -330,6 +331,7 @@ pub fn emit_bad_option(name_ptr: u32, name_len: u32) void {
         @as(u32, @intCast(infix.len)) +
         @as(u32, @intCast(INTERP_SUBCOMMAND_LIST.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (name_len > 0) {
@@ -340,7 +342,7 @@ pub fn emit_bad_option(name_ptr: u32, name_len: u32) void {
     for (INTERP_SUBCOMMAND_LIST, 0..) |b, k| {
         d[prefix.len + name_len + infix.len + k] = b;
     }
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = rt.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 /// Raise the canonical Tcl 9 alias-loop diagnostic.  Used by
@@ -713,9 +715,7 @@ pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u
 /// Tiny helper to avoid pulling in ``obj_new_string_copy``'s ABI
 /// naming at every callsite.
 pub fn words_obj_new_string_dup(ptr: u32, len: u32) i32 {
-    const buf = alloc(len);
-    if (len > 0) memcpy(buf, ptr, len);
-    return obj_new_string(@bitCast(buf), @bitCast(len));
+    return obj_new_string_copy(ptr, len);
 }
 
 /// ``interp aliases ?path?`` — list every registered alias in the
@@ -765,6 +765,7 @@ pub fn interp_aliases_list_for(target_interp: u32) i32 {
     if (count == 0) return obj_new_string(0, 0);
 
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     cur = t.aliases_head;
@@ -785,7 +786,10 @@ pub fn interp_aliases_list_for(target_interp: u32) i32 {
         }
         cur = r.next_in_child;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    // ``obj_new_string_take`` so the result obj owns ``buf`` —
+    // without it, the borrow form (cap=0) leaves the buffer
+    // unreclaimable on release.
+    return rt.obj_new_string_take(buf, off, total);
 }
 
 const AliasListCtx = struct {
@@ -837,6 +841,7 @@ pub fn interp_hide_error(prefix: []const u8, name_ptr: u32, name_len: u32, suffi
     const catch_mod = @import("../interp/tcl_catch.zig");
     const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (name_len > 0) {
@@ -844,7 +849,7 @@ pub fn interp_hide_error(prefix: []const u8, name_ptr: u32, name_len: u32, suffi
         for (0..name_len) |k| d[prefix.len + k] = sp[k];
     }
     for (suffix, 0..) |b, k| d[prefix.len + name_len + k] = b;
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = rt.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -864,6 +869,7 @@ pub fn resolve_interp_path(path_obj: i32) u32 {
         const suffix: []const u8 = "\"";
         const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
         const buf = alloc(total);
+        if (buf == 0) return target;
         const d: [*]u8 = @ptrFromInt(buf);
         for (prefix, 0..) |b, k| d[k] = b;
         if (s.len > 0) {
@@ -871,7 +877,7 @@ pub fn resolve_interp_path(path_obj: i32) u32 {
             for (0..s.len) |k| d[prefix.len + k] = sp[k];
         }
         for (suffix, 0..) |b, k| d[prefix.len + s.len + k] = b;
-        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+        const msg = rt.obj_new_string_take(buf, total, total);
         catch_mod.tcl_cmd_error(msg);
     }
     return target;
@@ -1137,13 +1143,14 @@ pub fn eval_interp_create(words: []const i32) i32 {
             const suffix: []const u8 = "\": must be -safe or --";
             const total: u32 = @as(u32, @intCast(prefix.len)) + arg.len + @as(u32, @intCast(suffix.len));
             const buf = alloc(total);
+            if (buf == 0) return 0;
             const d: [*]u8 = @ptrFromInt(buf);
             for (prefix, 0..) |b, k| d[k] = b;
             if (arg.len > 0) {
                 for (0..arg.len) |k| d[prefix.len + k] = ap[k];
             }
             for (suffix, 0..) |b, k| d[prefix.len + arg.len + k] = b;
-            const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+            const msg = rt.obj_new_string_take(buf, total, total);
             catch_mod.tcl_cmd_error(msg);
             return 0;
         }
@@ -1224,12 +1231,13 @@ pub fn eval_interp_create(words: []const i32) i32 {
                     const suffix: []const u8 = "\"";
                     const total: u32 = @as(u32, @intCast(prefix.len)) + elem.len + @as(u32, @intCast(suffix.len));
                     const buf = alloc(total);
+                    if (buf == 0) return 0;
                     const d: [*]u8 = @ptrFromInt(buf);
                     for (prefix, 0..) |b, kk| d[kk] = b;
                     const pp: [*]const u8 = @ptrFromInt(s.ptr + elem.start);
                     for (0..elem.len) |kk| d[prefix.len + kk] = pp[kk];
                     for (suffix, 0..) |b, kk| d[prefix.len + elem.len + kk] = b;
-                    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+                    const msg = rt.obj_new_string_take(buf, total, total);
                     catch_mod.tcl_cmd_error(msg);
                     return 0;
                 }
@@ -1244,12 +1252,13 @@ pub fn eval_interp_create(words: []const i32) i32 {
             const suffix: []const u8 = "\" already exists, cannot create";
             const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
             const buf = alloc(total);
+            if (buf == 0) return 0;
             const d: [*]u8 = @ptrFromInt(buf);
             for (prefix, 0..) |b, k| d[k] = b;
             const np: [*]const u8 = @ptrFromInt(name_ptr);
             for (0..name_len) |k| d[prefix.len + k] = np[k];
             for (suffix, 0..) |b, k| d[prefix.len + name_len + k] = b;
-            const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+            const msg = rt.obj_new_string_take(buf, total, total);
             catch_mod.tcl_cmd_error(msg);
             return 0;
         }
@@ -1454,6 +1463,7 @@ pub fn emit_bucket_names_as_list(buf_addr: u32, cap: u32) i32 {
     if (total == 0) return obj_new_string(0, 0);
 
     const out = alloc(total);
+    if (out == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     count = 0;
     i = 0;
@@ -1475,7 +1485,7 @@ pub fn emit_bucket_names_as_list(buf_addr: u32, cap: u32) i32 {
             list_quote.list_elem_quote_nth(out, off, ep, nlen);
         count += 1;
     }
-    return obj_new_string(@bitCast(out), @bitCast(off));
+    return rt.obj_new_string_take(out, off, total);
 }
 
 /// ``interp delete ?path ...?``.  Each path is resolved and
@@ -1514,12 +1524,13 @@ pub fn eval_interp_delete(words: []const i32) i32 {
             const suffix: []const u8 = "\"";
             const total: u32 = @as(u32, @intCast(prefix.len)) + path.len + @as(u32, @intCast(suffix.len));
             const buf = alloc(total);
+            if (buf == 0) return 0;
             const d: [*]u8 = @ptrFromInt(buf);
             for (prefix, 0..) |b, j| d[j] = b;
             const sp: [*]const u8 = @ptrFromInt(path.ptr);
             for (0..path.len) |j| d[prefix.len + j] = sp[j];
             for (suffix, 0..) |b, j| d[prefix.len + path.len + j] = b;
-            const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+            const msg = rt.obj_new_string_take(buf, total, total);
             catch_mod.tcl_cmd_error(msg);
             return 0;
         }
