@@ -439,12 +439,39 @@ var g_alloc_count: i32 = 0;
 var g_double_free_count: i32 = 0;
 var g_retain_after_defer_count: i32 = 0;
 
+// Sub-bucket splits for ``double_free`` — the three "skip and bump"
+// paths in ``tcl_obj_release`` (POISON tag, rc==0 pending, bad rc
+// value).  Triage tip from the #439 investigation: split tells you
+// whether the dominant pattern is a true UAF-release (POISON), an
+// over-release of a queued obj (pending), or a stale handle on a
+// recycled slab (bad_rc).  POISON + bad_rc together usually means
+// the deferred-free queue overflowed and the cascading immediate-free
+// reissued slabs, exposing the stale handles in the dispatch chain.
+//
+// The sub-bucket counters always add up to ``g_double_free_count``;
+// the aggregate stays so existing harness code keeps working.
+var g_double_free_poison_count: i32 = 0;
+var g_double_free_pending_count: i32 = 0;
+var g_double_free_bad_rc_count: i32 = 0;
+
 pub export fn tcl_test_alloc_count() i32 {
     return g_alloc_count;
 }
 
 pub export fn tcl_test_double_free_count() i32 {
     return g_double_free_count;
+}
+
+pub export fn tcl_test_double_free_poison_count() i32 {
+    return g_double_free_poison_count;
+}
+
+pub export fn tcl_test_double_free_pending_count() i32 {
+    return g_double_free_pending_count;
+}
+
+pub export fn tcl_test_double_free_bad_rc_count() i32 {
+    return g_double_free_bad_rc_count;
 }
 
 pub export fn tcl_test_retain_after_defer_count() i32 {
@@ -454,7 +481,82 @@ pub export fn tcl_test_retain_after_defer_count() i32 {
 pub export fn tcl_test_reset_counters() void {
     g_alloc_count = 0;
     g_double_free_count = 0;
+    g_double_free_poison_count = 0;
+    g_double_free_pending_count = 0;
+    g_double_free_bad_rc_count = 0;
     g_retain_after_defer_count = 0;
+    pending_sample_count = 0;
+}
+
+// Pending-bucket capture buffer — when a release hits the rc==0
+// path, sample the obj's address and the first 32 bytes of its
+// string buffer to a ring so a host-side triage script can read
+// them out and classify what's being over-released.
+const PENDING_SAMPLE_CAP: u32 = 32;
+const PENDING_SAMPLE_BYTES: u32 = 48;
+var pending_sample_addr: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_type: [PENDING_SAMPLE_CAP]i32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_str: [PENDING_SAMPLE_CAP][PENDING_SAMPLE_BYTES]u8 = .{.{0} ** PENDING_SAMPLE_BYTES} ** PENDING_SAMPLE_CAP;
+var pending_sample_len: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_count: u32 = 0;
+
+inline fn capture_pending_sample(addr: u32) void {
+    if (pending_sample_count >= PENDING_SAMPLE_CAP) return;
+    pending_sample_addr[pending_sample_count] = addr;
+    pending_sample_type[pending_sample_count] = read_i32(addr + OBJ_TYPE_TAG);
+    const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+    const sl: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
+    var copy_len: u32 = sl;
+    if (copy_len > PENDING_SAMPLE_BYTES) copy_len = PENDING_SAMPLE_BYTES;
+    if (sp != 0 and copy_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(sp);
+        var i: u32 = 0;
+        while (i < copy_len) : (i += 1) {
+            pending_sample_str[pending_sample_count][i] = src[i];
+        }
+    }
+    pending_sample_len[pending_sample_count] = sl;
+    pending_sample_count += 1;
+}
+
+pub export fn tcl_test_pending_sample_count() i32 {
+    return @intCast(pending_sample_count);
+}
+
+pub export fn tcl_test_pending_sample_addr(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @bitCast(pending_sample_addr[i]);
+}
+
+pub export fn tcl_test_pending_sample_type(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return pending_sample_type[i];
+}
+
+pub export fn tcl_test_pending_sample_str_ptr(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @bitCast(@intFromPtr(&pending_sample_str[i]));
+}
+
+pub export fn tcl_test_pending_sample_str_len(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    const l = pending_sample_len[i];
+    if (l > PENDING_SAMPLE_BYTES) return PENDING_SAMPLE_BYTES;
+    return @intCast(l);
+}
+
+pub export fn tcl_test_pending_sample_full_len(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @intCast(pending_sample_len[i]);
+}
+
+pub export fn tcl_test_pending_sample_reset() void {
+    pending_sample_count = 0;
 }
 
 /// Run at the end of a test workload.  Drains the deferred-free
@@ -1064,7 +1166,10 @@ pub export fn tcl_obj_release(obj: i32) void {
     // intact.
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_FREED_POISON) {
-        if (build_options.leak_check) g_double_free_count += 1;
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_poison_count += 1;
+        }
         return;
     }
     const rc = read_i32(addr + OBJ_REFCOUNT);
@@ -1073,7 +1178,11 @@ pub export fn tcl_obj_release(obj: i32) void {
         // freed.  Any further release is the over-release pattern
         // S2's failed attempt hit; record it so leakcheck builds
         // surface it.  Production builds compile this branch out.
-        if (build_options.leak_check) g_double_free_count += 1;
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_pending_count += 1;
+            capture_pending_sample(addr);
+        }
         return;
     }
     // Use-after-free guard #2: refcount sanity check.  A live obj's
@@ -1088,7 +1197,10 @@ pub export fn tcl_obj_release(obj: i32) void {
     // already-libc-freed slab whose first word happens to hold any
     // garbage.
     if (rc < 0 or rc > (1 << 20)) {
-        if (build_options.leak_check) g_double_free_count += 1;
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_bad_rc_count += 1;
+        }
         return;
     }
     if (rc <= 1) {
