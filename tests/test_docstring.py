@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 
-from core.formatting.docstring import (
+from tooling.formatter.docstring import (
     DocstringInfo,
     DocstringTagStyle,
     ParamDoc,

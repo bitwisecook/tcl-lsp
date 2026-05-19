@@ -2176,7 +2176,7 @@ tcl-lsp/
       terraform.py        Terraform HCL generation
       json_api.py         JSON API for XC translation
       diagnostics.py      Migration diagnostics
-  explorer/               Compiler explorer (CLI + web GUI)
+  tooling/explorer/               Compiler explorer (CLI + web GUI)
     cli.py                CLI interface
     pipeline.py           Compilation pipeline wrapper
     serialise.py          Output serialisation (IR, CFG, SSA, optimiser)
@@ -2308,11 +2308,11 @@ source take effect on the next editor reload.
 
 ### Adding a new formatter option
 
-1. Add the field to `FormatterConfig` in `core/formatting/config.py`.
-2. Handle it in `core/formatting/engine.py`.
+1. Add the field to `FormatterConfig` in `tooling/formatter/config.py`.
+2. Handle it in `tooling/formatter/engine.py`.
 3. Add `to_dict`/`from_dict` support if the field uses a non-primitive type.
 4. Add tests to `tests/test_formatter.py`.
-5. Keep consumers on core imports (`core/formatting/*`) and delete legacy
+5. Keep consumers on core imports (`tooling/formatter/*`) and delete legacy
    import paths in the same change.
 6. Run `tests/test_core_lift_consumers.py` to verify no downstream consumer is
    importing shim modules.

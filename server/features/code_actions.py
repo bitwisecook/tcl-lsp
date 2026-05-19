@@ -19,17 +19,17 @@ from compiler.registry import REGISTRY
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect, taint_double_encode_map
 from compiler.taint import find_taint_warnings
-from core.refactoring import RefactoringResult
-from core.refactoring._brace_expr import brace_expr
-from core.refactoring._extract_datagroup import extract_to_datagroup
-from core.refactoring._extract_variable import extract_variable
-from core.refactoring._if_to_switch import if_to_switch
-from core.refactoring._inline_variable import inline_variable
-from core.refactoring._switch_to_dict import switch_to_dict
 from shared.ip_utils import ipv4_to_ipv6_mapped, parse_ip
 from shared.lsp import to_lsp_range
 from shared.position import find_command_at_position, offset_at_position
 from shared.ranges import position_from_relative
+from tooling.refactoring import RefactoringResult
+from tooling.refactoring._brace_expr import brace_expr
+from tooling.refactoring._extract_datagroup import extract_to_datagroup
+from tooling.refactoring._extract_variable import extract_variable
+from tooling.refactoring._if_to_switch import if_to_switch
+from tooling.refactoring._inline_variable import inline_variable
+from tooling.refactoring._switch_to_dict import switch_to_dict
 
 from .diagnostics import _check_comment_continuation, _check_trailing_whitespace
 from .irules_context import find_enclosing_when_event
@@ -1274,7 +1274,7 @@ def _generate_docstring_action(
 
     Offered when the cursor is on a proc definition that has no docstring.
     """
-    from core.formatting.docstring import generate_stub_for_proc
+    from tooling.formatter.docstring import generate_stub_for_proc
 
     cursor_line = range_.start.line
     for proc_def in analysis.all_procs.values():

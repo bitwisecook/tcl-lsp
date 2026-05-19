@@ -53,7 +53,7 @@ python tcl.pyz venv delete .venv
 
 ## Operational context
 
-- Entry module: `explorer/tcl_cli.py`
+- Entry module: `tooling/tcl/main.py`
 - Zipapp entrypoint: `scripts/zipapp_tcl_main.py`
 - Build command: `python scripts/build_zipapp.py tcl --version <v> --output <path>`
 - Make target: `make zipapp-tcl`
@@ -104,7 +104,7 @@ python tcl.pyz venv delete .venv
 
 ## File-path anchors
 
-- `explorer/tcl_cli.py`
+- `tooling/tcl/main.py`
 - `analyser/semantic_graph.py`
 - `compiler/registry/info.py`
 - `tests/test_core_lift_consumers.py`

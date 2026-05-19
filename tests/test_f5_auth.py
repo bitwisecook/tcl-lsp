@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from explorer.f5_remote.auth import (
+from tooling.explorer.f5_remote.auth import (
     Credentials,
     hosts_config_path,
     resolve_credentials,

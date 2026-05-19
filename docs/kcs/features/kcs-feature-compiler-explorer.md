@@ -37,7 +37,7 @@ The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassemb
 
 - `editors/vscode/src/compilerExplorer.ts`
 - `editors/vscode/src/compilerExplorerHtml.ts`
-- `explorer/`
+- `tooling/explorer/`
 
 ## Failure modes
 

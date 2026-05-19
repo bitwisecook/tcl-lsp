@@ -1385,7 +1385,7 @@ def on_will_save_wait_until(
         return None
     state = workspace_state.get(uri)
     source = _get_doc_source(uri)
-    from core.formatting.config import IndentStyle
+    from tooling.formatter.config import IndentStyle
 
     fmt_cfg = _state.formatter_config_for_uri(uri)
     options = types.FormattingOptions(

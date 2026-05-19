@@ -27,6 +27,6 @@ scripts fail in a particular shell.
 
 ## File-path anchors
 
-- ``tclpkg/venv.py`` — ``create_venv()``, ``delete_venv()``, ``read_venv_config()``
-- ``explorer/verbs/venv.py`` — CLI handlers for all venv verbs
+- ``tooling/tclpkg/venv.py`` — ``create_venv()``, ``delete_venv()``, ``read_venv_config()``
+- ``tooling/explorer/verbs/venv.py`` — CLI handlers for all venv verbs
 - ``shared/tcl_discovery.py:26`` — ``find_tclsh()``

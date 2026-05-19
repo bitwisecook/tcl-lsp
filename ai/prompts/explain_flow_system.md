@@ -8,7 +8,7 @@ analyser. It is loaded by:
 
 The underlying Python lives in `dialects/f5/bigip/explain_flow.py` and is
 imported unchanged by both the MCP tool and the
-`f5 explain-flow` CLI verb (`explorer/verbs/f5/explain_flow.py`).
+`f5 explain-flow` CLI verb (`tooling/explorer/verbs/f5/explain_flow.py`).
 Keep this file in sync with `report_to_mcp_dict` — it is the contract
 the LLM consumes.
 

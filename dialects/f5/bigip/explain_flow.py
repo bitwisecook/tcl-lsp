@@ -1832,7 +1832,7 @@ def _simulate_irule_for_session(
 
     async def _run() -> dict:
         try:
-            from core.irule_test import IruleTestSession
+            from tooling.irule_test import IruleTestSession
         except ImportError as exc:
             return {**out, "error": f"irule_test framework unavailable: {exc}"}
 

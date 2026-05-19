@@ -178,7 +178,7 @@ def test_mcp_irule_with_context_ucs_path(tmp_path):
     """``config_paths`` must extract UCS archives, not feed gzip bytes
     straight to the parser (regression for the original Codex review)."""
     from ai.mcp.tcl_mcp_server import _tool_irule_with_context
-    from explorer.f5_remote.ucs import make_test_ucs
+    from tooling.explorer.f5_remote.ucs import make_test_ucs
 
     ucs_path = tmp_path / "device.ucs"
     ucs_path.write_bytes(
@@ -235,7 +235,7 @@ def test_f5_irule_context_multi_file_keeps_source_slices(tmp_path, capsys):
         encoding="utf-8",
     )
 
-    from explorer.f5_cli import main
+    from tooling.f5.main import main
 
     rc = main(["irule", "context", str(a), str(b), "--rule", "/Common/foo"])
     out = capsys.readouterr().out

@@ -23,7 +23,7 @@ VM and reference Tcl do?
   returned 0, the comparison was true, and `incr` operated on the
   same null TclObj.  This drove a measurable fraction of the
   `wasm-timeout` finding cluster.
-- The Python VM (`vm/scope.py`) and `vm_opt` correctly raised the
+- The Python VM (`tooling/tooling/vm/scope.py`) and `vm_opt` correctly raised the
   standard error; only the compiled WASM path was lenient.
 
 ## Answer
@@ -105,7 +105,7 @@ Reusing one slot keeps the locals count constant.
 
 ## Regression coverage
 
-[`fuzzing/tests/test_fuzz_findings.py`](../../fuzzing/tests/test_fuzz_findings.py)
+[`tooling/fuzzing/tests/test_fuzz_findings.py`](../../tooling/fuzzing/tests/test_fuzz_findings.py)
 `TestBatch6WasmIgnoresMissingVar` parametrises the four seed scripts
 (`1774200012`, `1774200028`, `1774200037`, `1774200068`) whose
 mismatch was directly the missing-variable behaviour and asserts

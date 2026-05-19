@@ -29,7 +29,7 @@ modified or corrupted.
 
 ## Example that triggers it
 
-Manually editing a file inside `~/.cache/tcl-lsp/tclpkg/cas/` changes
+Manually editing a file inside `~/.cache/tcl-lsp/tooling/tclpkg/cas/` changes
 the worktree hash and triggers this diagnostic.
 
 ## Fix

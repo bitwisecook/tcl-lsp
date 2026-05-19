@@ -15,8 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from explorer.f5_cli import main
-from explorer.verbs.f5._emit import render_config
+from tooling.explorer.verbs.f5._emit import render_config
+from tooling.f5.main import main
 
 SAMPLE = (
     textwrap.dedent(

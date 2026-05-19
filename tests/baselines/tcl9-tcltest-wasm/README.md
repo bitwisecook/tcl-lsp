@@ -42,7 +42,7 @@ What this work is *not*:
   `tests/external/run_tcl9_tests.py`.  This `-wasm` slice is the
   68-stem **core semantics** subset wired into a single regression
   floor; the wider `tcl9-tcltest/` slice keeps doing its own job.
-- A signal about the Python VM.  Fixes landed in `vm/` will not
+- A signal about the Python VM.  Fixes landed in `tooling/tooling/vm/` will not
   move this baseline.
 
 ## Hard rules — read before touching anything

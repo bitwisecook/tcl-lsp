@@ -12,10 +12,10 @@ from compiler.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
 )
-from core.formatting.config import FormatterConfig, IndentStyle
-from core.formatting.docstring import format_docstring
 from shared.dialect import active_dialect
 from shared.naming import is_bare_var_name
+from tooling.formatter.config import FormatterConfig, IndentStyle
+from tooling.formatter.docstring import format_docstring
 
 from .irules_context import find_enclosing_when_event
 from .snippet_templates import SnippetContext, get_snippet_completions

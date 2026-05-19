@@ -29,7 +29,7 @@ propagate.
 
 The pattern mirrors two existing in-repo registries:
 
-- `@verb` in `explorer/verbs/f5/_registry.py` (CLI subcommands)
+- `@verb` in `tooling/explorer/verbs/f5/_registry.py` (CLI subcommands)
 - `@_register` in `dialects/f5/query/builtins.py` (DSL builtins)
 - `@tool` in `ai/mcp/tcl_mcp_server.py` (MCP tools)
 
@@ -156,7 +156,7 @@ shapes" rule as elsewhere in the contract.
 
 ## CLI integration
 
-`explorer/verbs/f5/query.py` adds:
+`tooling/explorer/verbs/f5/query.py` adds:
 
 1. `--render NAME` / `-R NAME` — added to the existing mutually
    exclusive output-format group (alongside `--scf` / `--raw` /

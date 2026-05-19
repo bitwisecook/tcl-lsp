@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from vm.interp import TclInterp
+from tooling.vm.interp import TclInterp
 
 
 class TestVariableSubstitution:

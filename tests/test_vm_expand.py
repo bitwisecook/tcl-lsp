@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestExpansionBasic:
@@ -204,7 +204,7 @@ class TestExpansionBytecode:
     def test_bytecode_simple_expand(self) -> None:
         """Bytecode for cmd {*}$x matches C Tcl."""
         from compiler.codegen import Op
-        from vm.compiler import compile_script
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("cmd {*}$x")
         asm = module_asm.top_level
@@ -224,7 +224,7 @@ class TestExpansionBytecode:
     def test_bytecode_mixed_expand(self) -> None:
         """Bytecode for cmd a {*}$x b matches C Tcl."""
         from compiler.codegen import Op
-        from vm.compiler import compile_script
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("cmd a {*}$x b")
         asm = module_asm.top_level
@@ -245,7 +245,7 @@ class TestExpansionBytecode:
     def test_bytecode_multiple_expand(self) -> None:
         """Bytecode for cmd {*}$a {*}$b matches C Tcl."""
         from compiler.codegen import Op
-        from vm.compiler import compile_script
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("cmd {*}$a {*}$b")
         asm = module_asm.top_level
@@ -268,7 +268,7 @@ class TestExpansionBytecode:
     def test_no_expand_bytecode_for_braced_star(self) -> None:
         """cmd {*} (at EOF) should produce normal invokeStk, not expansion."""
         from compiler.codegen import Op
-        from vm.compiler import compile_script
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("cmd {*}")
         asm = module_asm.top_level

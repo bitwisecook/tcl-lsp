@@ -15,7 +15,6 @@ from lsprotocol import types
 import server.state as _state
 import shared.codes_all  # noqa: F401  # trigger all code registrations
 from compiler.registry.runtime import configure_signatures
-from core.formatting import FormatterConfig
 from shared.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from shared.optimisation_profiles import (
     DEFAULT_EDITOR_PROFILE,
@@ -24,6 +23,7 @@ from shared.optimisation_profiles import (
     profile_to_disabled,
 )
 from shared.user_config import merge_settings_layers
+from tooling.formatter import FormatterConfig
 
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer

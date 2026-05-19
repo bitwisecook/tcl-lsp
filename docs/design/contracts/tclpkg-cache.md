@@ -7,7 +7,7 @@ expected entry.
 
 ## Decision rules / contracts
 
-1. Cache location: ``~/.cache/tcl-lsp/tclpkg/cas/sha256/<ab>/<hash>/tree/``.
+1. Cache location: ``~/.cache/tcl-lsp/tooling/tclpkg/cas/sha256/<ab>/<hash>/tree/``.
 2. ``<ab>`` is the first two hex characters of the SHA-256 digest (sharding).
 3. Integrity string format: ``sha256-<base64url-no-pad>`` (SRI-compatible).
 4. Hash computed over the canonicalised worktree, NOT raw archive bytes.
@@ -25,9 +25,9 @@ expected entry.
 
 ## File-path anchors
 
-- ``tclpkg/cas.py`` — ``integrity_of_tree()``, ``ContentAddressableStore``
+- ``tooling/tclpkg/cas.py`` — ``integrity_of_tree()``, ``ContentAddressableStore``
 - ``shared/user_config.py`` — ``_cache_dir()``
 
 ## Test anchors
 
-- ``tests/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise
+- ``tests/tooling/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise

@@ -22,10 +22,10 @@ during evaluation.
 
 ## File-path anchors
 
-- ``tclpkg/manifest.py`` — ``ManifestAST``, ``load_manifest_text()``, ``_build_directives()``
-- ``vm/interp.py:102`` — ``TclInterp.__init__(safe=, safe_whitelist=)``
-- ``vm/interp.py:530`` — safe-mode check in ``_invoke_inner``
+- ``tooling/tclpkg/manifest.py`` — ``ManifestAST``, ``load_manifest_text()``, ``_build_directives()``
+- ``tooling/tooling/vm/interp.py:102`` — ``TclInterp.__init__(safe=, safe_whitelist=)``
+- ``tooling/tooling/vm/interp.py:530`` — safe-mode check in ``_invoke_inner``
 
 ## Test anchors
 
-- ``tests/tclpkg/test_manifest.py`` — 29 tests covering all directives and refusals
+- ``tests/tooling/tclpkg/test_manifest.py`` — 29 tests covering all directives and refusals

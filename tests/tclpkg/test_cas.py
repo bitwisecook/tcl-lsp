@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from tclpkg.cas import ContentAddressableStore, integrity_of_tree, verify_integrity
-from tclpkg.errors import IntegrityError
+from tooling.tclpkg.cas import ContentAddressableStore, integrity_of_tree, verify_integrity
+from tooling.tclpkg.errors import IntegrityError
 
 
 def _make_tree(tmp_path: Path, files: dict[str, str]) -> Path:

@@ -2273,7 +2273,7 @@ def cmd_generate_docstring(
     """Generate a docstring stub for a specific proc."""
     _configure_dialect_from_path(file_path)
     from analyser import analyse
-    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
+    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
     proc_def = result.find_proc(proc_name)
@@ -2292,7 +2292,7 @@ def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: b
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import insert_docstring_stubs
     from analyser import analyse
-    from core.formatting.docstring import resolve_tag_style
+    from tooling.formatter.docstring import resolve_tag_style
 
     result = analyse(source)
     modified, _count = insert_docstring_stubs(
@@ -2306,11 +2306,11 @@ def cmd_refactor(source: str, file_path: str) -> None:
     _configure_dialect_from_path(file_path)
 
     from compiler.parsing.command_segmenter import segment_commands
-    from core.refactoring._brace_expr import brace_expr
-    from core.refactoring._extract_datagroup import extract_to_datagroup
-    from core.refactoring._if_to_switch import if_to_switch
-    from core.refactoring._inline_variable import inline_variable
-    from core.refactoring._switch_to_dict import switch_to_dict
+    from tooling.refactoring._brace_expr import brace_expr
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._if_to_switch import if_to_switch
+    from tooling.refactoring._inline_variable import inline_variable
+    from tooling.refactoring._switch_to_dict import switch_to_dict
 
     available: list[dict] = []
     for seg in segment_commands(source):
@@ -2349,7 +2349,7 @@ def cmd_suggest_datagroups(source: str, file_path: str) -> None:
     """AI-enhanced data-group extraction scan."""
     _configure_dialect_from_path(file_path)
 
-    from core.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     print(f"## Data-Group Extraction Candidates ({len(candidates)})\n")
@@ -2378,7 +2378,7 @@ def cmd_extract_datagroup(source: str, file_path: str, line: int, dg_name: str) 
     """Static data-group extraction at a specific line."""
     _configure_dialect_from_path(file_path)
 
-    from core.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
 
     result = extract_to_datagroup(source, line, 0, dg_name=dg_name)
     if result is None:

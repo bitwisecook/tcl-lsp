@@ -9,9 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.formatting import FormatterConfig
-from core.formatting.config import IndentStyle
 from server.features.formatting import get_formatting
+from tooling.formatter import FormatterConfig
+from tooling.formatter.config import IndentStyle
 
 
 def _lsp_options_for(config: FormatterConfig) -> types.FormattingOptions:

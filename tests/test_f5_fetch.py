@@ -13,10 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from explorer.f5_cli import main
-from explorer.f5_remote import fetch_scf
-from explorer.f5_remote.auth import Credentials
-from explorer.f5_remote.ucs import make_test_ucs
+from tooling.explorer.f5_remote import fetch_scf
+from tooling.explorer.f5_remote.auth import Credentials
+from tooling.explorer.f5_remote.ucs import make_test_ucs
+from tooling.f5.main import main
 
 
 def _run(args, capsys):

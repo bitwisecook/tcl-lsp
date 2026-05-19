@@ -6,19 +6,19 @@ import pytest
 from lsprotocol import types
 
 from compiler.registry.runtime import configure_signatures
-from core.refactoring import RefactoringResult
-from core.refactoring._brace_expr import brace_expr
-from core.refactoring._extract_datagroup import (
+from server.features.code_actions import get_code_actions
+from tooling.refactoring import RefactoringResult
+from tooling.refactoring._brace_expr import brace_expr
+from tooling.refactoring._extract_datagroup import (
     extract_to_datagroup,
     extract_to_datagroup_from_if,
     extract_to_datagroup_from_switch,
     suggest_datagroup_extraction,
 )
-from core.refactoring._extract_variable import extract_variable
-from core.refactoring._if_to_switch import if_to_switch
-from core.refactoring._inline_variable import inline_variable
-from core.refactoring._switch_to_dict import switch_to_dict
-from server.features.code_actions import get_code_actions
+from tooling.refactoring._extract_variable import extract_variable
+from tooling.refactoring._if_to_switch import if_to_switch
+from tooling.refactoring._inline_variable import inline_variable
+from tooling.refactoring._switch_to_dict import switch_to_dict
 
 # ── Extract variable ──────────────────────────────────────────────────
 
@@ -572,7 +572,7 @@ class TestSuggestDatagroupExtraction:
 
 class TestRefactoringResultApply:
     def test_single_edit(self):
-        from core.refactoring import RefactoringEdit
+        from tooling.refactoring import RefactoringEdit
 
         source = "set x 42"
         result = RefactoringResult(
@@ -582,7 +582,7 @@ class TestRefactoringResultApply:
         assert result.apply(source) == "set x 99"
 
     def test_multiple_edits(self):
-        from core.refactoring import RefactoringEdit
+        from tooling.refactoring import RefactoringEdit
 
         source = "set x 42\nputs $x"
         result = RefactoringResult(

@@ -221,4 +221,4 @@ line_length = 100
 - Per-document suppression filter: `server/features/diagnostics.py`
   (`_is_suppressed`)
 - Export command: `server/server.py` → `_export_config()`
-- CLI config: `explorer/tcl_cli.py` → `_config_file_paths()`
+- CLI config: `tooling/tcl/main.py` → `_config_file_paths()`

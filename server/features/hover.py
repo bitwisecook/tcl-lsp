@@ -67,7 +67,7 @@ def _class_hover_text(class_def: ClassDef) -> str:
     if details:
         parts.append("  \n".join(details))
     if class_def.doc:
-        from core.formatting.docstring import format_docstring
+        from tooling.formatter.docstring import format_docstring
 
         parts.append(format_docstring(class_def.doc))
     return "\n\n".join(parts)
@@ -85,7 +85,7 @@ def _method_hover_text(method_def: MethodDef, class_name: str) -> str:
     sig = f"{kind} {method_def.name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n# {class_name}\n{sig}\n```"]
     if method_def.doc:
-        from core.formatting.docstring import format_docstring
+        from tooling.formatter.docstring import format_docstring
 
         parts.append(format_docstring(method_def.doc))
     return "\n\n".join(parts)
@@ -103,7 +103,7 @@ def _proc_hover_text(proc_def: ProcDef) -> str:
     sig = f"proc {proc_def.qualified_name} {{{' '.join(params)}}} {{...}}"
     parts = [f"```tcl\n{sig}\n```"]
     if proc_def.doc:
-        from core.formatting.docstring import format_docstring
+        from tooling.formatter.docstring import format_docstring
 
         parts.append(format_docstring(proc_def.doc))
     return "\n\n".join(parts)

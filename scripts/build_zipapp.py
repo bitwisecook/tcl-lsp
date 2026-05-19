@@ -95,7 +95,7 @@ def build_cli(version: str, output: Path) -> None:
         main_py.write_text(
             '"""CLI zipapp entry point."""\n'
             "import sys\n"
-            "from explorer.cli import main\n"
+            "from tooling.explorer.cli import main\n"
             "sys.exit(main())\n"
         )
 
@@ -149,7 +149,7 @@ def build_f5(version: str, output: Path) -> None:
         main_py.write_text(
             '"""F5 BIG-IP CLI zipapp entry point."""\n'
             "import sys\n"
-            "from explorer.f5_cli import main\n"
+            "from tooling.f5.main import main\n"
             "sys.exit(main())\n"
         )
 
@@ -427,7 +427,7 @@ def build_wasm(version: str, output: Path) -> None:
         main_py.write_text(
             '"""WASM compiler zipapp entry point."""\n'
             "import sys\n"
-            "from explorer.wasm_cli import main\n"
+            "from tooling.wasm.main import main\n"
             "sys.exit(main())\n"
         )
 

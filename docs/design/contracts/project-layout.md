@@ -11,7 +11,7 @@ This repository is split into a reusable language core and an LSP runtime:
 - `core/` contains parser/compiler/analysis/registry/domain logic.
 - `server/` contains pygls server wiring, feature handlers, and workspace orchestration.
 - Lifted shared modules (formatting, semantic graph, package resolver) live in `core/`.
-- `vm/` and `explorer/` consume `core/` as downstream clients.
+- `tooling/tooling/vm/` and `tooling/explorer/` consume `core/` as downstream clients.
 
 ## Decision rules / contracts
 
@@ -20,7 +20,7 @@ This repository is split into a reusable language core and an LSP runtime:
 3. Keep dependency direction one-way: `server/` -> `core/`; never `core/` -> `server/`.
 4. New compiler/parsing/analysis passes must expose stable, reusable facts from `core/` for all consumers.
 5. Editor- or transport-specific adaptation belongs in `server/features/`, not in `core/`.
-6. When behaviour is lifted from `server/` to `core/`, update all downstream consumers (`explorer/`, `ai/`, `server/`, tests) to import the new `core` module directly.
+6. When behaviour is lifted from `server/` to `core/`, update all downstream consumers (`tooling/explorer/`, `ai/`, `server/`, tests) to import the new `core` module directly.
 7. Remove legacy module paths in the same change; do not leave compatibility wrappers behind.
 
 ## File-path anchors
@@ -33,7 +33,7 @@ This repository is split into a reusable language core and an LSP runtime:
 - `server/server.py`
 - `server/features/`
 - `server/workspace/`
-- `core/formatting/`
+- `tooling/formatter/`
 
 ## Failure modes
 

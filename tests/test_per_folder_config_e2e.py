@@ -27,10 +27,10 @@ from lsprotocol import types
 
 import server.settings as _lsp_settings
 import server.state as _lsp_state
-from core.formatting import FormatterConfig
 from server.feature_config import FeatureConfig
 from server.features.diagnostics import get_diagnostics
 from server.features.formatting import get_formatting
+from tooling.formatter import FormatterConfig
 
 FOLDER_A = "file:///home/user/proj-a"
 FOLDER_B = "file:///home/user/proj-b"

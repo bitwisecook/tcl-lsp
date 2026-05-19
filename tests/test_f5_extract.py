@@ -8,8 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-from explorer.f5_cli import main
-from explorer.f5_remote.ucs import is_ucs_bytes, make_test_ucs, ucs_to_scf
+from tooling.explorer.f5_remote.ucs import is_ucs_bytes, make_test_ucs, ucs_to_scf
+from tooling.f5.main import main
 
 
 def _run(args, capsys):

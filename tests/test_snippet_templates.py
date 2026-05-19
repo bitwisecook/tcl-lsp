@@ -10,12 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.formatting.config import BraceStyle, FormatterConfig
 from server.features.completion import get_completions
 from server.features.snippet_templates import (
     SnippetContext,
     get_snippet_completions,
 )
+from tooling.formatter.config import BraceStyle, FormatterConfig
 
 # Helpers
 

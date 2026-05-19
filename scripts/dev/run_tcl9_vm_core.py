@@ -237,9 +237,9 @@ def _boot_parent_interp():
     global _INTERP
     sys.path.insert(0, str(REPO_ROOT))
 
-    from vm.commands.tcltest_cmds import setup_tcltest
-    from vm.commands.test_support_cmds import setup_test_support
-    from vm.interp import TclInterp
+    from tooling.vm.commands.tcltest_cmds import setup_tcltest
+    from tooling.vm.commands.test_support_cmds import setup_test_support
+    from tooling.vm.interp import TclInterp
 
     interp = TclInterp(source_init=True)
     setup_test_support(interp)
@@ -252,8 +252,8 @@ def _boot_parent_interp():
 
 def _run_stem_in_child(stem: str, conn) -> None:
     """Run one .test file in a forked child and send the result back."""
-    from vm.commands import tcltest_cmds
-    from vm.types import TclBreak, TclContinue, TclError, TclReturn
+    from tooling.vm.commands import tcltest_cmds
+    from tooling.vm.types import TclBreak, TclContinue, TclError, TclReturn
 
     interp = _INTERP
     if interp is None:  # pragma: no cover — parent never booted

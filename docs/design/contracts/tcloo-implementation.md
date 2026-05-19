@@ -30,7 +30,7 @@ Method resolution order uses a linearisation matching C Tcl's algorithm
 (exposed as `tcloo_linearise`).  The MRO considers superclasses and mixins
 and caches results per class, invalidating when the class hierarchy changes.
 
-### VM runtime layer (`vm/oo.py`, `vm/commands/oo_cmds.py`)
+### VM runtime layer (`tooling/tooling/vm/oo.py`, `tooling/tooling/vm/commands/oo_cmds.py`)
 
 The `OORuntime` class manages the object/class registry at runtime:
 
@@ -43,7 +43,7 @@ The `OORuntime` class manages the object/class registry at runtime:
 - **Introspection** -- `info object`, `info class` subcommands for methods,
   mixins, filters, variables, superclasses, and instances.
 
-### Command handlers (`vm/commands/oo_cmds.py`)
+### Command handlers (`tooling/tooling/vm/commands/oo_cmds.py`)
 
 Registers `oo::class`, `oo::define`, `oo::objdefine`, and all definition
 subcommands (method, constructor, destructor, superclass, mixin, filter,
@@ -73,10 +73,10 @@ variable preservation.
 
 | File | Role |
 |------|------|
-| `vm/oo.py` | Core OO runtime (object/class registry, dispatch, MRO) |
-| `vm/commands/oo_cmds.py` | OO command handlers and define body parsing |
-| `vm/commands/info_cmds.py` | `info object`/`info class` introspection |
-| `vm/scope.py` | CallFrame with OO variable binding slots |
+| `tooling/tooling/vm/oo.py` | Core OO runtime (object/class registry, dispatch, MRO) |
+| `tooling/tooling/vm/commands/oo_cmds.py` | OO command handlers and define body parsing |
+| `tooling/tooling/vm/commands/info_cmds.py` | `info object`/`info class` introspection |
+| `tooling/tooling/vm/scope.py` | CallFrame with OO variable binding slots |
 | `analyser/mro.py` | MRO linearisation algorithm |
 | `analyser/analyser.py` | Static OO analysis (class/method extraction) |
 | `tests/test_vm_oo_test.py` | Native test runner with known-failure tracking |

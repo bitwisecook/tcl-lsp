@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from explorer.pipeline import run_pipeline
+from tooling.explorer.pipeline import run_pipeline
 
 
 def test_run_pipeline_compiles_once():

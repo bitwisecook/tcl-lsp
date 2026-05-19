@@ -271,7 +271,7 @@ def _lsp_diagnostic_to_dict(d: Any) -> dict:
 
 def _proc_to_dict(proc_def: Any) -> dict:
     """Serialize a ProcDef, including structured docstring info."""
-    from core.formatting.docstring import parse_docstring
+    from tooling.formatter.docstring import parse_docstring
 
     params = []
     for p in proc_def.params:
@@ -927,8 +927,8 @@ def _tool_format_source(
     brace_style: str = "k_and_r",
     max_line_length: int = 120,
 ) -> str:
-    from core.formatting import format_tcl
-    from core.formatting.config import BraceStyle, FormatterConfig, IndentStyle
+    from tooling.formatter import format_tcl
+    from tooling.formatter.config import BraceStyle, FormatterConfig, IndentStyle
 
     config = FormatterConfig(
         indent_size=indent_size,
@@ -1312,7 +1312,7 @@ def _tool_extract_variable(
     end_character: int,
     var_name: str = "result",
 ) -> str:
-    from core.refactoring._extract_variable import extract_variable
+    from tooling.refactoring._extract_variable import extract_variable
 
     result = extract_variable(
         source, start_line, start_character, end_line, end_character, var_name
@@ -1339,7 +1339,7 @@ def _tool_extract_variable(
     required=["source", "line", "character"],
 )
 def _tool_inline_variable(source: str, line: int, character: int) -> str:
-    from core.refactoring._inline_variable import inline_variable
+    from tooling.refactoring._inline_variable import inline_variable
 
     result = inline_variable(source, line, character)
     if result is None:
@@ -1364,7 +1364,7 @@ def _tool_inline_variable(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_if_to_switch(source: str, line: int, character: int) -> str:
-    from core.refactoring._if_to_switch import if_to_switch
+    from tooling.refactoring._if_to_switch import if_to_switch
 
     result = if_to_switch(source, line, character)
     if result is None:
@@ -1389,7 +1389,7 @@ def _tool_if_to_switch(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
-    from core.refactoring._switch_to_dict import switch_to_dict
+    from tooling.refactoring._switch_to_dict import switch_to_dict
 
     result = switch_to_dict(source, line, character)
     if result is None:
@@ -1414,7 +1414,7 @@ def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_brace_expr(source: str, line: int, character: int) -> str:
-    from core.refactoring._brace_expr import brace_expr
+    from tooling.refactoring._brace_expr import brace_expr
 
     result = brace_expr(source, line, character)
     if result is None:
@@ -1449,7 +1449,7 @@ def _tool_extract_datagroup(
 ) -> str:
     _configure_dialect("f5-irules")
 
-    from core.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
 
     result = extract_to_datagroup(source, line, character, dg_name=dg_name)
     if result is None:
@@ -1484,7 +1484,7 @@ def _tool_extract_datagroup(
 def _tool_suggest_datagroup_extractions(source: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     # Serialise — strip the static_result (not JSON-safe, use extract_datagroup to get it).
@@ -1522,12 +1522,12 @@ def _tool_refactor(
 ) -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.refactoring._brace_expr import brace_expr as _be
-    from core.refactoring._extract_datagroup import extract_to_datagroup as _edg
-    from core.refactoring._extract_variable import extract_variable as _ev
-    from core.refactoring._if_to_switch import if_to_switch as _its
-    from core.refactoring._inline_variable import inline_variable as _iv
-    from core.refactoring._switch_to_dict import switch_to_dict as _std
+    from tooling.refactoring._brace_expr import brace_expr as _be
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup as _edg
+    from tooling.refactoring._extract_variable import extract_variable as _ev
+    from tooling.refactoring._if_to_switch import if_to_switch as _its
+    from tooling.refactoring._inline_variable import inline_variable as _iv
+    from tooling.refactoring._switch_to_dict import switch_to_dict as _std
 
     available: list[dict] = []
     line = start_line
@@ -1603,7 +1603,7 @@ def _tool_generate_docstring(
     decoration: str = "false",
 ) -> str:
     from analyser import analyse
-    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
+    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
     proc_def = result.find_proc(proc_name)
@@ -1657,7 +1657,7 @@ def _tool_update_docstrings(
 ) -> str:
     from ai.shared.docstring_ops import insert_docstring_stubs
     from analyser import analyse
-    from core.formatting.docstring import resolve_tag_style
+    from tooling.formatter.docstring import resolve_tag_style
 
     tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
@@ -2091,7 +2091,7 @@ def _tool_unminify_error(
     minified_source: str = "",
     original_source: str = "",
 ) -> str:
-    from core.minifier import unminify_error
+    from tooling.minifier import unminify_error
 
     translated = unminify_error(
         error_message,
@@ -2171,7 +2171,7 @@ def _tool_irule_with_context(
     )
     from dialects.f5.bigip.lint import _merge_configs
     from dialects.f5.bigip.parser import parse_bigip_conf
-    from explorer.verbs.f5._paths import load_irule_inputs
+    from tooling.explorer.verbs.f5._paths import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:

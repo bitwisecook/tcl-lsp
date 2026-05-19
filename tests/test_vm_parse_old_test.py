@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
+from tooling.vm.interp import TclInterp
 
 # Helper
 

@@ -38,13 +38,13 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Ensure repo root is on sys.path so we can import vm/ and core/
+# Ensure repo root is on sys.path so we can import tooling.vm/ and core/
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from vm.commands import tcltest_cmds  # noqa: E402
-from vm.commands.test_support_cmds import setup_test_support  # noqa: E402
-from vm.interp import TclInterp  # noqa: E402
+from tooling.vm.commands import tcltest_cmds  # noqa: E402
+from tooling.vm.commands.test_support_cmds import setup_test_support  # noqa: E402
+from tooling.vm.interp import TclInterp  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Project definitions
@@ -433,7 +433,7 @@ def run_test_file(
                     pass  # Best effort
 
         # Set up tcltest (uses real tcltest.tcl if available)
-        from vm.commands.tcltest_cmds import setup_tcltest
+        from tooling.vm.commands.tcltest_cmds import setup_tcltest
 
         setup_tcltest(interp)
 

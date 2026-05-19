@@ -298,11 +298,11 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' --exclude 'server/commands.py' server compiler analyser dialects shared core explorer tclpkg tests scripts/dev/tcl_test_client.py
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' --exclude 'server/commands.py' --exclude 'tooling/vm' --exclude 'tooling/debugger' --exclude 'tooling/fuzzing' server compiler analyser dialects shared tooling tests scripts/dev/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' ai core explorer server compiler analyser dialects shared tests vm scripts
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' ai server compiler analyser dialects shared tooling tests scripts
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"

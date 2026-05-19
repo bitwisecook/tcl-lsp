@@ -33,8 +33,8 @@ from lsprotocol import types
 import server.lifecycle as _lifecycle
 import server.settings as _lsp_settings
 import server.state as _lsp_state
-from core.formatting import FormatterConfig
 from server.feature_config import FeatureConfig
+from tooling.formatter import FormatterConfig
 
 
 @pytest.fixture

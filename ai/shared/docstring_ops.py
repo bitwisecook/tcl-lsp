@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from analyser.semantic_model import AnalysisResult
-from core.formatting.docstring import (
+from tooling.formatter.docstring import (
     DocstringTagStyle,
     generate_stub_for_proc,
     parse_docstring,

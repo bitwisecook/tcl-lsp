@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestSafeModeWhitelist:
@@ -47,7 +47,7 @@ class TestSafeModeWhitelist:
             interp.eval("puts hello")
 
     def test_safe_whitelist_can_include_custom_commands(self) -> None:
-        from vm.types import TclResult
+        from tooling.vm.types import TclResult
 
         calls: list[list[str]] = []
 

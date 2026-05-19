@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 
-from core.diagram.extract import extract_diagram_data
+from tooling.diagram.extract import extract_diagram_data
 
 
 class TestSimpleExtraction:

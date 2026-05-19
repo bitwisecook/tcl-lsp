@@ -69,12 +69,13 @@ packages = [
     "analyser",
     "dialects",
     "shared",
-    "core",
-    "explorer",
-    "vm",
-    "tclpkg",
+    "tooling",
+    "ai",
 ]
-exclude = ["explorer/static", "dialects/f5/bigip/data/scf_port_names.csv"]
+exclude = [
+    "tooling/explorer/static",
+    "dialects/f5/bigip/data/scf_port_names.csv",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -97,7 +98,7 @@ fixable = ["ALL"]
 "server/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
 
 [tool.coverage.run]
-source = ["server", "compiler", "analyser", "dialects", "shared", "core", "explorer"]
+source = ["server", "compiler", "analyser", "dialects", "shared", "tooling", "ai"]
 omit = [
     "server/_build_info.py",
     "*/test_*",

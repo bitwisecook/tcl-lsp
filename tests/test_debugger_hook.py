@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from debugger.types import DebugAction
-from vm.interp import TclInterp
+from tooling.debugger.types import DebugAction
+from tooling.vm.interp import TclInterp
 
 
 class TestDebugHookFiring:

@@ -1101,7 +1101,7 @@ class TestWasmVsBytecodeVm:
     @classmethod
     def _get_interp(cls):
         if cls._interp is None:
-            from vm.interp import TclInterp
+            from tooling.vm.interp import TclInterp
 
             cls._interp = TclInterp()
         return cls._interp

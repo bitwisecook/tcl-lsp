@@ -73,15 +73,15 @@ The debugger consists of:
 
 ## File-path anchors
 
-- `debugger/` — main debugger package
-- `debugger/controller.py` — breakpoints, stepping, state inspection
-- `debugger/cli.py` — readline-based CLI frontend
-- `debugger/backends/vm_backend.py` — VM backend
-- `debugger/backends/tclsh_backend.py` — tclsh subprocess backend
-- `debugger/backends/tkinter_backend.py` — tkinter in-process backend
-- `debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
+- `tooling/debugger/` — main debugger package
+- `tooling/debugger/controller.py` — breakpoints, stepping, state inspection
+- `tooling/debugger/cli.py` — readline-based CLI frontend
+- `tooling/debugger/backends/vm_backend.py` — VM backend
+- `tooling/debugger/backends/tclsh_backend.py` — tclsh subprocess backend
+- `tooling/debugger/backends/tkinter_backend.py` — tkinter in-process backend
+- `tooling/debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
 - `shared/tcl_discovery.py` — shared tclsh/tkinter detection
-- `vm/machine.py` — debug hook insertion point
+- `tooling/tooling/vm/machine.py` — debug hook insertion point
 
 ## Failure modes
 

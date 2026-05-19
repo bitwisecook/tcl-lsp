@@ -19,8 +19,8 @@ an existing lockfile.
 
 ## File-path anchors
 
-- ``tclpkg/lockfile.py`` — ``LockFile``, ``serialise()``, ``deserialise()``, ``write_lockfile()``
+- ``tooling/tclpkg/lockfile.py`` — ``LockFile``, ``serialise()``, ``deserialise()``, ``write_lockfile()``
 
 ## Test anchors
 
-- ``tests/tclpkg/test_lockfile.py`` — 23 tests covering serialisation, round-tripping, and error cases
+- ``tests/tooling/tclpkg/test_lockfile.py`` — 23 tests covering serialisation, round-tripping, and error cases

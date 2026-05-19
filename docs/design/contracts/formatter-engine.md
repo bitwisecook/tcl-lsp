@@ -13,13 +13,13 @@ Formatting is implemented as an engine/config/runtime pipeline and surfaced thro
 1. Formatter output should be idempotent for stable inputs and config.
 2. Formatting decisions must preserve parseability and command semantics.
 3. New formatting options require config wiring + regression coverage.
-4. Formatter consumers should import `core/formatting/*` directly; do not add alternate import paths.
+4. Formatter consumers should import `tooling/formatter/*` directly; do not add alternate import paths.
 
 ## File-path anchors
 
-- `core/formatting/config.py`
-- `core/formatting/engine.py`
-- `core/formatting/formatter.py`
+- `tooling/formatter/config.py`
+- `tooling/formatter/engine.py`
+- `tooling/formatter/formatter.py`
 - `server/features/formatting.py`
 
 ## Failure modes

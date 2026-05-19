@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.minifier import MinifyResult, SymbolMap, minify_tcl, unminify_error
+from tooling.minifier import MinifyResult, SymbolMap, minify_tcl, unminify_error
 
 
 class TestMinifyBasic:
@@ -1233,7 +1233,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_brace_balance_rejects_mismatched(self):
         """_build_replacement must not brace-quote '}{' (equal counts, bad nesting)."""
-        from core.minifier.static_substr import _build_replacement
+        from tooling.minifier.static_substr import _build_replacement
 
         result = _build_replacement("}{")
         # Should NOT produce {}{} which would be invalid Tcl.
@@ -1243,14 +1243,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_parse_var_ref_rejects_namespace(self):
         """_parse_var_ref rejects $ns::var (namespace-qualified)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         _, name = _parse_var_ref("$ns::var", 0)
         assert name is None
 
     def test_parse_var_ref_allows_colon_after(self):
         """_parse_var_ref allows $var: (single colon is not namespace qualifier)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         end, name = _parse_var_ref("$level: message", 0)
         assert name == "level"
@@ -1258,14 +1258,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_parse_var_ref_rejects_array(self):
         """_parse_var_ref rejects $arr(idx) (array element)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         _, name = _parse_var_ref("$arr(idx)", 0)
         assert name is None
 
     def test_parse_var_ref_accepts_simple(self):
         """_parse_var_ref accepts simple $varname."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         end, name = _parse_var_ref("$foo bar", 0)
         assert name == "foo"
@@ -1273,14 +1273,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_format_extra_args_not_folded(self):
         """[format %s hi there] should not be folded (extra args)."""
-        from core.minifier.static_substr import _eval_format
+        from tooling.minifier.static_substr import _eval_format
 
         result = _eval_format(["%s", "hi", "there"])
         assert result is None
 
     def test_list_folding_quotes_special_chars(self):
         """[list] folding must brace-quote elements with spaces."""
-        from core.minifier.static_substr import _try_eval_pure_cmd
+        from tooling.minifier.static_substr import _try_eval_pure_cmd
 
         result = _try_eval_pure_cmd("[list a {b c}]", {}, {})
         assert result is not None
@@ -1290,7 +1290,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_dead_set_preserved_when_set_read_exists(self):
         """Dead-set elimination must not remove set when [set var] reads exist."""
-        from core.minifier.static_substr import _eliminate_dead_sets
+        from tooling.minifier.static_substr import _eliminate_dead_sets
 
         source = "set x hello;puts [set x]"
         result, count = _eliminate_dead_sets(source, {"x"})
@@ -1300,7 +1300,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_dead_set_preserved_when_incr_exists(self):
         """Dead-set elimination must not remove set when incr var reads exist."""
-        from core.minifier.static_substr import _eliminate_dead_sets
+        from tooling.minifier.static_substr import _eliminate_dead_sets
 
         source = "set x 0;incr x"
         result, count = _eliminate_dead_sets(source, {"x"})

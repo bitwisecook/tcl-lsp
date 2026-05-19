@@ -7,7 +7,7 @@ import shutil
 
 import pytest
 
-from explorer.tcl_cli import main
+from tooling.tcl.main import main
 
 
 def _run(args: list[str], capsys) -> tuple[int, str, str]:

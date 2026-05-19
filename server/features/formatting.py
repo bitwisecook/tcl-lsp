@@ -6,9 +6,9 @@ from dataclasses import replace
 
 from lsprotocol import types
 
-from core.formatting import FormatterConfig, format_tcl
-from core.formatting.config import IndentStyle
-from core.formatting.engine import format_body
+from tooling.formatter import FormatterConfig, format_tcl
+from tooling.formatter.config import IndentStyle
+from tooling.formatter.engine import format_body
 
 
 def get_formatting(

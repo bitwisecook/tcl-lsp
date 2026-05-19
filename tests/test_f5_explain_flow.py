@@ -19,7 +19,7 @@ from dialects.f5.bigip.explain_flow import (
     report_to_mcp_dict,
 )
 from dialects.f5.bigip.parser import parse_bigip_conf
-from explorer.f5_cli import main
+from tooling.f5.main import main
 
 # ---------------------------------------------------------------------------
 # Tiny libpcap builder (mirrors test_f5_pcap_remap helpers).

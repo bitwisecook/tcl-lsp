@@ -14,12 +14,12 @@ from pygls.lsp.server import LanguageServer
 
 import server.state as _state
 from compiler.registry.runtime import configure_signatures
-from core.formatting import FormatterConfig
 from shared.user_config import (
     get_all_settings,
     load_project_config,
     load_user_config,
 )
+from tooling.formatter import FormatterConfig
 
 from .workspace.scanner import path_to_uri
 from .workspace.scanner import uri_to_path as _uri_to_path

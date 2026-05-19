@@ -223,14 +223,14 @@ The minifier entrypoint is `minify_tcl(...)`, which in basic/compact modes retur
 
 ## File-path anchors
 
-- `core/minifier/minifier.py`
-- `core/minifier/static_substr.py` — static substring folding (IR/CFG/SSA/SCCP + taint)
+- `tooling/minifier/minifier.py`
+- `tooling/minifier/static_substr.py` — static substring folding (IR/CFG/SSA/SCCP + taint)
 - `shared/text_edits.py` — shared text editing and name generation utilities
 - `shared/suffix_array.py` — shared suffix array and LCP construction
 - `server/server.py` (`tcl-lsp.minifyDocument` command)
 - `editors/vscode/src/extension.ts` (`minifyDocument` handler with basic/compact/aggressive modes)
 - `editors/sublime-text/plugin.py` (`TclMinifyDocumentCommand`)
-- `explorer/tcl_cli.py` (`minify` verb with `--compact` and `--symbol-map` flags)
+- `tooling/tcl/main.py` (`minify` verb with `--compact` and `--symbol-map` flags)
 
 ## Failure modes
 

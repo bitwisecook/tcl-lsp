@@ -15,11 +15,6 @@ from pathlib import Path
 
 import pytest
 
-from core.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
-from core.irule_test.codegen_event_data import _generate as generate_event_data
-from core.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
-from core.irule_test.codegen_registry_data import _generate as generate_registry_data
-from core.irule_test.topology import TopologyFromSCF
 from dialects.f5.bigip.model import (
     BigipConfig,
     BigipDataGroup,
@@ -32,6 +27,11 @@ from dialects.f5.bigip.model import (
     ProfileType,
 )
 from dialects.f5.bigip.types import BigipList, Destination, ListItem, ProfileAttachment
+from tooling.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
+from tooling.irule_test.codegen_event_data import _generate as generate_event_data
+from tooling.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
+from tooling.irule_test.codegen_registry_data import _generate as generate_registry_data
+from tooling.irule_test.topology import TopologyFromSCF
 
 # Path to the Tcl framework files
 TCL_DIR = Path(__file__).parent.parent / "core" / "irule_test" / "tcl"
@@ -1280,7 +1280,7 @@ class TestMockStubsCodegen:
         all_procs = set(re.findall(r"proc\s+([\w_]+)\s", combined))
 
         from compiler.registry.command_registry import REGISTRY
-        from core.irule_test.codegen_mock_stubs import _mock_proc_name
+        from tooling.irule_test.codegen_mock_stubs import _mock_proc_name
 
         irule_cmds = REGISTRY.command_names(dialect="f5-irules")
         missing = []

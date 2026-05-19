@@ -19,7 +19,6 @@ from compiler.registry import REGISTRY
 from compiler.registry.info import effective_event_requires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import configure_signatures
-from core.minifier import minify_tcl
 from shared.document_buffer import DocumentBuffer
 from shared.optimisation_profiles import (
     DEFAULT_ACTION_PROFILE,
@@ -28,6 +27,7 @@ from shared.optimisation_profiles import (
     resolve_profile,
 )
 from shared.user_config import save_settings_to_config
+from tooling.minifier import minify_tcl
 
 from .feature_config import FeatureConfig
 from .features.diagnostics import get_basic_diagnostics
@@ -135,7 +135,7 @@ def on_unminify_error(
     original_source: str = "",
 ) -> dict:
     """Translate a minified-code error message back to original names."""
-    from core.minifier import unminify_error
+    from tooling.minifier import unminify_error
 
     translated = unminify_error(
         error_message,
@@ -523,8 +523,8 @@ def on_compiler_explorer(source: str, dialect: str) -> dict | None:
             "details": "Open a Tcl/iRule file in the active editor and try again.",
         }
     try:
-        from explorer.pipeline import run_pipeline as explorer_run_pipeline
-        from explorer.serialise import serialise_result as explorer_serialise_result
+        from tooling.explorer.pipeline import run_pipeline as explorer_run_pipeline
+        from tooling.explorer.serialise import serialise_result as explorer_serialise_result
 
         result = explorer_run_pipeline(source, dialect=dialect or None)
         if not result.snapshots:
@@ -592,7 +592,7 @@ def on_diagram_data(source: str) -> dict | None:
     if not source or not source.strip():
         return None
     try:
-        from core.diagram.extract import extract_diagram_data
+        from tooling.diagram.extract import extract_diagram_data
 
         return extract_diagram_data(source)
     except Exception as exc:
@@ -916,7 +916,7 @@ def _add_tclpkg_requirement(
     minimum_version: str = "0.0.1",
 ) -> tuple[Any, bool]:
     """Append a manifest requirement when it is not already declared."""
-    from tclpkg.manifest import load_manifest, load_manifest_text
+    from tooling.tclpkg.manifest import load_manifest, load_manifest_text
 
     manifest = load_manifest(manifest_path)
     existing = {req.name for req in manifest.requires}
@@ -933,8 +933,8 @@ def _add_tclpkg_requirement(
 
 def _write_tclpkg_lock(manifest: Any, manifest_path: Path) -> tuple[Path, int]:
     """Resolve the manifest and write ``tclpkg.lock``."""
-    from tclpkg.lockfile import LockedPackage, LockFile, SourceSpec, write_lockfile
-    from tclpkg.resolver import ExcludeSpec, PackageRef, ReplaceSpec, resolve
+    from tooling.tclpkg.lockfile import LockedPackage, LockFile, SourceSpec, write_lockfile
+    from tooling.tclpkg.resolver import ExcludeSpec, PackageRef, ReplaceSpec, resolve
 
     direct = [PackageRef(name=req.name, version=req.minimum) for req in manifest.requires]
     dev_direct = [PackageRef(name=req.name, version=req.minimum) for req in manifest.dev_requires]
@@ -995,7 +995,7 @@ def on_tclpkg_search(query: str) -> dict:
     """Search the tclpkg registry for packages matching *query*."""
     try:
         from shared.user_config import _cache_dir
-        from tclpkg.registry import RegistryClient
+        from tooling.tclpkg.registry import RegistryClient
 
         client = RegistryClient(_cache_dir(), offline=True)
         results = client.search(query)

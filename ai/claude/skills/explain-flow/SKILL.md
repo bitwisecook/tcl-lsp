@@ -40,7 +40,7 @@ JSON dict per session, not the raw per-flow dump.
 The Python that produces this output lives in
 `dialects/f5/bigip/explain_flow.py` and is shared by both the MCP tool
 (`ai/mcp/tcl_mcp_server.py`) and the CLI verb
-(`explorer/verbs/f5/explain_flow.py`) — there is one source of truth.
+(`tooling/explorer/verbs/f5/explain_flow.py`) — there is one source of truth.
 
 ## How to invoke (low-bloat, MCP-first)
 

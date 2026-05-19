@@ -56,7 +56,7 @@ The refactoring detects two body patterns: `set var value` (all arms set the sam
 
 ## File-path anchors
 
-- `core/refactoring/_switch_to_dict.py`
+- `tooling/refactoring/_switch_to_dict.py`
 - `server/features/code_actions.py`
 
 ## Failure modes

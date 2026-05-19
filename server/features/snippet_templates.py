@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from lsprotocol import types
 
 from compiler.registry.dialects import dialects_since
-from core.formatting.config import BraceStyle
+from tooling.formatter.config import BraceStyle
 
 # Context passed to every generator
 

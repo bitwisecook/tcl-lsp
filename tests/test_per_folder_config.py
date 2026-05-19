@@ -22,8 +22,8 @@ import pytest
 
 import server.settings as _lsp_settings
 import server.state as _lsp_state
-from core.formatting import FormatterConfig
 from server.feature_config import FeatureConfig
+from tooling.formatter import FormatterConfig
 
 
 def _install_diag_capture(captured: dict) -> tuple[Any, Any]:

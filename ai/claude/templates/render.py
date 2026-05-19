@@ -105,7 +105,7 @@ def _format_filter(source: str) -> str:
     or raises an error (e.g. on malformed generated output).
     """
     try:
-        from core.formatting import format_tcl
+        from tooling.formatter import format_tcl
 
         return format_tcl(source)
     except Exception:

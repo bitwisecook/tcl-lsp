@@ -51,19 +51,19 @@ The extract-to-datagroup refactoring automatically detects value types:
 
 ## Operational context
 
-All refactorings are implemented as pure functions in `core/refactoring/` that accept source text and return edit objects. The LSP code actions layer, MCP server, and Claude AI skills all consume these functions identically, ensuring consistent behaviour across all surfaces.
+All refactorings are implemented as pure functions in `tooling/refactoring/` that accept source text and return edit objects. The LSP code actions layer, MCP server, and Claude AI skills all consume these functions identically, ensuring consistent behaviour across all surfaces.
 
 The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns structured context including pattern type, inferred value type, CIDR detection, body shape analysis (identical/set_mapping/return_mapping/complex), and confidence level (high/medium/low). This enables an LLM to make intelligent decisions about naming, consolidation across events, and coverage.
 
 ## File-path anchors
 
-- `core/refactoring/__init__.py`
-- `core/refactoring/_extract_variable.py`
-- `core/refactoring/_inline_variable.py`
-- `core/refactoring/_if_to_switch.py`
-- `core/refactoring/_switch_to_dict.py`
-- `core/refactoring/_brace_expr.py`
-- `core/refactoring/_extract_datagroup.py`
+- `tooling/refactoring/__init__.py`
+- `tooling/refactoring/_extract_variable.py`
+- `tooling/refactoring/_inline_variable.py`
+- `tooling/refactoring/_if_to_switch.py`
+- `tooling/refactoring/_switch_to_dict.py`
+- `tooling/refactoring/_brace_expr.py`
+- `tooling/refactoring/_extract_datagroup.py`
 - `server/features/code_actions.py`
 - `ai/mcp/tcl_mcp_server.py`
 

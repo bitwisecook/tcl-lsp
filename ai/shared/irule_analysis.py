@@ -116,7 +116,7 @@ def diagram_data(source: str) -> dict[str, Any]:
     dict with an ``"error"`` key on failure.
     """
     try:
-        from core.diagram.extract import extract_diagram_data
+        from tooling.diagram.extract import extract_diagram_data
 
         return extract_diagram_data(source)
     except Exception as exc:

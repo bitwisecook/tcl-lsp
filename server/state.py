@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import shared.codes_all  # noqa: F401  # must precede feature_config import so profile categories are computed with full registry
 from analyser.packages import PackageResolver
-from core.formatting import FormatterConfig
+from tooling.formatter import FormatterConfig
 
 from .async_diagnostics import DiagnosticScheduler
 from .feature_config import FeatureConfig

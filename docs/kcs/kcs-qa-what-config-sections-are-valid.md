@@ -123,7 +123,7 @@ Controls the formatter. The most commonly tuned keys are:
 - `docstring_tag_style` — `doxygen`, `plain`, or `none`.
 
 The complete list, with defaults and ranges, lives in
-[`core/formatting/config.py`](../../core/formatting/config.py).
+[`tooling/formatter/config.py`](../../tooling/formatter/config.py).
 
 ### `[style]`
 

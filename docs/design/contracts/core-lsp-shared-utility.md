@@ -70,7 +70,7 @@ Primary consumers:
 - `compiler/ssa.py`
 - `compiler/interprocedural.py`
 - `compiler/gvn.py`
-- `core/refactoring/_spans.py`
+- `tooling/refactoring/_spans.py`
 - `server/features/definition.py`
 - `server/features/references.py`
 - `server/features/rename.py`

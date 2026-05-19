@@ -18,7 +18,7 @@ from dialects.f5.bigip.wireshark_profile import (
     _extract_vlans,
     build_wireshark_profile,
 )
-from explorer.f5_cli import main
+from tooling.f5.main import main
 
 
 def _run(args, capsys):

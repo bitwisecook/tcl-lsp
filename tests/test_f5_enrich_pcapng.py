@@ -40,7 +40,7 @@ from dialects.f5.bigip.pcapng import (
     build_nrb_block,
     read_blocks,
 )
-from explorer.f5_cli import main
+from tooling.f5.main import main
 
 
 def _run(args, capsys):

@@ -10,8 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.tokens import TokenType
-from core.formatting import BraceStyle, FormatterConfig, IndentStyle, format_tcl
-from core.formatting.engine import (
+from tooling.formatter import BraceStyle, FormatterConfig, IndentStyle, format_tcl
+from tooling.formatter.engine import (
     ArgKind,
     _identify_body_args,
     _reconstruct_raw,

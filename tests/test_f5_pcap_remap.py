@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dialects.f5.bigip.pcap_remap import remap_pcap
 from dialects.f5.bigip.redact_map import build_map
-from explorer.f5_cli import main
+from tooling.f5.main import main
 
 
 def _run(args, capsys):

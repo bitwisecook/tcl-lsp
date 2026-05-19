@@ -14,8 +14,8 @@ import pytest
 from dialects.f5.bigip.emit import emit_merged, emit_split_by_partition, partition_of
 from dialects.f5.bigip.parser import parse_bigip_conf
 from dialects.f5.bigip.rewrite import redact_secrets, rename_object
-from explorer.f5_cli import main
-from explorer.f5_remote.ucs import make_test_ucs
+from tooling.explorer.f5_remote.ucs import make_test_ucs
+from tooling.f5.main import main
 
 SMALL = (
     textwrap.dedent(

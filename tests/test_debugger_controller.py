@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import threading
 
-from debugger.controller import DebugController
-from debugger.types import StepMode
-from vm.interp import TclInterp
+from tooling.debugger.controller import DebugController
+from tooling.debugger.types import StepMode
+from tooling.vm.interp import TclInterp
 
 
 class TestBreakpoints:

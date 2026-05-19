@@ -58,10 +58,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import shared.codes_all  # noqa: F401, E402
-from core.formatting.config import (  # noqa: E402
-    FORMATTER_SETTINGS_CATALOGUE,
-    FormatterConfig,
-)
 from shared.codes import (  # noqa: E402
     SECTIONS,
     ai_category_overrides,
@@ -74,6 +70,10 @@ from shared.optimisation_profiles import (  # noqa: E402
     READABILITY_CODES,
     OptimisationProfile,
     profile_spec,
+)
+from tooling.formatter.config import (  # noqa: E402
+    FORMATTER_SETTINGS_CATALOGUE,
+    FormatterConfig,
 )
 
 _STANDARD_CODES = profile_spec(OptimisationProfile.STANDARD).enabled_codes

@@ -76,7 +76,7 @@ The refactoring parses each branch's test expression looking for `$var eq "value
 
 ## File-path anchors
 
-- `core/refactoring/_if_to_switch.py`
+- `tooling/refactoring/_if_to_switch.py`
 - `server/features/code_actions.py`
 
 ## Failure modes

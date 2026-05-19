@@ -97,7 +97,7 @@ class _AnalyserProcMixin(_Base):
         # fallback docstring when there is no preceding comment.
         body_doc = ""
         if not preceding_doc and body:
-            from core.formatting.docstring import extract_body_docstring
+            from tooling.formatter.docstring import extract_body_docstring
 
             body_doc = extract_body_docstring(body)
 

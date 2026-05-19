@@ -22,8 +22,8 @@ directive does not take effect.
 
 ## File-path anchors
 
-- ``tclpkg/resolver.py`` — ``resolve()``, ``PackageRef``, ``ResolvedPackage``
+- ``tooling/tclpkg/resolver.py`` — ``resolve()``, ``PackageRef``, ``ResolvedPackage``
 
 ## Test anchors
 
-- ``tests/tclpkg/test_resolver.py`` — 15 tests: diamond, MVS max, replace, exclude, dev
+- ``tests/tooling/tclpkg/test_resolver.py`` — 15 tests: diamond, MVS max, replace, exclude, dev

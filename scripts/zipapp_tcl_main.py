@@ -91,7 +91,7 @@ def main() -> int:
         print(f"Run `{prog_name} <verb> --help` for verb-specific options.")
         return 0
 
-    from explorer.tcl_cli import main as tcl_main
+    from tooling.tcl.main import main as tcl_main
 
     return tcl_main(sys.argv[1:], prog_name=prog_name)
 
