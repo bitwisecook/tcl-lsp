@@ -17,6 +17,8 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 
+use self::upvar_info::{collect_upvar_targets, UpvarInfo};
+
 mod cfg_lower;
 pub mod upvar_info;
 
@@ -33,16 +35,80 @@ pub(crate) struct CfgBuilder {
     blocks: HashMap<String, MutableBlock>,
     loop_nodes: HashMap<String, LoopNode>,
     inline_loops: bool,
+    /// Map from command name to upvar summary, used to pre-populate
+    /// caller-side `defs` on calls to procs that use `upvar`.  Empty
+    /// when the builder is constructed without an upvar context
+    /// (e.g. for one-off CFGs that don't have a Module to scan).
+    /// Mirrors Python `_CFGBuilder._upvar_procs`.
+    upvar_procs: HashMap<String, UpvarInfo>,
+    /// Map from command name to parameter list, used by the upvar
+    /// wiring to resolve param-based upvar sources (`upvar 1 $param
+    /// local`) against the actual call-site argument.  Mirrors Python
+    /// `_CFGBuilder._proc_params`.
+    proc_params: HashMap<String, Vec<String>>,
 }
 
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
+        Self::new_with_upvars(inline_loops, HashMap::new(), HashMap::new())
+    }
+
+    fn new_with_upvars(
+        inline_loops: bool,
+        upvar_procs: HashMap<String, UpvarInfo>,
+        proc_params: HashMap<String, Vec<String>>,
+    ) -> Self {
         Self {
             counter: 0,
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
             inline_loops,
+            upvar_procs,
+            proc_params,
         }
+    }
+
+    /// Augment a `Statement::Call`'s `defs` with caller-side
+    /// variable names that the callee proc will modify via `upvar`.
+    /// Returns the statement unchanged for non-`Call` shapes, or when
+    /// the command is not a registered upvar proc.
+    ///
+    /// Mirrors the direct-call branch of Python's
+    /// `_apply_upvar_invalidation` in `core/compiler/cfg.py`.  The
+    /// embedded-substitution branch (lifting `[upvar_proc ...]` out
+    /// of `AssignValue`'s text or `Call`'s args) is a follow-up — the
+    /// direct-call form is the dominant pattern and lands first.
+    fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Statement {
+        if self.upvar_procs.is_empty() {
+            return stmt;
+        }
+        // First borrow immutably to compute the extra defs.
+        let extra: Vec<String> = match &stmt {
+            Statement::Call { command, args, .. } => self
+                .upvar_procs
+                .get(command.as_str())
+                .map(|info| {
+                    let params: &[String] = self
+                        .proc_params
+                        .get(command.as_str())
+                        .map_or(&[][..], Vec::as_slice);
+                    info.caller_side_defs(args, params)
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        if extra.is_empty() {
+            return stmt;
+        }
+        // Then merge mutably.
+        if let Statement::Call { defs, .. } = &mut stmt {
+            for d in extra {
+                if !defs.contains(&d) {
+                    defs.push(d);
+                }
+            }
+        }
+        stmt
     }
 
     /// Allocate a new empty block with a unique name.
@@ -223,9 +289,13 @@ impl CfgBuilder {
                 }
 
                 // All other statements (assignments, calls, barriers,
-                // expr-evals) go straight into the current block.
+                // expr-evals) go straight into the current block —
+                // after the upvar-invalidation pass augments
+                // `Statement::Call`'s `defs` for calls to procs that
+                // use `upvar`.
                 other => {
-                    self.block_mut(&current).statements.push(other.clone());
+                    let augmented = self.apply_upvar_invalidation(other.clone());
+                    self.block_mut(&current).statements.push(augmented);
                 }
             }
         }
@@ -385,19 +455,77 @@ impl CfgBuilder {
 
 // Public API
 
+/// Scan a module for procedures whose bodies contain `upvar`
+/// declarations, returning a map from command name to
+/// [`UpvarInfo`].  Both the fully qualified name (`::ns::foo`) and
+/// the short name (`foo`) are registered so call sites using either
+/// spelling resolve to the same info.
+///
+/// Mirrors Python `_detect_upvar_procs` in `core/compiler/cfg.py`.
+#[must_use]
+pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
+    let mut result: HashMap<String, UpvarInfo> = HashMap::new();
+    for (qname, proc) in &module.procedures {
+        let info = collect_upvar_targets(&proc.body, &proc.params);
+        if info.is_empty() {
+            continue;
+        }
+        if let Some((_, short)) = qname.rsplit_once("::") {
+            if !short.is_empty() {
+                result.insert(short.to_owned(), info.clone());
+            }
+        }
+        result.insert(qname.clone(), info);
+    }
+    result
+}
+
+/// Return the upvar-procs map and the parameter-list map used by
+/// the CFG builder's upvar-invalidation pass.  Both the qualified
+/// and short forms are registered for every proc.
+///
+/// Mirrors Python `prepare_cfg_context` in `core/compiler/cfg.py`.
+#[must_use]
+pub fn prepare_cfg_context(
+    module: &Module,
+) -> (HashMap<String, UpvarInfo>, HashMap<String, Vec<String>>) {
+    let upvar_procs = detect_upvar_procs(module);
+    let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
+    for (qname, proc) in &module.procedures {
+        if let Some((_, short)) = qname.rsplit_once("::") {
+            if !short.is_empty() {
+                proc_params.insert(short.to_owned(), proc.params.clone());
+            }
+        }
+        proc_params.insert(qname.clone(), proc.params.clone());
+    }
+    (upvar_procs, proc_params)
+}
+
 /// Build CFGs for a whole module: top-level script + each procedure.
 ///
 /// When `defer_top_level` is `true`, `foreach`/`catch`/`try` at the
 /// top level are compiled as opaque calls (matching tclsh bytecode
 /// output). Analysis passes should leave this `false` to get full
 /// inlining of loop bodies.
+///
+/// The builder also applies the upvar-invalidation pass — calls to
+/// procedures whose bodies use `upvar` have their `defs` augmented
+/// with the caller-side variable names the callee will modify.  See
+/// [`prepare_cfg_context`] for the per-module scan.
 #[must_use]
 pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
-    let top_cfg = build_cfg_function("::top", &module.top_level, !defer_top_level);
+    let (upvar_procs, proc_params) = prepare_cfg_context(module);
+
+    let mut top_builder =
+        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone());
+    let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
-        proc_cfgs.insert(qname.clone(), build_cfg_function(qname, &proc.body, true));
+        let mut builder =
+            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone());
+        proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
     CfgModule {
@@ -406,7 +534,9 @@ pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
     }
 }
 
-/// Build a CFG for a single script body.
+/// Build a CFG for a single script body.  Does not apply the upvar-
+/// invalidation pass — use [`build_cfg`] when a whole module is
+/// available and call-site def invalidation matters.
 #[must_use]
 pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Function {
     let mut builder = CfgBuilder::new(inline_loops);
@@ -604,5 +734,205 @@ mod tests {
         let mut v = vec!["a".into(), "b".into(), "a".into(), "c".into(), "b".into()];
         dedup_preserve_order(&mut v);
         assert_eq!(v, vec!["a", "b", "c"]);
+    }
+
+    // SYNC-JUN-CFG-uplevel-literal-set wiring tests.
+    //
+    // Each test drives the full pipeline:
+    // `lower_to_ir` → `build_cfg` (which calls `prepare_cfg_context`).
+    // The assertions inspect the resulting CFG to confirm that calls
+    // to upvar-using procs carry the expected caller-side defs.
+
+    fn lower_module(src: &str) -> Module {
+        use tcl_registry::CommandRegistry;
+        crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
+    }
+
+    fn find_call_defs<'a>(func: &'a Function, command: &str) -> Option<&'a [String]> {
+        for block in func.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call {
+                    command: c, defs, ..
+                } = stmt
+                {
+                    if c == command {
+                        return Some(defs);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn detect_upvar_procs_registers_short_and_qualified() {
+        let module = lower_module("proc ::ns::p {} { upvar 1 caller_x x }\nproc ::ns::p2 {} {}");
+        let upvar_procs = detect_upvar_procs(&module);
+        assert!(upvar_procs.contains_key("::ns::p"));
+        assert!(upvar_procs.contains_key("p"));
+        // p2 has no upvar — not registered.
+        assert!(!upvar_procs.contains_key("::ns::p2"));
+        assert!(!upvar_procs.contains_key("p2"));
+    }
+
+    #[test]
+    fn prepare_cfg_context_registers_params_for_all_procs() {
+        let module = lower_module("proc ::ns::p {a b} { upvar 1 $a x }\nproc q {c} {}");
+        let (_upvar_procs, proc_params) = prepare_cfg_context(&module);
+        assert_eq!(
+            proc_params.get("::ns::p"),
+            Some(&vec!["a".to_string(), "b".to_string()]),
+        );
+        assert_eq!(
+            proc_params.get("p"),
+            Some(&vec!["a".to_string(), "b".to_string()]),
+        );
+        // q has no upvar but its params should still be in proc_params.
+        assert_eq!(proc_params.get("q"), Some(&vec!["c".to_string()]));
+    }
+
+    #[test]
+    fn literal_upvar_proc_call_augments_defs() {
+        // Caller invokes a proc whose body has `upvar 1 caller_x x`.
+        // The call should land with `caller_x` in its defs.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; set x 1 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(
+            defs.contains(&"caller_x".to_string()),
+            "expected caller_x in defs, got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn param_upvar_proc_call_resolves_call_site_arg() {
+        // `proc setter {name} { upvar 1 $name x }` aliased to whatever
+        // the caller passes for `name`.  Call `setter my_var` should
+        // augment the call with `my_var` in defs.
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name x; set x 1 }\n\
+             setter my_var",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(
+            defs.contains(&"my_var".to_string()),
+            "expected my_var in defs, got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn param_upvar_normalises_dollar_call_arg() {
+        // `setter $caller_var` — the call passes a `$`-prefixed name;
+        // the wiring normalises it to `caller_var` for the def list.
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name x }\n\
+             setter $caller_var",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(
+            defs.contains(&"caller_var".to_string()),
+            "expected caller_var (normalised from $caller_var) in defs, got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn non_upvar_proc_call_unchanged() {
+        // No upvar in the callee — the call's defs should be empty.
+        let module = lower_module("proc no_upvar {} { set x 1 }\nno_upvar");
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "no_upvar")
+            .expect("no_upvar call should be in top-level CFG");
+        assert!(defs.is_empty(), "expected no augmented defs, got {defs:?}",);
+    }
+
+    #[test]
+    fn qualified_call_resolves_via_qualified_key() {
+        // `proc ::ns::setter` is registered under both `::ns::setter`
+        // and `setter`.  A qualified call site `::ns::setter` should
+        // resolve via the qualified key.
+        let module = lower_module(
+            "proc ::ns::setter {} { upvar 1 caller_x x }\n\
+             ::ns::setter",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "::ns::setter")
+            .expect("::ns::setter call should be in top-level CFG");
+        assert!(
+            defs.contains(&"caller_x".to_string()),
+            "expected caller_x in defs (qualified call), got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn cross_proc_call_inside_proc_body_augments_defs() {
+        // Outer proc calls an inner upvar-using proc.  The outer
+        // proc's CFG should reflect the augmented defs.
+        let module = lower_module(
+            "proc inner {} { upvar 1 caller_x x }\n\
+             proc outer {} { inner }",
+        );
+        let cfg = build_cfg(&module, false);
+        let outer = cfg
+            .procedures
+            .get("::outer")
+            .expect("outer proc CFG should exist");
+        let defs = find_call_defs(outer, "inner").expect("inner call should be in outer CFG");
+        assert!(
+            defs.contains(&"caller_x".to_string()),
+            "expected caller_x in inner's defs (called from outer), got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn upvar_call_inside_if_branch_augments_defs() {
+        // Calls inside structured constructs (if branches, while
+        // bodies, ...) must also be augmented — the wiring runs in
+        // `lower_script`, which is invoked recursively for every
+        // body.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_y y }\n\
+             if {1} { setter }",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call in if-branch should be in top-level CFG");
+        assert!(
+            defs.contains(&"caller_y".to_string()),
+            "expected caller_y in defs (call inside if branch), got {defs:?}",
+        );
+    }
+
+    #[test]
+    fn empty_module_no_upvar_context_no_panic() {
+        // Empty module → empty upvar_procs and proc_params.  Building
+        // a CFG should still succeed.
+        let module = Module::default();
+        let cfg = build_cfg(&module, false);
+        assert_eq!(cfg.top_level.name, "::top");
+        assert!(cfg.procedures.is_empty());
+    }
+
+    #[test]
+    fn build_cfg_function_does_not_apply_upvar_wiring() {
+        // `build_cfg_function` is the no-context variant used by
+        // tests and one-off CFG construction.  It MUST NOT augment
+        // defs even when the script calls a known upvar proc —
+        // the function only sees the script, not a module.
+        let module = lower_module("proc setter {} { upvar 1 caller_x x }\nsetter");
+        // Build only the top-level CFG via the no-context API.
+        let func = build_cfg_function("::top", &module.top_level, true);
+        let defs = find_call_defs(&func, "setter").expect("setter call should be in top-level CFG");
+        assert!(
+            defs.is_empty(),
+            "build_cfg_function without context should leave defs empty, got {defs:?}",
+        );
     }
 }

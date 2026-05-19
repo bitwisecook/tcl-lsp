@@ -24,20 +24,26 @@
 //!
 //! ## Status
 //!
-//! This is the **port** half of the chunk — the data structures, the
-//! `_collect_upvar_targets` pass, and unit tests covering each shape.
-//! The caller-side `defs` pre-population at the proc-summary
-//! integration point is the **wiring** half, deferred to the
-//! `SYNC-JUN-CFG-uplevel-literal-set` follow-up which Python tracks at
-//! `cfg.py:441` / `:589` / `:602` / `:621` / `:633` / `:1253`.  That
-//! follow-up is mechanical once this module exists — it's the same
-//! shape consumers already use for `param_targets` and the dispatch
-//! plumbing is structural.
+//! Both halves of the chunk have landed:
 //!
-//! Until the wiring lands, [`UpvarInfo`] is a self-contained data
-//! point that downstream consumers (interprocedural analysis,
-//! optimiser passes, the LSP's hover provider) can opt into without
-//! the `cfg_builder` needing further changes.
+//! * The **port** half — `UpvarInfo` data structure, the
+//!   `collect_upvar_targets` pass, and unit tests covering each
+//!   shape — landed via PR #389.
+//! * The **wiring** half — call-site `defs` pre-population at the
+//!   proc-summary integration point — lands here via
+//!   [`UpvarInfo::caller_side_defs`] plus the
+//!   [`super::CfgBuilder::apply_upvar_invalidation`] pass invoked
+//!   from `lower_script`.  Mirrors Python's `_resolve_upvar_defs` /
+//!   `_apply_upvar_invalidation` at `cfg.py:441` / `:529` / `:549` /
+//!   `:560` / `:587` / `:1124` / `:1146`.
+//!
+//! The direct-call form of `_apply_upvar_invalidation` is implemented;
+//! the embedded-substitution form (lifting `[upvar_proc ...]` out of
+//! `AssignValue`'s value text or `Call`'s arguments) is a follow-up.
+//! In Python, the embedded-substitution branch synthesises a free-
+//! standing `IRCall` with the extra defs before the host statement;
+//! the dominant pattern in practice is the direct call, so the
+//! follow-up is a refinement rather than a correctness gap.
 
 use std::collections::BTreeMap;
 
@@ -107,6 +113,59 @@ impl UpvarInfo {
             return args.get(param).and_then(Clone::clone);
         }
         None
+    }
+
+    /// Resolve every upvar declaration in this proc against a call
+    /// site, returning the unique set of caller-frame variable names
+    /// the proc may modify via its upvars.
+    ///
+    /// `call_args` is the positional argument list at the call site;
+    /// `params` is the callee proc's parameter list (used to locate
+    /// param-based upvar sources by positional index).  Resolution:
+    ///
+    /// * Every value in [`literal_targets`](Self::literal_targets) is
+    ///   added directly — those are caller-frame literal names.
+    /// * For each value in [`param_targets`](Self::param_targets), we
+    ///   find the param's positional index in `params`, look up the
+    ///   actual argument value at that index in `call_args`, and
+    ///   normalise it (stripping `$` / `${…}` / `(…)` suffixes).
+    /// * For each entry in [`args_tail_upvar`](Self::args_tail_upvar),
+    ///   we pair it positionally with a tail argument at the call
+    ///   site (tail start = `params.len() - 1`, since `args` consumes
+    ///   the trailing slot in the param list).
+    ///
+    /// Mirrors Python's `_resolve_upvar_defs` in `core/compiler/cfg.py`
+    /// (extended with `args_tail_upvar` handling that Python's
+    /// `frozenset`-based `_UpvarInfo` couldn't represent).
+    #[must_use]
+    pub fn caller_side_defs(&self, call_args: &[String], params: &[String]) -> Vec<String> {
+        let mut defs: Vec<String> = Vec::new();
+        let mut push = |name: String| {
+            if !name.is_empty() && !defs.contains(&name) {
+                defs.push(name);
+            }
+        };
+        for caller_lit in self.literal_targets.values() {
+            push(caller_lit.clone());
+        }
+        for param_name in self.param_targets.values() {
+            if let Some(idx) = params.iter().position(|p| p == param_name) {
+                if let Some(arg) = call_args.get(idx) {
+                    push(crate::naming::normalise_var_name(arg).to_owned());
+                }
+            }
+        }
+        if !self.args_tail_upvar.is_empty() {
+            // `args` occupies the trailing param slot, so tail args
+            // at the call site start at `params.len() - 1`.
+            let tail_start = params.len().saturating_sub(1);
+            for (i, _local) in self.args_tail_upvar.iter().enumerate() {
+                if let Some(arg) = call_args.get(tail_start + i) {
+                    push(crate::naming::normalise_var_name(arg).to_owned());
+                }
+            }
+        }
+        defs
     }
 }
 
@@ -428,5 +487,107 @@ mod tests {
         assert!(info.is_empty());
         info.literal_targets.insert("x".into(), "y".into());
         assert!(!info.is_empty());
+    }
+
+    #[test]
+    fn caller_side_defs_literal_only() {
+        let mut info = UpvarInfo::default();
+        info.literal_targets.insert("x".into(), "caller_x".into());
+        info.literal_targets.insert("y".into(), "caller_y".into());
+        let defs = info.caller_side_defs(&[], &[]);
+        let mut sorted = defs.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["caller_x".to_string(), "caller_y".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_param_resolution() {
+        let mut info = UpvarInfo::default();
+        info.param_targets.insert("x".into(), "name".into());
+        // proc foo {name body} { upvar 1 $name x ... }
+        // Call: foo my_var { ... }
+        let params = vec!["name".to_string(), "body".to_string()];
+        let call_args = vec!["my_var".to_string(), "{set x 1}".to_string()];
+        let defs = info.caller_side_defs(&call_args, &params);
+        assert_eq!(defs, vec!["my_var".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_param_dollar_normalisation() {
+        let mut info = UpvarInfo::default();
+        info.param_targets.insert("x".into(), "name".into());
+        let params = vec!["name".to_string()];
+        // call site passes `$user_var` — should normalise to `user_var`.
+        let call_args = vec!["$user_var".to_string()];
+        let defs = info.caller_side_defs(&call_args, &params);
+        assert_eq!(defs, vec!["user_var".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_literal_plus_param() {
+        let mut info = UpvarInfo::default();
+        info.literal_targets.insert("a".into(), "caller_a".into());
+        info.param_targets.insert("b".into(), "n".into());
+        let params = vec!["n".to_string()];
+        let call_args = vec!["caller_b".to_string()];
+        let defs = info.caller_side_defs(&call_args, &params);
+        let mut sorted = defs.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["caller_a".to_string(), "caller_b".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_dedup() {
+        let mut info = UpvarInfo::default();
+        info.literal_targets.insert("a".into(), "same".into());
+        info.literal_targets.insert("b".into(), "same".into());
+        let defs = info.caller_side_defs(&[], &[]);
+        assert_eq!(defs, vec!["same".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_args_tail_upvar_positional() {
+        // `args_tail_upvar` records the locals (in declaration order)
+        // for every `upvar 1 $args local` form in the proc body.  The
+        // caller-side resolver pairs each entry positionally with a
+        // call-site tail argument starting at `params.len() - 1`.
+        let mut info = UpvarInfo::default();
+        info.args_tail_upvar.push("x".into()); // first tail arg → x
+        info.args_tail_upvar.push("y".into()); // second tail arg → y
+        let params = vec!["a".to_string(), "args".to_string()];
+        // Call: foo first_pos tail_one tail_two tail_three
+        // tail_start = params.len() - 1 = 1.
+        let call_args = vec![
+            "first_pos".to_string(),
+            "tail_one".to_string(),
+            "tail_two".to_string(),
+            "tail_three".to_string(),
+        ];
+        let defs = info.caller_side_defs(&call_args, &params);
+        // Two declarations pick the first two tail args.
+        assert_eq!(defs, vec!["tail_one".to_string(), "tail_two".to_string()]);
+    }
+
+    #[test]
+    fn caller_side_defs_missing_param_skipped() {
+        let mut info = UpvarInfo::default();
+        info.param_targets
+            .insert("x".into(), "missing_param".into());
+        let params = vec!["other".to_string()];
+        let call_args = vec!["v".to_string()];
+        let defs = info.caller_side_defs(&call_args, &params);
+        // `missing_param` isn't in params — skip silently.
+        assert!(defs.is_empty());
+    }
+
+    #[test]
+    fn caller_side_defs_dynamic_arg_normalises_to_empty_skipped() {
+        let mut info = UpvarInfo::default();
+        info.param_targets.insert("x".into(), "n".into());
+        let params = vec!["n".to_string()];
+        // `$` alone normalises to empty — should be skipped.
+        let call_args = vec!["$".to_string()];
+        let defs = info.caller_side_defs(&call_args, &params);
+        assert!(defs.is_empty());
     }
 }
