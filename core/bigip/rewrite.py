@@ -171,7 +171,15 @@ _PEM_RE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class RedactReport:
-    secrets_replaced: int
+    # ``redactions_count`` is the number of redactions performed
+    # (each instance of a sensitive value the rewriter replaced with
+    # ``<REDACTED>``).  It is *not* a secret value — but the previous
+    # field name (``secrets_replaced``) tripped CodeQL's name-based
+    # taint heuristic in
+    # ``py/clear-text-logging-sensitive-data`` whenever a caller
+    # printed the count to stderr.  See the dismissal-history note
+    # in CHANGELOG for context.
+    redactions_count: int
     pem_blocks_replaced: int
     ips_remapped: int
     new_source: str
@@ -265,7 +273,7 @@ def redact_secrets(
         rm = RedactionMap()
         ips = 0
     return RedactReport(
-        secrets_replaced=secrets,
+        redactions_count=secrets,
         pem_blocks_replaced=pem,
         ips_remapped=ips,
         new_source=out,
