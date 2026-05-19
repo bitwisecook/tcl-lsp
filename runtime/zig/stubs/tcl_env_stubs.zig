@@ -74,9 +74,10 @@ pub export fn tcl_cmd_package_cmd(sub: i32, arg: i32) i32 {
         }
         if (match) {
             const buf = obj.alloc(1);
+            if (buf == 0) return obj.obj_new_string(0, 0);
             const d: [*]u8 = @ptrFromInt(buf);
             d[0] = '1';
-            return obj.obj_new_string(@bitCast(buf), 1);
+            return obj.obj_new_string_take(buf, 1, 1);
         }
     }
     return obj.obj_new_string(0, 0);
