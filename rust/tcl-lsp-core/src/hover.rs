@@ -1388,11 +1388,119 @@ fn proc_hover_text(proc_def: &ProcDef) -> String {
     );
     let mut parts = vec![format!("```tcl\n{sig}\n```")];
     if !proc_def.doc.is_empty() {
-        // `format_docstring` is a Python-side formatter we have
-        // not yet ported (lives in `core/formatting/docstring.py`);
-        // for the minimal port we render the raw doc. Rich
-        // docstring formatting lands with `S-hover-rich`.
-        parts.push(proc_def.doc.clone());
+        // `S-hover-rich`: render `@param` / `@return` /
+        // `@brief` tagged docstrings as structured Markdown
+        // sections rather than the raw harvested text.  Lines
+        // that don't carry a tag fall through into the
+        // description block, preserving free-form comments
+        // for procs that don't use Doxygen-style tags.
+        parts.push(format_docstring(&proc_def.doc));
+    }
+    parts.join("\n\n")
+}
+
+/// Parse a raw docstring and render it as Markdown for LSP
+/// hover.  Mirrors `format_docstring` in
+/// `core/formatting/docstring.py`.
+///
+/// Recognised tags:
+///
+/// * `@brief <text>` — short summary surfaced before the
+///   description block.
+/// * `@param <name> <text>` — parameter docs rendered as a
+///   bulleted **Parameters** list.
+/// * `@return <text>` / `@returns <text>` — return-value
+///   description surfaced as a **Returns** line.
+///
+/// Other lines accumulate into the description block.  Pure-
+/// decoration lines (a run of `.`, `-`, `=`, `*`, `~`, `#`)
+/// are dropped.
+fn format_docstring(text: &str) -> String {
+    let mut brief = String::new();
+    let mut description_lines: Vec<String> = Vec::new();
+    let mut params: Vec<(String, String)> = Vec::new();
+    let mut returns_parts: Vec<String> = Vec::new();
+
+    for line in text.lines() {
+        let stripped = line.trim();
+        let low = stripped.to_ascii_lowercase();
+        if let Some(rest) = low
+            .strip_prefix("@param ")
+            .or_else(|| low.strip_prefix("@param\t"))
+        {
+            // Use the original `stripped` slice for body extract
+            // so we preserve case on the parameter name and
+            // description.  Find the offset of `rest` within
+            // `low` (always 7 — `@param ` length).
+            let body = &stripped[7..].trim();
+            let mut iter = body.splitn(2, char::is_whitespace);
+            let Some(name) = iter.next() else {
+                continue;
+            };
+            let name = name.trim_end_matches(['-', ' ']);
+            let desc = iter
+                .next()
+                .map(|s| s.trim_start_matches(['-', ' ']).to_string())
+                .unwrap_or_default();
+            params.push((name.to_string(), desc));
+            let _ = rest;
+            continue;
+        }
+        if low.starts_with("@return ")
+            || low.starts_with("@return\t")
+            || low.starts_with("@returns ")
+            || low.starts_with("@returns\t")
+        {
+            let body = stripped
+                .split_once(char::is_whitespace)
+                .map_or("", |x| x.1)
+                .trim();
+            returns_parts.push(body.trim_start_matches(['-', ' ']).to_string());
+            continue;
+        }
+        if let Some(rest) = low
+            .strip_prefix("@brief ")
+            .or_else(|| low.strip_prefix("@brief\t"))
+        {
+            brief = stripped[7..].trim().to_string();
+            let _ = rest;
+            continue;
+        }
+        // Drop decoration-only lines.
+        if !stripped.is_empty()
+            && stripped
+                .chars()
+                .all(|c| matches!(c, '.' | '-' | '=' | '*' | '~' | '#'))
+        {
+            continue;
+        }
+        description_lines.push(stripped.to_string());
+    }
+
+    let description = description_lines.join("\n");
+    let description = description.trim().to_string();
+    let returns_text = returns_parts.join(" ");
+
+    let mut parts: Vec<String> = Vec::new();
+    if !brief.is_empty() {
+        parts.push(brief);
+    }
+    if !description.is_empty() {
+        parts.push(description);
+    }
+    if !params.is_empty() {
+        let mut lines = vec!["**Parameters:**".to_string()];
+        for (name, desc) in &params {
+            if desc.is_empty() {
+                lines.push(format!("- **{name}**"));
+            } else {
+                lines.push(format!("- **{name}** \u{2014} {desc}"));
+            }
+        }
+        parts.push(lines.join("\n"));
+    }
+    if !returns_text.is_empty() {
+        parts.push(format!("**Returns:** {returns_text}"));
     }
     parts.join("\n\n")
 }
@@ -2072,5 +2180,64 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let h = hover(src, 0, 10, &analysis, Some(&registry)).expect("hover");
         assert!(h.value.contains("subcommand"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: docstring formatting --------------------------
+
+    #[test]
+    fn format_docstring_renders_brief_param_return_tags() {
+        let raw = concat!(
+            "@brief Greet someone\n",
+            "Free-form description\n",
+            "spanning two lines.\n",
+            "@param name the person's name\n",
+            "@param greeting optional greeting prefix\n",
+            "@return the formatted greeting\n",
+        );
+        let rendered = format_docstring(raw);
+        assert!(rendered.contains("Greet someone"), "{rendered}");
+        assert!(rendered.contains("Free-form description"), "{rendered}");
+        assert!(rendered.contains("**Parameters:**"), "{rendered}");
+        assert!(
+            rendered.contains("- **name** \u{2014} the person's name"),
+            "{rendered}",
+        );
+        assert!(
+            rendered.contains("- **greeting** \u{2014} optional greeting prefix"),
+            "{rendered}",
+        );
+        assert!(
+            rendered.contains("**Returns:** the formatted greeting"),
+            "{rendered}",
+        );
+    }
+
+    #[test]
+    fn format_docstring_drops_decoration_lines() {
+        // Pure-decoration lines (`.....`, `-----`) shouldn't
+        // pollute the description block.
+        let raw = "..........\nA description.\n..........\n";
+        let rendered = format_docstring(raw);
+        assert_eq!(rendered, "A description.");
+    }
+
+    #[test]
+    fn format_docstring_passes_through_plain_text() {
+        let raw = "Just a free-form description.\nNo tags here.\n";
+        let rendered = format_docstring(raw);
+        assert!(rendered.contains("Just a free-form description"));
+        assert!(rendered.contains("No tags here"));
+    }
+
+    #[test]
+    fn format_docstring_handles_param_without_description() {
+        let raw = "@param naked\n";
+        let rendered = format_docstring(raw);
+        assert!(
+            rendered.contains("- **naked**"),
+            "expected bare param entry; got {rendered}",
+        );
+        // No trailing em-dash since there's no description.
+        assert!(!rendered.contains("**naked** \u{2014}"), "{rendered}");
     }
 }
