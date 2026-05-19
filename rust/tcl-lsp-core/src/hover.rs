@@ -129,6 +129,12 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
     if let Some(text) = regsub_subspec_at_position(source, line, character) {
         return Some(Hover::markdown(regsub_hover_text(&text)));
     }
+    if let Some(text) = glob_pattern_at_position(source, line, character) {
+        return Some(Hover::markdown(glob_hover_text(&text)));
+    }
+    if let Some(text) = regex_pattern_at_position(source, line, character) {
+        return Some(Hover::markdown(regex_hover_text(&text)));
+    }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
@@ -643,6 +649,328 @@ fn string_literal_at(line_text: &str, character: u32) -> Option<String> {
         i = end + 1;
     }
     None
+}
+
+/// Glob metacharacter descriptions.  Mirrors `_GLOB_META_DESC`
+/// in `lsp/features/hover.py:400-404`.
+fn glob_meta_desc(c: char) -> Option<&'static str> {
+    match c {
+        '*' => Some("Matches any sequence of characters"),
+        '?' => Some("Matches any single character"),
+        '[' => Some("Character class — matches any character inside brackets"),
+        _ => None,
+    }
+}
+
+/// Scan a glob pattern for metacharacters.  Returns a list of
+/// `(token, description)` tuples — `*`, `?`, character class
+/// `[abc]`, and escape sequences.  Mirrors `_GLOB_META_RE` +
+/// `_glob_hover`'s metacharacter walk.
+fn scan_glob_metachars(text: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            let next = chars[i + 1];
+            let key = "escape".to_string();
+            if !seen.contains(&key) {
+                out.push((format!("\\{next}"), format!("Escaped character `{next}`")));
+                seen.insert(key);
+            }
+            i += 2;
+            continue;
+        }
+        if chars[i] == '[' {
+            let start = i;
+            let mut end = i + 1;
+            while end < chars.len() && chars[end] != ']' {
+                end += 1;
+            }
+            let token: String = if end < chars.len() {
+                chars[start..=end].iter().collect()
+            } else {
+                chars[start..end].iter().collect()
+            };
+            if !seen.contains(&token) {
+                let inner: String = chars[start + 1..end].iter().collect();
+                out.push((
+                    token.clone(),
+                    format!("Character class: matches any of `{inner}`"),
+                ));
+                seen.insert(token);
+            }
+            i = end + 1;
+            continue;
+        }
+        if let Some(desc) = glob_meta_desc(chars[i]) {
+            let key = chars[i].to_string();
+            if !seen.contains(&key) {
+                out.push((key.clone(), desc.to_string()));
+                seen.insert(key);
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Render the glob-pattern hover markdown.  Mirrors
+/// `_glob_hover`.
+fn glob_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Glob pattern**\n".to_string()];
+    let metas = scan_glob_metachars(text);
+    if metas.is_empty() {
+        parts.push("Literal string (no metacharacters).".to_string());
+    } else {
+        parts.push("| Pattern | Meaning |".to_string());
+        parts.push("|---------|---------|".to_string());
+        for (tok, desc) in metas {
+            parts.push(format!("| `{tok}` | {desc} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on a glob pattern.  Recognises
+/// `string match <pat> ...`, `glob <pat>...`, and `lsearch
+/// -glob <pat> ...` — three common entry points for glob
+/// matching in Tcl.  Single-line only.
+fn glob_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let is_glob_command = matches!(tokens[0], "glob")
+        || (tokens.len() >= 2 && tokens[0] == "string" && tokens[1] == "match")
+        || (tokens.len() >= 2 && tokens[0] == "lsearch" && tokens.contains(&"-glob"));
+    if !is_glob_command {
+        return None;
+    }
+    let literal = string_literal_at(line_text, character)?;
+    // Require at least one glob metacharacter or `\` escape so
+    // we don't fire on literal strings.
+    if !literal.chars().any(|c| matches!(c, '*' | '?' | '[' | '\\')) {
+        return None;
+    }
+    Some(literal)
+}
+
+/// Regex metacharacter descriptions.  Mirrors `_REGEX_META_DESC`
+/// in `lsp/features/hover.py:406-417`.
+fn regex_meta_desc(token: &str) -> Option<&'static str> {
+    match token {
+        "^" => Some("Start of line/string anchor"),
+        "$" => Some("End of line/string anchor"),
+        "." => Some("Match any single character"),
+        "*" => Some("Zero or more (greedy)"),
+        "+" => Some("One or more (greedy)"),
+        "?" => Some("Zero or one (greedy)"),
+        "*?" => Some("Zero or more (lazy)"),
+        "+?" => Some("One or more (lazy)"),
+        "??" => Some("Zero or one (lazy)"),
+        "|" => Some("Alternation (OR)"),
+        _ => None,
+    }
+}
+
+/// Regex escape descriptions for common shorthand classes.
+fn regex_escape_desc(token: &str) -> Option<&'static str> {
+    match token {
+        "\\d" => Some("Digit `[0-9]`"),
+        "\\D" => Some("Non-digit"),
+        "\\s" => Some("Whitespace"),
+        "\\S" => Some("Non-whitespace"),
+        "\\w" => Some("Word character `[a-zA-Z0-9_]`"),
+        "\\W" => Some("Non-word character"),
+        "\\b" => Some("Word boundary"),
+        "\\B" => Some("Non-word boundary"),
+        "\\A" => Some("Start of string"),
+        "\\Z" => Some("End of string"),
+        "\\n" => Some("Newline"),
+        "\\t" => Some("Tab"),
+        "\\r" => Some("Carriage return"),
+        _ => None,
+    }
+}
+
+/// Scan a regex pattern for metacharacters / classes /
+/// escapes.  Simplified version of Python's `_REGEX_PART_RE`
+/// and `_describe_regex_component`; handles common cases:
+/// anchors, quantifiers, alternation, character classes,
+/// shorthand escapes, capture-group parens, lazy
+/// quantifiers.
+#[allow(clippy::too_many_lines)]
+fn scan_regex_components(text: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut push = |key: String, tok: String, desc: String| {
+        if !seen.contains(&key) {
+            seen.insert(key);
+            out.push((tok, desc));
+        }
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        // Escape sequences: `\<char>` and special shorthand
+        // classes.
+        if c == '\\' && i + 1 < chars.len() {
+            let next = chars[i + 1];
+            let tok = format!("\\{next}");
+            if next.is_ascii_digit() {
+                push(
+                    tok.clone(),
+                    tok.clone(),
+                    format!("Backreference to group {next}"),
+                );
+            } else if let Some(desc) = regex_escape_desc(&tok) {
+                push(tok.clone(), tok.clone(), desc.to_string());
+            } else if ".*+?(){}[]|^$\\".contains(next) {
+                push(
+                    tok.clone(),
+                    tok.clone(),
+                    format!("Escaped literal `{next}`"),
+                );
+            } else {
+                push(tok.clone(), tok.clone(), format!("Escape sequence `{tok}`"));
+            }
+            i += 2;
+            continue;
+        }
+        // Character class.
+        if c == '[' {
+            let start = i;
+            let mut end = i + 1;
+            // Allow leading `^` and `]` as first char per
+            // regex grammar.
+            if end < chars.len() && chars[end] == '^' {
+                end += 1;
+            }
+            if end < chars.len() && chars[end] == ']' {
+                end += 1;
+            }
+            while end < chars.len() && chars[end] != ']' {
+                if chars[end] == '\\' && end + 1 < chars.len() {
+                    end += 2;
+                } else {
+                    end += 1;
+                }
+            }
+            let tok: String = if end < chars.len() {
+                chars[start..=end].iter().collect()
+            } else {
+                chars[start..end].iter().collect()
+            };
+            let inner: String = if tok.starts_with('[') && tok.ends_with(']') {
+                tok[1..tok.len() - 1].to_string()
+            } else {
+                tok[1..].to_string()
+            };
+            push(
+                tok.clone(),
+                tok.clone(),
+                format!("Character class: matches any of `{inner}`"),
+            );
+            i = end + 1;
+            continue;
+        }
+        // Lazy quantifiers (`*?` / `+?` / `??`) — peek for the
+        // trailing `?`.
+        if matches!(c, '*' | '+' | '?') && i + 1 < chars.len() && chars[i + 1] == '?' {
+            let tok = format!("{c}?");
+            if let Some(desc) = regex_meta_desc(&tok) {
+                push(tok.clone(), tok.clone(), desc.to_string());
+            }
+            i += 2;
+            continue;
+        }
+        if let Some(desc) = regex_meta_desc(&c.to_string()) {
+            push(c.to_string(), c.to_string(), desc.to_string());
+            i += 1;
+            continue;
+        }
+        // Grouping.
+        if c == '(' {
+            // Look ahead for `(?:` / `(?=` / `(?!` / `(?>`.
+            if i + 2 < chars.len() && chars[i + 1] == '?' {
+                let trail = chars[i + 2];
+                let (tok, desc) = match trail {
+                    ':' => ("(?:", "Non-capturing group"),
+                    '=' => ("(?=", "Positive lookahead"),
+                    '!' => ("(?!", "Negative lookahead"),
+                    '>' => ("(?>", "Atomic (possessive) group"),
+                    _ => {
+                        i += 1;
+                        push("(".into(), "(".into(), "Capture group open".into());
+                        continue;
+                    }
+                };
+                push(tok.to_string(), tok.to_string(), desc.to_string());
+                i += 3;
+                continue;
+            }
+            push("(".into(), "(".into(), "Capture group open".into());
+            i += 1;
+            continue;
+        }
+        if c == ')' {
+            push(")".into(), ")".into(), "Group close".into());
+            i += 1;
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Render a regex-pattern hover markdown.  Mirrors
+/// `_regex_hover`.
+fn regex_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Regex pattern**\n".to_string()];
+    let comps = scan_regex_components(text);
+    if comps.is_empty() {
+        parts.push("Literal string (no metacharacters).".to_string());
+    } else {
+        parts.push("| Component | Meaning |".to_string());
+        parts.push("|-----------|---------|".to_string());
+        for (tok, desc) in comps {
+            parts.push(format!("| `{tok}` | {desc} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on a regex pattern.
+/// Recognises `regexp <pat> ...`, `regsub <pat> ...` (the
+/// pattern arg, not the subspec), and `lsearch -regexp <pat>
+/// ...`.  Single-line only.
+fn regex_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let is_regex_command = matches!(tokens[0], "regexp" | "regsub")
+        || (tokens.len() >= 2 && tokens[0] == "lsearch" && tokens.contains(&"-regexp"));
+    if !is_regex_command {
+        return None;
+    }
+    let literal = string_literal_at(line_text, character)?;
+    // Require at least one regex metacharacter so we don't
+    // fire on literal strings.
+    if !literal.chars().any(|c| {
+        matches!(
+            c,
+            '^' | '$' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '\\'
+        )
+    }) {
+        return None;
+    }
+    Some(literal)
 }
 
 /// Detect when the cursor sits on a `clock format` /
@@ -1291,5 +1619,103 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         let h = hover(src, 0, 18, &analysis).expect("hover");
         assert!(h.value.contains("Substitution spec"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: glob pattern hover ---------------------------
+
+    #[test]
+    fn scan_glob_metachars_finds_star_and_question() {
+        let m = scan_glob_metachars("*.tcl");
+        let toks: Vec<&str> = m.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"*"), "{m:?}");
+    }
+
+    #[test]
+    fn scan_glob_metachars_finds_character_class() {
+        let m = scan_glob_metachars("[abc]*.tcl");
+        let toks: Vec<&str> = m.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"[abc]"), "{m:?}");
+        assert!(toks.contains(&"*"), "{m:?}");
+    }
+
+    #[test]
+    fn glob_hover_renders_table() {
+        let text = glob_hover_text("*.tcl");
+        assert!(text.contains("**Glob pattern**"), "{text}");
+        assert!(text.contains("| `*` |"), "{text}");
+    }
+
+    #[test]
+    fn glob_hover_for_literal_string() {
+        let text = glob_hover_text("plain");
+        assert!(text.contains("Literal string"), "{text}");
+    }
+
+    #[test]
+    fn hover_fires_for_glob_pattern() {
+        // Braced glob pattern — single-line literal detection
+        // requires `"..."` or `{...}` delimiters.  Bare globs
+        // (`glob *.tcl`) fall through to the proc / word
+        // lookup; their support lives in the same multi-line
+        // / arg-position machinery that other `*-rich`
+        // sub-strips defer.
+        let src = "glob {*.tcl}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // Cursor inside the braced pattern.
+        let h = hover(src, 0, 8, &analysis).expect("hover");
+        assert!(h.value.contains("Glob pattern"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: regex pattern hover --------------------------
+
+    #[test]
+    fn scan_regex_components_finds_anchors_and_quantifiers() {
+        let r = scan_regex_components("^foo.*$");
+        let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"^"), "{r:?}");
+        assert!(toks.contains(&"."), "{r:?}");
+        assert!(toks.contains(&"*"), "{r:?}");
+        assert!(toks.contains(&"$"), "{r:?}");
+    }
+
+    #[test]
+    fn scan_regex_components_finds_character_class() {
+        let r = scan_regex_components("[a-z]+");
+        let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"[a-z]"), "{r:?}");
+        assert!(toks.contains(&"+"), "{r:?}");
+    }
+
+    #[test]
+    fn scan_regex_components_finds_escapes() {
+        let r = scan_regex_components("\\d+");
+        let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"\\d"), "{r:?}");
+    }
+
+    #[test]
+    fn scan_regex_components_finds_groups_and_lookahead() {
+        let r = scan_regex_components("(?:foo)(?=bar)");
+        let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(toks.contains(&"(?:"), "{r:?}");
+        assert!(toks.contains(&"(?="), "{r:?}");
+    }
+
+    #[test]
+    fn regex_hover_renders_table() {
+        let text = regex_hover_text("^foo$");
+        assert!(text.contains("**Regex pattern**"), "{text}");
+        assert!(text.contains("| `^` |"), "{text}");
+    }
+
+    #[test]
+    fn hover_fires_for_regex_pattern() {
+        let src = "regexp {^foo.*$} $line\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // Cursor inside the pattern literal.
+        let h = hover(src, 0, 10, &analysis).expect("hover");
+        assert!(h.value.contains("Regex pattern"), "{}", h.value);
     }
 }
