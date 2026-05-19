@@ -98,11 +98,13 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     if (buf == 0) return obj_new_string(0, 0);
     if (a.len > 0) memcpy(buf, a.ptr, a.len);
     if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(total));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
-    }
-    return new_obj;
+    // ``obj_new_string_take`` claims ``buf`` as the obj's owned
+    // backing storage in one shot — the older two-step pattern
+    // (``obj_new_string`` + manual ``OBJ_STR_CAP`` write) is
+    // bug-prone because an OOM on the obj header would leak ``buf``
+    // outright.  ``_take`` frees ``buf`` internally when the obj
+    // header alloc fails, so the path is leak-safe end-to-end.
+    return obj.obj_new_string_take(buf, total, new_cap);
 }
 
 // Exported: string compare — lexicographic comparison of string representations.

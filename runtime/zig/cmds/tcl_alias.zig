@@ -172,6 +172,7 @@ pub fn alias_alloc_with_token(
     child_interp: u32,
 ) u32 {
     const cmd = alloc(tcl_procs.COMMAND_SIZE);
+    if (cmd == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..tcl_procs.COMMAND_SIZE], 0);
 
@@ -187,12 +188,14 @@ pub fn alias_alloc_with_token(
 
     // Heap-copy the target name bytes.
     const tbuf = alloc(target_name_len);
+    if (tbuf == 0 and target_name_len > 0) return 0;
     if (target_name_len > 0) memcpy(tbuf, target_name_ptr, target_name_len);
 
     // Heap-copy the token (original alias name as the user passed
     // it — may include ``::`` qualifiers like ``ns::cmd``).
     // Mirrors C Tcl's ``Alias.token`` field (tclInterp.c).
     const token_buf = alloc(token_src_len);
+    if (token_buf == 0 and token_src_len > 0) return 0;
     if (token_src_len > 0) memcpy(token_buf, token_src_ptr, token_src_len);
 
     // Heap-copy the prefix-args array.  Each element is a u32
@@ -203,6 +206,7 @@ pub fn alias_alloc_with_token(
     var pbuf: u32 = 0;
     if (n_prefix > 0 and prefix_args_addr != 0) {
         pbuf = alloc(n_prefix * 4);
+        if (pbuf == 0) return 0;
         var i: u32 = 0;
         while (i < n_prefix) : (i += 1) {
             const handle = read_i32(prefix_args_addr + i * 4);
@@ -215,6 +219,7 @@ pub fn alias_alloc_with_token(
     }
 
     const rec = alloc(@sizeOf(AliasRec));
+    if (rec == 0) return 0;
     const r: *AliasRec = @ptrFromInt(rec);
     r.target_name_ptr = tbuf;
     r.target_name_len = target_name_len;

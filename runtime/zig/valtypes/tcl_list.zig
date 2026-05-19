@@ -180,6 +180,12 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
         } else {
             const tmp_size: u32 = elem.len + 1;
             const tmp = alloc(tmp_size);
+            // OOM: alloc raised ``oom_flag``.  Bail with an empty
+            // list; the partial ``buf`` written so far is discarded
+            // (it will be reclaimed by the bump allocator's GC
+            // sweep — no leak).  ``copy_unbraced_elem`` would
+            // otherwise ``@ptrFromInt(0)``.
+            if (tmp == 0) return obj_new_string(0, 0);
             const actual_len = copy_unbraced_elem(tmp, sc_ptr + elem.start, elem.len);
             off = quoter(buf, off, tmp, actual_len);
             // Issue #317: ``tmp`` is a per-element scratch buffer
@@ -202,11 +208,10 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     } else {
         off = list_elem_quote(buf, off, sv_ptr, sv_len);
     }
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    }
-    return new_obj;
+    // Switch to ``obj_new_string_take`` so the cap is set atomically
+    // with the new TclObj — the older ``obj_new_string`` + manual
+    // ``OBJ_STR_CAP`` write pattern leaks ``buf`` if obj_alloc OOMs.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 // Exported: list — append one value to a list accumulator.  The
@@ -558,6 +563,11 @@ pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     // bytes and ``release_now`` reclaims them — the older
     // borrowing form leaked one buf per ``lindex`` call.
     const buf = alloc(elem.len);
+    // OOM: alloc raised ``oom_flag``.  Surface an empty TclObj
+    // so ``lindex`` returns the empty string under memory
+    // pressure rather than ``@ptrFromInt(0)`` inside
+    // ``copy_unbraced_elem``.
+    if (buf == 0 and elem.len != 0) return obj_new_string(0, 0);
     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
     return obj.obj_new_string_take(buf, out_len, elem.len);
 }

@@ -484,6 +484,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     return result_mod.from_globals(0);
                 }
                 const targets_buf = alloc(@intCast(count * 4));
+                // OOM: alloc raised ``oom_flag``.  Drop the partial
+                // assignment without touching ``ns_current``'s path
+                // — the existing path remains in effect.  Returning
+                // 0 mirrors every other error/no-op branch in this
+                // ``namespace path`` block.
+                if (targets_buf == 0) return result_mod.from_globals(0);
                 var li: i64 = 0;
                 while (li < count) : (li += 1) {
                     const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
@@ -1583,6 +1589,11 @@ const ENS_REC_SIZE: u32 = @sizeOf(EnsembleRec);
 
 fn ensemble_rec_alloc() u32 {
     const addr = alloc(ENS_REC_SIZE);
+    // OOM: surface 0 to the caller without writing through a null
+    // pointer.  ``alloc`` already raised ``oom_flag``; callers test
+    // ``rec_addr == 0`` (added at each call site) and raise a Tcl
+    // error before returning.
+    if (addr == 0) return 0;
     const r: *EnsembleRec = @ptrFromInt(addr);
     r.target_ns = 0;
     r.map_obj = 0;
@@ -1724,6 +1735,12 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
         return 0;
     }
     const rec_addr = ensemble_rec_alloc();
+    // OOM: ``ensemble_rec_alloc`` returned 0 and raised ``oom_flag``;
+    // surface a Tcl error rather than ``@ptrFromInt(0)``.
+    if (rec_addr == 0) {
+        raise_ns_error("namespace ensemble create: out of memory");
+        return 0;
+    }
     const rec: *EnsembleRec = @ptrFromInt(rec_addr);
     rec.target_ns = tcl_ns.ns_current();
     var cmd_name: i32 = 0; // optional ``-command`` override

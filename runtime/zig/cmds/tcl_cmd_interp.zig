@@ -1123,6 +1123,13 @@ pub fn render_uint(value: u32) struct { ptr: u32, len: u32 } {
     }
     const len: u32 = @intCast(tmp.len - pos);
     const buf = alloc(len);
+    // OOM: alloc raised ``oom_flag``.  Return ``ptr=0, len=0`` so the
+    // caller's downstream ``alloc(prefix.len + d.len)`` produces a
+    // short buffer carrying just the prefix — the auto-name probe
+    // will then collide (or not) on the prefix alone, which is
+    // benign: the caller eventually surfaces the OOM via the
+    // interpreter boundary check.  Avoids ``@ptrFromInt(0)``.
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     const d: [*]u8 = @ptrFromInt(buf);
     for (0..len) |i| d[i] = tmp[pos + i];
     return .{ .ptr = buf, .len = len };
@@ -1212,6 +1219,10 @@ pub fn eval_interp_create(words: []const i32) i32 {
             const prefix: []const u8 = "interp";
             const total: u32 = @as(u32, @intCast(prefix.len)) + d.len;
             const buf = alloc(total);
+            // OOM: alloc raised ``oom_flag``.  Bail out of the
+            // auto-name probe without writing through ``@ptrFromInt(0)``;
+            // the caller surfaces the OOM at the next interp boundary.
+            if (buf == 0) return 0;
             const dst: [*]u8 = @ptrFromInt(buf);
             for (prefix, 0..) |b, k| dst[k] = b;
             const dp: [*]const u8 = @ptrFromInt(d.ptr);

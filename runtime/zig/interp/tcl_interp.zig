@@ -3221,6 +3221,7 @@ fn emit_child_arity_error(
         @as(u32, @intCast(suffix.len)) +
         @as(u32, @intCast(tail.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (child_name_len > 0) {
@@ -3246,6 +3247,7 @@ fn emit_child_bad_option(name_ptr: u32, name_len: u32) void {
         @as(u32, @intCast(infix.len)) +
         @as(u32, @intCast(CHILD_SUBCOMMAND_LIST.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (name_len > 0) {
@@ -4197,6 +4199,10 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                     }
                     const args_alloc_size: u32 = total + 4;
                     const buf = alloc(args_alloc_size);
+                    if (buf == 0) {
+                        frames.frame_pop();
+                        return 0;
+                    }
                     var off: u32 = 0;
                     ai = arg_idx;
                     while (ai < words.len) : (ai += 1) {
@@ -4914,9 +4920,11 @@ pub fn eval_apply(words: []const i32) i32 {
     else blk: {
         const alloc_size: u32 = params_elem.len + 4;
         const buf = alloc(alloc_size);
+        if (buf == 0) break :blk 0;
         const out_len = copy_unbraced_elem(buf, lambda_s.ptr + params_elem.start, params_elem.len);
         break :blk obj_new_string_take(buf, out_len, alloc_size);
     };
+    if (params_obj == 0) return 0;
     // Issue #317: ``params_obj`` / ``body_obj`` are local copies of
     // the lambda's two list elements; they're never stored in a
     // frame slot or registered command, so without these defers
@@ -4928,9 +4936,11 @@ pub fn eval_apply(words: []const i32) i32 {
     else blk: {
         const alloc_size: u32 = body_elem.len + 4;
         const buf = alloc(alloc_size);
+        if (buf == 0) break :blk 0;
         const out_len = copy_unbraced_elem(buf, lambda_s.ptr + body_elem.start, body_elem.len);
         break :blk obj_new_string_take(buf, out_len, alloc_size);
     };
+    if (body_obj == 0) return 0;
     defer obj_mod.tcl_obj_release(body_obj);
 
     // Optional namespace from third lambda element
@@ -4997,6 +5007,10 @@ pub fn eval_apply(words: []const i32) i32 {
                     }
                     const args_alloc_size: u32 = total + 4;
                     const buf = alloc(args_alloc_size);
+                    if (buf == 0) {
+                        frames.frame_pop();
+                        return 0;
+                    }
                     var off: u32 = 0;
                     ai = arg_idx;
                     while (ai < words.len) : (ai += 1) {
@@ -5634,6 +5648,10 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                     expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
                 } else {
                     const buf = alloc(elem.len);
+                    if (buf == 0) {
+                        obj_mod.tcl_obj_release(word_obj);
+                        return 0;
+                    }
                     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
                     expanded[ecount] = obj_new_string_take(buf, out_len, elem.len);
                 }

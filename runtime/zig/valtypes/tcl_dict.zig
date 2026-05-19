@@ -640,18 +640,12 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
             off += elem.len;
         }
     }
-    // Claim ownership of ``buf`` via OBJ_STR_CAP so eventual
-    // ``tcl_obj_release`` reclaims the bytes through ``free_sized``.
-    // Without this the rebuilt-dict buffer would leak on every
-    // ``dict unset`` (or any caller that releases the returned
-    // dict TclObj).
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``obj_new_string_take`` writes the cap atomically with the
+    // header and free_sizes ``buf`` on its own OOM path — the
+    // earlier two-step ``obj_new_string`` + manual cap-write form
+    // was racy under header OOM (we had to add an explicit free
+    // on the OOM branch to compensate).
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
@@ -696,13 +690,10 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             }
         }
     }
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``_take`` atomically transfers ownership of ``buf`` to the
+    // returned obj and frees it on header-OOM — no need for the
+    // explicit ``free_sized`` + manual cap-write dance.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
@@ -730,11 +721,8 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, vp, vl);
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    }
-    return new_obj;
+    // Atomic take — see the rationale in ``dict_rebuild_with_value``.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 // Exported: dict merge — merge *source* into *target*; for duplicate

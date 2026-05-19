@@ -507,6 +507,7 @@ pub export fn frame_push() i32 {
         // when an insert exhausts the probe chain.
         frame_capacity[idx] = FRAME_INITIAL_BUCKETS;
         frame_stack[idx] = alloc(FRAME_INITIAL_BUCKETS * FRAME_BUCKET_SIZE);
+        if (frame_stack[idx] == 0) return -1; // OOM — surface as stack-overflow-style failure
         first_use = true;
     }
     const base = frame_stack[idx];
@@ -1846,6 +1847,7 @@ pub export fn frame_alias_global(name: i32) void {
             // Qualified target: route through KIND_GLOBAL_NAMED so the
             // alias reads / writes the named global var directly.
             const desc = alloc(12);
+            if (desc == 0) return;
             write_i32(desc, KIND_GLOBAL_NAMED);
             write_i32(desc + 4, 0);
             write_i32(desc + 8, name);
@@ -1910,6 +1912,7 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
                 obj.free_sized(old_desc, 24);
             }
             const desc = alloc(12);
+            if (desc == 0) return;
             write_i32(desc, KIND_GLOBAL_NAMED);
             write_i32(desc + 4, 0);
             write_i32(desc + 8, qualified_target);
@@ -1917,6 +1920,7 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
             return;
         }
         const desc = alloc(12);
+        if (desc == 0) return;
         write_i32(desc, KIND_GLOBAL_NAMED);
         write_i32(desc + 4, 0);
         write_i32(desc + 8, qualified_target);
@@ -1995,6 +1999,7 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
                 obj.free_sized(old_desc, 24);
             }
             const desc = alloc(12);
+            if (desc == 0) return;
             write_i32(desc, KIND_FRAME_VAR);
             write_i32(desc + 4, abs_depth);
             write_i32(desc + 8, target_name);
@@ -2002,6 +2007,7 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
             return;
         }
         const desc = alloc(12);
+        if (desc == 0) return;
         write_i32(desc, KIND_FRAME_VAR);
         write_i32(desc + 4, abs_depth);
         write_i32(desc + 8, target_name);
@@ -2073,6 +2079,7 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
             obj.free_sized(old_desc, 12);
         }
         const desc = alloc(24);
+        if (desc == 0) return;
         write_i32(desc, KIND_NS_VAR_PTR);
         write_i32(desc + 4, 0);
         write_i32(desc + 8, @bitCast(var_ptr));
@@ -2083,6 +2090,7 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
         return;
     }
     const desc = alloc(24);
+    if (desc == 0) return;
     write_i32(desc, KIND_NS_VAR_PTR);
     write_i32(desc + 4, 0);
     write_i32(desc + 8, @bitCast(var_ptr));
@@ -2149,6 +2157,10 @@ pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
         const total: u32 = @as(u32, @intCast(prefix.len)) + sn.len +
             @as(u32, @intCast(suffix.len));
         const buf = obj.alloc(total);
+        if (buf == 0) {
+            tcl_catch.tcl_cmd_error(0);
+            return cur_depth - 1;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         var off: u32 = 0;
         for (prefix) |b| {
@@ -2599,40 +2611,44 @@ pub export fn var_resolve(name: i32) i32 {
             // look it up.  Skip when ns is the root (length 2 = "::").
             const total: u32 = ns_full.len + 2 + sn.len;
             const buf = obj.alloc(total);
-            const dst: [*]u8 = @ptrFromInt(buf);
-            const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
-            for (0..ns_full.len) |i| dst[i] = ns_p[i];
-            dst[ns_full.len] = ':';
-            dst[ns_full.len + 1] = ':';
-            const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
-            for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
-            const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
-            // global_exists returns a TclObj wrapping 0 or 1 — its
-            // *handle* is always non-zero (a fresh integer obj), so a
-            // raw ``!= 0`` test always passed and we always returned
-            // ``global_get(qname)`` even for non-existent names.  Check
-            // the wrapped int.
-            const exists = obj.obj_get_int(globals.global_exists(qname)) != 0;
-            if (exists) {
-                const v = globals.global_get(qname);
-                // Reclaim the qname temp + its backing buffer.  Without
-                // this every ``$var`` read inside a namespace
-                // accumulated a small leak that pushed io.test past the
-                // 2 GiB linear-memory ceiling and tripped a u32→i32
-                // ``@intCast`` panic in ``obj_new_string``.
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                for (0..ns_full.len) |i| dst[i] = ns_p[i];
+                dst[ns_full.len] = ':';
+                dst[ns_full.len + 1] = ':';
+                const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+                const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+                // global_exists returns a TclObj wrapping 0 or 1 — its
+                // *handle* is always non-zero (a fresh integer obj), so a
+                // raw ``!= 0`` test always passed and we always returned
+                // ``global_get(qname)`` even for non-existent names.  Check
+                // the wrapped int.
+                const exists = obj.obj_get_int(globals.global_exists(qname)) != 0;
+                if (exists) {
+                    const v = globals.global_get(qname);
+                    // Reclaim the qname temp + its backing buffer.  Without
+                    // this every ``$var`` read inside a namespace
+                    // accumulated a small leak that pushed io.test past the
+                    // 2 GiB linear-memory ceiling and tripped a u32→i32
+                    // ``@intCast`` panic in ``obj_new_string``.
+                    obj.tcl_obj_release(qname);
+                    obj.free_sized(buf, total);
+                    return v;
+                }
                 obj.tcl_obj_release(qname);
                 obj.free_sized(buf, total);
-                return v;
+                // No FQN match — fall through to the root global below.
+                // (The strict ``namespace-17.7`` discipline of refusing
+                // to fall back was correct in spirit but broke the
+                // common eval-fallback path where a proc-local read
+                // probes the frame, misses, falls through here, and
+                // expects to keep hunting up the chain.  We re-evaluate
+                // namespace-17.7 separately via a different mechanism.)
             }
-            obj.tcl_obj_release(qname);
-            obj.free_sized(buf, total);
-            // No FQN match — fall through to the root global below.
-            // (The strict ``namespace-17.7`` discipline of refusing
-            // to fall back was correct in spirit but broke the
-            // common eval-fallback path where a proc-local read
-            // probes the frame, misses, falls through here, and
-            // expects to keep hunting up the chain.  We re-evaluate
-            // namespace-17.7 separately via a different mechanism.)
+            // OOM — skip the namespace probe and fall through to the
+            // root global below.
         }
     }
     // Fall through to root global (current_ns is root or not set)

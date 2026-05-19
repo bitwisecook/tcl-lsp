@@ -115,6 +115,7 @@ fn raise_bad_index(idx_ptr: [*]const u8, idx_len: usize) void {
     const suffix: []const u8 = "\": must be integer?[+-]integer? or end?[+-]integer?";
     const total: u32 = @intCast(prefix.len + idx_len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -152,6 +153,7 @@ fn raise_bad_option(
     const middle: []const u8 = "\": must be ";
     const total: u32 = @intCast(prefix.len + opt_len + middle.len + must_be.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -196,6 +198,7 @@ fn raise_compile_error(errcode: c_int) void {
         detail_len - 1;
     const total: u32 = @intCast(prefix.len + written);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -812,6 +815,12 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     var inline_cap: u32 = 0;
     inline_cap = 256;
     inline_buf = alloc(inline_cap);
+    if (inline_buf == 0) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return obj_new_int(0);
+    }
 
     // nmatch shape mirrors do_regsub's working pattern.  Without
     // captures we only need slot 0 (whole match start/end) — request

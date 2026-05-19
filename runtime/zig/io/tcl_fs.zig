@@ -925,6 +925,16 @@ fn file_copy(src: i32, dst: i32) i32 {
     // memory for tcltest-scale files.
     const buf_size: u32 = 8 * 1024;
     const buf_addr = obj.alloc(buf_size);
+    // OOM: alloc raised ``oom_flag``.  Close the FDs and bail before
+    // ``@ptrFromInt(0)`` panics; the partial destination file is
+    // intentionally left in place — matching the I/O-error path
+    // below which also doesn't unlink dst.
+    if (buf_addr == 0) {
+        _ = close(in_fd);
+        _ = close(out_fd);
+        stubs.raise("file copy: out of memory allocating transfer buffer");
+        return 0;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var ok = true;
     while (true) {
@@ -1198,6 +1208,11 @@ fn pattern_has_meta(pattern: []const u8) bool {
 fn unescape_pattern(pattern: []const u8) []const u8 {
     if (pattern.len == 0) return pattern;
     const buf_addr = obj.alloc(@intCast(pattern.len));
+    // OOM: alloc raised ``oom_flag``.  Return an empty slice so the
+    // caller's subsequent ``cstr_from_bytes`` + ``access`` probe
+    // resolves to the empty path (which doesn't exist) and the glob
+    // reports no matches.  Avoids ``@ptrFromInt(0)`` on the next line.
+    if (buf_addr == 0) return pattern[0..0];
     const out: [*]u8 = @ptrFromInt(buf_addr);
     var src: usize = 0;
     var dst: usize = 0;
@@ -1225,11 +1240,23 @@ fn split_dir_basename(pattern: []const u8) struct { dir_len: u32, base_off: u32 
     return .{ .dir_len = i, .base_off = i };
 }
 
+/// Static fallback used when :func:`cstr_from_bytes` hits OOM.  The
+/// data-segment ``""`` literal has a fixed address Zig guarantees is
+/// non-null, so callers can ``@ptrFromInt`` safely; they will then
+/// see "no match" / "doesn't exist" against the empty path, which is
+/// the desired graceful-degrade behaviour under allocator failure.
+const EMPTY_CSTR: [*:0]const u8 = "";
+
 /// Build a NUL-terminated bump-allocator copy of *src*.  Mirrors
 /// :func:`path_cstr` but takes raw bytes so callers can pass a
 /// dir-prefix slice carved out of the pattern.
 fn cstr_from_bytes(src: []const u8) [*:0]const u8 {
     const buf_addr = obj.alloc(@intCast(src.len + 1));
+    // OOM: alloc raised ``oom_flag``; fall back to an empty cstring
+    // so callers don't ``@ptrFromInt(0)`` and panic.  The empty path
+    // will then fail ``access`` / ``opendir`` cleanly and the caller
+    // returns "no matches".
+    if (buf_addr == 0) return EMPTY_CSTR;
     const out: [*]u8 = @ptrFromInt(buf_addr);
     for (src, 0..) |c, i| out[i] = c;
     out[src.len] = 0;
@@ -1314,6 +1341,17 @@ pub fn tcl_cmd_glob(pattern: i32) i32 {
         // Glue the dir prefix back onto the matched basename.
         const out_len: u32 = split.dir_len + nlen;
         const out_buf = obj.alloc(out_len);
+        // OOM: bail out of the readdir loop early.  ``acc`` already
+        // contains any matches found before the allocator failed, so
+        // returning it gives the caller a (possibly truncated) view
+        // of the glob — better than synthesising a Tcl error from a
+        // generic command that's expected to be non-fatal under
+        // ``-nocomplain``.  ``oom_flag`` is set; the interp boundary
+        // will surface it.
+        if (out_buf == 0 and out_len != 0) {
+            _ = closedir(dir_handle.?);
+            return acc;
+        }
         const out: [*]u8 = @ptrFromInt(out_buf);
         if (split.dir_len > 0) {
             for (0..split.dir_len) |i| out[i] = dir_bytes[i];

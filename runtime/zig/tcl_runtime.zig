@@ -869,7 +869,13 @@ pub export fn tcl_test_interp_eval_script(
     script_len: i32,
 ) i32 {
     const save = tcl_interp_registry.enter(@bitCast(target_interp));
-    const res = interp.tcl_eval(tcl_obj.obj_new_string(script_ptr, script_len));
+    // Capture the script TclObj so we can release it after tcl_eval
+    // returns — the prior single-expression form leaked one TclObj
+    // header per test invocation (every cross-interp ``eval`` test
+    // in the harness).
+    const script_obj = tcl_obj.obj_new_string(script_ptr, script_len);
+    const res = interp.tcl_eval(script_obj);
+    tcl_obj.tcl_obj_release(script_obj);
     tcl_interp_registry.leave(save);
     return res;
 }

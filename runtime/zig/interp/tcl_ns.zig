@@ -138,6 +138,7 @@ pub fn ns_alloc_root() u32 {
 fn alloc_namespace() u32 {
     const size: u32 = @sizeOf(Namespace);
     const addr = alloc(size);
+    if (addr == 0) return 0;
     // ``alloc`` doesn't zero, so wipe the whole struct.  This is
     // important for the sub-table ``buf`` fields — a non-zero ``buf``
     // would make ``Table.init`` skip allocation and the
@@ -159,6 +160,7 @@ fn install_name(ns_addr: u32, name_ptr: u32, name_len: u32) void {
         return;
     }
     const buf = alloc(name_len);
+    if (buf == 0) return;
     memcpy(buf, name_ptr, name_len);
     ns.name_ptr = buf;
     ns.name_len = name_len;
@@ -270,6 +272,7 @@ pub fn ns_build_fqn(target_ns: u32, simple_ptr: u32, simple_len: u32) struct { p
     const parent_is_root = parent_full.len == 2;
     const total: u32 = if (parent_is_root) 2 + simple_len else parent_full.len + 2 + simple_len;
     const buf = alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     if (parent_is_root) {
@@ -302,6 +305,7 @@ pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
     if (ns.parent == 0) {
         // Root namespace: full name is the literal ``::``.
         const buf = alloc(2);
+        if (buf == 0) return .{ .ptr = 0, .len = 0 };
         const dst: [*]u8 = @ptrFromInt(buf);
         dst[0] = ':';
         dst[1] = ':';
@@ -323,6 +327,7 @@ pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
         break :blk parent_full.len + 2 + ns.name_len;
     };
     const buf = alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     if (parent_full.len == 2) {
@@ -822,6 +827,7 @@ pub fn ns_var_create(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
     const bucket = ns.var_table.insert_header(name_ptr, name_len, hash);
 
     const var_addr = alloc(VAR_SIZE);
+    if (var_addr == 0) return 0;
     const v: *Var = @ptrFromInt(var_addr);
     v.flags = VAR_IN_HASHTABLE | VAR_NAMESPACE_VAR;
     v.value = 0;
@@ -964,10 +970,12 @@ pub fn ns_export(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) void {
     // bump allocator can't free, but namespace export lists are
     // tiny so the leakage is bounded.
     const new_buf = alloc(new_count * 8);
+    if (new_buf == 0) return;
     if (old_count > 0) {
         memcpy(new_buf, ns.export_patterns, old_count * 8);
     }
     const pat_copy = alloc(pattern_len);
+    if (pat_copy == 0) return;
     memcpy(pat_copy, pattern_ptr, pattern_len);
     write_i32(new_buf + old_count * 8, @bitCast(pat_copy));
     write_i32(new_buf + old_count * 8 + 4, @bitCast(pattern_len));
@@ -1057,6 +1065,11 @@ pub fn ns_set_path(ns_addr: u32, targets_buf: u32, targets_count: u32) void {
         return;
     }
     const buf = alloc(nonzero_count * PATH_ENTRY_SIZE);
+    if (buf == 0) {
+        ns.path_array = 0;
+        ns.path_len = 0;
+        return;
+    }
     var slot: u32 = 0;
     var j: u32 = 0;
     while (j < targets_count) : (j += 1) {
@@ -1185,15 +1198,18 @@ pub const ImportRef = extern struct {
 fn alloc_import_redirect(name_ptr: u32, name_len: u32, source_cmd: u32) u32 {
     const c = tcl_procs_constants;
     const cmd = alloc(c.COMMAND_SIZE);
+    if (cmd == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..c.COMMAND_SIZE], 0);
     const nbuf = alloc(name_len);
+    if (nbuf == 0) return 0;
     if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
     write_i32(cmd, @bitCast(nbuf));
     write_i32(cmd + 4, @bitCast(name_len));
     write_i32(cmd + c.OFF_FLAGS, @bitCast(c.CMD_IMPORTED));
 
     const desc = alloc(@sizeOf(ImportedCmdData));
+    if (desc == 0) return 0;
     const d: *ImportedCmdData = @ptrFromInt(desc);
     d.real_cmd = source_cmd;
     d.self_cmd = cmd;
@@ -1297,6 +1313,7 @@ pub fn link_import_ref(source_cmd: u32, redirect: u32) void {
     const c = tcl_procs_constants;
     const prev_head: u32 = @bitCast(read_i32(source_cmd + c.OFF_IMPORT_REF_HEAD));
     const node = alloc(@sizeOf(ImportRef));
+    if (node == 0) return;
     const r: *ImportRef = @ptrFromInt(node);
     r.imported_cmd = redirect;
     r.next = prev_head;

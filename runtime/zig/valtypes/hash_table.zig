@@ -90,6 +90,15 @@ pub fn Table(comptime bucket_size: u32) type {
             if (self.buf != 0) return;
             self.cap = initial_cap;
             self.buf = alloc(self.cap * bucket_size);
+            // OOM: leave ``buf == 0`` so ``find``/``insert_header`` /
+            // ``each`` continue to treat the table as unallocated and
+            // a subsequent ``init`` retry can succeed.  Clear ``cap``
+            // too to keep the (buf == 0, cap == 0) invariant the rest
+            // of this file relies on.
+            if (self.buf == 0) {
+                self.cap = 0;
+                return;
+            }
             var i: u32 = 0;
             while (i < self.cap) : (i += 1) {
                 write_i32(self.buf + i * bucket_size, 0); // empty marker
@@ -261,6 +270,17 @@ pub fn Table(comptime bucket_size: u32) type {
             const old_cap = self.cap;
             self.cap = old_cap * 2;
             self.buf = alloc(self.cap * bucket_size);
+            // OOM: leave the table in a usable state by restoring the
+            // original buffer.  ``alloc`` already raised ``oom_flag``,
+            // so the caller will see the OOM on the next interpreter
+            // boundary check.  Callers that rely on ``needs_grow`` +
+            // ``grow`` will simply skip the rehash this round and try
+            // again after the OOM clears.
+            if (self.buf == 0) {
+                self.buf = old_buf;
+                self.cap = old_cap;
+                return;
+            }
             self.count = 0;
             var i: u32 = 0;
             while (i < self.cap) : (i += 1) {

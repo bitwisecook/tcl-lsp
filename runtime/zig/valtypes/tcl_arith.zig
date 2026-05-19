@@ -338,6 +338,11 @@ pub export fn tcl_math_double(a: i32) i32 {
             const total: u32 = @as(u32, @intCast(prefix.len)) + sa.len +
                 @as(u32, @intCast(suffix.len));
             const buf = obj.alloc(total);
+            // OOM: alloc raised ``oom_flag``.  Surface a 0.0 float
+            // without raising the descriptive diagnostic — the OOM
+            // itself is already on the interp's error path and the
+            // pending error wins.  Avoids ``@ptrFromInt(0)``.
+            if (buf == 0) return obj.obj_new_float(0.0);
             const d: [*]u8 = @ptrFromInt(buf);
             var off: u32 = 0;
             for (prefix) |b| {
@@ -1209,6 +1214,10 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    // OOM: alloc raised ``oom_flag``; skip the message build (the
+    // OOM is already on the interp's error path) rather than
+    // ``@ptrFromInt(0)`` on the next line.
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {
@@ -1264,6 +1273,11 @@ fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    // OOM: alloc raised ``oom_flag``; skip the message build (no
+    // diagnostic gets surfaced this call) so we don't
+    // ``@ptrFromInt(0)`` on the next line.  The pending OOM is
+    // already on the interp's error path.
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {

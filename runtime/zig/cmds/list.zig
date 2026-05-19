@@ -948,7 +948,9 @@ fn ls_match_exact(nocase: bool, pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) 
 fn ls_match_glob_nc(pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) bool {
     // Case-insensitive glob: lowercase copies then call glob_match.
     const bp = alloc(pat_len + 1);
+    if (bp == 0) return false;
     const be = alloc(elen + 1);
+    if (be == 0) return false;
     if (pat_len > 0 and bp != 0) {
         const src: [*]const u8 = @ptrFromInt(pat_ptr);
         const dst: [*]u8 = @ptrFromInt(bp);
@@ -1852,6 +1854,7 @@ fn eval_join(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
     const sp = alloc(1);
+    if (sp == 0) return result_mod.from_globals(0);
     const d: [*]u8 = @ptrFromInt(sp);
     d[0] = ' ';
     return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
@@ -1902,6 +1905,7 @@ fn eval_lrepeat(words: []const i32) result_mod.InterpResult {
         if (vi > 2) cycle_max += 1;
     }
     const cycle_buf = alloc(cycle_max + 4);
+    if (cycle_buf == 0) return result_mod.from_globals(0);
     var cycle_off: u32 = 0;
     vi = 2;
     while (vi < words.len) : (vi += 1) {
@@ -1920,6 +1924,7 @@ fn eval_lrepeat(words: []const i32) result_mod.InterpResult {
     if (cycle_off == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const total: u32 = count * (cycle_off + 1);
     const result_buf = alloc(total);
+    if (result_buf == 0) return result_mod.from_globals(0);
     var off: u32 = 0;
     var ci: u32 = 0;
     while (ci < count) : (ci += 1) {

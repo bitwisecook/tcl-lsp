@@ -211,6 +211,12 @@ fn dir_init() void {
     if (dir_cap != 0) return;
     dir_cap = DIR_INITIAL_CAP;
     dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    if (dir_buf == 0) {
+        // OOM — leave the directory uninitialised so callers retry
+        // (dir_cap == 0 is the not-yet-initialised sentinel).
+        dir_cap = 0;
+        return;
+    }
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
@@ -256,6 +262,7 @@ fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 
 fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
     dir_init();
+    if (dir_buf == 0) return; // dir_init OOM
     if (dir_count * 4 >= dir_cap * 3) dir_grow();
     const mask = dir_cap - 1;
     var idx = hash & mask;
@@ -268,6 +275,7 @@ fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
         // probed via the same chain.
         if (ep == 0 or ep == @as(u32, 0xFFFFFFFF)) {
             const nbuf = alloc(name_len);
+            if (nbuf == 0) return;
             memcpy(nbuf, name_ptr, name_len);
             write_i32(bucket, @bitCast(nbuf));
             write_i32(bucket + 4, @bitCast(name_len));
@@ -285,6 +293,13 @@ fn dir_grow() void {
     const old_cap = dir_cap;
     dir_cap *= 2;
     dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    if (dir_buf == 0) {
+        // OOM — keep the old directory live so existing entries stay
+        // reachable.  The next insert will retry the grow.
+        dir_buf = old_buf;
+        dir_cap = old_cap;
+        return;
+    }
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
@@ -330,6 +345,7 @@ const AR_TOMBSTONE: i32 = @bitCast(@as(u32, 0xFFFF_FFFF));
 fn ar_new() u32 {
     const cap: u32 = AR_INITIAL_CAP;
     const t = alloc(AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
+    if (t == 0) return 0;
     write_i32(t, @bitCast(cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;
@@ -445,6 +461,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
             // Empty terminator: insert here, or fill the earlier tombstone if any.
             const target = first_tomb orelse bucket;
             const kbuf = alloc(key_len);
+            if (kbuf == 0) return t;
             memcpy(kbuf, key_ptr, key_len);
             write_i32(target, @bitCast(kbuf));
             write_i32(target + 4, @bitCast(key_len));
@@ -484,6 +501,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
     // Table was full of tombstones — fall back to the tombstone slot.
     if (first_tomb) |target| {
         const kbuf = alloc(key_len);
+        if (kbuf == 0) return t;
         memcpy(kbuf, key_ptr, key_len);
         write_i32(target, @bitCast(kbuf));
         write_i32(target + 4, @bitCast(key_len));
@@ -499,6 +517,7 @@ fn ar_grow(old_table: u32) u32 {
     const old_cap = ar_cap(old_table);
     const new_cap = old_cap * 2;
     const t = alloc(AR_HEADER_SIZE + new_cap * AR_BUCKET_SIZE);
+    if (t == 0) return old_table;
     write_i32(t, @bitCast(new_cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;

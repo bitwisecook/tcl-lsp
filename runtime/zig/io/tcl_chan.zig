@@ -724,6 +724,7 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
 fn refill(c: *Channel) u32 {
     if (c.buf_addr == 0) {
         c.buf_addr = obj.alloc(READ_BUF_SIZE);
+        if (c.buf_addr == 0) return 0;
     }
     var carry: u32 = 0;
     if (c.buf_pos < c.buf_end) {
@@ -781,6 +782,7 @@ fn refill_decoded(c: *Channel) u32 {
         // recycler so the slab can be reused without realloc.
         c.dec_cap = 8;
         c.dec_addr = obj.alloc(c.dec_cap);
+        if (c.dec_addr == 0) return 0;
     }
     while (true) {
         if (c.buf_pos >= c.buf_end) {
@@ -856,9 +858,12 @@ const ByteBuf = struct {
 
 fn buf_init(initial: u32) ByteBuf {
     const cap = if (initial < 64) 64 else initial;
+    const addr = obj.alloc(cap);
+    // OOM: clamp cap to 0 so ``buf_push`` / ``buf_grow`` see a
+    // zero-capacity buffer and bail without writing to addr=0.
     return .{
-        .addr = obj.alloc(cap),
-        .cap = cap,
+        .addr = addr,
+        .cap = if (addr == 0) 0 else cap,
         .len = 0,
     };
 }
@@ -1239,6 +1244,7 @@ fn emit_byte(c: *Channel, byte: u8) bool {
     if (c.out_buf_addr == 0) {
         if (c.out_buf_size == 0) c.out_buf_size = WRITE_BUF_SIZE;
         c.out_buf_addr = obj.alloc(c.out_buf_size);
+        if (c.out_buf_addr == 0) return false;
         c.out_buf_pos = 0;
     }
     const dst: [*]u8 = @ptrFromInt(c.out_buf_addr);
@@ -1788,6 +1794,7 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     // exits below.
     const work_cap: u32 = if (a.len == 0) 1 else a.len;
     const work_buf = obj.alloc(work_cap);
+    if (work_buf == 0) return 0;
     defer obj.free_sized(work_buf, work_cap);
 
     var elem_off: [MAX_FCONFIGURE_WORDS]u32 = undefined;

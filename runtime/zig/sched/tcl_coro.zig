@@ -254,6 +254,17 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     // Heap-copy the name so the coroutine survives the caller's
     // word release.
     const nbuf = obj.alloc(name_len);
+    // OOM: alloc raised ``oom_flag``.  Surface ``null`` to the
+    // caller so the coroutine isn't half-registered.  Release the
+    // body retain taken above (otherwise the caller has no handle
+    // to balance it) and mark the freshly-allocated slot FREE so
+    // a future ``alloc_slot`` reclaims it instead of leaking the
+    // table entry.
+    if (nbuf == 0 and name_len != 0) {
+        tcl_obj_release(body_obj);
+        c.state = .FREE;
+        return null;
+    }
     if (name_len > 0) obj.memcpy(nbuf, name_ptr, name_len);
     c.name_ptr = nbuf;
     c.name_len = name_len;
@@ -290,6 +301,16 @@ pub fn record_registration(c: *Coro, ns_addr: u32, simple_ptr: u32, simple_len: 
     c.ns_addr = ns_addr;
     if (simple_len > 0) {
         const buf = obj.alloc(simple_len);
+        // OOM: alloc raised ``oom_flag``.  Leave ``cmd_simple_ptr``
+        // unset (zero) and ``cmd_simple_len`` zero so the cleanup
+        // path's ``simple_len != 0`` gate skips the ``ns_cmd_clear``
+        // — without that gate ``ns_cmd_clear`` would dereference a
+        // null pointer when the coro terminates.
+        if (buf == 0) {
+            c.cmd_simple_ptr = 0;
+            c.cmd_simple_len = 0;
+            return;
+        }
         obj.memcpy(buf, simple_ptr, simple_len);
         c.cmd_simple_ptr = buf;
     } else {
@@ -385,6 +406,13 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     const is_resume = c.state == .SUSPENDED;
     if (c.state == .PENDING) {
         c.async_buf = obj.alloc(tcl_async.DEFAULT_BUFFER_SIZE);
+        // OOM: alloc raised ``oom_flag``.  Without an async buffer
+        // the asyncify rewind / unwind machinery cannot run, so
+        // surface 0 (the body never executes a single bytecode);
+        // the OOM is on the interp's error path and the caller's
+        // catch / next-boundary check sees it.  Avoids
+        // ``init_buffer`` writing through a null pointer.
+        if (c.async_buf == 0) return 0;
         c.async_buf_size = tcl_async.DEFAULT_BUFFER_SIZE;
         tcl_async.init_buffer(c.async_buf, c.async_buf_size);
     }
