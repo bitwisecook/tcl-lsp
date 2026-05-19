@@ -283,6 +283,27 @@ pub fn alias_clear_rec(rec_addr: u32) void {
     if (real_parent != 0) {
         interp_reg.alias_chain_remove(real_parent, rec_addr, .target);
     }
+    // Release each prefix-args TclObj retained by ``alias_alloc``
+    // and free the heap-allocated arrays.  Mirrors :func:`alias_clear`
+    // — the previous implementation just zeroed the fields, leaking
+    // ``n_prefix + 1`` TclObj retains and two slab allocations every
+    // time an alias was deleted via the cross-interp cascade or via
+    // ``interp alias child foo {}`` after a rename.
+    const objm = @import("../valtypes/tcl_obj.zig");
+    if (r.n_prefix > 0 and r.prefix_args_addr != 0) {
+        var i: u32 = 0;
+        while (i < r.n_prefix) : (i += 1) {
+            const handle = read_i32(r.prefix_args_addr + i * 4);
+            if (handle != 0) objm.tcl_obj_release(handle);
+        }
+        objm.free_sized(r.prefix_args_addr, r.n_prefix * 4);
+    }
+    if (r.target_name_len > 0 and r.target_name_ptr != 0) {
+        objm.free_sized(r.target_name_ptr, r.target_name_len);
+    }
+    if (r.token_len > 0 and r.token_ptr != 0) {
+        objm.free_sized(r.token_ptr, r.token_len);
+    }
     r.target_name_len = 0;
     r.target_name_ptr = 0;
     r.n_prefix = 0;
@@ -290,6 +311,7 @@ pub fn alias_clear_rec(rec_addr: u32) void {
     r.parent_interp = 0;
     r.child_interp = 0;
     r.token_len = 0;
+    r.token_ptr = 0;
     r.next_in_child = 0;
     r.next_target_in_parent = 0;
 }

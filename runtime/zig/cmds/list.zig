@@ -2061,17 +2061,25 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
         const ir = result_mod.snapshot(item);
         switch (ir.code) {
             .OK => {
-                // ``tcl_list`` always returns a fresh +1 owned obj.
-                // Release the prior accumulator AND the per-iter
-                // item once the new accumulator absorbs their bytes
-                // — without this the loop leaks one obj per item
-                // appended plus the empty seed.
+                // ``tcl_list`` returns a fresh +1 owned obj (or the
+                // existing handle when the in-place fast path takes
+                // — accumulator grow).  Release the prior accumulator
+                // on swap.  ``item`` is intentionally NOT released:
+                // ``eval_script`` can return a BORROWED handle into a
+                // variable's live storage (a body that ends in
+                // ``[set x]`` or similar borrows-the-var-slot
+                // pattern).  Releasing item here would corrupt the
+                // var; leaking it when the body produced a +1 owned
+                // obj is the safer trade-off until ``eval_script``'s
+                // contract is normalised across the runtime.
                 const next_result = rt.tcl_list(result, item);
-                obj_mod.tcl_obj_release(result);
-                if (item != 0) obj_mod.tcl_obj_release(item);
+                if (next_result != result) obj_mod.tcl_obj_release(result);
                 result = next_result;
             },
             .BREAK => {
+                // ``break`` / ``continue`` return 0 (no value) so
+                // the historical release-when-non-zero on ``item``
+                // is a no-op.  Kept for documentation.
                 result_mod.consume(.BREAK);
                 if (item != 0) obj_mod.tcl_obj_release(item);
                 break;

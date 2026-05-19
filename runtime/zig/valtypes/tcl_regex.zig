@@ -1051,7 +1051,16 @@ fn append_inline_capture(
     rm_so: i32,
     rm_eo: i32,
 ) u32 {
+    // ``build_capture_value`` returns a fresh +1 owned obj; release
+    // after ``list_elem_quote_nth`` copies its bytes into the
+    // accumulator buffer.  An earlier revision (the F7 fix sweep
+    // missed this site) leaked one TclObj per capture group AND
+    // leaked the old buffer on every grow.  ``defer`` in Zig fires
+    // at function exit — safe to schedule before the byte read at
+    // line below because the quoter consumes ``vs.ptr`` synchronously
+    // and the obj's str_ptr stays valid until function exit.
     const value = build_capture_value(indices_mode, sub_s, sub_u, pos_cp, rm_so, rm_eo);
+    defer obj.tcl_obj_release(value);
     const vs = obj_ensure_string(value);
     // Worst case: ' ' + braces + content
     const need: u32 = off_in + vs.len + 4;
@@ -1059,11 +1068,16 @@ fn append_inline_capture(
         var new_cap: u32 = cap_ref.* * 2;
         while (new_cap < need) new_cap *= 2;
         const new_buf = alloc(new_cap);
+        if (new_buf == 0) return off_in;
         if (off_in > 0) {
             const src: [*]const u8 = @ptrFromInt(buf_ref.*);
             const dst: [*]u8 = @ptrFromInt(new_buf);
             for (0..off_in) |k| dst[k] = src[k];
         }
+        // Free the prior buffer on grow — the earlier revision
+        // overwrote ``buf_ref.*`` without ``free_sized``ing the
+        // previous slab.
+        if (buf_ref.* != 0) obj.free_sized(buf_ref.*, cap_ref.*);
         buf_ref.* = new_buf;
         cap_ref.* = new_cap;
     }

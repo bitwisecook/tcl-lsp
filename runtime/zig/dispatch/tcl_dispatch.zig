@@ -179,8 +179,18 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     const argc: u32 = n_params;
 
     var argv_buf: u32 = 0;
+    const argv_buf_size: u32 = argc * 4;
+    // Track the tail-args list so we can release it after the
+    // compiled proc returns.  ``build_args_list`` returns a fresh
+    // +1 owned obj; the compiled proc's prologue retains via
+    // ``frame_local_set_at`` for the ``args`` slot, then the
+    // matching ``frame_pop`` releases.  Without this caller-side
+    // release every ``args``-bearing compiled-proc dispatch leaked
+    // one TclObj header per call.
+    var tail_list: i32 = 0;
     if (argc > 0) {
-        argv_buf = obj.alloc(argc * 4);
+        argv_buf = obj.alloc(argv_buf_size);
+        if (argv_buf == 0) return 0;
         if (has_args_tail) {
             // How many leading words map to non-``args`` params
             // (equivalently: how many positional slots we copy
@@ -194,7 +204,7 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             // Remaining call args → join into a single list-shaped
             // TclObj.  Empty list when callee received ``given <=
             // fixed`` (Tcl semantics: ``args`` becomes ``{}``).
-            const tail_list = build_args_list(words, fixed);
+            tail_list = build_args_list(words, fixed);
             obj.write_i32(argv_buf + fixed * 4, tail_list);
         } else {
             // Pad with 0 when caller supplied fewer args than the
@@ -218,12 +228,15 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     // cumulative trace re-entry pushed the heap past the boundary
     // before reaching the test summary, blowing up here on what was
     // an otherwise benign proc dispatch.
-    return call_compiled_proc(
+    const result = call_compiled_proc(
         name_ptr,
         name_len,
         @bitCast(argv_buf),
         @bitCast(argc),
     );
+    if (tail_list != 0) obj.tcl_obj_release(tail_list);
+    if (argv_buf != 0) obj.free_sized(argv_buf, argv_buf_size);
+    return result;
 }
 
 /// Build a Tcl list TclObj from ``words[fixed+1 ..]`` (skipping
