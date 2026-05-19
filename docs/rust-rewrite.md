@@ -3740,6 +3740,20 @@ Nothing — the next session can pick up `S-diagnostics`
   in `hover.rs` recognises `@brief` / `@param` / `@return`
   tags and renders them as structured Markdown.  Pure-
   decoration lines are dropped.
+* **S-rename-rich** prepare-rename — `prepare_rename(source,
+  line, character, analysis)` returns a `PrepareRename { range,
+  placeholder }` when the cursor sits on a renameable proc /
+  var.  Server advertises `prepareProvider: true`.
+* **S-semantic-tokens-rich** delta variant — `semanticTokens/
+  full` now carries a fresh `result_id`; per-URI delta cache
+  stores the packed stream.  `semanticTokens/full/delta`
+  returns an empty edit list when the data is unchanged
+  against the cached snapshot, otherwise a full token set.
+* **S-diagnostics-pipeline** pull-based diagnostics — wires
+  `textDocument/diagnostic` (LSP 3.17 pull model) alongside
+  the existing push-based `publish_diagnostics`.  Both paths
+  share `lift_analyser_diagnostics` so the two report shapes
+  stay in lock-step.
 
 ### Still deferred (next-session targets)
 
