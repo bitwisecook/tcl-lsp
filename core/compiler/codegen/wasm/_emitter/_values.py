@@ -1226,6 +1226,16 @@ class _WasmEmitterValuesMixin(_Base):
         finally:
             self._current_call_tokens = prev_tokens
 
+        # ``[error MSG]`` in value context — route through
+        # eval-fallback so the surrounding eval_script's
+        # ``log_command_info`` adds the ``\n    while executing\n
+        # "error MSG"`` frame to ``::errorInfo``.  The direct
+        # ``tcl_cmd_error`` call below bypasses this frame entirely
+        # because the WASM-level call site has no equivalent of
+        # ``TclLogCommandInfo`` (error-2.6 + error-1.3 check this).
+        if cmd_name == "error":
+            self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+            return
         # Runtime command in value context (llength, lindex, etc.)
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:
