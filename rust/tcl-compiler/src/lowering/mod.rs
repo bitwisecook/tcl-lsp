@@ -669,8 +669,11 @@ impl<'r> Lowerer<'r> {
     /// C43 migration sequencing: each structured command form
     /// migrates as its own sub-commit per the chunk-log row's
     /// "each command form's hook lands as its own sub-commit"
-    /// directive.  This commit covers `eval` and `uplevel` —
-    /// simple, dialect-agnostic single-method dispatch.
+    /// directive.  Sub-strip 1 covered `eval` and `uplevel`;
+    /// sub-strip 2 covers the straightforward control-flow
+    /// forms: `if`, `switch`, `for`, `while`, `catch`, `try` —
+    /// each is a single-method dispatch with no arity / shared-
+    /// method / subcommand complications.
     ///
     /// The migrated forms pick up two benefits over the string
     /// match:
@@ -720,6 +723,17 @@ impl<'r> Lowerer<'r> {
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
+            // C43 sub-strip 2: straightforward control-flow forms.
+            // Each is a single-method dispatch with no arity /
+            // shared-method / subcommand complications, so the
+            // migration is a pure 1:1 swap of the dispatch key.
+            LoweringHookId::If => Some(self.lower_if(seg, namespace)),
+            LoweringHookId::Switch => Some(self.lower_switch(seg, namespace)),
+            LoweringHookId::For => Some(self.lower_for(seg, namespace)),
+            LoweringHookId::While => Some(self.lower_while(seg, namespace)),
+            LoweringHookId::Catch => Some(self.lower_catch(seg, namespace)),
+            LoweringHookId::Try => Some(self.lower_try(seg, namespace)),
+
             // Other structured hooks not yet migrated — fall
             // through to the string-pattern match in
             // `lower_command`.
@@ -764,10 +778,11 @@ impl<'r> Lowerer<'r> {
 
         // C43: registry-driven hook-ID dispatch for structured
         // command forms that have migrated off the string-pattern
-        // match below.  Currently covers `eval` and `uplevel`;
-        // other forms (proc, when, if, switch, for, while,
-        // foreach, lmap, catch, try, dict, namespace eval) still
-        // resolve via the `match cmd_name` block.
+        // match below.  Currently covers `eval`, `uplevel`, `if`,
+        // `switch`, `for`, `while`, `catch`, `try`; other forms
+        // (`proc`, `when`, `namespace eval`, `foreach`, `lmap`,
+        // `foreachLine`, `dict`) still resolve via the
+        // `match cmd_name` block.
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
             return Some(stmt);
         }
@@ -801,15 +816,9 @@ impl<'r> Lowerer<'r> {
                 Some(self.lower_namespace_eval(seg, namespace))
             }
 
-            "if" => Some(self.lower_if(seg, namespace)),
-            "switch" => Some(self.lower_switch(seg, namespace)),
-            "for" => Some(self.lower_for(seg, namespace)),
-            "while" => Some(self.lower_while(seg, namespace)),
             "foreach" => Some(self.lower_foreach(seg, namespace, false)),
             "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
             "lmap" => Some(self.lower_foreach(seg, namespace, true)),
-            "catch" => Some(self.lower_catch(seg, namespace)),
-            "try" => Some(self.lower_try(seg, namespace)),
             "dict" if !args.is_empty() => Some(self.lower_dict(seg, namespace)),
 
             _ => Some(self.lower_default(seg, namespace)),
@@ -2446,17 +2455,84 @@ mod tests {
 
     #[test]
     fn registry_dispatch_unmigrated_form_falls_through_to_string_match() {
-        // `if` hasn't migrated to registry-driven dispatch yet, so
-        // it must still produce `Statement::If` via the string-
-        // pattern fallback in `lower_command`.  This pins the
-        // backward-compatibility contract: the registry-driven
-        // dispatcher returning `None` for unmigrated hooks lets
-        // the string match handle them.
+        // `foreach` hasn't migrated to registry-driven dispatch
+        // yet (it shares `lower_foreach(... is_lmap)` with `lmap`
+        // — a later sub-strip), so it must still produce
+        // `Statement::Foreach` via the string-pattern fallback in
+        // `lower_command`.  This pins the backward-compatibility
+        // contract: the registry-driven dispatcher returning
+        // `None` for unmigrated hooks lets the string match
+        // handle them.
+        let m = lower_to_ir("foreach v {1 2 3} { set q $v }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach via string-pattern fallback, got {stmt:?}",
+        );
+    }
+
+    // C43 sub-strip 2: `if`, `switch`, `for`, `while`, `catch`,
+    // `try` migrate to registry-driven hook-ID dispatch.  These
+    // tests pin the new path's output to the same shape the
+    // string-pattern arms used to produce.
+
+    #[test]
+    fn registry_dispatch_if_lowers_to_if() {
         let m = lower_to_ir("if {1} { set q 4 }", &reg());
         let stmt = m.top_level.statements.first().expect("at least one stmt");
         assert!(
             matches!(stmt, Statement::If { .. }),
-            "expected If via string-pattern fallback, got {stmt:?}",
+            "expected If via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_switch_lowers_to_switch() {
+        let m = lower_to_ir("switch a { a { set q 1 } b { set q 2 } }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Switch { .. }),
+            "expected Switch via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_for_lowers_to_for() {
+        let m = lower_to_ir("for {set i 0} {$i < 3} {incr i} { set q $i }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::For { .. }),
+            "expected For via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_while_lowers_to_while() {
+        let m = lower_to_ir("while {0} { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::While { .. }),
+            "expected While via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_catch_lowers_to_catch() {
+        let m = lower_to_ir("catch { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Catch { .. }),
+            "expected Catch via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_try_lowers_to_try() {
+        let m = lower_to_ir("try { set q 1 } on error e { set q 2 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Try { .. }),
+            "expected Try via registry hook, got {stmt:?}",
         );
     }
 }
