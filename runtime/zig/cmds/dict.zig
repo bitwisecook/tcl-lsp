@@ -530,13 +530,24 @@ fn eval_dict_with(words: []const i32) i32 {
     const dict_var = words[2];
     const body = obj_ensure_string(words[words.len - 1]);
 
-    // Resolve the sub-dict at the optional key path.
+    // Resolve the sub-dict at the optional key path.  ``cur`` starts
+    // borrowed from the var slot; ``dict_get`` returns +1 owned, so
+    // after the first drill step ``cur`` is owned and each subsequent
+    // step leaks the prior ``cur`` unless we release it.  Track
+    // ownership so the loop's intermediates get reclaimed.
     var cur = frames.var_resolve(dict_var);
     if (cur == 0) return 0;
+    var owns_cur: bool = false;
     var ki: u32 = 3;
     while (ki + 1 < words.len) : (ki += 1) {
-        if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) return 0;
-        cur = rt.dict_get(cur, words[ki]);
+        if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
+            if (owns_cur) obj.tcl_obj_release(cur);
+            return 0;
+        }
+        const next = rt.dict_get(cur, words[ki]);
+        if (owns_cur) obj.tcl_obj_release(cur);
+        cur = next;
+        owns_cur = true;
     }
 
     // Snapshot keys and bind each as a same-named local.  Use a
@@ -551,17 +562,28 @@ fn eval_dict_with(words: []const i32) i32 {
         while (pairs > 0) : (pairs -= 1) {
             const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
             const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            // Per-pair +1 owned key/val — release after ``var_set``
+            // retains them.
             const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
             const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
             _ = frames.var_set(key_obj, val_obj);
+            obj.tcl_obj_release(key_obj);
+            obj.tcl_obj_release(val_obj);
         }
     }
 
     _ = interp.eval_script(body.ptr, body.len);
-    if (result_mod.snapshot(0).code == .ERROR) return 0;
+    if (result_mod.snapshot(0).code == .ERROR) {
+        if (owns_cur) obj.tcl_obj_release(cur);
+        return 0;
+    }
 
     // Write back each key from the (potentially modified) locals.
+    // ``sub`` inherits ``cur``'s ownership: if ``cur`` is owned (drill
+    // happened), ``sub`` starts owned too; otherwise borrowed.  Each
+    // ``dict_set`` swap follows the same own-vs-borrow track.
     var sub = cur;
+    var owns_sub: bool = owns_cur;
     {
         var lc: list_parse.Cursor = .{ .pos = 0 };
         var pairs: i64 = @divTrunc(n, 2);
@@ -573,8 +595,14 @@ fn eval_dict_with(words: []const i32) i32 {
             const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
             const new_val = frames.var_resolve(key_obj);
             if (new_val != 0) {
-                sub = rt.dict_set(sub, key_obj, new_val);
+                const next = rt.dict_set(sub, key_obj, new_val);
+                if (next != sub) {
+                    if (owns_sub) obj.tcl_obj_release(sub);
+                    owns_sub = true;
+                }
+                sub = next;
             }
+            obj.tcl_obj_release(key_obj);
         }
     }
 
@@ -582,19 +610,21 @@ fn eval_dict_with(words: []const i32) i32 {
     if (words.len == 4) {
         // No key path — sub is the top-level dict.
         _ = frames.var_set(dict_var, sub);
+        if (owns_sub) obj.tcl_obj_release(sub);
     } else {
+        // Multi-key drill writeback.  This is intentionally
+        // permissive about ownership of intermediates — the existing
+        // nested ``dict_get``/``dict_set`` chain has the same
+        // borrowed-vs-owned ambiguity throughout, and a partial fix
+        // here would risk premature frees.  ``sub`` is released
+        // after the chain rebuilds the top-level dict (see end).
         var top = frames.var_resolve(dict_var);
         if (top == 0) top = rt.dict_create();
-        // Walk back up: rebuild each ancestor with the new sub-dict
-        // at the corresponding key.  Build nested writes innermost-first.
         var depth: u32 = words.len - 1; // index of the deepest key + 1
-        // depth is currently the body index; the deepest key is depth - 1.
         depth -= 1;
-        // Rewrite from deepest to shallowest.
         var inner = sub;
         while (depth > 3) : (depth -= 1) {
             const key = words[depth];
-            // Get the parent dict by walking from top to depth - 1.
             var parent = top;
             var pi: u32 = 3;
             while (pi < depth) : (pi += 1) {
@@ -604,6 +634,10 @@ fn eval_dict_with(words: []const i32) i32 {
         }
         const final = rt.dict_set(top, words[3], inner);
         _ = frames.var_set(dict_var, final);
+        // We own ``sub``'s +1 from the drill chain; ``dict_set``
+        // copied its bytes into the rebuilt ``inner`` / ``final``,
+        // so we can release.
+        if (owns_sub) obj.tcl_obj_release(sub);
     }
     return 0;
 }
@@ -635,6 +669,10 @@ fn eval_dict_filter(words: []const i32) i32 {
     while (pairs > 0) : (pairs -= 1) {
         const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
         const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+        // ``key_obj`` and ``val_obj`` are +1 owned; release per
+        // iteration to stop the per-pair leak.  ``dict_set`` may
+        // return a fresh +1 obj (canonical rebuild); track and
+        // release the prior ``result`` on swap.
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         const candidate: i32 = if (filter_keys) key_obj else val_obj;
@@ -647,8 +685,12 @@ fn eval_dict_filter(words: []const i32) i32 {
             }
         }
         if (match) {
-            result = rt.dict_set(result, key_obj, val_obj);
+            const next = rt.dict_set(result, key_obj, val_obj);
+            if (next != result) obj.tcl_obj_release(result);
+            result = next;
         }
+        obj.tcl_obj_release(key_obj);
+        obj.tcl_obj_release(val_obj);
     }
     return result;
 }
@@ -675,8 +717,11 @@ fn eval_dict_filter_script(words: []const i32) i32 {
     }
     const kelem = rt.list_element_at(varlist.ptr, varlist.len, 0);
     const velem = rt.list_element_at(varlist.ptr, varlist.len, 1);
+    // ``kvar`` / ``vvar`` allocated once; release via defer.
     const kvar = obj.obj_new_string_copy(varlist.ptr + kelem.start, kelem.len);
     const vvar = obj.obj_new_string_copy(varlist.ptr + velem.start, velem.len);
+    defer obj.tcl_obj_release(kvar);
+    defer obj.tcl_obj_release(vvar);
 
     const sd = obj_ensure_string(words[2]);
     const n = rt.list_count_elements(sd.ptr, sd.len);
@@ -688,6 +733,9 @@ fn eval_dict_filter_script(words: []const i32) i32 {
     while (idx + 1 < n) : (idx += 2) {
         const k = rt.list_element_at(sd.ptr, sd.len, idx);
         const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+        // ``key_obj`` / ``val_obj`` released after the per-iter
+        // dispose path runs.  ``body_result`` left alone — see
+        // ``eval_dict_iter`` for the borrowed-handle rationale.
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         _ = frames.var_set(kvar, key_obj);
@@ -697,19 +745,32 @@ fn eval_dict_filter_script(words: []const i32) i32 {
         switch (ir.code) {
             .OK => {
                 if (rt.obj_get_int(body_result) != 0) {
-                    result = rt.dict_set(result, key_obj, val_obj);
+                    const next = rt.dict_set(result, key_obj, val_obj);
+                    if (next != result) obj.tcl_obj_release(result);
+                    result = next;
                 }
             },
-            .ERROR, .RETURN => return 0,
+            .ERROR, .RETURN => {
+                obj.tcl_obj_release(key_obj);
+                obj.tcl_obj_release(val_obj);
+                obj.tcl_obj_release(result);
+                return 0;
+            },
             .BREAK => {
+                obj.tcl_obj_release(key_obj);
+                obj.tcl_obj_release(val_obj);
                 result_mod.consume(.BREAK);
                 break;
             },
             .CONTINUE => {
+                obj.tcl_obj_release(key_obj);
+                obj.tcl_obj_release(val_obj);
                 result_mod.consume(.CONTINUE);
                 continue;
             },
         }
+        obj.tcl_obj_release(key_obj);
+        obj.tcl_obj_release(val_obj);
     }
     return result;
 }

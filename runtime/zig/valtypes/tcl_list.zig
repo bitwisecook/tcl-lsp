@@ -1163,8 +1163,11 @@ fn lset_recurse(
     // relative to the *indices* text.  Build a TclObj wrapping the
     // single index word so ``resolve_list_index`` (which takes a
     // TclObj) can parse ``end[-N]`` / ``end+N`` / integer forms.
+    // Release after the call — without this every recursion depth
+    // leaked one TclObj per index.
     const idx_obj = obj_new_string_copy(indices_ptr + idx_elem.start, idx_elem.len);
     const idx = resolve_list_index(idx_obj, n_src_i64);
+    obj.tcl_obj_release(idx_obj);
     if (idx < 0 or idx >= n_src_i64) {
         // Out of range — return a copy of the source unchanged.
         // The compiler-level caller is expected to treat the result
@@ -1177,7 +1180,12 @@ fn lset_recurse(
     // Determine the replacement for the element at this depth:
     //   - At the deepest level, the replacement is *value* itself.
     //   - Otherwise, recurse into the element treated as a sublist.
+    // When we recurse, ``replacement`` is a fresh +1 owned obj that
+    // we must release after the buffer is built.  When we don't
+    // (deepest level), it borrows from ``value`` and we leave it
+    // alone — the caller still owns ``value``.
     var replacement: i32 = value;
+    var owns_replacement: bool = false;
     if (depth + 1 < n_indices) {
         const elem = list_element_at(src_ptr, src_len, idx);
         replacement = lset_recurse(
@@ -1189,7 +1197,9 @@ fn lset_recurse(
             n_indices,
             value,
         );
+        owns_replacement = true;
     }
+    defer if (owns_replacement) obj.tcl_obj_release(replacement);
     const s_rep = obj_ensure_string(replacement);
 
     // Build the result list by copying elements, substituting the

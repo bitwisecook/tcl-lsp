@@ -624,9 +624,14 @@ pub fn resume_one(c: *Coro) i32 {
 /// the saved call site and re-fires the unwind (issue #282).
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
-    if (value != 0) tcl_obj_retain(value);
+    // Same-handle re-stamp must be a net no-op on rc, and the prior
+    // ``yield_value`` (if any) must be released so successive yields
+    // without a caller-side consume don't leak.
+    const prev = tcl_catch.state.yield_value;
+    if (value != 0 and value != prev) tcl_obj_retain(value);
     tcl_catch.state.yield_flag = 1;
     tcl_catch.state.yield_value = value;
+    if (prev != 0 and prev != value) tcl_obj_release(prev);
     if (tcl_async.ENABLED) {
         if (current_coro()) |c| {
             tcl_async.coro_yield_unwind(c.async_buf);
