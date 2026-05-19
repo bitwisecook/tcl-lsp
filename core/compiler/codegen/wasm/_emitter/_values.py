@@ -321,6 +321,43 @@ def _outer_braces_balanced(value: str) -> bool:
     return depth == 0
 
 
+def _braced_lineconts(value: str) -> str:
+    """Apply Tcl 9's ``\\<newline>`` brace-substitution rule.
+
+    Inside a braced word, ``\\<NL><whitespace>*`` collapses to a
+    single space — see :c:func:`Tcl_ParseBraces` in
+    ``generic/tclParse.c``.  Every other backslash escape is
+    preserved verbatim (the brace literal otherwise suppresses
+    substitution).  Used by braced-literal emitters that would
+    otherwise pass the raw source bytes (including the line-
+    continuation pair) through to the runtime — without this
+    pass, test bundles whose expected-result strings span
+    multiple lines mismatch by one byte (the literal ``\\<NL>``
+    instead of a single space).
+    """
+    if "\\\n" not in value and "\\\r" not in value:
+        return value
+    out: list[str] = []
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n and value[i + 1] in ("\n", "\r"):
+            # Collapse the backslash + line-terminator + trailing
+            # whitespace to a single space.  ``\r\n`` counts as a
+            # single line terminator.
+            i += 2
+            if value[i - 1] == "\r" and i < n and value[i] == "\n":
+                i += 1
+            while i < n and value[i] in (" ", "\t"):
+                i += 1
+            out.append(" ")
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _looks_like_string_option(arg: str) -> bool:
     """Detect a leading ``-flag`` argument on a ``string`` sub-command.
 
@@ -443,12 +480,13 @@ class _WasmEmitterValuesMixin(_Base):
         # closes twice and is NOT a single braced word, so stripping
         # would mangle it to ``-fla} {-other``.
         if value.startswith("{") and value.endswith("}") and _outer_braces_balanced(value):
-            self._emit_obj_literal(value[1:-1])
+            self._emit_obj_literal(_braced_lineconts(value[1:-1]))
             return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit
-        # the raw content verbatim, no ``\\`` / ``$`` / ``[`` processing.
+        # the raw content verbatim, with ``\<newline>`` line continuation
+        # collapsing per Tcl 9's ``Tcl_ParseBraces``.
         if was_braced:
-            self._emit_obj_literal(value)
+            self._emit_obj_literal(_braced_lineconts(value))
             return Ownership.OWNED
         # Command substitution: [cmd arg1 arg2 ...].  Only treat the
         # whole word as a single cmd-sub when the leading ``[`` truly
