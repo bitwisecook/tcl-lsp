@@ -1026,24 +1026,55 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
+        let uri = params.text_document.uri.clone();
         let range = CoreLspRange {
             start_line: params.range.start.line,
             start_character: params.range.start.character,
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let actions = core_code_actions::code_actions(&doc.text, range);
+        // `S-code-actions-rich`: walks the analyser's
+        // diagnostics for fixes whose span overlaps the
+        // requested range.  Run analysis on a worker.
+        let actions = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_code_actions::code_actions(&doc.text, range, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_action worker panicked: {err}").into(),
+            data: None,
+        })?;
         if actions.is_empty() {
             return Ok(None);
         }
         let lifted = actions
             .into_iter()
             .map(|a| {
+                // Build a WorkspaceEdit from the action's
+                // edits so accepting the action actually
+                // applies the fix.
+                let mut changes = std::collections::HashMap::new();
+                let lifted_edits: Vec<TextEdit> = a
+                    .edits
+                    .into_iter()
+                    .map(|e| TextEdit {
+                        range: lift_lsp_range(e.range),
+                        new_text: e.new_text,
+                    })
+                    .collect();
+                changes.insert(uri.clone(), lifted_edits);
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
-                    kind: None,
+                    kind: Some(tower_lsp::lsp_types::CodeActionKind::QUICKFIX),
                     diagnostics: None,
-                    edit: None,
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    }),
                     command: None,
                     is_preferred: None,
                     disabled: None,
