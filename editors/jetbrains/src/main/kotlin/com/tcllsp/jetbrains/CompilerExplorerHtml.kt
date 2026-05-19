@@ -40,32 +40,62 @@ fun getCompilerExplorerHtml(): String {
 
 /**
  * Replace VS Code webview API calls with JCEF bridge equivalents.
+ *
+ * The VS Code HTML calls `acquireVsCodeApi()` early during body-script
+ * evaluation to capture the host bridge, then keeps that reference for the
+ * lifetime of the page (`var __vscodeApi = ...` near the top of the first
+ * script block, plus a second `vscodeApi` capture later on). In JCEF there
+ * is no native `acquireVsCodeApi` — the host's own bridge
+ * (`window.__tcllspBridge`) is injected from Kotlin in `onLoadEnd`, which
+ * fires *after* those captures have already run.
+ *
+ * To plug that gap we inject a shim into `<head>` so it runs before any
+ * body script. The shim defines `acquireVsCodeApi` to hand back an object
+ * whose `postMessage` either forwards to `__tcllspBridge` (if already set)
+ * or queues the message; `window.__tcllspFlushQueue()` drains the queue
+ * once the host calls it on load-end. This keeps the captured `vscodeApi`
+ * reference live, makes the status line read "explorer UI ready" instead
+ * of "webview API unavailable", and ensures the `compile` request reaches
+ * Kotlin so the IR pane stops showing "Waiting for source from editor...".
  */
 private fun adaptHtmlForJcef(html: String): String {
     var result = html
 
-    // Replace acquireVsCodeApi with our bridge object
-    result = result.replace(
-        "const vscode = acquireVsCodeApi();",
-        """
-        // JCEF bridge — __tcllspBridge is injected by the Kotlin host
-        const vscode = {
-            postMessage: function(msg) {
-                if (typeof window.__tcllspBridge === 'function') {
-                    if (msg.type === 'compile' && msg.source) {
+    val shim = """
+        <script>
+        (function() {
+            var queue = [];
+            function dispatch(msg) {
+                if (typeof window.__tcllspBridge !== 'function') {
+                    queue.push(msg);
+                    return;
+                }
+                try {
+                    if (!msg || typeof msg.type !== 'string') return;
+                    if (msg.type === 'compile' && typeof msg.source === 'string') {
                         window.__tcllspBridge('compile:' + msg.source + '\u0000' + (msg.dialect || ''));
                     } else if (msg.type === 'highlightSource') {
                         window.__tcllspBridge('highlightSource:' + msg.start + ',' + msg.end);
                     } else if (msg.type === 'clearHighlight') {
                         window.__tcllspBridge('clearHighlight');
-                    } else if (msg.type === 'dialectChange') {
-                        // Dialect changes are handled locally
                     }
+                    // Other types (ready, dialectChange, scriptError, ...)
+                    // have no host action in JCEF and are intentionally dropped.
+                } catch (e) {
+                    // Bridge errors must not break the webview UI.
                 }
             }
-        };
-        """.trimIndent()
-    )
+            window.__tcllspFlushQueue = function() {
+                while (queue.length) dispatch(queue.shift());
+            };
+            window.acquireVsCodeApi = function() {
+                return { postMessage: dispatch };
+            };
+        })();
+        </script>
+    """.trimIndent()
+
+    result = result.replace("<head>", "<head>\n$shim")
 
     // Remove Content-Security-Policy that blocks inline scripts in JCEF
     result = result.replace(
