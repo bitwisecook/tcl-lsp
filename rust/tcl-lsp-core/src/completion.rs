@@ -28,11 +28,12 @@
 //! * Argument-value completion (registry-driven when arg index
 //!   has known values; subcommand-scoped values for things like
 //!   `string is <class>`).
-//! * iRules `call proc_name` first-arg context and other
-//!   dialect-specific arg rules.  (`when EVENT` enumeration
-//!   has landed: any command carrying
+//! * Dialect-specific arg rules beyond the two trait-driven
+//!   patterns now landed: any command carrying
 //!   `Traits::IS_EVENT_HANDLER` triggers event-name completion
-//!   from the shared `EventRegistry` at word-index 1.)
+//!   at word-index 1 (iRules `when EVENT`), and any command
+//!   carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
+//!   proc names at word-index 1 (iRules `call PROC_NAME`).
 //! * Workspace-wide proc / RULE_INIT-var enumeration, usage-bucket
 //!   sort-text computation, and the `_proc_signature_str` rendering
 //!   for proc-completion details.
@@ -147,6 +148,19 @@ pub fn completions(
                 // shared event registry.
                 if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
                     return event_name_completions(&partial);
+                }
+                // iRules `call PROC_NAME ?ARGS?`: when the cursor
+                // is typing the first argument of an
+                // `INVOKES_USER_PROC` command (today only `call`
+                // in iRules), surface user-defined proc names —
+                // and only those, not built-in commands.
+                if word_idx == 1
+                    && spec
+                        .traits
+                        .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+                {
+                    let usage = document_usage_counts(analysis);
+                    return proc_completions(analysis, &partial, &usage);
                 }
                 if word_idx == 1 && !spec.subcommands.is_empty() {
                     return subcommand_completions(spec, &partial);
@@ -1000,6 +1014,94 @@ mod tests {
         assert!(
             !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
             "event completion should not fire at word-index 2; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: iRules `call PROC_NAME` -----------------
+    //
+    // When the cursor sits at word-index 1 of a command carrying
+    // `Traits::INVOKES_USER_PROC` (today only the iRules `call`
+    // command), the completion surface lists user-defined proc
+    // names and excludes built-in commands.
+
+    #[test]
+    fn call_completion_surfaces_user_procs_at_word_index_1() {
+        // Two user procs starting with `he`, plus one that
+        // doesn't.  Built-in `puts` starts with `p` so won't
+        // surface against `he` either way — but we use it as
+        // additional cover.
+        let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 3, 7, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper") && labels.contains(&"help_inner"),
+            "expected user procs `helper` and `help_inner`; got {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"unrelated"),
+            "should filter on partial `he`; got {labels:?}",
+        );
+        // Every result must be a user proc — built-in commands
+        // are excluded from the `call` context.
+        for it in &items {
+            assert_eq!(
+                it.kind,
+                CompletionKind::Function,
+                "every call-completion item should be a Function; got {it:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn call_completion_does_not_fire_in_plain_tcl_dialect() {
+        // Plain Tcl registry has no `call` spec — completion
+        // should fall through to built-in + proc completion.
+        let src = "proc helper {} {}\ncall help\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 9, &analysis, Some(&registry));
+        // The user proc still appears via the fallback path.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper"),
+            "fallback should still surface `helper`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_excludes_builtin_commands() {
+        // Built-in `puts` starts with `p`.  In a `call p`
+        // context, the completion list should contain user
+        // procs starting with `p` but never `puts`.
+        let src = "proc parade {} {}\ncall p\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 1, 6, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"parade"), "{labels:?}");
+        assert!(
+            !labels.contains(&"puts"),
+            "`puts` is a built-in; should not surface in `call` context: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_skipped_at_word_index_other_than_1() {
+        // `call helper extra` — word-index 2.  Completion
+        // should fall through to plain command + proc
+        // completion (built-ins included).
+        let src = "proc helper {} {}\ncall helper e\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 1, 14, &analysis, Some(&registry));
+        // Plain fallback fires — any e-prefixed builtin
+        // (`eval`, `exec`, `expr`, `error`…) should surface.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with('e') && *l != "helper"),
+            "fallback should surface some e-prefixed built-in at word-index 2; got {labels:?}",
         );
     }
 }

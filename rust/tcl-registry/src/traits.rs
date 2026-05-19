@@ -127,5 +127,12 @@ bitflags! {
         /// defs from `arg_roles[0]`.  Mirrors Python's
         /// `creates_dynamic_barrier` field set by `f87bc090`.
         const CREATES_DYNAMIC_BARRIER   = 1 << 40;
+
+        /// Command invokes a user-defined Tcl procedure named by
+        /// its first argument.  Set on the iRules `call` command
+        /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
+        /// provider to surface user-proc names — and only those,
+        /// not built-in commands — at word-index 1.
+        const INVOKES_USER_PROC         = 1 << 41;
     }
 }
