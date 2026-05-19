@@ -1,6 +1,7 @@
 // ``return``, ``break``, ``continue``, ``error``, ``catch``,
 // ``throw``, ``try``, ``apply``, ``tailcall``, ``time`` — control-flow signals.
 
+const std = @import("std");
 const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
@@ -556,7 +557,10 @@ fn parse_code_number(ptr: u32, len: u32) struct { n: i64, ok: bool } {
         ki = 1;
     }
     // Hex form ``0x…`` (no sign).  ``-0xNN`` would need separate
-    // handling — Tcl 9 rejects it, so we do too.
+    // handling — Tcl 9 rejects it, so we do too.  Overflow on either
+    // branch surfaces as ``ok = false`` rather than silently wrapping
+    // (codex review on PR #452); the caller lets the canonical
+    // "integer value too large" diagnostic stand.
     if (!negative and ki == 0 and len >= 3 and cp[0] == '0' and (cp[1] == 'x' or cp[1] == 'X')) {
         var n: i64 = 0;
         var i: u32 = 2;
@@ -570,7 +574,11 @@ fn parse_code_number(ptr: u32, len: u32) struct { n: i64, ok: bool } {
                 @as(i64, c - 'A' + 10)
             else
                 return .{ .n = 0, .ok = false };
-            n = n * 16 + d;
+            const m = @mulWithOverflow(n, @as(i64, 16));
+            if (m[1] != 0) return .{ .n = 0, .ok = false };
+            const a = @addWithOverflow(m[0], d);
+            if (a[1] != 0) return .{ .n = 0, .ok = false };
+            n = a[0];
         }
         return .{ .n = n, .ok = true };
     }
@@ -579,9 +587,25 @@ fn parse_code_number(ptr: u32, len: u32) struct { n: i64, ok: bool } {
     while (ki < len) : (ki += 1) {
         const c = cp[ki];
         if (c < '0' or c > '9') return .{ .n = 0, .ok = false };
-        n = n * 10 + (c - '0');
+        const m = @mulWithOverflow(n, @as(i64, 10));
+        if (m[1] != 0) return .{ .n = 0, .ok = false };
+        const a = @addWithOverflow(m[0], @as(i64, c - '0'));
+        if (a[1] != 0) return .{ .n = 0, .ok = false };
+        n = a[0];
     }
-    if (negative) n = -n;
+    if (negative) {
+        // ``-9223372036854775808`` (i64 min) can't be negated in i64
+        // without overflow — Tcl 9 accepts this as a valid custom
+        // completion code, so handle it explicitly.
+        if (n == std.math.minInt(i64)) {
+            // Already at the negative bound after the unsigned parse —
+            // but actual parsing produced a positive value, so the
+            // user's ``-n`` doesn't reach this case in practice.
+            // Defensive bail.
+            return .{ .n = 0, .ok = false };
+        }
+        n = -n;
+    }
     return .{ .n = n, .ok = true };
 }
 

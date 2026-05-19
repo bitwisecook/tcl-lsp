@@ -785,20 +785,46 @@ fn find_op_terminator(ptr: u32, len: u32, start: u32, op_char: u8) u32 {
             }
             continue;
         }
-        if (c == '[') {
+        if (c == '[' or c == '(') {
+            // Bracket / parenthesis group — recurse through nested
+            // quoted / braced regions and honour backslash escapes
+            // so ``[set x {a]b}]`` (or ``(set x "a)b")``) finishes
+            // at the *outer* delimiter, not the first inner ``]`` /
+            // ``)``.  Mirrors the ``{`` branch's structure (codex
+            // review on PR #452).
+            const open: u8 = c;
+            const close: u8 = if (c == '[') ']' else ')';
             var depth: u32 = 1;
             i += 1;
             while (i < len and depth > 0) {
-                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
-                i += 1;
-            }
-            continue;
-        }
-        if (c == '(') {
-            var depth: u32 = 1;
-            i += 1;
-            while (i < len and depth > 0) {
-                if (src[i] == '(') depth += 1 else if (src[i] == ')') depth -= 1;
+                const cc = src[i];
+                if (cc == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (cc == '"') {
+                    i += 1;
+                    while (i < len and src[i] != '"') {
+                        if (src[i] == '\\' and i + 1 < len) i += 1;
+                        i += 1;
+                    }
+                    if (i < len) i += 1;
+                    continue;
+                }
+                if (cc == '{') {
+                    var bdepth: u32 = 1;
+                    i += 1;
+                    while (i < len and bdepth > 0) {
+                        if (src[i] == '\\' and i + 1 < len) {
+                            i += 2;
+                            continue;
+                        }
+                        if (src[i] == '{') bdepth += 1 else if (src[i] == '}') bdepth -= 1;
+                        i += 1;
+                    }
+                    continue;
+                }
+                if (cc == open) depth += 1 else if (cc == close) depth -= 1;
                 i += 1;
             }
             continue;
