@@ -16,7 +16,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Close a channel.",
         synopsis: "chan close channelId ?direction?",
-        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -155,7 +154,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Truncate a channel.",
         synopsis: "chan truncate channelId ?length?",
-        destructive: true,
         ..SubCommand::DEFAULT
     },
 ];

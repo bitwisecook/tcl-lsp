@@ -18,12 +18,14 @@ pub fn spec() -> CommandSpec {
                 takes_value: false,
                 value_hint: "",
                 detail: "Suppress errors for non-existent variables.",
+                dialects: None,
             },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "End of options.",
+                dialects: None,
             },
         ],
         side_effects: &[SideEffect {

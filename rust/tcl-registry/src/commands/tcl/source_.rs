@@ -20,6 +20,7 @@ pub fn spec() -> CommandSpec {
             takes_value: true,
             value_hint: "encoding",
             detail: "",
+            dialects: None,
         }],
         hover: Some(HoverSnippet::brief(
             "Evaluate a file or resource as a Tcl script.",

@@ -608,12 +608,11 @@ mod tests {
         }
         // `set` does NOT carry the trait — its VarWrite at arg 0 is
         // a single-target def, not a vararg list.
-        assert!(
-            !reg.get("set")
-                .unwrap()
-                .traits
-                .contains(Traits::CREATES_DYNAMIC_BARRIER),
-        );
+        assert!(!reg
+            .get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::CREATES_DYNAMIC_BARRIER),);
     }
 
     /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
@@ -643,12 +642,30 @@ mod tests {
         use crate::body_kind::BodyKind;
         let reg = CommandRegistry::build_default();
         assert_eq!(reg.get("proc").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::class").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::define").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("oo::objdefine").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("snit::method").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("snit::typemethod").unwrap().body_kind, BodyKind::Structural);
-        assert_eq!(reg.get("uri::register").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(
+            reg.get("oo::class").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("oo::define").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("oo::objdefine").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("snit::method").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("snit::typemethod").unwrap().body_kind,
+            BodyKind::Structural
+        );
+        assert_eq!(
+            reg.get("uri::register").unwrap().body_kind,
+            BodyKind::Structural
+        );
     }
 
     /// SYNC2: iRules `when` event handler bodies are structural.
@@ -679,16 +696,8 @@ mod tests {
     #[test]
     fn arg_indices_for_role_dict_with_multirole() {
         let reg = CommandRegistry::build_default();
-        let reads = reg.arg_indices_for_role(
-            "dict",
-            &["with", "$var", "body"],
-            ArgRole::VarRead,
-        );
-        let writes = reg.arg_indices_for_role(
-            "dict",
-            &["with", "$var", "body"],
-            ArgRole::VarWrite,
-        );
+        let reads = reg.arg_indices_for_role("dict", &["with", "$var", "body"], ArgRole::VarRead);
+        let writes = reg.arg_indices_for_role("dict", &["with", "$var", "body"], ArgRole::VarWrite);
         assert!(reads.contains(&1), "VarRead reads={reads:?}");
         assert!(writes.contains(&1), "VarWrite writes={writes:?}");
     }

@@ -210,7 +210,7 @@ impl CommandSpec {
 /// Carries its own arity, arg roles, return type, effect classification,
 /// and hooks — a self-contained metadata bundle.
 #[derive(Debug, Clone)]
-// `pure` / `mutator` / `destructive` / `loop_list_header` /
+// `pure` / `mutator` / `loop_list_header` /
 // `creates_scope_alias` are subcommand-shaped behavioural facts.
 // They could fold into the existing [`Traits`] bitflags field
 // above, but doing so is a registry-API change that touches
@@ -259,9 +259,6 @@ pub struct SubCommand {
 
     /// Mutates state.
     pub mutator: bool,
-
-    /// Irreversible operation (`file delete`, etc.).
-    pub destructive: bool,
 
     /// Compile-time constant folder.
     pub const_fold: Option<ConstFoldFn>,
@@ -327,7 +324,6 @@ impl SubCommand {
         arg_types: &[],
         pure: false,
         mutator: false,
-        destructive: false,
         const_fold: None,
         lowering_hook: None,
         codegen_hook: None,

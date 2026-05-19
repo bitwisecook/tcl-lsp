@@ -22,18 +22,21 @@ pub fn spec() -> CommandSpec {
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
             OptionSpec {
                 name: "-keepnewline",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
         ],
         hover: Some(HoverSnippet::brief(

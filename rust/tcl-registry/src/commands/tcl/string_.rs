@@ -40,12 +40,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
             OptionSpec {
                 name: "-length",
                 takes_value: true,
                 value_hint: "int",
                 detail: "",
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -63,12 +65,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
             OptionSpec {
                 name: "-length",
                 takes_value: true,
                 value_hint: "int",
                 detail: "",
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -134,12 +138,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
+                dialects: None,
             },
             OptionSpec {
                 name: "-failindex",
                 takes_value: true,
                 value_hint: "varname",
                 detail: "",
+                dialects: None,
             },
         ],
         ..SubCommand::DEFAULT
@@ -181,6 +187,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             takes_value: false,
             value_hint: "",
             detail: "",
+            dialects: None,
         }],
         arg_types: &[(
             0,
@@ -203,6 +210,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             takes_value: false,
             value_hint: "",
             detail: "",
+            dialects: None,
         }],
         ..SubCommand::DEFAULT
     },

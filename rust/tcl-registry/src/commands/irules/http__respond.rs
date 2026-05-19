@@ -12,18 +12,21 @@ pub fn spec() -> CommandSpec {
                 takes_value: true,
                 value_hint: "1.0 | 1.1",
                 detail: "Protocol version on the synthesised response.",
+                dialects: None,
             },
             OptionSpec {
                 name: "-status",
                 takes_value: true,
                 value_hint: "reason",
                 detail: "Override the default reason phrase for the status code.",
+                dialects: None,
             },
             OptionSpec {
                 name: "-noserver",
                 takes_value: false,
                 value_hint: "",
                 detail: "Suppress the auto-injected `Server` response header.",
+                dialects: None,
             },
         ],
         hover: Some(HoverSnippet::brief(

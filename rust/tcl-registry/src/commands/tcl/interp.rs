@@ -52,7 +52,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Delete interpreters.",
         synopsis: "interp delete ?path ...?",
-        destructive: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
