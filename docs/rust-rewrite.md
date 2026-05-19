@@ -3664,16 +3664,70 @@ Nothing — the next session can pick up `S-diagnostics`
 * Every LSP method handler in `tower-lsp` 0.20's
   `LanguageServer` trait that has a meaningful Python
   counterpart is wired in `tcl-lsp-server`.
-* `tcl-lsp-core` now has 18 feature modules
+* `tcl-lsp-core` now has 19 feature modules
   (`call_hierarchy`, `code_actions`, `code_lens`,
   `completion`, `definition`, `document_links`,
   `document_symbols`, `folding`, `formatting`, `hover`,
-  `inlay_hints`, `references`, `rename`, `selection_range`,
-  `semantic_tokens`, `signature_help`, `type_hierarchy`,
-  `workspace_symbols`).
+  `inlay_hints`, `linked_editing_range`, `references`,
+  `rename`, `selection_range`, `semantic_tokens`,
+  `signature_help`, `type_hierarchy`, `workspace_symbols`).
 * Every minimal port is gated by unit tests; the server
   has end-to-end smoke tests for the most-exercised paths
   (folding, document_symbols, hover, completion,
   signature_help, definition).
-* Total `cargo test --workspace` count is well over 2000
+* Total `cargo test --workspace` count is well over 2800
   passing tests.
+
+### Recent S-*-rich sub-strips (current session)
+
+* **S-async-diagnostics** — every LSP handler now consumes
+  `Backend::analysis_for(uri, text, dialect)` so the cached
+  analysis surface (populated by `did_open` / `did_change`)
+  reaches all 13+ providers without per-request re-analysis.
+* **SYNC-MAY19-dialect-contextvar** — `LexerConfig::for_dialect`
+  in `tcl-lexer`; per-folder dialect override map in the server
+  (parsed from `initializationOptions.folderDialects`); URI
+  resolution uses longest-prefix match.
+* **S-rename-rich** brace-ref escaping — `$x` / `${x}` /
+  `$ns::x` / `${ns::x}` references keep their leader
+  characters and namespace prefix through the rename; the
+  hover's `find_var_at_position` also recognises `${...}`
+  form so the cursor inside braces resolves to the inner
+  name.
+* **S-hover-sync11** — LRU(256) hover-response cache keyed
+  on `(uri, line, character)`; per-URI invalidation on
+  `did_change` / `did_close`.  Distinguishes cached-empty
+  hovers from misses via a 3-variant `HoverLookup` enum.
+* **S-linked-editing-range-rich** — pairs proc declarations
+  with self-call sites inside their body so renaming one
+  updates the others live.  New `tcl-lsp-core` module.
+* **S-completion-rich** usage-bucket sort-text — `proc_sort_text`
+  emits `A0<bucket>_<name>` (lower buckets sort first);
+  `builtin_sort_text` emits `B<bucket>_<name>`.  Per-document
+  call counts as the workspace-index proxy until a true
+  index lands.
+* **S-document-links-rich** literal `[file join …]` —
+  recognises substitutions whose head is `file join` and
+  every sub-arg is a literal, joins them with `/`, and feeds
+  the result to the existing path resolver.
+* **S-signature-help-rich** multi-line + semicolon — replaces
+  whitespace-split prefix tokeniser with a lexer-driven walk
+  of the active command segment; continuation lines and
+  `;` separators land in the same shape as Python's
+  `find_command_context_details_at_position`.
+* **S-signature-help-rich** alias resolution — when the
+  cursor's command doesn't match a user proc, the provider
+  follows `interp alias {} ALIAS {} TARGET` records through
+  the analyser's `command_aliases` map.
+* **S-semantic-tokens-rich** range variant —
+  `semanticTokens/range` filters the classified token stream
+  to entries inside the requested range; server advertises
+  `range: true`.
+* **S-code-actions-rich** catch-result-variable — W302
+  diagnostics surface two synthetic quick-fixes:
+  `Add catch result variable` (`+= " result"`) and
+  `Add catch result + options variables` (`+= " result opts"`).
+* **S-hover-rich** docstring rendering — `format_docstring`
+  in `hover.rs` recognises `@brief` / `@param` / `@return`
+  tags and renders them as structured Markdown.  Pure-
+  decoration lines are dropped.
