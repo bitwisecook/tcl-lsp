@@ -233,11 +233,17 @@ impl Analyser {
         let Some(registry) = self.registry.as_ref() else {
             return std::collections::HashMap::new();
         };
+        let overlay = self.stub_overlay.as_ref();
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        let shallow = super::param_traits::infer_param_traits(&param_names, body_text, registry);
+        let shallow =
+            super::param_traits::infer_param_traits(&param_names, body_text, registry, overlay);
         if self.deep_param_traits {
-            let deep =
-                super::param_traits::infer_param_traits_deep(&param_names, body_text, registry);
+            let deep = super::param_traits::infer_param_traits_deep(
+                &param_names,
+                body_text,
+                registry,
+                overlay,
+            );
             super::param_traits::merge_traits(shallow, deep)
         } else {
             shallow
@@ -3546,6 +3552,62 @@ mod tests {
         assert_eq!(
             shallow_traits, deep_traits,
             "deep + shallow should match for top-level-only bodies",
+        );
+    }
+
+    // -- stub-overlay end-to-end -------------------------------------
+    //
+    // These tests pin the contract that the stub overlay built
+    // from `# tcl-lsp: stub` directives during `analyse()`
+    // propagates into the per-proc `param_traits` map.  Sub-strip
+    // (a) of `SYNC-MAY19-stub-overlay`.
+
+    #[test]
+    fn analyse_with_stub_overlay_propagates_role_to_param_traits() {
+        // The source declares a `# tcl-lsp: stub my_eval
+        // {script:body}` directive, then defines a proc that
+        // invokes `my_eval $body`.  The body arg's role flows
+        // from the stub overlay → `param_traits["body"]
+        // .contains(Body)`.
+        let source = "\
+# tcl-lsp: stubs-begin\n\
+# tcl-lsp: stub my_eval {script:body}\n\
+# tcl-lsp: stubs-end\n\
+proc runs {body} {\n\
+    my_eval $body\n\
+}\n";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        let body_traits = proc
+            .param_traits
+            .get("body")
+            .expect("body param has traits");
+        assert!(
+            body_traits.contains(&crate::analyser::ProcArgTrait::Body),
+            "expected Body trait via stub overlay, got {body_traits:?}",
+        );
+    }
+
+    #[test]
+    fn analyse_without_stub_directive_leaves_body_untyped() {
+        // Same proc, no stub directive — without the overlay
+        // entry, `my_eval` isn't a known command, so the body
+        // arg has no recorded role and `param_traits` is empty
+        // for `body`.  This pins that the stub directive (not
+        // some background heuristic) is what gives the
+        // parameter its `Body` trait.
+        let source = "proc runs {body} { my_eval $body }";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        assert!(
+            !proc
+                .param_traits
+                .get("body")
+                .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
+            "expected NO Body trait without stub directive, got {:?}",
+            proc.param_traits.get("body"),
         );
     }
 }

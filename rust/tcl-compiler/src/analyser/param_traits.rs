@@ -36,6 +36,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_registry::arg_role::ArgRole;
+use tcl_registry::stub_overlay::StubOverlay;
 use tcl_registry::CommandRegistry;
 
 use super::types::ProcArgTrait;
@@ -52,11 +53,21 @@ use crate::segmenter::segment_commands;
 /// proc would both be expensive and miss dialect-specific
 /// `arg_role_resolver` / `arg_roles` (e.g. iRules `when` body
 /// detection) that the caller's registry already loaded.
+///
+/// `stub_overlay`, when `Some`, lets user-declared
+/// `# tcl-lsp: stub` commands participate in role-driven
+/// trait inference.  The overlay's
+/// [`StubOverlay::arg_indices_for_role`] return is unioned
+/// with the registry's at each call site, so a stub like
+/// `# tcl-lsp: stub my_eval {script:body}` causes a
+/// `my_eval $param` invocation to mark the parameter as
+/// `ProcArgTrait::Body`.
 #[must_use]
 pub fn infer_param_traits(
     params: &[&str],
     body_source: &str,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
@@ -72,6 +83,7 @@ pub fn infer_param_traits(
         &mut traits,
         &mut upvar_aliases,
         registry,
+        stub_overlay,
     );
 
     finalise_traits(traits)
@@ -103,6 +115,7 @@ pub fn infer_param_traits_deep(
     params: &[&str],
     body_source: &str,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
@@ -119,6 +132,7 @@ pub fn infer_param_traits_deep(
         &mut upvar_aliases,
         0,
         registry,
+        stub_overlay,
     );
 
     finalise_traits(traits)
@@ -176,6 +190,7 @@ fn scan_commands<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) {
     let commands = extract_commands(source);
     for (cmd_name, cmd_args) in &commands {
@@ -186,6 +201,7 @@ fn scan_commands<'p>(
             traits,
             upvar_aliases,
             registry,
+            stub_overlay,
         );
     }
 }
@@ -206,12 +222,20 @@ fn scan_deep<'p>(
     upvar_aliases: &mut HashMap<String, &'p str>,
     depth: u8,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) {
     if depth > MAX_DEPTH {
         return;
     }
 
-    scan_commands(source, param_set, traits, upvar_aliases, registry);
+    scan_commands(
+        source,
+        param_set,
+        traits,
+        upvar_aliases,
+        registry,
+        stub_overlay,
+    );
 
     // The recursion only walks braced bodies, so we re-segment
     // here rather than threading the segmented commands through
@@ -224,7 +248,17 @@ fn scan_deep<'p>(
         }
         let cmd_name = &seg.texts[0];
         let cmd_args: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body);
+        // Look up body args from both the registry (for built-in
+        // commands) and the stub overlay (for user-declared
+        // `# tcl-lsp: stub` commands).  Union so a stub-defined
+        // body arg recurses just like a registry-defined one.
+        let mut body_indices: HashSet<usize> = registry
+            .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body)
+            .into_iter()
+            .collect();
+        if let Some(overlay) = stub_overlay {
+            body_indices.extend(overlay.arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body));
+        }
         for idx in body_indices {
             let Some(body_text) = cmd_args.get(idx) else {
                 continue;
@@ -252,6 +286,7 @@ fn scan_deep<'p>(
                 upvar_aliases,
                 depth + 1,
                 registry,
+                stub_overlay,
             );
         }
     }
@@ -311,14 +346,20 @@ fn extract_var_name(text: &str) -> Option<&str> {
     Some(name)
 }
 
-/// Resolve a command's per-arg roles via the registry.  Mirrors
+/// Resolve a command's per-arg roles via the registry, unioned
+/// with any matching `# tcl-lsp: stub` overlay entry.  Mirrors
 /// ``_resolve_arg_roles`` in Python — picks the
 /// `arg_role_resolver` callback first, then static
-/// `arg_roles`, then sub-command-level roles.
+/// `arg_roles`, then sub-command-level roles.  When
+/// `stub_overlay` is `Some`, user-declared stub commands
+/// contribute their declared roles on top of the registry's;
+/// a stub-defined role for a given arg index overrides the
+/// registry's (the overlay is later-write-wins).
 fn resolve_arg_roles(
     command: &str,
     args: &[String],
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) -> HashMap<u8, ArgRole> {
     let mut roles: HashMap<u8, ArgRole> = HashMap::new();
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -333,6 +374,13 @@ fn resolve_arg_roles(
                 roles.insert(idx_u8, role);
             }
         }
+        if let Some(overlay) = stub_overlay {
+            for idx in overlay.arg_indices_for_role(command, &arg_strs, role) {
+                if let Ok(idx_u8) = u8::try_from(idx) {
+                    roles.insert(idx_u8, role);
+                }
+            }
+        }
     }
     roles
 }
@@ -344,6 +392,7 @@ fn scan_command<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &mut HashMap<String, &'p str>,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) {
     apply_arg_role_traits(
         cmd_name,
@@ -352,6 +401,7 @@ fn scan_command<'p>(
         traits,
         upvar_aliases,
         registry,
+        stub_overlay,
     );
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
@@ -423,8 +473,9 @@ fn apply_arg_role_traits<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     upvar_aliases: &HashMap<String, &'p str>,
     registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
 ) {
-    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry);
+    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry, stub_overlay);
     for (idx, arg) in cmd_args.iter().enumerate() {
         let Some(var_name) = extract_var_name(arg) else {
             continue;
@@ -737,10 +788,11 @@ mod tests {
     }
 
     /// Test helper — builds the registry once, since the public
-    /// API now requires the caller to thread one through.
+    /// API now requires the caller to thread one through.  No
+    /// stub overlay; tests that need one construct it inline.
     fn infer(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        infer_param_traits(params, body, &registry)
+        infer_param_traits(params, body, &registry, None)
     }
 
     #[test]
@@ -831,7 +883,7 @@ mod tests {
     /// Deep-pass helper that mirrors [`infer`] for ergonomics.
     fn infer_deep(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        infer_param_traits_deep(params, body, &registry)
+        infer_param_traits_deep(params, body, &registry, None)
     }
 
     #[test]
@@ -948,5 +1000,122 @@ mod tests {
     fn deep_pass_empty_params_returns_empty_map() {
         let deep = infer_deep(&[], "foreach item $items { uplevel 1 $body }");
         assert!(deep.is_empty());
+    }
+
+    // -- stub-overlay integration ------------------------------------
+    //
+    // These tests pin the contract that a non-empty
+    // [`StubOverlay`] threaded through `infer_param_traits` /
+    // `infer_param_traits_deep` lets user-declared
+    // `# tcl-lsp: stub` commands participate in role-driven
+    // trait inference alongside the built-in registry.
+
+    use tcl_registry::stub_overlay::{StubArg, StubSig};
+
+    fn make_overlay(sigs: Vec<StubSig>) -> StubOverlay {
+        let mut o = StubOverlay::new();
+        for s in sigs {
+            o.insert(s);
+        }
+        o
+    }
+
+    fn stub_sig(name: &str, args: &[(&str, ArgRole)]) -> StubSig {
+        use tcl_registry::stub_overlay::StubSigFlags;
+        StubSig {
+            name: name.to_string(),
+            args: args
+                .iter()
+                .map(|(n, r)| StubArg {
+                    name: (*n).to_string(),
+                    role: *r,
+                    optional: false,
+                })
+                .collect(),
+            flags: StubSigFlags::empty(),
+        }
+    }
+
+    #[test]
+    fn overlay_shallow_surfaces_stub_declared_body_role() {
+        // `my_eval` isn't in the built-in registry, but the
+        // overlay declares its arg-0 as `body`.  An invocation
+        // `my_eval $script` should therefore surface `Body` on
+        // the `script` param.
+        let overlay = make_overlay(vec![stub_sig("my_eval", &[("script", ArgRole::Body)])]);
+        let registry = CommandRegistry::build_default();
+        let traits = infer_param_traits(&["script"], "my_eval $script", &registry, Some(&overlay));
+        assert_trait(&traits, "script", ProcArgTrait::Body);
+    }
+
+    #[test]
+    fn overlay_shallow_surfaces_stub_declared_var_write_role() {
+        // Stub-declared `VarWrite` on a parameter should
+        // surface `VarWrite` on the matching param.
+        let overlay = make_overlay(vec![stub_sig(
+            "with_var",
+            &[("varName", ArgRole::VarWrite), ("value", ArgRole::Value)],
+        )]);
+        let registry = CommandRegistry::build_default();
+        let traits = infer_param_traits(&["v"], "with_var $v 42", &registry, Some(&overlay));
+        assert_trait(&traits, "v", ProcArgTrait::VarWrite);
+    }
+
+    #[test]
+    fn overlay_deep_recurses_through_stub_body_args() {
+        // The overlay declares `my_loop`'s arg-1 as a body.
+        // Without the overlay the deep pass can't see that
+        // `my_loop { uplevel 1 $body }` carries an Eval inside.
+        // With the overlay it should descend into the brace
+        // and surface the Eval.
+        let overlay = make_overlay(vec![stub_sig(
+            "my_loop",
+            &[("count", ArgRole::Value), ("body", ArgRole::Body)],
+        )]);
+        let registry = CommandRegistry::build_default();
+        let body = "my_loop 5 { uplevel 1 $script }";
+        // Sanity: without the overlay, the deep pass misses
+        // the nested Eval because `my_loop` isn't recognised.
+        let no_overlay = infer_param_traits_deep(&["script"], body, &registry, None);
+        assert!(
+            !no_overlay
+                .get("script")
+                .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
+            "without overlay, my_loop body shouldn't be recognised, got {no_overlay:?}",
+        );
+        // With the overlay, the recursion fires.
+        let with_overlay = infer_param_traits_deep(&["script"], body, &registry, Some(&overlay));
+        assert_trait(&with_overlay, "script", ProcArgTrait::Eval);
+    }
+
+    #[test]
+    fn overlay_does_not_disturb_registry_resolution() {
+        // An overlay covering `my_thing` mustn't shadow any
+        // built-in command.  A built-in `foreach` invocation
+        // still records its `LoopList` / `Body` traits via the
+        // registry path even when an unrelated stub overlay is
+        // active.
+        let overlay = make_overlay(vec![stub_sig("my_thing", &[("a", ArgRole::Body)])]);
+        let registry = CommandRegistry::build_default();
+        let traits = infer_param_traits(
+            &["items", "body"],
+            "foreach x $items $body",
+            &registry,
+            Some(&overlay),
+        );
+        assert_trait(&traits, "items", ProcArgTrait::LoopList);
+        assert_trait(&traits, "body", ProcArgTrait::Body);
+    }
+
+    #[test]
+    fn overlay_none_matches_overlay_empty() {
+        // An empty overlay should produce the same result as
+        // `None` — the overlay is a no-op when it has no
+        // entries.
+        let registry = CommandRegistry::build_default();
+        let body = "foreach x {1 2 3} $body";
+        let none = infer_param_traits(&["body"], body, &registry, None);
+        let empty = infer_param_traits(&["body"], body, &registry, Some(&StubOverlay::new()));
+        assert_eq!(none, empty);
     }
 }

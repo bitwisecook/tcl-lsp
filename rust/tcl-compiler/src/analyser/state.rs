@@ -166,6 +166,17 @@ pub struct Analyser {
     /// / symbol-graph / dataflow-graph / semantic-graph builders.
     /// Mirrors Python's `deep_param_traits=True` opt-in surface.
     pub deep_param_traits: bool,
+    /// Per-document stub-command overlay built at the top of
+    /// [`Self::analyse`] from `result.stub_commands` via
+    /// [`super::types::build_stub_overlay`].  Lets analyser /
+    /// compiler queries see user-declared `# tcl-lsp: stub`
+    /// commands as first-class members of the command surface
+    /// without mutating the global [`tcl_registry::CommandRegistry`].
+    /// `None` outside an active analysis run.  Mirrors the
+    /// `_stub_signatures_var` `ContextVar` from Python's
+    /// `core/commands/registry/runtime.py` but tied to the
+    /// (single-threaded) analyser instead of a thread-local.
+    pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -215,6 +226,7 @@ impl Analyser {
             unresolved_commands_emitted: false,
             registry: None,
             deep_param_traits: false,
+            stub_overlay: None,
             line_offsets: None,
         }
     }
@@ -294,8 +306,15 @@ impl Analyser {
             &mut self.result.suppressed_lines,
             super::utils::parse_noqa_line_suppressions(source),
         );
-        // Inline ``# tcl-lsp: stub …`` block scan.
+        // Inline ``# tcl-lsp: stub …`` block scan.  After
+        // capturing the parsed records, build the per-document
+        // overlay so analyser / compiler queries see the
+        // user-declared stubs as first-class commands (without
+        // mutating the global registry).  Mirrors the
+        // `_stub_signatures_var` `ContextVar` wiring in Python's
+        // `core/commands/registry/runtime.py`.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 

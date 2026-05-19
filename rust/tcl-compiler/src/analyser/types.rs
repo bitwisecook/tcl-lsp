@@ -579,6 +579,53 @@ pub struct StubCommandDef {
     pub flags: StubFlags,
 }
 
+impl StubCommandDef {
+    /// Convert to the overlay-side [`tcl_registry::stub_overlay
+    /// ::StubSig`] shape.  Drops the source span (the overlay
+    /// only cares about the semantic shape; the original
+    /// `StubCommandDef` retains the span for diagnostic
+    /// emitters) and canonicalises each argument role string
+    /// through [`tcl_registry::stub_overlay::StubOverlay::parse_role`].
+    ///
+    /// The two `StubFlags` bitflag types share identical bit
+    /// layout by design (see the doc comment on
+    /// [`tcl_registry::stub_overlay::StubSigFlags`]), so the
+    /// flag conversion is a 1-for-1 bit copy via `bits()` /
+    /// `from_bits_truncate`.
+    #[must_use]
+    pub fn to_stub_sig(&self) -> tcl_registry::stub_overlay::StubSig {
+        use tcl_registry::stub_overlay::{StubArg, StubOverlay, StubSig, StubSigFlags};
+        StubSig {
+            name: self.name.clone(),
+            args: self
+                .args
+                .iter()
+                .map(|a| StubArg {
+                    name: a.name.clone(),
+                    role: StubOverlay::parse_role(&a.role),
+                    optional: a.optional,
+                })
+                .collect(),
+            flags: StubSigFlags::from_bits_truncate(self.flags.bits()),
+        }
+    }
+}
+
+/// Build a [`tcl_registry::stub_overlay::StubOverlay`] from a
+/// slice of [`StubCommandDef`] records.  The order of inserts
+/// matches the order in `defs`; per
+/// [`tcl_registry::stub_overlay::StubOverlay::insert`]'s
+/// "last directive wins" semantics, a later directive for the
+/// same name overrides an earlier one.
+#[must_use]
+pub fn build_stub_overlay(defs: &[StubCommandDef]) -> tcl_registry::stub_overlay::StubOverlay {
+    let mut overlay = tcl_registry::stub_overlay::StubOverlay::new();
+    for def in defs {
+        overlay.insert(def.to_stub_sig());
+    }
+    overlay
+}
+
 /// Inline `# stub-expr: NAME ARGS` directive capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StubExprDef {
