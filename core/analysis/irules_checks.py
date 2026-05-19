@@ -49,6 +49,25 @@ def _valid_events_for_command(cmd_name: str, dialect: str) -> list[str]:
     return legality.events_for_command(cmd_name)
 
 
+def _raw_arg_text(source: str, tok: Token) -> str:
+    """Return the raw source slice for an argument token.
+
+    Widens the end offset by one when the next character is the
+    matching closing delimiter of an opening ``"``/``{`` so quoted /
+    braced args round-trip intact.  Used by quick-fix builders that
+    must preserve variable and command substitutions in the original
+    syntax (rather than re-emitting the post-substitution value via
+    ``args[idx]``).
+    """
+    start = tok.start.offset
+    end = tok.end.offset + 1
+    if 0 <= start < len(source) and source[start] in ('"', "{"):
+        close = '"' if source[start] == '"' else "}"
+        if end < len(source) and source[end] == close:
+            end += 1
+    return source[start:end]
+
+
 # IRULE1001: Command invalid/ineffective in this event
 
 
@@ -184,15 +203,21 @@ def check_matchclass(
 
     fixes: tuple[CodeFix, ...] = ()
     # Auto-fix: matchclass <item> <class> → class match <item> equals <class>
-    if len(args) >= 2 and len(all_tokens) >= 3:
+    if len(args) >= 2 and len(all_tokens) >= 3 and len(arg_tokens) >= 2:
         first_tok = all_tokens[0]
         last_tok = all_tokens[-1]
         fix_range = Range(
             start=first_tok.start,
             end=last_tok.end,
         )
-        item = args[0]
-        cls = args[1]
+        # ``args[idx]`` holds the *substituted* value of each word.  For
+        # ``matchclass $url ::lib`` that gives ``"url"`` instead of
+        # ``"$url"`` and the replacement would silently drop the
+        # variable reference (IRULE2001 quick-fix audit, 2026-05).
+        # Pull the raw source slice via the arg token offsets so the
+        # rewrite preserves variable/command substitutions verbatim.
+        item = _raw_arg_text(source, arg_tokens[0])
+        cls = _raw_arg_text(source, arg_tokens[1])
         fixes = (
             CodeFix(
                 range=fix_range,

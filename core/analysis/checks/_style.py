@@ -297,7 +297,7 @@ def check_unbraced_body(
             close = '"' if source[tok.start.offset] == '"' else "}"
             if raw_end < len(source) and source[raw_end] == close:
                 raw_end += 1
-        raw_text = source[tok.start.offset:raw_end]
+        raw_text = source[tok.start.offset : raw_end]
         fix = CodeFix(
             range=range_from_token(tok),
             new_text="{" + raw_text + "}",
