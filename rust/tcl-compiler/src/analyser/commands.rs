@@ -286,6 +286,15 @@ impl Analyser {
         // commands with their own handler still get checked.
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
 
+        // **SYNC-MAY19-W003-W004.**  W004 — option not available in
+        // the active dialect.  Mirrors `check_dialect_invalid_option`
+        // in `core/analysis/checks/_domain.py` (PR #433, 0f9288d2).
+        // Driven by the registry's per-option `dialects` field; only
+        // fires when an option is declared on this command but its
+        // dialect set excludes the active one.  Substituted-value
+        // args and `--` terminate the scan.
+        self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
@@ -419,12 +428,14 @@ impl Analyser {
                 args.join(" ")
             };
             self.emit_w110_string_eq_ne(&expr_text, span);
+            self.emit_w003_dialect_invalid_expr_operator(&expr_text, span);
             return;
         }
 
         for idx in indices {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
                 self.emit_w110_string_eq_ne(text, tok.span);
+                self.emit_w003_dialect_invalid_expr_operator(text, tok.span);
             }
         }
     }

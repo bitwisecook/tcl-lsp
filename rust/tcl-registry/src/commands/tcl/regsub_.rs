@@ -64,6 +64,14 @@ pub fn spec() -> CommandSpec {
                 detail: "",
                 dialects: None,
             },
+            // `regsub -command` is Tcl 9.0+ (TIP 463).
+            OptionSpec {
+                name: "-command",
+                takes_value: false,
+                value_hint: "",
+                detail: "Treat subSpec as a command prefix to call per match.",
+                dialects: Some(DialectSet::TCL90),
+            },
             OptionSpec {
                 name: "--",
                 takes_value: false,

@@ -3338,6 +3338,223 @@ before this value so it is treated as data, not an option."
             }
         }
     }
+
+    /// **W004.** Emit "Command option is not available in the active
+    /// dialect" warning for option-bearing commands invoked with an
+    /// option whose registry entry restricts it to a dialect that
+    /// doesn't include the active one.
+    ///
+    /// Mirrors `check_dialect_invalid_option` in
+    /// `core/analysis/checks/_domain.py` (PR #433).  Examples:
+    /// `lsearch -stride` on Tcl 8.4 / 8.5 (option is 8.6+),
+    /// `regsub -command` / `clock scan -validate` /
+    /// `fconfigure -nodelay` on Tcl 8.x (options are 9.0+).
+    ///
+    /// Walks args looking for `-foo`-shaped flags, asks the registry
+    /// for the matching `OptionSpec`, and fires when
+    /// `OptionSpec::supports_dialect` returns false.  Substituted
+    /// flag values (`-foo $bar`, `-foo [cmd]`) are skipped because
+    /// the dispatching is only on the *flag name*; we don't have to
+    /// inspect the value.  `--` terminates the scan.
+    ///
+    /// Subcommand-scoped options consult the subcommand's
+    /// `OptionSpec` table when the first arg matches a known
+    /// subcommand.
+    pub(super) fn emit_w004_dialect_invalid_option(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        use tcl_registry::dialects::DialectSet;
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        if args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let Some(active) = DialectSet::parse(&self.dialect) else {
+            return;
+        };
+        let Some(spec) = registry.get(cmd_name) else {
+            return;
+        };
+
+        // Resolve subcommand-level options when the first arg names
+        // one (mirrors Python's `if first in spec.subcommands`).
+        let sub_match = (!spec.subcommands.is_empty())
+            .then(|| spec.subcommands.iter().find(|s| s.name == args[0].as_str()))
+            .flatten();
+        let (options, parent_dialects, start_idx) = if let Some(sub) = sub_match {
+            (sub.options, sub.dialects.or(spec.dialects), 1usize)
+        } else {
+            (spec.options, spec.dialects, 0usize)
+        };
+
+        if options.is_empty() {
+            return;
+        }
+
+        let mut i = start_idx;
+        while i < args.len() {
+            let arg = args[i].as_str();
+            if arg == "--" {
+                break;
+            }
+            if !arg.starts_with('-') || arg.len() < 2 {
+                i += 1;
+                continue;
+            }
+            // Skip negative number literals (`-1`, `-1.5`).
+            let rest = &arg[1..].trim_start_matches('-');
+            if !rest.is_empty()
+                && rest.chars().all(|c| c.is_ascii_digit() || c == '.')
+            {
+                i += 1;
+                continue;
+            }
+            // Skip dynamic-value args (Var / Cmd tokens).  The flag
+            // name itself comes from the arg text, but if the
+            // representative token is a substitution we can't know
+            // it's actually `-foo`.
+            if i < arg_tokens.len() {
+                let tok = arg_tokens[i];
+                if matches!(
+                    tok.kind,
+                    tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                ) {
+                    i += 1;
+                    continue;
+                }
+            }
+            // Find a matching OptionSpec; if found and dialect-gated
+            // out, emit W004.
+            if let Some(opt) = options.iter().find(|o| o.name == arg) {
+                if !opt.supports_dialect(Some(active), parent_dialects) {
+                    let span = if i < arg_tokens.len() {
+                        arg_tokens[i].span
+                    } else {
+                        continue;
+                    };
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W004".to_string(),
+                        span,
+                        message: format!(
+                            "Option '{}' on command '{}' is not available in dialect '{}'.",
+                            arg, cmd_name, self.dialect
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+            }
+            i += 1;
+        }
+    }
+
+    /// **W003.** Emit "Expression operator not available in active
+    /// dialect" warning for expressions that use a Tcl 9.0 string-
+    /// comparison operator (`lt` / `le` / `gt` / `ge`, TIP 461) in a
+    /// pre-9.0 dialect, or `in` / `ni` (TIP 201, Tcl 8.5+) in
+    /// Tcl 8.4 / f5-irules.
+    ///
+    /// Mirrors `check_dialect_invalid_expr_operator` in
+    /// `core/analysis/checks/_domain.py` (PR #433).
+    pub(super) fn emit_w003_dialect_invalid_expr_operator(
+        &mut self,
+        expr_text: &str,
+        diag_span: tcl_lexer::Span,
+    ) {
+        use tcl_registry::dialects::DialectSet;
+
+        // Quick lexical bail-out — the gated operators are short
+        // keywords; if none appear as a whole-word substring we can
+        // skip the parse.
+        if !expr_text.contains(" lt ")
+            && !expr_text.contains(" le ")
+            && !expr_text.contains(" gt ")
+            && !expr_text.contains(" ge ")
+            && !expr_text.contains(" in ")
+            && !expr_text.contains(" ni ")
+        {
+            return;
+        }
+        let Some(active) = DialectSet::parse(&self.dialect) else {
+            return;
+        };
+        // Pre-Tcl-8.5 dialects don't accept `in` / `ni` (TIP 201).
+        let pre_85 = !DialectSet::TCL85_PLUS.contains(active);
+        // Pre-Tcl-9.0 dialects don't accept `lt` / `le` / `gt` / `ge`
+        // (TIP 461).
+        let pre_90 = !DialectSet::from_iter([DialectSet::TCL90]).contains(active);
+        if !pre_85 && !pre_90 {
+            return;
+        }
+
+        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
+        if matches!(parsed, ExprNode::Raw { .. }) {
+            return;
+        }
+        let mut found: Vec<&'static str> = Vec::new();
+        walk_dialect_invalid_ops(&parsed, pre_85, pre_90, &mut found);
+        for op_name in found {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W003".to_string(),
+                span: diag_span,
+                message: format!(
+                    "Expression operator '{op_name}' is not available in dialect '{}'.",
+                    self.dialect
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+}
+
+/// Walk an expression AST and collect dialect-gated operator
+/// occurrences.  Mirrors `_find_dialect_invalid_ops` in
+/// `core/analysis/checks/_domain.py` (PR #433).
+fn walk_dialect_invalid_ops(
+    node: &ExprNode,
+    pre_85: bool,
+    pre_90: bool,
+    found: &mut Vec<&'static str>,
+) {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            walk_dialect_invalid_ops(left, pre_85, pre_90, found);
+            walk_dialect_invalid_ops(right, pre_85, pre_90, found);
+            match op {
+                BinOp::In if pre_85 => found.push("in"),
+                BinOp::Ni if pre_85 => found.push("ni"),
+                BinOp::StrLt if pre_90 => found.push("lt"),
+                BinOp::StrLe if pre_90 => found.push("le"),
+                BinOp::StrGt if pre_90 => found.push("gt"),
+                BinOp::StrGe if pre_90 => found.push("ge"),
+                _ => {}
+            }
+        }
+        ExprNode::Unary { operand, .. } => {
+            walk_dialect_invalid_ops(operand, pre_85, pre_90, found);
+        }
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            walk_dialect_invalid_ops(condition, pre_85, pre_90, found);
+            walk_dialect_invalid_ops(true_branch, pre_85, pre_90, found);
+            walk_dialect_invalid_ops(false_branch, pre_85, pre_90, found);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                walk_dialect_invalid_ops(arg, pre_85, pre_90, found);
+            }
+        }
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -3409,6 +3626,85 @@ mod tests {
             severity: Severity::Warning,
             fixes: Vec::new(),
         }
+    }
+
+    #[test]
+    fn w004_fires_on_regsub_command_in_tcl86() {
+        // `regsub -command` is Tcl 9.0+ (TIP 463); on Tcl 8.6 it
+        // should produce a W004 dialect-availability warning.
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub -command {[A-Z]+} foo {bar} out", "tcl8.6");
+        let w004: Vec<&Diagnostic> =
+            result.diagnostics.iter().filter(|d| d.code == "W004").collect();
+        assert!(
+            !w004.is_empty(),
+            "expected W004 on tcl8.6 regsub -command, got {:?}",
+            result.diagnostics
+        );
+        assert!(w004[0].message.contains("-command"));
+        assert!(w004[0].message.contains("regsub"));
+    }
+
+    #[test]
+    fn w004_silent_on_regsub_command_in_tcl9() {
+        // Same input on Tcl 9.0 — option is supported, no W004.
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub -command {[A-Z]+} foo {bar} out", "tcl9.0");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "W004"),
+            "W004 should not fire on tcl9.0, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w003_fires_on_string_compare_in_tcl84() {
+        // `lt` / `le` / `gt` / `ge` are Tcl 9.0+ (TIP 461); on
+        // Tcl 8.4 / 8.5 / 8.6 they should produce W003.
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x lt $y} { puts hi }", "tcl8.4");
+        let w003: Vec<&Diagnostic> =
+            result.diagnostics.iter().filter(|d| d.code == "W003").collect();
+        assert!(
+            !w003.is_empty(),
+            "expected W003 on tcl8.4 'lt' operator, got {:?}",
+            result.diagnostics
+        );
+        assert!(w003[0].message.contains("'lt'"));
+    }
+
+    #[test]
+    fn w003_silent_on_string_compare_in_tcl9() {
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x lt $y} { puts hi }", "tcl9.0");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "W003"),
+            "W003 should not fire on tcl9.0, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w003_fires_on_in_operator_in_tcl84() {
+        // `in` / `ni` are Tcl 8.5+ (TIP 201).
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x in {a b c}} { puts hi }", "tcl8.4");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W003"),
+            "expected W003 on tcl8.4 'in' operator, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w003_silent_on_in_operator_in_tcl85() {
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x in {a b c}} { puts hi }", "tcl8.5");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "W003"),
+            "W003 should not fire on tcl8.5, got {:?}",
+            result.diagnostics
+        );
     }
 
     #[test]
