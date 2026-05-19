@@ -829,6 +829,13 @@ class TestCommandDispatch:
             "frame_alias_frame_var",
             "frame_get_depth",
             "upvar_resolve_depth",
+            # ``upvar_walk_relative`` is pulled in alongside the rest
+            # of the upvar helpers — it resolves the relative-level
+            # form for the compiled-proc body and walks past foreign
+            # frames pushed by cross-interp alias/invokehidden so
+            # ``upvar 1`` inside a hidden command reaches its
+            # same-interp caller (interp-20.35 .. 20.44).
+            "upvar_walk_relative",
             # Signal-flag inspectors used by every compiled-proc-call
             # bridge to absorb ``return`` at the dispatch boundary
             # and propagate ``error`` past the call.  Always pulled

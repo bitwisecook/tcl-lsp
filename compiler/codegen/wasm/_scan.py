@@ -1542,6 +1542,8 @@ def _scan_needed_imports(
         needed.add("tcl_frame_alias_frame_var")
         needed.add("tcl_frame_get_depth")
         needed.add("tcl_upvar_resolve_depth")
+        # Static-relative upvar helper (skips cross-interp frames).
+        needed.add("tcl_upvar_walk_relative")
         # Pending-argv0 ABI: the callee prologue reads this slot
         # (cleared on read) to pick up the invoked word recorded by
         # the caller immediately before the compiled ``call``.  The

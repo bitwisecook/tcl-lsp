@@ -79,19 +79,26 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         {
                             code_kind = .cont;
                         } else {
-                            // Numeric ``-code N`` for N ≥ 5 — parse
-                            // the value and surface it via the
-                            // ``return_code`` side-channel that
-                            // ``catch_leave`` reads.  Negative or
-                            // non-numeric values fall through to the
-                            // default ``.ok`` mapping (matching
-                            // reference Tcl, which raises an error
-                            // for unknown codes — left as a follow-up
-                            // since the tcltest harness never relies
-                            // on the diagnostic).
-                            var n: i64 = 0;
-                            var ok = code.len > 0;
+                            // Numeric ``-code N`` for N outside the
+                            // 0..4 keyword range — parse the value
+                            // and surface it via the ``return_code``
+                            // side-channel that ``catch_leave`` reads.
+                            // Negative values (e.g. ``-1``) are valid
+                            // custom codes per Tcl 9 (interp-26.x);
+                            // non-numeric values fall through to
+                            // ``.ok`` (matching reference Tcl raises
+                            // an error here — left as a follow-up
+                            // since tcltest doesn't rely on it).
                             var ki: u32 = 0;
+                            var negative = false;
+                            if (code.len >= 1 and cp[0] == '-') {
+                                negative = true;
+                                ki = 1;
+                            } else if (code.len >= 1 and cp[0] == '+') {
+                                ki = 1;
+                            }
+                            var n: i64 = 0;
+                            var ok = ki < code.len;
                             while (ki < code.len) : (ki += 1) {
                                 if (cp[ki] < '0' or cp[ki] > '9') {
                                     ok = false;
@@ -99,7 +106,8 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                                 }
                                 n = n * 10 + (cp[ki] - '0');
                             }
-                            if (ok and n >= 5) {
+                            if (ok) {
+                                if (negative) n = -n;
                                 code_kind = .custom;
                                 custom_code = n;
                             }
@@ -479,6 +487,11 @@ fn eval_catch(words: []const i32) result_mod.InterpResult {
     }
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
+        // ``catch`` evaluates its body — counts as one level
+        // (mirrors C Tcl where catch's body dispatch goes through
+        // ``TclNREvalObjEx`` which ``numLevels++``s).
+        if (!interp.recursion_check_enter()) return result_mod.from_globals(0);
+        defer interp.recursion_check_leave();
         rt.catch_enter();
         const body_s = obj_ensure_string(words[1]);
         const body_result = interp.eval_script(body_s.ptr, body_s.len);

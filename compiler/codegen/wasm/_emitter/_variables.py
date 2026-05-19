@@ -1500,11 +1500,23 @@ class _WasmEmitterVarMixin(_Base):
             except ValueError:
                 pass  # fall through to dynamic path
         elif not level_spec.startswith("$") and not level_spec.startswith("["):
-            # Static relative integer.
+            # Static relative integer.  Route through the runtime
+            # walker so a cross-interp ``upvar`` (e.g. inside a
+            # hidden command body invoked via ``interp invokehidden``)
+            # skips intervening foreign-interp frames pushed by the
+            # alias / invokehidden trampolines — see interp-20.35 ..
+            # 20.44.  Walker degenerates to plain arithmetic when
+            # the stack contains only same-interp frames.
             try:
                 rel = abs(int(level_spec))
             except ValueError:
                 rel = 1
+            walker_idx = self._shared_imports.get("tcl_upvar_walk_relative")
+            if walker_idx is not None:
+                self._emit_call(depth_idx)
+                self._emit_i32_const(rel)
+                self._emit_call(walker_idx)
+                return True
             self._emit_call(depth_idx)
             self._emit_i32_const(rel)
             self._emit(WasmOp.I32_SUB)

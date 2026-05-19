@@ -52,6 +52,162 @@ const tcl_ns = @import("tcl_ns.zig");
 /// discussion.
 pub const INTERP_SAFE: u32 = 0x1;
 
+/// Default per-interp recursion limit.  Matches Tcl 9's
+/// ``Tcl_CreateInterp`` initial value
+/// (``tclBasic.c`` ``Tcl_CreateInterp`` sets ``interp->maxNestingDepth = 1000``).
+pub const DEFAULT_RECURSION_LIMIT: u32 = 1000;
+
+/// Predicate: is the interp at ``addr`` flagged ``INTERP_SAFE``?
+/// Empty paths and root-interp queries route through here.
+pub fn interp_is_safe(addr: u32) bool {
+    if (addr == 0) return false;
+    const i: *Interp = @ptrFromInt(addr);
+    return (i.flags & INTERP_SAFE) != 0;
+}
+
+/// Read the per-interp recursion limit, seeding the default on
+/// first read so ``interp recursionlimit child`` always returns a
+/// non-zero answer without forcing every ``child_create`` site to
+/// remember to set it.
+pub fn interp_recursion_limit(addr: u32) u32 {
+    if (addr == 0) return DEFAULT_RECURSION_LIMIT;
+    const i: *Interp = @ptrFromInt(addr);
+    if (i.recursion_limit == 0) i.recursion_limit = DEFAULT_RECURSION_LIMIT;
+    return i.recursion_limit;
+}
+
+/// Update the per-interp recursion limit.  Values < 1 are rejected
+/// by the caller (matches Tcl 9, which bounces non-positive limits).
+pub fn interp_set_recursion_limit(addr: u32, new_limit: u32) void {
+    if (addr == 0) return;
+    const i: *Interp = @ptrFromInt(addr);
+    i.recursion_limit = new_limit;
+}
+
+/// Set / clear the ``INTERP_SAFE`` flag on ``addr``.  Used by
+/// ``interp marktrusted`` (clear) — there is no Tcl-level command
+/// to set the flag after creation; ``interp create -safe`` is the
+/// only path for that direction.
+pub fn interp_set_safe(addr: u32, safe: bool) void {
+    if (addr == 0) return;
+    const i: *Interp = @ptrFromInt(addr);
+    if (safe) {
+        i.flags |= INTERP_SAFE;
+    } else {
+        i.flags &= ~INTERP_SAFE;
+    }
+}
+
+/// Per-interp alias chain selector.  ``.child`` walks
+/// :attr:`Interp.aliases_head` (the source-side list of aliases
+/// registered in this interp); ``.target`` walks
+/// :attr:`Interp.alias_targets_head` (the destination-side list
+/// of aliases pointing at commands in this interp).
+pub const AliasChain = enum { child, target };
+
+/// Prepend an :type:`AliasRec` onto one of the interp's alias
+/// chains.  Mirrors ``Tcl_CreateAlias``'s wiring into
+/// ``Interp.child.aliasTable`` (for the source side) and
+/// ``Interp.parent.targetsPtr`` (for the target side).
+pub fn alias_chain_push(addr: u32, rec_addr: u32, chain: AliasChain) void {
+    if (addr == 0 or rec_addr == 0) return;
+    const i: *Interp = @ptrFromInt(addr);
+    const next_off: u32 = chain_next_offset(chain);
+    const head_addr: u32 = addr + chain_head_offset(chain);
+    // ``rec_addr`` points at an :type:`AliasRec`; ``next_off`` is
+    // the byte offset of the matching ``next_*`` field within that
+    // struct.  Mirrors C Tcl's ``aliasPtr->aliasEntryPtr = ...``
+    // (the child-side link) and ``targetPtr->nextPtr = ...`` (the
+    // parent-side link).
+    obj.write_i32(rec_addr + next_off, @bitCast(obj.read_i32(head_addr)));
+    obj.write_i32(head_addr, @bitCast(rec_addr));
+    _ = i;
+}
+
+/// Unlink an :type:`AliasRec` from one of the interp's alias
+/// chains.  Idempotent; missing entries are silently ignored
+/// (matches C Tcl's ``Tcl_DeleteHashEntry`` semantics — the
+/// caller may have already removed the record).
+pub fn alias_chain_remove(addr: u32, rec_addr: u32, chain: AliasChain) void {
+    if (addr == 0 or rec_addr == 0) return;
+    const next_off: u32 = chain_next_offset(chain);
+    var cursor: u32 = addr + chain_head_offset(chain);
+    while (true) {
+        const cur: u32 = @bitCast(obj.read_i32(cursor));
+        if (cur == 0) return;
+        if (cur == rec_addr) {
+            obj.write_i32(cursor, obj.read_i32(cur + next_off));
+            obj.write_i32(cur + next_off, 0);
+            return;
+        }
+        cursor = cur + next_off;
+    }
+}
+
+/// Walk one of the interp's alias chains.  Returns the first
+/// :type:`AliasRec` whose ``token`` (original simple name)
+/// matches ``name``.  Used by ``interp alias`` query/delete to
+/// resolve the alias by its original spelling even after a
+/// ``rename`` has moved the source Command around.
+pub fn alias_chain_find_token(
+    addr: u32,
+    chain: AliasChain,
+    name_ptr: u32,
+    name_len: u32,
+) u32 {
+    if (addr == 0) return 0;
+    const next_off: u32 = chain_next_offset(chain);
+    var cur: u32 = @bitCast(obj.read_i32(addr + chain_head_offset(chain)));
+    while (cur != 0) {
+        const tok_ptr: u32 = @bitCast(obj.read_i32(cur + ALIAS_REC_OFF_TOKEN_PTR));
+        const tok_len: u32 = @bitCast(obj.read_i32(cur + ALIAS_REC_OFF_TOKEN_LEN));
+        if (tok_len == name_len and bytes_eq(tok_ptr, name_ptr, name_len)) return cur;
+        cur = @bitCast(obj.read_i32(cur + next_off));
+    }
+    return 0;
+}
+
+fn chain_head_offset(chain: AliasChain) u32 {
+    return switch (chain) {
+        .child => @offsetOf(Interp, "aliases_head"),
+        .target => @offsetOf(Interp, "alias_targets_head"),
+    };
+}
+
+fn chain_next_offset(chain: AliasChain) u32 {
+    return switch (chain) {
+        .child => ALIAS_REC_OFF_NEXT_IN_CHILD,
+        .target => ALIAS_REC_OFF_NEXT_TARGET_IN_PARENT,
+    };
+}
+
+fn bytes_eq(a: u32, b: u32, len: u32) bool {
+    if (len == 0) return true;
+    const ap: [*]const u8 = @ptrFromInt(a);
+    const bp: [*]const u8 = @ptrFromInt(b);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        if (ap[i] != bp[i]) return false;
+    }
+    return true;
+}
+
+// AliasRec field offsets that this module reaches into via direct
+// memory loads.  Kept in sync with ``cmds/tcl_alias.zig``'s
+// ``AliasRec`` ``extern struct`` layout via the comptime assert
+// below.
+const ALIAS_REC_OFF_TARGET_NAME_PTR: u32 = 0;
+const ALIAS_REC_OFF_TARGET_NAME_LEN: u32 = 4;
+const ALIAS_REC_OFF_N_PREFIX: u32 = 8;
+const ALIAS_REC_OFF_PREFIX_ARGS_ADDR: u32 = 12;
+const ALIAS_REC_OFF_PARENT_INTERP: u32 = 16;
+const ALIAS_REC_OFF_CHILD_INTERP: u32 = 20;
+const ALIAS_REC_OFF_TOKEN_PTR: u32 = 24;
+const ALIAS_REC_OFF_TOKEN_LEN: u32 = 28;
+const ALIAS_REC_OFF_NEXT_IN_CHILD: u32 = 32;
+const ALIAS_REC_OFF_NEXT_TARGET_IN_PARENT: u32 = 36;
+const ALIAS_REC_SIZE: u32 = 40;
+
 /// Set on an ``Interp`` once ``interp delete path`` has torn it down.
 /// Dispatch paths that might still hold the stale ``Interp*`` (cross-
 /// interp alias redirect Commands whose ``OFF_IMPORT_REF_HEAD`` slot
@@ -119,6 +275,38 @@ pub const Interp = extern struct {
     /// collide, and so a deleted-then-recreated anonymous interp
     /// under one parent doesn't skew the issuer state in another.
     id_issuer: u32,
+
+    /// Per-interp recursion limit (``Tcl_SetRecursionLimit`` /
+    /// ``interp recursionlimit``).  Stored as ``u32`` for ABI
+    /// stability; ``0`` is treated as "uninitialised" and seeded to
+    /// the default (1000) on first read.  Enforcement lives in
+    /// :fn:`tcl_interp.eval_command` which compares
+    /// :attr:`num_levels` against this value and raises ``too many
+    /// nested evaluations (infinite loop?)`` when exceeded
+    /// (interp-29.3.x).
+    recursion_limit: u32,
+
+    /// Current call-stack depth inside this interp.  Mirrors C Tcl's
+    /// ``Interp.numLevels`` — incremented at each ``eval_command``
+    /// entry and decremented on the way out.  Read by the recursion-
+    /// limit gate (above) and by the absorber for ``return -code N``
+    /// (``TclUpdateReturnInfo`` runs only at ``numLevels == 0``).
+    num_levels: u32,
+
+    /// Head of the doubly-linked list of aliases registered in this
+    /// interp (``Interp.child.aliasTable`` head in C Tcl, but a
+    /// simple chain serves the same purpose for our scale).  Drives
+    /// ``interp aliases <path>`` and survives ``rename`` of the
+    /// source command (the chain is keyed by the original token).
+    aliases_head: u32,
+
+    /// Head of the doubly-linked list of aliases whose *target*
+    /// lives in this interp.  Mirrors C Tcl's
+    /// ``Interp.parent.targetsPtr``: when this interp is torn down
+    /// :fn:`mark_deleted_subtree` walks the list and clears every
+    /// dangling source-side alias so a later dispatch through the
+    /// child can't crash on a freed parent.
+    alias_targets_head: u32,
 };
 
 /// Root-interp singleton.  ``interp_root()`` allocates lazily and
@@ -205,6 +393,12 @@ pub fn child_create(parent: u32, name_ptr: u32, name_len: u32, flags: u32) u32 {
     c.parent = parent;
     c.flags = flags;
     c.root_ns = tcl_ns.ns_alloc_root();
+    // Inherit the parent's recursion limit (C Tcl's
+    // ``Tcl_CreateChild`` copies ``parent->maxNestingDepth``).
+    // interp-29.4.1/29.4.2 rely on this so a grandchild's
+    // recursion gate fires at the parent's lowered limit.
+    if (p.recursion_limit == 0) p.recursion_limit = DEFAULT_RECURSION_LIMIT;
+    c.recursion_limit = p.recursion_limit;
 
     if (name_len > 0) {
         const nbuf = alloc(name_len);
@@ -262,6 +456,56 @@ pub fn child_delete(parent: u32, name_ptr: u32, name_len: u32) bool {
 fn mark_deleted_subtree(interp: u32) void {
     const i: *Interp = @ptrFromInt(interp);
     i.flags |= INTERP_DELETED;
+
+    // Walk this interp's ``alias_targets_head`` chain — these are
+    // AliasRecs in OTHER interps whose target lives here.  Clear
+    // each one so a later dispatch through the source interp
+    // doesn't try to invoke a command in this (now-dead) target.
+    // Mirrors C Tcl's ``DeleteAlias`` cleanup that fires from
+    // ``DeleteInterpProc`` walking ``Interp.parent.targetsPtr``.
+    var cur_target: u32 = i.alias_targets_head;
+    while (cur_target != 0) {
+        const r: *@import("../cmds/tcl_alias.zig").AliasRec = @ptrFromInt(cur_target);
+        const next: u32 = r.next_target_in_parent;
+        // Find the live Command for this alias in its child interp
+        // and clear it (deactivates dispatch + drops the
+        // namespace-table bucket).  alias_clear unhooks from both
+        // chains so the source interp's ``interp aliases`` no
+        // longer reports a dangling entry.
+        if (r.child_interp != 0 and r.token_len > 0) {
+            const child: *Interp = @ptrFromInt(r.child_interp);
+            // Walk the child's ns tree for a Command whose
+            // params_obj == r.  Same shape as
+            // ``find_command_by_rec`` in tcl_alias.zig but
+            // inlined here to avoid the cross-module import
+            // cycle.
+            const found = find_alias_cmd_in_subtree(child.root_ns, cur_target);
+            if (found.cmd != 0 and found.ns != 0) {
+                // Clear the live cmd_table entry.  alias_clear is
+                // called below to unhook chain entries; bucket
+                // tombstoning happens here so the source name
+                // resolves to "unknown command" on next dispatch.
+                //
+                // The Command's stored name is the FQN
+                // (``::foo``); the cmd_table bucket is keyed by
+                // the simple name (``foo``).  Strip the prefix
+                // before clearing.
+                const name_ptr: u32 = @bitCast(read_i32(found.cmd));
+                const name_len: u32 = @bitCast(read_i32(found.cmd + 4));
+                const simple = simple_of_fqn(name_ptr, name_len);
+                _ = tcl_ns.ns_cmd_clear(found.ns, simple.ptr, simple.len);
+            }
+            // Always unhook from both chains, even when the
+            // Command lookup missed (the alias may have been
+            // ``rename``d off; the chain still holds it under
+            // its original token).
+            const alias_mod = @import("../cmds/tcl_alias.zig");
+            alias_mod.alias_clear_rec(cur_target);
+        }
+        cur_target = next;
+    }
+    i.alias_targets_head = 0;
+
     if (i.children.buf == 0 or i.children.cap == 0) return;
     var k: u32 = 0;
     while (k < i.children.cap) : (k += 1) {
@@ -273,6 +517,71 @@ fn mark_deleted_subtree(interp: u32) void {
         mark_deleted_subtree(handle);
         write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
     }
+}
+
+const AliasCmdAndNs = struct { cmd: u32, ns: u32 };
+
+/// Strip the namespace prefix off a fully-qualified command name,
+/// returning the trailing simple name.  ``::foo::bar`` → ``bar``,
+/// bare ``foo`` → ``foo``.
+fn simple_of_fqn(name_ptr: u32, name_len: u32) struct { ptr: u32, len: u32 } {
+    if (name_len == 0) return .{ .ptr = name_ptr, .len = 0 };
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    var i: u32 = name_len;
+    while (i >= 2) : (i -= 1) {
+        if (sp[i - 2] == ':' and sp[i - 1] == ':') {
+            return .{ .ptr = name_ptr + i, .len = name_len - i };
+        }
+    }
+    return .{ .ptr = name_ptr, .len = name_len };
+}
+
+fn find_alias_cmd_in_subtree(ns: u32, target_rec: u32) AliasCmdAndNs {
+    if (ns == 0 or target_rec == 0) return .{ .cmd = 0, .ns = 0 };
+    // Heap-range guard: a torn-down interp's ``root_ns`` can leave
+    // ``cmd_table.buf`` pointing at memory that was reclaimed or
+    // never mapped (basic-10.1's ``namespace delete ::`` then
+    // ``interp delete`` sequence).  Skip cleanly rather than
+    // ``read_i32``-trap.
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    if (@as(u64, ns) + @sizeOf(tcl_ns.Namespace) > mem_bytes) return .{ .cmd = 0, .ns = 0 };
+    const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
+    // Walk this ns's cmd_table.
+    if (n.cmd_table.buf != 0 and n.cmd_table.cap > 0 and n.cmd_table.cap < (1 << 20)) {
+        const table_bytes: u64 = @as(u64, n.cmd_table.cap) * @as(u64, tcl_ns.NS_BUCKET_SIZE);
+        if (@as(u64, n.cmd_table.buf) + table_bytes <= mem_bytes) {
+            var k: u32 = 0;
+            while (k < n.cmd_table.cap) : (k += 1) {
+                const bucket = n.cmd_table.buf + k * tcl_ns.NS_BUCKET_SIZE;
+                const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+                if (cmd == 0) continue;
+                // Bounds-check the Command pointer before reading
+                // ``OFF_PARAMS_OBJ``.  Builtin forwards and alias
+                // redirects sometimes hold sentinel handles outside
+                // the heap range; reading through them would trap.
+                const procs_mod = @import("tcl_procs.zig");
+                if (@as(u64, cmd) + procs_mod.OFF_PARAMS_OBJ + 4 > mem_bytes) continue;
+                const params: u32 = @bitCast(read_i32(cmd + procs_mod.OFF_PARAMS_OBJ));
+                if (params == target_rec) return .{ .cmd = cmd, .ns = ns };
+            }
+        }
+    }
+    // Recurse into children namespaces.
+    if (n.child_table.buf == 0 or n.child_table.cap == 0 or n.child_table.cap >= (1 << 20)) {
+        return .{ .cmd = 0, .ns = 0 };
+    }
+    const child_bytes: u64 = @as(u64, n.child_table.cap) * @as(u64, tcl_ns.NS_BUCKET_SIZE);
+    if (@as(u64, n.child_table.buf) + child_bytes > mem_bytes) return .{ .cmd = 0, .ns = 0 };
+    var k: u32 = 0;
+    while (k < n.child_table.cap) : (k += 1) {
+        const cb = n.child_table.buf + k * tcl_ns.NS_BUCKET_SIZE;
+        const child_ns: u32 = @bitCast(read_i32(cb + tcl_ns.OFF_HANDLE));
+        if (child_ns == 0) continue;
+        const r = find_alias_cmd_in_subtree(child_ns, target_rec);
+        if (r.cmd != 0) return r;
+    }
+    return .{ .cmd = 0, .ns = 0 };
 }
 
 /// Predicate: has this Interp been torn down via ``interp delete``?

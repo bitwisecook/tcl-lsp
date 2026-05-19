@@ -50,11 +50,16 @@ private class CompilerExplorerPanel(private val project: Project) {
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(cefBrowser: CefBrowser?, frame: org.cef.browser.CefFrame?, httpStatusCode: Int) {
                 if (frame?.isMain == true) {
-                    // Inject the bridge function
+                    // Install the JS→Kotlin bridge, then drain any messages
+                    // (compile/highlight/etc.) that the page enqueued while it
+                    // was loading via the shim in `adaptHtmlForJcef`.
                     val bridgeJs = """
                         window.__tcllspBridge = function(msg) {
                             ${jsQuery.inject("msg")}
                         };
+                        if (typeof window.__tcllspFlushQueue === 'function') {
+                            window.__tcllspFlushQueue();
+                        }
                     """.trimIndent()
                     cefBrowser?.executeJavaScript(bridgeJs, "", 0)
 
