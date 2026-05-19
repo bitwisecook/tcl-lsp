@@ -3719,6 +3719,11 @@ Nothing — the next session can pick up `S-diagnostics`
   cursor's command doesn't match a user proc, the provider
   follows `interp alias {} ALIAS {} TARGET` records through
   the analyser's `command_aliases` map.
+* **S-signature-help-rich** subcommand-scoped signatures —
+  when a registry spec has subcommands and `args[0]` matches
+  one, the provider returns the subcommand's signature
+  (e.g. `string length string`) rather than the generic
+  command synopsis.
 * **S-semantic-tokens-rich** range variant —
   `semanticTokens/range` filters the classified token stream
   to entries inside the requested range; server advertises
@@ -3727,7 +3732,32 @@ Nothing — the next session can pick up `S-diagnostics`
   diagnostics surface two synthetic quick-fixes:
   `Add catch result variable` (`+= " result"`) and
   `Add catch result + options variables` (`+= " result opts"`).
+* **S-code-lens-rich** class lenses — every `oo::class create
+  ClassName` declaration grows a reference-count lens
+  counting `ClassName new` / `ClassName create instance`
+  invocations plus inheritance references.
 * **S-hover-rich** docstring rendering — `format_docstring`
   in `hover.rs` recognises `@brief` / `@param` / `@return`
   tags and renders them as structured Markdown.  Pure-
   decoration lines are dropped.
+
+### Still deferred (next-session targets)
+
+* **Workspace index** — a true cross-document index unlocks
+  several rich follow-ups:
+  - cross-document references / call-hierarchy / rename
+  - workspace-wide proc enumeration in completion
+  - cross-document code-lens reference counts
+* **Analyser side**: method-body scope kind, var
+  type/taint annotations on `$var` hovers, method-reference
+  tracking inside class bodies.
+* **Registry**: `argument_values` field for things like
+  `string is alnum/alpha/...` completion.
+* **F-tcl-formatter**: brace-placement normalisation,
+  comment-block reflow, true range-formatting (currently
+  emits whole-document edit).
+* **Semantic tokens**: full classification taxonomy
+  (format-string components, BigIP URI segments, …) and
+  delta encoding (`semanticTokens/full/delta`).
+* **Binary hover byte-ruler diagram** — box-drawing diagram
+  per `binary format` field, deferred for code volume.
