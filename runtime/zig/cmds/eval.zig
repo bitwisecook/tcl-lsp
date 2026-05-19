@@ -16,6 +16,10 @@ fn eval_eval(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"eval arg ?arg ...?\"");
         return result_mod.from_globals(0);
     }
+    // ``eval`` is a script-eval dispatch — counts as one level
+    // (matches C Tcl's ``TclNREvalObjEx`` ``numLevels++``).
+    if (!interp.recursion_check_enter()) return result_mod.from_globals(0);
+    defer interp.recursion_check_leave();
     if (words.len == 2) {
         const s = obj_ensure_string(words[1]);
         return result_mod.from_globals(interp.eval_script(s.ptr, s.len));
@@ -57,6 +61,9 @@ fn eval_eval(words: []const i32) result_mod.InterpResult {
 
 fn eval_uplevel(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
+    // ``uplevel`` is a script-eval dispatch.
+    if (!interp.recursion_check_enter()) return result_mod.from_globals(0);
+    defer interp.recursion_check_leave();
     return result_mod.from_globals(interp.eval_uplevel(words));
 }
 

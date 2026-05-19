@@ -652,6 +652,7 @@ pub export fn tcl_test_alias_create(
     n_prefix: i32,
     prefix_args_addr: i32,
 ) i32 {
+    const tcl_interp_reg = @import("interp/tcl_interp_registry.zig");
     const cmd = tcl_alias.alias_alloc(
         @bitCast(dest_ns),
         @bitCast(new_simple_ptr),
@@ -661,6 +662,7 @@ pub export fn tcl_test_alias_create(
         @bitCast(n_prefix),
         @bitCast(prefix_args_addr),
         0, // parent_interp — scaffolding always creates same-interp aliases
+        tcl_interp_reg.interp_current(),
     );
     _ = tcl_ns.ns_cmd_put(
         @bitCast(dest_ns),

@@ -56,13 +56,18 @@ pub const HideResult = enum(u32) {
     ok = 0,
     /// ``cmd`` didn't resolve to any live Command.
     not_found = 1,
-    /// Caller passed a qualified source name
-    /// (``::foo::bar``) — hidden commands must be identified by their
-    /// simple name in the current namespace.
+    /// Caller passed a qualified hidden-token (destination) name
+    /// (``::foo::bar``) — hidden commands must be identified by a
+    /// simple token without ``::`` qualifiers.
     qualified_name_rejected = 2,
     /// An entry is already live in the hidden table under
     /// ``hiddenName``.
     hidden_name_taken = 3,
+    /// Source command resolved to a non-global namespace.  Tcl's
+    /// ``Tcl_HideCommand`` only permits hiding global-namespace
+    /// commands; namespaced commands must be ``rename``d into the
+    /// global ns first.
+    non_global_source = 4,
 };
 
 /// Outcome of :func:`expose_command`.
@@ -141,8 +146,17 @@ pub fn hide_command(
     hidden_name_ptr: u32,
     hidden_name_len: u32,
 ) HideResult {
-    if (has_qualifier(src_simple_ptr, src_simple_len)) return .qualified_name_rejected;
+    // Tcl 9 ``Tcl_HideCommand`` orders the checks:
+    //   1. hiddenCmdToken contains ``::`` → "cannot use namespace
+    //      qualifiers in hidden command token (rename)".
+    //   2. Source command resolves to a non-global namespace →
+    //      "can only hide global namespace commands (use rename
+    //      then hide)".
+    // We map (1) onto ``qualified_name_rejected`` and (2) onto a
+    // distinct ``non_global_source`` enum so the caller renders
+    // the upstream wording for each case.
     if (has_qualifier(hidden_name_ptr, hidden_name_len)) return .qualified_name_rejected;
+    if (has_qualifier(src_simple_ptr, src_simple_len)) return .non_global_source;
 
     const cmd = tcl_ns.ns_cmd_find(src_ns, src_simple_ptr, src_simple_len);
     if (cmd == 0) {

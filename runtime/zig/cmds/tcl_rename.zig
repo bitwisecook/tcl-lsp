@@ -56,6 +56,10 @@ pub const RenameResult = enum(u32) {
     target_exists = 2,
     /// ``oldName`` names a hardcoded built-in we refuse to rename.
     builtin_protected = 3,
+    /// Renaming this alias under the new name would form a
+    /// dispatch cycle (interp-17.4 / 17.5 / 17.6).  Matches C
+    /// Tcl's ``AliasCheckLoop`` returning ``TCL_ERROR``.
+    alias_loop = 4,
 };
 
 /// Refuse to rename these hardcoded built-ins.  Matches the spirit of
@@ -116,6 +120,85 @@ fn write_command_fqn(cmd: u32, target_ns: u32, simple_ptr: u32, simple_len: u32)
 /// Mirrors the finalisation step in ``ns_forget`` but driven from the
 /// source side: ``ns_forget`` walks redirects in a dest ns, this walks
 /// redirects pointing at a source that's being removed.
+/// Detect whether renaming an alias to ``new_name`` would form a
+/// dispatch cycle.  Walks the alias's target chain using the same
+/// algorithm as :fn:`alias_loop_would_form` in tcl_cmd_interp.zig
+/// but starts from the alias's *current* target and treats
+/// ``new_name`` (in the alias's child_interp) as the proposed
+/// new identity.
+fn alias_rename_would_loop(rec: *const @import("tcl_alias.zig").AliasRec, new_name_ptr: u32, new_name_len: u32) bool {
+    const alias_mod = @import("tcl_alias.zig");
+    const interp_reg = @import("../interp/tcl_interp_registry.zig");
+    if (new_name_len == 0) return false;
+    // The alias lives in ``child_interp``.  After rename its
+    // identity becomes (child_interp, new_name); the target it
+    // hops to is unchanged.  Walk the chain starting from
+    // ``rec.target`` and see if we revisit (child_interp,
+    // new_name).
+    const new_simple = simple_name_of(new_name_ptr, new_name_len);
+    const child_interp = rec.child_interp;
+    if (child_interp == 0) return false;
+    // Resolve the current target's effective interp: parent_interp
+    // == 0 means same-as-child for cross-interp encoding.
+    var cur_interp: u32 = if (rec.parent_interp == 0) child_interp else rec.parent_interp;
+    var cur_name_ptr: u32 = rec.target_name_ptr;
+    var cur_name_len: u32 = rec.target_name_len;
+    // Safety cap on the alias-chain walk.  Reference Tcl's
+    // ``Tcl_RenameCommand`` doesn't bound the walk because the alias
+    // table is in-memory and ``Tcl_GetCommandFromObj`` is cycle-free
+    // by construction.  We don't have a visited-set here, so we
+    // pessimistically treat exhaustion of the hop cap as a loop —
+    // chains longer than this are extremely unlikely in real
+    // scripts, and a false positive (rejecting a deep-but-acyclic
+    // chain) is a kinder failure mode than letting an actual cycle
+    // through to recurse at dispatch time (Copilot review on PR
+    // #451).
+    const MAX_HOPS: u32 = 64;
+    var hops: u32 = 0;
+    while (hops < MAX_HOPS) : (hops += 1) {
+        if (cur_interp == 0) return false;
+        const cur_simple = simple_name_of(cur_name_ptr, cur_name_len);
+        if (cur_interp == child_interp and cur_simple.len == new_simple.len) {
+            const np: [*]const u8 = @ptrFromInt(new_simple.ptr);
+            const cp: [*]const u8 = @ptrFromInt(cur_simple.ptr);
+            var same = true;
+            var k: u32 = 0;
+            while (k < new_simple.len) : (k += 1) {
+                if (np[k] != cp[k]) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) return true;
+        }
+        // Walk one alias hop.
+        const ci: *interp_reg.Interp = @ptrFromInt(cur_interp);
+        const cmd2 = tcl_ns.ns_find_command(ci.root_ns, cur_simple.ptr, cur_simple.len);
+        if (cmd2 == 0 or !alias_mod.is_alias(cmd2)) return false;
+        const next_rec = alias_mod.alias_rec(cmd2);
+        if (next_rec.target_name_len == 0) return false;
+        cur_interp = if (next_rec.parent_interp == 0) cur_interp else next_rec.parent_interp;
+        cur_name_ptr = next_rec.target_name_ptr;
+        cur_name_len = next_rec.target_name_len;
+    }
+    // Hop cap exhausted without resolving to a non-alias target —
+    // treat as a loop so a runaway chain doesn't slip past
+    // detection here only to recurse at dispatch (Copilot review).
+    return true;
+}
+
+fn simple_name_of(name_ptr: u32, name_len: u32) struct { ptr: u32, len: u32 } {
+    if (name_len == 0) return .{ .ptr = name_ptr, .len = 0 };
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    var i: u32 = name_len;
+    while (i >= 2) : (i -= 1) {
+        if (sp[i - 2] == ':' and sp[i - 1] == ':') {
+            return .{ .ptr = name_ptr + i, .len = name_len - i };
+        }
+    }
+    return .{ .ptr = name_ptr, .len = name_len };
+}
+
 fn deactivate_importers(source_cmd: u32) void {
     var cur = read_i32(source_cmd + tcl_procs.OFF_IMPORT_REF_HEAD);
     while (cur != 0) {
@@ -175,6 +258,21 @@ pub fn rename_command(
         new_simple_len,
     )) return .ok;
 
+    // Alias-rename loop check: when renaming an alias, the new
+    // name + the alias's target must not form a cycle once the
+    // rename is applied.  Mirrors ``AliasCheckLoop`` in
+    // tclInterp.c which runs on both create and rename paths
+    // (interp-17.4 / 17.5 / 17.6).
+    if (new_simple_len > 0) {
+        const alias_mod = @import("tcl_alias.zig");
+        if (alias_mod.is_alias(cmd)) {
+            const rec = alias_mod.alias_rec(cmd);
+            if (alias_rename_would_loop(rec, new_simple_ptr, new_simple_len)) {
+                return .alias_loop;
+            }
+        }
+    }
+
     // Delete form: new_simple is empty.  Clear the source bucket,
     // deactivate every redirect that imports it.  We don't splice
     // this command out of any lists it might be on itself (it's the
@@ -195,6 +293,16 @@ pub fn rename_command(
         } else {
             // Source side: deactivate every redirect pointing at us.
             deactivate_importers(cmd);
+        }
+        // If the command is an alias, unhook the AliasRec from
+        // the per-interp chains so ``interp aliases`` no longer
+        // reports the deleted entry (interp-19.7 / 19.8).  Match
+        // C Tcl's ``TclDeleteAlias`` which removes the
+        // ``aliasTable`` entry whenever the source command is
+        // destroyed for any reason.
+        const alias_mod = @import("tcl_alias.zig");
+        if (alias_mod.is_alias(cmd)) {
+            alias_mod.alias_clear(cmd);
         }
         _ = tcl_ns.ns_cmd_clear(old_ns, old_simple_ptr, old_simple_len);
         tcl_procs.lru_invalidate_all();

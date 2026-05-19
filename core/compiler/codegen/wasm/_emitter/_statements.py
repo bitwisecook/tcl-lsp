@@ -238,7 +238,15 @@ class _WasmEmitterStmtMixin(_Base):
             return
         match stmt:
             case IRAssignConst(name=name, value=value):
-                self._emit_obj_literal(value)
+                # Apply Tcl 9's brace ``\<newline>`` substitution
+                # before emitting — IRAssignConst's value field
+                # holds the raw post-lex source bytes; runtime
+                # ``obj_new_braced_string`` would collapse this
+                # on the brace-word path but IRAssignConst skips
+                # the runtime parser, so the codegen has to do it.
+                from ._values import _braced_lineconts
+
+                self._emit_obj_literal(_braced_lineconts(value))
                 # ``_emit_obj_literal`` always allocates a fresh
                 # TclObj → OWNED.  S2.3 migration.
                 self._emit_var_write_obj(name, source=Ownership.OWNED)
@@ -1544,6 +1552,8 @@ class _WasmEmitterStmtMixin(_Base):
                     if inner.endswith(")") and "(" in inner:
                         cmd_emit = "$" + inner
                 parts = [cmd_emit]
+                from ._values import _braced_lineconts as _braced_nl
+
                 for i, a in enumerate(args):
                     if _arg_was_braced(i):
                         # Braced token — IR holds the literal content
@@ -1552,6 +1562,13 @@ class _WasmEmitterStmtMixin(_Base):
                         # without applying any substitution.  Fall back
                         # to list-quote when the value contains an
                         # unbalanced brace (rare — ``{a{b}`` style).
+                        # Tcl's ``Tcl_ParseBraces`` collapses ``\<NL>``
+                        # to a single space even inside braces — apply
+                        # the same substitution here so the fallback
+                        # script's expanded word matches the value the
+                        # runtime would see if it parsed the braced
+                        # source directly.
+                        a = _braced_nl(a)
                         if "{" in a or "}" in a:
                             # Use list-quote to get balanced/escaped form.
                             # Args are never at command-start so a leading
