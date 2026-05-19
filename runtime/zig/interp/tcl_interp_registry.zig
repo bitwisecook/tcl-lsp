@@ -393,6 +393,12 @@ pub fn child_create(parent: u32, name_ptr: u32, name_len: u32, flags: u32) u32 {
     c.parent = parent;
     c.flags = flags;
     c.root_ns = tcl_ns.ns_alloc_root();
+    // Inherit the parent's recursion limit (C Tcl's
+    // ``Tcl_CreateChild`` copies ``parent->maxNestingDepth``).
+    // interp-29.4.1/29.4.2 rely on this so a grandchild's
+    // recursion gate fires at the parent's lowered limit.
+    if (p.recursion_limit == 0) p.recursion_limit = DEFAULT_RECURSION_LIMIT;
+    c.recursion_limit = p.recursion_limit;
 
     if (name_len > 0) {
         const nbuf = alloc(name_len);
