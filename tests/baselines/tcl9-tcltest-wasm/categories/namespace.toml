@@ -1,6 +1,6 @@
 # namespace.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '93 of 314 failed'
+# reason = '28 of 314 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 314
-observed_passed = 220
-observed_failed = 93
+observed_passed = 285
+observed_failed = 28
 observed_skipped = 1
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["namespace-7.1", "namespace-8.1", "namespace-8.3", "namespace-8.4", "namespace-8.5", "namespace-8.6", "namespace-8.7", "namespace-9.3", "namespace-10.1", "namespace-14.4", "namespace-14.5", "namespace-14.6", "namespace-14.9", "namespace-15.4", "namespace-16.3", "namespace-17.2", "namespace-17.3", "namespace-17.9", "namespace-20.1", "namespace-21.5", "namespace-21.8", "namespace-22.1", "namespace-22.6", "namespace-22.7", "namespace-23.1", "namespace-24.4", "namespace-25.1", "namespace-25.6", "namespace-25.7", "namespace-25.8", "namespace-25.9", "namespace-26.3", "namespace-26.4", "namespace-27.2", "namespace-27.3", "namespace-28.3", "namespace-29.1", "namespace-29.2", "namespace-30.1", "namespace-30.2", "namespace-30.4", "namespace-30.5", "namespace-31.1", "namespace-31.3", "namespace-32.1", "namespace-32.2", "namespace-32.7", "namespace-33.1", "namespace-33.2", "namespace-34.1", "namespace-34.2", "namespace-34.4", "namespace-35.2", "namespace-39.2", "namespace-39.3", "namespace-41.3", "namespace-42.1", "namespace-42.2", "namespace-42.3", "namespace-43.1", "namespace-44.1", "namespace-44.2", "namespace-44.3", "namespace-44.4", "namespace-45.1", "namespace-45.2", "namespace-46.1", "namespace-46.2", "namespace-46.3", "namespace-46.4", "namespace-46.5", "namespace-46.6", "namespace-46.7", "namespace-46.8", "namespace-46.9", "namespace-47.1", "namespace-47.2", "namespace-47.3", "namespace-47.4", "namespace-47.5", "namespace-47.6", "namespace-47.7", "namespace-47.8", "namespace-48.1", "namespace-48.2", "namespace-48.3", "namespace-52.1", "namespace-52.4", "namespace-52.5", "namespace-52.7", "namespace-52.8", "namespace-53.1", "namespace-56.3"]
+ids = ["namespace-8.1", "namespace-8.5", "namespace-8.6", "namespace-8.7", "namespace-14.9", "namespace-17.7", "namespace-25.6", "namespace-25.7", "namespace-25.8", "namespace-25.9", "namespace-46.8", "namespace-47.1", "namespace-47.2", "namespace-47.3", "namespace-47.4", "namespace-47.5", "namespace-47.6", "namespace-47.7", "namespace-47.8", "namespace-48.1", "namespace-48.2", "namespace-48.3", "namespace-52.1", "namespace-52.4", "namespace-52.5", "namespace-52.7", "namespace-53.1", "namespace-56.3"]

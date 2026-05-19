@@ -1,6 +1,6 @@
 # cmdAH.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '21 of 4053 failed'
+# reason = '20 of 5133 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -10,11 +10,11 @@ skip = []
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
-observed_total = 4053
-observed_passed = 3885
-observed_failed = 21
+observed_total = 5133
+observed_passed = 4966
+observed_failed = 20
 observed_skipped = 147
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["cmdAH-1.4", "cmdAH-1.5", "cmdAH-5.4", "cmdAH-8.46", "cmdAH-19.2", "cmdAH-19.3", "cmdAH-20.3", "cmdAH-20.5", "cmdAH-23.11", "cmdAH-24.4", "cmdAH-24.8", "cmdAH-27.3", "cmdAH-28.6", "cmdAH-29.5", "cmdAH-31.5", "cmdAH-31.6", "cmdAH-31.8", "cmdAH-31.9", "cmdAH-31.11", "cmdAH-31.12", "cmdAH-31.13"]
+ids = ["cmdAH-1.4", "cmdAH-1.5", "cmdAH-5.4", "cmdAH-19.2", "cmdAH-19.3", "cmdAH-20.3", "cmdAH-20.5", "cmdAH-23.11", "cmdAH-24.4", "cmdAH-24.8", "cmdAH-27.3", "cmdAH-28.6", "cmdAH-29.5", "cmdAH-31.5", "cmdAH-31.6", "cmdAH-31.8", "cmdAH-31.9", "cmdAH-31.11", "cmdAH-31.12", "cmdAH-31.13"]

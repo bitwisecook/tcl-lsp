@@ -1,6 +1,6 @@
 # lmap.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '3 of 66 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 66
-observed_passed = 63
-observed_failed = 3
+observed_passed = 66
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["lmap-4.15", "lmap-6.2", "lmap-6.3"]

@@ -29,9 +29,12 @@ const write_i32 = obj.write_i32;
 // scripts.
 pub export fn tcl_cmd_list_length(list: i32) i32 {
     const s = obj_ensure_string(list);
-    if (!obj.list_validate_braces(s.ptr, s.len)) {
-        const stubs = @import("../stubs/tcl_stubs.zig");
-        stubs.raise("unmatched open brace in list");
+    const lp = @import("tcl_list_parse.zig");
+    // Use the full list-syntax check so ``llength "a {b}c"`` reports
+    // ``list element in braces followed by "c" instead of space``
+    // (listobj-6.6) and ``llength "{"`` reports the unmatched-brace
+    // form.  ``list_validate_braces`` alone only catches the latter.
+    if (lp.check_list_syntax(s.ptr, s.len) != 0) {
         return 0;
     }
     const n = list_count_elements(s.ptr, s.len);
@@ -55,6 +58,15 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
+    // Validate list syntax of the current value before appending —
+    // ``lappend x abc`` when ``x`` holds an unbalanced ``" \{"`` must
+    // raise ``unmatched open brace in list`` (listobj-4.4).  Without
+    // this guard the fast path below appended ``" abc"`` to the
+    // malformed string and silently produced a still-malformed list.
+    const lp = @import("tcl_list_parse.zig");
+    if (sc.len > 0 and lp.check_list_syntax(sc.ptr, sc.len) != 0) {
+        return 0;
+    }
     // Fast path: when ``current`` is non-empty AND we own its byte
     // buffer with refcount == 1, append in place — preserves the
     // existing bytes verbatim (they are already canonical) and just
@@ -254,20 +266,18 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
 // flavour matching the parent rebuilder: only the very first element
 // of a list quotes a leading ``#`` (so that ``# foo`` doesn't look
 // like a comment when the list bytes are reparsed as a script).
-fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_first: bool) u32 {
+pub fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_first: bool) u32 {
     var off = off_in;
     if (elem.braced) {
-        const d: [*]u8 = @ptrFromInt(buf + off);
-        d[0] = '{';
-        off += 1;
-        if (elem.len > 0) {
-            memcpy(buf + off, sd_ptr + elem.start, elem.len);
-            off += elem.len;
-        }
-        const d2: [*]u8 = @ptrFromInt(buf + off);
-        d2[0] = '}';
-        off += 1;
-        return off;
+        // Braced elements are already literal (no backslash decoding
+        // needed) but the source ``{value}`` form is NOT necessarily
+        // canonical — ``{abc}`` round-trips to ``abc`` and ``{}``
+        // stays ``{}``.  Run the literal bytes through the canonical
+        // quoter so the output is what the list-element formatter
+        // would produce for the same value, not just the source
+        // spelling.
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
+        return quoter(buf, off, sd_ptr + elem.start, elem.len);
     }
     if (elem.len == 0) {
         // Empty unbraced element → emit ``{}`` so it survives a
@@ -297,6 +307,139 @@ fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_fir
     return off;
 }
 
+// Validate that an index TclObj has a recognised Tcl 9 index shape
+// (``end`` / ``end[+-]N`` / integer / ``int[+-]int``).  Returns true
+// when the index is syntactically valid; callers that want the
+// canonical ``bad index "X"`` error on rejection should pair this with
+// :func:`raise_bad_list_index`.
+pub fn is_valid_list_index(idx: i32) bool {
+    const s = obj_ensure_string(idx);
+    if (s.len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // ``end`` / ``end[+-]N``.  After ``end[+-]`` only a single
+    // signed integer literal is allowed — no further arithmetic
+    // chain.  Reference Tcl 9 ``GetEndOffsetFromObj`` calls
+    // ``TclParseNumber`` once on the substring, so multi-operator
+    // forms like ``end-1+2`` would silently truncate to ``end-1``
+    // at the resolver and disagree with the validator.
+    if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+        if (s.len == 3) return true;
+        if (sp[3] != '+' and sp[3] != '-') return false;
+        return is_signed_int_literal(sp, s.len, 4);
+    }
+    // Pure integer arithmetic — optional sign, integer literal,
+    // optional single ``[+-]N`` continuation (also with optional
+    // RHS sign).  Multi-op chains like ``1+2-3`` are rejected to
+    // match what :func:`resolve_list_index` actually evaluates.
+    var i: u32 = 0;
+    if (sp[0] == '+' or sp[0] == '-') i += 1;
+    if (i >= s.len) return false;
+    return is_int_arith_tail(sp, s.len, i);
+}
+
+/// Accept an optional sign + integer literal, with NO trailing
+/// characters.  Used by the ``end[+-]N`` validator where ``N`` must
+/// be a single signed integer (no arithmetic chain), matching C
+/// Tcl's per-call ``TclParseNumber``.
+fn is_signed_int_literal(sp: [*]const u8, len: u32, start: u32) bool {
+    var i: u32 = start;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    const after = consume_integer_literal(sp, len, i);
+    if (after == i) return false;
+    return after == len;
+}
+
+/// Raise the canonical Tcl 9 ``bad index "<X>": must be
+/// integer?[+-]integer? or end?[+-]integer?`` error for *idx*.  Used by
+/// every list / range / replace command that rejects a malformed index.
+pub fn raise_bad_list_index(idx: i32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_ensure_string(idx);
+    const prefix = "bad index \"";
+    const suffix = "\": must be integer?[+-]integer? or end?[+-]integer?";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: usize = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+fn is_digit_for_base(c: u8, base: u32) bool {
+    return switch (base) {
+        2 => c == '0' or c == '1',
+        8 => c >= '0' and c <= '7',
+        10 => c >= '0' and c <= '9',
+        16 => (c >= '0' and c <= '9') or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F'),
+        else => false,
+    };
+}
+
+fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
+    var i = start;
+    if (i >= len) return start;
+    var base: u32 = 10;
+    if (sp[i] == '0' and i + 1 < len) {
+        const c = sp[i + 1];
+        if (c == 'x' or c == 'X') {
+            base = 16;
+            i += 2;
+        } else if (c == 'o' or c == 'O') {
+            base = 8;
+            i += 2;
+        } else if (c == 'b' or c == 'B') {
+            base = 2;
+            i += 2;
+        }
+    }
+    if (i >= len or !is_digit_for_base(sp[i], base)) return start;
+    while (i < len and is_digit_for_base(sp[i], base)) i += 1;
+    return i;
+}
+
+fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+    // Match what :func:`resolve_list_index` actually evaluates —
+    // a single ``int ([+-] [+-]? int)?`` chain.  C Tcl's
+    // ``TclParseNumber`` accepts ``end--1`` as ``end - (-1)`` (=
+    // ``end + 1``, lindex-12.2), so the trailing integer may carry
+    // its own sign, but multi-operator chains like ``1+2-3`` are
+    // NOT accepted: the resolver only does one ``[+-]`` operation
+    // and a looser validator would silently resolve such inputs
+    // to 0 via the ``obj_get_int`` fallback.
+    var i: u32 = start;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    const after_first = consume_integer_literal(sp, len, i);
+    if (after_first == i) return false;
+    i = after_first;
+    if (i >= len) return true;
+    if (sp[i] != '+' and sp[i] != '-') return false;
+    i += 1;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    const after_second = consume_integer_literal(sp, len, i);
+    if (after_second == i) return false;
+    return after_second == len;
+}
+
 // Parse an index that may be "end", "end-N", "end+N", "M[+-]N"
 // (Tcl 9 integer arithmetic, including bignums), or a plain integer.
 // Returns the resolved 0-based index (may be negative for under-range
@@ -311,23 +454,42 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);
         if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
             if (sv.len == 3) return n - 1; // "end"
-            if (sv.len >= 5 and sp[3] == '-') {
-                // "end-N"
-                var offset: i64 = 0;
+            if (sv.len >= 5 and (sp[3] == '-' or sp[3] == '+')) {
+                // ``end[+-]N`` where N is an integer literal — possibly
+                // signed, possibly base-prefixed (``end-0x1``).  Parse
+                // through :func:`tcl_bignum.parse_i128` so the offset
+                // path matches what :func:`is_valid_list_index`
+                // accepts (i.e. ``consume_integer_literal``'s base-prefix
+                // logic).  Lenient on overflow — saturate to i64
+                // bounds, matching reference Tcl's ``GetEndOffsetFromObj``.
+                const op_neg = sp[3] == '-';
+                const bignum = @import("tcl_bignum.zig");
+                const off_ptr = sv.ptr + 4;
+                const off_len = sv.len - 4;
+                if (bignum.parse_i128(off_ptr, off_len)) |parsed| {
+                    var v: i128 = parsed;
+                    if (op_neg) v = -v;
+                    if (v > std.math.maxInt(i64)) return std.math.maxInt(i64);
+                    if (v < std.math.minInt(i64)) return std.math.minInt(i64);
+                    return n - 1 + @as(i64, @intCast(v));
+                }
+                // Fall through to the legacy decimal parser on bignum
+                // parse failure (preserves the historic ``end-junk`` →
+                // ``end + 0`` recovery — callers that want a hard
+                // error should validate via :func:`is_valid_list_index`
+                // first).
                 var i: u32 = 4;
+                var sign: i64 = 1;
+                if (i < sv.len and (sp[i] == '+' or sp[i] == '-')) {
+                    if (sp[i] == '-') sign = -1;
+                    i += 1;
+                }
+                var offset: i64 = 0;
                 while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
                     offset = offset * 10 + @as(i64, sp[i] - '0');
                 }
-                return n - 1 - offset;
-            }
-            if (sv.len >= 5 and sp[3] == '+') {
-                // "end+N"
-                var offset: i64 = 0;
-                var i: u32 = 4;
-                while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
-                    offset = offset * 10 + @as(i64, sp[i] - '0');
-                }
-                return n - 1 + offset;
+                const delta = if (op_neg) -(sign * offset) else (sign * offset);
+                return n - 1 + delta;
             }
         }
     }
@@ -409,8 +571,18 @@ pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
     if (f < 0) f = 0;
     if (l >= total) l = total - 1;
     if (f > l or f >= total) return obj_new_string(0, 0);
+    // Worst-case sizing: each element may double in length (escape
+    // sequences) plus a brace pair, plus n-1 single-space separators.
+    // Compute in u64 so the cap math doesn't wrap (ReleaseFast) or
+    // trap (Debug) for inputs near the u32 boundary.  Bail to empty
+    // rather than allocate an undersized slab on overflow.
+    const n_picked: u32 = @intCast(l - f + 1);
+    const cap64: u64 = @as(u64, s.len) * 2 + @as(u64, n_picked) * 3 + 4;
+    if (cap64 > std.math.maxInt(u32)) return obj_new_string(0, 0);
+    const cap: u32 = @intCast(cap64);
+    const result_buf: u32 = alloc(cap);
+    if (result_buf == 0) return obj_new_string(0, 0);
     var result_len: u32 = 0;
-    const result_buf: u32 = alloc(s.len);
     var idx: i64 = f;
     while (idx <= l) : (idx += 1) {
         if (idx > f) {
@@ -419,23 +591,14 @@ pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
             result_len += 1;
         }
         const elem = list_element_at(s.ptr, s.len, idx);
-        if (elem.braced) {
-            const d: [*]u8 = @ptrFromInt(result_buf + result_len);
-            d[0] = '{';
-            result_len += 1;
-            memcpy(result_buf + result_len, s.ptr + elem.start, elem.len);
-            result_len += elem.len;
-            const d2: [*]u8 = @ptrFromInt(result_buf + result_len);
-            d2[0] = '}';
-            result_len += 1;
-        } else {
-            memcpy(result_buf + result_len, s.ptr + elem.start, elem.len);
-            result_len += elem.len;
-        }
+        // Re-quote every extracted element through the canonical
+        // list-element formatter so the result is a well-formed
+        // list (lrange-1.10: unbraced ``b{c`` must come out as
+        // ``b\{c``; lrange-1.16: braced ``[append`` must come out
+        // as ``{[append}``).
+        result_len = append_list_element(result_buf, result_len, s.ptr, elem, idx == f);
     }
-    // Issue #317: claim ownership of ``result_buf`` so its
-    // release frees the slab via ``free_sized``.
-    return obj.obj_new_string_take(result_buf, result_len, s.len);
+    return obj.obj_new_string_take(result_buf, result_len, cap);
 }
 
 // Exported: tail of a list — elements from *start* onwards.  Used by
@@ -689,6 +852,17 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
 pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     const s = obj_ensure_string(list);
     const sv = obj_ensure_string(value);
+    // Validate list and index BEFORE doing work, so the compiled
+    // ``linsert L IDX V`` single-value fast path enforces the same
+    // ``unmatched open brace in list`` / ``bad index "X"`` errors
+    // ``eval_linsert`` does.  Without this, the WASM ``-end-N``
+    // chained-insert path could silently accept malformed inputs.
+    const lp = @import("tcl_list_parse.zig");
+    if (lp.check_list_syntax(s.ptr, s.len) != 0) return 0;
+    if (!is_valid_list_index(index)) {
+        raise_bad_list_index(index);
+        return 0;
+    }
     const n_i64 = list_count_elements(s.ptr, s.len);
     const n: u32 = @intCast(n_i64);
     // ``linsert`` uses a different ``end`` semantic from ``lindex`` /
