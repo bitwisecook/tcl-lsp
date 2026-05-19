@@ -894,10 +894,21 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentLinkParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let links = core_document_links::document_links(&doc.text);
+        // `S-document-links-rich`: pass the document's
+        // enclosing directory as the workspace root so
+        // relative `source <path>` arguments resolve.  When
+        // the URI isn't a `file://` URL we leave the workspace
+        // root unset and only absolute paths surface as links.
+        let workspace_root = uri
+            .to_file_path()
+            .ok()
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+            .and_then(|p| p.to_str().map(str::to_owned));
+        let links = core_document_links::document_links(&doc.text, workspace_root.as_deref());
         if links.is_empty() {
             return Ok(None);
         }
