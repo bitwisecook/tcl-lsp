@@ -975,7 +975,21 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
-        let lenses = core_code_lens::code_lenses(&doc.text);
+        // S-code-lens-rich: surface per-proc reference counts
+        // above each definition.  The provider walks
+        // `analysis.command_invocations` per proc, so the
+        // worker needs the full analysis result.
+        let lenses = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_code_lens::code_lenses(&doc.text, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_lens worker panicked: {err}").into(),
+            data: None,
+        })?;
         if lenses.is_empty() {
             return Ok(None);
         }
