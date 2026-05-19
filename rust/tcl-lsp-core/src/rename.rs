@@ -429,8 +429,7 @@ mod tests {
     fn prepare_rename_returns_range_for_proc() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let p = prepare_rename(src, 0, 6, &analysis)
-            .expect("expected prepare_rename on proc name");
+        let p = prepare_rename(src, 0, 6, &analysis).expect("expected prepare_rename on proc name");
         assert_eq!(p.placeholder, "greet");
         // Anchored at the proc name span.
         assert_eq!(p.range.start_line, 0);
@@ -441,8 +440,7 @@ mod tests {
     fn prepare_rename_returns_range_for_var() {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
-        let p = prepare_rename(src, 1, 7, &analysis)
-            .expect("expected prepare_rename on var");
+        let p = prepare_rename(src, 1, 7, &analysis).expect("expected prepare_rename on var");
         assert_eq!(p.placeholder, "x");
     }
 
@@ -470,8 +468,14 @@ mod tests {
         let span_braced_w = tcl_lexer::Span::new(20, 28);
         assert_eq!(build_var_ref_replacement(src, span_x, "a"), "$a");
         assert_eq!(build_var_ref_replacement(src, span_braced_y, "b"), "${b}");
-        assert_eq!(build_var_ref_replacement(src, span_qualified_z, "c"), "$ns::c");
-        assert_eq!(build_var_ref_replacement(src, span_braced_w, "d"), "${ns::d}");
+        assert_eq!(
+            build_var_ref_replacement(src, span_qualified_z, "c"),
+            "$ns::c"
+        );
+        assert_eq!(
+            build_var_ref_replacement(src, span_braced_w, "d"),
+            "${ns::d}"
+        );
     }
 
     // -- S-rename-rich: safety gating --------------------------------

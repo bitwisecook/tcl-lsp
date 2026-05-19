@@ -64,30 +64,29 @@ use tower_lsp::lsp_types::{
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    DeclarationCapability, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
-    DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol,
-    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
+    DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
+    DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
+    DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
+    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
     InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, LinkedEditingRangeParams,
     LinkedEditingRanges, Location, MarkupContent, MarkupKind, MessageType, OneOf,
-    ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    DiagnosticOptions, DiagnosticServerCapabilities, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, FullDocumentDiagnosticReport,
-    PrepareRenameResponse, RelatedFullDocumentDiagnosticReport, RenameOptions,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
-    SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RenameOptions, RenameParams, SelectionRange,
+    SelectionRangeParams, SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
+    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
     SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
     SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability,
-    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
+    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -595,10 +594,7 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let dialect = self
-            .dialect_for_open(
-                &params.text_document.uri,
-                &params.text_document.language_id,
-            )
+            .dialect_for_open(&params.text_document.uri, &params.text_document.language_id)
             .await;
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
@@ -1156,13 +1152,15 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let items = tokio::task::spawn_blocking(move || lift_analyser_diagnostics(&doc.text, &analysis.diagnostics))
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("diagnostic worker panicked: {err}").into(),
-                data: None,
-            })?;
+        let items = tokio::task::spawn_blocking(move || {
+            lift_analyser_diagnostics(&doc.text, &analysis.diagnostics)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("diagnostic worker panicked: {err}").into(),
+            data: None,
+        })?;
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
@@ -1288,9 +1286,7 @@ impl LanguageServer for Backend {
             let text = doc.text.clone();
             let dialect = doc.dialect.clone();
             let q = query.clone();
-            let analysis = self
-                .analysis_for(&uri, text.clone(), dialect.clone())
-                .await;
+            let analysis = self.analysis_for(&uri, text.clone(), dialect.clone()).await;
             let symbols = tokio::task::spawn_blocking(move || {
                 core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
             })
@@ -1775,10 +1771,7 @@ impl LanguageServer for Backend {
             message: format!("hover worker panicked: {err}").into(),
             data: None,
         })?;
-        self.hover_cache
-            .lock()
-            .await
-            .put(cache_key, result.clone());
+        self.hover_cache.lock().await.put(cache_key, result.clone());
         Ok(result.map(lift_hover))
     }
 }
@@ -1943,9 +1936,7 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// literal lives here rather than inside the trait method.
 fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(
-            TextDocumentSyncKind::FULL,
-        )),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -2026,9 +2017,7 @@ fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
         // valid shape (returns full tokens when
         // previousResultId doesn't match, otherwise empty
         // edits).
-        full: Some(SemanticTokensFullOptions::Delta {
-            delta: Some(true),
-        }),
+        full: Some(SemanticTokensFullOptions::Delta { delta: Some(true) }),
     })
 }
 
@@ -2376,14 +2365,12 @@ mod tests {
                 "f5-irules".to_owned(),
             ),
         ];
-        let inside =
-            Url::parse("file:///workspace/irules/rule.tcl").expect("parse target uri");
+        let inside = Url::parse("file:///workspace/irules/rule.tcl").expect("parse target uri");
         assert_eq!(
             backend.resolve_folder_dialect(&inside).await,
             Some("f5-irules".to_owned()),
         );
-        let outside_irules =
-            Url::parse("file:///workspace/main.tcl").expect("parse target uri");
+        let outside_irules = Url::parse("file:///workspace/main.tcl").expect("parse target uri");
         assert_eq!(
             backend.resolve_folder_dialect(&outside_irules).await,
             Some("tcl9.0".to_owned()),
@@ -2432,10 +2419,7 @@ mod tests {
             "file:///ws/app",
         ));
         // The folder itself counts as a match.
-        assert!(uri_under_folder(
-            "file:///ws/app",
-            "file:///ws/app/",
-        ));
+        assert!(uri_under_folder("file:///ws/app", "file:///ws/app/",));
         // A sibling folder does not.
         assert!(!uri_under_folder(
             "file:///ws/app2/file.tcl",
@@ -2505,15 +2489,9 @@ mod tests {
         }
         assert_eq!(cache.entries.len(), HoverCache::CAP);
         // Earliest insertions were evicted.
-        assert!(matches!(
-            cache.get(&(uri.clone(), 0, 0)),
-            HoverLookup::Miss,
-        ));
+        assert!(matches!(cache.get(&(uri.clone(), 0, 0)), HoverLookup::Miss,));
         // Most-recent insertions survive.
-        assert!(matches!(
-            cache.get(&(uri, 0, 299)),
-            HoverLookup::Hit(_),
-        ));
+        assert!(matches!(cache.get(&(uri, 0, 299)), HoverLookup::Hit(_),));
     }
 
     #[tokio::test]

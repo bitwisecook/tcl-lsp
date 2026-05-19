@@ -278,7 +278,8 @@ mod tests {
         // Two constructor calls.
         assert_eq!(
             myclass_lens.command_title, "2 references",
-            "got {:?}", myclass_lens.command_title,
+            "got {:?}",
+            myclass_lens.command_title,
         );
     }
 }

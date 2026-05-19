@@ -288,10 +288,7 @@ mod tests {
         );
         let actions = code_actions(src, whole_document_range(src), Some(&analysis));
         let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
-        assert!(
-            titles.contains(&"Add catch result variable"),
-            "{titles:?}",
-        );
+        assert!(titles.contains(&"Add catch result variable"), "{titles:?}",);
         assert!(
             titles.contains(&"Add catch result + options variables"),
             "{titles:?}",
