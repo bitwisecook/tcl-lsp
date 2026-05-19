@@ -63,7 +63,7 @@ class TclLspServerDescriptor(project: Project) :
             throw IllegalStateException(msg)
         }
 
-        LOG.info("Production mode: ${python.path} $pyzPath")
+        LOG.info("Production mode: ${describeInterpreter(python.path)} $pyzPath")
         return GeneralCommandLine(python.path, pyzPath)
             .withWorkDirectory(pyzPath.substringBeforeLast(File.separator))
             .withCharset(Charsets.UTF_8)
