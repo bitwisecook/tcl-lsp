@@ -192,10 +192,16 @@ class _WasmEmitterStmtMixin(_Base):
 
     def _emit_frame_set_line(self, stmt: IRStatement) -> None:
         """Phase 8 follow-up: stamp ``frame_set_line`` for *stmt* so
-        ``info frame -line`` inside a callee body reports the line of
-        the current statement.  Centralised so every emit entry point
-        (``_emit_stmt``, the implicit-return tail in ``_emit_block``)
-        stamps consistently.
+        ``info frame -line`` and the ``(procedure "X" line N)`` frame
+        added on proc-body errors both report the body-relative line
+        of the current statement.  Centralised so every emit entry
+        point (``_emit_stmt``, the implicit-return tail in
+        ``_emit_block``) stamps consistently.
+
+        Tcl 9 convention: body line 1 is the line of the body's first
+        character, which (for the standard ``proc foo {} {<NL>...``
+        formatting) is the same file line as the ``proc`` keyword.
+        So ``body_line = stmt.file_line - proc.file_line + 1``.
         """
         if not self._is_proc:
             return
@@ -205,10 +211,10 @@ class _WasmEmitterStmtMixin(_Base):
         rng = getattr(stmt, "range", None)
         if rng is None:
             return
-        line_one_based = rng.start.line + 1
-        if line_one_based <= 0:
+        body_line = rng.start.line - self._proc_first_line + 1
+        if body_line <= 0:
             return
-        self._emit_i32_const(line_one_based)
+        self._emit_i32_const(body_line)
         self._emit_call(set_line_idx)
 
     def _emit_stmt(self, stmt: IRStatement) -> None:
@@ -847,8 +853,8 @@ class _WasmEmitterStmtMixin(_Base):
             case IRCatch(body=body, result_var=result_var, options_var=options_var):
                 self._emit_catch(body, result_var, options_var=options_var)
 
-            case IRTry(body=body, handlers=handlers, finally_body=finally_body):
-                self._emit_try(body, handlers, finally_body)
+            case IRTry(body=body, handlers=handlers, finally_body=finally_body) as ir_try:
+                self._emit_try(body, handlers, finally_body, raw_args=ir_try.raw_args)
 
     def _resolve_import(self, command: str) -> str | None:
         """Resolve an unqualified ``command`` via ``namespace import``.

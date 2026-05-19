@@ -439,6 +439,14 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # ``tcl_error`` (= ``tcl_cmd_error``) so existing emit sites
     # don't have to track which arity to call.
     "tcl_error_full": ("tcl", "tcl_cmd_error_full", [ValType.I32, ValType.I32, ValType.I32], []),
+    # ``return -code error msg`` shortcut — equivalent to
+    # ``tcl_cmd_error`` but ALSO sets the runtime flag that makes
+    # the surrounding proc's epilogue skip the procedure-frame
+    # stamp on errorInfo.  Mirrors Tcl 9's distinction between
+    # body-level ``error msg`` (annotated by ``MakeProcError``)
+    # and ``return -code error msg`` (bypasses ``MakeProcError``).
+    # proc-old-7.2 checks the no-frame trace produced by this path.
+    "tcl_error_via_return": ("tcl", "tcl_cmd_error_via_return", [ValType.I32], []),
     # Flow-control consumers — read+clear ``break_flag`` /
     # ``continue_flag`` set by interpreter-side ``break`` / ``continue``
     # inside an eval-fallback body.  Compiled loops need these to
@@ -522,6 +530,17 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # Frame stack (local variable scoping).
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    # Procedure-error frame stamp — called from the compiled-proc
+    # epilogue before ``tcl_frame_pop``.  Adds ``(procedure "X" line
+    # N)`` to ``::errorInfo`` when an error is pending.  Args:
+    # ``(name_ptr, name_len)`` — the proc's fully-qualified name in
+    # the WASM data section.
+    "tcl_proc_stamp_error_frame": (
+        "tcl",
+        "proc_stamp_error_frame",
+        [ValType.I32, ValType.I32],
+        [],
+    ),
     # Frame-side aliases — emitted by the compiled-proc prologue when
     # the body declares a ``variable X`` / ``global X`` so any
     # interpreter-side fallback (eval-script, dynamic ``while``,

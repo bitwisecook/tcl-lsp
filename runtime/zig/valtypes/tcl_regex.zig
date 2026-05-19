@@ -1065,6 +1065,122 @@ fn obj_new_string_lit(comptime s: []const u8) i32 {
     return obj_new_string(@bitCast(@intFromPtr(s.ptr)), @bitCast(s.len));
 }
 
+/// Per-arm regex capture used by ``switch -regexp -matchvar X -indexvar Y``.
+/// Compiles ``pattern`` once, runs it against ``subject``, and builds two
+/// Tcl-list TclObjs:
+///   * ``match_list``: ``{<whole>} {<group1>} … {<groupN>}`` (each group's
+///     captured substring; unparticipated groups become empty).
+///   * ``index_list``: ``{<s0> <e0>} {<s1> <e1>} …`` (codepoint offsets;
+///     unparticipated groups become ``{-1 -1}``).
+/// Both are pre-existing TclObjs (caller owns the references).  Returns
+/// ``{ match_list = 0, index_list = 0 }`` when the pattern fails to
+/// compile (the regex engine raises its own error in that case) or when
+/// no match is found.
+pub fn capture_match_for_switch(
+    pat_ptr: u32,
+    pat_len: u32,
+    sub_ptr: u32,
+    sub_len: u32,
+    nocase: bool,
+) struct { match_list: i32, index_list: i32 } {
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
+    const pat_u = decode_utf8(pat_ptr, pat_len);
+    const sub_u = decode_utf8(sub_ptr, sub_len);
+
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
+    const re_ptr: *anyopaque = @ptrFromInt(re_addr);
+    const comp_flags: c_int = REG_ADVANCED | (if (nocase) REG_ICASE else @as(c_int, 0));
+    const comp_rc = TclReComp(re_ptr, @ptrFromInt(pat_u.ptr), pat_u.len, comp_flags);
+    if (comp_rc != REG_OKAY) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return .{ .match_list = 0, .index_list = 0 };
+    }
+
+    const re_nsub_addr: u32 = re_addr + 8; // offsetof(regex_t, re_nsub)
+    const re_nsub: usize = @intCast(obj.read_i32(re_nsub_addr));
+    const requested_nmatch: usize = re_nsub + 1;
+    const nmatch: usize = if (requested_nmatch > 100) 100 else if (requested_nmatch < 1) 1 else requested_nmatch;
+    const pmatch_alloc = arena.arena_alloc_or_libc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_buf = pmatch_alloc.addr;
+    {
+        const pmbytes: [*]u8 = @ptrFromInt(pmatch_buf);
+        var k: usize = 0;
+        while (k < nmatch * REGMATCH_T_SIZE) : (k += 1) pmbytes[k] = 0;
+    }
+
+    const matched = run_match_cap_flags(re_ptr, sub_u.ptr, sub_u.len, nmatch, pmatch_buf, 0);
+    if (!matched) {
+        regfree_safe(re_ptr);
+        arena.arena_free(pmatch_alloc);
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return .{ .match_list = 0, .index_list = 0 };
+    }
+
+    // Build subject_s / sub_u "anytype" stand-ins for build_capture_value.
+    const SubS = struct { ptr: u32, len: u32 };
+    const SubU = struct { ptr: u32, len: usize };
+    const sub_s_view: SubS = .{ .ptr = sub_ptr, .len = sub_len };
+    const sub_u_view: SubU = .{ .ptr = sub_u.ptr, .len = sub_u.len };
+
+    // For each capture slot (whole match + groups), build the
+    // substring and "<start> <end>" forms and append them to the
+    // two scratch buffers as list elements.
+    var match_buf: u32 = alloc(256);
+    var match_cap: u32 = 256;
+    var match_off: u32 = 0;
+    var index_buf: u32 = alloc(256);
+    var index_cap: u32 = 256;
+    var index_off: u32 = 0;
+
+    const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
+    var g: usize = 0;
+    while (g < nmatch) : (g += 1) {
+        const so = pm[g * 2];
+        const eo = pm[g * 2 + 1];
+        // Substring value
+        match_off = append_inline_capture(
+            &match_buf,
+            &match_cap,
+            match_off,
+            false,
+            sub_s_view,
+            sub_u_view,
+            0,
+            so,
+            eo,
+        );
+        // Index value
+        index_off = append_inline_capture(
+            &index_buf,
+            &index_cap,
+            index_off,
+            true,
+            sub_s_view,
+            sub_u_view,
+            0,
+            so,
+            eo,
+        );
+    }
+
+    regfree_safe(re_ptr);
+    arena.arena_free(pmatch_alloc);
+    arena.arena_free(re_alloc);
+    arena.arena_free(sub_u.alloc);
+    arena.arena_free(pat_u.alloc);
+
+    const match_obj = obj_new_string(@bitCast(match_buf), @bitCast(match_off));
+    const index_obj = obj_new_string(@bitCast(index_buf), @bitCast(index_off));
+    return .{ .match_list = match_obj, .index_list = index_obj };
+}
+
 // ---------------------------------------------------------------------------
 // regsub
 // ---------------------------------------------------------------------------
