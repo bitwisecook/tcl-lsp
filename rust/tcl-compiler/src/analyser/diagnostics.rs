@@ -3469,15 +3469,13 @@ before this value so it is treated as data, not an option."
         use tcl_registry::dialects::DialectSet;
 
         // Quick lexical bail-out — the gated operators are short
-        // keywords; if none appear as a whole-word substring we can
-        // skip the parse.
-        if !expr_text.contains(" lt ")
-            && !expr_text.contains(" le ")
-            && !expr_text.contains(" gt ")
-            && !expr_text.contains(" ge ")
-            && !expr_text.contains(" in ")
-            && !expr_text.contains(" ni ")
-        {
+        // word-shaped keywords; if none appear as a whole word we
+        // can skip the parse.  Boundary check uses ASCII identifier
+        // continuation so `tab`-, `newline`-, and start/end-of-text
+        // boundaries all count (mirrors Tcl expr's whitespace
+        // tolerance — `$x\tlt\t$y` and a wrapped `in` expression
+        // both qualify).
+        if !contains_gated_word(expr_text) {
             return;
         }
         let Some(active) = DialectSet::parse(&self.dialect) else {
@@ -3516,6 +3514,37 @@ before this value so it is treated as data, not an option."
 /// Walk an expression AST and collect dialect-gated operator
 /// occurrences.  Mirrors `_find_dialect_invalid_ops` in
 /// `core/analysis/checks/_domain.py` (PR #433).
+/// Return `true` if `text` contains any of the dialect-gated
+/// expression operator keywords (`lt`, `le`, `gt`, `ge`, `in`, `ni`)
+/// as a whole word — i.e. surrounded by non-identifier bytes or
+/// the text boundary.  Used as a fast prefilter to skip the
+/// expression parse for expressions that obviously can't trigger
+/// W003.
+///
+/// Whitespace-aware: tabs, newlines, and any other non-identifier
+/// byte (parentheses, operators, comparison glyphs, etc.) count
+/// as word boundaries.  Matches Tcl expr's tolerance for
+/// arbitrary whitespace between tokens.
+fn contains_gated_word(text: &str) -> bool {
+    const GATED: &[&[u8]] = &[b"lt", b"le", b"gt", b"ge", b"in", b"ni"];
+    let bytes = text.as_bytes();
+    for needle in GATED {
+        let n = needle.len();
+        let mut i = 0;
+        while i + n <= bytes.len() {
+            if &bytes[i..i + n] == *needle {
+                let before_ok = i == 0 || !is_ident_continue(bytes[i - 1]);
+                let after_ok = i + n == bytes.len() || !is_ident_continue(bytes[i + n]);
+                if before_ok && after_ok {
+                    return true;
+                }
+            }
+            i += 1;
+        }
+    }
+    false
+}
+
 fn walk_dialect_invalid_ops(
     node: &ExprNode,
     pre_85: bool,
@@ -3646,6 +3675,70 @@ mod tests {
     }
 
     #[test]
+    fn w004_fires_on_lsearch_stride_in_tcl85() {
+        // PR #441 review (Codex): the W004 coverage requires the
+        // option to exist in the registry.  `lsearch -stride` was
+        // populated as part of this review fix.
+        let mut a = Analyser::new();
+        let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.5");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W004"),
+            "expected W004 on tcl8.5 lsearch -stride, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w004_silent_on_lsearch_stride_in_tcl86() {
+        let mut a = Analyser::new();
+        let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "W004"),
+            "W004 must not fire on tcl8.6 lsearch -stride, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w004_fires_on_clock_scan_validate_in_tcl86() {
+        // `clock scan -validate` is Tcl 9.0+ (TIP 532); the
+        // subcommand-scoped option table consults the active
+        // dialect via the W004 emitter's `sub_match` branch.
+        let mut a = Analyser::new();
+        let result = a.analyse("clock scan {today} -validate 1", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W004"),
+            "expected W004 on tcl8.6 clock scan -validate, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w004_fires_on_fconfigure_nodelay_in_tcl86() {
+        // `fconfigure -nodelay` is Tcl 9.0+ (TIP 528).
+        let mut a = Analyser::new();
+        let result = a.analyse("fconfigure $chan -nodelay 1", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W004"),
+            "expected W004 on tcl8.6 fconfigure -nodelay, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w004_fires_on_chan_configure_inputmode_in_tcl86() {
+        // Subcommand-scoped option: `chan configure -inputmode` is
+        // Tcl 9.0+ (TIP 160).
+        let mut a = Analyser::new();
+        let result = a.analyse("chan configure $chan -inputmode raw", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W004"),
+            "expected W004 on tcl8.6 chan configure -inputmode, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
     fn w004_silent_on_regsub_command_in_tcl9() {
         // Same input on Tcl 9.0 — option is supported, no W004.
         let mut a = Analyser::new();
@@ -3694,6 +3787,49 @@ mod tests {
             "expected W003 on tcl8.4 'in' operator, got {:?}",
             result.diagnostics
         );
+    }
+
+    #[test]
+    fn w003_fires_on_tab_separated_operator() {
+        // PR #441 review (Codex): the prefilter must tolerate any
+        // whitespace, not just literal spaces.  `if {$x\tlt\t$y}` is
+        // valid Tcl 8.4 syntax that the expr parser handles — the
+        // analyser must not skip it because we only checked for
+        // space-delimited operators.
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x\tlt\t$y} { puts hi }", "tcl8.4");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W003"),
+            "W003 must fire on tab-separated 'lt', got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn w003_fires_on_newline_separated_operator() {
+        // Same shape with a newline boundary — also valid Tcl.
+        let mut a = Analyser::new();
+        let result = a.analyse("if {$x\nin\n{a b c}} { puts hi }", "tcl8.4");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "W003"),
+            "W003 must fire on newline-separated 'in', got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn contains_gated_word_handles_boundaries() {
+        // No false positives on identifiers that contain the keyword.
+        assert!(!contains_gated_word("$alt"));
+        assert!(!contains_gated_word("$align"));
+        assert!(!contains_gated_word("inner"));
+        assert!(!contains_gated_word("$gem"));
+        // Real matches at word boundaries.
+        assert!(contains_gated_word("$x lt $y"));
+        assert!(contains_gated_word("$x\tlt\t$y"));
+        assert!(contains_gated_word("($x)lt($y)"));
+        assert!(contains_gated_word("lt $y"));
+        assert!(contains_gated_word("$x lt"));
     }
 
     #[test]
