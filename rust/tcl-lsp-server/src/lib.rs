@@ -129,6 +129,13 @@ pub struct Backend {
     /// `S-workspace-symbols-rich` extends this by scanning
     /// folder contents on disk).
     workspace_folders: Mutex<Vec<Url>>,
+    /// Cached `AnalysisResult` per document, populated by
+    /// `did_open` / `did_change` and consumed by request
+    /// handlers that previously re-analysed on every call.
+    /// `S-async-diagnostics` cached-analysis surface — once
+    /// this entry exists, request handlers consult it before
+    /// falling back to a fresh `analyser.analyse(...)`.
+    analyses: Mutex<HashMap<Url, tcl_compiler::analyser::AnalysisResult>>,
 }
 
 impl std::fmt::Debug for Backend {
@@ -157,7 +164,18 @@ impl Backend {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
+            analyses: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Read the cached `AnalysisResult` for `uri` if one
+    /// exists.  Returns a clone so the caller can run on a
+    /// `spawn_blocking` worker without holding the mutex.
+    /// Falls back to `None` when no cache entry exists; the
+    /// caller is expected to compute a fresh analysis in
+    /// that case.
+    async fn cached_analysis(&self, uri: &Url) -> Option<tcl_compiler::analyser::AnalysisResult> {
+        self.analyses.lock().await.get(uri).cloned()
     }
 
     /// Return a snapshot of the current workspace folder
@@ -296,16 +314,17 @@ impl Backend {
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
     async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
-        let diagnostics = tokio::task::spawn_blocking(move || {
+        let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&text, &dialect).clone();
             // Translate analyser-result diagnostics into
             // LSP wire shape.  Severity maps verbatim;
             // spans translate via a local LineIndex.
             let line_index = tcl_lexer::LineIndex::new(&text);
-            analysis
+            let diagnostics: Vec<tower_lsp::lsp_types::Diagnostic> = analysis
                 .diagnostics
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(|d| {
                     let start = line_index.position_at(d.span.start());
                     let end = line_index.position_at(d.span.end());
@@ -341,11 +360,16 @@ impl Backend {
                         data: None,
                     }
                 })
-                .collect::<Vec<_>>()
+                .collect();
+            (analysis, diagnostics)
         })
         .await;
-        match diagnostics {
-            Ok(diags) => {
+        match result {
+            Ok((analysis, diags)) => {
+                // Cache the analysis so the per-method
+                // handlers don't have to re-run it on every
+                // request.
+                self.analyses.lock().await.insert(uri.clone(), analysis);
                 self.client.publish_diagnostics(uri, diags, None).await;
             }
             Err(err) => {
@@ -524,10 +548,15 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.documents
-            .lock()
-            .await
-            .remove(&params.text_document.uri);
+        let uri = &params.text_document.uri;
+        self.documents.lock().await.remove(uri);
+        self.analyses.lock().await.remove(uri);
+        // Clear any previously-published diagnostics so the
+        // editor's problem panel doesn't keep showing them
+        // for a closed file.
+        self.client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
     }
 
     async fn folding_range(
@@ -1387,25 +1416,34 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position_params.text_document.uri)
-            .await
-        else {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
-        // Pure-CPU work — analyser + hover walker. Move it off
-        // the LSP event loop via `spawn_blocking`. SYNC11's full
-        // contract (debounce, LRU keyed on `(uri, version, line,
-        // char)`, `Ok(None)` on missing cached analysis,
-        // `[timing] hover` debug logs) lands in the
-        // `S-hover-sync11` follow-up once `S-diagnostics`
-        // establishes the cached-analysis surface this Backend
-        // currently lacks.
+        // `S-hover-sync11` partial contract: consult the
+        // cached analysis from `did_open` / `did_change`
+        // before re-analysing.  Falls back to a fresh run
+        // when no cached entry exists (e.g. document opened
+        // before the cache was populated, or request races
+        // with the publisher).  The full SYNC11 contract
+        // (debounce, LRU keyed on `(uri, version, line,
+        // char)`, `Ok(None)` early-return on cache miss,
+        // `[timing] hover` debug logs) is a further
+        // follow-up.
+        let cached = self.cached_analysis(&uri).await;
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            let analysis = if let Some(cached) = cached {
+                cached
+            } else {
+                let mut analyser = Analyser::new();
+                analyser.analyse(&doc.text, &doc.dialect).clone()
+            };
             core_hover::hover(
                 &doc.text,
                 pos.line,
