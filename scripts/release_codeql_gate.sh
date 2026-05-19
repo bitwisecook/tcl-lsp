@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
 # release_codeql_gate.sh — block a release until CodeQL has finished
 # cleanly on a given commit and no open high/critical alerts remain on
-# the target ref.
+# main.
 #
-# Usage:  scripts/release_codeql_gate.sh <commit-sha> [ref]
+# Usage:  scripts/release_codeql_gate.sh <commit-sha>
 #
-# The release skill calls this twice: once after pushing the release-
-# notes commit, and again after pushing the version-bump commit.  The
-# CodeQL workflow runs automatically on push to main, so the script
-# normally just locates the existing run and waits for it.  If no run
-# is found within ~2 min the script falls back to `workflow_dispatch`
-# so a missed run (cancelled by concurrency, infra hiccup) doesn't
-# silently skip the gate.
+# The release skill calls this once, against HEAD of main after the
+# RELEASE_NOTES.md PR has merged — that is the commit the tag will
+# point at.  The CodeQL workflow runs automatically on push to main,
+# so the script normally just locates the existing run and waits for
+# it.  If no run is found within ~2 min the script falls back to
+# `workflow_dispatch` so a missed run (cancelled by concurrency, infra
+# hiccup) doesn't silently skip the gate.
+#
+# Releases are tag-only off main; the gate (and the dispatch fallback)
+# is hardcoded to `refs/heads/main` to match.
 #
 # Exit codes:
-#   0  CodeQL run succeeded and no open high/critical alerts on ref
+#   0  CodeQL run succeeded and no open high/critical alerts on main
 #   1  CodeQL run failed, was cancelled, or open high/critical alerts exist
-#   2  Could not locate or dispatch a run within the timeout
+#   2  gh or jq missing/unauthenticated, or could not locate/dispatch
+#      a run within the timeout
 set -euo pipefail
 
-SHA="${1:?usage: $0 <commit-sha> [ref]}"
-REF="${2:-refs/heads/main}"
+SHA="${1:?usage: $0 <commit-sha>}"
+REF="refs/heads/main"
 REPO="${GH_REPO:-bitwisecook/tcl-lsp}"
 WORKFLOW="codeql.yml"
 
@@ -34,8 +38,9 @@ case "$MIN_SEVERITY" in
     high|*)           SEVERITY_FILTER='.rule.security_severity_level == "high" or .rule.security_severity_level == "critical"' ;;
 esac
 
-require_gh() {
+require_deps() {
     command -v gh >/dev/null 2>&1 || { echo "error: gh CLI required" >&2; exit 2; }
+    command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 2; }
     gh auth status >/dev/null 2>&1 || { echo "error: gh CLI not authenticated" >&2; exit 2; }
 }
 
@@ -61,7 +66,7 @@ wait_for_run_to_appear() {
 }
 
 main() {
-    require_gh
+    require_deps
 
     echo "==> CodeQL gate for $SHA (ref $REF, repo $REPO)"
 
@@ -82,13 +87,17 @@ main() {
     fi
 
     echo "==> Checking open CodeQL alerts on $REF (threshold: $MIN_SEVERITY)"
-    local alerts_json
-    alerts_json="$(gh api --paginate \
-        "/repos/$REPO/code-scanning/alerts?state=open&tool_name=CodeQL&per_page=100")"
-
+    # `gh api --paginate` emits one JSON document per page, not a single
+    # combined array — `jq -s` slurps every page into one array, and
+    # `.[][]` flattens to the full alert stream.  Filtering inside one
+    # jq invocation guarantees the count below is a single integer; the
+    # naive `gh --paginate | jq length` form produces one count per
+    # page, which would crash `[ "$count" -gt 0 ]` and silently fall
+    # through to the success path (CVE-grade failure mode for a gate).
     local matching
-    matching="$(printf '%s' "$alerts_json" | \
-        jq "[.[] | select(.most_recent_instance.ref == \"$REF\") | select($SEVERITY_FILTER)]")"
+    matching="$(gh api --paginate \
+        "/repos/$REPO/code-scanning/alerts?state=open&tool_name=CodeQL&per_page=100" \
+        | jq -s "[.[][] | select(.most_recent_instance.ref == \"$REF\") | select($SEVERITY_FILTER)]")"
 
     local count
     count="$(printf '%s' "$matching" | jq 'length')"
