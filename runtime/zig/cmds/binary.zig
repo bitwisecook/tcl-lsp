@@ -361,11 +361,12 @@ fn eval_binary_format(words: []const i32) i32 {
     const out_len = format_size(fmt, fs.len, words, 2);
     if (out_len == 0) return obj_new_string(0, 0);
     const buf = alloc(out_len);
+    if (buf == 0) return obj_new_string(0, 0);
     // Zero the buffer so unfilled bytes are NUL.
     const dst: [*]u8 = @ptrFromInt(buf);
     for (0..out_len) |k| dst[k] = 0;
     format_fill(buf, out_len, fmt, fs.len, words, 2);
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return rt.obj_new_string_take(buf, out_len, out_len);
 }
 
 // ─── binary scan ─────────────────────────────────────────────────────────────
@@ -421,7 +422,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                 } else {
                     // Multiple: build a Tcl list.
                     // Each element is at most 20 chars + space.
-                    const list_buf = alloc(cnt * 24);
+                    const list_buf_size: u32 = cnt * 24;
+                    const list_buf = alloc(list_buf_size);
+                    if (list_buf == 0) break;
                     var list_off: u32 = 0;
                     const list_dst: [*]u8 = @ptrFromInt(list_buf);
                     var k: u32 = 0;
@@ -439,7 +442,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                         list_off += fmt_i64(list_dst, list_off, v);
                     }
                     if (words.len > 3 + vi) {
-                        _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(list_buf), @bitCast(list_off)));
+                        _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
                         vi += 1;
                         assigned += 1;
                     }
@@ -465,7 +468,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                 const cnt: u32 = count_or_null orelse ((src_len -| off) * 2);
                 const take_bytes = (cnt + 1) / 2;
                 if (off + take_bytes > src_len) break;
-                const hex_buf = alloc(cnt + 1);
+                const hex_buf_size: u32 = cnt + 1;
+                const hex_buf = alloc(hex_buf_size);
+                if (hex_buf == 0) break;
                 const hex_dst: [*]u8 = @ptrFromInt(hex_buf);
                 const src_p: [*]const u8 = @ptrFromInt(src_base + off);
                 const hex_chars = "0123456789abcdef";
@@ -479,7 +484,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                     hex_dst[k] = hex_chars[nibble];
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(hex_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(hex_buf, cnt, hex_buf_size));
                     vi += 1;
                     assigned += 1;
                 }
@@ -489,7 +494,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                 const cnt: u32 = count_or_null orelse ((src_len -| off) * 8);
                 const take_bytes = (cnt + 7) / 8;
                 if (off + take_bytes > src_len) break;
-                const bit_buf = alloc(cnt + 1);
+                const bit_buf_size: u32 = cnt + 1;
+                const bit_buf = alloc(bit_buf_size);
+                if (bit_buf == 0) break;
                 const bit_dst: [*]u8 = @ptrFromInt(bit_buf);
                 const src_p: [*]const u8 = @ptrFromInt(src_base + off);
                 var k: u32 = 0;
@@ -502,7 +509,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                     bit_dst[k] = '0' + bit;
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(bit_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(bit_buf, cnt, bit_buf_size));
                     vi += 1;
                     assigned += 1;
                 }
