@@ -840,7 +840,23 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let hints = core_inlay_hints::inlay_hints(&doc.text, range);
+        // Build analysis on a worker so the inlay-hints
+        // provider can surface parameter-name hints at user-
+        // proc call sites (`S-inlay-hints-rich`).  When the
+        // analyser surfaces an empty all_procs map (no user
+        // procs in the document), the provider still returns
+        // an empty hint set.
+        let hints = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("inlay_hint worker panicked: {err}").into(),
+            data: None,
+        })?;
         if hints.is_empty() {
             return Ok(None);
         }
