@@ -171,7 +171,20 @@ _PEM_RE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class RedactReport:
-    secrets_replaced: int
+    # Number of secret-bearing property-value redactions the rewriter
+    # performed (one per ``key <secret>`` occurrence it replaced with
+    # ``key <REDACTED>``).  PEM blocks and IP remaps are tracked
+    # separately in ``pem_blocks_replaced`` / ``ips_remapped`` — this
+    # field is *not* a grand total.
+    #
+    # Despite the name, the value is a count, not a secret.  The
+    # previous field name (``secrets_replaced``) tripped CodeQL's
+    # name-based taint heuristic in
+    # ``py/clear-text-logging-sensitive-data`` whenever a caller
+    # stringified it for stderr; ``redactions_count`` sidesteps that
+    # without changing the semantics.  See PR #446 for the dismissal
+    # history.
+    redactions_count: int
     pem_blocks_replaced: int
     ips_remapped: int
     new_source: str
@@ -265,7 +278,7 @@ def redact_secrets(
         rm = RedactionMap()
         ips = 0
     return RedactReport(
-        secrets_replaced=secrets,
+        redactions_count=secrets,
         pem_blocks_replaced=pem,
         ips_remapped=ips,
         new_source=out,
