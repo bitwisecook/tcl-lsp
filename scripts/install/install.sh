@@ -1430,13 +1430,21 @@ looks_like_our_zipapp() {
     esac
     head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
 
-    # Tier 2a — unzip
+    # Tier 2a — unzip.  Both the post-restructure markers
+    # (``shared/_build_info.py`` + ``tooling.{tcl,f5,wasm}.main`` /
+    # ``server._build_info`` / ``server.server``) AND the legacy
+    # pre-restructure markers (``lsp/_build_info.py`` +
+    # ``explorer.{tcl,f5,wasm}_cli`` / ``lsp._build_info`` /
+    # ``lsp.server``) match — both shapes were shipped on
+    # different release tags and an installer rolling over either of
+    # them must recognise it as ours, not refuse to overwrite.
     if have unzip; then
-        if unzip -l -- "$f" 2>/dev/null | grep -q 'lsp/_build_info.py'; then
+        if unzip -l -- "$f" 2>/dev/null \
+            | grep -qE 'shared/_build_info\.py|lsp/_build_info\.py'; then
             return 0
         fi
         if unzip -p -- "$f" __main__.py 2>/dev/null \
-            | grep -qE 'explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|lsp\._build_info|lsp\.server'; then
+            | grep -qE 'tooling\.(tcl|f5|wasm)\.main|explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|shared\._build_info|server\.(server|_build_info)|lsp\.(server|_build_info)'; then
             return 0
         fi
         return 1
@@ -1448,16 +1456,25 @@ looks_like_our_zipapp() {
 import sys, zipfile
 try:
     with zipfile.ZipFile(sys.argv[1]) as z:
-        if 'lsp/_build_info.py' in set(z.namelist()):
+        names = set(z.namelist())
+        if 'shared/_build_info.py' in names or 'lsp/_build_info.py' in names:
             sys.exit(0)
         try:
             main = z.read('__main__.py').decode('utf-8', errors='replace')
         except KeyError:
             sys.exit(1)
-        for m in (
+        markers = (
+            # Post-restructure entry points (Phase 4+).
+            'tooling.tcl.main', 'tooling.f5.main', 'tooling.wasm.main',
+            'server.server', 'server._build_info',
+            'shared._build_info',
+            # Pre-restructure entry points (shipped on earlier tags).
             'explorer.tcl_cli', 'explorer.f5_cli', 'explorer.wasm_cli',
-            'ai.mcp.tcl_mcp_server', 'lsp._build_info', 'lsp.server',
-        ):
+            'lsp._build_info', 'lsp.server',
+            # MCP server stays valid across the restructure.
+            'ai.mcp.tcl_mcp_server',
+        )
+        for m in markers:
             if m in main:
                 sys.exit(0)
 except (zipfile.BadZipFile, FileNotFoundError, OSError):
