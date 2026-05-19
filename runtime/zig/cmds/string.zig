@@ -858,14 +858,16 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
 }
 
 /// Validate *idx* as a Tcl string-index argument.  Accepts integers
-/// (with optional ``+``/``-`` sign, possibly hex / octal), ``end``,
-/// ``end-N``, ``end+N``, and the ``int+int`` / ``int-int`` arithmetic
-/// forms the C tcl parser accepts.  Returns ``true`` on a valid
-/// index, ``false`` otherwise.  Used by ``string first`` / ``string
-/// last`` / ``string range`` / ``string replace`` / ``string index``
-/// / ``string repeat`` to reject garbage indices with the canonical
-/// ``bad index "X": must be integer?[+-]integer? or end?[+-]integer?``
-/// diagnostic rather than silently treating them as 0.
+/// in decimal, ``0x``/``0X`` hex, ``0o``/``0O`` octal, or ``0b``/``0B``
+/// binary form, with optional leading ``+`` / ``-`` sign; the literal
+/// keyword ``end``; ``end+N`` / ``end-N``; and the ``int±int`` arithmetic
+/// forms the C tcl parser accepts (including bignum operands resolved
+/// at runtime).  Returns ``true`` on a valid index, ``false`` otherwise.
+/// Used by ``string first`` / ``string last`` / ``string range`` /
+/// ``string replace`` / ``string index`` / ``string repeat`` to reject
+/// garbage indices with the canonical ``bad index "X": must be
+/// integer?[+-]integer? or end?[+-]integer?`` diagnostic rather than
+/// silently treating them as 0.
 fn is_valid_string_index(idx: i32) bool {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     const s = obj_mod.obj_ensure_string(idx);

@@ -27,21 +27,6 @@ _BACKSLASH_MAP: dict[str, str] = {
     ";": ";",
 }
 
-# Maximum Unicode codepoint (U+10FFFF).  Tcl 9 silently clamps overlong
-# ``\xNN`` / ``\uNNNN`` / ``\UNNNNNNNN`` escapes that exceed this; we
-# do the same so the lexer doesn't bail out on test files that
-# intentionally exercise the boundary.
-_MAX_UNICODE = 0x10FFFF
-
-
-def _clamp_unicode(value: int) -> int:
-    """Return *value* clamped to the Unicode range so :func:`chr` succeeds."""
-    if value < 0:
-        return 0
-    if value > _MAX_UNICODE:
-        return _MAX_UNICODE
-    return value
-
 
 # Hex digit lookup — maps each hex char to its numeric value.
 _HEX_DIGITS: dict[str, int] = {

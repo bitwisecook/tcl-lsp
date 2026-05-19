@@ -906,7 +906,12 @@ class _WasmEmitterValuesMixin(_Base):
                 if not kv:
                     self._emit_obj_literal("")
                     return
-                if all(
+                # Odd arity → ``wrong # args``; fall through to the
+                # eval fallback so the runtime dispatcher raises the
+                # canonical message rather than the literal fast path
+                # silently dropping the trailing key (Copilot review on
+                # PR #443).
+                if len(kv) % 2 == 0 and all(
                     not a.startswith("$")
                     and not a.startswith("[")
                     and not self._has_embedded_subst(a)
@@ -923,8 +928,7 @@ class _WasmEmitterValuesMixin(_Base):
                     # not ``XXX`` (via the raw ``a X b Y a Z`` list).
                     canon: list[str] = []
                     key_pos: dict[str, int] = {}
-                    wi = 0
-                    while wi + 1 < len(kv):
+                    for wi in range(0, len(kv), 2):
                         k, v = kv[wi], kv[wi + 1]
                         if k in key_pos:
                             canon[key_pos[k] + 1] = v
@@ -932,7 +936,6 @@ class _WasmEmitterValuesMixin(_Base):
                             key_pos[k] = len(canon)
                             canon.append(k)
                             canon.append(v)
-                        wi += 2
                     self._emit_obj_literal(" ".join(canon))
                     return
                 lappend_idx = self._shared_imports.get("tcl_lappend")
