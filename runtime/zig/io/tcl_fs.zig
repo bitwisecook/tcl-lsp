@@ -609,11 +609,12 @@ fn file_join(a: i32, b: i32) i32 {
     while (a_end > 0 and ap[a_end - 1] == '/') : (a_end -= 1) {}
     const total: u32 = a_end + 1 + bs.len;
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return obj.obj_new_string(0, 0);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (0..a_end) |i| buf[i] = ap[i];
     buf[a_end] = '/';
     for (0..bs.len) |i| buf[a_end + 1 + i] = bp[i];
-    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    return obj.obj_new_string_take(buf_addr, total, total);
 }
 
 fn file_dirname(a: i32) i32 {
@@ -1009,13 +1010,14 @@ fn file_readlink(path: i32) i32 {
     // preopen-relative resolution).
     const buf_size: usize = 4096;
     const buf_addr = obj.alloc(buf_size);
+    if (buf_addr == 0) return obj.obj_new_string(0, 0);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     const n = readlink(path_cstr(path), buf, buf_size);
     if (n < 0) {
         stubs.raise("file readlink: path is not a symlink or is inaccessible");
         return 0;
     }
-    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(n));
+    return obj.obj_new_string_take(buf_addr, @intCast(n), @intCast(buf_size));
 }
 
 // --- glob ---
