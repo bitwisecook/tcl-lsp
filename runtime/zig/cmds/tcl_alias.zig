@@ -412,6 +412,7 @@ fn alias_describe_inner(r: *AliasRec) i32 {
         total += 1 + s.len * 2 + 8; // leading space + quoted element
     }
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
 
     // Element 0: the target name.  ``list_elem_quote`` treats it as
     // the first list element so a leading ``#`` is braced — matches
@@ -430,5 +431,5 @@ fn alias_describe_inner(r: *AliasRec) i32 {
         const s = obj_ensure_string(h);
         off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
