@@ -24,7 +24,18 @@
 //! [`legend_token_modifiers`] so the server advertises it in
 //! the LSP `initialize` capabilities response.
 //!
-//! What is *deferred* (planned as further
+//! What landed in `S-semantic-tokens-rich`:
+//!
+//! * Range variant ([`range`]) — same encoding as [`full`]
+//!   filtered to tokens whose start position falls inside
+//!   the request range.  Server advertises `range: true`.
+//! * Delta variant — server-side per-URI cache compares the
+//!   packed data against the previous result-id; matching
+//!   responses get an empty `edits` list, others get a fresh
+//!   full stream.  (Computing a true minimal edit diff is
+//!   tracked under `Still deferred` below.)
+//!
+//! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
 //!
 //! * Format-string component highlighting (`%Y` /
@@ -33,11 +44,9 @@
 //!   semantic-token side needs the same cursor-context
 //!   detection plus per-component classification.
 //! * `BigIP` URI segments / iRules-specific event names.
-//! * Delta encoding (`semanticTokens/full/delta`) — the
-//!   minimal port returns a fresh full stream on every
-//!   request.
-//! * `semanticTokens/range` — same encoding limited to a
-//!   range; defer until the full stream has good UX.
+//! * True minimal edit-diff for `semanticTokens/full/delta` —
+//!   the current implementation returns either an empty edit
+//!   list or a fresh full stream.
 
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{LineIndex, Token, TokenType};
