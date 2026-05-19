@@ -11,6 +11,30 @@ dependencies = [
     "tomli>=2.0; python_version < '3.11'",
 ]
 
+# Console-script entry points.  Each maps a short shell command to a
+# ``module:function`` pair; installing the wheel (e.g. ``pip install
+# tcl-lsp``) puts these on the user's $PATH.
+#
+# Naming convention:
+#   tcl-lsp    — the LSP server itself (transport: stdio, JSON-RPC).
+#   tcl        — the general-purpose Tcl CLI (compile / run / analyse /
+#                  format / etc.).
+#   f5-query   — the F5 BigIP / iRules query CLI (jq-style DSL over
+#                  bigip.conf, iRules, GTM).
+#   tcl-wasm   — the WebAssembly compiler CLI (Tcl → wasm via the
+#                  compiler's WASM codegen + a Zig-built runtime).
+#   tcl-explorer — the compiler-explorer CLI (verbose dumps of IR,
+#                  CFG, SSA, codegen for a given input).
+#   tcl-vm     — direct access to the bytecode VM (run / disasm /
+#                  test).
+[project.scripts]
+tcl-lsp = "server.__main__:main"
+tcl = "tooling.tcl.main:main"
+f5-query = "tooling.f5.main:main"
+tcl-wasm = "tooling.wasm.main:main"
+tcl-explorer = "tooling.explorer.cli:main"
+tcl-vm = "tooling.vm.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
