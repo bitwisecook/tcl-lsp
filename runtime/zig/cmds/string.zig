@@ -380,6 +380,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             total += ws.len;
         }
         const buf = rt.alloc(total);
+        if (buf == 0) return result_mod.from_globals(obj_new_string(0, 0));
         var off: u32 = 0;
         i = 2;
         while (i < words.len) : (i += 1) {
@@ -389,7 +390,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
                 off += ws.len;
             }
         }
-        return result_mod.from_globals(obj_new_string(@bitCast(buf), @bitCast(total)));
+        return result_mod.from_globals(rt.obj_new_string_take(buf, total, total));
     }
     if (words.len < 3) return result_mod.from_globals(0);
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
