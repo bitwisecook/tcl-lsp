@@ -178,6 +178,27 @@ impl Backend {
         self.analyses.lock().await.get(uri).cloned()
     }
 
+    /// Resolve an analysis for the document.  Consults the
+    /// cache first; computes a fresh analysis when no entry
+    /// exists.  Returns owned data the caller can move into
+    /// a `spawn_blocking` worker.
+    async fn analysis_for(
+        &self,
+        uri: &Url,
+        text: String,
+        dialect: String,
+    ) -> tcl_compiler::analyser::AnalysisResult {
+        if let Some(cached) = self.cached_analysis(uri).await {
+            return cached;
+        }
+        tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            analyser.analyse(&text, &dialect).clone()
+        })
+        .await
+        .unwrap_or_default()
+    }
+
     /// Return a snapshot of the current workspace folder
     /// URLs.  Used by cross-document features (workspace
     /// symbols, cross-doc references / rename / call-
@@ -252,9 +273,10 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
+        let analysis = self
+            .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_definition::definition(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
@@ -587,10 +609,8 @@ impl LanguageServer for Backend {
         &self,
         params: CompletionParams,
     ) -> jsonrpc::Result<Option<CompletionResponse>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position.text_document.uri)
-            .await
-        else {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position.position;
@@ -602,10 +622,11 @@ impl LanguageServer for Backend {
         // user procs / vars; rich completion adds the registry's
         // command set.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         // Pure-CPU work; spawn_blocking off the LSP event loop.
         let items = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_completion::completions(
                 &doc.text,
                 pos.line,
@@ -727,9 +748,10 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let ranges = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_references::references(&doc.text, pos.line, pos.character, &analysis, include_decl)
         })
         .await
@@ -764,9 +786,10 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let entries = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             // `S-document-highlight-rich`: the kinded entry
             // point tags variable defining spans as `Write` and
             // their reads as `Read`; command-invocation heads
@@ -809,9 +832,10 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let items = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_call_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
@@ -864,9 +888,10 @@ impl LanguageServer for Backend {
                 end_character: item.selection_range.end.character,
             },
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let incoming = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_call_hierarchy::incoming_calls(&doc.text, &core_item, &analysis)
         })
         .await
@@ -919,9 +944,10 @@ impl LanguageServer for Backend {
                 end_character: item.selection_range.end.character,
             },
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let outgoing = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &analysis)
         })
         .await
@@ -1018,9 +1044,10 @@ impl LanguageServer for Backend {
             let text = doc.text.clone();
             let dialect = doc.dialect.clone();
             let q = query.clone();
+            let analysis = self
+                .analysis_for(&uri, text.clone(), dialect.clone())
+                .await;
             let symbols = tokio::task::spawn_blocking(move || {
-                let mut analyser = Analyser::new();
-                let analysis = analyser.analyse(&text, &dialect).clone();
                 core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
             })
             .await
@@ -1097,7 +1124,8 @@ impl LanguageServer for Backend {
     }
 
     async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -1106,6 +1134,9 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         // Build analysis on a worker so the inlay-hints
         // provider can surface parameter-name hints at user-
         // proc call sites (`S-inlay-hints-rich`).  When the
@@ -1113,8 +1144,6 @@ impl LanguageServer for Backend {
         // procs in the document), the provider still returns
         // an empty hint set.
         let hints = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis))
         })
         .await
@@ -1146,16 +1175,18 @@ impl LanguageServer for Backend {
     }
 
     async fn code_lens(&self, params: CodeLensParams) -> jsonrpc::Result<Option<Vec<CodeLens>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         // S-code-lens-rich: surface per-proc reference counts
         // above each definition.  The provider walks
         // `analysis.command_invocations` per proc, so the
         // worker needs the full analysis result.
         let lenses = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_code_lens::code_lenses(&doc.text, Some(&analysis))
         })
         .await
@@ -1186,22 +1217,23 @@ impl LanguageServer for Backend {
         &self,
         params: CodeActionParams,
     ) -> jsonrpc::Result<Option<Vec<CodeActionOrCommand>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let uri = params.text_document.uri.clone();
         let range = CoreLspRange {
             start_line: params.range.start.line,
             start_character: params.range.start.character,
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
         // requested range.  Run analysis on a worker.
         let actions = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_code_actions::code_actions(&doc.text, range, Some(&analysis))
         })
         .await
@@ -1341,9 +1373,10 @@ impl LanguageServer for Backend {
         // safety gating — proc renames refuse to overwrite
         // built-in command names.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let edits = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_rename::rename(
                 &doc.text,
                 pos.line,
@@ -1382,10 +1415,12 @@ impl LanguageServer for Backend {
         &self,
         params: SignatureHelpParams,
     ) -> jsonrpc::Result<Option<SignatureHelp>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position_params.text_document.uri)
-            .await
-        else {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
@@ -1395,9 +1430,10 @@ impl LanguageServer for Backend {
         // built-in commands (e.g. `puts`, `lsearch`) without
         // requiring a user proc with the same name.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_sig::signature_help(
                 &doc.text,
                 pos.line,
@@ -1435,15 +1471,11 @@ impl LanguageServer for Backend {
         // char)`, `Ok(None)` early-return on cache miss,
         // `[timing] hover` debug logs) is a further
         // follow-up.
-        let cached = self.cached_analysis(&uri).await;
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let result = tokio::task::spawn_blocking(move || {
-            let analysis = if let Some(cached) = cached {
-                cached
-            } else {
-                let mut analyser = Analyser::new();
-                analyser.analyse(&doc.text, &doc.dialect).clone()
-            };
             core_hover::hover(
                 &doc.text,
                 pos.line,
