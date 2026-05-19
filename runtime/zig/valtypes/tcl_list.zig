@@ -854,6 +854,17 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
 pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     const s = obj_ensure_string(list);
     const sv = obj_ensure_string(value);
+    // Validate list and index BEFORE doing work, so the compiled
+    // ``linsert L IDX V`` single-value fast path enforces the same
+    // ``unmatched open brace in list`` / ``bad index "X"`` errors
+    // ``eval_linsert`` does.  Without this, the WASM ``-end-N``
+    // chained-insert path could silently accept malformed inputs.
+    const lp = @import("tcl_list_parse.zig");
+    if (lp.check_list_syntax(s.ptr, s.len) != 0) return 0;
+    if (!is_valid_list_index(index)) {
+        raise_bad_list_index(index);
+        return 0;
+    }
     const n_i64 = list_count_elements(s.ptr, s.len);
     const n: u32 = @intCast(n_i64);
     // ``linsert`` uses a different ``end`` semantic from ``lindex`` /

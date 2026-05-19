@@ -113,7 +113,16 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
     // by routing through the same loop after splitting the index
     // list.  ``tcl_cmd_list_index`` handles bare numeric / ``end`` /
     // ``end-N`` indices; the multi-index walk is a simple fold.
+    //
+    // ``current`` starts as ``words[1]`` (caller-owned, NOT
+    // released).  Once any intermediate ``tcl_cmd_list_index`` runs
+    // ``owns_current`` flips to true and every subsequent
+    // reassignment releases the previous handle so the walk doesn't
+    // leak one TclObj per index level.  The error path mirrors the
+    // happy path's bookkeeping (release ``ei`` / current intermediate
+    // before returning).
     var current: i32 = words[1];
+    var owns_current: bool = false;
     if (words.len == 3) {
         // Single index argument — may be a flat ``5`` or a list
         // ``{2 1}`` (or even a single-element list like ``{2}`` or
@@ -143,12 +152,20 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
         if (idx_count == 0) return result_mod.from_globals(current);
         var k: i64 = 0;
         while (k < idx_count) : (k += 1) {
-            const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
+            const k_obj = obj_new_int(k);
+            const ei = rt.tcl_cmd_list_index(idx_arg, k_obj);
+            obj_mod.tcl_obj_release(k_obj);
             if (!list_mod.is_valid_list_index(ei)) {
                 list_mod.raise_bad_list_index(ei);
+                obj_mod.tcl_obj_release(ei);
+                if (owns_current) obj_mod.tcl_obj_release(current);
                 return result_mod.from_globals(0);
             }
-            current = rt.tcl_cmd_list_index(current, ei);
+            const next = rt.tcl_cmd_list_index(current, ei);
+            obj_mod.tcl_obj_release(ei);
+            if (owns_current) obj_mod.tcl_obj_release(current);
+            current = next;
+            owns_current = true;
         }
         return result_mod.from_globals(current);
     }
@@ -156,9 +173,13 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
     while (ai < words.len) : (ai += 1) {
         if (!list_mod.is_valid_list_index(words[ai])) {
             list_mod.raise_bad_list_index(words[ai]);
+            if (owns_current) obj_mod.tcl_obj_release(current);
             return result_mod.from_globals(0);
         }
-        current = rt.tcl_cmd_list_index(current, words[ai]);
+        const next = rt.tcl_cmd_list_index(current, words[ai]);
+        if (owns_current) obj_mod.tcl_obj_release(current);
+        current = next;
+        owns_current = true;
     }
     return result_mod.from_globals(current);
 }
@@ -229,11 +250,23 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
     // earlier reverse-iteration branches whose clamping interacted
     // badly when the index exceeded the original length (linsert-1.10:
     // ``linsert {} 2 a b c`` was returning ``c b a``).
+    //
+    // Each iteration creates a fresh ``pos_obj`` and a fresh
+    // ``next`` result; release them as we go so the chain doesn't
+    // leak one TclObj per inserted value.  ``result`` starts as
+    // ``list_arg`` (caller-owned, NOT released) and is replaced by
+    // the function's fresh return on every step.
     var result: i32 = list_arg;
+    var owns_result: bool = false;
     var pos: i64 = resolved_idx;
     var wi: u32 = 3;
     while (wi < words.len) : (wi += 1) {
-        result = rt.tcl_cmd_list_insert(result, obj_new_int(pos), words[wi]);
+        const pos_obj = obj_new_int(pos);
+        const next = rt.tcl_cmd_list_insert(result, pos_obj, words[wi]);
+        obj_mod.tcl_obj_release(pos_obj);
+        if (owns_result) obj_mod.tcl_obj_release(result);
+        result = next;
+        owns_result = true;
         pos += 1;
     }
     return result_mod.from_globals(result);
@@ -1395,8 +1428,11 @@ fn do_lsearch_bisect(
         if (ps.len > 0) {
             const pc = rt.list_count_elements(ps.ptr, ps.len);
             if (pc > 0) {
-                const first_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(0));
+                const zero_obj = obj_new_int(0);
+                const first_obj = rt.tcl_cmd_list_index(index_arg, zero_obj);
+                obj_mod.tcl_obj_release(zero_obj);
                 group_offset = list_mod.resolve_list_index(first_obj, stride);
+                obj_mod.tcl_obj_release(first_obj);
                 skip_first_path = true;
             }
         }
@@ -1591,10 +1627,42 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     const pv = obj_ensure_string(pat_obj);
     const n = rt.list_count_elements(ls.ptr, ls.len);
 
+    // Validate every element of the ``-index`` path up front so a
+    // malformed element (``-index {0 b}``) raises the canonical
+    // ``bad index`` error before the search starts, instead of
+    // silently resolving to 0 via the ``obj_get_int`` fallback deep
+    // inside the drilling loops (``ls_bisect_target`` /
+    // ``ls_get_match_target`` / ``ls_subindex_path``).
+    if (index_arg != 0) {
+        const ips = obj_ensure_string(index_arg);
+        if (ips.len > 0) {
+            const ipc = rt.list_count_elements(ips.ptr, ips.len);
+            var ki: i64 = 0;
+            while (ki < ipc) : (ki += 1) {
+                const k_obj = obj_new_int(ki);
+                const elem_obj = rt.tcl_cmd_list_index(index_arg, k_obj);
+                obj_mod.tcl_obj_release(k_obj);
+                if (!list_mod.is_valid_list_index(elem_obj)) {
+                    list_mod.raise_bad_list_index(elem_obj);
+                    obj_mod.tcl_obj_release(elem_obj);
+                    return result_mod.from_globals(0);
+                }
+                obj_mod.tcl_obj_release(elem_obj);
+            }
+        }
+    }
+
     // Resolve ``-start`` now that ``n`` is known.  Reference Tcl
     // accepts ``end[-+]N`` and integer arithmetic here (lsearch-10.3
     // / 10.4 / 10.5).  Negative resolutions clamp to 0.
+    // Validate the index syntax first so ``-start b`` raises the
+    // canonical ``bad index "b"`` error instead of silently
+    // resolving to 0 via the ``obj_get_int`` fallback.
     if (start_obj != 0) {
+        if (!list_mod.is_valid_list_index(start_obj)) {
+            list_mod.raise_bad_list_index(start_obj);
+            return result_mod.from_globals(0);
+        }
         const v = list_mod.resolve_list_index(start_obj, n);
         start = if (v < 0) 0 else v;
     }
