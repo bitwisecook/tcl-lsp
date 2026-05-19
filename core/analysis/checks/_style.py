@@ -128,13 +128,15 @@ def check_unbraced_expr(
         elif _is_safe_literal(stripped):
             continue
 
-        # Build the fix: wrap in braces. For quoted expr arguments,
-        # drop the outer quotes when bracing (expr "$a == $b" -> {$a == $b}).
+        # Build the fix: wrap in braces. For quoted arguments, drop the
+        # outer quotes when bracing -- otherwise the braces would wrap
+        # the literal ``"..."`` string, turning a multi-word command
+        # body into a single-word command name (or breaking expr's
+        # parse).  Codex caught the W100 if/while case in PR #438.
         fix_text = text
-        if cmd_name == "expr":
-            stripped = text.strip()
-            if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
-                fix_text = stripped[1:-1]
+        stripped = text.strip()
+        if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+            fix_text = stripped[1:-1]
 
         fix = CodeFix(
             range=range_for_diag,
@@ -298,6 +300,14 @@ def check_unbraced_body(
             if raw_end < len(source) and source[raw_end] == close:
                 raw_end += 1
         raw_text = source[tok.start.offset : raw_end]
+        # Strip outer ``"..."`` quotes before bracing — otherwise the
+        # fix wraps a quoted string and changes a multi-word body into
+        # a single-word command name (e.g. ``eval "puts $x"`` would
+        # become ``eval {"puts $x"}``, which evaluates a single-word
+        # command literally named ``puts <value>``).  Codex caught
+        # this on PR #438.
+        if len(raw_text) >= 2 and raw_text[0] == '"' and raw_text[-1] == '"':
+            raw_text = raw_text[1:-1]
         fix = CodeFix(
             range=range_from_token(tok),
             new_text="{" + raw_text + "}",
