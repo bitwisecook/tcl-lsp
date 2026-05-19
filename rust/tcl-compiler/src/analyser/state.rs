@@ -156,6 +156,16 @@ pub struct Analyser {
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
     pub registry: Option<tcl_registry::CommandRegistry>,
+    /// When `true`, the proc handler runs the deep-recursive
+    /// pass of [`super::param_traits::infer_param_traits_deep`]
+    /// after the shallow pass and unions the results via
+    /// [`super::param_traits::merge_traits`].  Off by default —
+    /// the shallow pass is fast enough for synchronous analysis
+    /// and catches the common patterns; the deep pass is
+    /// intended for asynchronous use behind the `S*` call-graph
+    /// / symbol-graph / dataflow-graph / semantic-graph builders.
+    /// Mirrors Python's `deep_param_traits=True` opt-in surface.
+    pub deep_param_traits: bool,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -204,6 +214,7 @@ impl Analyser {
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
             registry: None,
+            deep_param_traits: false,
             line_offsets: None,
         }
     }
