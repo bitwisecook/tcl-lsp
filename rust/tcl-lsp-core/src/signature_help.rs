@@ -210,10 +210,52 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
 }
 
 fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
+    if let Some(proc_def) = direct_proc_lookup(analysis, name) {
+        return Some(proc_def);
+    }
+    // `S-signature-help-rich`: alias resolution.  When the
+    // cursor's command isn't a user proc, check whether it
+    // matches an `interp alias {} ALIAS {} TARGET` record and
+    // follow the chain to the target proc.  Mirrors Python's
+    // `lookup_alias_for_word`.
+    let resolved_target = resolve_alias_chain(analysis, name)?;
+    direct_proc_lookup(analysis, &resolved_target)
+}
+
+fn direct_proc_lookup<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == name || qname == name || qname == &format!("::{name}") {
             return Some(proc_def);
         }
+    }
+    None
+}
+
+/// Follow the alias chain from `name` to its terminal
+/// target.  Returns `None` when `name` doesn't match any
+/// alias record.  Cycles are bounded by `MAX_ALIAS_HOPS`.
+fn resolve_alias_chain(analysis: &AnalysisResult, name: &str) -> Option<String> {
+    const MAX_ALIAS_HOPS: usize = 8;
+    let mut current = name.to_owned();
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..MAX_ALIAS_HOPS {
+        if !seen.insert(current.clone()) {
+            return None;
+        }
+        let qualified = if current.starts_with("::") {
+            current.clone()
+        } else {
+            format!("::{current}")
+        };
+        if let Some(alias) = analysis
+            .command_aliases
+            .get(&qualified)
+            .or_else(|| analysis.command_aliases.get(&current))
+        {
+            current.clone_from(&alias.target);
+            continue;
+        }
+        return Some(current);
     }
     None
 }
@@ -544,4 +586,56 @@ mod tests {
     // provider does this via the segmenter's
     // `command_substitutions` walk).  Tracked under
     // `S-signature-help-rich` continued follow-ups.
+
+    // -- S-signature-help-rich: alias resolution ---------------------
+
+    #[test]
+    fn alias_resolves_to_target_proc_signature() {
+        // `interp alias {} hello {} greet` makes `hello` an
+        // alias for `greet`.  Signature help on `hello arg ` should
+        // surface greet's signature.
+        let src = concat!(
+            "proc greet {name} {}\n",
+            "interp alias {} hello {} greet\n",
+            "hello \n",
+        );
+        let analysis = analyse(src);
+        let h = signature_help(src, 2, 6, &analysis, None)
+            .expect("expected alias-resolved signature help");
+        assert_eq!(h.signatures.len(), 1);
+        assert!(
+            h.signatures[0].label.contains("::greet"),
+            "expected greet's signature via alias; got {label}",
+            label = h.signatures[0].label,
+        );
+        assert!(
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "name"),
+            "expected `name` parameter from greet; got {:?}",
+            h.signatures[0].parameters,
+        );
+    }
+
+    #[test]
+    fn alias_chain_returns_target_through_multiple_hops() {
+        // `a` → `b` → `c` chain.  The analyser records two
+        // alias entries; signature help on `a ` should follow
+        // both hops to land on `c`'s signature.
+        let src = concat!(
+            "proc c {x} {}\n",
+            "interp alias {} b {} c\n",
+            "interp alias {} a {} b\n",
+            "a \n",
+        );
+        let analysis = analyse(src);
+        let h = signature_help(src, 3, 2, &analysis, None)
+            .expect("expected chained alias resolution");
+        assert!(
+            h.signatures[0].label.contains("::c"),
+            "expected target `c`; got {label}",
+            label = h.signatures[0].label,
+        );
+    }
 }
