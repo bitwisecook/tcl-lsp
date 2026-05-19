@@ -538,21 +538,41 @@ fn simple_of_fqn(name_ptr: u32, name_len: u32) struct { ptr: u32, len: u32 } {
 
 fn find_alias_cmd_in_subtree(ns: u32, target_rec: u32) AliasCmdAndNs {
     if (ns == 0 or target_rec == 0) return .{ .cmd = 0, .ns = 0 };
+    // Heap-range guard: a torn-down interp's ``root_ns`` can leave
+    // ``cmd_table.buf`` pointing at memory that was reclaimed or
+    // never mapped (basic-10.1's ``namespace delete ::`` then
+    // ``interp delete`` sequence).  Skip cleanly rather than
+    // ``read_i32``-trap.
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    if (@as(u64, ns) + @sizeOf(tcl_ns.Namespace) > mem_bytes) return .{ .cmd = 0, .ns = 0 };
     const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
     // Walk this ns's cmd_table.
-    if (n.cmd_table.buf != 0) {
-        var k: u32 = 0;
-        while (k < n.cmd_table.cap) : (k += 1) {
-            const bucket = n.cmd_table.buf + k * tcl_ns.NS_BUCKET_SIZE;
-            const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-            if (cmd == 0) continue;
-            // Use offset 12 for PARAMS_OBJ via the procs constants.
-            const params: u32 = @bitCast(read_i32(cmd + 12));
-            if (params == target_rec) return .{ .cmd = cmd, .ns = ns };
+    if (n.cmd_table.buf != 0 and n.cmd_table.cap > 0 and n.cmd_table.cap < (1 << 20)) {
+        const table_bytes: u64 = @as(u64, n.cmd_table.cap) * @as(u64, tcl_ns.NS_BUCKET_SIZE);
+        if (@as(u64, n.cmd_table.buf) + table_bytes <= mem_bytes) {
+            var k: u32 = 0;
+            while (k < n.cmd_table.cap) : (k += 1) {
+                const bucket = n.cmd_table.buf + k * tcl_ns.NS_BUCKET_SIZE;
+                const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+                if (cmd == 0) continue;
+                // Bounds-check the Command pointer before reading
+                // ``OFF_PARAMS_OBJ``.  Builtin forwards and alias
+                // redirects sometimes hold sentinel handles outside
+                // the heap range; reading through them would trap.
+                if (@as(u64, cmd) + 16 > mem_bytes) continue;
+                // Use offset 12 for PARAMS_OBJ via the procs constants.
+                const params: u32 = @bitCast(read_i32(cmd + 12));
+                if (params == target_rec) return .{ .cmd = cmd, .ns = ns };
+            }
         }
     }
     // Recurse into children namespaces.
-    if (n.child_table.buf == 0) return .{ .cmd = 0, .ns = 0 };
+    if (n.child_table.buf == 0 or n.child_table.cap == 0 or n.child_table.cap >= (1 << 20)) {
+        return .{ .cmd = 0, .ns = 0 };
+    }
+    const child_bytes: u64 = @as(u64, n.child_table.cap) * @as(u64, tcl_ns.NS_BUCKET_SIZE);
+    if (@as(u64, n.child_table.buf) + child_bytes > mem_bytes) return .{ .cmd = 0, .ns = 0 };
     var k: u32 = 0;
     while (k < n.child_table.cap) : (k += 1) {
         const cb = n.child_table.buf + k * tcl_ns.NS_BUCKET_SIZE;
