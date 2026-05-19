@@ -297,11 +297,14 @@ fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_fir
     return off;
 }
 
-// Parse an index that may be "end", "end-N", "end+N", or a plain
-// integer.  Returns the resolved 0-based index (may be negative for
-// under-range or >= n for over-range; callers clamp as they see fit).
-// Exported as ``pub`` so string-index helpers in ``tcl_string.zig``
-// reuse the same "end" arithmetic.
+// Parse an index that may be "end", "end-N", "end+N", "M[+-]N"
+// (Tcl 9 integer arithmetic, including bignums), or a plain integer.
+// Returns the resolved 0-based index (may be negative for under-range
+// or >= n for over-range; callers clamp as they see fit).  Exported
+// as ``pub`` so string-index helpers in ``tcl_string.zig`` reuse the
+// same arithmetic.  Mirrors C Tcl 9 ``GetEndOffsetFromObj`` in
+// ``tclUtil.c`` for the ``int[+-]int`` form, with the result saturating
+// to ``i64`` bounds when the integer math overflows.
 pub fn resolve_list_index(idx: i32, n: i64) i64 {
     const sv = obj_ensure_string(idx);
     if (sv.len >= 3) {
@@ -325,6 +328,38 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
                     offset = offset * 10 + @as(i64, sp[i] - '0');
                 }
                 return n - 1 + offset;
+            }
+        }
+    }
+    // ``int[+-]int`` arithmetic indices.  C Tcl 9 ``GetEndOffsetFromObj``
+    // tries the bignum / wide-int parser then performs the addition or
+    // subtraction; the result saturates to ``i64`` bounds.  Without
+    // this path, stringComp-14.26 ``string replace abcd
+    // 0x10000000000000000-0xffffffffffffffff 2 e`` would parse only the
+    // first hex literal and produce the wrong result (the difference
+    // ``2^64 - (2^64-1) = 1``, used as the first index).
+    if (sv.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(sv.ptr);
+        // Find the inner operator (skip a leading sign).
+        var op_pos: u32 = 0;
+        var k: u32 = if (sp[0] == '+' or sp[0] == '-') 1 else 0;
+        while (k < sv.len) : (k += 1) {
+            if (sp[k] == '+' or sp[k] == '-') {
+                op_pos = k;
+                break;
+            }
+        }
+        if (op_pos > 0) {
+            const bignum = @import("tcl_bignum.zig");
+            const lhs = bignum.parse_i128(sv.ptr, op_pos);
+            const rhs = bignum.parse_i128(sv.ptr + op_pos + 1, sv.len - op_pos - 1);
+            if (lhs != null and rhs != null) {
+                const a = lhs.?;
+                const b = rhs.?;
+                const r: i128 = if (sp[op_pos] == '-') a - b else a + b;
+                if (r > std.math.maxInt(i64)) return std.math.maxInt(i64);
+                if (r < std.math.minInt(i64)) return std.math.minInt(i64);
+                return @intCast(r);
             }
         }
     }

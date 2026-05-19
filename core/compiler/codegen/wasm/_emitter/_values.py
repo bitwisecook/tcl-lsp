@@ -914,7 +914,26 @@ class _WasmEmitterValuesMixin(_Base):
                     and a not in self._local_index
                     for a in kv
                 ):
-                    self._emit_obj_literal(" ".join(kv))
+                    # Canonicalise duplicate keys to match Tcl 9
+                    # ``Tcl_DictObjPut`` semantics (last-wins value,
+                    # preserved insertion position).  See
+                    # ``cmds/dict_.py::_emit_dict`` for the rationale —
+                    # string-10.20.1 expects ``string map [dict create
+                    # a X b Y a Z] aaa`` → ``ZZZ`` (via ``a Z b Y``),
+                    # not ``XXX`` (via the raw ``a X b Y a Z`` list).
+                    canon: list[str] = []
+                    key_pos: dict[str, int] = {}
+                    wi = 0
+                    while wi + 1 < len(kv):
+                        k, v = kv[wi], kv[wi + 1]
+                        if k in key_pos:
+                            canon[key_pos[k] + 1] = v
+                        else:
+                            key_pos[k] = len(canon)
+                            canon.append(k)
+                            canon.append(v)
+                        wi += 2
+                    self._emit_obj_literal(" ".join(canon))
                     return
                 lappend_idx = self._shared_imports.get("tcl_lappend")
                 if lappend_idx is None:
@@ -989,8 +1008,17 @@ class _WasmEmitterValuesMixin(_Base):
                 if sub_args and _looks_like_string_option(sub_args[0]):
                     self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
                     return
-                func_idx = self._shared_imports[sri.import_key]
+                # Over-arity: ``string totitle X first last`` / ``string
+                # toupper X first last`` / ``string tolower X first last``
+                # carry codepoint range bounds that the 1-param runtime
+                # import cannot see.  Route to eval-fallback so the
+                # ``cmds/string.zig`` dispatcher reaches the ``_range``
+                # variant (string-17.9).
                 param_count = len(sri.params)
+                if len(sub_args) > param_count:
+                    self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
+                    return
+                func_idx = self._shared_imports[sri.import_key]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):

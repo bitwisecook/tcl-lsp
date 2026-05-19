@@ -485,10 +485,29 @@ def fold_string_wordstart(args: tuple[str, ...]) -> str | None:
 
 
 def fold_dict_create(args: tuple[str, ...]) -> str | None:
-    """``dict create ?key value ...?``"""
+    """``dict create ?key value ...?`` — canonicalise duplicate keys.
+
+    Tcl 9's ``Tcl_DictObjPut`` (tclDictObj.c) replaces the value on a
+    duplicate key while preserving the key's original insertion
+    position.  So ``dict create a X b Y a Z`` produces the canonical
+    rep ``a Z b Y`` — one ``a`` entry with the last-wins value.
+    Mirror that here so ``string map [dict create ...]`` walks the
+    deduplicated list and returns the expected ``ZZZ`` rather than the
+    first-occurrence ``XXX`` (string-10.20.1).
+    """
     if len(args) & 1:
         return None
-    return " ".join(args)
+    canon: list[str] = []
+    key_pos: dict[str, int] = {}
+    for i in range(0, len(args), 2):
+        k, v = args[i], args[i + 1]
+        if k in key_pos:
+            canon[key_pos[k] + 1] = v
+        else:
+            key_pos[k] = len(canon)
+            canon.append(k)
+            canon.append(v)
+    return " ".join(canon)
 
 
 def fold_dict_exists(args: tuple[str, ...]) -> str | None:

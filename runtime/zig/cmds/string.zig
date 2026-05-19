@@ -880,26 +880,65 @@ fn is_valid_string_index(idx: i32) bool {
         if (sp[3] != '+' and sp[3] != '-') return false;
         return is_int_arith_tail(sp, s.len, 4);
     }
-    // Pure integer arithmetic: optional sign, digits, optional
-    // ``±N`` continuation.
+    // Pure integer arithmetic: optional sign, integer literal,
+    // optional ``±N`` continuation.  Integer literals include
+    // decimal, hex (``0x``), octal (``0o``), and binary (``0b``);
+    // bignums also parse here so ``string replace abcd
+    // 0x10000000000000000-0xffffffffffffffff 2 e`` (stringComp-14.26)
+    // makes it to the dispatcher instead of erroring at the syntax
+    // check.
     var i: u32 = 0;
     if (sp[i] == '+' or sp[i] == '-') i += 1;
     if (i >= s.len) return false;
     return is_int_arith_tail(sp, s.len, i);
 }
 
-fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+fn is_digit_for_base(c: u8, base: u32) bool {
+    return switch (base) {
+        2 => c == '0' or c == '1',
+        8 => c >= '0' and c <= '7',
+        10 => c >= '0' and c <= '9',
+        16 => (c >= '0' and c <= '9') or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F'),
+        else => false,
+    };
+}
+
+/// Consume one integer literal (optional ``0x`` / ``0o`` / ``0b``
+/// prefix + at least one digit) starting at ``sp[start]``.  Returns
+/// the position one past the last digit consumed, or ``start`` when
+/// no valid literal was found.
+fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
     var i = start;
-    // First digit run (required at least 1 digit).
-    if (i >= len) return false;
-    if (!(sp[i] >= '0' and sp[i] <= '9')) return false;
-    while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+    if (i >= len) return start;
+    var base: u32 = 10;
+    if (sp[i] == '0' and i + 1 < len) {
+        const c = sp[i + 1];
+        if (c == 'x' or c == 'X') {
+            base = 16;
+            i += 2;
+        } else if (c == 'o' or c == 'O') {
+            base = 8;
+            i += 2;
+        } else if (c == 'b' or c == 'B') {
+            base = 2;
+            i += 2;
+        }
+    }
+    if (i >= len or !is_digit_for_base(sp[i], base)) return start;
+    while (i < len and is_digit_for_base(sp[i], base)) i += 1;
+    return i;
+}
+
+fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+    var i = consume_integer_literal(sp, len, start);
+    if (i == start) return false;
     // Optional ``±N`` continuation runs.
     while (i < len) {
         if (sp[i] != '+' and sp[i] != '-') return false;
         i += 1;
-        if (i >= len or !(sp[i] >= '0' and sp[i] <= '9')) return false;
-        while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+        const after = consume_integer_literal(sp, len, i);
+        if (after == i) return false;
+        i = after;
     }
     return true;
 }

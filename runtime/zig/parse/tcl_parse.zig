@@ -29,7 +29,17 @@
 // specially (not whitespace per-se, but command terminators), so
 // importing ``chars.is_space`` wouldn't be a drop-in swap.
 
-pub const MAX_WORDS: u32 = 128;
+// Maximum number of words a single command can have when parsed
+// through the stack-array fast path.  Tcl 9 has no hard limit — it
+// grows its argument buffer dynamically — but our parser uses
+// fixed-size stack arrays for the common case to avoid per-command
+// allocation traffic.  Bumped from 128 to handle ``string cat``
+// invocations with hundreds of args (string-29.4: 260 ``$x`` tokens
+// after ``string repeat``).  Per-frame stack cost at 512 is ~30 KB
+// across the various ``[MAX_WORDS]`` arrays in tcl_interp /
+// tcl_subst / tcl_expr_eval; well under the wasm32-wasi default
+// 1 MB stack with the usual 3-4 frame eval depth.
+pub const MAX_WORDS: u32 = 512;
 
 // ---------------------------------------------------------------------
 // Flat-array API — legacy.  Kept here so callers don't have to migrate

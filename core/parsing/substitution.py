@@ -43,6 +43,42 @@ def _clamp_unicode(value: int) -> int:
     return value
 
 
+# Hex digit lookup — maps each hex char to its numeric value.
+_HEX_DIGITS: dict[str, int] = {
+    **{c: int(c) for c in "0123456789"},
+    **{c: 10 + ord(c) - ord("a") for c in "abcdef"},
+    **{c: 10 + ord(c) - ord("A") for c in "ABCDEF"},
+}
+
+
+def _parse_hex_capped(text: str, start: int, max_digits: int) -> tuple[int, int]:
+    """Mirror Tcl 9's ``ParseHex`` in tclParse.c:728.
+
+    Scan up to ``max_digits`` hex characters starting at *start*, but
+    stop early if the accumulated value would exceed U+10FFFF after one
+    more shift.  The check is ``result > 0x10FFF`` BEFORE shifting, so
+    after the shift the maximum representable value is exactly
+    0x10FFFF (the Unicode upper bound).  This means ``\\U100000b``
+    consumes only the 6 digits ``100000`` (= U+100000); the trailing
+    ``b`` falls through to the next iteration as a literal.
+
+    Returns ``(value, end_index)`` where *end_index* is the position
+    one past the last consumed hex digit.  When no hex digits follow,
+    returns ``(0, start)``.
+    """
+    n = len(text)
+    value = 0
+    i = start
+    end = min(start + max_digits, n)
+    while i < end:
+        digit = _HEX_DIGITS.get(text[i])
+        if digit is None or value > 0x10FFF:
+            break
+        value = (value << 4) | digit
+        i += 1
+    return value, i
+
+
 def backslash_subst(text: str) -> str:
     """Process Tcl backslash escapes in *text*.
 
@@ -68,54 +104,38 @@ def backslash_subst(text: str) -> str:
                     i += 1
                 result.append(" ")
             elif c == "x":
-                # hex escape: \xNN (1-2 hex digits)
-                j = i + 2
-                while j < n and j < i + 4 and text[j] in "0123456789abcdefABCDEF":
-                    j += 1
+                # ``\xNN`` — Tcl 9 reads up to 2 hex digits then masks
+                # to UCHAR (low 8 bits).  Since 2 digits never exceeds
+                # 0xFF, the ParseHex 0x10FFF cap never triggers here.
+                value, j = _parse_hex_capped(text, i + 2, 2)
                 if j > i + 2:
-                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
+                    result.append(chr(value & 0xFF))
                     i = j
                 else:
                     result.append("x")
                     i += 2
             elif c == "u":
-                # unicode escape: \uNNNN (1-4 hex digits).  If the
-                # parsed codepoint is a high surrogate (U+D800-U+DBFF)
-                # and the next four bytes form ``\uYYYY`` with YYYY a
-                # low surrogate (U+DC00-U+DFFF), combine the pair into
-                # a single supplementary-plane codepoint (Tcl 9
-                # ``tclParse.c`` ``TclParseBackslash`` behaviour).
-                j = i + 2
-                while j < n and j < i + 6 and text[j] in "0123456789abcdefABCDEF":
-                    j += 1
+                # ``\uNNNN`` — Tcl 9 reads up to 4 hex digits.  Tcl 9
+                # does NOT combine adjacent surrogate pairs at parse
+                # time — ``😂`` produces two isolated
+                # surrogate codepoints (encoded as 3-byte WTF-8 each).
+                # The runtime preserves them; do not combine here.
+                value, j = _parse_hex_capped(text, i + 2, 4)
                 if j > i + 2:
-                    cp = int(text[i + 2 : j], 16)
-                    if (
-                        0xD800 <= cp <= 0xDBFF
-                        and j + 5 < n
-                        and text[j] == "\\"
-                        and text[j + 1] == "u"
-                        and all(text[j + 2 + k] in "0123456789abcdefABCDEF" for k in range(4))
-                    ):
-                        low = int(text[j + 2 : j + 6], 16)
-                        if 0xDC00 <= low <= 0xDFFF:
-                            cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00)
-                            j = j + 6
-                    result.append(chr(_clamp_unicode(cp)))
+                    result.append(chr(value))
                     i = j
                 else:
                     result.append("u")
                     i += 2
             elif c == "U":
-                # wide unicode escape: \UNNNNNNNN (1-8 hex digits).  Tcl
-                # tests sometimes write values above U+10FFFF (the
-                # Unicode maximum) — Tcl 9 silently clamps; mirror that
-                # so the lexer doesn't bail out with chr() ValueError.
-                j = i + 2
-                while j < n and j < i + 10 and text[j] in "0123456789abcdefABCDEF":
-                    j += 1
+                # ``\UNNNNNNNN`` — Tcl 9 reads up to 8 hex digits but
+                # stops when the accumulator would exceed 0x10FFFF
+                # (see tclParse.c:728 ParseHex).  Example:
+                # ``\U100000b`` consumes the 6 digits ``100000``
+                # → U+100000, leaving ``b`` as a literal.
+                value, j = _parse_hex_capped(text, i + 2, 8)
                 if j > i + 2:
-                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
+                    result.append(chr(value))
                     i = j
                 else:
                     result.append("U")
