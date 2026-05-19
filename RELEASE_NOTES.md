@@ -1,3 +1,19 @@
+# v1.10.7
+
+## Bug Fixes
+
+- **JetBrains plugin: bundle LSP server outside the plugin jar.** The
+  bundled `tcl-lsp-server.pyz` was packed into the plugin jar and
+  extracted to `${tmpdir}/tcl-lsp-server.pyz` at first launch.  The
+  existence check that gated re-extraction only fired when the cache
+  was missing or empty, so plugin upgrades reused the previous
+  version's server — users who upgraded v1.10.5 → v1.10.6 still saw
+  the W105 quick-fix produce `{script}` from `$script` even though the
+  source-side fix had shipped.  The pyz now lives at `<plugin>/tcl-lsp-server.pyz`
+  in the distribution (next to `lib/`, matching JetBrains' own Prisma
+  ORM plugin layout), so Python executes it directly from the install
+  directory — no temp-dir cache, no upgrade-time invalidation.
+
 # v1.10.6
 
 ## Bug Fixes
