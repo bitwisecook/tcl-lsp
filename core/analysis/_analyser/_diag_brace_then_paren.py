@@ -36,7 +36,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...common.naming import is_bare_var_name
+from shared.naming import is_bare_var_name
+
 from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 
@@ -77,7 +78,7 @@ def _build_replacement(name: str, inner: str) -> str:
     ``$``-vars in ``set``'s argument, so indirection keeps working.
 
     The bare-vs-fallback decision uses :func:`is_bare_var_name`
-    (centralised in ``core.common.naming``) so the completion path
+    (centralised in ``shared.naming``) so the completion path
     and this diagnostic pass cannot drift from the lexer rule."""
     if is_bare_var_name(name):
         return f"${name}({inner})"

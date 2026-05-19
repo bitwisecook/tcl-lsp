@@ -12,7 +12,7 @@ from pygls.lsp.server import LanguageServer
 import lsp.diagnostics_pipeline as _dp
 import lsp.state as _state
 from core.commands.registry.runtime import configure_signatures
-from core.common.dialect import active_dialect
+from shared.dialect import active_dialect
 
 from .features.workspace_file_ops import compute_batch_rename_edits
 from .workspace.scanner import uri_to_path
@@ -297,8 +297,8 @@ def on_did_rename_files(params: types.RenameFilesParams) -> None:
 
 def on_did_change_workspace_folders(params: types.DidChangeWorkspaceFoldersParams) -> None:
     """Track folder add/remove and re-pull per-folder configuration."""
-    from core.common.user_config import get_all_settings, load_project_config
     from lsp.settings import _pull_and_apply_configuration, _schedule_apply_merged
+    from shared.user_config import get_all_settings, load_project_config
 
     from .workspace.scanner import uri_to_path as _uri_to_path
 

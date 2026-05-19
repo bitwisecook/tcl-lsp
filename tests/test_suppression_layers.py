@@ -33,15 +33,15 @@ from core.analysis._analyser._utils import (
     parse_noqa_line_suppressions,
 )
 from core.analysis.semantic_model import _FILE_SUPPRESS_KEY
-from core.common.user_config import (
+from core.parsing.command_segmenter import segment_commands
+from lsp.features.diagnostics import _is_suppressed, get_basic_diagnostics, get_deep_diagnostics
+from shared.user_config import (
     PROJECT_CONFIG_FILENAME,
     find_project_config,
     get_all_settings,
     load_project_config,
     merge_settings_layers,
 )
-from core.parsing.command_segmenter import segment_commands
-from lsp.features.diagnostics import _is_suppressed, get_basic_diagnostics, get_deep_diagnostics
 
 
 def _codes(diags) -> list[str]:

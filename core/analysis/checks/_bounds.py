@@ -35,7 +35,8 @@ from __future__ import annotations
 
 import re
 
-from ...common.codes import diag
+from shared.codes import diag
+
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Range, Severity
 

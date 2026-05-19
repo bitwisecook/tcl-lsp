@@ -8,7 +8,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...common.ranges import range_from_token
+from shared.ranges import range_from_token
+
 from ...compiler.compiler_checks import iter_ir_statements
 from ...compiler.ir import (
     IRBarrier,

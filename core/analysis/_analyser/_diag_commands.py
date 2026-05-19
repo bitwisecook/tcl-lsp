@@ -9,8 +9,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from shared.dialect import active_dialect, active_extra_commands
+
 from ...commands.registry import REGISTRY
-from ...common.dialect import active_dialect, active_extra_commands
 from ...compiler.compilation_unit import CompilationUnit
 from ...compiler.core_analyses import LatticeValue
 from ...compiler.ir import (
@@ -49,7 +50,7 @@ class _AnalyserDiagCommandsMixin(_Base):
         if "W123" in self._disabled_diagnostics:
             return
 
-        from ...common.text import suggest_similar
+        from shared.text import suggest_similar
 
         dialect = active_dialect()
         registry_names = frozenset(REGISTRY.command_names(dialect)) | frozenset(

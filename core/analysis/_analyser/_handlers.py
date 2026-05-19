@@ -8,10 +8,11 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from shared.alias import detect_interp_alias, resolve_alias
+from shared.dialect import active_dialect
+from shared.ranges import range_from_token
+
 from ...commands.registry import REGISTRY
-from ...common.alias import detect_interp_alias, resolve_alias
-from ...common.dialect import active_dialect
-from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     Scope,
@@ -463,7 +464,7 @@ class _AnalyserHandlersMixin(_Base):
         existing procs that match.  Storing a tuple instead of keeping a
         scope reference keeps the pending list snapshot-safe.
         """
-        from ...common.naming import normalise_qualified_name as _norm
+        from shared.naming import normalise_qualified_name as _norm
 
         seen: set[str] = set()
         result: list[str] = []

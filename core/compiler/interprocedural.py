@@ -16,6 +16,13 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from shared.naming import (
+    normalise_qualified_name as _normalise_qualified_name,
+)
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
+
 from ..analysis.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
@@ -24,12 +31,6 @@ from ..analysis.proc_arg_traits import (
 from ..analysis.semantic_model import ProcArgTrait
 from ..commands.registry.runtime import arg_indices_for_role, resolve_arg_role_map
 from ..commands.registry.signatures import ArgRole, Arity
-from ..common.naming import (
-    normalise_qualified_name as _normalise_qualified_name,
-)
-from ..common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
 from ..parsing.lexer import TclLexer
 from ..parsing.tokens import TokenType
 from .cfg import CFGFunction, CFGReturn, build_cfg

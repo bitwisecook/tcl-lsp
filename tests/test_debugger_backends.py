@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from core.tcl_discovery import find_tclsh, has_tkinter_tcl
 from debugger.backends import create_backend
 from debugger.backends.vm_backend import VmBackend
+from shared.tcl_discovery import find_tclsh, has_tkinter_tcl
 
 
 class TestTclDiscovery:

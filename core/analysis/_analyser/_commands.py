@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from shared.dialect import active_dialect
+from shared.ranges import range_from_token
+
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import (
     SIGNATURES,
@@ -18,8 +21,6 @@ from ...commands.registry.runtime import (
     body_arg_implicit_args_for_command,
     iter_body_arguments,
 )
-from ...common.dialect import active_dialect
-from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     AutoPathEntry,

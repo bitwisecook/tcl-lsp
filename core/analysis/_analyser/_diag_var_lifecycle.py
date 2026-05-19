@@ -8,7 +8,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...common.naming import normalise_var_name as _normalise_var_name
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ...compiler.cfg import CFGFunction
 from ...compiler.core_analyses import FunctionAnalysis
 from ...compiler.ir import (

@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
-from ..commands.registry.runtime import (
+from core.commands.registry.runtime import (
     _canonical_dialect,
     _dialect_var,
     _extra_commands_var,
@@ -119,7 +119,7 @@ def detect_dialect_from_source(source: str) -> str | None:
 
     Returns ``None`` if no dialect hint is found.
     """
-    from ..commands.registry.dialects import KNOWN_DIALECTS
+    from core.commands.registry.dialects import KNOWN_DIALECTS
 
     lines = source.split("\n", _PKG_REQUIRE_SCAN_LINES)
 

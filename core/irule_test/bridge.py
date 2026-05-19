@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.tcl_discovery import find_tclsh as _find_tclsh_shared
-from core.tcl_discovery import has_tkinter_tcl as _has_tkinter_tcl_shared
+from shared.tcl_discovery import find_tclsh as _find_tclsh_shared
+from shared.tcl_discovery import has_tkinter_tcl as _has_tkinter_tcl_shared
 
 log = logging.getLogger(__name__)
 

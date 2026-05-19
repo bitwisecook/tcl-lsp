@@ -310,7 +310,7 @@ def _resolve_disabled_optimisations(args: argparse.Namespace) -> tuple[set[str],
 
     Returns ``(disabled_codes, multi_pass, max_iterations)``.
     """
-    from core.common.optimisation_profiles import (
+    from shared.optimisation_profiles import (
         DEFAULT_ACTION_PROFILE,
         profile_from_name,
         profile_spec,

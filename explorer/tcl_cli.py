@@ -41,13 +41,13 @@ except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
 
-from core.common.codes import (
+from core.formatting.config import FormatterConfig
+from shared.codes import (
     default_disabled_diagnostics as _default_disabled_diagnostics,
 )
-from core.common.codes import (
+from shared.codes import (
     diagnostic_codes as _diagnostic_codes,
 )
-from core.formatting.config import FormatterConfig
 
 from .verbs._registry import apply_verb_registrations, get_verb_catalogue
 from .verbs._utils import TclCliError
@@ -108,7 +108,7 @@ def _config_file_paths() -> list[Path]:
     """Return INI config paths in read-order (global first, local last).
 
     The global config follows platform-native conventions (same logic as
-    ``core.common.user_config._config_dir``):
+    ``shared.user_config._config_dir``):
 
     - Linux / BSD / WSL2: ``~/.config/tcl.ini``
     - macOS: ``~/Library/Application Support/tcl.ini``
@@ -185,7 +185,7 @@ def _load_config() -> _CliConfig:
         profile_raw = sec.get("profile", "").strip().lower()
         if profile_raw:
             cfg.optimiser_profile = profile_raw
-        from core.common.optimisation_profiles import (
+        from shared.optimisation_profiles import (
             DEFAULT_ACTION_PROFILE,
             profile_from_name,
             profile_to_disabled,

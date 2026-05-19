@@ -21,7 +21,8 @@ import re
 from collections.abc import Callable
 from typing import TypeAlias
 
-from ..common.dialect import active_dialect
+from shared.dialect import active_dialect
+
 from ..parsing.expr_parser import parse_expr
 from .expr_ast import (
     BinOp,

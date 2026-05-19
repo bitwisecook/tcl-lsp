@@ -14,6 +14,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.naming import normalise_qualified_name
+from shared.ranges import position_from_relative, range_from_token
+from shared.text import suggest_similar as _suggest_similar_impl
+
 from ..analysis.checks import run_all_checks
 from ..analysis.semantic_model import Diagnostic, Range, Severity
 from ..commands.registry import REGISTRY
@@ -27,11 +33,6 @@ from ..commands.registry.runtime import (
     arg_indices_for_role,
     iter_body_arguments,
 )
-from ..common.codes import diag
-from ..common.dialect import active_dialect
-from ..common.naming import normalise_qualified_name
-from ..common.ranges import position_from_relative, range_from_token
-from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
 from ..parsing.lexer import TclLexer

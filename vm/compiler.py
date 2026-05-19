@@ -32,22 +32,11 @@ from core.compiler.lowering import lower_to_ir
 from core.parsing.lexer import TclLexer
 from core.parsing.lexer import _thread_local as _lexer_thread_local
 from core.parsing.tokens import TokenType
+from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 
 from .substitution import backslash_subst
 
 # Literal processing for VM execution
-
-
-# Sentinel marker: _process_literals wraps braced string values with this
-# prefix/suffix instead of raw ``{…}`` to avoid ambiguity with literal
-# strings that happen to contain balanced braces (e.g. ``{*}``).
-_BRACE_OPEN = "\x00\x01{"
-_BRACE_CLOSE = "}\x01\x00"
-
-# Sentinel marker for literals that must be pushed as-is with no
-# brace-stripping or runtime substitution (e.g. interpolation template
-# parts that happen to contain braces or ``$``).
-_RAW_PREFIX = "\x00\x02"
 
 
 def _process_literals(source: str, ir_module: IRModule) -> IRModule:

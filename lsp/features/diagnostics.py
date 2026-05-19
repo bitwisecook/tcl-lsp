@@ -19,9 +19,6 @@ from core.analysis.semantic_model import (
     WorkspaceDiagnosticContext,
 )
 from core.commands.registry import REGISTRY
-from core.common.codes import diag
-from core.common.dialect import active_dialect
-from core.common.lsp import to_lsp_range
 from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from core.compiler.gvn import RedundantComputation, find_redundant_computations
 from core.compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
@@ -33,6 +30,9 @@ from core.compiler.taint import (
 )
 from core.parsing.tokens import SourcePosition
 from core.tk.detection import has_tk_require
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.lsp import to_lsp_range
 
 log = logging.getLogger(__name__)
 
@@ -820,7 +820,7 @@ def _run_deep_diagnostics(
     analysis needed) so the only data crossing the process boundary
     is the source string and config flags.
     """
-    import core.common.codes_all  # noqa: F401
+    import shared.codes_all  # noqa: F401
     from core.commands.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)

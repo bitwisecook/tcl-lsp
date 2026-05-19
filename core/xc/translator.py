@@ -11,8 +11,9 @@ import re as _re
 from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 
+from shared.codes import diag
+
 from ..commands.registry import REGISTRY
-from ..common.codes import diag
 from ..compiler.expr_ast import (
     BinOp,
     ExprBinary,

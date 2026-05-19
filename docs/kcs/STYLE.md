@@ -246,7 +246,7 @@ scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
 The canonical tag vocabulary lives in
-[`core/help/kcs_db.py`](../../core/help/kcs_db.py). The mini
+[`shared/help/kcs_db.py`](../../shared/help/kcs_db.py). The mini
 glossary below lists every tag the build and query scripts recognise.
 
 #### Editor tags (driven by the LSP server)
@@ -390,7 +390,7 @@ When you need a tag that is not already in the glossary above, add
 it in the same change that introduces it. The three steps are:
 
 1. **Add the tag to `TAG_DISPLAY`** in
-   [`core/help/kcs_db.py`](../../core/help/kcs_db.py) with its
+   [`shared/help/kcs_db.py`](../../shared/help/kcs_db.py) with its
    human-readable display form. If the tag should count as an LSP
    editor, also add it to `LSP_EDITOR_TAGS`.
 2. **Add a row** to the appropriate table in this file (rule 11)

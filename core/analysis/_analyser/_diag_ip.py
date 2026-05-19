@@ -27,7 +27,7 @@ class _AnalyserDiagIPMixin(_Base):
         validates them with ``ip_utils.parse_ip()``, and emits diagnostics at
         the definition site.  Use sites get ``related_ranges`` links.
         """
-        from ...common.ip_utils import IPV6_RE, parse_ip
+        from shared.ip_utils import IPV6_RE, parse_ip
 
         if analysis.def_use_chains is None:
             return

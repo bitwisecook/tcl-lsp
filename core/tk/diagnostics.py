@@ -10,6 +10,8 @@ statically from command invocations:
 
 from __future__ import annotations
 
+from shared.codes import diag
+
 from ..analysis.semantic_model import (
     AnalysisResult,
     CommandInvocation,
@@ -18,7 +20,6 @@ from ..analysis.semantic_model import (
     Severity,
 )
 from ..commands.registry import REGISTRY
-from ..common.codes import diag
 from .common import (
     GEOMETRY_COMMANDS as _GEOMETRY_COMMANDS,
 )

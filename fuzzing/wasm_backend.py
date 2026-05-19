@@ -7,7 +7,7 @@ Python VM and tclsh backends so codegen↔runtime divergences surface
 in the same harness as VM bugs.
 
 The runtime artefact is built on demand by
-:func:`core.runtime_wasm.runtime_wasm_path` (no checked-in
+:func:`shared.runtime_wasm.runtime_wasm_path` (no checked-in
 ``tcl_runtime.wasm``).  The wasmtime engine and runtime module are
 loaded once per process and reused across every fuzz iteration; only
 the per-script compiled module is rebuilt each call.
@@ -81,7 +81,7 @@ def _get_rt_module():
     """Return the cached compiled Zig runtime module.
 
     The runtime is built on demand on first access via
-    ``core.runtime_wasm.runtime_wasm_path``.  The compiled module is
+    ``shared.runtime_wasm.runtime_wasm_path``.  The compiled module is
     bound to the engine returned by :func:`_get_engine`.
     """
     global _rt_module, _rt_module_path
@@ -95,7 +95,7 @@ def _get_rt_module():
     if engine is None:
         return None
 
-    from core.runtime_wasm import runtime_wasm_path  # noqa: PLC0415
+    from shared.runtime_wasm import runtime_wasm_path  # noqa: PLC0415
 
     rt_path = runtime_wasm_path()
     if not rt_path.exists():

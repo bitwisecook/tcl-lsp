@@ -213,7 +213,7 @@ def _publish_diagnostics_sync(
     force_reanalyse: bool = False,
 ) -> None:
     from core.analysis.checks._style import non_ascii_mode_scope
-    from core.common.dialect import dialect_scope
+    from shared.dialect import dialect_scope
 
     cfg = _state.config_for_uri(uri)
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
@@ -264,7 +264,7 @@ async def _publish_diagnostics(
     force_reanalyse: bool = False,
 ) -> None:
     from core.analysis.checks._style import non_ascii_mode_scope
-    from core.common.dialect import dialect_scope
+    from shared.dialect import dialect_scope
 
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
     cfg = _state.config_for_uri(uri)
@@ -490,8 +490,8 @@ async def _publish_diagnostics_inner(
     _state_ref = state
     _scheduled_version = version
 
-    from core.common.dialect import active_dialect
     from lsp.features.diagnostics import _run_deep_diagnostics
+    from shared.dialect import active_dialect
 
     _dialect = active_dialect()
     _pool = _state._get_process_pool()
@@ -770,7 +770,7 @@ def _publish_apl_diagnostics(
 ) -> None:
     from core.analysis.semantic_model import Severity
     from core.bigip.iapp_diagnostics import validate_iapp_presentation
-    from core.common.lsp import to_lsp_range
+    from shared.lsp import to_lsp_range
 
     base_dir = _uri_to_dir(uri)
     model = _state.background_scanner.parse_apl_source(uri, source, base_dir)

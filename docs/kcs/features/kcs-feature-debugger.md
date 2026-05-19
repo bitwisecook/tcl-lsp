@@ -68,7 +68,7 @@ The debugger consists of:
   VM thread when stopped.
 - Backend-specific implementations that adapt tclsh, tkinter, and the VM
   to a common `DebugBackend` interface.
-- Shared Tcl runtime discovery in `core/tcl_discovery.py` (also used by
+- Shared Tcl runtime discovery in `shared/tcl_discovery.py` (also used by
   the iRule test framework).
 
 ## File-path anchors
@@ -80,7 +80,7 @@ The debugger consists of:
 - `debugger/backends/tclsh_backend.py` — tclsh subprocess backend
 - `debugger/backends/tkinter_backend.py` — tkinter in-process backend
 - `debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
-- `core/tcl_discovery.py` — shared tclsh/tkinter detection
+- `shared/tcl_discovery.py` — shared tclsh/tkinter detection
 - `vm/machine.py` — debug hook insertion point
 
 ## Failure modes

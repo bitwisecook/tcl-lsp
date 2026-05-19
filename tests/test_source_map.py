@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.common.source_map import SourceMap
+from shared.source_map import SourceMap
 
 
 def test_position_offset_round_trip() -> None:

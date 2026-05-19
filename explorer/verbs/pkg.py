@@ -481,7 +481,7 @@ def _run_why(args: argparse.Namespace) -> int:
 
 
 def _run_vendor(args: argparse.Namespace) -> int:
-    from core.common.user_config import _cache_dir
+    from shared.user_config import _cache_dir
     from tclpkg.cas import ContentAddressableStore
     from tclpkg.lockfile import read_lockfile
 
@@ -527,7 +527,7 @@ def _run_run(args: argparse.Namespace) -> int:
     import os
     import subprocess
 
-    from core.tcl_discovery import find_tclsh
+    from shared.tcl_discovery import find_tclsh
     from tclpkg.manifest import load_manifest
 
     mpath = _manifest_path(args)
@@ -600,7 +600,7 @@ def _run_freeze(args: argparse.Namespace) -> int:
 
 
 def _run_search(args: argparse.Namespace) -> int:
-    from core.common.user_config import _cache_dir
+    from shared.user_config import _cache_dir
     from tclpkg.registry import RegistryClient
 
     client = RegistryClient(

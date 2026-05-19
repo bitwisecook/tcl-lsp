@@ -19,11 +19,11 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 ### Position infrastructure
 
-1. Use `DocumentBuffer` (`core/common/document_buffer.py`) as the primary per-document position infrastructure. It provides cached `lines`, O(log n) `offset_to_position`, `position_to_offset`, `chunk_line_range`, and `range_from_offsets`. Do not construct standalone `SourceMap` instances in new code.
+1. Use `DocumentBuffer` (`shared/document_buffer.py`) as the primary per-document position infrastructure. It provides cached `lines`, O(log n) `offset_to_position`, `position_to_offset`, `chunk_line_range`, and `range_from_offsets`. Do not construct standalone `SourceMap` instances in new code.
 2. `DocumentState.buffer` is the canonical `DocumentBuffer` for an open document. It is lazily created and invalidated when `source` changes.
 3. Use `DocumentBuffer.lines` instead of `source.split("\n")`. The result is cached per buffer.
-4. Use `position_from_offset()` (`core/common/ranges.py`) instead of `position_from_relative()` when a `line_starts` array is available. It is O(log n) vs O(text_len).
-5. `SourceMap` (`core/common/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `lsp/` or `core/` hot paths.
+4. Use `position_from_offset()` (`shared/ranges.py`) instead of `position_from_relative()` when a `line_starts` array is available. It is O(log n) vs O(text_len).
+5. `SourceMap` (`shared/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `lsp/` or `core/` hot paths.
 
 ### Other contracts
 
@@ -37,10 +37,10 @@ Shared utility modules were lifted to provide one internal contract surface acro
 
 ## File-path anchors
 
-- `core/common/document_buffer.py` — `DocumentBuffer`, `EditDescriptor`, `compute_line_starts`, `update_line_starts`
-- `core/common/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
-- `core/common/ranges.py` — `position_from_offset`, `position_from_relative`
-- `core/common/position.py` — `offset_at_position`, `find_command_at_position`
+- `shared/document_buffer.py` — `DocumentBuffer`, `EditDescriptor`, `compute_line_starts`, `update_line_starts`
+- `shared/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
+- `shared/ranges.py` — `position_from_offset`, `position_from_relative`
+- `shared/position.py` — `offset_at_position`, `find_command_at_position`
 - `core/parsing/known_commands.py`
 - `core/parsing/argv.py`
 - `core/parsing/command_shapes.py`
@@ -59,7 +59,7 @@ Primary consumers:
 - `core/bigip/parser.py`
 - `core/bigip/rule_extract.py`
 - `core/bigip/validator.py`
-- `core/common/position.py`
+- `shared/position.py`
 - `core/analysis/analyser.py`
 - `core/compiler/compiler_checks.py`
 - `core/compiler/lowering.py`

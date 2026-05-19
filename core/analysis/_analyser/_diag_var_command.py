@@ -43,10 +43,11 @@ class _AnalyserDiagVarCommandMixin(_Base):
         ):
             return
 
+        from shared.dialect import active_dialect
+        from shared.naming import normalise_qualified_name
+
         from ...commands.registry import REGISTRY
         from ...commands.registry.models import DialectStatus
-        from ...common.dialect import active_dialect
-        from ...common.naming import normalise_qualified_name
         from ...compiler.compiler_checks import _collect_unconditional_top_level_procs
         from ...compiler.core_analyses import (
             _extract_foreach_elements,

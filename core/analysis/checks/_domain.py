@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.naming import normalise_qualified_name
+from shared.ranges import range_from_token
+
 from ...commands.registry import REGISTRY
 from ...commands.registry.models import DialectStatus, FormKind
 from ...commands.registry.runtime import (
@@ -11,10 +16,6 @@ from ...commands.registry.runtime import (
     arg_indices_for_role,
     normalized_flag_commands,
 )
-from ...common.codes import diag
-from ...common.dialect import active_dialect
-from ...common.naming import normalise_qualified_name
-from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (

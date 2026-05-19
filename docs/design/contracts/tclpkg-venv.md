@@ -29,4 +29,4 @@ scripts fail in a particular shell.
 
 - ``tclpkg/venv.py`` — ``create_venv()``, ``delete_venv()``, ``read_venv_config()``
 - ``explorer/verbs/venv.py`` — CLI handlers for all venv verbs
-- ``core/tcl_discovery.py:26`` — ``find_tclsh()``
+- ``shared/tcl_discovery.py:26`` — ``find_tclsh()``

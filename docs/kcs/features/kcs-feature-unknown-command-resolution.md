@@ -56,7 +56,7 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 - `core/analysis/analyser.py` — `_emit_unresolved_command_diagnostics`, `_extract_unknown_proc_info`
 - `core/analysis/semantic_model.py` — `UnknownProcInfo`
-- `core/common/text.py` — `edit_distance`, `suggest_similar`
+- `shared/text.py` — `edit_distance`, `suggest_similar`
 - `lsp/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
 
 ## Failure modes

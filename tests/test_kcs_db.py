@@ -207,7 +207,7 @@ def test_build_feature_tags_populated(built_db: Path) -> None:
 
 
 def test_parse_applies_to_normalises_and_expands() -> None:
-    from core.help.kcs_db import parse_applies_to
+    from shared.help.kcs_db import parse_applies_to
 
     # Plain text with spaces normalises to hyphenated tags.
     assert parse_applies_to("VS Code, Zed") == {"vs-code", "zed"}
@@ -228,7 +228,7 @@ def kcs_db_connection(
     built_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[None, None, None]:
     """Set up kcs_db module to use the test database."""
-    import core.help.kcs_db as kcs_mod
+    import shared.help.kcs_db as kcs_mod
 
     # Reset any previous connection
     kcs_mod.close()
@@ -243,7 +243,7 @@ def kcs_db_connection(
 
 
 def test_search_help(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import search_help
+    from shared.help.kcs_db import search_help
 
     results = search_help("hover")
     assert len(results) >= 1
@@ -251,14 +251,14 @@ def test_search_help(kcs_db_connection: None) -> None:
 
 
 def test_search_help_no_results(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import search_help
+    from shared.help.kcs_db import search_help
 
     results = search_help("nonexistent_xyzzy")
     assert len(results) == 0
 
 
 def test_get_feature(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import get_feature
+    from shared.help.kcs_db import get_feature
 
     feat = get_feature("Hover")
     assert feat is not None
@@ -273,7 +273,7 @@ def test_get_feature(kcs_db_connection: None) -> None:
 
 
 def test_features_with_tag(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import features_with_tag
+    from shared.help.kcs_db import features_with_tag
 
     # Querying for an editor tag returns every feature that includes it.
     results = features_with_tag("zed")
@@ -290,7 +290,7 @@ def test_features_with_tag(kcs_db_connection: None) -> None:
 
 
 def test_get_feature_case_insensitive(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import get_feature
+    from shared.help.kcs_db import get_feature
 
     feat = get_feature("hover")
     assert feat is not None
@@ -298,13 +298,13 @@ def test_get_feature_case_insensitive(kcs_db_connection: None) -> None:
 
 
 def test_get_feature_missing(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import get_feature
+    from shared.help.kcs_db import get_feature
 
     assert get_feature("NoSuchFeature") is None
 
 
 def test_get_screenshot(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import get_screenshot
+    from shared.help.kcs_db import get_screenshot
 
     result = get_screenshot("02-hover-proc")
     assert result is not None
@@ -315,7 +315,7 @@ def test_get_screenshot(kcs_db_connection: None) -> None:
 
 
 def test_get_screenshot_missing(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import get_screenshot
+    from shared.help.kcs_db import get_screenshot
 
     assert get_screenshot("nonexistent") is None
 
@@ -323,7 +323,7 @@ def test_get_screenshot_missing(kcs_db_connection: None) -> None:
 def test_get_screenshot_base64(kcs_db_connection: None) -> None:
     import base64
 
-    from core.help.kcs_db import get_screenshot_base64
+    from shared.help.kcs_db import get_screenshot_base64
 
     result = get_screenshot_base64("02-hover-proc")
     assert result is not None
@@ -333,7 +333,7 @@ def test_get_screenshot_base64(kcs_db_connection: None) -> None:
 
 
 def test_list_features(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import list_features
+    from shared.help.kcs_db import list_features
 
     catalogue = list_features()
     assert isinstance(catalogue, dict)
@@ -346,7 +346,7 @@ def test_list_features(kcs_db_connection: None) -> None:
 
 
 def test_list_screenshots_for_feature(kcs_db_connection: None) -> None:
-    from core.help.kcs_db import list_screenshots_for_feature
+    from shared.help.kcs_db import list_screenshots_for_feature
 
     screenshots = list_screenshots_for_feature("kcs-feature-hover.md")
     assert len(screenshots) == 1
@@ -359,7 +359,7 @@ def test_list_screenshots_for_feature(kcs_db_connection: None) -> None:
 
 def test_deserialize_path(built_db: Path) -> None:
     """Test the deserialize loading path (Python 3.12+)."""
-    import core.help.kcs_db as kcs_mod
+    import shared.help.kcs_db as kcs_mod
 
     if not kcs_mod._has_deserialize():
         pytest.skip("deserialize not available (Python < 3.12)")

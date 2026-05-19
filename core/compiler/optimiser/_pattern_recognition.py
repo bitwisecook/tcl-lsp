@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-from core.common.codes import opt
+from shared.codes import opt
+from shared.dialect import active_dialect
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import variable_writing_commands
-from ...common.dialect import active_dialect
-from ...common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
 from ...parsing.tokens import Token, TokenType
 from ..ir import (
     IRAssignConst,

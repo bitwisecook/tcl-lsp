@@ -15,10 +15,10 @@ from core.analysis.conf_wrapped import (
 from core.analysis.semantic_model import Range
 from core.bigip.rule_extract import find_embedded_rules, is_conf_wrapped_irules
 from core.commands.registry.runtime import configure_signatures
-from core.common.dialect import detect_dialect_from_source
 from core.parsing.tokens import SourcePosition
 from lsp.features.document_symbols import get_document_symbols
 from lsp.features.irules_context import find_enclosing_when_event
+from shared.dialect import detect_dialect_from_source
 
 # -- Detection ----------------------------------------------------------------
 

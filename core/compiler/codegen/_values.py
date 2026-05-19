@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
+
 from ._helpers import _parse_subst_template, _split_list_simple, _tcl_list_element
 from .format import _esc
 from .opcodes import Op
@@ -48,8 +50,6 @@ class _ValuesMixin:
         Used for interpolation template parts that may contain ``{``, ``}``,
         ``$``, or ``[`` characters that should be literal.
         """
-        from vm.compiler import _RAW_PREFIX
-
         idx = self._lit.intern(_RAW_PREFIX + value)
         op = Op.PUSH1 if idx < 256 else Op.PUSH4
         self._emit(op, idx, comment=f'"{_esc(value)}"')
@@ -466,8 +466,6 @@ class _ValuesMixin:
         """
         # Marker-wrapped values (braced strings from _process_literals)
         # must be pushed as-is — no variable resolution or interpolation.
-        from vm.compiler import _BRACE_CLOSE, _BRACE_OPEN
-
         if value.startswith(_BRACE_OPEN) and value.endswith(_BRACE_CLOSE):
             self._push_lit(value)
             return
@@ -609,8 +607,6 @@ class _ValuesMixin:
         be ``list`` arguments (not arbitrary values that might be
         braced literals like regexp character classes).
         """
-        from vm.compiler import _BRACE_CLOSE, _BRACE_OPEN
-
         # Brace-marked values (VM pipeline) → push as-is.
         if value.startswith(_BRACE_OPEN) and value.endswith(_BRACE_CLOSE):
             self._push_lit(value)

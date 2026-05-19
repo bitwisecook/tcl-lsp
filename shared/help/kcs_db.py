@@ -190,7 +190,7 @@ def _load_db_bytes() -> bytes:
     """Read the bundled kcs_help.db via importlib.resources."""
     from importlib.resources import files
 
-    return files("core.help").joinpath("kcs_help.db").read_bytes()
+    return files("shared.help").joinpath("kcs_help.db").read_bytes()
 
 
 def load_help_db() -> sqlite3.Connection:

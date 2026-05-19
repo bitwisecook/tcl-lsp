@@ -274,7 +274,7 @@ class TestDidChangeWorkspaceFolders:
     def test_added_folder_initialises_per_folder_configs(self, reset_state, monkeypatch, tmp_path):
         folder_uri = f"file://{tmp_path}/proj-a"
         monkeypatch.setattr(_lsp_settings, "_pull_and_apply_configuration", lambda: None)
-        monkeypatch.setattr("core.common.user_config.load_project_config", lambda _path: None)
+        monkeypatch.setattr("shared.user_config.load_project_config", lambda _path: None)
 
         _lifecycle.on_did_change_workspace_folders(_folders_event(added=[folder_uri]))
 
@@ -304,7 +304,7 @@ class TestDidChangeWorkspaceFolders:
             "_pull_and_apply_configuration",
             lambda: called.append(True),
         )
-        monkeypatch.setattr("core.common.user_config.load_project_config", lambda _path: None)
+        monkeypatch.setattr("shared.user_config.load_project_config", lambda _path: None)
 
         _lifecycle.on_did_change_workspace_folders(
             _folders_event(added=[f"file://{tmp_path}/added"])

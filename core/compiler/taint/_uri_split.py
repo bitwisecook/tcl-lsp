@@ -26,10 +26,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ...commands.registry import REGISTRY
-from ...common.codes import diag
-from ...common.dialect import active_dialect
-from ...common.naming import normalise_var_name as _normalise_var_name
 from ..cfg import CFGBranch, CFGFunction
 from ..core_analyses import LatticeKind, LatticeValue
 from ..expr_ast import (

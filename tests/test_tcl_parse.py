@@ -459,7 +459,7 @@ class TestExpansion:
 
     def test_no_expand_in_84_dialect(self):
         """{*} should not expand under a Tcl 8.4 dialect scope."""
-        from core.common.dialect import dialect_scope
+        from shared.dialect import dialect_scope
 
         with dialect_scope("tcl8.4"):
             tokens = lex("cmd {*}$args")

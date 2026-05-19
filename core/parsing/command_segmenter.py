@@ -16,9 +16,10 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from shared.document_buffer import DocumentBuffer
+from shared.ranges import range_from_tokens
+
 from ..analysis.semantic_model import Range
-from ..common.document_buffer import DocumentBuffer
-from ..common.ranges import range_from_tokens
 from .known_commands import known_command_names
 
 if TYPE_CHECKING:

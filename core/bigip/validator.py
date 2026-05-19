@@ -25,9 +25,10 @@ from __future__ import annotations
 import ipaddress
 import re
 
+from shared.codes import diag
+from shared.document_buffer import DocumentBuffer
+
 from ..analysis.semantic_model import Diagnostic, Range, Severity
-from ..common.codes import diag
-from ..common.document_buffer import DocumentBuffer
 from ..parsing.tokens import SourcePosition
 from .model import BigipConfig, BigipRule, ProfileType
 

@@ -41,8 +41,8 @@ from core.bigip.registry import (
     references_via_spec,
 )
 from core.bigip.registry.pilot import pilot_property_spec_for
-from core.common.document_buffer import DocumentBuffer
-from core.common.lsp import to_lsp_range
+from shared.document_buffer import DocumentBuffer
+from shared.lsp import to_lsp_range
 
 
 def get_bigip_document_links(

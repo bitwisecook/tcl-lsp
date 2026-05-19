@@ -1087,7 +1087,7 @@ class _WasmEmitterStmtMixin(_Base):
         aliases, and namespace-imported builtins all hit the same
         branch when matched on the canonical form.  When unset (legacy
         callers) we derive canonical from ``command`` via
-        :func:`core.common.naming.normalise_qualified_name`.  See
+        :func:`shared.naming.normalise_qualified_name`.  See
         issue #246.
 
         *tokens* — original parsed tokens for the command invocation.
@@ -1097,7 +1097,7 @@ class _WasmEmitterStmtMixin(_Base):
         semantics).
         """
         if canonical_command is None:
-            from .....common.naming import normalise_qualified_name
+            from shared.naming import normalise_qualified_name
 
             canonical_command = normalise_qualified_name(command) if command else command
         # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
@@ -1721,7 +1721,7 @@ class _WasmEmitterStmtMixin(_Base):
         canonical form used for the literal-string dispatches.
         """
         if canonical_command is None:
-            from .....common.naming import normalise_qualified_name
+            from shared.naming import normalise_qualified_name
 
             canonical_command = normalise_qualified_name(command) if command else command
         # Scope declarations produce no value — return null TclObj

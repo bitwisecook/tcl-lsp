@@ -158,17 +158,17 @@ def cmd_diagram(source: str, file_path: str) -> None:
 
 
 def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
-    from core.common.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-        profile_spec,
-        profile_to_disabled,
-    )
     from core.compiler.optimiser import (
         Optimisation,
         apply_optimisations,
         find_optimisations,
         optimise_source_multipass,
+    )
+    from shared.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
     )
 
     try:
@@ -804,7 +804,7 @@ def cmd_memory_aliases(source: str, file_path: str) -> None:
 def cmd_help(topic: str | None = None) -> None:
     """Show available features and how to use them."""
     try:
-        from core.help.kcs_db import list_features, search_help
+        from shared.help.kcs_db import list_features, search_help
 
         if topic:
             results = search_help(topic)
@@ -874,7 +874,7 @@ def _build_feature_catalogue() -> dict:
     """Build a structured catalogue by reading KCS feature docs from disk."""
     import glob
 
-    from core.help.kcs_db import applies_to_category, parse_applies_to
+    from shared.help.kcs_db import applies_to_category, parse_applies_to
 
     features_dir = _find_features_dir()
     if features_dir is None:

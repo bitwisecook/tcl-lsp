@@ -13,14 +13,14 @@ from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.operators import operator_hover
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
-from core.common.alias import lookup_alias_for_word
-from core.common.dialect import active_dialect
-from core.common.ip_utils import format_ip_hover, parse_ip
 from core.compiler.core_analyses import analyse_source
 from core.compiler.taint import TaintLattice
 from core.compiler.types import TypeKind
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import TokenType
+from shared.alias import lookup_alias_for_word
+from shared.dialect import active_dialect
+from shared.ip_utils import format_ip_hover, parse_ip
 
 from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,

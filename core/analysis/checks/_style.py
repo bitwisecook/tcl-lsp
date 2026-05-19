@@ -7,13 +7,14 @@ import re
 from collections.abc import Callable
 from contextlib import contextmanager as _contextmanager
 
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.ranges import position_from_relative, range_from_token, range_from_tokens
+
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )
-from ...common.codes import diag
-from ...common.dialect import active_dialect
-from ...common.ranges import position_from_relative, range_from_token, range_from_tokens
 from ...compiler.expr_ast import (
     BinOp,
     ExprBinary,

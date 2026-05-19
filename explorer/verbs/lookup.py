@@ -200,7 +200,7 @@ def _configure_help(p: argparse.ArgumentParser, *, prog_name: str, default_diale
 
 def _load_help_queries():
     try:
-        from core.help.kcs_db import list_features, search_help
+        from shared.help.kcs_db import list_features, search_help
     except Exception as exc:
         raise TclCliError(
             "KCS help database is unavailable. Build it with 'make kcs-db' "

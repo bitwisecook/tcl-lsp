@@ -36,7 +36,7 @@ section headings here.
 - `scripts/check_kcs_index_links.py` reports no broken links after
   every phase.
 - `make prep-pr` is green after every commit.
-- The KCS help database (`core/help/kcs_help.db`) builds cleanly and
+- The KCS help database (`shared/help/kcs_help.db`) builds cleanly and
   every new page is reachable through `tcl_ai.py help`.
 - Every code page passes the KCS minimum quality bar in
   [`docs/kcs/STYLE.md`](../kcs/STYLE.md).
@@ -124,7 +124,7 @@ rule 10.
 
 Every code page and every compiler-internals feature page gets a
 compiler-pass tag in its `## Applies to` line. The canonical list
-(added to `TAG_DISPLAY` in `core/help/kcs_db.py` and to STYLE.md
+(added to `TAG_DISPLAY` in `shared/help/kcs_db.py` and to STYLE.md
 rule 11):
 
 | Tag | Display | What it is |

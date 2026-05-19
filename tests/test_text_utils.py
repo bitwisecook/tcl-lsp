@@ -1,4 +1,4 @@
-"""Tests for core.common.text — edit distance and suggestion utilities."""
+"""Tests for shared.text — edit distance and suggestion utilities."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.common.text import edit_distance, suggest_similar
+from shared.text import edit_distance, suggest_similar
 
 
 class TestEditDistance:

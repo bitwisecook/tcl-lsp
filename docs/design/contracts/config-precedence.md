@@ -154,7 +154,7 @@ filenames; the benefit is that "I'll just copy this over" never has
 silent side effects.
 
 Implementation: filename constants live in
-[`core/common/user_config.py`](../../../core/common/user_config.py)
+[`shared/user_config.py`](../../../shared/user_config.py)
 (`_config_path()` → `config.ini`, `PROJECT_CONFIG_FILENAME` →
 `.tcl-lsp.ini`). Do not unify them.
 
@@ -172,7 +172,7 @@ The double safeguard means a user who both copies the file AND
 forgets to rename the section is still caught: the wrong location
 ignores the file, and the wrong section name within the file ignores
 the keys. The implementation lives in
-[`core/common/user_config.py::get_all_settings`](../../../core/common/user_config.py)
+[`shared/user_config.py::get_all_settings`](../../../shared/user_config.py)
 behind a `kind` parameter that callers set to `"global"` or
 `"project"` based on which file they loaded.
 

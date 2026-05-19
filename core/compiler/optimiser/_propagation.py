@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import re
 
-from core.common.codes import opt
+from shared.codes import opt
+from shared.dialect import active_dialect
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
+from shared.ranges import range_from_token
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import ArgRole, arg_indices_for_role
-from ...common.dialect import active_dialect
-from ...common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
-from ...common.ranges import range_from_token
 from ...parsing.expr_lexer import ExprTokenType, tokenise_expr
 from ...parsing.tokens import Token, TokenType
 from ..interprocedural import (

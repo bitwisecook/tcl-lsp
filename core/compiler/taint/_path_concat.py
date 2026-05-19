@@ -19,11 +19,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from shared.codes import diag
+from shared.ranges import range_from_token
+
 from ...analysis.checks._helpers import _build_file_join_fix
 from ...analysis.semantic_model import CodeFix
 from ...commands.registry.taint_hints import TaintColour
-from ...common.codes import diag
-from ...common.ranges import range_from_token
 from ..cfg import CFGFunction
 from ..ir import IRAssignValue
 from ..ssa import SSAFunction, SSAValueKey

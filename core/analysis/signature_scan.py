@@ -37,9 +37,9 @@ from core.analysis.semantic_model import (
     ProcDef,
     SourceTarget,
 )
-from core.common.ranges import range_from_token
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
+from shared.ranges import range_from_token
 
 
 @dataclass

@@ -17,8 +17,8 @@ import json
 import re
 from pathlib import Path
 
-import core.common.codes_all  # noqa: F401
-from core.common.codes import optimisation_codes
+import shared.codes_all  # noqa: F401
+from shared.codes import optimisation_codes
 
 ROOT = Path(__file__).resolve().parents[1]
 ALL_OPT_CODES = optimisation_codes()

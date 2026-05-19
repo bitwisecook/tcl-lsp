@@ -29,9 +29,9 @@ _SCREENSHOTS_DIR = _REPO_ROOT / "docs" / "screenshots"
 _DEFAULT_OUT = _REPO_ROOT / "core" / "help" / "kcs_help.db"
 
 # Make the repo root importable so we can reuse the canonical Applies to
-# vocabulary and helpers from core.help.kcs_db.
+# vocabulary and helpers from shared.help.kcs_db.
 sys.path.insert(0, str(_REPO_ROOT))
-from core.help.kcs_db import applies_to_category, parse_applies_to  # noqa: E402
+from shared.help.kcs_db import applies_to_category, parse_applies_to  # noqa: E402
 
 # Regex for KCS feature title line
 _TITLE_RE = re.compile(r"^#\s+KCS:\s+feature\s+—\s+(.+)$", re.MULTILINE)

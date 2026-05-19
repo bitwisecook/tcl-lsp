@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 import re
 
-from ...analysis.semantic_model import Range
-from ...commands.registry import REGISTRY
-from ...common.naming import (
+from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
-from ...common.naming import (
+from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+
+from ...analysis.semantic_model import Range
+from ...commands.registry import REGISTRY
 from ...parsing.command_shapes import extract_single_expr_argument
 from ...parsing.lexer import TclLexer
 from ...parsing.token_positions import token_content_shift
@@ -602,7 +603,8 @@ def _try_incr_idiom(
     argv_single: list[bool],
 ) -> str | None:
     """Detect ``set var [expr {$var + N}]`` -> ``incr var N``."""
-    from ...common.dialect import active_dialect
+    from shared.dialect import active_dialect
+
     from ...parsing.expr_parser import parse_expr
     from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprRaw, ExprVar
 
@@ -691,7 +693,8 @@ def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | N
     result would be one past the last index, so this helper returns ``None``
     for that shape.
     """
-    from ...common.dialect import active_dialect
+    from shared.dialect import active_dialect
+
     from ...parsing.expr_parser import parse_expr
     from ..expr_ast import BinOp, ExprBinary, ExprCommand, ExprLiteral, ExprRaw
 

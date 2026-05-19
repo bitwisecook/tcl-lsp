@@ -12,10 +12,10 @@ from core.commands.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
 )
-from core.common.dialect import active_dialect
-from core.common.naming import is_bare_var_name
 from core.formatting.config import FormatterConfig, IndentStyle
 from core.formatting.docstring import format_docstring
+from shared.dialect import active_dialect
+from shared.naming import is_bare_var_name
 
 from .irules_context import find_enclosing_when_event
 from .snippet_templates import SnippetContext, get_snippet_completions
@@ -30,7 +30,7 @@ from .symbol_resolution import (
 def _var_needs_braces(name: str) -> bool:
     """Return True if ``$name`` would not lex as a single variable token.
 
-    Inverse of :func:`core.common.naming.is_bare_var_name` -- centralising
+    Inverse of :func:`shared.naming.is_bare_var_name` -- centralising
     the bare-vs-brace decision in one helper so the completion path and
     the W216 analyser pass can never drift from the lexer rule."""
     return not is_bare_var_name(name)

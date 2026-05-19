@@ -1,7 +1,7 @@
 """Import all modules that register diagnostic and optimisation codes.
 
 Importing this module guarantees all codes are registered and queryable
-via :mod:`core.common.codes`.  Each module registers its codes via
+via :mod:`shared.codes`.  Each module registers its codes via
 ``@diag(...)`` / ``@opt(...)`` decorators at import time.
 """
 

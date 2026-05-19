@@ -26,9 +26,6 @@ from typing import Any
 from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
-from core.common.codes import default_disabled_diagnostics
-from core.common.dialect import detect_dialect_from_source, dialect_scope
-from core.common.document_buffer import DocumentBuffer
 from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
 from core.compiler.interprocedural import ProcLocalSummary
 from core.compiler.ir import IRProcedure, IRStatement
@@ -40,6 +37,9 @@ from core.parsing.command_segmenter import (
 )
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import Token
+from shared.codes import default_disabled_diagnostics
+from shared.dialect import detect_dialect_from_source, dialect_scope
+from shared.document_buffer import DocumentBuffer
 
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
@@ -219,7 +219,7 @@ def _analyse_document_fresh(
     forwarded explicitly and re-applied here.  See issue #407.
     """
     # Ensure diagnostic codes are registered in the subprocess.
-    import core.common.codes_all  # noqa: F401
+    import shared.codes_all  # noqa: F401
     from core.commands.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect, extra_commands=list(extra_commands))

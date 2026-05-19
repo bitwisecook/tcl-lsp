@@ -30,7 +30,7 @@ from core.analysis.semantic_model import Range, SourcePosition
 from core.bigip.model import BigipConfig
 from core.bigip.parser import parse_bigip_conf
 from core.bigip.rewrite import rename_object
-from core.common.lsp import to_lsp_location, to_lsp_range
+from shared.lsp import to_lsp_location, to_lsp_range
 
 # Identifier-shaped token at the cursor: a TMSH path
 # (``/Partition/Name``) or a bare name.  Matches the same character

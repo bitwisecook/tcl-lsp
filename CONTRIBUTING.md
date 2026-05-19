@@ -52,7 +52,7 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 Do not duplicate utility functions across modules. If two or more files need
 the same helper, extract it into an appropriate shared module.
 
-- Identifier helpers live in `core/common/naming.py`.
+- Identifier helpers live in `shared/naming.py`.
 - Command registry helpers live in `core/commands/registry/_base.py`.
   The `make_av(source)` factory there returns an `_av` closure bound to a
   documentation source string.  Use `_av = make_av(_SOURCE)` at module level

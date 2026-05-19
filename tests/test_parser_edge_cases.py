@@ -1263,7 +1263,7 @@ class TestIRulesBraceSeparator:
 
     def test_brace_separator_produces_separate_words(self):
         """``if {$a}{puts a}`` parses as 3-arg command in iRules mode."""
-        from core.common.dialect import dialect_scope
+        from shared.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             cmds = segment_commands("if {$a}{puts a}")
@@ -1275,7 +1275,7 @@ class TestIRulesBraceSeparator:
 
     def test_brace_separator_no_warning(self):
         """``}{`` should not warn in iRules mode."""
-        from core.common.dialect import dialect_scope
+        from shared.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             _, warnings = lex_with_warnings("if {$a}{puts a}")
@@ -1295,7 +1295,7 @@ class TestIRulesBraceSeparator:
 
     def test_triple_brace_separator(self):
         """``if {cond}{body1}{body2}`` — three braced words in iRules."""
-        from core.common.dialect import dialect_scope
+        from shared.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             cmds = segment_commands("if {cond}{body1}{body2}")

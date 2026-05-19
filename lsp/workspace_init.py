@@ -14,12 +14,12 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.state as _state
 from core.commands.registry.runtime import configure_signatures
-from core.common.user_config import (
+from core.formatting import FormatterConfig
+from shared.user_config import (
     get_all_settings,
     load_project_config,
     load_user_config,
 )
-from core.formatting import FormatterConfig
 
 from .workspace.scanner import path_to_uri
 from .workspace.scanner import uri_to_path as _uri_to_path
@@ -76,7 +76,7 @@ _TCL_VERSION_ORDER = {"tcl8.4": 0, "tcl8.5": 1, "tcl8.6": 2, "tcl9.0": 3}
 
 def _upgrade_dialect_from_workspace() -> None:
     """Upgrade the global dialect if any workspace file requires a higher Tcl version."""
-    from core.common.dialect import active_dialect
+    from shared.dialect import active_dialect
 
     current = active_dialect()
     current_rank = _TCL_VERSION_ORDER.get(current, 2)
@@ -253,12 +253,12 @@ def _start_scan_with_progress() -> None:
 
 def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
-    from core.common.dialect import active_dialect
     from lsp.settings import (
         _apply_merged_settings_now,
         _normalise_formatter_settings,
         _pull_and_apply_configuration,
     )
+    from shared.dialect import active_dialect
 
     _state.global_config_settings = get_all_settings(load_user_config(), kind="global")
     # Formatter config is rebuilt fresh from global here rather than via the

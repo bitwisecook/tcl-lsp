@@ -20,9 +20,10 @@ from collections import defaultdict, deque
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
+from shared.ip_utils import IPV4_RE, IPV6_RE
+
 from ..analysis.semantic_model import Range
 from ..commands.registry.runtime import active_signature_profile, configure_signatures
-from ..common.ip_utils import IPV4_RE, IPV6_RE
 from .link_extract import (
     BigipObjectEdge,
     BigipObjectNode,
@@ -102,7 +103,7 @@ def _extract_ip_networks(text: str) -> Iterator[_IPNetwork]:
     """Yield every IP/CIDR token found in *text* as an :mod:`ipaddress` network.
 
     Scans for IPv4 and IPv6 literals (with an optional ``/prefix``) using
-    the shared :mod:`core.common.ip_utils` regexes and validates each
+    the shared :mod:`shared.ip_utils` regexes and validates each
     candidate via :func:`ipaddress.ip_network` (``strict=False``).
     Tokens that fail validation are silently skipped — the regexes are
     deliberately permissive so we lean on the stdlib parser as the

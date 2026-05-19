@@ -6,9 +6,9 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range
-from core.common.lsp import to_lsp_range
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import TokenType
+from shared.lsp import to_lsp_range
 
 
 def _collect_source_links(source: str) -> list[types.DocumentLink]:

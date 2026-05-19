@@ -200,7 +200,7 @@ class TestVariableCompletion:
         """``${arr}(foo)`` is parsed by Tcl as scalar ``${arr}`` followed
         by literal characters ``(foo)`` -- not as an array reference.
         The brace form's name is exactly the chars inside ``${...}``."""
-        from core.common.naming import split_array_name
+        from shared.naming import split_array_name
 
         assert split_array_name("${arr}(foo)") == ("arr", None)
         assert split_array_name("${arr}") == ("arr", None)

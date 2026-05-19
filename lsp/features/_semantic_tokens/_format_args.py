@@ -11,11 +11,11 @@ from core.commands.registry.runtime import (
     regexp_pattern_index,
     skip_options,
 )
-from core.common.dialect import active_dialect
-from core.common.ranges import position_from_offset
 from core.parsing.lexer import TclLexer
 from core.parsing.token_positions import token_content_base
 from core.parsing.tokens import Token, TokenType
+from shared.dialect import active_dialect
+from shared.ranges import position_from_offset
 
 from ._constants import (
     _BINARY_FORMAT_SPECIFIERS,

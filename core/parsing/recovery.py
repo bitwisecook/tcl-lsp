@@ -31,9 +31,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from shared.codes import diag
+from shared.ranges import position_from_relative
+
 from ..analysis.semantic_model import CodeFix, Diagnostic, Range, Severity
-from ..common.codes import diag
-from ..common.ranges import position_from_relative
 from ..parsing.command_segmenter import SegmentedCommand, segment_commands
 from ..parsing.tokens import SourcePosition, Token, TokenType
 from .known_commands import known_command_names

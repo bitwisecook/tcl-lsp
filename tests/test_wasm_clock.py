@@ -30,7 +30,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 from tests.test_wasm_real_tcl import (  # noqa: E402
     _compile_tcl,
     _define_call_compiled_proc,

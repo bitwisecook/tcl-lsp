@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 import re
 
-from ...common.dialect import active_dialect
+from shared.dialect import active_dialect
+
 from ...parsing.expr_lexer import ExprTokenType, tokenise_expr
 from ...parsing.expr_parser import parse_expr
 from ..expr_ast import (
@@ -993,7 +994,7 @@ def _instcombine_expr(expr: str, *, bool_context: bool = False) -> tuple[str, bo
 
 
 def _substitute_expr_constants(expr: str, constants: dict[str, str]) -> tuple[str, bool, set[str]]:
-    from ...common.naming import normalise_var_name as _normalise_var_name
+    from shared.naming import normalise_var_name as _normalise_var_name
 
     pieces: list[str] = []
     cursor = 0

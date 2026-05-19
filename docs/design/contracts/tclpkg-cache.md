@@ -20,13 +20,13 @@ expected entry.
    hash is a no-op.
 8. Materialisation into ``lib/`` uses symlinks by default; falls back to copy
    on platforms that restrict symlinks.
-9. ``_cache_dir()`` at ``core/common/user_config.py`` follows
+9. ``_cache_dir()`` at ``shared/user_config.py`` follows
    ``$XDG_CACHE_HOME`` / macOS / Windows conventions.
 
 ## File-path anchors
 
 - ``tclpkg/cas.py`` — ``integrity_of_tree()``, ``ContentAddressableStore``
-- ``core/common/user_config.py`` — ``_cache_dir()``
+- ``shared/user_config.py`` — ``_cache_dir()``
 
 ## Test anchors
 

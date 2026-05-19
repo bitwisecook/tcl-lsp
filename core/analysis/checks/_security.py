@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 
+from shared.codes import diag
+from shared.ranges import range_from_token
+
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import canonical_list_commands
-from ...common.codes import diag
-from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (

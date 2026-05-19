@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN
+
 from .._helpers import _parse_subst_template
 from ..opcodes import Op
 
@@ -13,8 +15,6 @@ if TYPE_CHECKING:
 
 def _try_subst_inline(emitter: _Emitter, template: str) -> bool:
     """Inline ``subst`` by decomposing into literals and variable loads."""
-    from vm.compiler import _BRACE_CLOSE, _BRACE_OPEN
-
     # Strip sentinel markers or surrounding braces added by _process_literals.
     if template.startswith(_BRACE_OPEN) and template.endswith(_BRACE_CLOSE):
         template = template[len(_BRACE_OPEN) : -len(_BRACE_CLOSE)]

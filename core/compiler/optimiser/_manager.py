@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import re
 
-from ...common.naming import normalise_var_name as _NORMALISE
+from shared.naming import normalise_var_name as _NORMALISE
+
 from ..cfg import CFGFunction
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
@@ -430,10 +431,10 @@ def find_optimisations(
 def apply_optimisations(source: str, optimisations: list[Optimisation]) -> str:
     """Apply optimisation rewrites to source text.
 
-    Delegates to :func:`core.common.text_edits.apply_edits` after
+    Delegates to :func:`shared.text_edits.apply_edits` after
     converting ``Optimisation`` ranges to ``(offset, length, text)`` tuples.
     """
-    from ...common.text_edits import apply_edits
+    from shared.text_edits import apply_edits
 
     if not optimisations:
         return source

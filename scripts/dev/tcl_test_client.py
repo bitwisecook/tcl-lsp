@@ -18,9 +18,9 @@ from pathlib import Path
 try:
     from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
-    from core.common.source_map import offset_to_line_col as _offset_to_line_col
     from core.parsing.lexer import TclLexer
     from core.parsing.tokens import TokenType
+    from shared.source_map import offset_to_line_col as _offset_to_line_col
 except ModuleNotFoundError:
     # Allow running this file directly from anywhere.
     ROOT = Path(__file__).resolve().parents[2]
@@ -28,9 +28,9 @@ except ModuleNotFoundError:
         sys.path.insert(0, str(ROOT))
     from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
-    from core.common.source_map import offset_to_line_col as _offset_to_line_col
     from core.parsing.lexer import TclLexer
     from core.parsing.tokens import TokenType
+    from shared.source_map import offset_to_line_col as _offset_to_line_col
 
 
 class Ansi:

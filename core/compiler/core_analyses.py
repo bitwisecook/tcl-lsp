@@ -38,9 +38,10 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ..commands.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
-from ..common.naming import normalise_var_name as _normalise_var_name
 from ..parsing.lexer import TclLexer
 from ..parsing.tokens import TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg

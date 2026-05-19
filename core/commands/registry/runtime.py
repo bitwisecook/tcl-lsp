@@ -742,7 +742,7 @@ def configure_signatures(
 
     This sets the ContextVar values in the *current* context.  For
     per-request scoping (the common case in the LSP), prefer
-    :func:`core.common.dialect.dialect_scope` which uses a
+    :func:`shared.dialect.dialect_scope` which uses a
     ``with``-statement and restores the previous value on exit.
     ``configure_signatures`` remains as the long-lived default-setter
     used at server startup and on workspace-level configuration changes.
@@ -1566,5 +1566,5 @@ _cmd_reg._on_specs_loaded = _invalidate_runtime_caches
 
 # Eagerly populate the signature cache for the default profile so the first
 # request doesn't pay the build cost.  Per-request scoping via
-# ``dialect_scope`` (see core.common.dialect) overrides this default.
+# ``dialect_scope`` (see shared.dialect) overrides this default.
 signatures_for("tcl8.6", ())

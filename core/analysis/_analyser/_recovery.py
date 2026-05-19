@@ -8,8 +8,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from shared.ranges import position_from_relative
+
 from ...commands.registry import REGISTRY
-from ...common.ranges import position_from_relative
 from ...parsing.command_segmenter import SegmentedCommand
 from ...parsing.known_commands import known_command_names
 from ...parsing.tokens import SourcePosition, Token, TokenType

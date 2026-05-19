@@ -27,7 +27,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from ..common.naming import normalise_var_name as _normalise_var_name
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ..compiler.expr_ast import (
     BinOp,
     ExprBinary,

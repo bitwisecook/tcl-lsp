@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 
+from shared.position import offset_at_position
+
 from ..analysis import analyse
-from ..common.position import offset_at_position
 from . import RefactoringEdit, RefactoringResult
 from ._spans import command_span_offsets, find_command_at, offsets_to_position, token_end_offset
 

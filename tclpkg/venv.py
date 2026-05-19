@@ -18,7 +18,7 @@ import stat
 import textwrap
 from pathlib import Path
 
-from core.tcl_discovery import find_tclsh
+from shared.tcl_discovery import find_tclsh
 
 from .errors import TclPkgError
 
@@ -33,7 +33,7 @@ def _resolve_tclsh(requested: str | None) -> str:
     """Find a tclsh matching *requested* (e.g. ``8.6``, ``9.0``).
 
     When *requested* is ``None``, picks the newest available (same logic
-    as ``core.tcl_discovery.find_tclsh``).
+    as ``shared.tcl_discovery.find_tclsh``).
     """
     if requested is None:
         path = find_tclsh()

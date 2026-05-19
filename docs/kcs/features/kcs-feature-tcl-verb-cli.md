@@ -94,7 +94,7 @@ python tcl.pyz venv delete .venv
 - `highlight`: emits syntax-highlighted output in ANSI or HTML (`--format`, `--no-colour`, `--force-colour`).
 - `diff`: compares two inputs at parser AST, lowered IR, and CFG layers (`--show` and `--json` supported).
 - `explore`: forwards combined source into compiler-explorer views.
-- `help`: searches `core/help/kcs_help.db` and reports KCS feature matches (`--dialect` optionally narrows matches).
+- `help`: searches `shared/help/kcs_help.db` and reports KCS feature matches (`--dialect` optionally narrows matches).
 
 ## Exit-code contract
 

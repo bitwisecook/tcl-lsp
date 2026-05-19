@@ -7,7 +7,7 @@ from lsprotocol import types
 from core.analysis import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult, Range
-from core.common.lsp import find_var_in_scopes, to_lsp_location
+from shared.lsp import find_var_in_scopes, to_lsp_location
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position
 

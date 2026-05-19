@@ -11,8 +11,9 @@ import io
 import logging
 import re
 
+from shared.codes import diag
+
 from ...commands.registry import REGISTRY
-from ...common.codes import diag
 from ...compiler.ir import (
     IRAssignConst,
     IRAssignValue,

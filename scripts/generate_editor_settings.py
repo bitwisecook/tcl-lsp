@@ -57,8 +57,12 @@ def _ts_description_field(value: str, *, indent: int = 4) -> str:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import core.common.codes_all  # noqa: F401, E402
-from core.common.codes import (  # noqa: E402
+import shared.codes_all  # noqa: F401, E402
+from core.formatting.config import (  # noqa: E402
+    FORMATTER_SETTINGS_CATALOGUE,
+    FormatterConfig,
+)
+from shared.codes import (  # noqa: E402
     SECTIONS,
     ai_category_overrides,
     codes_by_section,
@@ -66,14 +70,10 @@ from core.common.codes import (  # noqa: E402
     diagnostics_sorted,
     optimisations_sorted,
 )
-from core.common.optimisation_profiles import (  # noqa: E402
+from shared.optimisation_profiles import (  # noqa: E402
     READABILITY_CODES,
     OptimisationProfile,
     profile_spec,
-)
-from core.formatting.config import (  # noqa: E402
-    FORMATTER_SETTINGS_CATALOGUE,
-    FormatterConfig,
 )
 
 _STANDARD_CODES = profile_spec(OptimisationProfile.STANDARD).enabled_codes
@@ -916,8 +916,8 @@ _AI_SKILLS_DIR = ROOT / "ai" / "claude" / "skills"
 
 def _ai_template_context() -> dict:
     """Build the template context for AI prompt/skill Jinja2 templates."""
-    from core.common.codes import CodeKind, all_codes  # noqa: E402
-    from core.common.optimisation_profiles import (  # noqa: E402
+    from shared.codes import CodeKind, all_codes  # noqa: E402
+    from shared.optimisation_profiles import (  # noqa: E402
         CODE_MOTION_CODES,
         CONSTANT_FOLDING_CODES,
         DCE_CODES,

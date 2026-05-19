@@ -14,7 +14,7 @@ namespace context so that `proc` definitions inside `namespace eval` receive
 fully qualified names.  Interprocedural analysis uses namespace-aware call
 resolution.
 
-Source: [`core/common/naming.py`](../../../core/common/naming.py),
+Source: [`shared/naming.py`](../../../shared/naming.py),
 [`core/compiler/lowering.py`](../../../core/compiler/lowering.py),
 [`core/compiler/interprocedural.py`](../../../core/compiler/interprocedural.py)
 

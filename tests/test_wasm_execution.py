@@ -5,7 +5,7 @@ runtime (also compiled to WASM), and execute the resulting module
 natively in wasmtime — no Python↔WASM FFI stubs.
 
 Requires: ``wasmtime`` Python package (listed in dev dependencies).
-The Zig runtime is built on demand by ``core.runtime_wasm`` — no
+The Zig runtime is built on demand by ``shared.runtime_wasm`` — no
 prebuilt binary needs to be present in the working tree.
 """
 
@@ -21,7 +21,7 @@ wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 # Path to the pre-built Zig WASM runtime — the helper auto-builds
 # on a fresh checkout where the artefact isn't yet on disk.
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 

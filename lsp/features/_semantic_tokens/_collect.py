@@ -8,14 +8,14 @@ from core.commands.registry.runtime import (
     arg_indices_for_roles,
     iter_switch_case_list,
 )
-from core.common.dialect import active_dialect
-from core.common.ranges import position_from_offset
 from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from core.parsing.known_commands import known_command_names
 from core.parsing.lexer import TclLexer
 from core.parsing.recovery import compute_virtual_insertions
 from core.parsing.token_positions import token_content_base, token_content_shift
 from core.parsing.tokens import SourcePosition, Token, TokenType
+from shared.dialect import active_dialect
+from shared.ranges import position_from_offset
 
 from ._constants import (
     _BUILTIN_COMMANDS,

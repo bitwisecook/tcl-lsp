@@ -8,13 +8,14 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...commands.registry import REGISTRY
-from ...commands.registry.signatures import Arity
-from ...common.dialect import active_dialect
-from ...common.naming import (
+from shared.dialect import active_dialect
+from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
-from ...common.ranges import range_from_token
+from shared.ranges import range_from_token
+
+from ...commands.registry import REGISTRY
+from ...commands.registry.signatures import Arity
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import Token, TokenType
 from ..proc_arg_traits import infer_param_traits

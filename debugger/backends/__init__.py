@@ -19,7 +19,7 @@ def create_backend(preference: str = "auto") -> DebugBackend:
         return VmBackend()
 
     if preference == "tclsh":
-        from core.tcl_discovery import find_tclsh
+        from shared.tcl_discovery import find_tclsh
 
         from .tclsh_backend import TclshBackend
 
@@ -30,7 +30,7 @@ def create_backend(preference: str = "auto") -> DebugBackend:
         return TclshBackend(tclsh)
 
     if preference == "tkinter":
-        from core.tcl_discovery import has_tkinter_tcl
+        from shared.tcl_discovery import has_tkinter_tcl
 
         from .tkinter_backend import TkinterBackend
 

@@ -1,6 +1,6 @@
 """Cross-surface diagnostic and optimisation consistency checks.
 
-Ensures the self-registering code registry (``core.common.codes``) is the
+Ensures the self-registering code registry (``shared.codes``) is the
 single source of truth and every consumer stays aligned:
 
 - Registry: all codes register via ``diag()``/``opt()`` at import time
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-import core.common.codes_all  # noqa: F401
-from core.common.codes import (
+import shared.codes_all  # noqa: F401
+from shared.codes import (
     SECTION_KEYS,
     all_codes,
     diagnostic_codes,
@@ -202,7 +202,7 @@ def test_registry_no_duplicate_codes():
 
 def test_registry_codes_are_sorted_within_sections():
     """Registry diagnostics are sorted by code within each section."""
-    from core.common.codes import diagnostics_sorted, optimisations_sorted
+    from shared.codes import diagnostics_sorted, optimisations_sorted
 
     # Diagnostics: sorted within each section, sections in SECTIONS order
     current_section = None
@@ -231,7 +231,7 @@ def test_registry_codes_are_sorted_within_sections():
 
 def test_registry_sections_are_valid():
     """Every code's section is in the SECTION_KEYS list."""
-    from core.common.codes import _registry
+    from shared.codes import _registry
 
     for code, info in _registry.items():
         if hasattr(info, "section") and info.section:

@@ -549,16 +549,16 @@ def _tool_find_legacy(source: str, dialect: str = "") -> str:
 def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.common.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-        profile_spec,
-        profile_to_disabled,
-    )
     from core.compiler.optimiser import (
         apply_optimisations,
         find_optimisations,
         optimise_source_multipass,
+    )
+    from shared.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
     )
 
     try:
@@ -1687,7 +1687,7 @@ def _tool_update_docstrings(
 )
 def _tool_help(topic: str = "") -> str:
     try:
-        from core.help.kcs_db import list_features, search_help
+        from shared.help.kcs_db import list_features, search_help
 
         if topic:
             results = search_help(topic)

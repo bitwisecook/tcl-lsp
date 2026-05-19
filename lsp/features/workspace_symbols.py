@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.common.lsp import to_lsp_range
+from shared.lsp import to_lsp_range
 
 
 def get_workspace_symbols(

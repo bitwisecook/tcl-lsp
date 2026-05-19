@@ -207,7 +207,7 @@ line_length = 100
 
 ## Implementation
 
-- Global + project config loading: `core/common/user_config.py`
+- Global + project config loading: `shared/user_config.py`
   (`load_user_config`, `load_project_config`, `merge_settings_layers`)
 - Platform detection: `_config_dir()` and `_is_posix_compat_windows()`
 - Layer storage: `lsp/state.py`

@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
-from core.common.codes import default_disabled_diagnostics
-from core.common.optimisation_profiles import DEFAULT_EDITOR_PROFILE, profile_to_disabled
+from shared.codes import default_disabled_diagnostics
+from shared.optimisation_profiles import DEFAULT_EDITOR_PROFILE, profile_to_disabled
 
 
 @dataclass

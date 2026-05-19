@@ -12,8 +12,8 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef, Range
-from core.common.lsp import to_lsp_range
-from core.common.position import position_in_range
+from shared.lsp import to_lsp_range
+from shared.position import position_in_range
 
 from .references import find_proc_call_sites
 from .symbol_resolution import find_word_at_position

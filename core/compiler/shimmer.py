@@ -19,11 +19,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from shared.codes import diag
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ..analysis.semantic_model import Range
 from ..commands.registry.runtime import TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
-from ..common.codes import diag
-from ..common.naming import normalise_var_name as _normalise_var_name
 from ..parsing.tokens import SourcePosition
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, ensure_compilation_unit

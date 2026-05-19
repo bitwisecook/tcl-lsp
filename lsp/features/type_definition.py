@@ -16,9 +16,9 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef
-from core.common.lsp import to_lsp_location
 from core.compiler.core_analyses import analyse_source
 from core.compiler.types import TclType, TypeKind
+from shared.lsp import to_lsp_location
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position
 

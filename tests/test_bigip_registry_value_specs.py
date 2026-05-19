@@ -1495,7 +1495,7 @@ def test_firewall_rule_list_parser_populates_rule_objects():
     from core.bigip.parser._helpers import _Block
     from core.bigip.parser._parsers import _parse_security_firewall_rule_list
     from core.bigip.types import FirewallRule
-    from core.common.document_buffer import DocumentBuffer
+    from shared.document_buffer import DocumentBuffer
 
     body = (
         "rules {\n"

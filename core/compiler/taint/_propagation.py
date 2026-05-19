@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import (
     canonical_list_commands,
@@ -11,7 +13,6 @@ from ...commands.registry.runtime import (
     taint_transform_map,
 )
 from ...commands.registry.taint_hints import TaintColour
-from ...common.naming import normalise_var_name as _normalise_var_name
 from ...parsing.lexer import TclLexer
 from ...parsing.tokens import TokenType
 from ..cfg import CFGBranch, CFGFunction, CFGGoto

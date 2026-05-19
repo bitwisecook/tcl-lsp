@@ -27,10 +27,10 @@ from core.bigip.registry import (
     references_via_spec,
 )
 from core.bigip.registry.pilot import pilot_property_spec_for
-from core.common.alias import lookup_alias_for_word
-from core.common.document_buffer import DocumentBuffer
-from core.common.lsp import find_var_in_scopes, to_lsp_location
-from core.common.position import position_in_range
+from shared.alias import lookup_alias_for_word
+from shared.document_buffer import DocumentBuffer
+from shared.lsp import find_var_in_scopes, to_lsp_location
+from shared.position import position_in_range
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.common.codes import opt
+from shared.codes import opt
 
 from ..cfg import CFGBranch, CFGReturn
 from ..execution_intent import EscapeClass, FunctionExecutionIntent, SideEffectClass

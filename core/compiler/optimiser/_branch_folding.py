@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ...common.codes import opt
+from shared.codes import opt
+
 from ..cfg import CFGBranch
 from ..expr_ast import BinOp, ExprBinary, vars_in_expr_node
 from ._expr_simplify import (

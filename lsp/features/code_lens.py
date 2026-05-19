@@ -19,7 +19,7 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef
-from core.common.lsp import to_lsp_range
+from shared.lsp import to_lsp_range
 
 
 class _WorkspaceLike(Protocol):

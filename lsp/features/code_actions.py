@@ -13,10 +13,6 @@ from core.analysis.semantic_model import AnalysisResult, CodeFix, ProcDef
 from core.commands.registry import REGISTRY
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect, taint_double_encode_map
-from core.common.ip_utils import ipv4_to_ipv6_mapped, parse_ip
-from core.common.lsp import to_lsp_range
-from core.common.position import find_command_at_position, offset_at_position
-from core.common.ranges import position_from_relative
 from core.compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warnings
 from core.compiler.optimiser import demorgan_transform, invert_expression
 from core.compiler.taint import find_taint_warnings
@@ -30,6 +26,10 @@ from core.refactoring._extract_variable import extract_variable
 from core.refactoring._if_to_switch import if_to_switch
 from core.refactoring._inline_variable import inline_variable
 from core.refactoring._switch_to_dict import switch_to_dict
+from shared.ip_utils import ipv4_to_ipv6_mapped, parse_ip
+from shared.lsp import to_lsp_range
+from shared.position import find_command_at_position, offset_at_position
+from shared.ranges import position_from_relative
 
 from .diagnostics import _check_comment_continuation, _check_trailing_whitespace
 from .irules_context import find_enclosing_when_event

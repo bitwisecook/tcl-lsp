@@ -6,10 +6,10 @@ from core.commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )
-from core.common.ranges import position_from_offset
 from core.parsing.expr_lexer import ExprTokenType
 from core.parsing.token_positions import token_content_base
 from core.parsing.tokens import SourcePosition, Token, TokenType
+from shared.ranges import position_from_offset
 
 from ._constants import (
     _ESCAPE_RE,

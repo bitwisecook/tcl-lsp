@@ -10,7 +10,8 @@ import logging
 import math
 import re
 
-from ..common.naming import normalise_var_name as _normalise_var_name
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import ExprNode, expr_text
 from .ir import (

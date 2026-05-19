@@ -9,8 +9,9 @@ excluded.
 
 from __future__ import annotations
 
-from ...common.codes import opt
-from ...common.dialect import active_dialect
+from shared.codes import opt
+from shared.dialect import active_dialect
+
 from ..ir import when_event_name
 from ._types import Optimisation, PassContext
 

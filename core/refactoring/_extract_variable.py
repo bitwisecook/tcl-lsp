@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 
-from ..common.position import offset_at_position
+from shared.position import offset_at_position
+
 from . import RefactoringEdit, RefactoringResult
 
 _WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")

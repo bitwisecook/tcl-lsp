@@ -28,9 +28,9 @@ from core.analysis.var_scoping import (
     variable_declaration_indices,
 )
 from core.commands.registry.runtime import iter_body_arguments
-from core.common.lsp import to_lsp_location
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token
+from shared.lsp import to_lsp_location
 
 from .definition import get_definition
 from .symbol_resolution import find_scope_at_line, find_var_at_position

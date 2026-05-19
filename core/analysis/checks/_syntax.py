@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ...common.codes import diag
+from shared.codes import diag
+
 from ...parsing.token_positions import classify_quoted_contexts
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity

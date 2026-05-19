@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-from ...common.alias import CommandAliasMap
-from ...common.alias import expr_alias_names as _expr_alias_names
-from ...common.naming import normalise_var_name as _normalise_var_name
+from shared.alias import CommandAliasMap
+from shared.alias import expr_alias_names as _expr_alias_names
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ...parsing.substitution import backslash_subst as _tcl_backsubst
 from ..ir import (
     IRAssignConst,
@@ -158,7 +159,7 @@ def lower_incr(lowerer: _LowererLike, cmd: _Command) -> object | None:
 def _check_safe_on_uninit(command: str, subcommand: str | None = None) -> bool:
     """Query the registry for the ``safe_on_uninit`` trait."""
     from core.commands.registry import REGISTRY
-    from core.common.dialect import active_dialect
+    from shared.dialect import active_dialect
 
     return REGISTRY.is_safe_on_uninit(command, subcommand, active_dialect())
 

@@ -3211,7 +3211,7 @@ mylib::compute 5
 
 ### `normalise_qualified_name()` — the core helper
 
-[`naming.py`](../../core/common/naming.py) provides the canonical form:
+[`naming.py`](../../shared/naming.py) provides the canonical form:
 
 ```python
 normalise_qualified_name("helper")       → "::helper"

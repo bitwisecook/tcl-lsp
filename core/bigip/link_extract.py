@@ -131,7 +131,7 @@ def _extract_value_tokens(value: str) -> list[str]:
 
 
 def _build_objects_for_source(uri: str, source: str) -> list[_BlockObject]:
-    from core.common.document_buffer import DocumentBuffer
+    from shared.document_buffer import DocumentBuffer
 
     result: list[_BlockObject] = []
     source_map = DocumentBuffer.from_source(source)

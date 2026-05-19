@@ -18,16 +18,16 @@ from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures
-from core.common.document_buffer import DocumentBuffer
-from core.common.optimisation_profiles import (
+from core.compiler.optimiser import optimise_source
+from core.minifier import minify_tcl
+from shared.document_buffer import DocumentBuffer
+from shared.optimisation_profiles import (
     DEFAULT_ACTION_PROFILE,
     profile_from_name,
     profile_to_disabled,
     resolve_profile,
 )
-from core.common.user_config import save_settings_to_config
-from core.compiler.optimiser import optimise_source
-from core.minifier import minify_tcl
+from shared.user_config import save_settings_to_config
 
 from .feature_config import FeatureConfig
 from .features.diagnostics import get_basic_diagnostics
@@ -364,8 +364,8 @@ def on_get_effective_config(uri: str = "") -> dict:
     confirm the server has applied the toggle, rather than sleeping on
     wall-clock time.
     """
-    from core.common.dialect import active_dialect
     from lsp.settings import _FEATURE_TOGGLE_KEYS
+    from shared.dialect import active_dialect
 
     cfg = _state.config_for_uri(uri)
     fallback = _state.feature_config
@@ -482,7 +482,7 @@ def on_suggest_packages_for_symbol(symbol: str) -> dict:
 def on_search_help(query: str = "", include_screenshots: bool = False) -> dict:
     """Search the KCS help database for features and documentation."""
     try:
-        from core.help.kcs_db import (
+        from shared.help.kcs_db import (
             get_feature,
             get_screenshot_base64,
             list_features,
@@ -501,7 +501,7 @@ def on_search_help(query: str = "", include_screenshots: bool = False) -> dict:
         screenshots: dict = {}
         if include_screenshots:
             for r in results:
-                from core.help.kcs_db import list_screenshots_for_feature
+                from shared.help.kcs_db import list_screenshots_for_feature
 
                 for ss in list_screenshots_for_feature(r.get("file", "")):
                     if ss["has_image"]:
@@ -994,7 +994,7 @@ def on_tclpkg_install(package_name: str, uri: str = "") -> dict:
 def on_tclpkg_search(query: str) -> dict:
     """Search the tclpkg registry for packages matching *query*."""
     try:
-        from core.common.user_config import _cache_dir
+        from shared.user_config import _cache_dir
         from tclpkg.registry import RegistryClient
 
         client = RegistryClient(_cache_dir(), offline=True)
@@ -1017,7 +1017,7 @@ def on_export_config() -> dict:
 def _switch_dialect(dialect: str) -> dict:
     """Switch the active dialect and re-publish diagnostics."""
     from core.commands.registry.dialects import KNOWN_DIALECTS
-    from core.common.dialect import active_dialect
+    from shared.dialect import active_dialect
 
     if dialect and dialect not in KNOWN_DIALECTS:
         return {"success": False, "error": f"Unknown dialect: {dialect!r}"}

@@ -22,6 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ..commands.registry.runtime import (
     SIGNATURES,
     ArgRole,
@@ -30,7 +32,6 @@ from ..commands.registry.runtime import (
     body_kind_for_command,
     scope_alias_commands,
 )
-from ..common.naming import normalise_var_name as _normalise_var_name
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
 from .expr_ast import ExprNode, vars_in_expr_node
 from .ir import (

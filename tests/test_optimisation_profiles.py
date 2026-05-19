@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import core.common.codes_all  # noqa: F401  # trigger all code registrations
-from core.common.codes import optimisation_codes
-from core.common.optimisation_profiles import (
+import shared.codes_all  # noqa: F401  # trigger all code registrations
+from shared.codes import optimisation_codes
+from shared.optimisation_profiles import (
     CODE_MOTION_CODES,
     CONSTANT_FOLDING_CODES,
     DCE_CODES,

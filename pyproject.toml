@@ -63,7 +63,7 @@ raw-options = { local_scheme = "no-local-version" }
 version-file = "lsp/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lsp", "core", "explorer", "vm", "tclpkg", "f5q"]
+packages = ["lsp", "core", "explorer", "vm", "tclpkg", "f5q", "shared"]
 exclude = ["explorer/static", "core/bigip/data/scf_port_names.csv"]
 
 [tool.pytest.ini_options]

@@ -451,7 +451,7 @@ type:
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
     `strength-reduce`, `codegen`). The vocabulary lives in
-    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented
+    [`shared/help/kcs_db.py`](shared/help/kcs_db.py) and is documented
     in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
@@ -696,7 +696,7 @@ See `docs/design/compiler/lowering-dispatch.md` for the dispatch hierarchy.
 
 ## Position infrastructure
 
-`DocumentBuffer` (`core/common/document_buffer.py`) is the per-document
+`DocumentBuffer` (`shared/document_buffer.py`) is the per-document
 position type. Use it instead of constructing `SourceMap` or calling
 `source.split("\n")` in hot paths:
 
@@ -707,7 +707,7 @@ position type. Use it instead of constructing `SourceMap` or calling
   construction (O(log n) bisect, no allocation).
 - `buf.chunk_line_range()` replaces `_chunk_line_range(source, chunk)`
   (O(log n) instead of O(offset)).
-- `position_from_offset()` (`core/common/ranges.py`) replaces
+- `position_from_offset()` (`shared/ranges.py`) replaces
   `position_from_relative()` when a `line_starts` array is available
   (O(log n) instead of O(text_len)).
 

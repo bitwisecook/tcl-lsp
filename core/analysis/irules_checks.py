@@ -23,6 +23,10 @@ from __future__ import annotations
 
 import re
 
+from shared.codes import diag
+from shared.dialect import active_dialect
+from shared.ranges import range_from_token
+
 from ..commands.registry import REGISTRY
 from ..commands.registry.namespace_data import (
     deprecated_events,
@@ -33,9 +37,6 @@ from ..commands.registry.namespace_data import (
 from ..commands.registry.namespace_models import EventRequires
 from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from ..commands.registry.runtime import variable_writing_commands
-from ..common.codes import diag
-from ..common.dialect import active_dialect
-from ..common.ranges import range_from_token
 from ..parsing.tokens import Token
 from .semantic_model import CodeFix, Diagnostic, Range, Severity
 

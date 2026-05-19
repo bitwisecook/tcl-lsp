@@ -12,18 +12,18 @@ from typing import TYPE_CHECKING, Any
 
 from lsprotocol import types
 
-import core.common.codes_all  # noqa: F401  # trigger all code registrations
 import lsp.state as _state
+import shared.codes_all  # noqa: F401  # trigger all code registrations
 from core.commands.registry.runtime import configure_signatures
-from core.common.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
-from core.common.optimisation_profiles import (
+from core.formatting import FormatterConfig
+from shared.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
+from shared.optimisation_profiles import (
     DEFAULT_EDITOR_PROFILE,
     PROFILE_NAMES,
     profile_from_name,
     profile_to_disabled,
 )
-from core.common.user_config import merge_settings_layers
-from core.formatting import FormatterConfig
+from shared.user_config import merge_settings_layers
 
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer
@@ -130,7 +130,7 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
 
 # Code registries
 
-# Loaded from the self-registering code registry (core.common.codes).
+# Loaded from the self-registering code registry (shared.codes).
 _ALL_DIAGNOSTIC_CODES = diagnostic_codes()
 _ALL_OPTIMISATION_CODES = optimisation_codes()
 
@@ -631,7 +631,7 @@ def _apply_merged_settings_now() -> None:
         extra_commands=extra_commands,
     )
     if signatures_changed:
-        from core.common.dialect import active_dialect
+        from shared.dialect import active_dialect
 
         log.info(
             "Dialect changed to %s (explicit=%s)",

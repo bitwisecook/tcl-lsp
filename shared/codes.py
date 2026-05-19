@@ -7,7 +7,7 @@ by the build script, tests, and the LSP server.
 
 Use as a decorator on the function or class that implements the check::
 
-    from core.common.codes import diag
+    from shared.codes import diag
 
     @diag("W100", "Unbraced expr body", section="warning")
     def check_unbraced_expr(cmd_name, args, ...):

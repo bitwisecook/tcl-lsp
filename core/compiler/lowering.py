@@ -19,29 +19,30 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import cast
 
+from shared.alias import (
+    detect_interp_alias,
+)
+from shared.alias import (
+    expr_alias_names as _expr_alias_names,
+)
+from shared.alias import (
+    resolve_alias as _resolve_alias_shared,
+)
+from shared.alias import (
+    to_canonical_command as _to_canonical_command,
+)
+from shared.dialect import active_dialect as _active_dialect
+from shared.naming import (
+    normalise_qualified_name as _normalise_qualified_name,
+)
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
+from shared.ranges import range_from_token
+
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
-from ..common.alias import (
-    detect_interp_alias,
-)
-from ..common.alias import (
-    expr_alias_names as _expr_alias_names,
-)
-from ..common.alias import (
-    resolve_alias as _resolve_alias_shared,
-)
-from ..common.alias import (
-    to_canonical_command as _to_canonical_command,
-)
-from ..common.dialect import active_dialect as _active_dialect
-from ..common.naming import (
-    normalise_qualified_name as _normalise_qualified_name,
-)
-from ..common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
-from ..common.ranges import range_from_token
 from ..parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
 from ..parsing.command_shapes import extract_single_expr_argument
 from ..parsing.expr_parser import parse_expr as _std_parse_expr
@@ -444,7 +445,7 @@ class _Lowerer:
            ``new_name``, follow the chain back to the original
            ``old_name``.  ``rename`` chains are walked with a
            cycle/self-loop guard so a future ``rename a a`` is safe.
-        2. **``interp alias``** — :func:`core.common.alias.to_canonical_command`
+        2. **``interp alias``** — :func:`shared.alias.to_canonical_command`
            consumes the captured alias map and follows aliases to their
            terminal target.
         3. **``namespace import``** — if the resolved name is still bare
@@ -452,7 +453,7 @@ class _Lowerer:
            namespace (``::other::*`` or an exact ``::other::name``),
            rewrite to the imported source name.
         4. **Qualified normalisation** — bare names become global
-           (``::cmd``) via :func:`core.common.naming.normalise_qualified_name`.
+           (``::cmd``) via :func:`shared.naming.normalise_qualified_name`.
 
         See issue #246.
         """

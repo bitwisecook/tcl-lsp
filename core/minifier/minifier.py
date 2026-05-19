@@ -30,10 +30,10 @@ from core.commands.registry.runtime import (
     is_switch_case_list_form,
     iter_switch_case_list,
 )
-from core.common.suffix_array import build_lcp_array, build_suffix_array
-from core.common.text_edits import apply_edits, name_generator
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import Token, TokenType
+from shared.suffix_array import build_lcp_array, build_suffix_array
+from shared.text_edits import apply_edits, name_generator
 
 # Commands whose presence in a proc body makes variable renaming unsafe
 # because they reference variables by name as strings at runtime.
@@ -229,7 +229,7 @@ def _resolve_dialect(dialect: str | None) -> str:
     if dialect is not None:
         return dialect
     try:
-        from core.common.dialect import active_dialect
+        from shared.dialect import active_dialect
 
         return active_dialect()
     except Exception:
@@ -552,7 +552,7 @@ def _aggressive_minify(
     )
 
 
-# Name generation — delegated to core.common.text_edits
+# Name generation — delegated to shared.text_edits
 _name_generator = name_generator
 
 
@@ -1386,7 +1386,7 @@ def _collect_string_literals(
                 in_quoted = False
 
 
-# Suffix array / LCP — delegated to core.common.suffix_array
+# Suffix array / LCP — delegated to shared.suffix_array
 _build_suffix_array = build_suffix_array
 _build_lcp_array = build_lcp_array
 
@@ -1667,7 +1667,7 @@ def _scope_label_at_line(
     return None
 
 
-# _apply_edits — delegated to core.common.text_edits
+# _apply_edits — delegated to shared.text_edits
 _apply_edits = apply_edits
 
 

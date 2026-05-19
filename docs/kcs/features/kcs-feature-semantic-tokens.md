@@ -27,7 +27,7 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 ## File-path anchors
 
 - `lsp/features/semantic_tokens.py`
-- `core/common/document_buffer.py`
+- `shared/document_buffer.py`
 - `lsp/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
 - `lsp/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
 

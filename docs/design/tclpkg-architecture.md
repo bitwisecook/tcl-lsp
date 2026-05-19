@@ -110,7 +110,7 @@ tclpkg.tcl (manifest)
 - `explorer/verbs/venv.py` — `tcl venv` CLI verb handlers
 - `vm/interp.py:102` — `TclInterp(safe=…)` parameter
 - `vm/commands/interp_cmds.py:65` — `interp issafe` handler
-- `core/common/user_config.py:126` — `_cache_dir()` helper
+- `shared/user_config.py:126` — `_cache_dir()` helper
 - `lsp/settings.py:58` — `_KNOWN_TCL_LSP_SECTIONS`
 - `lsp/commands.py:825` — `tcl-lsp.tclpkg.install` command handler
 - `lsp/features/code_actions.py:383` — `_tclpkg_install_action()`

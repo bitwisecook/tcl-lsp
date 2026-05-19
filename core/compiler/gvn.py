@@ -39,15 +39,16 @@ import logging
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from shared.codes import opt
+from shared.dialect import active_dialect
+from shared.naming import (
+    normalise_qualified_name as _normalise_qualified_name,
+)
+from shared.ranges import range_from_token
+
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import loop_list_header_commands
-from ..common.codes import opt
-from ..common.dialect import active_dialect
-from ..common.naming import (
-    normalise_qualified_name as _normalise_qualified_name,
-)
-from ..common.ranges import range_from_token
 from ..parsing.lexer import TclLexer
 from ..parsing.tokens import SourcePosition, Token, TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto

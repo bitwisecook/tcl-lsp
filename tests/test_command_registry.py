@@ -1156,14 +1156,14 @@ class TestCanonicalCommandHelper:
     """
 
     def test_bare_name_qualifies_to_global(self):
-        from core.common.alias import to_canonical_command
+        from shared.alias import to_canonical_command
 
         assert to_canonical_command("unset") == "::unset"
         assert to_canonical_command("dict") == "::dict"
         assert to_canonical_command("set") == "::set"
 
     def test_already_qualified_name_normalises(self):
-        from core.common.alias import to_canonical_command
+        from shared.alias import to_canonical_command
 
         assert to_canonical_command("::unset") == "::unset"
         assert to_canonical_command("::ns::foo") == "::ns::foo"
@@ -1171,7 +1171,7 @@ class TestCanonicalCommandHelper:
         assert to_canonical_command("::ns::::foo") == "::ns::foo"
 
     def test_alias_resolves_to_target(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # interp alias {} = {} expr — calling ``=`` canonicalises to ``::expr``.
         aliases: CommandAliasMap = {"::=": ("expr", ())}
@@ -1179,14 +1179,14 @@ class TestCanonicalCommandHelper:
         assert to_canonical_command("::=", aliases=aliases) == "::expr"
 
     def test_alias_chain_terminates_at_self_loop(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # Self-referential alias: must not loop forever.
         aliases: CommandAliasMap = {"::loop": ("loop", ())}
         assert to_canonical_command("loop", aliases=aliases) == "::loop"
 
     def test_alias_chain_terminates_on_cycle(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # ``a -> b -> a`` cycle — the helper breaks at the first repeat.
         aliases: CommandAliasMap = {"::a": ("b", ()), "::b": ("a", ())}
@@ -1196,7 +1196,7 @@ class TestCanonicalCommandHelper:
         assert result in ("::a", "::b")
 
     def test_namespace_aware_alias_lookup(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # An alias scoped to ``::ns`` is reachable from a bare call inside
         # that namespace but not from the global scope.
@@ -1421,7 +1421,7 @@ class TestVariableNameAndDisplayHelpers:
     """
 
     def test_to_canonical_var_strips_sigils(self):
-        from core.common.naming import to_canonical_var
+        from shared.naming import to_canonical_var
 
         assert to_canonical_var("x") == "x"
         assert to_canonical_var("$x") == "x"
@@ -1429,7 +1429,7 @@ class TestVariableNameAndDisplayHelpers:
         assert to_canonical_var("arr(key)") == "arr"
 
     def test_to_canonical_var_preserves_qualified_form(self):
-        from core.common.naming import to_canonical_var
+        from shared.naming import to_canonical_var
 
         # Bare locals stay bare; qualified globals stay qualified.
         # The bare/qualified distinction is semantically meaningful
@@ -1438,40 +1438,40 @@ class TestVariableNameAndDisplayHelpers:
         assert to_canonical_var("::ns::v") == "::ns::v"
 
     def test_from_canonical_strips_global_prefix(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         assert from_canonical("::set") == "set"
         assert from_canonical("::unset") == "unset"
 
     def test_from_canonical_preserves_nested_namespace(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         # ``::tcl::dict::for`` from global scope keeps the qualifier
         # so the reader sees the cross-namespace reach.
         assert from_canonical("::tcl::dict::for") == "::tcl::dict::for"
 
     def test_from_canonical_rebases_to_display_namespace(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         assert from_canonical("::ns::foo", display_namespace="::ns") == "foo"
         # Sibling namespace: qualified rendering preserved.
         assert from_canonical("::other::foo", display_namespace="::ns") == "::other::foo"
 
     def test_is_canonical_command_accepts_qualified(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         assert is_canonical_command("::set") is True
         assert is_canonical_command("::HTTP::respond") is True
         assert is_canonical_command("::tcl::dict::for") is True
 
     def test_is_canonical_command_rejects_bare(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         assert is_canonical_command("set") is False
         assert is_canonical_command("dict") is False
 
     def test_is_canonical_command_accepts_synthetic(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         # CFG synthetic nodes have no user-source command.
         assert is_canonical_command("") is True

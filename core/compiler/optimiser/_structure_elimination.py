@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import fnmatch
 
-from ...common.codes import opt
-from ...common.naming import (
+from shared.codes import opt
+from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+
 from ..core_analyses import LatticeKind, LatticeValue
 from ..ir import (
     IRCatch,

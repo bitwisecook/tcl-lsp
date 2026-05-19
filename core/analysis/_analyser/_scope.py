@@ -8,19 +8,20 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...common.naming import (
+from shared.naming import (
     is_brace_substitutable,
 )
-from ...common.naming import (
+from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
-from ...common.naming import (
+from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
-from ...common.naming import (
+from shared.naming import (
     split_array_name as _split_array_name,
 )
-from ...common.ranges import position_from_relative, range_from_token
+from shared.ranges import position_from_relative, range_from_token
+
 from ...parsing.substitution import backslash_subst as _backslash_subst
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (

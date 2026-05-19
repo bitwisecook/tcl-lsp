@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from shared.document_buffer import DocumentBuffer
+
 from ..commands.registry.runtime import iter_body_arguments
-from ..common.document_buffer import DocumentBuffer
 from ..parsing.command_segmenter import segment_commands
 from ..parsing.tokens import TokenType
 

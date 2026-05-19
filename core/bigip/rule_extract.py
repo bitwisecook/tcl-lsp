@@ -10,8 +10,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from shared.document_buffer import DocumentBuffer
+
 from ..analysis.semantic_model import Range
-from ..common.document_buffer import DocumentBuffer
 
 # Match:  ltm rule /Common/name {  or  gtm rule /Common/name {
 _RULE_HEADER_RE = re.compile(

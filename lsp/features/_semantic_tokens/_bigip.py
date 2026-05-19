@@ -15,8 +15,8 @@ from core.bigip.parser._helpers import (
 from core.bigip.registry import references_via_spec
 from core.bigip.registry.pilot import pilot_property_spec_for
 from core.bigip.rule_extract import find_embedded_rules
-from core.common.document_buffer import DocumentBuffer
 from core.parsing.tokens import SourcePosition, Token, TokenType
+from shared.document_buffer import DocumentBuffer
 
 from ._collect import _collect_tokens
 from ._constants import (

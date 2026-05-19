@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types as lsp_types
 
-from core.common.ip_utils import (
+from lsp.features.hover import get_hover
+from shared.ip_utils import (
     IPClass,
     format_ip_hover,
     ipv4_to_ipv6_mapped,
@@ -20,7 +21,6 @@ from core.common.ip_utils import (
     parse_ipv6,
     validate_ipv4_octets,
 )
-from lsp.features.hover import get_hover
 
 
 class TestParseIPv4:

@@ -34,7 +34,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from core.common.text_edits import apply_edits
+from shared.text_edits import apply_edits
 
 if TYPE_CHECKING:
     from core.compiler.compilation_unit import FunctionUnit

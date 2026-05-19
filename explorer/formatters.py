@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from core.analysis.semantic_model import Range
 from core.commands.registry.taint_hints import TaintColour
-from core.common.source_map import offset_to_line_col
 from core.compiler.core_analyses import LatticeKind, LatticeValue
 from core.compiler.expr_ast import ExprNode, render_expr
 from core.compiler.ir import (
@@ -26,6 +25,7 @@ from core.compiler.ir import (
 )
 from core.compiler.taint import TaintLattice
 from core.compiler.types import TypeKind, TypeLattice
+from shared.source_map import offset_to_line_col
 
 # LineIndex — source offset mapping
 

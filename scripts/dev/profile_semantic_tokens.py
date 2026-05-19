@@ -228,7 +228,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
 
     # Chunk caches (profile this more deeply since it's the bottleneck)
     print("\n  _build_full_chunk_caches sub-profile:")
-    from core.common.document_buffer import DocumentBuffer
+    from shared.document_buffer import DocumentBuffer
 
     t_total_lower = 0.0
     t_total_analyse = 0.0

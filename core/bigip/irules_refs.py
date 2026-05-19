@@ -14,11 +14,11 @@ from dataclasses import dataclass
 
 from core.analysis.semantic_model import Range
 from core.commands.registry.runtime import ArgRole, arg_indices_for_role
-from core.common.ranges import position_from_relative
 from core.parsing.command_segmenter import SegmentedCommand, segment_commands
 from core.parsing.lexer import TclLexer
 from core.parsing.token_positions import token_content_base
 from core.parsing.tokens import Token, TokenType
+from shared.ranges import position_from_relative
 
 from .irules_object_refs import resolve_object_ref_args
 

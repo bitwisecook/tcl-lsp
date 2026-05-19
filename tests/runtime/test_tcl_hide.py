@@ -15,7 +15,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 from tests.runtime._host_imports import define_host_spawn  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()

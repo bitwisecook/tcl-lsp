@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from lsprotocol import types
 
-from ..analysis.semantic_model import Range, Scope, VarDef
+from core.analysis.semantic_model import Range, Scope, VarDef
 
 
 def _types() -> Any:  # noqa: ANN401

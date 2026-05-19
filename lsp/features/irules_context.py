@@ -29,7 +29,7 @@ def find_enclosing_when_event(
     scan_source = source
     scan_idx = idx
     if embedded_rules:
-        from core.common.document_buffer import DocumentBuffer
+        from shared.document_buffer import DocumentBuffer
 
         buf = DocumentBuffer.from_source(source)
         for rule in embedded_rules:
@@ -72,7 +72,7 @@ def find_enclosing_when_event(
     if match is not None:
         if embedded_rules and scan_source != source:
             # Shift the anchor line back to file coordinates.
-            from core.common.document_buffer import DocumentBuffer
+            from shared.document_buffer import DocumentBuffer
 
             buf = DocumentBuffer.from_source(source)
             for rule in embedded_rules:
