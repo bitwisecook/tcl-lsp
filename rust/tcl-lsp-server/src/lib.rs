@@ -1581,12 +1581,19 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let result = tokio::task::spawn_blocking(move || {
             positions
                 .into_iter()
                 .map(|pos| {
-                    let chain =
-                        core_selection_range::selection_range(&doc.text, pos.line, pos.character);
+                    let chain = core_selection_range::selection_range(
+                        &doc.text,
+                        pos.line,
+                        pos.character,
+                        Some(&analysis),
+                    );
                     materialise_selection_range(&chain)
                 })
                 .collect::<Vec<Option<SelectionRange>>>()
