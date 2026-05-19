@@ -90,7 +90,16 @@ def check_unbraced_expr(
             start = range_for_diag.start.offset
             end = range_for_diag.end.offset
             if 0 <= start <= end < len(source):
-                text = source[start : end + 1]
+                # The token range stops at the last *content* character;
+                # widen by one when the next char is the matching closing
+                # delimiter of an opening quote/brace so the fix span
+                # covers the entire argument, not just its prefix.
+                raw_end = end + 1
+                if 0 <= start < len(source) and source[start] in ('"', "{"):
+                    close = '"' if source[start] == '"' else "}"
+                    if raw_end < len(source) and source[raw_end] == close:
+                        raw_end += 1
+                text = source[start:raw_end]
             else:
                 text = " ".join(args)
         else:
@@ -100,7 +109,12 @@ def check_unbraced_expr(
             start = range_for_diag.start.offset
             end = range_for_diag.end.offset
             if 0 <= start <= end < len(source):
-                text = source[start : end + 1]
+                raw_end = end + 1
+                if 0 <= start < len(source) and source[start] in ('"', "{"):
+                    close = '"' if source[start] == '"' else "}"
+                    if raw_end < len(source) and source[raw_end] == close:
+                        raw_end += 1
+                text = source[start:raw_end]
 
         # A braced argument is safe
         if _first_token_is_braced(tok):
@@ -272,9 +286,21 @@ def check_unbraced_body(
 
         dangerous = _has_substitution(text, tok)
 
+        # ``args[idx]`` is the *post-substitution* value of the word
+        # (e.g. ``"script"`` for the source ``$script``).  Wrapping that
+        # in braces would silently drop the leading ``$`` and turn a
+        # variable reference into a literal — exactly the bug we're
+        # warning the user about.  Slice the raw source instead so the
+        # replacement preserves the original substitution syntax.
+        raw_end = tok.end.offset + 1
+        if raw_end < len(source) and source[tok.start.offset] in ('"', "{"):
+            close = '"' if source[tok.start.offset] == '"' else "}"
+            if raw_end < len(source) and source[raw_end] == close:
+                raw_end += 1
+        raw_text = source[tok.start.offset:raw_end]
         fix = CodeFix(
             range=range_from_token(tok),
-            new_text="{" + text + "}",
+            new_text="{" + raw_text + "}",
             description="Wrap code block in braces",
         )
 
