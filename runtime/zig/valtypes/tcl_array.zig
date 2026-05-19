@@ -1679,6 +1679,7 @@ pub fn array_top_level_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     if (total == 0) return obj_new_string(0, 0);
 
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1701,7 +1702,7 @@ pub fn array_top_level_names_matching(pat_ptr: u32, pat_len: u32) i32 {
         off += name_len;
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
@@ -1730,6 +1731,7 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     if (total == 0) return obj_new_string(0, 0);
 
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1753,5 +1755,5 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
         off += name_len;
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
