@@ -2242,14 +2242,21 @@ pub fn eval_switch(words: []const i32) i32 {
                 return .{ .ptr = 0, .len = 0, .is_default = false, .is_dash = false, .src_ptr = list_ptr + e.start, .src_len = 0 };
             }
             // ``default`` arm match — bytes-equal compare against the
-            // raw list bytes (braced ``{default}`` is also valid; the
-            // braced flag is honoured before the byte compare).
-            const is_default = !e.braced and e.len == 7 and blk_default: {
+            // raw list bytes.  Tcl 9 ``Tcl_SwitchObjCmd`` treats
+            // ``{default}`` (braced) and ``default`` (unbraced) as
+            // the same pattern word: the brace quoting is part of
+            // list syntax, not the matched value.  Likewise for the
+            // ``-`` / ``{-}`` fall-through sentinel.  ``list_element_at``
+            // strips the outer braces before exposing the ``ptr`` /
+            // ``len`` span, so a raw bytes-equal check on the inner
+            // content is sufficient for both shapes (codex P1 review
+            // on PR #452).
+            const is_default = e.len == 7 and blk_default: {
                 const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
                 break :blk_default sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
                     sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
             };
-            const is_dash = !e.braced and e.len == 1 and blk_dash: {
+            const is_dash = e.len == 1 and blk_dash: {
                 const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
                 break :blk_dash sp[0] == '-';
             };
