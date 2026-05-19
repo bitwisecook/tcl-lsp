@@ -24,17 +24,19 @@
 //! empty `Vec<TextEdit>` so the editor refuses the rename
 //! rather than producing a partial edit set.
 //!
+//! Class renames are also supported: when the cursor sits on a
+//! `oo::class create ClassName` declaration name (or on any
+//! `ClassName new` / `ClassName create instance` invocation
+//! head), the provider rewrites the declaration's name span
+//! and every invocation that targets the class.  The same
+//! `is_safe_symbol_name` / `is_builtin_command_name` gates
+//! apply.
+//!
 //! What is *still deferred* (planned as further
 //! `S-rename-rich` sub-strips):
 //!
-//! * Namespace-aware proc renames (Python's `_namespace_prefix`
-//!   /`_tail_name` machinery — when renaming `::ns::greet` to
-//!   `hi`, Python knows to rewrite call sites that use the
-//!   short `greet` form too).
-//! * Variable-name escaping for `${name}` braced references.
-//! * Class / method rename — the Python provider has separate
-//!   code paths for those that the minimal port doesn't yet
-//!   surface.
+//! * Method rename — the Python provider has a separate code
+//!   path for method-name renames inside a class body.
 //! * Cross-document rename — the workspace-index integration
 //!   that lands alongside `S-workspace-symbols`.
 
@@ -150,12 +152,21 @@ pub fn prepare_rename(
             });
         }
     }
+    // Class?  Mirrors the proc walk but against `all_classes`.
+    for (qname, class_def) in &analysis.all_classes {
+        if class_def.name == word || qname == &word || qname == &format!("::{word}") {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, class_def.name_span),
+                placeholder: class_def.name.clone(),
+            });
+        }
+    }
     None
 }
 
 /// Compute rename text edits.
 ///
-/// See module-level docs for the dispatch order (variable → proc).
+/// See module-level docs for the dispatch order (variable → proc → class).
 #[must_use]
 pub fn rename(
     source: &str,
@@ -172,122 +183,204 @@ pub fn rename(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
-        let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-            &analysis.global_scope,
-            byte_offset,
+        return rename_var(
+            source,
+            line,
+            character,
+            new_name,
+            analysis,
+            &line_index,
             &var_name,
-        ) else {
-            return Vec::new();
-        };
-        let mut edits = Vec::with_capacity(1 + var_def.references.len());
-        edits.push(TextEdit {
-            range: span_to_range(&line_index, var_def.definition_span),
-            new_text: new_name.to_owned(),
-        });
-        for r in &var_def.references {
-            // `S-rename-rich` brace-ref escaping: a reference
-            // span covers the full Var token — for `$x` it
-            // includes the `$`; for `${name}` it spans
-            // `${name}`.  Read the source text at the span to
-            // decide which prefix / suffix shape to keep, then
-            // emit a replacement that preserves the leader
-            // characters (so `${x}` stays braced after the
-            // rename).  Namespace qualifiers (`$ns::var`,
-            // `${ns::var}`) keep their prefix.
-            let replacement = build_var_ref_replacement(source, *r, new_name);
-            edits.push(TextEdit {
-                range: span_to_range(&line_index, *r),
-                new_text: replacement,
-            });
-        }
-        return edits;
+        );
     }
 
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
 
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            // Built-in shadow gate — proc renames only.  Skipped
-            // when no registry is provided (the minimal port's
-            // behaviour).
-            if let Some(registry) = registry {
-                if is_builtin_command_name(new_name, registry) {
-                    return Vec::new();
-                }
-            }
-            // Namespace-aware rewrite shape: a proc declared at
-            // `::myns::greet` keeps its namespace prefix when
-            // renamed.  The declaration's `name_span` covers the
-            // full qualified token, so the replacement is the
-            // new qualified form (prefix retained).  Call sites
-            // each use the form the source wrote (qualified ↔
-            // short), and we pick the matching replacement.
-            let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
-            let new_qualified = if namespace_prefix.is_empty() {
-                format!("::{new_name}")
-            } else {
-                format!("{namespace_prefix}::{new_name}")
-            };
-            // The declaration's name span uses the form the
-            // user wrote — if it was qualified, keep the
-            // qualified form; if short, the short form.  We
-            // detect by looking at how the qualified name maps
-            // to the spec: if `proc.qualified_name == "::greet"`
-            // and `proc.name == "greet"`, the declaration could
-            // have been either shape.  Use the qualified form
-            // when a namespace prefix is non-empty
-            // (`::myns::greet`); use the short form when the
-            // proc lives at the top level (`::greet`).
-            let new_decl_text = if namespace_prefix.is_empty() {
-                new_name.to_owned()
-            } else {
-                new_qualified.clone()
-            };
-            let mut edits = Vec::new();
-            edits.push(TextEdit {
-                range: span_to_range(&line_index, proc_def.name_span),
-                new_text: new_decl_text,
-            });
-            let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
-            for inv in &analysis.command_invocations {
-                // Decide whether this invocation targets the
-                // proc, and what shape the source text used.
-                let matches = inv.name == proc_def.name
-                    || inv.name == proc_def.qualified_name
-                    || inv.name == qname_no_prefix
-                    || inv
-                        .resolved_qualified_name
-                        .as_deref()
-                        .is_some_and(|r| r == proc_def.qualified_name);
-                if !matches {
-                    continue;
-                }
-                // For top-level procs the qualified form equals
-                // the short form for practical purposes, so use
-                // the short rewrite everywhere.  For namespaced
-                // procs, pick the matching rewrite based on the
-                // shape of the call site's text.
-                let replacement = if namespace_prefix.is_empty() {
-                    new_name.to_owned()
-                } else if inv.name.contains("::") {
-                    new_qualified.clone()
-                } else {
-                    new_name.to_owned()
-                };
-                edits.push(TextEdit {
-                    range: span_to_range(&line_index, inv.range),
-                    new_text: replacement,
-                });
-            }
-            dedup_edits(&mut edits);
-            return edits;
+    if let Some(edits) = rename_proc(&word, new_name, analysis, registry, &line_index) {
+        return edits;
+    }
+    if let Some(edits) = rename_class(&word, new_name, analysis, registry, &line_index) {
+        return edits;
+    }
+    Vec::new()
+}
+
+/// Variable-rename path — declaration span + every read site,
+/// with brace-ref escaping (`$x` / `${x}` / `$ns::x` /
+/// `${ns::x}` keep their leader characters and any namespace
+/// qualifier).
+fn rename_var(
+    source: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    var_name: &str,
+) -> Vec<TextEdit> {
+    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+    let Some(var_def) =
+        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, var_name)
+    else {
+        return Vec::new();
+    };
+    let mut edits = Vec::with_capacity(1 + var_def.references.len());
+    edits.push(TextEdit {
+        range: span_to_range(line_index, var_def.definition_span),
+        new_text: new_name.to_owned(),
+    });
+    for r in &var_def.references {
+        // `S-rename-rich` brace-ref escaping — see
+        // [`build_var_ref_replacement`].
+        let replacement = build_var_ref_replacement(source, *r, new_name);
+        edits.push(TextEdit {
+            range: span_to_range(line_index, *r),
+            new_text: replacement,
+        });
+    }
+    edits
+}
+
+/// Proc-rename path — declaration name span + every matching
+/// call site.  Namespace-aware: the declaration keeps its
+/// prefix; call sites pick the rewrite that matches the form
+/// the source wrote (qualified ↔ short).  `Some(edits)` when
+/// a proc matched `word` (even if the edit set ended up empty
+/// from a safety gate); `None` when no proc matched.
+fn rename_proc(
+    word: &str,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    let (qname, proc_def) = analysis.all_procs.iter().find(|(qname, p)| {
+        p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
+    })?;
+    if let Some(registry) = registry {
+        if is_builtin_command_name(new_name, registry) {
+            return Some(Vec::new());
         }
     }
+    let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
+    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    let mut edits = vec![TextEdit {
+        range: span_to_range(line_index, proc_def.name_span),
+        new_text: new_decl_text,
+    }];
+    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
+    for inv in &analysis.command_invocations {
+        let matches = inv.name == proc_def.name
+            || inv.name == proc_def.qualified_name
+            || inv.name == qname_no_prefix
+            || inv
+                .resolved_qualified_name
+                .as_deref()
+                .is_some_and(|r| r == proc_def.qualified_name);
+        if !matches {
+            continue;
+        }
+        let replacement =
+            invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
+        edits.push(TextEdit {
+            range: span_to_range(line_index, inv.range),
+            new_text: replacement,
+        });
+    }
+    dedup_edits(&mut edits);
+    Some(edits)
+}
 
-    Vec::new()
+/// Class-rename path — `oo::class create ClassName`
+/// declaration plus every `ClassName new` / `ClassName create
+/// instance` invocation head.  Same shape as [`rename_proc`]
+/// minus the resolved-qualified-name matching (the analyser
+/// doesn't populate that for class invocations today).
+fn rename_class(
+    word: &str,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    let (qname, class_def) = analysis.all_classes.iter().find(|(qname, c)| {
+        c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
+    })?;
+    if let Some(registry) = registry {
+        if is_builtin_command_name(new_name, registry) {
+            return Some(Vec::new());
+        }
+    }
+    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
+    let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
+    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    let mut edits = vec![TextEdit {
+        range: span_to_range(line_index, class_def.name_span),
+        new_text: new_decl_text,
+    }];
+    for inv in &analysis.command_invocations {
+        let matches = inv.name == class_def.name
+            || inv.name == class_def.qualified_name
+            || inv.name == qname_no_prefix;
+        if !matches {
+            continue;
+        }
+        // Skip an invocation whose range contains the class
+        // declaration site (defence in depth — the analyser's
+        // recording shape doesn't usually file this here).
+        if inv.range.start() <= class_def.name_span.start()
+            && class_def.name_span.end() <= inv.range.end()
+        {
+            continue;
+        }
+        let replacement =
+            invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
+        edits.push(TextEdit {
+            range: span_to_range(line_index, inv.range),
+            new_text: replacement,
+        });
+    }
+    dedup_edits(&mut edits);
+    Some(edits)
+}
+
+/// Compute the qualified rewrite (`prefix::new`) and the
+/// declaration-site rewrite (qualified when the original lived
+/// in a namespace, short at the top level).  Shared by the
+/// proc and class rename paths.
+fn qualified_and_decl_text(namespace_prefix: &str, new_name: &str) -> (String, String) {
+    let new_qualified = if namespace_prefix.is_empty() {
+        format!("::{new_name}")
+    } else {
+        format!("{namespace_prefix}::{new_name}")
+    };
+    let new_decl_text = if namespace_prefix.is_empty() {
+        new_name.to_owned()
+    } else {
+        new_qualified.clone()
+    };
+    (new_qualified, new_decl_text)
+}
+
+/// Pick the rewrite shape for a single call/invocation site —
+/// short form at the top level, qualified form when the call
+/// itself was qualified.  Shared by the proc and class rename
+/// paths.
+fn invocation_replacement(
+    namespace_prefix: &str,
+    new_qualified: &str,
+    new_name: &str,
+    inv_name: &str,
+) -> String {
+    if namespace_prefix.is_empty() {
+        new_name.to_owned()
+    } else if inv_name.contains("::") {
+        new_qualified.to_owned()
+    } else {
+        new_name.to_owned()
+    }
 }
 
 /// Build a replacement string for a variable reference span.
@@ -642,5 +735,78 @@ mod tests {
             "expected every edit to be `hello`; got {:?}",
             edits.iter().map(|e| &e.new_text).collect::<Vec<_>>(),
         );
+    }
+
+    // -- S-rename-rich: class rename --------------------------------
+
+    #[test]
+    fn rename_class_at_decl_rewrites_decl_and_calls() {
+        // `oo::class create MyClass { ... }` plus a `MyClass new`
+        // invocation — both should be rewritten.
+        let src = "oo::class create MyClass {\n\
+                       method greet {} {}\n\
+                   }\n\
+                   MyClass new\n";
+        let analysis = analyse(src);
+        // Cursor on the `MyClass` declaration name (column 17).
+        let edits = rename(src, 0, 17, "Renamed", &analysis, None);
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(!edits.is_empty(), "expected non-empty edits");
+        assert!(
+            texts.iter().all(|t| *t == "Renamed"),
+            "every replacement should be `Renamed`; got {texts:?}",
+        );
+        // The decl site + the `MyClass new` call site = 2 edits
+        // (more if the analyser surfaces inheritance refs).
+        assert!(edits.len() >= 2, "{edits:?}");
+    }
+
+    #[test]
+    fn rename_class_at_call_site_also_works() {
+        // Cursor on the `MyClass` head of an invocation — same
+        // outcome as renaming from the declaration.
+        let src = "oo::class create MyClass {\n}\nMyClass new\n";
+        let analysis = analyse(src);
+        // Cursor on the `MyClass` in `MyClass new` (line 2, col 3).
+        let edits = rename(src, 2, 3, "Renamed", &analysis, None);
+        assert!(!edits.is_empty(), "{edits:?}");
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            texts.iter().all(|t| *t == "Renamed"),
+            "expected every edit to be `Renamed`; got {texts:?}",
+        );
+    }
+
+    #[test]
+    fn rename_class_rejects_unsafe_new_name() {
+        let src = "oo::class create MyClass {}\nMyClass new\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 0, 17, "1bad", &analysis, None);
+        assert!(edits.is_empty(), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_class_blocked_when_shadowing_builtin() {
+        let src = "oo::class create MyClass {}\nMyClass new\n";
+        let analysis = analyse(src);
+        let mut r = tcl_registry::CommandRegistry::build_default();
+        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        let edits = rename(src, 0, 17, "if", &analysis, Some(&r));
+        assert!(
+            edits.is_empty(),
+            "renaming to a built-in should be blocked; got {edits:?}",
+        );
+    }
+
+    #[test]
+    fn prepare_rename_returns_range_for_class() {
+        let src = "oo::class create MyClass {}\n";
+        let analysis = analyse(src);
+        let p = prepare_rename(src, 0, 17, &analysis).expect("expected prepare_rename on class");
+        assert_eq!(p.placeholder, "MyClass");
+        // Anchored at the class name span.
+        assert_eq!(p.range.start_line, 0);
+        // The span sits at column 17.
+        assert_eq!(p.range.start_character, 17);
     }
 }
