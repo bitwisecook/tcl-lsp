@@ -245,6 +245,7 @@ class _WasmEmitterStmtMixin(_Base):
                 # on the brace-word path but IRAssignConst skips
                 # the runtime parser, so the codegen has to do it.
                 from ._values import _braced_lineconts
+
                 self._emit_obj_literal(_braced_lineconts(value))
                 # ``_emit_obj_literal`` always allocates a fresh
                 # TclObj → OWNED.  S2.3 migration.
@@ -1552,6 +1553,7 @@ class _WasmEmitterStmtMixin(_Base):
                         cmd_emit = "$" + inner
                 parts = [cmd_emit]
                 from ._values import _braced_lineconts as _braced_nl
+
                 for i, a in enumerate(args):
                     if _arg_was_braced(i):
                         # Braced token — IR holds the literal content
