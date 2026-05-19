@@ -1327,10 +1327,22 @@ pub fn eval_upvar(words: []const i32) i32 {
                 }
             } else {
                 const rel = parse_uint_bytes(w1p, w1.len);
-                abs_target = @as(i32, @intCast(frames.frame_depth)) - @as(i32, @intCast(rel));
+                // Route through the same-interp walker so a hidden
+                // command's ``upvar`` reaches its same-interp caller
+                // when foreign frames are sandwiched into the global
+                // stack by alias / invokehidden trampolines.
+                abs_target = frames.upvar_walk_relative(
+                    @as(i32, @intCast(frames.frame_depth)),
+                    @as(i32, @intCast(rel)),
+                );
             }
+        } else {
+            // Default ``upvar 1`` — same walker treatment.
+            abs_target = frames.upvar_walk_relative(
+                @as(i32, @intCast(frames.frame_depth)),
+                1,
+            );
         }
-        // else: not a level spec; default level 1 applies
     }
 
     var i = pairs_start;
@@ -3481,10 +3493,30 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     // this through ``TclNRInvoke`` which does NOT push a fresh
     // namespace frame, so an inner ``upvar`` reaches the caller's
     // locals (interp-20.35 / 20.36 / 20.40 / 20.41).
+    //
+    // ``-global`` (use_global) mirrors C Tcl's
+    // ``TCL_INVOKE_HIDDEN | TCL_EVAL_GLOBAL`` — the hidden body
+    // runs anchored at the global frame so ``upvar 1`` inside
+    // resolves to ``#0`` (interp-20.38 / 20.39 / 20.43 / 20.44).
+    // Set the one-shot pending flag so the upcoming
+    // ``frame_push`` (deep inside ``eval_proc_call_bucket``)
+    // stamps :var:`frame_is_global` on the new top slot.
+    if (use_global) pending_global_invocation = true;
     const result = eval_proc_call_bucket(new_words[0..total], @bitCast(cmd));
+    // Clear the pending flag defensively in case the dispatch
+    // bailed before pushing.  ``frame_push`` clears it on first
+    // consumption so nested calls inside the hidden body don't
+    // also inherit the global anchor.
+    pending_global_invocation = false;
     interp_reg.leave(save);
     return result;
 }
+
+/// Single-shot sentinel consumed by :fn:`tcl_frames.frame_push`.
+/// When set, the next pushed frame is tagged as a ``-global``
+/// invokehidden invocation so ``upvar`` from within resolves to
+/// ``#0`` rather than the lexical caller chain.
+pub var pending_global_invocation: bool = false;
 
 fn eval_interp_eval(words: []const i32) i32 {
     if (words.len < 4) {

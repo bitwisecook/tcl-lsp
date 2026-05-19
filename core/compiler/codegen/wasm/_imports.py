@@ -555,6 +555,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # Static-relative ``upvar`` helper that walks back ``rel`` frames
+    # belonging to the current interp, skipping frames pushed by
+    # cross-interp alias / invokehidden trampolines.  Replaces the
+    # inline ``frame_depth - rel`` emission so a hidden command's
+    # ``upvar 1`` reaches its same-interp caller (interp-20.35 ..
+    # 20.44).  Args: (cur_depth, rel).
+    "tcl_upvar_walk_relative": (
+        "tcl",
+        "upvar_walk_relative",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Per-frame invocation argv — set by the compiled-proc prologue so
     # ``info level 0`` / ``info level -N`` inside the body reads the real
     # invocation list rather than a placeholder.

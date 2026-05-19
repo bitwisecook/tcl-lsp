@@ -204,6 +204,25 @@ pub var frame_depth: u32 = 0;
 // outer-namespace array and silently return empty.
 pub var frame_ns: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 
+// Per-frame owning interp.  Set by :fn:`frame_push` from
+// :fn:`interp_reg.interp_current` so a cross-interp dispatch
+// chain (``p1`` in child a → alias to parent → ``interp
+// invokehidden a h1``) leaves the global frame stack interleaved
+// with multiple interps' frames.  ``upvar`` / ``info level``
+// walks must skip frames whose ``frame_interp`` differs from the
+// current interp so ``upvar 1`` in ``h1`` reaches ``p1`` rather
+// than the intervening parent frame (interp-20.35 .. 20.44).
+pub var frame_interp: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
+// Per-frame "is global invocation" flag.  Set by ``interp
+// invokehidden -global`` before pushing the hidden command's
+// frame so an ``upvar`` from within that frame resolves to
+// ``#0`` (the global scope) rather than walking back into the
+// caller's frame chain.  Mirrors C Tcl's ``TCL_INVOKE_HIDDEN``
+// + ``TCL_EVAL_GLOBAL`` combination which installs a
+// global-anchored call frame (interp-20.38 / 20.43).
+pub var frame_is_global: [MAX_DEPTH]bool = [_]bool{false} ** MAX_DEPTH;
+
 // Per-frame "dirty" bitmap.  Each bit covers a 128-byte chunk (8
 // buckets × 16 bytes) of the frame buffer.  ``frame_push`` only
 // clears chunks whose bit is set, then resets the bitmap.  Writers
@@ -516,8 +535,33 @@ pub export fn frame_push() i32 {
     // slot so ``info level 0`` after a push without a subsequent
     // ``frame_set_argv`` reads 0, not an outdated list.
     frame_argv[idx] = 0;
+    // Tag the new frame with its owning interp so a cross-interp
+    // ``upvar`` walk can skip foreign frames sandwiched into the
+    // global stack by alias / invokehidden trampolines.
+    const interp_reg = @import("tcl_interp_registry.zig");
+    frame_interp[idx] = interp_reg.interp_current();
+    // Honour any pending ``interp invokehidden -global`` marker
+    // set by the caller; the flag is one-shot (cleared after the
+    // first push so nested calls inside the hidden body don't
+    // also get tagged).  Default cleared otherwise.
+    const interp_mod = @import("tcl_interp.zig");
+    if (interp_mod.pending_global_invocation) {
+        frame_is_global[idx] = true;
+        interp_mod.pending_global_invocation = false;
+    } else {
+        frame_is_global[idx] = false;
+    }
     frame_depth += 1;
     return @intCast(idx);
+}
+
+/// Mark the current top frame as a global-anchored invocation
+/// (``interp invokehidden -global``), so an ``upvar`` from
+/// within its body resolves to ``#0`` rather than chasing the
+/// stacked caller chain.  Idempotent at frame_depth==0.
+pub export fn frame_mark_global_invocation() void {
+    if (frame_depth == 0) return;
+    frame_is_global[frame_depth - 1] = true;
 }
 
 /// Grow the frame at *base* to double its current bucket capacity
@@ -2107,7 +2151,69 @@ pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
         tcl_catch.tcl_cmd_error(msg);
         return cur_depth - 1;
     }
-    return cur_depth - rel;
+    // Walk ``rel`` levels up from the current frame, counting only
+    // frames belonging to the current interp.  Foreign frames
+    // sandwiched into the global stack by alias / invokehidden
+    // trampolines are skipped — so ``upvar 1`` from a hidden
+    // command's body reaches its caller within the same interp
+    // (interp-20.35 .. 20.44) rather than landing on the parent's
+    // alias frame.  Falls back to plain arithmetic when the
+    // sequence of same-interp frames isn't broken by foreigners
+    // so the well-formed single-interp case stays cheap.
+    return upvar_walk_same_interp(cur_depth, rel);
+}
+
+/// Static-relative ``upvar`` helper exposed to the compiler.
+/// Takes a frame-depth ``cur_depth`` (1-based) and a relative
+/// level count ``rel`` and returns the target frame depth,
+/// skipping over frames owned by other interps so a hidden
+/// command body's ``upvar`` reaches its same-interp caller.
+/// Cheap fast path when no foreign frames are present.
+pub export fn upvar_walk_relative(cur_depth: i32, rel: i32) i32 {
+    return upvar_walk_same_interp(cur_depth, rel);
+}
+
+/// Walk ``rel`` levels up from ``cur_depth`` (a 1-based depth, so
+/// the current frame is at slot ``cur_depth - 1``) and return the
+/// depth of the ``rel``-th preceding frame whose ``frame_interp``
+/// matches :fn:`interp_current`.  Returns ``0`` (global scope) if
+/// the chain runs out of same-interp frames before ``rel`` steps
+/// are consumed.
+fn upvar_walk_same_interp(cur_depth: i32, rel: i32) i32 {
+    if (rel <= 0) return cur_depth;
+    if (cur_depth <= 0) return cur_depth - rel;
+    // ``interp invokehidden -global`` flagged this frame as a
+    // global-anchored invocation — any ``upvar`` from within
+    // resolves to ``#0`` (global scope) regardless of ``rel``.
+    if (frame_is_global[@intCast(cur_depth - 1)]) return 0;
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const me = interp_reg.interp_current();
+    // Common case: single-interp run.  When every frame slot below
+    // is tagged with ``me`` (or 0, meaning untagged-top-level), the
+    // walk reduces to arithmetic.  Bail out into the slow path only
+    // when we actually detect a foreign frame in the relevant span.
+    var probe_idx: i32 = cur_depth - 1;
+    var any_foreign = false;
+    while (probe_idx >= 0) : (probe_idx -= 1) {
+        const owner = frame_interp[@intCast(probe_idx)];
+        if (owner != me and owner != 0) {
+            any_foreign = true;
+            break;
+        }
+    }
+    if (!any_foreign) return cur_depth - rel;
+    // Slow path — walk back, decrementing the level counter only
+    // on a same-interp frame.
+    var remaining: i32 = rel;
+    var idx: i32 = cur_depth - 2; // 1 level up from current frame
+    while (idx >= 0) : (idx -= 1) {
+        const owner = frame_interp[@intCast(idx)];
+        if (owner == me or owner == 0) {
+            remaining -= 1;
+            if (remaining == 0) return idx + 1;
+        }
+    }
+    return 0;
 }
 
 // -- Local variable operations on current frame --
