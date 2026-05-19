@@ -771,10 +771,11 @@ fn ns_parent(ptr: u32, len: u32) i32 {
     if (i == 0 and has_sep) {
         // Was ``::foo`` — parent is root ``::``.
         const buf = alloc(2);
+        if (buf == 0) return obj_new_string(0, 0);
         const d: [*]u8 = @ptrFromInt(buf);
         d[0] = ':';
         d[1] = ':';
-        return obj_new_string(@bitCast(buf), 2);
+        return rt.obj_new_string_take(buf, 2, 2);
     }
     return obj_new_string(@bitCast(ptr), @bitCast(i));
 }
@@ -888,6 +889,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
     }
     if (count == 0) return obj_new_string(0, 0);
     const buf = alloc(total_bytes);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var first: bool = true;
     i = 0;
@@ -908,7 +910,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
         memcpy(buf + off, fqn.ptr, fqn.len);
         off += fqn.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(total_bytes));
+    return rt.obj_new_string_take(buf, total_bytes, total_bytes);
 }
 
 /// ``namespace delete name ...`` — mark namespace dead by removing it from its
