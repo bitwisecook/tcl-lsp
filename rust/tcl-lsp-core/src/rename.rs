@@ -153,26 +153,69 @@ pub fn rename(
                     return Vec::new();
                 }
             }
+            // Namespace-aware rewrite shape: a proc declared at
+            // `::myns::greet` keeps its namespace prefix when
+            // renamed.  The declaration's `name_span` covers the
+            // full qualified token, so the replacement is the
+            // new qualified form (prefix retained).  Call sites
+            // each use the form the source wrote (qualified ↔
+            // short), and we pick the matching replacement.
+            let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
+            let new_qualified = if namespace_prefix.is_empty() {
+                format!("::{new_name}")
+            } else {
+                format!("{namespace_prefix}::{new_name}")
+            };
+            // The declaration's name span uses the form the
+            // user wrote — if it was qualified, keep the
+            // qualified form; if short, the short form.  We
+            // detect by looking at how the qualified name maps
+            // to the spec: if `proc.qualified_name == "::greet"`
+            // and `proc.name == "greet"`, the declaration could
+            // have been either shape.  Use the qualified form
+            // when a namespace prefix is non-empty
+            // (`::myns::greet`); use the short form when the
+            // proc lives at the top level (`::greet`).
+            let new_decl_text = if namespace_prefix.is_empty() {
+                new_name.to_owned()
+            } else {
+                new_qualified.clone()
+            };
             let mut edits = Vec::new();
             edits.push(TextEdit {
                 range: span_to_range(&line_index, proc_def.name_span),
-                new_text: new_name.to_owned(),
+                new_text: new_decl_text,
             });
             let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
             for inv in &analysis.command_invocations {
-                if inv.name == proc_def.name
+                // Decide whether this invocation targets the
+                // proc, and what shape the source text used.
+                let matches = inv.name == proc_def.name
                     || inv.name == proc_def.qualified_name
                     || inv.name == qname_no_prefix
                     || inv
                         .resolved_qualified_name
                         .as_deref()
-                        .is_some_and(|r| r == proc_def.qualified_name)
-                {
-                    edits.push(TextEdit {
-                        range: span_to_range(&line_index, inv.range),
-                        new_text: new_name.to_owned(),
-                    });
+                        .is_some_and(|r| r == proc_def.qualified_name);
+                if !matches {
+                    continue;
                 }
+                // For top-level procs the qualified form equals
+                // the short form for practical purposes, so use
+                // the short rewrite everywhere.  For namespaced
+                // procs, pick the matching rewrite based on the
+                // shape of the call site's text.
+                let replacement = if namespace_prefix.is_empty() {
+                    new_name.to_owned()
+                } else if inv.name.contains("::") {
+                    new_qualified.clone()
+                } else {
+                    new_name.to_owned()
+                };
+                edits.push(TextEdit {
+                    range: span_to_range(&line_index, inv.range),
+                    new_text: replacement,
+                });
             }
             dedup_edits(&mut edits);
             return edits;
@@ -180,6 +223,18 @@ pub fn rename(
     }
 
     Vec::new()
+}
+
+/// Return the namespace prefix of a qualified name — everything
+/// before the final `::`.  `"::myns::greet"` → `"::myns"`;
+/// `"::greet"` → `""` (proc lives at global scope, no enclosing
+/// namespace).  `"greet"` → `""` likewise.
+fn namespace_prefix_of(qualified: &str) -> &str {
+    let trimmed = qualified.trim_start_matches("::");
+    match trimmed.rfind("::") {
+        Some(idx) => &qualified[..qualified.len() - (trimmed.len() - idx)],
+        None => "",
+    }
 }
 
 fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -332,6 +387,83 @@ mod tests {
         assert!(
             !edits.is_empty(),
             "variable rename to `puts` should succeed (different namespace)",
+        );
+    }
+
+    // -- S-rename-rich: namespace-aware proc renames ----------------
+
+    #[test]
+    fn namespace_prefix_of_qualified_names() {
+        assert_eq!(namespace_prefix_of("::myns::greet"), "::myns");
+        assert_eq!(namespace_prefix_of("::a::b::c"), "::a::b");
+        assert_eq!(namespace_prefix_of("::greet"), "");
+        assert_eq!(namespace_prefix_of("greet"), "");
+    }
+
+    #[test]
+    fn rename_namespaced_proc_keeps_namespace_prefix_at_decl() {
+        // `proc ::myns::greet {} {}` renamed to `hello` should
+        // rewrite the declaration's name span to
+        // `::myns::hello` (keeping the namespace prefix), not
+        // just `hello` (which would clobber the prefix).
+        let src = "proc ::myns::greet {} {}\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 0, 14, "hello", &analysis, None);
+        assert!(!edits.is_empty(), "{edits:?}");
+        assert!(
+            edits.iter().any(|e| e.new_text == "::myns::hello"),
+            "expected qualified replacement at decl, got {:?}",
+            edits.iter().map(|e| &e.new_text).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn rename_namespaced_proc_rewrites_call_sites_appropriately() {
+        // Source has both a qualified call (`::myns::greet`)
+        // and a short call (`greet` inside a `namespace eval`
+        // block).  The qualified call gets the qualified
+        // replacement; the short call gets the short
+        // replacement.
+        let src = "proc ::myns::greet {} {}\n\
+                   ::myns::greet\n\
+                   namespace eval ::myns {\n\
+                       greet\n\
+                   }\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 0, 14, "hello", &analysis, None);
+        let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        // Should include both `::myns::hello` (qualified) and
+        // `hello` (short).
+        assert!(
+            replacements.contains(&"::myns::hello"),
+            "expected `::myns::hello` somewhere; got {replacements:?}",
+        );
+        assert!(
+            replacements.contains(&"hello"),
+            "expected `hello` somewhere; got {replacements:?}",
+        );
+    }
+
+    #[test]
+    fn rename_top_level_proc_uses_short_form_at_decl() {
+        // For a top-level proc (`proc greet {} {}` →
+        // `proc.qualified_name == "::greet"`, no enclosing
+        // namespace prefix), the declaration rewrite stays
+        // unqualified (`hello`, not `::hello`).
+        let src = "proc greet {} {}\ngreet\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 0, 6, "hello", &analysis, None);
+        assert!(
+            edits.iter().any(|e| e.new_text == "hello"),
+            "expected short `hello` at decl; got {:?}",
+            edits.iter().map(|e| &e.new_text).collect::<Vec<_>>(),
+        );
+        // No qualified `::hello` rewrites either — the source
+        // never uses a qualified call.
+        assert!(
+            edits.iter().all(|e| e.new_text == "hello"),
+            "expected every edit to be `hello`; got {:?}",
+            edits.iter().map(|e| &e.new_text).collect::<Vec<_>>(),
         );
     }
 }
