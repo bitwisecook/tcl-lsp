@@ -669,11 +669,26 @@ impl<'r> Lowerer<'r> {
     /// C43 migration sequencing: each structured command form
     /// migrates as its own sub-commit per the chunk-log row's
     /// "each command form's hook lands as its own sub-commit"
-    /// directive.  Sub-strip 1 covered `eval` and `uplevel`;
-    /// sub-strip 2 covers the straightforward control-flow
-    /// forms: `if`, `switch`, `for`, `while`, `catch`, `try` —
-    /// each is a single-method dispatch with no arity / shared-
-    /// method / subcommand complications.
+    /// directive.
+    ///
+    /// * Sub-strip 1 — `eval`, `uplevel` (pilot, dialect-agnostic
+    ///   single-method dispatch).
+    /// * Sub-strip 2 — `if`, `switch`, `for`, `while`, `catch`,
+    ///   `try` (straightforward single-method dispatch).
+    /// * Sub-strip 3 — `proc`, `namespace eval`, `foreach`,
+    ///   `lmap`, `dict` (arity / subcommand / shared-method
+    ///   preconditions handled inside the match arm; falling
+    ///   the precondition returns `None` so `lower_command`'s
+    ///   `_ => lower_default(...)` arm catches it).
+    ///
+    /// `when` and `foreachLine` remain on the string-pattern
+    /// match: they're registered only when the iRules / tcllib
+    /// dialect loaders run, which `build_default()` doesn't
+    /// invoke.  Routing them through `resolve_call` would
+    /// silently fall through to `lower_default` when those
+    /// dialects aren't loaded, regressing the test-harness
+    /// path.  Migration is gated on unifying the registry-load
+    /// path across test and production callers.
     ///
     /// The migrated forms pick up two benefits over the string
     /// match:
@@ -734,9 +749,60 @@ impl<'r> Lowerer<'r> {
             LoweringHookId::Catch => Some(self.lower_catch(seg, namespace)),
             LoweringHookId::Try => Some(self.lower_try(seg, namespace)),
 
+            // C43 sub-strip 3: forms with shape preconditions.
+            // The original `match cmd_name` block guarded these
+            // arms so calls with the wrong arity / shape fell
+            // through to `lower_default` instead of crashing
+            // the dedicated lowerer.  Mirror that here by
+            // returning `None` on precondition failure —
+            // `lower_command` then falls through to its
+            // `_ => lower_default(...)` arm.
+            //
+            // `proc name params body` — exactly three args and
+            // at least three token slices (the body needs to
+            // be a real token, not synthesised whitespace).
+            LoweringHookId::Proc => {
+                if args.len() == 3 && seg.arg_tokens().len() >= 3 {
+                    Some(self.lower_proc(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `namespace eval ns body` — the subcommand match
+            // is already handled by `resolve_call`, so the
+            // hook only fires for the `eval` subcommand.  Keep
+            // the arity / token-count guards (a tokenless body
+            // would derail body lowering).
+            LoweringHookId::NamespaceEval => {
+                if args.len() >= 3 && seg.arg_tokens().len() >= 3 {
+                    Some(self.lower_namespace_eval(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `foreach vars list body` / `lmap vars list body`
+            // — share `lower_foreach(... is_lmap)`.  The
+            // dedicated lowerer handles its own shape errors,
+            // so no precondition here.
+            LoweringHookId::Foreach => Some(self.lower_foreach(seg, namespace, false)),
+            LoweringHookId::Lmap => Some(self.lower_foreach(seg, namespace, true)),
+            // `dict <subcommand> ...` — must have at least one
+            // arg so the subcommand can be picked.  Bare `dict`
+            // falls through to `lower_default`.
+            LoweringHookId::Dict => {
+                if args.is_empty() {
+                    None
+                } else {
+                    Some(self.lower_dict(seg, namespace))
+                }
+            }
+
             // Other structured hooks not yet migrated — fall
             // through to the string-pattern match in
-            // `lower_command`.
+            // `lower_command`.  `When` and `Foreach` for
+            // `fileutil::foreachLine` stay here because the
+            // dialect loaders that register them aren't always
+            // active under `build_default()`.
             _ => None,
         }
     }
@@ -778,48 +844,31 @@ impl<'r> Lowerer<'r> {
 
         // C43: registry-driven hook-ID dispatch for structured
         // command forms that have migrated off the string-pattern
-        // match below.  Currently covers `eval`, `uplevel`, `if`,
-        // `switch`, `for`, `while`, `catch`, `try`; other forms
-        // (`proc`, `when`, `namespace eval`, `foreach`, `lmap`,
-        // `foreachLine`, `dict`) still resolve via the
-        // `match cmd_name` block.
+        // match below.  Now covers 12 of the 14 structured hooks:
+        // `eval`, `uplevel`, `if`, `switch`, `for`, `while`,
+        // `catch`, `try`, `proc`, `namespace eval`, `foreach`,
+        // `lmap`, `dict`.  Only `when` and `foreachLine` still
+        // resolve via the `match cmd_name` block below — their
+        // registry-driven migration is gated on unifying the
+        // dialect-load path (iRules / tcllib loaders aren't
+        // invoked under `build_default()`).
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
             return Some(stmt);
         }
 
-        // C43 status: the registry now declares a typed
-        // `LoweringHookId` for every structured command spec
-        // (Proc / When / NamespaceEval / If / Switch / For /
-        // While / Foreach / Lmap / Catch / Try / Dict / Eval /
-        // Uplevel).  Downstream consumers (LSP, compiler explorer,
-        // coverage audit) can read the canonical hook from the
-        // registry instead of re-parsing names.  Runtime dispatch
-        // for the remaining (non-migrated) forms still flows
-        // through the string-pattern match below — the structured
-        // methods need `&mut self` access to the const-map /
-        // proc-depth / dead-code-depth state, and switching the
-        // iRules `when` form to registry-driven dispatch requires
-        // the iRules dialect to always be loaded (test harnesses
-        // use `build_default()` without `load_irules()`, so `when`
-        // isn't registered there).  Per-form migration to
-        // hook-ID-driven dispatch lands as its own sub-strip.
+        // C43 residual: the two structured forms whose
+        // registry-driven migration is gated on dialect-load-
+        // path unification stay here.  `when` (iRules) and
+        // `foreachLine` (tcllib `fileutil::foreachLine`) are
+        // only registered when their loaders run, and
+        // `build_default()` doesn't invoke either, so routing
+        // them through `resolve_call` would silently regress to
+        // `lower_default`.
         match cmd_name {
-            "proc" if args.len() == 3 && seg.arg_tokens().len() >= 3 => {
-                Some(self.lower_proc(seg, namespace))
-            }
-
             "when" if args.len() >= 2 && seg.arg_tokens().len() >= 2 => {
                 Some(self.lower_when(seg, namespace))
             }
-
-            "namespace" if args.len() >= 3 && args[0] == "eval" && seg.arg_tokens().len() >= 3 => {
-                Some(self.lower_namespace_eval(seg, namespace))
-            }
-
-            "foreach" => Some(self.lower_foreach(seg, namespace, false)),
             "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
-            "lmap" => Some(self.lower_foreach(seg, namespace, true)),
-            "dict" if !args.is_empty() => Some(self.lower_dict(seg, namespace)),
 
             _ => Some(self.lower_default(seg, namespace)),
         }
@@ -2455,20 +2504,28 @@ mod tests {
 
     #[test]
     fn registry_dispatch_unmigrated_form_falls_through_to_string_match() {
-        // `foreach` hasn't migrated to registry-driven dispatch
-        // yet (it shares `lower_foreach(... is_lmap)` with `lmap`
-        // — a later sub-strip), so it must still produce
-        // `Statement::Foreach` via the string-pattern fallback in
-        // `lower_command`.  This pins the backward-compatibility
-        // contract: the registry-driven dispatcher returning
-        // `None` for unmigrated hooks lets the string match
-        // handle them.
-        let m = lower_to_ir("foreach v {1 2 3} { set q $v }", &reg());
+        // `when` is registered only when the iRules dialect
+        // loader runs, and `build_default()` (which `reg()`
+        // uses) doesn't load it.  Routing `when` through
+        // `resolve_call` would therefore silently fall through
+        // to `lower_default`, so its migration is gated on
+        // unifying the dialect-load path — the bare `"when"`
+        // arm in `lower_command`'s residual string match still
+        // catches it.  This test pins that backward-
+        // compatibility contract: the registry-driven
+        // dispatcher returning `None` for unresolved hooks
+        // lets the string match handle them, so `when ...`
+        // still produces a `Statement::Call { command:
+        // "when", ... }` (the `lower_when` shape).
+        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &reg());
         let stmt = m.top_level.statements.first().expect("at least one stmt");
-        assert!(
-            matches!(stmt, Statement::Foreach { .. }),
-            "expected Foreach via string-pattern fallback, got {stmt:?}",
-        );
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "when",
+                "expected `when` call via string-pattern fallback, got command={command}",
+            ),
+            other => panic!("expected Call via string-pattern fallback, got {other:?}"),
+        }
     }
 
     // C43 sub-strip 2: `if`, `switch`, `for`, `while`, `catch`,
@@ -2533,6 +2590,128 @@ mod tests {
         assert!(
             matches!(stmt, Statement::Try { .. }),
             "expected Try via registry hook, got {stmt:?}",
+        );
+    }
+
+    // C43 sub-strip 3: `proc`, `namespace eval`, `foreach`,
+    // `lmap`, `dict` migrate to registry-driven hook-ID dispatch,
+    // with shape preconditions enforced inside each match arm.
+
+    #[test]
+    fn registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure() {
+        let m = lower_to_ir("proc greet {name} { puts hi }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "proc",
+                "expected `proc` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+        assert!(
+            m.procedures.contains_key("::greet"),
+            "expected ::greet to be registered in module.procedures, got keys={:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_proc_wrong_arity_falls_through_to_default() {
+        // `proc` with two args — fails the `args.len() == 3`
+        // precondition.  The registry-driven path returns None,
+        // falls through to the residual string match's
+        // `_ => lower_default(...)` arm, which produces a
+        // runtime `Call` rather than registering a procedure.
+        let m = lower_to_ir("proc greet onlytwo", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
+        );
+        assert!(
+            !m.procedures.contains_key("::greet"),
+            "expected ::greet NOT to be registered when arity is wrong",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_namespace_eval_lowers_to_barrier() {
+        // `lower_namespace_eval` emits a `Statement::Barrier`
+        // tagged with `reason: "namespace eval"`.
+        let m = lower_to_ir("namespace eval ::myns { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Barrier { reason, .. } => assert_eq!(
+                reason, "namespace eval",
+                "expected `namespace eval` barrier via registry hook, got reason={reason}",
+            ),
+            other => panic!("expected Barrier via registry hook, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn registry_dispatch_namespace_non_eval_subcommand_falls_through() {
+        // `namespace import` has no `lowering_hook` on its
+        // subcommand spec, so `resolve_call` returns hook=None.
+        // The registry-driven dispatcher returns None and the
+        // residual string match's `_ => lower_default(...)`
+        // arm produces a generic `Call`.
+        let m = lower_to_ir("namespace import ::foo::*", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_lowers_to_foreach() {
+        let m = lower_to_ir("foreach v {1 2 3} { set q $v }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_lmap_lowers_to_foreach() {
+        // `lmap` shares `lower_foreach(... is_lmap=true)` with
+        // `foreach`; both produce `Statement::Foreach`.
+        let m = lower_to_ir("lmap v {1 2 3} { expr {$v + 1} }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach (is_lmap=true) via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_dict_lowers_via_lower_dict() {
+        // `dict set d k v` exercises the `lower_dict`
+        // subcommand-dispatch path.  Pin the registry-driven
+        // route by checking the canonical command name on the
+        // emitted Call.
+        let m = lower_to_ir("dict set d k v", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "dict",
+                "expected `dict` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn registry_dispatch_dict_empty_args_falls_through_to_default() {
+        // Bare `dict` — fails the `!args.is_empty()`
+        // precondition, falls through to `lower_default`.
+        let m = lower_to_ir("dict", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
         );
     }
 }
