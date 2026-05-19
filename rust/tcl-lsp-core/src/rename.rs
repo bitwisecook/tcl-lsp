@@ -103,9 +103,59 @@ pub fn is_builtin_command_name(name: &str, registry: &CommandRegistry) -> bool {
 /// * Proc renames additionally refuse names registered as
 ///   built-in commands via [`is_builtin_command_name`].
 ///
-/// When `registry` is `None`, the safety gate degrades to the
-/// shape-only check (`is_safe_symbol_name`) — built-in shadow
-/// detection requires a registry.
+/// Result of [`prepare_rename`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrepareRename {
+    /// Range of the symbol the rename will affect.
+    pub range: LspRange,
+    /// Suggested placeholder (the symbol's current tail name)
+    /// the editor pre-fills in its rename input box.
+    pub placeholder: String,
+}
+
+/// Validate that the cursor sits on a renameable symbol and
+/// return the symbol's range + placeholder text.  Editors
+/// call this before `rename` to determine whether to show the
+/// rename UI.  Mirrors `prepare_rename` in
+/// `lsp/features/rename.py`.
+#[must_use]
+pub fn prepare_rename(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<PrepareRename> {
+    let line_index = LineIndex::new(source);
+    // Variable?
+    if let Some(var_name) = find_var_at_position(source, line, character) {
+        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            byte_offset,
+            &var_name,
+        ) {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, var_def.definition_span),
+                placeholder: var_def.name.clone(),
+            });
+        }
+    }
+    // Proc?
+    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+    for (qname, proc_def) in &analysis.all_procs {
+        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
+            return Some(PrepareRename {
+                range: span_to_range(&line_index, proc_def.name_span),
+                placeholder: proc_def.name.clone(),
+            });
+        }
+    }
+    None
+}
+
+/// Compute rename text edits.
+///
+/// See module-level docs for the dispatch order (variable → proc).
 #[must_use]
 pub fn rename(
     source: &str,
@@ -373,6 +423,35 @@ mod tests {
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"${y}"), "{texts:?}");
+    }
+
+    #[test]
+    fn prepare_rename_returns_range_for_proc() {
+        let src = "proc greet {} {}\ngreet\n";
+        let analysis = analyse(src);
+        let p = prepare_rename(src, 0, 6, &analysis)
+            .expect("expected prepare_rename on proc name");
+        assert_eq!(p.placeholder, "greet");
+        // Anchored at the proc name span.
+        assert_eq!(p.range.start_line, 0);
+        assert_eq!(p.range.start_character, 5);
+    }
+
+    #[test]
+    fn prepare_rename_returns_range_for_var() {
+        let src = "set x 1\nputs $x\n";
+        let analysis = analyse(src);
+        let p = prepare_rename(src, 1, 7, &analysis)
+            .expect("expected prepare_rename on var");
+        assert_eq!(p.placeholder, "x");
+    }
+
+    #[test]
+    fn prepare_rename_returns_none_for_unknown_word() {
+        let src = "puts hello\n";
+        let analysis = analyse(src);
+        // `hello` isn't a proc or var declaration.
+        assert!(prepare_rename(src, 0, 6, &analysis).is_none());
     }
 
     #[test]
