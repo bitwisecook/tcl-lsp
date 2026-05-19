@@ -1224,7 +1224,17 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
 
-    let mut pos = (character as usize).min(chars.len());
+    let cursor = (character as usize).min(chars.len());
+
+    // `${name}` braced form first: scan left looking for the
+    // most recent `${` whose matching `}` lies at or to the
+    // right of the cursor.  This handles cursors anywhere
+    // inside the braces, including on the closing `}`.
+    if let Some(name) = braced_var_around(&chars, cursor) {
+        return Some(name);
+    }
+
+    let mut pos = cursor;
     let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"'];
     while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
         pos -= 1;
@@ -1243,6 +1253,38 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
             let name: String = chars[start..end].iter().collect();
             return Some(name);
         }
+    }
+    None
+}
+
+/// Find a `${name}` braced variable reference containing `cursor`.
+/// Walks left from `cursor` to find a `${`, then matches it with
+/// the next `}` to its right.  Returns the inner name when the
+/// cursor sits inside the braces.
+fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
+    let mut i = cursor.min(chars.len());
+    while i > 0 {
+        let c = chars[i - 1];
+        if c == '{' {
+            if i >= 2 && chars[i - 2] == '$' {
+                let inner_start = i;
+                let mut end = inner_start;
+                while end < chars.len() && chars[end] != '}' {
+                    end += 1;
+                }
+                if end < chars.len() && cursor <= end {
+                    let name: String = chars[inner_start..end].iter().collect();
+                    if !name.is_empty() {
+                        return Some(name);
+                    }
+                }
+            }
+            return None;
+        }
+        if c == '}' || c == '"' || c == '[' || c == ']' || c == ';' || c == '\n' {
+            return None;
+        }
+        i -= 1;
     }
     None
 }
@@ -1454,6 +1496,21 @@ mod tests {
     fn find_var_at_position_returns_none_for_bare_word() {
         let src = "set x 1\n";
         assert!(find_var_at_position(src, 0, 4).is_none());
+    }
+
+    #[test]
+    fn find_var_at_position_recognises_braced_form() {
+        // Cursor on the `r` inside `${var}`.  The braced form
+        // should still resolve to `"var"` so rename and hover
+        // can find the symbol.
+        let src = "set x ${var}\n";
+        assert_eq!(find_var_at_position(src, 0, 9), Some("var".to_owned()));
+        // Cursor immediately after the opening `${` (start of name).
+        assert_eq!(find_var_at_position(src, 0, 8), Some("var".to_owned()));
+        // Cursor on the closing `}` itself — the inner name is
+        // still resolvable as long as the cursor sits inside the
+        // braces inclusive of the close brace.
+        assert_eq!(find_var_at_position(src, 0, 11), Some("var".to_owned()));
     }
 
     #[test]

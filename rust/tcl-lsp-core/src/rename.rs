@@ -136,9 +136,19 @@ pub fn rename(
             new_text: new_name.to_owned(),
         });
         for r in &var_def.references {
+            // `S-rename-rich` brace-ref escaping: a reference
+            // span covers the full Var token — for `$x` it
+            // includes the `$`; for `${name}` it spans
+            // `${name}`.  Read the source text at the span to
+            // decide which prefix / suffix shape to keep, then
+            // emit a replacement that preserves the leader
+            // characters (so `${x}` stays braced after the
+            // rename).  Namespace qualifiers (`$ns::var`,
+            // `${ns::var}`) keep their prefix.
+            let replacement = build_var_ref_replacement(source, *r, new_name);
             edits.push(TextEdit {
                 range: span_to_range(&line_index, *r),
-                new_text: new_name.to_owned(),
+                new_text: replacement,
             });
         }
         return edits;
@@ -230,6 +240,48 @@ pub fn rename(
     Vec::new()
 }
 
+/// Build a replacement string for a variable reference span.
+///
+/// The reference span covers the full Var token (`$x`,
+/// `${name}`, `$ns::var`, `${ns::var}`).  We read the source
+/// bytes at the span to decide which leader characters (`$`,
+/// `${`, `}`) to preserve, then splice in `new_tail` in place
+/// of the existing tail name.
+///
+/// For `${name}` and `$name`, we strip the prefix to find the
+/// inner text, find its namespace prefix (`ns::`), and emit
+/// `${ns::new_tail}` / `$ns::new_tail` so namespace-qualified
+/// refs keep their qualification.
+fn build_var_ref_replacement(source: &str, span: tcl_lexer::Span, new_tail: &str) -> String {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    let bytes = source.as_bytes();
+    if start >= bytes.len() || end > bytes.len() {
+        return new_tail.to_owned();
+    }
+    let text = &source[start..end];
+    if let Some(rest) = text.strip_prefix("${") {
+        let inner = rest.strip_suffix('}').unwrap_or(rest);
+        let ns_prefix = match inner.rfind("::") {
+            Some(idx) => &inner[..idx + 2],
+            None => "",
+        };
+        return format!("${{{ns_prefix}{new_tail}}}");
+    }
+    if let Some(rest) = text.strip_prefix('$') {
+        let ns_prefix = match rest.rfind("::") {
+            Some(idx) => &rest[..idx + 2],
+            None => "",
+        };
+        return format!("${ns_prefix}{new_tail}");
+    }
+    let ns_prefix = match text.rfind("::") {
+        Some(idx) => &text[..idx + 2],
+        None => "",
+    };
+    format!("{ns_prefix}{new_tail}")
+}
+
 /// Return the namespace prefix of a qualified name — everything
 /// before the final `::`.  `"::myns::greet"` → `"::myns"`;
 /// `"::greet"` → `""` (proc lives at global scope, no enclosing
@@ -303,7 +355,44 @@ mod tests {
         // Cursor inside `$x`.
         let edits = rename(src, 1, 7, "y", &analysis, None);
         assert!(!edits.is_empty());
-        assert!(edits.iter().all(|e| e.new_text == "y"));
+        // Declaration replaces just `x` → `y`; reference
+        // replaces `$x` → `$y` so the `$` prefix is preserved.
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"y"), "{texts:?}");
+        assert!(texts.contains(&"$y"), "{texts:?}");
+    }
+
+    // -- S-rename-rich: brace-ref escaping ---------------------------
+
+    #[test]
+    fn rename_var_preserves_braced_reference_form() {
+        let src = "set x 1\nputs ${x}\n";
+        let analysis = analyse(src);
+        // Cursor inside `${x}` on the `x`.
+        let edits = rename(src, 1, 7, "y", &analysis, None);
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains(&"y"), "{texts:?}");
+        assert!(texts.contains(&"${y}"), "{texts:?}");
+    }
+
+    #[test]
+    fn build_var_ref_replacement_handles_all_forms() {
+        // Pure helper exercise — bare `$x`, braced `${x}`, and
+        // qualified forms all produce the right replacement text.
+        // Namespace-qualified refs preserve the prefix so e.g.
+        // `$ns::z` → `$ns::c` even if the analyser doesn't yet
+        // surface namespace-scoped variable lookups (the helper
+        // is the building block; the lookup side lands in a
+        // follow-up sub-strip).
+        let src = "  $x  ${y}  $ns::z  ${ns::w}  ";
+        let span_x = tcl_lexer::Span::new(2, 4);
+        let span_braced_y = tcl_lexer::Span::new(6, 10);
+        let span_qualified_z = tcl_lexer::Span::new(12, 18);
+        let span_braced_w = tcl_lexer::Span::new(20, 28);
+        assert_eq!(build_var_ref_replacement(src, span_x, "a"), "$a");
+        assert_eq!(build_var_ref_replacement(src, span_braced_y, "b"), "${b}");
+        assert_eq!(build_var_ref_replacement(src, span_qualified_z, "c"), "$ns::c");
+        assert_eq!(build_var_ref_replacement(src, span_braced_w, "d"), "${ns::d}");
     }
 
     // -- S-rename-rich: safety gating --------------------------------
