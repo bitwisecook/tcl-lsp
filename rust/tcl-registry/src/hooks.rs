@@ -87,7 +87,7 @@ pub enum LoweringHookId {
 /// matches C Tcl 9's `bytecode` output). The compiler's codegen
 /// layer holds the per-variant emitter. Keep this enum in sync
 /// with the dispatch table in
-/// [`tcl_compiler::codegen::emitter::bytecoded`]; a new variant
+/// `tcl_compiler::codegen::emitter::bytecoded`; a new variant
 /// here gives the compiler a compile-time match-exhaustion error
 /// until the new arm is wired up.
 ///

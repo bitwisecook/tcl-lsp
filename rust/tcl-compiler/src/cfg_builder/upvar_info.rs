@@ -223,9 +223,7 @@ fn walk_stmt(stmt: &Statement, params: &[String], info: &mut UpvarInfo) {
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => walk_script(&body.statements, params, info),
         Statement::Switch {
-            arms,
-            default_body,
-            ..
+            arms, default_body, ..
         } => {
             for arm in arms {
                 if let Some(b) = &arm.body {
@@ -304,10 +302,7 @@ mod tests {
     fn literal_target_recorded() {
         let body = lower("upvar 1 caller_x x");
         let info = collect_upvar_targets(&body, &[]);
-        assert_eq!(
-            info.literal_targets.get("x"),
-            Some(&"caller_x".to_string()),
-        );
+        assert_eq!(info.literal_targets.get("x"), Some(&"caller_x".to_string()),);
         assert!(info.param_targets.is_empty());
         assert!(info.args_tail_upvar.is_empty());
     }
@@ -353,20 +348,14 @@ mod tests {
         // No leading level word: `upvar src dst`.
         let body = lower("upvar caller_x x");
         let info = collect_upvar_targets(&body, &[]);
-        assert_eq!(
-            info.literal_targets.get("x"),
-            Some(&"caller_x".to_string()),
-        );
+        assert_eq!(info.literal_targets.get("x"), Some(&"caller_x".to_string()),);
     }
 
     #[test]
     fn level_hash_zero_still_classified() {
         let body = lower("upvar #0 g local_g");
         let info = collect_upvar_targets(&body, &[]);
-        assert_eq!(
-            info.literal_targets.get("local_g"),
-            Some(&"g".to_string()),
-        );
+        assert_eq!(info.literal_targets.get("local_g"), Some(&"g".to_string()),);
     }
 
     #[test]
@@ -381,20 +370,14 @@ mod tests {
     fn upvar_inside_if_body_collected() {
         let body = lower("if {1} { upvar 1 caller_x x }");
         let info = collect_upvar_targets(&body, &[]);
-        assert_eq!(
-            info.literal_targets.get("x"),
-            Some(&"caller_x".to_string()),
-        );
+        assert_eq!(info.literal_targets.get("x"), Some(&"caller_x".to_string()),);
     }
 
     #[test]
     fn upvar_inside_while_body_collected() {
         let body = lower("while {1} { upvar 1 caller_y y; break }");
         let info = collect_upvar_targets(&body, &[]);
-        assert_eq!(
-            info.literal_targets.get("y"),
-            Some(&"caller_y".to_string()),
-        );
+        assert_eq!(info.literal_targets.get("y"), Some(&"caller_y".to_string()),);
     }
 
     #[test]

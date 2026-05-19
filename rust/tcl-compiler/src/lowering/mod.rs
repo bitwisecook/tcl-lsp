@@ -1,7 +1,7 @@
 //! Lower Tcl source to structured analysis IR.
 //!
 //! Translates a flat token stream (via the segmenter) into the tree of
-//! IR nodes defined in [`ir`]. Each Tcl command is pattern-matched by
+//! IR nodes defined in [`crate::ir`]. Each Tcl command is pattern-matched by
 //! name and converted to a typed IR statement.
 //!
 //! Ports `core/compiler/lowering.py`.
@@ -292,7 +292,10 @@ fn body_has_dynamic_barrier(body_text: &str) -> bool {
             let level = &args[0];
             let level_is_int = !level.is_empty()
                 && (level.starts_with('#')
-                    || level.trim_start_matches('-').chars().all(|c| c.is_ascii_digit()));
+                    || level
+                        .trim_start_matches('-')
+                        .chars()
+                        .all(|c| c.is_ascii_digit()));
             if level_is_int {
                 if args.len() < 2 {
                     return true;
@@ -744,9 +747,7 @@ impl<'r> Lowerer<'r> {
             "for" => Some(self.lower_for(seg, namespace)),
             "while" => Some(self.lower_while(seg, namespace)),
             "foreach" => Some(self.lower_foreach(seg, namespace, false)),
-            "foreachLine" if args.len() == 3 => {
-                Some(self.lower_foreach_line(seg, namespace))
-            }
+            "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
             "lmap" => Some(self.lower_foreach(seg, namespace, true)),
             "catch" => Some(self.lower_catch(seg, namespace)),
             "try" => Some(self.lower_try(seg, namespace)),
@@ -863,26 +864,25 @@ impl<'r> Lowerer<'r> {
             params_tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         ) || !params_is_single;
-        let materialised_body: Option<String> = if body_is_single
-            && body_tok.kind == tcl_lexer::TokenType::Cmd
-        {
-            // `args[2]` is the `word_piece`-reconstructed source — for
-            // a Cmd token that's `[subst -nocommands {…}]` (with the
-            // brackets re-added).  `eval_subst_nocommands_body`
-            // segments its input as a top-level Tcl command stream
-            // and expects the inner content, so strip the outer
-            // `[…]` before handing it over.  Mirrors Python's
-            // `body_tok.text`, which the lexer already stores without
-            // brackets.
-            args[2]
-                .strip_prefix('[')
-                .and_then(|s| s.strip_suffix(']'))
-                .and_then(|inner| self.eval_subst_nocommands_body(inner))
-        } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
-            self.const_map_lookup(&args[2])
-        } else {
-            None
-        };
+        let materialised_body: Option<String> =
+            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
+                // `args[2]` is the `word_piece`-reconstructed source — for
+                // a Cmd token that's `[subst -nocommands {…}]` (with the
+                // brackets re-added).  `eval_subst_nocommands_body`
+                // segments its input as a top-level Tcl command stream
+                // and expects the inner content, so strip the outer
+                // `[…]` before handing it over.  Mirrors Python's
+                // `body_tok.text`, which the lexer already stores without
+                // brackets.
+                args[2]
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
+            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
+                self.const_map_lookup(&args[2])
+            } else {
+                None
+            };
         if params_is_dynamic
             || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
         {
@@ -1370,11 +1370,7 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
 fn populate_trace_facts(module: &mut Module) {
     let top_level = module.top_level.clone();
     walk_for_trace(&top_level, module);
-    let proc_bodies: Vec<Script> = module
-        .procedures
-        .values()
-        .map(|p| p.body.clone())
-        .collect();
+    let proc_bodies: Vec<Script> = module.procedures.values().map(|p| p.body.clone()).collect();
     for body in &proc_bodies {
         walk_for_trace(body, module);
     }
@@ -1401,7 +1397,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     }
                 }
             }
-            Statement::If { clauses, else_body, .. } => {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
                 for c in clauses {
                     walk_for_trace(&c.body, module);
                 }
@@ -1409,7 +1407,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     walk_for_trace(e, module);
                 }
             }
-            Statement::For { init, next, body, .. } => {
+            Statement::For {
+                init, next, body, ..
+            } => {
                 walk_for_trace(init, module);
                 walk_for_trace(next, module);
                 walk_for_trace(body, module);
@@ -1419,7 +1419,9 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
             | Statement::Catch { body, .. }
             | Statement::Block { body, .. }
             | Statement::UpFrame { body, .. } => walk_for_trace(body, module),
-            Statement::Switch { arms, default_body, .. } => {
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
                         walk_for_trace(b, module);
@@ -1429,7 +1431,12 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
                     walk_for_trace(b, module);
                 }
             }
-            Statement::Try { body, handlers, finally_body, .. } => {
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
                 walk_for_trace(body, module);
                 for h in handlers {
                     walk_for_trace(&h.body, module);
@@ -1952,9 +1959,7 @@ mod tests {
         let last = stmts.last().expect("at least one statement");
         match last {
             Statement::Foreach {
-                iterators,
-                is_lmap,
-                ..
+                iterators, is_lmap, ..
             } => {
                 assert!(!is_lmap);
                 assert_eq!(iterators.len(), 1);
@@ -1972,13 +1977,11 @@ mod tests {
         // produce incorrect IR / data-flow; the lowering must fall
         // through to the runtime command via Barrier.
         let m = lower_to_ir("foreachLine line /etc/hosts $body", &reg());
-        let last = m
-            .top_level
-            .statements
-            .last()
-            .expect("top-level statement");
+        let last = m.top_level.statements.last().expect("top-level statement");
         match last {
-            Statement::Barrier { reason, command, .. } => {
+            Statement::Barrier {
+                reason, command, ..
+            } => {
                 assert_eq!(command, "foreachLine");
                 assert!(
                     reason.contains("dynamic body"),
@@ -1994,11 +1997,7 @@ mod tests {
         // Same guard for a `[cmd]` body — single-token but a Cmd
         // substitution, not a braced literal.
         let m = lower_to_ir("foreachLine line /etc/hosts [build-body]", &reg());
-        let last = m
-            .top_level
-            .statements
-            .last()
-            .expect("top-level statement");
+        let last = m.top_level.statements.last().expect("top-level statement");
         assert!(
             matches!(last, Statement::Barrier { .. }),
             "expected Barrier for Cmd body, got {last:?}"
@@ -2247,10 +2246,7 @@ mod tests {
 
     #[test]
     fn trace_add_execution_inside_proc_recorded() {
-        let m = lower_to_ir(
-            "proc init {} { trace add execution foo enter h }",
-            &reg(),
-        );
+        let m = lower_to_ir("proc init {} { trace add execution foo enter h }", &reg());
         assert!(
             m.traced_commands.contains("foo"),
             "traced_commands={:?}",
@@ -2267,9 +2263,7 @@ mod tests {
         // Barrier with a fully literal body.
         assert!(!body_has_dynamic_barrier("eval { set x 1 }"));
         // Nested literal.
-        assert!(!body_has_dynamic_barrier(
-            "if { 1 } { eval { set x 1 } }"
-        ));
+        assert!(!body_has_dynamic_barrier("if { 1 } { eval { set x 1 } }"));
     }
 
     #[test]

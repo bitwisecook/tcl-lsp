@@ -767,7 +767,10 @@ impl CodegenCtx<'_> {
         }
         self.push_lit(&format!("::tcl::string::{target_subcmd}"));
         let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
-        self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(argc), Operand::Imm(2)]);
+        self.emit(
+            Op::INVOKE_REPLACE,
+            vec![Operand::Imm(argc), Operand::Imm(2)],
+        );
         self.place_label(&sc_end);
         self.seen_generic_invoke = true;
     }
@@ -775,12 +778,7 @@ impl CodegenCtx<'_> {
     /// Emit a 2-arg `string equal a b` / `string compare a b` —
     /// shares the `is_proc ? no-START_CMD : with-START_CMD-wrap`
     /// scaffold.  `op` is the resulting bytecode opcode.
-    fn emit_inline_string_2arg_op(
-        &mut self,
-        prev_inline: bool,
-        sargs: &[(String, bool)],
-        op: Op,
-    ) {
+    fn emit_inline_string_2arg_op(&mut self, prev_inline: bool, sargs: &[(String, bool)], op: Op) {
         let sc_end = if self.is_proc {
             None
         } else {
@@ -860,16 +858,31 @@ impl CodegenCtx<'_> {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_EQ);
             }
             "equal" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.emit_inline_string_invoke_replace(prev_inline, "equal", &["-nocase"], &sargs[1..]);
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    "equal",
+                    &["-nocase"],
+                    &sargs[1..],
+                );
             }
             "compare" if sargs.len() == 2 => {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
             }
             "compare" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-nocase"], &sargs[1..]);
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    "compare",
+                    &["-nocase"],
+                    &sargs[1..],
+                );
             }
             "compare" if sargs.len() == 4 && sargs[0].0 == "-length" => {
-                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-length"], &sargs[1..]);
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    "compare",
+                    &["-length"],
+                    &sargs[1..],
+                );
             }
             "replace" if sargs.len() == 4 => {
                 self.emit_inline_string_replace(sargs);

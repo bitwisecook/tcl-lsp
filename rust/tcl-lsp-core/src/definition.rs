@@ -12,7 +12,7 @@
 //! What lands here:
 //!
 //! * `$var` references resolve to the `definition_span` of the
-//!   matching [`VarDef`] in the global scope.  Scope-chain
+//!   matching `VarDef` in the global scope.  Scope-chain
 //!   descent is deferred until the cached-analysis surface lands
 //!   under `S-diagnostics` (the analyser's body-span line index
 //!   isn't currently threaded into the search path).

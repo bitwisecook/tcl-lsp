@@ -1122,9 +1122,12 @@ mod tests {
         // Fill exactly to capacity.
         for i in 0..cap {
             let key = (format!("expr_seed_{i}"), None);
-            cache.insert(key, std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
-                text: format!("expr_seed_{i}"),
-            }));
+            cache.insert(
+                key,
+                std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
+                    text: format!("expr_seed_{i}"),
+                }),
+            );
         }
         assert_eq!(cache.len(), cap);
         let first_key = ("expr_seed_0".to_owned(), None);

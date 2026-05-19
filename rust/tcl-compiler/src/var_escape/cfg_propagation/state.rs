@@ -45,8 +45,7 @@ pub struct CfgEscapeResult {
     pub barriers: Vec<crate::var_escape::types::Barrier>,
     /// SYNC-JUN-FRAME356-population: per-name escape reasons
     /// recorded by the CFG walk.
-    pub tag_reasons:
-        HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
+    pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
 impl CfgEscapeResult {
@@ -99,8 +98,7 @@ pub struct CfgState {
     /// SYNC-JUN-FRAME356-population: structured barrier triggers.
     pub barriers: Vec<crate::var_escape::types::Barrier>,
     /// SYNC-JUN-FRAME356-population: per-name escape reasons.
-    pub tag_reasons:
-        HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
+    pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
 impl CfgState {

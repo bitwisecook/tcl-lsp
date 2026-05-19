@@ -732,10 +732,7 @@ mod tests {
         // `namespace eval` is subcommand-scoped.
         let ns = registry.get("namespace").expect("namespace registered");
         let eval_sub = ns.subcommand("eval").expect("namespace eval");
-        assert_eq!(
-            eval_sub.lowering_hook,
-            Some(LoweringHookId::NamespaceEval),
-        );
+        assert_eq!(eval_sub.lowering_hook, Some(LoweringHookId::NamespaceEval),);
     }
 
     /// End-to-end: routing `set` through `try_lower_hook` returns

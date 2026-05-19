@@ -14,8 +14,8 @@
 //! - **COMMENT** — `#` at command start, scanned to the next `\n`
 //!   (exclusive). Backslash-newline continuation inside comments is
 //!   not handled yet; an input whose comment contains a `\` is
-//!   reported as [`LexError::UnsupportedCharacter`] so the
-//!   differential harness can filter it.
+//!   reported as a `SyntaxError` so the differential harness can
+//!   filter it.
 //! - **ESC** — runs of characters that are neither whitespace nor EOL
 //!   nor one of the "deferred" special characters. Terminated by
 //!   `$` (L4) or `[` (L5) so that variable and command substitutions
@@ -305,8 +305,9 @@ impl<'src> Lexer<'src> {
     ///
     /// # Errors
     ///
-    /// Returns [`LexError::UnsupportedCharacter`] on the first
-    /// character whose handler has not been ported.
+    /// Returns [`LexError::SyntaxError`] when strict-quoting mode
+    /// is active and the input triggers one of the raise-sites
+    /// (`parse_var`, `parse_command`, `parse_brace`, `parse_quoted`).
     pub fn tokenise_all(self) -> Result<Vec<Token>, LexError> {
         self.collect()
     }

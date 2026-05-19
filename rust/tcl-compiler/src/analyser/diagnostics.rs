@@ -7,7 +7,7 @@
 //!   no-op hook for future scope-tree consumers (Python's W211
 //!   moved to the SSA-based pass; same here).
 //! - [`Analyser::emit_cfg_ssa_diagnostics`] — main entry; builds
-//!   a [`CompilationUnit`] on demand, walks the top-level
+//!   a [`crate::compilation_unit::CompilationUnit`] on demand, walks the top-level
 //!   function and every procedure, dispatches per-function
 //!   diagnostics, and runs the cross-function post-passes
 //!   (var-as-command, interpolated-command resolution).
@@ -3408,9 +3408,7 @@ before this value so it is treated as data, not an option."
             }
             // Skip negative number literals (`-1`, `-1.5`).
             let rest = &arg[1..].trim_start_matches('-');
-            if !rest.is_empty()
-                && rest.chars().all(|c| c.is_ascii_digit() || c == '.')
-            {
+            if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.') {
                 i += 1;
                 continue;
             }
@@ -3663,8 +3661,11 @@ mod tests {
         // should produce a W004 dialect-availability warning.
         let mut a = Analyser::new();
         let result = a.analyse("regsub -command {[A-Z]+} foo {bar} out", "tcl8.6");
-        let w004: Vec<&Diagnostic> =
-            result.diagnostics.iter().filter(|d| d.code == "W004").collect();
+        let w004: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W004")
+            .collect();
         assert!(
             !w004.is_empty(),
             "expected W004 on tcl8.6 regsub -command, got {:?}",
@@ -3756,8 +3757,11 @@ mod tests {
         // Tcl 8.4 / 8.5 / 8.6 they should produce W003.
         let mut a = Analyser::new();
         let result = a.analyse("if {$x lt $y} { puts hi }", "tcl8.4");
-        let w003: Vec<&Diagnostic> =
-            result.diagnostics.iter().filter(|d| d.code == "W003").collect();
+        let w003: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W003")
+            .collect();
         assert!(
             !w003.is_empty(),
             "expected W003 on tcl8.4 'lt' operator, got {:?}",

@@ -252,7 +252,7 @@ impl CommandRegistry {
 
     /// Resolve the option-terminator profile for a command invocation.
     ///
-    /// Mirrors [`core/commands/registry/command_registry.py::resolve_option_terminator`].
+    /// Mirrors Python's `core/commands/registry/command_registry.py::resolve_option_terminator`.
     /// Matches the invocation's first argument against subcommands
     /// that declare an [`OptionSpec`](crate::hover::OptionSpec) with
     /// `name == "--"`, then falls back to form-level `--` declarations.
@@ -390,7 +390,7 @@ pub struct ResolvedTerminator {
     /// match was subcommand-scoped.  `None` for form-level matches.
     pub subcommand: Option<&'static str>,
     /// Borrowed slice of every option declared on the matched
-    /// command (or subcommand).  Callers consult [`OptionSpec::takes_value`]
+    /// command (or subcommand).  Callers consult [`crate::hover::OptionSpec::takes_value`]
     /// on each entry to determine whether an option name consumes a
     /// following value argument — done at the call site to avoid the
     /// per-resolve `HashSet` allocation a precomputed name set would
@@ -654,12 +654,11 @@ mod tests {
         }
         // `set` does NOT carry the trait — its VarWrite at arg 0 is
         // a single-target def, not a vararg list.
-        assert!(
-            !reg.get("set")
-                .unwrap()
-                .traits
-                .contains(Traits::CREATES_DYNAMIC_BARRIER)
-        );
+        assert!(!reg
+            .get("set")
+            .unwrap()
+            .traits
+            .contains(Traits::CREATES_DYNAMIC_BARRIER));
     }
 
     /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict

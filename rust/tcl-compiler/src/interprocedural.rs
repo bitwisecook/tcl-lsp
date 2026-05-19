@@ -619,12 +619,11 @@ fn scan_call_facts(
     // a plain identifier, treat it as a direct invocation
     // of that proc. Matches the Python
     // ``_unused_procs._collect_callees`` handling.
-    let internal_target =
-        if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
-            resolve_internal_call(&args[0], caller, known)
-        } else {
-            resolve_internal_call(command, caller, known)
-        };
+    let internal_target = if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
+        resolve_internal_call(&args[0], caller, known)
+    } else {
+        resolve_internal_call(command, caller, known)
+    };
     if let Some(target) = &internal_target {
         facts.direct_calls.insert(target.clone());
     } else if registry.get(command).is_none() {
@@ -708,14 +707,24 @@ fn scan_statement(
             facts.returns.push(kind);
         }
         Statement::Call { command, args, .. } => {
-            scan_call_facts(command, args, caller, known, registry, dialect, facts, params);
+            scan_call_facts(
+                command, args, caller, known, registry, dialect, facts, params,
+            );
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
                 note_params_in_expr(&c.condition, params, facts);
-                scan_expr_for_calls(&c.condition, caller, known, registry, dialect, facts, params);
+                scan_expr_for_calls(
+                    &c.condition,
+                    caller,
+                    known,
+                    registry,
+                    dialect,
+                    facts,
+                    params,
+                );
                 scan_script(&c.body, caller, known, registry, dialect, facts, params);
             }
             if let Some(body) = else_body {
@@ -826,9 +835,7 @@ fn scan_expr_for_calls(
             if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
                 let inner = &text[1..text.len() - 1];
                 if inner.contains('[') {
-                    scan_source_for_calls(
-                        inner, caller, known, registry, dialect, facts, params,
-                    );
+                    scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
                 }
             }
         }
@@ -887,23 +894,16 @@ fn scan_source_for_calls(
             continue;
         }
         let texts = cmd.args();
-        scan_call_facts(
-            name, texts, caller, known, registry, dialect, facts, params,
-        );
+        scan_call_facts(name, texts, caller, known, registry, dialect, facts, params);
         // Recurse into BODY-role args (e.g. `catch {p}` → `{p}` is
         // BODY).  The registry resolves the role using the same
         // logic as the top-level scanner.
         let arg_strs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(
-            name,
-            &arg_strs,
-            tcl_registry::arg_role::ArgRole::Body,
-        );
+        let body_indices =
+            registry.arg_indices_for_role(name, &arg_strs, tcl_registry::arg_role::ArgRole::Body);
         for idx in body_indices {
             if let Some(body_text) = texts.get(idx) {
-                scan_source_for_calls(
-                    body_text, caller, known, registry, dialect, facts, params,
-                );
+                scan_source_for_calls(body_text, caller, known, registry, dialect, facts, params);
             }
         }
     }

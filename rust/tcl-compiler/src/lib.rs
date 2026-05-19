@@ -13,7 +13,7 @@
 //!   into [`ExprNode`] trees (chunk **C1**).
 //! - [`naming`] — variable and command name normalisation utilities
 //!   (chunk **C1**).
-//! - [`cfg`] — control-flow graph types: [`Block`](cfg::Block),
+//! - [`cfg`](mod@cfg) — control-flow graph types: [`Block`](cfg::Block),
 //!   [`Function`](cfg::Function), [`CfgModule`](cfg::CfgModule),
 //!   [`Terminator`](cfg::Terminator), plus graph traversal utilities
 //!   (predecessors, reachability, reverse post-order) (chunk **C2**).

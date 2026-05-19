@@ -110,12 +110,7 @@ fn consume_line_continuation(out: &mut String, first: char, chars: &mut CharIndi
 /// combine the pair into the supplementary-plane codepoint they
 /// encode.  Mirrors the Tcl 9 `TclParseBackslash` behaviour the
 /// Python reference implementation gained in PR #426.
-fn scan_unicode_escape(
-    out: &mut String,
-    text: &str,
-    escape_i: usize,
-    chars: &mut CharIndices<'_>,
-) {
+fn scan_unicode_escape(out: &mut String, text: &str, escape_i: usize, chars: &mut CharIndices<'_>) {
     let letter = chars.next().expect("caller peeked 'u'").1;
     let digits_start = escape_i + 1;
     let digits_end = scan_digits(text, digits_start, 4, chars, |c| c.is_ascii_hexdigit());

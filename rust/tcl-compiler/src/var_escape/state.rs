@@ -48,7 +48,7 @@ pub struct EscapeState {
     /// (mirrors `ProcEscapeSummary.barriers`).  Each
     /// [`record_barrier`](Self::record_barrier) call appends here;
     /// the summary builder copies this into
-    /// [`ProcEscapeSummary::barriers`] verbatim.
+    /// [`super::types::ProcEscapeSummary::barriers`] verbatim.
     pub barriers: Vec<Barrier>,
     /// SYNC-JUN-FRAME356-population: recorded per-name escape
     /// reasons (mirrors `ProcEscapeSummary.tag_reasons`).

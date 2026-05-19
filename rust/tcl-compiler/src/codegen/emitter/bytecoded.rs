@@ -4,7 +4,7 @@
 //! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
 //! through this dispatcher. ARCH2 made hook selection
 //! registry-driven; ARCH5 finished the threading by reading the
-//! active [`CommandRegistry`] from `ctx.registry` so dialect-loaded
+//! active [`tcl_registry::CommandRegistry`] from `ctx.registry` so dialect-loaded
 //! specs (iRules, Tk, EDA) drive codegen-hook resolution. The
 //! compiler still owns the per-variant emitter; the registry
 //! decides which variant applies.

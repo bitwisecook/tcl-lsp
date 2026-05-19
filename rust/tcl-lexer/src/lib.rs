@@ -14,8 +14,8 @@
 //!   demand (chunk **L3**).
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the L3 lexer
 //!   skeleton. Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens;
-//!   every other construct is surfaced as
-//!   [`LexError::UnsupportedCharacter`] until later chunks implement
+//!   every other construct is surfaced as a `SyntaxError` (in
+//!   strict-quoting mode) or a warning until later chunks implement
 //!   it.
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —

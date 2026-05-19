@@ -11,7 +11,7 @@
 //! Strips:
 //!
 //! * **C33a** — [`types`]: vocabulary + summary types.
-//! * **C33b** — [`propagation`]: intra-procedural rule audit.
+//! * **C33b** — [`cfg_propagation`]: intra-procedural rule audit.
 //! * **C33c** — [`info_subcommands`]: which `info` subcommands
 //!   force pessimism.
 //! * **C33d** — [`interprocedural`]: thread escapes across call

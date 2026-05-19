@@ -648,8 +648,7 @@ mod tests {
         // O121 would normally fire — but on tcl8.4 / tcl8.5 / f5-irules
         // the suggestion is incorrect (the dialect can't run
         // `tailcall`).
-        let src =
-            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         for dialect in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps"] {
             let opts = run_pass_with_dialect(src, dialect);
             assert!(
@@ -661,8 +660,7 @@ mod tests {
 
     #[test]
     fn o121_fires_on_8_6_plus_dialects() {
-        let src =
-            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         for dialect in [
             "tcl8.6",
             "tcl9.0",
@@ -684,8 +682,7 @@ mod tests {
         // O122 is dialect-agnostic for single-param bodies (it emits
         // a bare `set`, no `lassign`).  A pre-8.6 dialect should
         // still see the loop-conversion suggestion.
-        let src =
-            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
             opts.iter().any(|o| o.code == "O122"),
@@ -698,8 +695,7 @@ mod tests {
         // tcl8.4 doesn't have `lassign` (TIP 57, 8.5+); a multi-param
         // body's O122 rewrite would need `lassign` so it must be
         // suppressed on tcl8.4.
-        let src =
-            "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
+        let src = "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
         let opts = run_pass_with_dialect(src, "tcl8.4");
         assert!(
             opts.iter().all(|o| o.code != "O122"),

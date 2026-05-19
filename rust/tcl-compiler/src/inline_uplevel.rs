@@ -12,7 +12,7 @@
 //!
 //! * **C34b** — [`detect_static_passthrough`]: zero-param,
 //!   single-`UpFrame` body, no nested frame-reaching commands.
-//! * **C34c** — [`detect_param_body_passthrough`]: single-param
+//! * **C34c** — `detect_param_body_passthrough` (deferred): single-param
 //!   `proc dispatcher {body} { uplevel 1 $body }` shape.
 //! * **C34d** — per-callsite rewriter (separate strip — needs the
 //!   `Statement::Block` IR variant).

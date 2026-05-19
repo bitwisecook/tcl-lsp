@@ -183,10 +183,7 @@ fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
 /// `event disable all` is a drop guard: the subsequent statements
 /// run but no other iRule does.
 fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
-    cmd == "event"
-        && args.len() >= 2
-        && args[0] == "disable"
-        && args[1] == "all"
+    cmd == "event" && args.len() >= 2 && args[0] == "disable" && args[1] == "all"
 }
 
 /// Scan each `::when::*` proc body for IRULE5002 / IRULE5004
@@ -444,10 +441,7 @@ pub fn find_collect_flow_warnings(
             .and_then(|fu| fu.cfg.blocks.get(&fu.cfg.entry))
             .and_then(|b| b.statements.first().map(crate::ir::Statement::span))
             .unwrap_or(Span::new(0, 0));
-        let proto_hint: Vec<String> = protocols
-            .iter()
-            .map(|p| format!("{p}::collect"))
-            .collect();
+        let proto_hint: Vec<String> = protocols.iter().map(|p| format!("{p}::collect")).collect();
         out.push(IrulesCheckWarning {
             span: anchor_span,
             code: "IRULE1005".to_owned(),
@@ -461,10 +455,7 @@ pub fn find_collect_flow_warnings(
 
     // IRULE1006: payload without matching collect on same side.
     for (proto, side, span) in &state.payload_calls {
-        let matched = state
-            .collected
-            .get(proto)
-            .is_some_and(|s| s.contains(side));
+        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
@@ -479,10 +470,7 @@ pub fn find_collect_flow_warnings(
 
     // IRULE1007: collect without matching release on same side.
     for (proto, side, span) in &state.collect_calls {
-        let matched = state
-            .released
-            .get(proto)
-            .is_some_and(|s| s.contains(side));
+        let matched = state.released.get(proto).is_some_and(|s| s.contains(side));
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
@@ -497,10 +485,7 @@ pub fn find_collect_flow_warnings(
 
     // IRULE1008: release without matching collect on same side.
     for (proto, side, span) in &state.release_calls {
-        let matched = state
-            .collected
-            .get(proto)
-            .is_some_and(|s| s.contains(side));
+        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
         if !matched {
             out.push(IrulesCheckWarning {
                 span: *span,
@@ -691,7 +676,9 @@ pub fn find_hoistable_set_warnings(
             for stmt in &block.statements {
                 let (name, value, span) = match stmt {
                     Statement::AssignConst { name, value, span }
-                    | Statement::AssignValue { name, value, span, .. } => (name, value, *span),
+                    | Statement::AssignValue {
+                        name, value, span, ..
+                    } => (name, value, *span),
                     _ => continue,
                 };
                 if name.is_empty() || value.is_empty() {
@@ -871,11 +858,7 @@ mod tests {
 
     #[test]
     fn irule5002_only_in_irules_dialect() {
-        let cu = CompilationUnit::build_for(
-            "when CLIENT_ACCEPTED { drop }",
-            &registry(),
-            false,
-        );
+        let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
         let none_dialect = find_unguarded_drop_warnings(&cu, None);
         assert!(none_dialect.is_empty(), "got {none_dialect:?}");
         let tcl_dialect = find_unguarded_drop_warnings(&cu, Some("tcl"));
@@ -984,11 +967,8 @@ mod tests {
 
     #[test]
     fn collect_flow_only_in_irules_dialect() {
-        let cu = CompilationUnit::build_for(
-            "when CLIENT_ACCEPTED { TCP::collect }",
-            &registry(),
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &registry(), false);
         let none = find_collect_flow_warnings(&cu, None);
         assert!(none.is_empty(), "got {none:?}");
     }
@@ -1024,11 +1004,10 @@ mod tests {
 
     #[test]
     fn irule1201_clean_when_respond_followed_by_return_only() {
-        let ws = http_warnings(
-            "when HTTP_REQUEST { HTTP::respond 200 content ok; return }",
-        );
+        let ws = http_warnings("when HTTP_REQUEST { HTTP::respond 200 content ok; return }");
         assert!(
-            !ws.iter().any(|w| w.code == "IRULE1201" || w.code == "IRULE1202"),
+            !ws.iter()
+                .any(|w| w.code == "IRULE1201" || w.code == "IRULE1202"),
             "no IRULE1201/1202 expected, got {ws:?}",
         );
     }

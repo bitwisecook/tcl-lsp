@@ -98,7 +98,7 @@ pub struct CommandSpec {
     pub lowering_hook: Option<LoweringHookId>,
 
     /// `TclVM` bytecode codegen hook ID — picks the per-command
-    /// emitter inside [`tcl_compiler::codegen::emitter::bytecoded`]
+    /// emitter inside `tcl_compiler::codegen::emitter::bytecoded`
     /// (the path that matches C Tcl 9's bytecode output).
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,

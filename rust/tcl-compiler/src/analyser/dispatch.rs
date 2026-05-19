@@ -74,7 +74,7 @@ pub enum CommandSignature {
 /// - `None` when the registry doesn't know the command.
 ///
 /// The `dialect` argument selects which dialect-specific subcommand
-/// set is materialised; pass [`DialectSet::tcl_default`] when the
+/// set is materialised; pass `DialectSet::ALL_TCL` when the
 /// caller has no specific dialect context.
 #[must_use]
 pub fn signature_for_command(

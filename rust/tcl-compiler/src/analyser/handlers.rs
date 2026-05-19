@@ -197,7 +197,7 @@ impl Analyser {
     /// both `scope.procs` (keyed by simple name) and
     /// `result.all_procs` (keyed by qualified name).  When the
     /// body is a braced literal, opens a fresh
-    /// [`ScopeKind::Proc`] child scope, defines each parameter
+    /// [`super::types::ScopeKind::Proc`] child scope, defines each parameter
     /// in it, and re-segments the body via
     /// [`crate::segmenter::segment_commands_with_offset`] —
     /// every body command is dispatched through
@@ -563,8 +563,8 @@ impl Analyser {
     ///    — pattern and body args alternate inline.
     /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
     ///    — pattern/body pairs live inside a single braced
-    ///    block.  See [`Self::parse_switch_body_elements`] for
-    ///    how that braced form is split.
+    ///    block.  See `parse_switch_body_elements` for how that
+    ///    braced form is split.
     ///
     /// Bodies that are literally ``-`` are fall-through markers
     /// (the next arm's body fires) and are skipped — recursing

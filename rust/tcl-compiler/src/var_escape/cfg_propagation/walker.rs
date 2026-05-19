@@ -249,8 +249,7 @@ fn tree_assign_or_incr(
     defs: &HashMap<String, Version>,
 ) -> bool {
     match stmt {
-        Statement::AssignConst { name, value, .. }
-        | Statement::AssignValue { name, value, .. } => {
+        Statement::AssignConst { name, value, .. } | Statement::AssignValue { name, value, .. } => {
             if name.is_empty() || is_dynamic_name(name) {
                 state.mark_pessimistic();
                 return true;
@@ -337,7 +336,9 @@ fn tree_call_or_barrier(
 
 fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Version>) {
     match stmt {
-        Statement::If { clauses, else_body, .. } => {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
             for c in clauses {
                 apply_expr_scan(Some(&c.condition), state, defs);
                 escape_every_name_touched_tree(&c.body.statements, state, defs);
@@ -346,17 +347,27 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
                 escape_every_name_touched_tree(&b.statements, state, defs);
             }
         }
-        Statement::For { init, condition, next, body, .. } => {
+        Statement::For {
+            init,
+            condition,
+            next,
+            body,
+            ..
+        } => {
             escape_every_name_touched_tree(&init.statements, state, defs);
             apply_expr_scan(Some(condition), state, defs);
             escape_every_name_touched_tree(&next.statements, state, defs);
             escape_every_name_touched_tree(&body.statements, state, defs);
         }
-        Statement::While { condition, body, .. } => {
+        Statement::While {
+            condition, body, ..
+        } => {
             apply_expr_scan(Some(condition), state, defs);
             escape_every_name_touched_tree(&body.statements, state, defs);
         }
-        Statement::Foreach { iterators, body, .. } => {
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
             for it in iterators {
                 apply_value_scan(&it.list_arg, state, defs);
             }
@@ -365,7 +376,12 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
         Statement::Catch { body, .. } => {
             escape_every_name_touched_tree(&body.statements, state, defs);
         }
-        Statement::Try { body, handlers, finally_body, .. } => {
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
             escape_every_name_touched_tree(&body.statements, state, defs);
             for h in handlers {
                 escape_every_name_touched_tree(&h.body.statements, state, defs);
@@ -374,7 +390,9 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
                 escape_every_name_touched_tree(&f.statements, state, defs);
             }
         }
-        Statement::Switch { arms, default_body, .. } => {
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
             for a in arms {
                 if let Some(b) = &a.body {
                     escape_every_name_touched_tree(&b.statements, state, defs);
@@ -410,11 +428,7 @@ pub(crate) fn escape_every_name_touched_tree(
 /// Resolve a (possibly-dynamic) variable name and call `escape` on
 /// the resolved literal — or spill all known names when the dynamic
 /// name can't be resolved.  Used by the assign / incr arms.
-fn dynamic_name_escape(
-    state: &mut CfgState,
-    defs: &HashMap<String, Version>,
-    name: &str,
-) {
+fn dynamic_name_escape(state: &mut CfgState, defs: &HashMap<String, Version>, name: &str) {
     if let Some(literal) = state.resolve_literal(name) {
         state.escape(&literal, defs);
     } else {
