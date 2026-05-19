@@ -130,8 +130,8 @@ pub fn hover(
     if let Some(text) = sprintf_format_string_at_position(source, line, character) {
         return Some(Hover::markdown(sprintf_format_hover_text(&text)));
     }
-    if let Some(text) = binary_format_string_at_position(source, line, character) {
-        return Some(Hover::markdown(binary_format_hover_text(&text)));
+    if let Some(ctx) = binary_format_context_at_position(source, line, character) {
+        return Some(Hover::markdown(binary_format_hover_text(&ctx)));
     }
     if let Some(text) = regsub_subspec_at_position(source, line, character) {
         return Some(Hover::markdown(regsub_hover_text(&text)));
@@ -532,13 +532,97 @@ fn binary_spec_desc(letter: char) -> Option<&'static str> {
         .map(|(_, d)| *d)
 }
 
-/// Scan a `binary format` / `binary scan` spec string.
-/// Tcl grammar: `type [modifier] [count|*]`, repeated.
-/// Returns each field's full token as written.  Simplified
-/// from Python's `_binary_hover` parser: we capture the
-/// `(type, modifier, count)` triple as a single string for
-/// the table; the byte-ruler diagram is deferred.
-fn scan_binary_specifiers(text: &str) -> Vec<String> {
+/// Compact type label for the detail table.  Mirrors
+/// `_BINARY_SHORT_TYPE` in `lsp/features/hover.py:342-366`.
+fn binary_short_type(letter: char) -> &'static str {
+    match letter {
+        'a' => "str (null-pad)",
+        'A' => "str (space-pad)",
+        'b' => "bits lo→hi",
+        'B' => "bits hi→lo",
+        'h' => "hex lo→hi",
+        'H' => "hex hi→lo",
+        'c' => "int8",
+        's' => "int16 LE",
+        'S' => "int16 BE",
+        'i' => "int32 LE",
+        'I' => "int32 BE",
+        'n' => "int32 native",
+        'w' => "int64 LE",
+        'W' => "int64 BE",
+        'm' => "int64 native",
+        'r' => "float32 LE",
+        'R' => "float32 BE",
+        'f' => "float32 native",
+        'd' => "float64 native",
+        'x' => "pad/skip",
+        'X' => "back",
+        '@' => "seek",
+        't' => "reserved",
+        _ => "?",
+    }
+}
+
+/// Unit byte size per element for fixed-width binary types.
+/// Mirrors `_BINARY_UNIT_BYTES` in `lsp/features/hover.py:322-336`.
+fn binary_unit_bytes(letter: char) -> Option<u32> {
+    match letter {
+        'c' => Some(1),
+        's' | 'S' => Some(2),
+        'i' | 'I' | 'n' | 'r' | 'R' | 'f' => Some(4),
+        'w' | 'W' | 'm' | 'd' => Some(8),
+        _ => None,
+    }
+}
+
+/// Specifiers that don't consume a variable / value argument.
+/// Mirrors `_BINARY_NO_VAR` in `lsp/features/hover.py:339`.
+fn binary_no_var(letter: char) -> bool {
+    matches!(letter, 'x' | 'X' | '@')
+}
+
+/// Total byte size for one binary format field, or `None` if
+/// unknown (`*` count, `X` move-back, …).  Mirrors
+/// `_binary_field_bytes` in `lsp/features/hover.py:369-383`.
+fn binary_field_bytes(letter: char, count: u32, star: bool) -> Option<u32> {
+    if star {
+        return None;
+    }
+    if let Some(unit) = binary_unit_bytes(letter) {
+        return Some(unit * count);
+    }
+    match letter {
+        'a' | 'A' | 'x' => Some(count),
+        'b' | 'B' => Some(count.div_ceil(8)),
+        'h' | 'H' => Some(count.div_ceil(2)),
+        _ => None,
+    }
+}
+
+/// One parsed `binary format` / `binary scan` field.
+#[derive(Debug, Clone)]
+struct BinaryField {
+    /// The full spec token as written (e.g. `"i4"`, `"a*"`).
+    full: String,
+    /// Type character (e.g. `'i'`).
+    letter: char,
+    /// Numeric count (defaults to `1` when omitted).
+    count: u32,
+    /// `u` / `s` size-modifier (Tcl 8.5+), or empty string.
+    modifier: String,
+    /// `true` when the spec used `*` for the count.
+    star: bool,
+    /// Per-unit byte size before seek/skip adjustment.
+    byte_size: Option<u32>,
+    /// `true` when this field consumes a value/variable argument.
+    consumes_var: bool,
+}
+
+/// Scan a `binary format` / `binary scan` spec string into
+/// structured fields.  Tcl grammar: `type [modifier] [count|*]`,
+/// repeated.  Mirrors the parsing loop in Python's
+/// `_binary_hover`.
+fn scan_binary_fields(text: &str) -> Vec<BinaryField> {
     let mut out = Vec::new();
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
@@ -547,53 +631,247 @@ fn scan_binary_specifiers(text: &str) -> Vec<String> {
             i += 1;
             continue;
         }
-        if binary_spec_desc(chars[i]).is_none() {
+        let letter = chars[i];
+        if binary_spec_desc(letter).is_none() {
             i += 1;
             continue;
         }
         let start = i;
         i += 1;
-        // Optional modifier `u` / `s`.
+        let mut modifier = String::new();
         if i < chars.len() && (chars[i] == 'u' || chars[i] == 's') {
+            modifier.push(chars[i]);
             i += 1;
         }
-        // Optional count: `*` or digits.
+        let mut star = false;
+        let mut count_str = String::new();
         if i < chars.len() && chars[i] == '*' {
+            star = true;
             i += 1;
         } else {
             while i < chars.len() && chars[i].is_ascii_digit() {
+                count_str.push(chars[i]);
                 i += 1;
             }
         }
-        out.push(chars[start..i].iter().collect());
+        let count: u32 = count_str.parse().unwrap_or(1);
+        let full: String = chars[start..i].iter().collect();
+        let byte_size = binary_field_bytes(letter, count, star);
+        let consumes_var = !binary_no_var(letter);
+        out.push(BinaryField {
+            full,
+            letter,
+            count,
+            modifier,
+            star,
+            byte_size,
+            consumes_var,
+        });
     }
     out
 }
 
+/// Surrounding-command context the binary-hover renderer uses
+/// to label fields with variable / value argument names.
+#[derive(Debug, Clone)]
+struct BinaryContext {
+    /// Format-string content (between the surrounding quotes
+    /// / braces).
+    text: String,
+    /// `"format"` or `"scan"`.
+    subcmd: String,
+    /// Trailing argument tokens (variable names for `scan`,
+    /// value expressions for `format`).  Filled best-effort
+    /// from the line tokenisation — may be empty.
+    args: Vec<String>,
+}
+
 /// Render the binary format-spec hover markdown.  Mirrors
-/// `_binary_hover` in `lsp/features/hover.py:593-743`, minus
-/// the byte-ruler diagram (deferred).
-fn binary_format_hover_text(text: &str) -> String {
-    let mut parts: Vec<String> = vec!["**Binary format spec**\n".to_string()];
-    let specs = scan_binary_specifiers(text);
-    if specs.is_empty() {
-        parts.push("No specifiers found.".to_string());
-    } else {
-        parts.push("| Specifier | Meaning |".to_string());
-        parts.push("|-----------|---------|".to_string());
-        for spec in specs {
-            let type_char = spec.chars().next().unwrap_or(' ');
-            let desc = binary_spec_desc(type_char).unwrap_or("Unknown");
-            parts.push(format!("| `{spec}` | {desc} |"));
+/// `_binary_hover` in `lsp/features/hover.py:593-743`, including
+/// the byte-ruler diagram when every field has a known byte
+/// size, no field uses `X` (move-back), and the total fits in
+/// 32 bytes.
+fn binary_format_hover_text(ctx: &BinaryContext) -> String {
+    let fields = scan_binary_fields(&ctx.text);
+    if fields.is_empty() {
+        return "**Binary format string**\n\nNo specifiers found.".to_string();
+    }
+
+    // Map each consuming field → arg name (variable for scan,
+    // value expr for format).  Fields without a corresponding
+    // arg fall back to the spec text as their label.
+    let mut field_labels: Vec<String> = Vec::with_capacity(fields.len());
+    let mut var_idx = 0;
+    for field in &fields {
+        if field.consumes_var && var_idx < ctx.args.len() {
+            field_labels.push(ctx.args[var_idx].clone());
+            var_idx += 1;
+        } else {
+            field_labels.push(field.full.clone());
         }
+    }
+
+    // Resolve effective byte deltas, including absolute seek
+    // (`@N` jumps to absolute offset N — count the gap from the
+    // current cursor).  A backward seek (target < cursor)
+    // disables the diagram entirely.
+    let mut effective_bytes: Vec<Option<u32>> = Vec::with_capacity(fields.len());
+    let mut cursor: u32 = 0;
+    let mut has_backward_seek = false;
+    for field in &fields {
+        if field.letter == '@' {
+            if field.star {
+                effective_bytes.push(None);
+                continue;
+            }
+            let target = field.count;
+            if target < cursor {
+                effective_bytes.push(Some(0));
+                has_backward_seek = true;
+            } else {
+                effective_bytes.push(Some(target - cursor));
+            }
+            cursor = target;
+            continue;
+        }
+        match field.byte_size {
+            Some(bs) => {
+                effective_bytes.push(Some(bs));
+                cursor += bs;
+            }
+            None => effective_bytes.push(None),
+        }
+    }
+
+    let n_vars = fields.iter().filter(|f| f.consumes_var).count();
+    let total_known: u32 = effective_bytes
+        .iter()
+        .filter_map(|bs| bs.filter(|n| *n > 0))
+        .sum();
+    let has_unknown = effective_bytes.iter().any(Option::is_none);
+    let plural = if n_vars == 1 { "" } else { "s" };
+    let size_suffix = if has_unknown { "+ " } else { "" };
+
+    let mut parts: Vec<String> = vec![format!(
+        "**binary {}** — {n_vars} field{plural}, {total_known}{size_suffix} bytes\n",
+        ctx.subcmd
+    )];
+
+    // Byte-ruler diagram — skipped when any field has unknown
+    // size, when a backward seek scrambled the offsets, or when
+    // the total exceeds the 32-byte rendering budget.
+    let can_diagram = !has_backward_seek
+        && !effective_bytes.is_empty()
+        && effective_bytes
+            .iter()
+            .all(|bs| matches!(bs, Some(n) if *n > 0));
+    if can_diagram && (1..=32).contains(&total_known) {
+        parts.push("```".to_string());
+        parts.extend(render_byte_ruler(
+            &fields,
+            &effective_bytes,
+            &field_labels,
+            total_known,
+        ));
+        parts.push("```\n".to_string());
+    }
+
+    // Detail table — Spec / Variable / Type / Bytes.
+    parts.push("| Spec | Variable | Type | Bytes |".to_string());
+    parts.push("|------|----------|------|------:|".to_string());
+    for (j, field) in fields.iter().enumerate() {
+        let var = if field.consumes_var {
+            field_labels[j].as_str()
+        } else {
+            "—"
+        };
+        let mut typ = binary_short_type(field.letter).to_string();
+        if field.modifier == "u" {
+            typ = typ.replace("int", "uint");
+        }
+        if field.count > 1 && binary_unit_bytes(field.letter).is_some() {
+            typ = format!("{typ} ×{}", field.count);
+        }
+        let bs_str = if field.star {
+            "…".to_string()
+        } else {
+            effective_bytes[j].map_or_else(|| "?".to_string(), |n| n.to_string())
+        };
+        parts.push(format!("| `{}` | {var} | {typ} | {bs_str} |", field.full));
     }
     parts.join("\n")
 }
 
+/// Render the four-line byte-ruler diagram: a numeric ruler
+/// across the byte axis, then top / middle / bottom rows of
+/// box-drawing characters labelling each field.  `total_known`
+/// is guaranteed to be in `1..=32` (gated by the caller).
+fn render_byte_ruler(
+    fields: &[BinaryField],
+    effective_bytes: &[Option<u32>],
+    field_labels: &[String],
+    total_known: u32,
+) -> Vec<String> {
+    use std::fmt::Write;
+    const CPB: u32 = 4; // chars per byte
+    let indent = "      ";
+    let mut ruler = String::from(indent);
+    for b in 0..total_known {
+        let _ = write!(ruler, "{b:<width$}", width = CPB as usize);
+    }
+    let mut top = String::from(indent);
+    let mut mid = String::from(indent);
+    let mut bot = String::from(indent);
+    for j in 0..fields.len() {
+        let bs = effective_bytes[j].expect("caller gates on all-Some");
+        let w = (CPB * bs).saturating_sub(1) as usize;
+        let label = field_labels[j].chars().take(w).collect::<String>();
+        let sep_t = if j == 0 { '┌' } else { '┬' };
+        let sep_b = if j == 0 { '└' } else { '┴' };
+        top.push(sep_t);
+        top.push_str(&"─".repeat(w));
+        mid.push('│');
+        mid.push_str(&center(&label, w));
+        bot.push(sep_b);
+        bot.push_str(&"─".repeat(w));
+    }
+    top.push('┐');
+    mid.push('│');
+    bot.push('┘');
+    vec![ruler, top, mid, bot]
+}
+
+/// Center `s` within a `width`-character cell using spaces.
+/// Mirrors Python's `str.center` for the byte-ruler labels.
+fn center(s: &str, width: usize) -> String {
+    let len = s.chars().count();
+    if len >= width {
+        return s.to_string();
+    }
+    let extra = width - len;
+    let left = extra / 2;
+    let right = extra - left;
+    let mut out = String::with_capacity(width);
+    for _ in 0..left {
+        out.push(' ');
+    }
+    out.push_str(s);
+    for _ in 0..right {
+        out.push(' ');
+    }
+    out
+}
+
 /// Detect when the cursor sits on a `binary format` /
-/// `binary scan` format-string argument and return the
-/// literal text.  Single-line only.
-fn binary_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+/// `binary scan` format-string argument and capture the
+/// surrounding command's argument list.  Returns the format
+/// text plus the `format`/`scan` subcommand and the trailing
+/// argument tokens (best-effort, single-line).
+fn binary_format_context_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+) -> Option<BinaryContext> {
     let line_text = source.split('\n').nth(line as usize)?;
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
     if tokens.len() < 3 {
@@ -602,7 +880,77 @@ fn binary_format_string_at_position(source: &str, line: u32, character: u32) -> 
     if tokens[0] != "binary" || (tokens[1] != "format" && tokens[1] != "scan") {
         return None;
     }
-    string_literal_at(line_text, character)
+    let text = string_literal_at(line_text, character)?;
+    let subcmd = tokens[1].to_string();
+    // `binary format FORMAT VAL ...`   — format is argv[2]
+    // `binary scan STRING FORMAT VAR ...` — format is argv[3]
+    let skip = if subcmd == "scan" { 4 } else { 3 };
+    let args = binary_trailing_args(line_text, skip);
+    Some(BinaryContext { text, subcmd, args })
+}
+
+/// Recover the trailing argument tokens (variable names for
+/// `scan`, value expressions for `format`) that follow the
+/// format-string argument.  Skips over braced / quoted literal
+/// groupings so the format string itself doesn't bleed into
+/// the args list — `binary format {a4 i} val` correctly yields
+/// `["val"]` rather than `["{a4", "i}", "val"]`.  The first
+/// `skip` argv positions (incl. the format string itself) are
+/// dropped.
+fn binary_trailing_args(line_text: &str, skip: usize) -> Vec<String> {
+    let chars: Vec<char> = line_text.chars().collect();
+    let mut tokens: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        let mut token = String::new();
+        match chars[i] {
+            '{' => {
+                let mut depth = 1;
+                i += 1;
+                token.push('{');
+                while i < chars.len() && depth > 0 {
+                    if chars[i] == '{' {
+                        depth += 1;
+                    } else if chars[i] == '}' {
+                        depth -= 1;
+                    }
+                    token.push(chars[i]);
+                    i += 1;
+                }
+            }
+            '"' => {
+                let mut escaped = false;
+                i += 1;
+                token.push('"');
+                while i < chars.len() {
+                    let c = chars[i];
+                    token.push(c);
+                    i += 1;
+                    if escaped {
+                        escaped = false;
+                        continue;
+                    }
+                    if c == '\\' {
+                        escaped = true;
+                    } else if c == '"' {
+                        break;
+                    }
+                }
+            }
+            _ => {
+                while i < chars.len() && !chars[i].is_whitespace() {
+                    token.push(chars[i]);
+                    i += 1;
+                }
+            }
+        }
+        tokens.push(token);
+    }
+    tokens.into_iter().skip(skip).collect()
 }
 
 /// `regsub` backref description table.  Mirrors
@@ -1887,37 +2235,131 @@ mod tests {
 
     // -- S-hover-rich: binary format hover --------------------------
 
-    #[test]
-    fn scan_binary_specifiers_finds_basic_types() {
-        let s = scan_binary_specifiers("a4 H2 i");
-        assert_eq!(s, vec!["a4", "H2", "i"]);
+    fn binary_ctx(text: &str) -> BinaryContext {
+        BinaryContext {
+            text: text.to_string(),
+            subcmd: "format".to_string(),
+            args: Vec::new(),
+        }
     }
 
     #[test]
-    fn scan_binary_specifiers_handles_star_count() {
-        let s = scan_binary_specifiers("a* I*");
-        assert_eq!(s, vec!["a*", "I*"]);
+    fn scan_binary_fields_finds_basic_types() {
+        let fields = scan_binary_fields("a4 H2 i");
+        let fulls: Vec<&str> = fields.iter().map(|f| f.full.as_str()).collect();
+        assert_eq!(fulls, vec!["a4", "H2", "i"]);
+        assert_eq!(fields[0].byte_size, Some(4));
+        assert_eq!(fields[1].byte_size, Some(1));
+        assert_eq!(fields[2].byte_size, Some(4));
     }
 
     #[test]
-    fn binary_format_hover_renders_specifier_table() {
-        let text = binary_format_hover_text("a4 i");
-        assert!(text.contains("**Binary format spec**"), "{text}");
+    fn scan_binary_fields_handles_star_count() {
+        let fields = scan_binary_fields("a* I*");
+        assert!(fields[0].star);
+        assert!(fields[1].star);
+        assert_eq!(fields[0].byte_size, None);
+        assert_eq!(fields[1].byte_size, None);
+    }
+
+    #[test]
+    fn binary_format_hover_renders_summary_and_detail_table() {
+        let text = binary_format_hover_text(&binary_ctx("a4 i"));
+        assert!(text.contains("**binary format**"), "{text}");
+        assert!(text.contains("2 fields"), "{text}");
+        assert!(text.contains("8 bytes"), "{text}");
+        // Detail table now has 4 columns and a Bytes column.
         assert!(
-            text.contains("| `a4` | Byte string, padded with nulls |"),
-            "{text}",
+            text.contains("| Spec | Variable | Type | Bytes |"),
+            "{text}"
         );
         assert!(
-            text.contains("| `i` | 32-bit signed integer (little-endian) |"),
-            "{text}",
+            text.contains("| `a4` | a4 | str (null-pad) | 4 |"),
+            "{text}"
+        );
+        assert!(text.contains("| `i` | i | int32 LE | 4 |"), "{text}");
+    }
+
+    #[test]
+    fn binary_format_hover_renders_byte_ruler_diagram() {
+        let text = binary_format_hover_text(&binary_ctx("c s i"));
+        // Diagram fenced in a code block.
+        assert!(text.contains("```"), "{text}");
+        // Box-drawing characters for the field boundaries.
+        assert!(text.contains('┌'), "{text}");
+        assert!(text.contains('┬'), "{text}");
+        assert!(text.contains('┐'), "{text}");
+        // Numeric ruler — 7 bytes total (1 + 2 + 4).
+        assert!(text.contains("0   1"), "{text}");
+    }
+
+    #[test]
+    fn binary_format_hover_omits_diagram_when_total_exceeds_32_bytes() {
+        // `d` is 8 bytes; five of them = 40 bytes — over the
+        // 32-byte diagram budget.
+        let text = binary_format_hover_text(&binary_ctx("d5"));
+        assert!(text.contains("**binary format**"), "{text}");
+        assert!(!text.contains('┌'), "diagram should be skipped: {text}");
+    }
+
+    #[test]
+    fn binary_format_hover_omits_diagram_when_size_unknown() {
+        // `a*` has unknown byte count.
+        let text = binary_format_hover_text(&binary_ctx("a*"));
+        assert!(!text.contains('┌'), "{text}");
+        // The Bytes column still renders `…` for star fields.
+        assert!(
+            text.contains("| `a*` | a* | str (null-pad) | … |"),
+            "{text}"
         );
     }
 
     #[test]
-    fn binary_format_string_at_position_detects_braced_literal() {
+    fn binary_format_hover_labels_fields_with_arg_names() {
+        let ctx = BinaryContext {
+            text: "c i".to_string(),
+            subcmd: "scan".to_string(),
+            args: vec!["byte".to_string(), "word".to_string()],
+        };
+        let text = binary_format_hover_text(&ctx);
+        // Detail-table Variable column gets the real names.
+        assert!(text.contains("| `c` | byte |"), "{text}");
+        assert!(text.contains("| `i` | word |"), "{text}");
+        // Ruler diagram labels also pick up the names.
+        assert!(text.contains("byte"), "{text}");
+        assert!(text.contains("word"), "{text}");
+    }
+
+    #[test]
+    fn binary_format_hover_renders_uint_modifier() {
+        let text = binary_format_hover_text(&binary_ctx("iu"));
+        assert!(text.contains("uint32"), "{text}");
+    }
+
+    #[test]
+    fn binary_format_hover_no_specifiers_returns_friendly_message() {
+        let text = binary_format_hover_text(&binary_ctx("ZZZ"));
+        assert!(text.contains("No specifiers found"), "{text}");
+    }
+
+    #[test]
+    fn binary_format_context_at_position_detects_braced_literal() {
         let src = "binary format {a4 i} val\n";
-        let found = binary_format_string_at_position(src, 0, 17);
-        assert_eq!(found.as_deref(), Some("a4 i"));
+        let ctx = binary_format_context_at_position(src, 0, 17).expect("found ctx");
+        assert_eq!(ctx.text, "a4 i");
+        assert_eq!(ctx.subcmd, "format");
+        assert_eq!(ctx.args, vec!["val"]);
+    }
+
+    #[test]
+    fn binary_format_context_extracts_scan_var_names() {
+        // Quoted format string with two trailing var names — the
+        // hover should pick up both as the scan target labels.
+        let src = "binary scan $buf \"cI\" byte word\n";
+        let ctx = binary_format_context_at_position(src, 0, 19).expect("found ctx");
+        assert_eq!(ctx.text, "cI");
+        assert_eq!(ctx.subcmd, "scan");
+        assert_eq!(ctx.args, vec!["byte", "word"]);
     }
 
     #[test]
@@ -1926,7 +2368,7 @@ mod tests {
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         let h = hover(src, 0, 17, &analysis, None).expect("hover");
-        assert!(h.value.contains("Binary format spec"), "{}", h.value);
+        assert!(h.value.contains("binary format"), "{}", h.value);
     }
 
     // -- S-hover-rich: regsub substitution-spec hover ---------------
