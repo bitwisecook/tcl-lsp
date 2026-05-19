@@ -269,6 +269,77 @@ impl Backend {
         cache.insert(key.to_owned(), Arc::clone(&arc));
         arc
     }
+
+    /// Run the analyser on `text` and push the resulting
+    /// diagnostics to the LSP client for `uri`.  Mirrors
+    /// the Python server's `publish_diagnostics` flow.  Runs
+    /// the analyser on a `spawn_blocking` worker so the LSP
+    /// event loop stays responsive.  `S-async-diagnostics`
+    /// minimal port — the cached-analysis surface and
+    /// debounced streaming contract lands in a follow-up.
+    async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+        let diagnostics = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&text, &dialect).clone();
+            // Translate analyser-result diagnostics into
+            // LSP wire shape.  Severity maps verbatim;
+            // spans translate via a local LineIndex.
+            let line_index = tcl_lexer::LineIndex::new(&text);
+            analysis
+                .diagnostics
+                .into_iter()
+                .map(|d| {
+                    let start = line_index.position_at(d.span.start());
+                    let end = line_index.position_at(d.span.end());
+                    tower_lsp::lsp_types::Diagnostic {
+                        range: Range {
+                            start: Position {
+                                line: start.line,
+                                character: start.character,
+                            },
+                            end: Position {
+                                line: end.line,
+                                character: end.character,
+                            },
+                        },
+                        severity: Some(match d.severity {
+                            tcl_compiler::analyser::Severity::Error => {
+                                tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                            }
+                            tcl_compiler::analyser::Severity::Warning => {
+                                tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                            }
+                            tcl_compiler::analyser::Severity::Hint
+                            | tcl_compiler::analyser::Severity::Suggestion => {
+                                tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                            }
+                        }),
+                        code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+                        code_description: None,
+                        source: Some("tcl-lsp".to_string()),
+                        message: d.message,
+                        related_information: None,
+                        tags: None,
+                        data: None,
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .await;
+        match diagnostics {
+            Ok(diags) => {
+                self.client.publish_diagnostics(uri, diags, None).await;
+            }
+            Err(err) => {
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("diagnostics worker panicked: {err}"),
+                    )
+                    .await;
+            }
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -357,11 +428,17 @@ impl LanguageServer for Backend {
         let dialect = self
             .dialect_for_open(&params.text_document.language_id)
             .await;
+        let uri = params.text_document.uri.clone();
+        let text = params.text_document.text.clone();
+        let dialect_for_diags = dialect.clone();
         let mut docs = self.documents.lock().await;
         docs.insert(
             params.text_document.uri,
             DocumentState::new(params.text_document.text, dialect),
         );
+        drop(docs);
+        self.publish_analyser_diagnostics(uri, text, dialect_for_diags)
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -370,20 +447,25 @@ impl LanguageServer for Backend {
         let Some(change) = params.content_changes.into_iter().last() else {
             return;
         };
+        let uri = params.text_document.uri.clone();
         let mut docs = self.documents.lock().await;
-        if let Some(doc) = docs.get_mut(&params.text_document.uri) {
+        let (text, dialect) = if let Some(doc) = docs.get_mut(&uri) {
             // Preserve the document's dialect across edits; only the
             // text content changes here.
-            doc.text = change.text;
+            doc.text.clone_from(&change.text);
+            (change.text, doc.dialect.clone())
         } else {
             // didChange before didOpen — fall back to the session
             // default dialect; the languageId is not available here.
             let dialect = self.default_dialect.lock().await.clone();
             docs.insert(
-                params.text_document.uri,
-                DocumentState::new(change.text, dialect),
+                uri.clone(),
+                DocumentState::new(change.text.clone(), dialect.clone()),
             );
-        }
+            (change.text, dialect)
+        };
+        drop(docs);
+        self.publish_analyser_diagnostics(uri, text, dialect).await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
