@@ -1,13 +1,13 @@
 # _mock_stubs.tcl -- AUTO-GENERATED stub mocks for iRule commands
 #
 # DO NOT EDIT.  Regenerate with:
-#   python -m core.irule_test.codegen_mock_stubs
+#   python -m tooling.irule_test.codegen_mock_stubs
 #
 # These stubs provide minimal mock implementations for iRule commands
 # that do not have hand-written mocks in command_mocks.tcl.  Each stub
 # logs the call to the decision log and returns an empty string.
 #
-# Source: core/commands/registry/
+# Source: compiler/registry/
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
@@ -6153,69 +6153,6 @@ namespace eval ::itest::cmd {
     }
 
 
-    # ttk:: stubs (12 commands)
-
-    proc ttk_button {args} {
-        ::itest::log_decision ttk button $args
-        return ""
-    }
-
-    proc ttk_combobox {args} {
-        ::itest::log_decision ttk combobox $args
-        return ""
-    }
-
-    proc ttk_entry {args} {
-        ::itest::log_decision ttk entry $args
-        return ""
-    }
-
-    proc ttk_frame {args} {
-        ::itest::log_decision ttk frame $args
-        return ""
-    }
-
-    proc ttk_label {args} {
-        ::itest::log_decision ttk label $args
-        return ""
-    }
-
-    proc ttk_notebook {args} {
-        ::itest::log_decision ttk notebook $args
-        return ""
-    }
-
-    proc ttk_progressbar {args} {
-        ::itest::log_decision ttk progressbar $args
-        return ""
-    }
-
-    proc ttk_scale {args} {
-        ::itest::log_decision ttk scale $args
-        return ""
-    }
-
-    proc ttk_separator {args} {
-        ::itest::log_decision ttk separator $args
-        return ""
-    }
-
-    proc ttk_sizegrip {args} {
-        ::itest::log_decision ttk sizegrip $args
-        return ""
-    }
-
-    proc ttk_style {args} {
-        ::itest::log_decision ttk style $args
-        return ""
-    }
-
-    proc ttk_treeview {args} {
-        ::itest::log_decision ttk treeview $args
-        return ""
-    }
-
-
     # uri:: stubs (8 commands)
 
     proc uri_canonicalize {args} {
@@ -6300,7 +6237,7 @@ namespace eval ::itest::cmd {
     }
 
 
-    # Top-level stubs (301 commands)
+    # Top-level stubs (259 commands)
 
     proc cmd_accumulate {args} {
         ::itest::log_decision toplevel accumulate $args
@@ -6342,18 +6279,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_bell {args} {
-        ::itest::log_decision toplevel bell $args
-        return ""
-    }
-
     proc cmd_binary {args} {
         ::itest::log_decision toplevel binary $args
-        return ""
-    }
-
-    proc cmd_bind {args} {
-        ::itest::log_decision toplevel bind $args
         return ""
     }
 
@@ -6362,18 +6289,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_button {args} {
-        ::itest::log_decision toplevel button $args
-        return ""
-    }
-
     proc cmd_call {args} {
         ::itest::log_decision toplevel call $args
-        return ""
-    }
-
-    proc cmd_canvas {args} {
-        ::itest::log_decision toplevel canvas $args
         return ""
     }
 
@@ -6392,11 +6309,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_checkbutton {args} {
-        ::itest::log_decision toplevel checkbutton $args
-        return ""
-    }
-
     proc cmd_client_addr {args} {
         ::itest::log_decision toplevel client_addr $args
         return ""
@@ -6409,11 +6321,6 @@ namespace eval ::itest::cmd {
 
     proc cmd_clientside {args} {
         ::itest::log_decision toplevel clientside $args
-        return ""
-    }
-
-    proc cmd_clipboard {args} {
-        ::itest::log_decision toplevel clipboard $args
         return ""
     }
 
@@ -6467,11 +6374,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_destroy {args} {
-        ::itest::log_decision toplevel destroy $args
-        return ""
-    }
-
     proc cmd_domain {args} {
         ::itest::log_decision toplevel domain $args
         return ""
@@ -6479,11 +6381,6 @@ namespace eval ::itest::cmd {
 
     proc cmd_encoding {args} {
         ::itest::log_decision toplevel encoding $args
-        return ""
-    }
-
-    proc cmd_entry {args} {
-        ::itest::log_decision toplevel entry $args
         return ""
     }
 
@@ -6517,16 +6414,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_focus {args} {
-        ::itest::log_decision toplevel focus $args
-        return ""
-    }
-
-    proc cmd_font {args} {
-        ::itest::log_decision toplevel font $args
-        return ""
-    }
-
     proc cmd_for {args} {
         ::itest::log_decision toplevel for $args
         return ""
@@ -6547,11 +6434,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_frame {args} {
-        ::itest::log_decision toplevel frame $args
-        return ""
-    }
-
     proc cmd_getfield {args} {
         ::itest::log_decision toplevel getfield $args
         return ""
@@ -6564,16 +6446,6 @@ namespace eval ::itest::cmd {
 
     proc cmd_global {args} {
         ::itest::log_decision toplevel global $args
-        return ""
-    }
-
-    proc cmd_grab {args} {
-        ::itest::log_decision toplevel grab $args
-        return ""
-    }
-
-    proc cmd_grid {args} {
-        ::itest::log_decision toplevel grid $args
         return ""
     }
 
@@ -6657,11 +6529,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_image {args} {
-        ::itest::log_decision toplevel image $args
-        return ""
-    }
-
     proc cmd_imid {args} {
         ::itest::log_decision toplevel imid $args
         return ""
@@ -6702,16 +6569,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_label {args} {
-        ::itest::log_decision toplevel label $args
-        return ""
-    }
-
-    proc cmd_labelframe {args} {
-        ::itest::log_decision toplevel labelframe $args
-        return ""
-    }
-
     proc cmd_lappend {args} {
         ::itest::log_decision toplevel lappend $args
         return ""
@@ -6747,11 +6604,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_listbox {args} {
-        ::itest::log_decision toplevel listbox $args
-        return ""
-    }
-
     proc cmd_listen {args} {
         ::itest::log_decision toplevel listen $args
         return ""
@@ -6774,11 +6626,6 @@ namespace eval ::itest::cmd {
 
     proc cmd_local_port {args} {
         ::itest::log_decision toplevel local_port $args
-        return ""
-    }
-
-    proc cmd_lower {args} {
-        ::itest::log_decision toplevel lower $args
         return ""
     }
 
@@ -6842,21 +6689,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_menu {args} {
-        ::itest::log_decision toplevel menu $args
-        return ""
-    }
-
-    proc cmd_menubutton {args} {
-        ::itest::log_decision toplevel menubutton $args
-        return ""
-    }
-
-    proc cmd_message {args} {
-        ::itest::log_decision toplevel message $args
-        return ""
-    }
-
     proc cmd_nexthop {args} {
         ::itest::log_decision toplevel nexthop $args
         return ""
@@ -6882,21 +6714,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_option {args} {
-        ::itest::log_decision toplevel option $args
-        return ""
-    }
-
-    proc cmd_pack {args} {
-        ::itest::log_decision toplevel pack $args
-        return ""
-    }
-
-    proc cmd_panedwindow {args} {
-        ::itest::log_decision toplevel panedwindow $args
-        return ""
-    }
-
     proc cmd_parray {args} {
         ::itest::log_decision toplevel parray $args
         return ""
@@ -6917,11 +6734,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_place {args} {
-        ::itest::log_decision toplevel place $args
-        return ""
-    }
-
     proc cmd_priority {args} {
         ::itest::log_decision toplevel priority $args
         return ""
@@ -6937,18 +6749,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_radiobutton {args} {
-        ::itest::log_decision toplevel radiobutton $args
-        return ""
-    }
-
     proc cmd_radius_authenticate {args} {
         ::itest::log_decision toplevel radius_authenticate $args
-        return ""
-    }
-
-    proc cmd_raise {args} {
-        ::itest::log_decision toplevel raise $args
         return ""
     }
 
@@ -7012,23 +6814,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_scale {args} {
-        ::itest::log_decision toplevel scale $args
-        return ""
-    }
-
     proc cmd_scan {args} {
         ::itest::log_decision toplevel scan $args
-        return ""
-    }
-
-    proc cmd_scrollbar {args} {
-        ::itest::log_decision toplevel scrollbar $args
-        return ""
-    }
-
-    proc cmd_selection {args} {
-        ::itest::log_decision toplevel selection $args
         return ""
     }
 
@@ -7084,11 +6871,6 @@ namespace eval ::itest::cmd {
 
     proc cmd_sharedvar {args} {
         ::itest::log_decision toplevel sharedvar $args
-        return ""
-    }
-
-    proc cmd_spinbox {args} {
-        ::itest::log_decision toplevel spinbox $args
         return ""
     }
 
@@ -7652,53 +7434,8 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_text {args} {
-        ::itest::log_decision toplevel text $args
-        return ""
-    }
-
     proc cmd_timing {args} {
         ::itest::log_decision toplevel timing $args
-        return ""
-    }
-
-    proc cmd_tk {args} {
-        ::itest::log_decision toplevel tk $args
-        return ""
-    }
-
-    proc cmd_tk_chooseColor {args} {
-        ::itest::log_decision toplevel tk_chooseColor $args
-        return ""
-    }
-
-    proc cmd_tk_chooseDirectory {args} {
-        ::itest::log_decision toplevel tk_chooseDirectory $args
-        return ""
-    }
-
-    proc cmd_tk_getOpenFile {args} {
-        ::itest::log_decision toplevel tk_getOpenFile $args
-        return ""
-    }
-
-    proc cmd_tk_getSaveFile {args} {
-        ::itest::log_decision toplevel tk_getSaveFile $args
-        return ""
-    }
-
-    proc cmd_tk_messageBox {args} {
-        ::itest::log_decision toplevel tk_messageBox $args
-        return ""
-    }
-
-    proc cmd_tk_popup {args} {
-        ::itest::log_decision toplevel tk_popup $args
-        return ""
-    }
-
-    proc cmd_toplevel {args} {
-        ::itest::log_decision toplevel toplevel $args
         return ""
     }
 
@@ -7782,16 +7519,6 @@ namespace eval ::itest::cmd {
         return ""
     }
 
-    proc cmd_winfo {args} {
-        ::itest::log_decision toplevel winfo $args
-        return ""
-    }
-
-    proc cmd_wm {args} {
-        ::itest::log_decision toplevel wm $args
-        return ""
-    }
-
     proc cmd_xff_list {args} {
         ::itest::log_decision toplevel xff_list $args
         return ""
@@ -7809,4 +7536,4 @@ namespace eval ::itest::cmd {
 
 }
 
-# Total stub mocks generated: 1473
+# Total stub mocks generated: 1419

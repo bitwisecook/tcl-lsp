@@ -7,7 +7,7 @@ single source of truth for event ordering and flow chain definitions.
 
 Usage::
 
-    python -m core.irule_test.codegen_event_data
+    python -m tooling.irule_test.codegen_event_data
 
 Or via make::
 
@@ -40,9 +40,9 @@ def _generate() -> str:
         "# _event_data.tcl -- AUTO-GENERATED from Python event registry\n"
         "#\n"
         "# DO NOT EDIT.  Regenerate with:\n"
-        "#   python -m core.irule_test.codegen_event_data\n"
+        "#   python -m tooling.irule_test.codegen_event_data\n"
         "#\n"
-        "# Source: core/commands/registry/event_flow_chains.py\n"
+        "# Source: compiler/registry/event_flow_chains.py\n"
         "#\n"
         "# Copyright (c) 2024 tcl-lsp contributors.  MIT licence.\n"
     )

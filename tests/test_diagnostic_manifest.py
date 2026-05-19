@@ -64,7 +64,7 @@ def _vscode_codes_from_json(prefix: str) -> set[str]:
 
 
 def _scan_compiler_codes() -> set[str]:
-    """Scan core/ for all code=<str> keyword arguments using AST parsing.
+    """Scan the seven concern packages for all code=<str> keyword arguments.
 
     Uses Python's ``ast`` module instead of regex so we only find actual
     ``code=`` keyword arguments in function/constructor calls — not
@@ -73,24 +73,25 @@ def _scan_compiler_codes() -> set[str]:
     import ast
 
     codes: set[str] = set()
-    for py_file in ROOT.joinpath("core").rglob("*.py"):
-        try:
-            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
+    for pkg in ("compiler", "analyser", "dialects", "server", "tooling", "shared", "ai"):
+        for py_file in ROOT.joinpath(pkg).rglob("*.py"):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+            except SyntaxError:
                 continue
-            for kw in node.keywords:
-                if kw.arg in ("code", "diagnostic_code") and isinstance(kw.value, ast.Constant):
-                    val = kw.value.value
-                    if (
-                        isinstance(val, str)
-                        and val.isascii()
-                        and val[:1].isupper()
-                        and val.isalnum()
-                    ):
-                        codes.add(val)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                for kw in node.keywords:
+                    if kw.arg in ("code", "diagnostic_code") and isinstance(kw.value, ast.Constant):
+                        val = kw.value.value
+                        if (
+                            isinstance(val, str)
+                            and val.isascii()
+                            and val[:1].isupper()
+                            and val.isalnum()
+                        ):
+                            codes.add(val)
     return codes
 
 

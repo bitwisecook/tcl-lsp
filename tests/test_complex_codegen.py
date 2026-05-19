@@ -1337,7 +1337,7 @@ proc fail {} {
         """``eval $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``eval {…}`` is relaxed to :class:`IRBlock` by the
-        barrier-relaxation gate (see ``core/compiler/lowering.py``);
+        barrier-relaxation gate (see ``compiler/lowering.py``);
         dynamic-body forms remain barriers because the interpreter
         must evaluate the runtime value.
         """
@@ -1355,7 +1355,7 @@ proc fail {} {
         """``uplevel 1 $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``uplevel 1 {…}`` is relaxed to :class:`IRUpFrame`
-        (see ``core/compiler/lowering.py::_relax_uplevel``); dynamic
+        (see ``compiler/lowering.py::_relax_uplevel``); dynamic
         bodies remain barriers.
         """
         from compiler.ir import IRUpFrame

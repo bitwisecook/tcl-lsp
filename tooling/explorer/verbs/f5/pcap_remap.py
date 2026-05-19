@@ -68,7 +68,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         metavar="FILE",
         help=(
             "Additional F5 trailer schema TOML to overlay on top of the "
-            "built-ins (repeatable).  See core/bigip/f5_trailer.py for "
+            "built-ins (repeatable).  See dialects/f5/bigip/f5_trailer.py for "
             "the format."
         ),
     )

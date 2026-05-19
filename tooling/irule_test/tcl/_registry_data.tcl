@@ -1,9 +1,9 @@
 # _registry_data.tcl -- AUTO-GENERATED from Python command registry
 #
 # DO NOT EDIT.  Regenerate with:
-#   python -m core.irule_test.codegen_registry_data
+#   python -m tooling.irule_test.codegen_registry_data
 #
-# Source: core/commands/registry/
+# Source: compiler/registry/
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
@@ -196,7 +196,7 @@ namespace eval ::tmm {
 namespace eval ::tmm::expr_ops {
 
     # TMM custom infix expression operators for expr rewriting.
-    # Derived from: core.commands.registry.operators.IRULES_OPERATOR_HOVER
+    # Derived from: compiler.registry.operators.IRULES_OPERATOR_HOVER
 
     variable _gen_operators {
         contains

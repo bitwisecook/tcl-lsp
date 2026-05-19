@@ -13,7 +13,7 @@ Pinned regressions:
 
 * The trace.test ``traceproc`` shape (``proc p {n args} { append ::$n
   * }``) used to trip the ``var-write contract`` assertion in
-  ``core/compiler/codegen/wasm/_emitter/_core.py`` because the
+  ``compiler/codegen/wasm/_emitter/_core.py`` because the
   fast-path in ``_emit_append`` interned a WASM-local named
   ``::${n}`` and wrote to it via ``local.tee`` — bypassing
   ``tcl_var_set`` and ignoring the runtime-substituted name entirely.

@@ -1,7 +1,7 @@
 """Regression gate for the Tcl 9 core test slice through the **Zig WASM runtime**.
 
 **Scope.**  This gate exercises the WASM ship target — the Zig runtime
-(``runtime/zig/``) plus the WASM codegen (``core/compiler/codegen/wasm/``).
+(``runtime/zig/``) plus the WASM codegen (``compiler/codegen/wasm/``).
 Unlike the Python-VM-side sibling
 (``tests/test_vm_tcl9_core_baseline.py``), this *is* a production
 correctness gate: regressions here represent real WASM-runtime gaps that
@@ -25,7 +25,7 @@ Hand-off rules for fixing failures live in
 editing the runtime in response to a regression here.  Crucially:
 never edit ``tcltest.tcl`` / ``init.tcl`` / the upstream ``.test``
 files, never add a new monkey-patch, and fix the root cause in
-``runtime/zig/`` or ``core/compiler/codegen/wasm/``.
+``runtime/zig/`` or ``compiler/codegen/wasm/``.
 """
 
 from __future__ import annotations

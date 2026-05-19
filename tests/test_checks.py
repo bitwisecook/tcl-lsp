@@ -354,7 +354,7 @@ def _taint_diag_with_code(source: str, code: str):
 class TestPathConcatenation:
     """W201 -- manual path concatenation instead of file join.
 
-    W201 now runs in the taint system (core/compiler/taint/_path_concat.py),
+    W201 now runs in the taint system (compiler/taint/_path_concat.py),
     so tests use _taint_diag_with_code() instead of _diag_with_code().
     """
 
@@ -2524,7 +2524,7 @@ class TestInterpEvalInjection:
 class TestDestructiveFileOps:
     """W313 -- file delete/rename/mkdir with variable path.
 
-    W313 now runs in the taint pipeline (core/compiler/taint/_sinks.py),
+    W313 now runs in the taint pipeline (compiler/taint/_sinks.py),
     so tests use _taint_diag_with_code() instead of _diag_with_code().
     """
 

@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(shutil.which("tshark") is None, reason="tshark n
 
 
 # Offsets (within the trailer) ported from
-# epan/dissectors/packet-f5ethtrailer.c.  See core/bigip/f5_trailer.py.
+# epan/dissectors/packet-f5ethtrailer.c.  See dialects/f5/bigip/f5_trailer.py.
 LEGACY_HIGH_V0_LEN = 42
 DPT_HDR_MAGIC = 0xF5DEB0F5
 

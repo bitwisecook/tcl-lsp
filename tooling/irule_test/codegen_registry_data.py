@@ -13,7 +13,7 @@ Generated data:
 
 Usage::
 
-    python -m core.irule_test.codegen_registry_data
+    python -m tooling.irule_test.codegen_registry_data
 
 Or via make::
 
@@ -37,9 +37,9 @@ def _generate() -> str:
         "# _registry_data.tcl -- AUTO-GENERATED from Python command registry\n"
         "#\n"
         "# DO NOT EDIT.  Regenerate with:\n"
-        "#   python -m core.irule_test.codegen_registry_data\n"
+        "#   python -m tooling.irule_test.codegen_registry_data\n"
         "#\n"
-        "# Source: core/commands/registry/\n"
+        "# Source: compiler/registry/\n"
         "#\n"
         "# Copyright (c) 2024 tcl-lsp contributors.  MIT licence.\n"
     )

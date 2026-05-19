@@ -1,9 +1,9 @@
 # _event_data.tcl -- AUTO-GENERATED from Python event registry
 #
 # DO NOT EDIT.  Regenerate with:
-#   python -m core.irule_test.codegen_event_data
+#   python -m tooling.irule_test.codegen_event_data
 #
-# Source: core/commands/registry/event_flow_chains.py
+# Source: compiler/registry/event_flow_chains.py
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 

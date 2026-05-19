@@ -7341,7 +7341,7 @@ def test_review_bug6_query_projection_kinds_covered_by_object_registry():
     assert not uncovered_headline, (
         f"headline projection kinds not covered by the object registry: "
         f"{sorted(uncovered_headline)}.  Either add the kind to the "
-        f"registry (``core/bigip/registry/specs/<kind>.py``) or fix "
+        f"registry (``dialects/f5/bigip/registry/specs/<kind>.py``) or fix "
         f"the projection's TMSH-form spelling."
     )
 

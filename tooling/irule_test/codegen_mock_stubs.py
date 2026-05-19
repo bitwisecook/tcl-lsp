@@ -17,7 +17,7 @@ Generated data:
 
 Usage::
 
-    python -m core.irule_test.codegen_mock_stubs
+    python -m tooling.irule_test.codegen_mock_stubs
 
 Or via make::
 
@@ -76,13 +76,13 @@ def _generate() -> str:
         "# _mock_stubs.tcl -- AUTO-GENERATED stub mocks for iRule commands\n"
         "#\n"
         "# DO NOT EDIT.  Regenerate with:\n"
-        "#   python -m core.irule_test.codegen_mock_stubs\n"
+        "#   python -m tooling.irule_test.codegen_mock_stubs\n"
         "#\n"
         "# These stubs provide minimal mock implementations for iRule commands\n"
         "# that do not have hand-written mocks in command_mocks.tcl.  Each stub\n"
         "# logs the call to the decision log and returns an empty string.\n"
         "#\n"
-        "# Source: core/commands/registry/\n"
+        "# Source: compiler/registry/\n"
         "#\n"
         "# Copyright (c) 2024 tcl-lsp contributors.  MIT licence.\n"
     )

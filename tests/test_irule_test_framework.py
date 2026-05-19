@@ -34,7 +34,7 @@ from tooling.irule_test.codegen_registry_data import _generate as generate_regis
 from tooling.irule_test.topology import TopologyFromSCF
 
 # Path to the Tcl framework files
-TCL_DIR = Path(__file__).parent.parent / "core" / "irule_test" / "tcl"
+TCL_DIR = Path(__file__).parent.parent / "tooling" / "irule_test" / "tcl"
 
 # Skip integration tests if no tclsh available
 _tclsh = shutil.which("tclsh") or shutil.which("tclsh8.6") or shutil.which("tclsh8.5")
@@ -658,7 +658,7 @@ class TestEventDataCodegen:
         actual = (TCL_DIR / "_event_data.tcl").read_text()
         assert actual == expected, (
             "_event_data.tcl is stale. Regenerate with: "
-            "python -m core.irule_test.codegen_event_data"
+            "python -m tooling.irule_test.codegen_event_data"
         )
 
     def test_generated_file_has_master_order(self) -> None:
@@ -703,7 +703,7 @@ class TestRegistryDataCodegen:
         actual = (TCL_DIR / "_registry_data.tcl").read_text()
         assert actual == expected, (
             "_registry_data.tcl is stale. Regenerate with: "
-            "python -m core.irule_test.codegen_registry_data"
+            "python -m tooling.irule_test.codegen_registry_data"
         )
 
     def test_has_disabled_commands(self) -> None:
@@ -1263,7 +1263,7 @@ class TestMockStubsCodegen:
         fresh = generate_mock_stubs()
         assert on_disk == fresh, (
             "_mock_stubs.tcl is stale -- regenerate with: "
-            "python -m core.irule_test.codegen_mock_stubs"
+            "python -m tooling.irule_test.codegen_mock_stubs"
         )
 
     def test_stubs_has_namespace_eval(self) -> None:
