@@ -840,6 +840,45 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
 /// the discrepancy, increment in the compiled-proc prologue too.
 pub var cmd_count: i64 = 0;
 
+/// Recursion-limit gate.  Increments :attr:`Interp.num_levels`,
+/// returns ``true`` if the new value is within
+/// :attr:`Interp.recursion_limit` (and within a hard cap that
+/// guards against wasm stack exhaustion).  Returns ``false``
+/// after raising ``too many nested evaluations (infinite loop?)``
+/// when the limit would be exceeded.
+///
+/// Mirrors C Tcl's ``Tcl_EvalObjv`` increment-then-check pattern
+/// (tclBasic.c line 4098).  Callers must pair every successful
+/// :fn:`recursion_check_enter` with :fn:`recursion_check_leave`
+/// — the proc / alias / eval / uplevel dispatchers use Zig
+/// ``defer`` to make this automatic.
+pub fn recursion_check_enter() bool {
+    const cur = interp_reg.interp_current();
+    const ci: *interp_reg.Interp = @ptrFromInt(cur);
+    const limit = interp_reg.interp_recursion_limit(cur);
+    const HARD_CAP: u32 = 512;
+    ci.num_levels += 1;
+    if (ci.num_levels > limit or ci.num_levels > HARD_CAP) {
+        ci.num_levels -= 1;
+        const tcl_catch_lim = @import("tcl_catch.zig");
+        const msg_text: []const u8 = "too many nested evaluations (infinite loop?)";
+        const m = obj_mod.obj_new_string_copy(@intFromPtr(msg_text.ptr), @intCast(msg_text.len));
+        tcl_catch_lim.tcl_cmd_error(m);
+        return false;
+    }
+    return true;
+}
+
+/// Pair of :fn:`recursion_check_enter`.  Decrements
+/// :attr:`Interp.num_levels` on the way out of a counted
+/// dispatch.  Safe to call when ``num_levels`` is already 0
+/// (returns silently rather than underflowing).
+pub fn recursion_check_leave() void {
+    const cur = interp_reg.interp_current();
+    const ci: *interp_reg.Interp = @ptrFromInt(cur);
+    if (ci.num_levels > 0) ci.num_levels -= 1;
+}
+
 pub fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
     cmd_count +%= 1;
@@ -2643,27 +2682,15 @@ fn build_invocation_list(words: []const i32) i32 {
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
 fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
-    // Recursion-depth ceiling — fires for both interpreted and
-    // compiled-proc dispatches that flow through this entry point.
-    // Reference Tcl's default ``Tcl_RecursionLimit`` is 1000 but a
-    // single compiled-proc invocation lands ~10 wasm stack frames,
-    // so wasmtime's default 512 KiB stack runs out long before that.
-    // Cap at a value (50) that leaves room for normal nesting (the
-    // tcltest ``proc Body { … }`` chain reaches ~15) but stops the
-    // ``error-1.8`` ``proc p {} { uplevel 1 catch p error }; p``
-    // self-recursion before the wasm call stack exhausts.
-    // ``parked_top`` covers the uplevel-style pattern where each
-    // iteration parks the top frame and ``frame_depth`` itself
-    // oscillates around 1 — without summing them in the bare
-    // ``frame_depth`` ceiling never trips.
-    if (frames.frame_depth + frames.parked_top >= 50) {
-        const tcl_catch = @import("tcl_catch.zig");
-        const msg_text: []const u8 =
-            "too many nested evaluations (infinite loop?)";
-        const m = obj_mod.obj_new_string_copy(@intFromPtr(msg_text.ptr), @intCast(msg_text.len));
-        tcl_catch.tcl_cmd_error(m);
-        return 0;
-    }
+    // Per-interp recursion gate — fires for procs, aliases, and
+    // hidden-cmd dispatches that push a Tcl call frame.  Builtins
+    // (list, set, incr, etc.) are bytecode-compiled in C Tcl and
+    // don't ``numLevels++``; mirror that here by NOT ++ing in
+    // ``eval_command`` and only checking here.  ``eval`` /
+    // ``uplevel`` / ``catch`` separately count via
+    // :fn:`recursion_check_enter`.
+    if (!recursion_check_enter()) return 0;
+    defer recursion_check_leave();
 
     // ``interp alias`` redirect Commands carry the CMD_ALIAS flag bit
     // and an ``AliasRec`` in their params_obj slot.  Route them

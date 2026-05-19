@@ -253,6 +253,7 @@ pub fn eval_rename(words: []const i32) i32 {
                 return 0;
             },
             .target_exists => return 0, // unreachable on delete form
+            .alias_loop => return 0, // unreachable on delete form
         }
     }
 
@@ -272,7 +273,17 @@ pub fn eval_rename(words: []const i32) i32 {
         new_r.simple_len,
     );
     switch (r) {
-        .ok => return 0,
+        .ok => {
+            // Rewrite the AliasRec's token slot when an alias is
+            // renamed via the move form *and* the original token
+            // hasn't been preserved by the chain.  In C Tcl, the
+            // ``aliasTable`` keys by the token so a rename leaves
+            // the token intact — we mirror that by keeping the
+            // ``token_*`` slot untouched; the FQN on the Command
+            // header is the only thing that changes.  No extra
+            // work needed here.
+            return 0;
+        },
         .not_found => {
             rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
             return 0;
@@ -283,6 +294,13 @@ pub fn eval_rename(words: []const i32) i32 {
         },
         .builtin_protected => {
             rename_error("can't rename \"", old_s.ptr, old_s.len, "\": built-in command");
+            return 0;
+        },
+        .alias_loop => {
+            // Alias rename would form a dispatch cycle —
+            // ``cannot define or rename alias "<NEW>": would
+            // create a loop`` (interp-17.4 / 17.5 / 17.6).
+            raise_alias_loop_error(new_r.simple_ptr, new_r.simple_len);
             return 0;
         },
     }
@@ -482,11 +500,94 @@ pub fn interp_alias_create(
         return 0;
     }
 
-    // If an alias / command already lives under this name, replace
-    // it.  This matches C Tcl where ``interp alias {} foo {} bar``
-    // overwrites any previous ``foo`` (proc, alias, or otherwise).
-    // The previous Command stays in linear memory — leaked per the
-    // bump-allocator contract.
+    // If a Command already lives under the destination simple name
+    // (in r.target_ns), the ``ns_cmd_put`` below overwrites it.
+    // Mirror C Tcl's ``Tcl_CreateObjCommand`` deleteProc which
+    // fires the old alias's ``AliasObjCmdDeleteProc`` cleanup
+    // (removes its ``aliasTable`` entry).  In our model, we
+    // explicitly clear the old AliasRec's chain hookup so
+    // ``interp aliases`` doesn't double-report.
+    //
+    // Special case: when the existing Command is a
+    // ``CMD_INTERP_CHILD`` (e.g. ``interp create a`` registered
+    // ``a`` as the child-interp dispatch command), overwriting
+    // it means the child interp gets deleted as a side effect
+    // — C Tcl's deleteProc fires ``ChildObjCmdDeleteProc`` which
+    // calls ``Tcl_DeleteInterp``.  Mirror that here so a later
+    // dispatch through the alias's stashed parent_interp picks
+    // up the ``INTERP_DELETED`` flag and surfaces the canonical
+    // ``cannot define or rename alias "X": interpreter deleted``
+    // diagnostic (interp-14.4).
+    const existing_cmd = tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
+    if (existing_cmd != 0) {
+        const existing_flags: u32 = @bitCast(obj_mod.read_i32(existing_cmd + procs.OFF_FLAGS));
+        if ((existing_flags & 0x200) != 0) {
+            // CMD_INTERP_CHILD — extract the embedded child interp
+            // and tear it down before the alias install.  Match
+            // the full ``interp delete`` cascade: drop xlinks,
+            // mark deleted via ``child_delete``, and clear the
+            // parent's cmd_table bucket so ``[info commands]``
+            // no longer reports the dispatch command.
+            const victim = interp_reg.cmd_child_interp(existing_cmd);
+            if (victim != 0) {
+                const v: *interp_reg.Interp = @ptrFromInt(victim);
+                if (v.parent != 0 and v.name_len > 0) {
+                    const parent_i: *interp_reg.Interp = @ptrFromInt(v.parent);
+                    const xlinks = @import("../interp/tcl_xlinks.zig");
+                    xlinks.drop_for_interp(victim);
+                    _ = interp_reg.child_delete(v.parent, v.name_ptr, v.name_len);
+                    _ = tcl_ns.ns_cmd_clear(parent_i.root_ns, v.name_ptr, v.name_len);
+                }
+            }
+        }
+    }
+    if (alias_mod.is_alias(existing_cmd)) {
+        alias_mod.alias_clear(existing_cmd);
+    }
+    // If the alias target now lives in a deleted interp, refuse
+    // the create — mirror ``AliasCreate``'s ``Tcl_InterpDeleted``
+    // check after the loop probe (tclInterp.c lines 1410-1420).
+    if (parent_interp != 0 and interp_reg.is_deleted(parent_interp)) {
+        interp_reg.leave(save);
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const prefix: []const u8 = "cannot define or rename alias \"";
+        const suffix: []const u8 = "\": interpreter deleted";
+        const total: u32 = @as(u32, @intCast(prefix.len)) + new_name_len + @as(u32, @intCast(suffix.len));
+        const buf = alloc(total);
+        const d: [*]u8 = @ptrFromInt(buf);
+        for (prefix, 0..) |b, k| d[k] = b;
+        if (new_name_len > 0) {
+            const np: [*]const u8 = @ptrFromInt(new_name_ptr);
+            for (0..new_name_len) |k| d[prefix.len + k] = np[k];
+        }
+        for (suffix, 0..) |b, k| d[prefix.len + new_name_len + k] = b;
+        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    // Token collision: if the proposed token already names an
+    // alias in the child's aliases chain (from a previously-renamed
+    // alias whose source Command moved off the original name slot
+    // but kept its token), prepend ``::`` until the token is
+    // unique.  Mirrors ``TclAliasCreate`` in tclInterp.c lines
+    // 1553-1580 ("alias name cannot be used as unique token, it
+    // is already taken — produce a unique token by prepending '::'
+    // repeatedly").  The prepended token is what
+    // ``interp aliases`` will report for the new alias.
+    var token_ptr: u32 = new_name_ptr;
+    var token_len: u32 = new_name_len;
+    while (interp_reg.alias_chain_find_token(child_interp, .child, token_ptr, token_len) != 0) {
+        const prefix_len: u32 = 2;
+        const new_len: u32 = prefix_len + token_len;
+        const new_buf = alloc(new_len);
+        const dst: [*]u8 = @ptrFromInt(new_buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        if (token_len > 0) memcpy(new_buf + prefix_len, token_ptr, token_len);
+        token_ptr = new_buf;
+        token_len = new_len;
+    }
+
     //
     // The parent interp is stashed directly on the ``AliasRec``
     // (via ``alias_alloc``'s last parameter) rather than on the
@@ -496,15 +597,18 @@ pub fn interp_alias_create(
     // stashed Interp* and corrupt cross-interp dispatch.  Zero
     // here means "same-interp dispatch; no swap needed".
     const stash_parent: u32 = if (parent_interp != child_interp) parent_interp else 0;
-    const cmd = alias_mod.alias_alloc(
+    const cmd = alias_mod.alias_alloc_with_token(
         r.target_ns,
         r.simple_ptr,
         r.simple_len,
+        token_ptr,
+        token_len,
         target_name_ptr,
         target_name_len,
         n_prefix,
         prefix_buf,
         stash_parent,
+        child_interp,
     );
     _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);
     interp_reg.leave(save);
@@ -515,50 +619,34 @@ pub fn interp_alias_create(
 }
 
 pub fn interp_alias_query(child_interp: u32, new_name_ptr: u32, new_name_len: u32) i32 {
-    const child: *interp_reg.Interp = @ptrFromInt(child_interp);
-    const cxt: u32 = if (child_interp == interp_reg.interp_current())
-        tcl_ns.ns_current()
-    else
-        child.root_ns;
-    const swapped_child = child_interp != interp_reg.interp_current();
-    const save = if (swapped_child) interp_reg.enter(child_interp) else interp_reg.EnterSave{
-        .prev_interp = interp_reg.current_interp,
-        .prev_root_addr = tcl_ns.root_addr,
-        .prev_current_ns = tcl_ns.current_ns,
-    };
-    const cmd = tcl_ns.ns_find_command(cxt, new_name_ptr, new_name_len);
-    interp_reg.leave(save);
-    if (!alias_mod.is_alias(cmd)) return 0;
-    return alias_mod.alias_describe(cmd);
+    // Look up the alias by its original token (the simple name the
+    // caller passed to ``interp alias``).  Survives ``rename`` of
+    // the source Command in the namespace tree because the token
+    // is heap-copied onto the :type:`AliasRec`.  Matches C Tcl's
+    // ``Tcl_FindHashEntry(&iPtr->child.aliasTable, ...)``.
+    const rec = interp_reg.alias_chain_find_token(
+        child_interp,
+        .child,
+        new_name_ptr,
+        new_name_len,
+    );
+    if (rec == 0) return 0;
+    return alias_mod.alias_describe_rec(rec);
 }
 
 pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u32) i32 {
-    const child: *interp_reg.Interp = @ptrFromInt(child_interp);
-    const cxt: u32 = if (child_interp == interp_reg.interp_current())
-        tcl_ns.ns_current()
-    else
-        child.root_ns;
-    const swapped_child = child_interp != interp_reg.interp_current();
-    const save = if (swapped_child) interp_reg.enter(child_interp) else interp_reg.EnterSave{
-        .prev_interp = interp_reg.current_interp,
-        .prev_root_addr = tcl_ns.root_addr,
-        .prev_current_ns = tcl_ns.current_ns,
-    };
-    const r = tcl_ns.ns_resolve_qualified(cxt, new_name_ptr, new_name_len);
-    const host_ns: u32 = if (r.target_ns != 0 and
-        tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len) != 0)
-        r.target_ns
-    else if (r.alt_ns != 0)
-        r.alt_ns
-    else 0;
-    const cmd = if (host_ns != 0) tcl_ns.ns_cmd_find(host_ns, r.simple_ptr, r.simple_len) else 0;
-    if (!alias_mod.is_alias(cmd)) {
-        // No alias by this name — raise the canonical
-        // ``alias "X" not found`` diagnostic.  Matches
-        // ``AliasDelete`` in tclInterp.c which fires before the
-        // un-register step.  Restore the interp swap first so the
-        // error surfaces in the caller's context.
-        interp_reg.leave(save);
+    // Resolve by token first — covers the ``interp alias child
+    // foo {}`` form even after a ``rename foo zop`` has moved the
+    // source Command.  ``Tcl_DeleteAlias`` in tclInterp.c keeps the
+    // hashtable entry keyed by the original name for the same
+    // reason.
+    const rec = interp_reg.alias_chain_find_token(
+        child_interp,
+        .child,
+        new_name_ptr,
+        new_name_len,
+    );
+    if (rec == 0) {
         const catch_mod = @import("../interp/tcl_catch.zig");
         const prefix: []const u8 = "alias \"";
         const suffix: []const u8 = "\" not found";
@@ -575,8 +663,38 @@ pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
-    alias_mod.alias_clear(cmd);
-    _ = tcl_ns.ns_cmd_clear(host_ns, r.simple_ptr, r.simple_len);
+    // Now find the live Command — its name slot may have been
+    // ``rename``d off the original token.  Walk the AliasRec's
+    // ``parent_interp`` / ``child_interp`` slots through the
+    // interp's namespace tree and clear the bucket that still
+    // points at this alias.
+    const child: *interp_reg.Interp = @ptrFromInt(child_interp);
+    const swapped_child = child_interp != interp_reg.interp_current();
+    const save = if (swapped_child) interp_reg.enter(child_interp) else interp_reg.EnterSave{
+        .prev_interp = interp_reg.current_interp,
+        .prev_root_addr = tcl_ns.root_addr,
+        .prev_current_ns = tcl_ns.current_ns,
+    };
+    // The Command's current name lives on its header; walk the
+    // child interp's root ns for a matching alias-flagged entry.
+    const cmd = alias_mod.find_command_by_rec(child.root_ns, rec);
+    if (cmd != 0) {
+        const r2 = alias_mod.alias_rec(cmd);
+        // Read the Command's stored simple-name from its header
+        // and clear the corresponding bucket.  ``ns_cmd_clear``
+        // tombstones the bucket without freeing — the Command and
+        // AliasRec stay around in bump memory, but ``alias_clear``
+        // below also un-links them from the per-interp chains so
+        // ``interp aliases`` no longer sees them.
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(cmd));
+        const name_len: u32 = @bitCast(obj_mod.read_i32(cmd + 4));
+        // Walk the namespace tree starting at the child's root for
+        // a bucket holding ``cmd``.  Use the live-name spelling
+        // (post-rename).
+        _ = tcl_ns.ns_cmd_clear(alias_mod.alias_host_ns(child.root_ns, cmd), name_ptr, name_len);
+        _ = r2;
+    }
+    alias_mod.alias_clear_rec(rec);
     interp_reg.leave(save);
     procs.lru_invalidate_all();
     return 0;
@@ -603,24 +721,62 @@ pub fn interp_aliases_list() i32 {
 /// Shared implementation: list aliases reachable from ``target_interp``.
 /// Child-as-command (`<child> aliases`) and the explicit
 /// ``interp aliases <path>`` form both route here.
+///
+/// Walks the per-interp aliases linked list (``Interp.aliases_head``)
+/// which is keyed by the original token — so a ``rename foo zop``
+/// of an alias's source Command doesn't change what ``interp
+/// aliases`` reports.  Matches C Tcl's ``InterpAliasesCmd`` which
+/// iterates ``Interp.child.aliasTable``.
 pub fn interp_aliases_list_for(target_interp: u32) i32 {
     if (target_interp == 0) return obj_new_string(0, 0);
     const t: *interp_reg.Interp = @ptrFromInt(target_interp);
-    // Accumulator: sum string lengths (plus separators) to size the
-    // output buffer.  We walk the tree twice: once to size, once to
-    // fill.  Single-pass grown allocation would require a realloc
-    // path the bump allocator doesn't support.  Both passes route
-    // through the shared ``tcl_ns.walk_tree_cmd_tables`` helper so
-    // every ns-tree introspection walker shares one recursion shape.
-    var ctx: AliasListCtx = .{ .total = 0, .count = 0, .buf = 0, .off = 0 };
-    tcl_ns.walk_tree_cmd_tables(t.root_ns, &ctx, alias_size_visit);
-    if (ctx.total == 0) return obj_new_string(0, 0);
 
-    ctx.buf = alloc(ctx.total);
-    ctx.off = 0;
-    ctx.count = 0;
-    tcl_ns.walk_tree_cmd_tables(t.root_ns, &ctx, alias_fill_visit);
-    return obj_new_string(@bitCast(ctx.buf), @bitCast(ctx.off));
+    // Two-pass build: size, then fill.  ``list_elem_quote`` /
+    // ``_nth`` write at most ``2*len + 2`` bytes per element plus
+    // one separator each — same budget as the previous
+    // walk_tree_cmd_tables-based implementation.
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var cur: u32 = t.aliases_head;
+    while (cur != 0) {
+        const r: *alias_mod.AliasRec = @ptrFromInt(cur);
+        if (r.token_len > 0 or count > 0) {
+            // Skip cleared records (token_len was zeroed by
+            // alias_clear).  Live records always have token_len
+            // > 0 since the original alias name was at least one
+            // byte.
+            if (r.token_len > 0) {
+                if (count > 0) total += 1;
+                total += 2 * r.token_len + 2;
+                count += 1;
+            }
+        }
+        cur = r.next_in_child;
+    }
+    if (count == 0) return obj_new_string(0, 0);
+
+    const buf = alloc(total);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    cur = t.aliases_head;
+    const list_quote = @import("../valtypes/tcl_list_quote.zig");
+    while (cur != 0) {
+        const r: *alias_mod.AliasRec = @ptrFromInt(cur);
+        if (r.token_len > 0) {
+            if (written > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            off = if (written == 0)
+                list_quote.list_elem_quote(buf, off, r.token_ptr, r.token_len)
+            else
+                list_quote.list_elem_quote_nth(buf, off, r.token_ptr, r.token_len);
+            written += 1;
+        }
+        cur = r.next_in_child;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 const AliasListCtx = struct {
@@ -1765,6 +1921,33 @@ pub fn eval_interp_recursionlimit(words: []const i32) i32 {
     else
         @intCast(parsed.value);
     interp_reg.interp_set_recursion_limit(target, new_limit);
+
+    // ``interp recursionlimit {} N`` evaluated INSIDE the target
+    // interp (interp == childInterp in C Tcl's check) and where
+    // the current ``num_levels`` already exceeds the new limit
+    // raises ``falling back due to new recursion limit`` — see
+    // ``ChildRecursionLimit`` in tclInterp.c.  This lets the
+    // running script discover at the boundary that the limit
+    // has been lowered below its current nesting (interp-29.3.4
+    // / 29.3.5 / 29.3.7c / 29.3.8b / 29.3.10b / 29.3.11b).
+    //
+    // C Tcl's ``Tcl_EvalObjv`` ``numLevels++``s ahead of running
+    // the ``interp recursionlimit`` handler, so the comparison
+    // reads ``numLevels > limit``.  Our :fn:`recursion_check_enter`
+    // doesn't fire for builtin commands like ``interp ...``, so we
+    // adjust by adding 1 here — the +1 represents the recursionlimit
+    // dispatch itself that would have ++d in C Tcl's accounting.
+    if (target == interp_reg.interp_current()) {
+        const ci: *interp_reg.Interp = @ptrFromInt(target);
+        if (ci.num_levels + 1 > new_limit) {
+            const catch_mod = @import("../interp/tcl_catch.zig");
+            const err_text = "falling back due to new recursion limit";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+    }
+
     return obj_new_int(@intCast(new_limit));
 }
 // -- ``namespace which`` ---------------------------------------------------

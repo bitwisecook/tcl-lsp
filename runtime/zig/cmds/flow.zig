@@ -487,6 +487,11 @@ fn eval_catch(words: []const i32) result_mod.InterpResult {
     }
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
+        // ``catch`` evaluates its body — counts as one level
+        // (mirrors C Tcl where catch's body dispatch goes through
+        // ``TclNREvalObjEx`` which ``numLevels++``s).
+        if (!interp.recursion_check_enter()) return result_mod.from_globals(0);
+        defer interp.recursion_check_leave();
         rt.catch_enter();
         const body_s = obj_ensure_string(words[1]);
         const body_result = interp.eval_script(body_s.ptr, body_s.len);
