@@ -140,6 +140,7 @@ pub fn eval_expr_str(ptr: u32, len: u32) i64 {
     // and ``catch {$token ne {}}`` always evaluates false.  See the
     // ``::tcltest::SubstArguments`` smoke trace in the cmdAH triage
     // for a worked example.
+    expr_clear_nonnum();
     if (find_top_string_op(ptr, len)) |op| {
         return eval_string_expr(ptr, len, op);
     }
@@ -504,6 +505,128 @@ fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Tracks the last expression atom that failed numeric/boolean parsing.
+/// The atom records the raw bytes here (instead of raising directly) so
+/// the enclosing operator decides the wording:
+///   * arithmetic operator (``+``, ``-``, ``*``, …) →
+///       ``cannot use non-numeric string "X" as <left|right> operand of "<op>"``
+///   * boolean operator (``&&`` / ``||`` / top-level boolean context) →
+///       ``expected boolean value but got "X"``
+/// Cleared by ``eval_expr_str`` on entry and by every successful atom.
+var expr_nonnum_active: bool = false;
+var expr_nonnum_ptr: u32 = 0;
+var expr_nonnum_len: u32 = 0;
+
+fn expr_set_nonnum(ptr: u32, slen: u32) void {
+    expr_nonnum_active = true;
+    expr_nonnum_ptr = ptr;
+    expr_nonnum_len = slen;
+}
+
+fn expr_clear_nonnum() void {
+    expr_nonnum_active = false;
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
+}
+
+const NonNumSnapshot = struct {
+    active: bool,
+    ptr: u32,
+    len: u32,
+};
+
+fn expr_take_nonnum() NonNumSnapshot {
+    const s: NonNumSnapshot = .{
+        .active = expr_nonnum_active,
+        .ptr = expr_nonnum_ptr,
+        .len = expr_nonnum_len,
+    };
+    expr_clear_nonnum();
+    return s;
+}
+
+fn expr_restore_nonnum(s: NonNumSnapshot) void {
+    expr_nonnum_active = s.active;
+    expr_nonnum_ptr = s.ptr;
+    expr_nonnum_len = s.len;
+}
+
+/// Did the most recent atom produce a non-numeric operand?  Used by
+/// callers (``eval_while`` / ``eval_if`` / ``eval_for`` condition
+/// evaluation) to convert the lingering state into the canonical
+/// ``expected boolean value but got "X"`` error.
+pub fn expr_consume_nonnum_boolean() bool {
+    if (!expr_nonnum_active) return false;
+    const ptr = expr_nonnum_ptr;
+    const slen = expr_nonnum_len;
+    expr_clear_nonnum();
+    raise_expected_boolean_str(ptr, slen);
+    return true;
+}
+
+/// Raise the arithmetic-context wording for a non-numeric operand:
+/// ``cannot use non-numeric string "X" as <side> operand of "<op>"``.
+/// Mirrors Tcl 9's INST_ADD / INST_SUB / etc. operand-coercion error.
+fn raise_arith_op_error(op_str: []const u8, side: []const u8, ptr: u32, slen: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const middle1: []const u8 = "\" as ";
+    const middle2: []const u8 = " operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len + middle1.len + middle2.len + suffix.len + side.len + op_str.len)) + slen;
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (slen > 0) {
+        const sp: [*]const u8 = @ptrFromInt(ptr);
+        for (0..slen) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle1) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (side) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (middle2) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (op_str) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Check the captured snapshot.  When the snapshot recorded a
+/// non-numeric atom, raise the arithmetic-operand error and clear
+/// the live flag (the snapshot caller's responsibility is the
+/// "left" side; the live flag covers the "right" side which will
+/// be checked by the immediately-following ``expr_take_nonnum``).
+fn expr_raise_if_nonnum_arith(snap: NonNumSnapshot, op_str: []const u8, side: []const u8) bool {
+    if (!snap.active) return false;
+    raise_arith_op_error(op_str, side, snap.ptr, snap.len);
+    return true;
+}
+
 /// Short-circuit evaluation: when *skip* is true the expression walks the
 /// tokens to advance ``pos`` but does NOT run ``[cmd]`` substitutions —
 /// so ``{[info exists x] && [use $x]}`` only runs ``[use $x]`` when the
@@ -513,41 +636,182 @@ fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
 /// has no observable side effect).
 fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_and(ptr, len, pos, skip);
+    // First operand: delimit its range so a top-level string operator
+    // (``eq`` / ``ne`` / ``in`` / ``ni``) within it gets dispatched to
+    // ``eval_string_expr`` even when the wider expression contains
+    // ``||``.  Without this delimit, ``A || $i ne [...]`` would let
+    // the ``$i`` atom set the non-numeric flag and the surrounding
+    // boolean operator would raise (list-4.2).
+    var lhs_end = find_op_terminator(ptr, len, pos.*, '|');
+    var left = eval_or_operand(ptr, pos.*, lhs_end, skip);
+    pos.* = lhs_end;
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
+            if (lhs_snap.active and !skip) {
+                raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
+                expr_clear_nonnum();
+                return 0;
+            }
             pos.* += 2;
             // Short-circuit: skip RHS when LHS is already truthy OR we're
             // already skipping outer scope.  Still walk the RHS tokens
             // so ``pos`` advances past them.
             const rhs_skip = skip or (left != 0);
-            const right = expr_and(ptr, len, pos, rhs_skip);
+            const rhs_end = find_op_terminator(ptr, len, pos.*, '|');
+            const right = eval_or_operand(ptr, pos.*, rhs_end, rhs_skip);
+            pos.* = rhs_end;
+            const rhs_snap = expr_take_nonnum();
+            if (rhs_snap.active and !rhs_skip) {
+                raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                return 0;
+            }
             if (!skip) {
                 left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
+            lhs_end = pos.*;
         } else break;
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
+}
+
+/// Evaluate one operand of ``||`` (a ``&&``-chain or simpler).
+/// Delegates to ``expr_and`` on the sub-range; ``expr_and`` itself
+/// applies the same dispatch trick for ``&&`` operands.  Pos
+/// arithmetic stays inside the helper.  When ``skip`` is true the
+/// caller is short-circuiting: skip the actual evaluation so the
+/// operand's ``[cmd]`` substitutions don't run (mathop-25.40's
+/// ``[set i ...] == [set res ...]`` would otherwise re-fire its
+/// side-effects past the loop-exit condition).
+fn eval_or_operand(ptr: u32, start: u32, end: u32, skip: bool) i64 {
+    if (skip) return 0;
+    var sub_pos: u32 = 0;
+    return expr_and(ptr + start, end - start, &sub_pos, skip);
 }
 
 fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_add(ptr, len, pos, skip);
+    // First operand of ``&&``: delimit its range so ``eq`` / ``ne`` /
+    // ``in`` / ``ni`` get dispatched as string-compares.
+    var lhs_end = find_op_terminator(ptr, len, pos.*, '&');
+    var left = eval_and_operand(ptr, pos.*, lhs_end, skip);
+    pos.* = lhs_end;
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
+            if (lhs_snap.active and !skip) {
+                raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
+                expr_clear_nonnum();
+                return 0;
+            }
             pos.* += 2;
             // Short-circuit: skip RHS when LHS is already falsy OR we're
             // already skipping.
             const rhs_skip = skip or (left == 0);
-            const right = expr_add(ptr, len, pos, rhs_skip);
+            const rhs_end = find_op_terminator(ptr, len, pos.*, '&');
+            const right = eval_and_operand(ptr, pos.*, rhs_end, rhs_skip);
+            pos.* = rhs_end;
+            const rhs_snap = expr_take_nonnum();
+            if (rhs_snap.active and !rhs_skip) {
+                raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                return 0;
+            }
             if (!skip) {
                 left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
+            lhs_end = pos.*;
         } else break;
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
+}
+
+/// Evaluate one operand of ``&&`` — a sub-expression that may carry a
+/// top-level string op (``eq`` / ``ne`` / ``in`` / ``ni`` / ``==`` /
+/// ``!=`` on non-numeric operands).  Inside this sub-range there's
+/// no surrounding ``||`` / ``&&`` to interfere with
+/// ``find_top_string_op``'s bail-out.  When ``skip`` is true the
+/// caller is short-circuiting: skip the actual evaluation so the
+/// operand's ``[cmd]`` substitutions don't run.
+fn eval_and_operand(ptr: u32, start: u32, end: u32, skip: bool) i64 {
+    if (skip) return 0;
+    if (find_top_string_op(ptr + start, end - start)) |op| {
+        return eval_string_expr(ptr + start, end - start, op);
+    }
+    var sub_pos: u32 = 0;
+    return expr_add(ptr + start, end - start, &sub_pos, skip);
+}
+
+/// Scan from *start* through *ptr*[..*len*] looking for the next
+/// occurrence of the doubled boolean operator ``op_char`` (``|`` for
+/// ``||``, ``&`` for ``&&``) at the top level.  Skips over nested
+/// braces / brackets / parens / quoted strings.  Returns either the
+/// position of the operator (so ``ptr + result`` points at the first
+/// byte of ``||`` / ``&&``) or ``len`` when no such operator exists.
+fn find_op_terminator(ptr: u32, len: u32, start: u32, op_char: u8) u32 {
+    if (start >= len) return len;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = start;
+    while (i < len) {
+        const c = src[i];
+        if (c == '\\' and i + 1 < len) {
+            i += 2;
+            continue;
+        }
+        if (c == '"') {
+            i += 1;
+            while (i < len and src[i] != '"') {
+                if (src[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            if (i < len) i += 1;
+            continue;
+        }
+        if (c == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '[') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '(') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '(') depth += 1 else if (src[i] == ')') depth -= 1;
+                i += 1;
+            }
+            continue;
+        }
+        // ``op_char`` doubled (``||`` or ``&&``) at top level → stop.
+        // When scanning for ``&&`` (op_char = '&'), also stop at ``||``
+        // — ``||`` has lower precedence so it ends the ``&&`` operand
+        // belongs to.
+        if (i + 1 < len and c == op_char and src[i + 1] == op_char) return i;
+        if (op_char == '&' and i + 1 < len and c == '|' and src[i + 1] == '|') return i;
+        i += 1;
+    }
+    return len;
 }
 
 fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
@@ -574,57 +838,91 @@ fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
 fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     var left = expr_mul(ptr, len, pos, skip);
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '+') {
-            pos.* += 1;
-            left = left + expr_mul(ptr, len, pos, skip);
-        } else if (src[pos.*] == '-') {
-            pos.* += 1;
-            left = left - expr_mul(ptr, len, pos, skip);
-        } else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (src[pos.*] == '<') {
-            pos.* += 1;
-            left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (src[pos.*] == '>') {
-            pos.* += 1;
-            left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else break;
+        const op_str: []const u8 = blk: {
+            if (src[pos.*] == '+') break :blk "+";
+            if (src[pos.*] == '-') break :blk "-";
+            if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') break :blk "==";
+            if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') break :blk "!=";
+            if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') break :blk "<=";
+            if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') break :blk ">=";
+            if (src[pos.*] == '<') break :blk "<";
+            if (src[pos.*] == '>') break :blk ">";
+            break :blk "";
+        };
+        if (op_str.len == 0) break;
+        // Saw an arithmetic / relational op — the LHS must be numeric.
+        // When the LHS came from a non-numeric atom (``"foo"`` / ``$x``
+        // where x="foo"), raise the canonical operand-coercion error
+        // and stop (while-old-4.4 ``"a"+"b"``).  Equality (``==`` /
+        // ``!=``) operates on the i64 form too in our minimal expr
+        // engine, so the same wording applies.
+        if (expr_raise_if_nonnum_arith(lhs_snap, op_str, "left")) return 0;
+        pos.* += @intCast(op_str.len);
+        const right = expr_mul(ptr, len, pos, skip);
+        const rhs_snap = expr_take_nonnum();
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) return 0;
+        switch (op_str[0]) {
+            '+' => left = left + right,
+            '-' => left = left - right,
+            '<' => {
+                if (op_str.len == 2) {
+                    left = if (left <= right) @as(i64, 1) else @as(i64, 0);
+                } else {
+                    left = if (left < right) @as(i64, 1) else @as(i64, 0);
+                }
+            },
+            '>' => {
+                if (op_str.len == 2) {
+                    left = if (left >= right) @as(i64, 1) else @as(i64, 0);
+                } else {
+                    left = if (left > right) @as(i64, 1) else @as(i64, 0);
+                }
+            },
+            '=' => left = if (left == right) @as(i64, 1) else @as(i64, 0),
+            '!' => left = if (left != right) @as(i64, 1) else @as(i64, 0),
+            else => unreachable,
+        }
+        lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
+    // No further operator after the LHS — restore the LHS's flag so
+    // the surrounding context (boolean operator, or top-level
+    // ``while``/``if`` condition) can decide whether to raise.
+    expr_restore_nonnum(lhs_snap);
     return left;
 }
 
 fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     var left = expr_atom(ptr, len, pos, skip);
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '*') {
-            pos.* += 1;
-            left = left * expr_atom(ptr, len, pos, skip);
-        } else if (src[pos.*] == '/') {
-            pos.* += 1;
-            const r = expr_atom(ptr, len, pos, skip);
-            left = if (r != 0) @divTrunc(left, r) else 0;
-        } else if (src[pos.*] == '%') {
-            pos.* += 1;
-            const r = expr_atom(ptr, len, pos, skip);
-            left = if (r != 0) @rem(left, r) else 0;
-        } else break;
+        const op_str: []const u8 = blk: {
+            if (src[pos.*] == '*') break :blk "*";
+            if (src[pos.*] == '/') break :blk "/";
+            if (src[pos.*] == '%') break :blk "%";
+            break :blk "";
+        };
+        if (op_str.len == 0) break;
+        if (expr_raise_if_nonnum_arith(lhs_snap, op_str, "left")) return 0;
+        pos.* += 1;
+        const right = expr_atom(ptr, len, pos, skip);
+        const rhs_snap = expr_take_nonnum();
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) return 0;
+        switch (op_str[0]) {
+            '*' => left = left * right,
+            '/' => left = if (right != 0) @divTrunc(left, right) else 0,
+            '%' => left = if (right != 0) @rem(left, right) else 0,
+            else => unreachable,
+        }
+        lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
 }
 
@@ -634,7 +932,13 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     if (pos.* >= len) return 0;
     if (src[pos.*] == '!') {
         pos.* += 1;
-        return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1);
+        const v = expr_atom(ptr, len, pos, skip);
+        // ``!`` is a boolean operator: if the operand wasn't a valid
+        // boolean (e.g. ``!"foo"``), raise the canonical wording now
+        // rather than letting an enclosing arithmetic op consume the
+        // non-numeric flag with the wrong message.
+        if (expr_consume_nonnum_boolean()) return 0;
+        return if (v != 0) @as(i64, 0) else @as(i64, 1);
     }
     if (src[pos.*] == '~') {
         pos.* += 1;
@@ -722,19 +1026,25 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         if (pos.* < len) pos.* += 1; // closing quote
         const clen: u32 = content_end - content_start;
         if (obj_mod.try_parse_int(ptr + content_start, clen)) |v| {
+            expr_clear_nonnum();
             return v;
         }
         if (obj_mod.try_parse_float(ptr + content_start, clen)) |fv| {
+            expr_clear_nonnum();
             return if (fv != 0.0) @as(i64, 1) else @as(i64, 0);
         }
         if (obj_mod.try_parse_bool(ptr + content_start, clen)) |bv| {
+            expr_clear_nonnum();
             return bv;
         }
-        // Not a recognised numeric or boolean literal — raise the
-        // canonical ``expected boolean value but got "X"`` so callers
-        // (``if`` / ``while`` / ``&&`` / ``||`` / ``?:``) report the
-        // same surface as reference Tcl.
-        raise_expected_boolean_str(ptr + content_start, clen);
+        // Not a recognised numeric or boolean literal — flag the raw
+        // bytes for the enclosing operator to consume.  Arithmetic
+        // operators (``+``, ``-``, …) will raise ``cannot use
+        // non-numeric string "X" as <side> operand of "<op>"``; boolean
+        // operators (``&&``, ``||``) and the top-level boolean context
+        // (``if``/``while``/``for`` condition) will raise ``expected
+        // boolean value but got "X"`` (while-old-4.4 / 4.5).
+        expr_set_nonnum(ptr + content_start, clen);
         return 0;
     }
     if (src[pos.*] == '$') {
@@ -753,7 +1063,28 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         // Without the release, every ``$var`` reference inside an
         // expression leaks one obj header per iteration.
         const val = frames.var_resolve(name);
-        const v: i64 = if (val != 0) obj_get_int(val) else 0;
+        var v: i64 = 0;
+        if (val != 0) {
+            // Parse the variable's value as int / float / bool;
+            // unparseable values flag the raw bytes so the enclosing
+            // operator (arithmetic / boolean) raises the right error.
+            // ``obj_get_int`` silently returns 0 for non-numeric
+            // strings, masking ``while {$x}`` where ``$x = "foo"``
+            // (while-old-4.5).
+            const vs_str = obj_mod.obj_ensure_string(val);
+            if (obj_mod.try_parse_int(vs_str.ptr, vs_str.len)) |iv| {
+                v = iv;
+                expr_clear_nonnum();
+            } else if (obj_mod.try_parse_float(vs_str.ptr, vs_str.len)) |fv| {
+                v = obj_mod.float_to_i64_clamped(fv);
+                expr_clear_nonnum();
+            } else if (obj_mod.try_parse_bool(vs_str.ptr, vs_str.len)) |bv| {
+                v = bv;
+                expr_clear_nonnum();
+            } else {
+                expr_set_nonnum(vs_str.ptr, vs_str.len);
+            }
+        }
         obj_mod.tcl_obj_release(name);
         return v;
     }
@@ -1483,6 +1814,12 @@ pub fn eval_if(words: []const i32) i32 {
         // Condition word.
         const cond_s = obj_ensure_string(words[i]);
         const cond_true = eval_expr_str(cond_s.ptr, cond_s.len) != 0;
+        // ``if`` evaluates the condition in boolean context: a
+        // non-numeric value (e.g. ``$x = "foo"``) that lingered in
+        // the expr atom's non-numeric flag must surface as
+        // ``expected boolean value but got "X"`` rather than
+        // silently being treated as false.
+        if (expr_consume_nonnum_boolean()) return 0;
         // Optional ``then`` keyword between condition and body.
         // ``if EXPR then`` (then with no body) is a script-following
         // error; ``if EXPR`` with no body is the same shape under
@@ -1584,6 +1921,16 @@ pub fn eval_while(words: []const i32) i32 {
     var result: i32 = 0;
     while (true) {
         const cond_val = eval_expr_str(cond_s.ptr, cond_s.len);
+        // Boolean context: a non-numeric atom (e.g. ``$x = "foo"``)
+        // must surface as ``expected boolean value but got "X"``
+        // (while-old-4.5).  ``expr_consume_nonnum_boolean`` raises
+        // the canonical error and clears the flag.
+        if (expr_consume_nonnum_boolean()) {
+            const tcl_catch = @import("tcl_catch.zig");
+            tcl_catch.state.transparent_error = 1;
+            if (result != 0) obj_mod.tcl_obj_release(result);
+            return 0;
+        }
         // ``eval_expr_str`` returns 0 for both "condition was false"
         // *and* "expression evaluation raised an error".  Distinguish
         // by probing ``error_flag``: when set, the cond raised — set
@@ -1669,7 +2016,16 @@ pub fn eval_for(words: []const i32) i32 {
     }
     var result: i32 = 0;
     while (true) {
-        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) {
+        const cond_val_for = eval_expr_str(cond_s.ptr, cond_s.len);
+        // Boolean context — surface non-numeric atoms as
+        // ``expected boolean value but got "X"``.  Mirrors eval_while.
+        if (expr_consume_nonnum_boolean()) {
+            const tcl_catch = @import("tcl_catch.zig");
+            tcl_catch.state.transparent_error = 1;
+            if (result != 0) obj_mod.tcl_obj_release(result);
+            return 0;
+        }
+        if (cond_val_for == 0) {
             // Condition errored — propagate transparently.
             if (has_signal()) {
                 const tcl_catch = @import("tcl_catch.zig");
