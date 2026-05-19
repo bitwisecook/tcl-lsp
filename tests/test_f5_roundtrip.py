@@ -181,6 +181,7 @@ def stub_server(tmp_path):
     cert_dir = _generate_self_signed(tmp_path)
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Stub)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2  # CodeQL py/insecure-protocol
     ctx.load_cert_chain(certfile=cert_dir / "cert.pem", keyfile=cert_dir / "key.pem")
     httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)

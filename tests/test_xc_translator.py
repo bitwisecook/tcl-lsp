@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -349,7 +350,11 @@ class TestTerraformRendering:
         result = translate_irule(src)
         hcl = render_terraform(result)
         assert "redirect_route" in hcl
-        assert "example.com" in hcl
+        # Word-boundary regex assertion — the URL we passed in is
+        # embedded in generated Terraform HCL.  Substring ``in hcl``
+        # would also pass for ``"foo.example.com"`` (CodeQL
+        # ``py/incomplete-url-substring-sanitization``).
+        assert re.search(r"\bexample\.com\b", hcl)
 
     def test_renders_coverage_summary(self):
         _setup()
