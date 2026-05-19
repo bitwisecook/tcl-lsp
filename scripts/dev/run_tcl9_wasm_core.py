@@ -6,7 +6,7 @@ with the upstream Tcl 9 ``tcltest.tcl`` framework — *unmodified on
 disk*; the bundler in ``tests/external/run_tcl9_tests.py:_bundle()``
 applies a small, documented set of in-memory ``_patch_tcltest_source``
 rewrites and prepends ``_PRE_TCLTEST`` / ``_PREAMBLE`` stubs around
-it) to WASM via ``core.compiler.codegen.wasm`` and executes it under
+it) to WASM via ``compiler.codegen.wasm`` and executes it under
 wasmtime against the Zig runtime in ``runtime/zig/``.  Pass / fail
 numbers from this script are the **production correctness signal**
 for the WASM ship target — unlike the Python-VM-side sibling

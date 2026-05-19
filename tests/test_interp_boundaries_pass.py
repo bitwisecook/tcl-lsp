@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.ir import IRBarrier, IRInterpBoundary
-from core.compiler.lowering import lower_to_ir
-from core.compiler.passes.interp_boundaries import insert_interp_boundaries
+from compiler.ir import IRBarrier, IRInterpBoundary
+from compiler.lowering import lower_to_ir
+from compiler.passes.interp_boundaries import insert_interp_boundaries
 
 
 def _stmts(module, qname: str = "::foo"):

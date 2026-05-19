@@ -19,7 +19,8 @@ either as an orphan_builtins entry.
 
 from __future__ import annotations
 
-from ....compiler.types import TclType
+from compiler.types import TclType
+
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import (

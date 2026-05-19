@@ -21,10 +21,10 @@ except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
 
-from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn
-from core.compiler.gvn import RedundantComputation
-from core.compiler.interprocedural import InterproceduralAnalysis, ProcSummary
-from core.compiler.ir import (
+from compiler.cfg import CFGBranch, CFGGoto, CFGReturn
+from compiler.gvn import RedundantComputation
+from compiler.interprocedural import InterproceduralAnalysis, ProcSummary
+from compiler.ir import (
     IRBarrier,
     IRCall,
     IRFor,
@@ -36,13 +36,13 @@ from core.compiler.ir import (
     IRStatement,
     IRSwitch,
 )
-from core.compiler.irules_flow import IrulesFlowWarning
-from core.compiler.optimiser import Optimisation
-from core.compiler.shimmer import ShimmerWarning, ThunkingWarning
-from core.compiler.taint import (
+from compiler.irules_flow import IrulesFlowWarning
+from compiler.optimiser import Optimisation
+from compiler.shimmer import ShimmerWarning, ThunkingWarning
+from compiler.taint import (
     TaintWarning,
 )
-from core.compiler.types import TypeKind
+from compiler.types import TypeKind
 
 from .formatters import (
     LineIndex,
@@ -96,7 +96,7 @@ from core.analysis.semantic_model import Range  # noqa: E402
 
 
 def _stmt_colour(stmt: IRStatement) -> str:
-    from core.compiler.ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr
+    from compiler.ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr
 
     if isinstance(stmt, IRBarrier):
         return Ansi.YELLOW
@@ -113,8 +113,8 @@ def _stmt_colour(stmt: IRStatement) -> str:
 
 def _stmt_summary(stmt: IRStatement) -> str:
     """One-line summary of an IR statement (CLI version with expr_text)."""
-    from core.compiler.expr_ast import expr_text as _expr_text
-    from core.compiler.ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr
+    from compiler.expr_ast import expr_text as _expr_text
+    from compiler.ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr
 
     if isinstance(stmt, IRAssignConst):
         return f"assign-const {stmt.name} = {stmt.value}"
@@ -141,7 +141,7 @@ def _stmt_summary(stmt: IRStatement) -> str:
     if isinstance(stmt, IRIf):
         return f"if ({len(stmt.clauses)} clause(s){', else' if stmt.else_body is not None else ''})"
     if isinstance(stmt, IRFor):
-        from core.compiler.expr_ast import expr_text as _expr_text2
+        from compiler.expr_ast import expr_text as _expr_text2
 
         return f"for ({preview(_expr_text2(stmt.condition), 40)})"
     if isinstance(stmt, IRSwitch):
@@ -150,7 +150,7 @@ def _stmt_summary(stmt: IRStatement) -> str:
 
 
 def _terminator_summary(term: CFGGoto | CFGBranch | CFGReturn | None) -> str:
-    from core.compiler.expr_ast import expr_text as _expr_text
+    from compiler.expr_ast import expr_text as _expr_text
 
     if term is None:
         return "<no terminator>"
@@ -443,7 +443,7 @@ def _print_ir_if(
     line_index: LineIndex,
     use_colour: bool,
 ) -> None:
-    from core.compiler.expr_ast import expr_text as _expr_text
+    from compiler.expr_ast import expr_text as _expr_text
 
     children: list[tuple[str, IRIfClause | IRScript]] = []
     for i, clause in enumerate(stmt.clauses, start=1):
@@ -539,7 +539,7 @@ def _print_ir_for(
     line_index: LineIndex,
     use_colour: bool,
 ) -> None:
-    from core.compiler.expr_ast import expr_text as _expr_text
+    from compiler.expr_ast import expr_text as _expr_text
 
     init_span = line_index.format_range(stmt.init_range)
     cond_span = line_index.format_range(stmt.condition_range)
@@ -1027,10 +1027,10 @@ _WASM_RULES: list[tuple[str, str]] = [
 
 def print_asm(ir_module: IRModule, *, cfg_module=None, use_colour: bool) -> None:
     """Render bytecode assembly for all functions in the module."""
-    from core.compiler.codegen import codegen_module, format_module_asm
+    from compiler.codegen import codegen_module, format_module_asm
 
     if cfg_module is None:
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     module_asm = codegen_module(cfg_module, ir_module)
@@ -1042,10 +1042,10 @@ def print_wasm(
     ir_module: IRModule, *, optimise: bool = False, cfg_module=None, use_colour: bool
 ) -> None:
     """Render WebAssembly text (WAT) for all functions in the module."""
-    from core.compiler.codegen.wasm import wasm_codegen_module
+    from compiler.codegen.wasm import wasm_codegen_module
 
     if cfg_module is None:
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
@@ -1242,7 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     if views & {"asm", "wasm"}:
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         cfg = build_cfg(result.ir_module)
         if "asm" in views:
@@ -1256,8 +1256,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"warning: wasm generation failed: {exc}", file=sys.stderr)
 
     if ("asm-opt" in views or "wasm-opt" in views) and result.optimised_source != result.source:
-        from core.compiler.cfg import build_cfg
-        from core.compiler.lowering import lower_to_ir
+        from compiler.cfg import build_cfg
+        from compiler.lowering import lower_to_ir
 
         try:
             opt_ir = lower_to_ir(result.optimised_source)

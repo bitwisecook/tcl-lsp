@@ -7,13 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from compiler.expr_ast import ExprRaw
+from compiler.ir import IRAssignConst, IRAssignExpr
+from compiler.lowering import lower_to_ir
 from compiler.parsing.tokens import SourcePosition
+from compiler.ssa import build_ssa
 from core.analysis.semantic_model import Range
-from core.compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
-from core.compiler.expr_ast import ExprRaw
-from core.compiler.ir import IRAssignConst, IRAssignExpr
-from core.compiler.lowering import lower_to_ir
-from core.compiler.ssa import build_ssa
 
 
 def _dummy_range() -> Range:
@@ -136,8 +136,8 @@ class TestBarrierVarWriteRoles:
         # tuple; SSA's barrier path skips the registry ``VAR_WRITE``
         # query for scope-alias commands as a safety net so any future
         # spec or lowering edit can't silently regress to partial defs.
-        from core.compiler.ir import IRBarrier
-        from core.compiler.ssa import _defs
+        from compiler.ir import IRBarrier
+        from compiler.ssa import _defs
 
         r = _dummy_range()
         for cmd in ("global", "variable"):

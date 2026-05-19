@@ -7,7 +7,16 @@ import time
 
 from lsprotocol import types
 
+from compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
+from compiler.gvn import RedundantComputation, find_redundant_computations
+from compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
+from compiler.optimiser import Optimisation, find_optimisations
 from compiler.parsing.tokens import SourcePosition
+from compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
+from compiler.taint import (
+    TaintWarning,
+    find_taint_warnings,
+)
 from core.analysis import analyse
 from core.analysis.semantic_model import (
     _FILE_SUPPRESS_KEY,
@@ -20,15 +29,6 @@ from core.analysis.semantic_model import (
     WorkspaceDiagnosticContext,
 )
 from core.commands.registry import REGISTRY
-from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
-from core.compiler.gvn import RedundantComputation, find_redundant_computations
-from core.compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
-from core.compiler.optimiser import Optimisation, find_optimisations
-from core.compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
-from core.compiler.taint import (
-    TaintWarning,
-    find_taint_warnings,
-)
 from core.tk.detection import has_tk_require
 from shared.codes import diag
 from shared.dialect import active_dialect

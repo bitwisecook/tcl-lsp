@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.var_escape import (
+from compiler.var_escape import (
     TOP_LEVEL_QNAME,
     EscapeTag,
     ProcEscapeSummary,
@@ -688,7 +688,7 @@ class TestSSATagging:
         # The IR-only fallback path does a tree walk and doesn't have
         # access to SSA, so ssa_tags stays empty.  Per-name ``tags``
         # still reflect the escape.
-        from core.compiler.lowering import lower_to_ir
+        from compiler.lowering import lower_to_ir
 
         ir_module = lower_to_ir(
             textwrap.dedent(
@@ -795,7 +795,7 @@ class TestApiMutualExclusivity:
     def test_source_plus_ir_module_raises(self):
         import pytest
 
-        from core.compiler.lowering import lower_to_ir
+        from compiler.lowering import lower_to_ir
 
         ir = lower_to_ir("proc f {} {}")
         with pytest.raises(ValueError):

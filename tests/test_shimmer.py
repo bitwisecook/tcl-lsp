@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.compiler.shimmer import (
+from compiler.shimmer import (
     ShimmerWarning,
     ThunkingWarning,
     find_shimmer_warnings,
 )
-from core.compiler.types import TclType
+from compiler.types import TclType
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "shimmer"
 

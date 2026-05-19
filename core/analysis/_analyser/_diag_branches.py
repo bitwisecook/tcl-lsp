@@ -7,8 +7,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...compiler.cfg import CFGBranch, CFGFunction
-from ...compiler.core_analyses import FunctionAnalysis
+from compiler.cfg import CFGBranch, CFGFunction
+from compiler.core_analyses import FunctionAnalysis
+
 from ..semantic_model import Diagnostic, Severity
 
 

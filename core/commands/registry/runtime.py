@@ -15,12 +15,13 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
+    from compiler.side_effects import StorageType
+
     from ...analysis.semantic_model import StubCommandDef
-    from ...compiler.side_effects import StorageType
 
 from compiler.parsing.tokens import Token
+from compiler.types import TclType
 
-from ...compiler.types import TclType
 from .command_registry import REGISTRY
 from .models import CommandSpec, PatternType, ValidationSpec
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig

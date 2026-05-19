@@ -9,27 +9,27 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 
-from core.commands.registry.runtime import available_dialects, configure_signatures
-from core.compiler.cfg import CFGFunction
-from core.compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
-from core.compiler.core_analyses import FunctionAnalysis
-from core.compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
-from core.compiler.gvn import RedundantComputation, find_redundant_computations
-from core.compiler.interprocedural import InterproceduralAnalysis
-from core.compiler.ir import IRModule
-from core.compiler.irules_flow import (
+from compiler.cfg import CFGFunction
+from compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
+from compiler.core_analyses import FunctionAnalysis
+from compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
+from compiler.gvn import RedundantComputation, find_redundant_computations
+from compiler.interprocedural import InterproceduralAnalysis
+from compiler.ir import IRModule
+from compiler.irules_flow import (
     EventOrderEntry,
     IrulesFlowWarning,
     extract_event_order,
     find_irules_flow_warnings,
 )
-from core.compiler.optimiser import Optimisation, apply_optimisations, find_optimisations
-from core.compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
-from core.compiler.ssa import SSAFunction
-from core.compiler.taint import (
+from compiler.optimiser import Optimisation, apply_optimisations, find_optimisations
+from compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
+from compiler.ssa import SSAFunction
+from compiler.taint import (
     TaintWarning,
     find_taint_warnings,
 )
+from core.commands.registry.runtime import available_dialects, configure_signatures
 
 # Data types
 

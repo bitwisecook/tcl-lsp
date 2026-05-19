@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from ...compiler.types import TclType
+from compiler.types import TclType
 
 
 @dataclass(frozen=True, slots=True)

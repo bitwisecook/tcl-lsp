@@ -82,9 +82,9 @@ def taint_warnings(source: str) -> list[dict[str, Any]]:
     ``sink_command``.
     """
     try:
-        from core.compiler.compile import compile_source
+        from compiler.compile import compile_source
 
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         cu = compile_source(source)
         warnings = find_taint_warnings(source, cu)

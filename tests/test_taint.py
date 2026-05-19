@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.commands.registry.taint_hints import TaintColour
-from core.compiler.taint import (
+from compiler.taint import (
     TaintLattice,
     TaintWarning,
     find_taint_warnings,
     taint_join,
 )
+from core.commands.registry.taint_hints import TaintColour
 
 
 def _codes(source: str) -> list[str]:

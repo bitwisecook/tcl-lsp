@@ -46,12 +46,12 @@ section headings here.
 
 ### In scope
 
-- All diagnostic codes produced by `core/analysis/` and `core/compiler/`,
+- All diagnostic codes produced by `core/analysis/` and `compiler/`,
   including E, W (style, security, variable), S, T, and every IRULExxxx
   family.
-- All O-codes produced by `core/compiler/optimiser/`.
+- All O-codes produced by `compiler/optimiser/`.
 - Compiler-pass glossary entries for every pass listed in
-  `core/compiler/` that produces or consumes a code.
+  `compiler/` that produces or consumes a code.
 - 19 missing feature pages from the inventory (high, medium, and
   low priority).
 - Cross-linking between code pages, feature pages, the glossary, and

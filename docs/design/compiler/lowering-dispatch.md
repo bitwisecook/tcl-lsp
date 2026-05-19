@@ -12,8 +12,8 @@ registered lowering hooks → match/case on command name → fallthrough via
 `arg_roles`.  The dispatch produces specific IR nodes (`IRAssignConst`,
 `IRAssignExpr`, `IRIf`, etc.) rather than generic `IRCall` wherever possible.
 
-Source: [`core/compiler/lowering.py`](../../../core/compiler/lowering.py),
-[`core/compiler/lowering_hooks/`](../../../core/compiler/lowering_hooks/)
+Source: [`compiler/lowering.py`](../../../compiler/lowering.py),
+[`compiler/lowering_hooks/`](../../../compiler/lowering_hooks/)
 
 ## Content
 
@@ -99,7 +99,7 @@ and lowers to richer IR nodes instead of the generic `IRBarrier`:
 2. The body does not contain any nested `_DYNAMIC_BARRIER_COMMANDS` whose
    own body is still dynamic. A braced `eval {uplevel 1 $x}` stays a
    barrier because the inner `uplevel` has a dynamic body. See
-   `core/compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
+   `compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
 3. For `uplevel`, the level specifier must be absent, a bare integer, or
    `#N` with a plain `TokenType.ESC` level token. `uplevel $lvl {...}`
    stays a barrier.
@@ -135,7 +135,7 @@ are all plain literals (`TokenType.ESC` with no `$` / `[`, or
 `TokenType.STR`). The gate synthesises the body by joining the
 list arguments — `STR` tokens get re-braced — and lowers the
 result as `IRBlock`. See `_Lowerer._eval_list_literal_body` in
-`core/compiler/lowering.py`. Shapes that stay as `IRBarrier`:
+`compiler/lowering.py`. Shapes that stay as `IRBarrier`:
 `eval [foo …]` (inner command isn't `list`), `eval [list $v w]`
 (dynamic substitution), and `eval [list {*}$args]` (`{*}`
 expansion).
@@ -151,7 +151,7 @@ runtime interpreter handles the full Tcl specification; the compiler only
 inlines what it can prove is safe.
 
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `core/compiler/codegen/_helpers.py`) are not
+`_parse_subst_template()` in `compiler/codegen/_helpers.py`) are not
 incomplete — they are conservative by design. Missing escape forms are an
 optimisation limitation, not a correctness bug.
 

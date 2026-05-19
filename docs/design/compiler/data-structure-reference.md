@@ -15,12 +15,12 @@ adding new analyses or debugging data-flow issues.
 
 Source: [`compiler/parsing/tokens.py`](../../../compiler/parsing/tokens.py),
 [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py),
-[`core/compiler/ir.py`](../../../core/compiler/ir.py),
-[`core/compiler/cfg.py`](../../../core/compiler/cfg.py),
-[`core/compiler/ssa.py`](../../../core/compiler/ssa.py),
-[`core/compiler/core_analyses.py`](../../../core/compiler/core_analyses.py),
-[`core/compiler/codegen/_types.py`](../../../core/compiler/codegen/_types.py),
-[`core/compiler/compilation_unit.py`](../../../core/compiler/compilation_unit.py)
+[`compiler/ir.py`](../../../compiler/ir.py),
+[`compiler/cfg.py`](../../../compiler/cfg.py),
+[`compiler/ssa.py`](../../../compiler/ssa.py),
+[`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
+[`compiler/codegen/_types.py`](../../../compiler/codegen/_types.py),
+[`compiler/compilation_unit.py`](../../../compiler/compilation_unit.py)
 
 ## Content
 

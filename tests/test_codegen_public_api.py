@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen import (
+from compiler.cfg import build_cfg
+from compiler.codegen import (
     __all__ as codegen_all,
 )
-from core.compiler.codegen import (
+from compiler.codegen import (
     codegen_module,
     format_module_asm,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 
 def test_codegen_public_api_exports_expected_symbols():

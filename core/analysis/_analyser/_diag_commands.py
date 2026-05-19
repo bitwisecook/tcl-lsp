@@ -9,19 +9,19 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.known_commands import known_command_names
-from shared.dialect import active_dialect, active_extra_commands
-
-from ...commands.registry import REGISTRY
-from ...compiler.compilation_unit import CompilationUnit
-from ...compiler.core_analyses import LatticeValue
-from ...compiler.ir import (
+from compiler.compilation_unit import CompilationUnit
+from compiler.core_analyses import LatticeValue
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
     IRCall,
     IRIncr,
 )
+from compiler.parsing.known_commands import known_command_names
+from shared.dialect import active_dialect, active_extra_commands
+
+from ...commands.registry import REGISTRY
 from ..semantic_model import (
     CodeFix,
     Diagnostic,
@@ -148,7 +148,7 @@ class _AnalyserDiagCommandsMixin(_Base):
                 continue
 
             if "$" in cmd_name and _interp_sccp_values is not None:
-                from ...compiler.core_analyses import _fold_interpolation_set
+                from compiler.core_analyses import _fold_interpolation_set
 
                 resolved = _fold_interpolation_set(
                     cmd_name,
@@ -195,7 +195,7 @@ class _AnalyserDiagCommandsMixin(_Base):
         if not w123_diags:
             return
 
-        from ...compiler.core_analyses import _fold_interpolation_set
+        from compiler.core_analyses import _fold_interpolation_set
 
         _func_values: dict[str, dict[tuple[str, int], LatticeValue]] = {}
         _func_uses: dict[str, dict[str, int]] = {}

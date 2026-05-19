@@ -18,12 +18,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
+from compiler.irules_flow import RuleInitExport
 from core.analysis.semantic_model import AnalysisResult, ProcDef
 from core.analysis.signature_scan import extract_signatures
 from core.bigip.apl_model import AplModel, resolve_apl_includes
 from core.bigip.model import BigipConfig
 from core.bigip.parser import parse_bigip_conf
-from core.compiler.irules_flow import RuleInitExport
 
 log = logging.getLogger(__name__)
 
@@ -516,7 +516,7 @@ class BackgroundScanner:
             dialect = _dialect_from_ext(ext)
             rule_init_exports: list[RuleInitExport] = []
             if dialect == "f5-irules":
-                from core.compiler.irules_flow import extract_rule_init_vars
+                from compiler.irules_flow import extract_rule_init_vars
 
                 rule_init_exports = extract_rule_init_vars(source)
             return ScanResult(

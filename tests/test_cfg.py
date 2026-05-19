@@ -8,10 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn, build_cfg
-from core.compiler.expr_ast import expr_text
-from core.compiler.ir import IRAssignConst, IRSwitch
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import CFGBranch, CFGGoto, CFGReturn, build_cfg
+from compiler.expr_ast import expr_text
+from compiler.ir import IRAssignConst, IRSwitch
+from compiler.lowering import lower_to_ir
 
 
 class TestCFG:

@@ -13,15 +13,15 @@ It is managed by `_CompilerOptimiser` in `_manager.py`, which orchestrates
 individual passes and collects `Optimisation` objects.  Each pass produces
 diagnostics with codes O100–O126.  Passes share state through `PassContext`.
 
-Source: [`core/compiler/optimiser/`](../../../core/compiler/optimiser/) —
-[`_manager.py`](../../../core/compiler/optimiser/_manager.py),
-[`_propagation.py`](../../../core/compiler/optimiser/_propagation.py),
-[`_elimination.py`](../../../core/compiler/optimiser/_elimination.py),
-[`_expr_simplify.py`](../../../core/compiler/optimiser/_expr_simplify.py),
-[`_code_sinking.py`](../../../core/compiler/optimiser/_code_sinking.py),
-[`_tail_call.py`](../../../core/compiler/optimiser/_tail_call.py),
-[`_unused_procs.py`](../../../core/compiler/optimiser/_unused_procs.py),
-[`core/compiler/gvn.py`](../../../core/compiler/gvn.py)
+Source: [`compiler/optimiser/`](../../../compiler/optimiser/) —
+[`_manager.py`](../../../compiler/optimiser/_manager.py),
+[`_propagation.py`](../../../compiler/optimiser/_propagation.py),
+[`_elimination.py`](../../../compiler/optimiser/_elimination.py),
+[`_expr_simplify.py`](../../../compiler/optimiser/_expr_simplify.py),
+[`_code_sinking.py`](../../../compiler/optimiser/_code_sinking.py),
+[`_tail_call.py`](../../../compiler/optimiser/_tail_call.py),
+[`_unused_procs.py`](../../../compiler/optimiser/_unused_procs.py),
+[`compiler/gvn.py`](../../../compiler/gvn.py)
 
 ## Content
 

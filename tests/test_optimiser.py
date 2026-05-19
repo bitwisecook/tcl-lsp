@@ -8,17 +8,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from compiler.parsing.tokens import SourcePosition
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
-from core.commands.registry.runtime import configure_signatures
-from core.compiler.optimiser import (
+from compiler.optimiser import (
     demorgan_transform,
     find_optimisations,
     invert_expression,
     optimise_source,
 )
-from core.compiler.optimiser._helpers import _full_command_range
+from compiler.optimiser._helpers import _full_command_range
+from compiler.parsing.tokens import SourcePosition
+from core.analysis import analyse
+from core.analysis.semantic_model import Range
+from core.commands.registry.runtime import configure_signatures
 
 
 class TestOptimiser:

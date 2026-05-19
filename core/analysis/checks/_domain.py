@@ -204,14 +204,15 @@ def _find_dialect_invalid_ops(node, dialect: str):
     in pre-Tcl-9.0 dialects (TIP 461).  New gated operators just need
     their entry in :data:`TCL_OPERATOR_DIALECTS`.
     """
-    from ...commands.registry.operators import operator_supports_dialect
-    from ...compiler.expr_ast import (
+    from compiler.expr_ast import (
         BinOp,
         ExprBinary,
         ExprCall,
         ExprTernary,
         ExprUnary,
     )
+
+    from ...commands.registry.operators import operator_supports_dialect
 
     found: list[tuple[BinOp, str]] = []
     # Operators with version-dependent dialect availability.  ``in`` / ``ni``
@@ -271,9 +272,8 @@ def check_dialect_invalid_expr_operator(
     The :data:`TCL_OPERATOR_DIALECTS` table is the source of truth;
     adding a new gated operator there is enough to extend this check.
     """
+    from compiler.expr_ast import ExprRaw
     from compiler.parsing.expr_parser import parse_expr
-
-    from ...compiler.expr_ast import ExprRaw
 
     dialect = active_dialect()
     expr_indices = arg_indices_for_role(cmd_name, args, ArgRole.EXPR)

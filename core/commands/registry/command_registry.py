@@ -9,7 +9,8 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from ...compiler.side_effects import SideEffect
+    from compiler.side_effects import SideEffect
+
     from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler, WasmEmitHook
 
 from .models import (

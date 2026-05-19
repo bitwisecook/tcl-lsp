@@ -8,9 +8,9 @@ fires around it.  ``trace remove execution`` cancels the propagation.
 
 from __future__ import annotations
 
-from core.compiler.ir import CommandTrace, IRModule
-from core.compiler.lowering import lower_to_ir
-from core.compiler.side_effects import (
+from compiler.ir import CommandTrace, IRModule
+from compiler.lowering import lower_to_ir
+from compiler.side_effects import (
     SideEffectTarget,
     classify_side_effects,
 )

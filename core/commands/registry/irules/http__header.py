@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageScope
+
 from .._base import CommandDef
 from ..models import (
     ArgumentValueSpec,

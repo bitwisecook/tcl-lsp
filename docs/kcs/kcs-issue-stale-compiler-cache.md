@@ -23,7 +23,7 @@ Incremental analysis reuses per-procedure `FunctionUnit` and local interprocedur
 
 ## File-path anchors
 
-- `core/compiler/compilation_unit.py`
+- `compiler/compilation_unit.py`
 - `lsp/workspace/document_state.py`
 - `lsp/features/diagnostics.py`
 - `lsp/async_diagnostics.py`

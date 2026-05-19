@@ -347,7 +347,7 @@ class _AnalyserHandlersMixin(_Base):
             const_val = self._lookup_const_string(dict_var, scope)
             if const_val is None:
                 return
-            from ...compiler.tcl_expr_eval import _split_tcl_list
+            from compiler.tcl_expr_eval import _split_tcl_list
 
             try:
                 elements = _split_tcl_list(const_val)
@@ -431,7 +431,7 @@ class _AnalyserHandlersMixin(_Base):
         if not prefix:
             return
 
-        from ...compiler.tcl_expr_eval import _split_tcl_list
+        from compiler.tcl_expr_eval import _split_tcl_list
 
         try:
             elements = _split_tcl_list(prefix)

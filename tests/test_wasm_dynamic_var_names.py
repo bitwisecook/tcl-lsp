@@ -37,7 +37,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.compiler.codegen.wasm._emitter._variables import _is_dynamic_var_name  # noqa: E402
+from compiler.codegen.wasm._emitter._variables import _is_dynamic_var_name  # noqa: E402
 from tests.test_wasm_execution import (  # noqa: E402
     _compile_and_run_proc,
     _compile_to_wasm,

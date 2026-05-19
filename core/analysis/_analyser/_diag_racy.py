@@ -8,8 +8,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...compiler.compilation_unit import FunctionUnit
-from ...compiler.ir import IRCall
+from compiler.compilation_unit import FunctionUnit
+from compiler.ir import IRCall
+
 from ..semantic_model import Diagnostic, Severity
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.side_effects import (
+from compiler.side_effects import (
     CommandSideEffects,
     ConnectionSide,
     SideEffect,
@@ -361,7 +361,7 @@ class TestDialectSpecificHints:
         assert effect.connection_side is ConnectionSide.BOTH
 
     def test_file_io_does_not_kill_unknown_region(self) -> None:
-        from core.compiler.side_effects import EffectRegion
+        from compiler.side_effects import EffectRegion
 
         result = classify_side_effects("puts", ("hello",), dialect="tcl8.6")
         _reads, writes = result.to_effect_regions()

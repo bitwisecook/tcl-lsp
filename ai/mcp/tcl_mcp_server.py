@@ -549,7 +549,7 @@ def _tool_find_legacy(source: str, dialect: str = "") -> str:
 def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.optimiser import (
+    from compiler.optimiser import (
         apply_optimisations,
         find_optimisations,
         optimise_source_multipass,
@@ -1131,7 +1131,7 @@ def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
 def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
 
     graph = extract_dataflow_graph(source)
     result = dataflow_graph_to_dict(graph)
@@ -1161,8 +1161,8 @@ def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> 
 def _tool_memory_aliases(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.compilation_unit import ensure_compilation_unit
-    from core.compiler.memory_ssa import MemorySSAFunction
+    from compiler.compilation_unit import ensure_compilation_unit
+    from compiler.memory_ssa import MemorySSAFunction
 
     cu = ensure_compilation_unit(source, context="mcp.memory_aliases")
     if cu is None:

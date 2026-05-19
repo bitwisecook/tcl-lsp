@@ -186,9 +186,9 @@ def _compile_script(script: str) -> bytes:
     ``tests/test_wasm_real_tcl.py`` — IR lowering, CFG build, codegen.
     Compile errors propagate as exceptions for the caller to classify.
     """
-    from core.compiler.cfg import build_cfg  # noqa: PLC0415
-    from core.compiler.codegen.wasm import wasm_codegen_module  # noqa: PLC0415
-    from core.compiler.lowering import lower_to_ir  # noqa: PLC0415
+    from compiler.cfg import build_cfg  # noqa: PLC0415
+    from compiler.codegen.wasm import wasm_codegen_module  # noqa: PLC0415
+    from compiler.lowering import lower_to_ir  # noqa: PLC0415
 
     ir_module = lower_to_ir(script)
     cfg_module = build_cfg(ir_module)

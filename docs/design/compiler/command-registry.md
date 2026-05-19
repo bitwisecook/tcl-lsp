@@ -284,7 +284,7 @@ analysis layers handle these at different levels:
 - **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
   handlers for compound forms like `namespace upvar`, `dict set`,
   `dict update`, and `dict with`.
-- **Lowering hooks** (`core/compiler/lowering_hooks/`) have per-command
+- **Lowering hooks** (`compiler/lowering_hooks/`) have per-command
   hooks that understand subcommand structure.
 
 When verifying whether a compound command is handled, search all three

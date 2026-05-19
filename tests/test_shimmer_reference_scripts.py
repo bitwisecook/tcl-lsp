@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.compiler.shimmer import find_shimmer_warnings
+from compiler.shimmer import find_shimmer_warnings
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "shimmer"
 

@@ -538,9 +538,9 @@ def run_test_file_wasm(
     compiles to a valid WASM module.  Full execution requires a WASM
     runtime linked against the Zig Tcl runtime.
     """
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
-    from core.compiler.lowering import lower_to_ir
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm import WasmOp, wasm_codegen_module
+    from compiler.lowering import lower_to_ir
 
     result = TestFileResult(
         file=str(test_file.relative_to(checkout_dir)),

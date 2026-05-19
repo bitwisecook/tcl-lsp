@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.dataflow_graph import (
+from compiler.dataflow_graph import (
     EdgeKind,
     dataflow_graph_to_dict,
     dataflow_graph_to_mermaid,
@@ -81,11 +81,11 @@ class TestDataFlowGraphEdgeKinds:
         assert len(graph.functions) >= 3
 
     def test_extract_function_dataflow_directly(self):
-        from core.compiler.cfg import build_cfg
-        from core.compiler.core_analyses import analyse_function
-        from core.compiler.dataflow_graph import extract_function_dataflow
-        from core.compiler.lowering import lower_to_ir
-        from core.compiler.ssa import build_ssa
+        from compiler.cfg import build_cfg
+        from compiler.core_analyses import analyse_function
+        from compiler.dataflow_graph import extract_function_dataflow
+        from compiler.lowering import lower_to_ir
+        from compiler.ssa import build_ssa
 
         source = "set x 1\nset y $x"
         mod = lower_to_ir(source)
@@ -97,7 +97,7 @@ class TestDataFlowGraphEdgeKinds:
         assert func_graph.total_defs >= 2
 
     def test_prebuilt_cu(self):
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = "set x 1\nset y $x"
         cu = ensure_compilation_unit(source, None, context="test")
@@ -141,7 +141,7 @@ class TestDataFlowGraphSerialisation:
 
     def test_mermaid_sanitised_ids(self):
         """Mermaid node IDs should only contain safe characters."""
-        from core.compiler.dataflow_graph import _sanitise_mermaid_id
+        from compiler.dataflow_graph import _sanitise_mermaid_id
 
         assert _sanitise_mermaid_id("arr(idx)") == "arr_idx_"
         assert _sanitise_mermaid_id("my-var") == "my_var"

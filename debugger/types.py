@@ -8,7 +8,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.compiler.codegen import Instruction
+    from compiler.codegen import Instruction
     from vm.scope import CallFrame
 
 

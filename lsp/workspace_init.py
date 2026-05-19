@@ -56,8 +56,8 @@ def _warm_imports() -> None:
     """Eagerly import heavy modules to eliminate cold-start latency."""
     t0 = time.perf_counter()
     try:
+        import compiler.compilation_unit  # noqa: F811, F401
         import core.analysis  # noqa: F811, F401
-        import core.compiler.compilation_unit  # noqa: F811, F401
         import lsp.features._semantic_tokens  # noqa: F811, F401
         import lsp.features.diagnostics  # noqa: F811, F401
 

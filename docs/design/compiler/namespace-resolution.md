@@ -15,8 +15,8 @@ fully qualified names.  Interprocedural analysis uses namespace-aware call
 resolution.
 
 Source: [`shared/naming.py`](../../../shared/naming.py),
-[`core/compiler/lowering.py`](../../../core/compiler/lowering.py),
-[`core/compiler/interprocedural.py`](../../../core/compiler/interprocedural.py)
+[`compiler/lowering.py`](../../../compiler/lowering.py),
+[`compiler/interprocedural.py`](../../../compiler/interprocedural.py)
 
 ## Content
 

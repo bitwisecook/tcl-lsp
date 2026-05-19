@@ -6,11 +6,9 @@ and source-range helpers shared between the CLI and web explorers.
 
 from __future__ import annotations
 
-from core.analysis.semantic_model import Range
-from core.commands.registry.taint_hints import TaintColour
-from core.compiler.core_analyses import LatticeKind, LatticeValue
-from core.compiler.expr_ast import ExprNode, render_expr
-from core.compiler.ir import (
+from compiler.core_analyses import LatticeKind, LatticeValue
+from compiler.expr_ast import ExprNode, render_expr
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -23,8 +21,10 @@ from core.compiler.ir import (
     IRStatement,
     IRSwitch,
 )
-from core.compiler.taint import TaintLattice
-from core.compiler.types import TypeKind, TypeLattice
+from compiler.taint import TaintLattice
+from compiler.types import TypeKind, TypeLattice
+from core.analysis.semantic_model import Range
+from core.commands.registry.taint_hints import TaintColour
 from shared.source_map import offset_to_line_col
 
 # LineIndex — source offset mapping

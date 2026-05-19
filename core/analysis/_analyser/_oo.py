@@ -8,16 +8,16 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.recovery import segment_with_recovery
-from compiler.parsing.tokens import Token
-from shared.ranges import range_from_token
-
-from ...compiler.compiler_checks import iter_ir_statements
-from ...compiler.ir import (
+from compiler.compiler_checks import iter_ir_statements
+from compiler.ir import (
     IRBarrier,
     IRCall,
     IRSwitch,
 )
+from compiler.parsing.recovery import segment_with_recovery
+from compiler.parsing.tokens import Token
+from shared.ranges import range_from_token
+
 from ..semantic_model import (
     ClassDef,
     MethodDef,
@@ -486,7 +486,7 @@ class _AnalyserOOMixin(_Base):
         first_param = params[0].name if params else "cmd"
 
         try:
-            from ...compiler.lowering import lower_to_ir
+            from compiler.lowering import lower_to_ir
 
             ir_module = lower_to_ir(body)
         except Exception:

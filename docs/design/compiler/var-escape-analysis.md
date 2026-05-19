@@ -9,7 +9,7 @@ and dynamic `set $name …`).
 
 ## Context
 
-The WASM emitter (`core/compiler/codegen/wasm/`) emits proc-local Tcl variables
+The WASM emitter (`compiler/codegen/wasm/`) emits proc-local Tcl variables
 as WASM `local.get` / `local.set` for speed. Before this pass existed, every
 compiled proc paid a **sync-all-locals-before-fallback** cost on every
 interpreter dispatch: `_emit_frame_sync` mirrored every local into the runtime
@@ -23,14 +23,14 @@ private stay on WASM locals; vars that might escape live in the runtime
 frame from the start, so no sync is needed.
 
 Source:
-[`core/compiler/var_escape/`](../../../core/compiler/var_escape/) —
-[`_types.py`](../../../core/compiler/var_escape/_types.py),
-[`_propagation.py`](../../../core/compiler/var_escape/_propagation.py),
-[`_cfg_propagation.py`](../../../core/compiler/var_escape/_cfg_propagation.py),
-[`_info_subcommands.py`](../../../core/compiler/var_escape/_info_subcommands.py),
-[`_interprocedural.py`](../../../core/compiler/var_escape/_interprocedural.py),
-[`_slot_resolution.py`](../../../core/compiler/var_escape/_slot_resolution.py),
-[`_api.py`](../../../core/compiler/var_escape/_api.py).
+[`compiler/var_escape/`](../../../compiler/var_escape/) —
+[`_types.py`](../../../compiler/var_escape/_types.py),
+[`_propagation.py`](../../../compiler/var_escape/_propagation.py),
+[`_cfg_propagation.py`](../../../compiler/var_escape/_cfg_propagation.py),
+[`_info_subcommands.py`](../../../compiler/var_escape/_info_subcommands.py),
+[`_interprocedural.py`](../../../compiler/var_escape/_interprocedural.py),
+[`_slot_resolution.py`](../../../compiler/var_escape/_slot_resolution.py),
+[`_api.py`](../../../compiler/var_escape/_api.py).
 
 The slot-resolution pass (`_slot_resolution.py`) is a separate
 follow-up: for procs whose body passes the by-name-eligibility check
@@ -42,14 +42,14 @@ calls.  See `runtime/zig/interp/tcl_frames.zig`'s
 `frame_locals_array` for the runtime side.
 
 Consumers:
-[`core/compiler/codegen/wasm/`](../../../core/compiler/codegen/wasm/)
+[`compiler/codegen/wasm/`](../../../compiler/codegen/wasm/)
 — the emitter package. Encoding helpers live in
-[`_encoding.py`](../../../core/compiler/codegen/wasm/_encoding.py);
+[`_encoding.py`](../../../compiler/codegen/wasm/_encoding.py);
 parsing helpers in
-[`_parsing.py`](../../../core/compiler/codegen/wasm/_parsing.py);
+[`_parsing.py`](../../../compiler/codegen/wasm/_parsing.py);
 the `_WasmEmitter` class and module-level code generation entry
 points live in
-[`__init__.py`](../../../core/compiler/codegen/wasm/__init__.py).
+[`__init__.py`](../../../compiler/codegen/wasm/__init__.py).
 
 ## Content
 
@@ -120,7 +120,7 @@ whole proc.
 ### Transfer functions
 
 Transfer functions run over IR statements (see
-[`core/compiler/ir.py`](../../../core/compiler/ir.py)).
+[`compiler/ir.py`](../../../compiler/ir.py)).
 
 | IR shape | Effect |
 |----------|--------|
@@ -157,12 +157,12 @@ the runtime value of `$name`. The cheap inference rule:
    var can still be proven `LOCAL` if it is unreachable from this branch on
    all paths, which is why the analysis is flow-sensitive).
 
-Hook: `core/compiler/def_use.py` `DefUseResult`. No new value-tracking pass.
+Hook: `compiler/def_use.py` `DefUseResult`. No new value-tracking pass.
 
 ### `info` subcommand allow-list
 
 Lives in
-[`_info_subcommands.py`](../../../core/compiler/var_escape/_info_subcommands.py).
+[`_info_subcommands.py`](../../../compiler/var_escape/_info_subcommands.py).
 
 | Subcommand | Escape behaviour |
 |------------|------------------|
@@ -186,7 +186,7 @@ Lives in
 ### Public API
 
 ```python
-# core/compiler/var_escape/_api.py
+# compiler/var_escape/_api.py
 def analyse_var_escape(
     source: str | None = None,
     cu: CompilationUnit | None = None,
@@ -227,7 +227,7 @@ class ProcEscapeSummary:
 Codegen consumes `ProcEscapeSummary` through these rewired hooks:
 
 Every hook lives in the emitter
-([`core/compiler/codegen/wasm/_emitter/`](../../../core/compiler/codegen/wasm/_emitter/__init__.py));
+([`compiler/codegen/wasm/_emitter/`](../../../compiler/codegen/wasm/_emitter/__init__.py));
 the package layout is a single large class split only for readability.
 
 - **`_intern_local(name)`**: non-parameter FRAME-tagged vars skip the
@@ -261,7 +261,7 @@ When `summary.dynamic_barrier` is True:
 ### Interaction with existing passes
 
 - **Taint** does not need to know about escape tags; it operates on SSA.
-- **Side-effects** (`core/compiler/side_effects.py`) already classifies
+- **Side-effects** (`compiler/side_effects.py`) already classifies
   many of the same commands as `dynamic_barrier`. Var-escape reuses that
   flag as a fast pre-check — if side-effects says a command is a barrier,
   var-escape also marks it.

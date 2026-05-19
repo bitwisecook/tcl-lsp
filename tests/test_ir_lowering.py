@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.expr_ast import ExprNode, expr_text
-from core.compiler.ir import (
+from compiler.expr_ast import ExprNode, expr_text
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -26,7 +26,7 @@ from core.compiler.ir import (
     IRTry,
     IRWhile,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 
 class TestIRLowering:
@@ -160,7 +160,7 @@ class TestIRLowering:
         # back to dispatching the original ``namespace eval`` call
         # via ``source_args``.  The canonical shape has the nested
         # proc lifted (checked above) and the block namespace set.
-        from core.compiler.ir import IRBlock
+        from compiler.ir import IRBlock
 
         assert isinstance(stmts[0], IRBlock)
         assert stmts[0].namespace == "::math"
@@ -507,7 +507,7 @@ class TestProcDynamicNameConstMap:
         # ``uplevel 1 $body`` inside ``inner`` must remain an
         # IRBarrier (dynamic body) — not a relaxed IRBlock /
         # IRUpFrame containing the outer's ``set z 99`` literal.
-        from core.compiler.ir import IRBarrier, IRBlock, IRUpFrame
+        from compiler.ir import IRBarrier, IRBlock, IRUpFrame
 
         for s in inner.body.statements:
             assert not isinstance(s, IRUpFrame), (
@@ -551,7 +551,7 @@ class TestProcDynamicBodySubstNocommands:
         verbose = mod.procedures["::Verbose"]
         # The body should now contain a ``return 0`` (the template's
         # ``$default`` was substituted to ``0``).
-        from core.compiler.ir import IRReturn
+        from compiler.ir import IRReturn
 
         body_stmts = verbose.body.statements
         assert any(isinstance(s, IRReturn) for s in body_stmts)
@@ -577,7 +577,7 @@ class TestProcDynamicBodySubstNocommands:
             verbose = mod.procedures["::Verbose"]
             # If we did register something, the body shouldn't be a
             # materialised IRReturn — the template stayed dynamic.
-            from core.compiler.ir import IRReturn
+            from compiler.ir import IRReturn
 
             assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
 
@@ -595,7 +595,7 @@ class TestProcDynamicBodySubstNocommands:
         """)
         mod = lower_to_ir(source)
         if "::Verbose" in mod.procedures:
-            from core.compiler.ir import IRReturn
+            from compiler.ir import IRReturn
 
             verbose = mod.procedures["::Verbose"]
             assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)

@@ -25,6 +25,6 @@ Later passes disagree on command/argument interpretation, especially around subs
 
 ## Related files
 
-- `core/compiler/lowering.py`
-- `core/compiler/ir.py`
-- `core/compiler/token_helpers.py`
+- `compiler/lowering.py`
+- `compiler/ir.py`
+- `compiler/token_helpers.py`

@@ -471,13 +471,13 @@ class TestClassifySideEffectsFormAware:
     """Tests that classify_side_effects uses form resolution."""
 
     def test_http_uri_getter_is_pure(self):
-        from core.compiler.side_effects import classify_side_effects
+        from compiler.side_effects import classify_side_effects
 
         result = classify_side_effects("HTTP::uri", (), dialect="f5-irules")
         assert result.pure is True
 
     def test_http_uri_setter_is_impure(self):
-        from core.compiler.side_effects import classify_side_effects
+        from compiler.side_effects import classify_side_effects
 
         result = classify_side_effects("HTTP::uri", ("/new",), dialect="f5-irules")
         assert result.pure is False
@@ -487,7 +487,7 @@ class TestSideEffectHintsDialectFiltering:
     """Ensure side-effect hints are selected from the active dialect's spec."""
 
     def test_close_hints_differ_by_dialect(self):
-        from core.compiler.side_effects import SideEffectTarget
+        from compiler.side_effects import SideEffectTarget
 
         tcl_hints = REGISTRY.side_effect_hints("close", dialect="tcl8.6")
         irules_hints = REGISTRY.side_effect_hints("close", dialect="f5-irules")
@@ -1219,7 +1219,7 @@ class TestIRCallCanonicalCommand:
 
     @staticmethod
     def _walk(stmts):
-        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+        from compiler.ir import IRBarrier, IRBlock, IRCall
 
         for s in stmts:
             if isinstance(s, (IRCall, IRBarrier)):
@@ -1228,7 +1228,7 @@ class TestIRCallCanonicalCommand:
                 yield from TestIRCallCanonicalCommand._walk(s.body.statements)
 
     def _lower(self, src):
-        from core.compiler.lowering import _Lowerer
+        from compiler.lowering import _Lowerer
 
         return _Lowerer().lower(src)
 
@@ -1288,7 +1288,7 @@ class TestIRCallCanonicalCommand:
         # These synthetic constructs must also carry canonical_command so
         # downstream passes that match on it (e.g. SSA def-use) treat them
         # uniformly with lowering-produced calls.
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         m = self._lower("foreach x {1 2 3} { puts $x }")
         cfg_module = build_cfg(m)
@@ -1489,7 +1489,7 @@ class TestRenameAndNamespaceImportCanonicalisation:
 
     @staticmethod
     def _walk(stmts):
-        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+        from compiler.ir import IRBarrier, IRBlock, IRCall
 
         for s in stmts:
             if isinstance(s, (IRCall, IRBarrier)):
@@ -1498,7 +1498,7 @@ class TestRenameAndNamespaceImportCanonicalisation:
                 yield from TestRenameAndNamespaceImportCanonicalisation._walk(s.body.statements)
 
     def _lower(self, src):
-        from core.compiler.lowering import _Lowerer
+        from compiler.lowering import _Lowerer
 
         return _Lowerer().lower(src)
 

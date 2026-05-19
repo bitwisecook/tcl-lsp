@@ -30,7 +30,7 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 
 - `lsp/features/diagnostics.py` (`get_diagnostics`, suppression, family aggregation)
 - `core/analysis/analyser.py` (semantic warning production)
-- `core/compiler/compilation_unit.py` (shared artefact generation)
+- `compiler/compilation_unit.py` (shared artefact generation)
 - `lsp/async_diagnostics.py` (tiered publish integration)
 
 ## Failure modes

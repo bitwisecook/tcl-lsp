@@ -19,7 +19,7 @@ What does the var-escape analysis do, and when does it fire?
 
 ## How to use
 
-By default, the WASM code generator (`core/compiler/codegen/wasm/`)
+By default, the WASM code generator (`compiler/codegen/wasm/`)
 attempts to run this analysis during module compilation. When it
 succeeds, `analyse_var_escape` walks the IR for each procedure, tags
 each variable as `LOCAL` or `FRAME`, and publishes a

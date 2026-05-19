@@ -1841,7 +1841,7 @@ normalised via `file normalize`, `PATH_JOINED` for values assembled via
 `file join`).  At join points, colours are intersected so only properties
 shared by all paths survive -- this suppresses false positives.
 
-The **Rendered Value Properties** pass (`core/compiler/rendered_properties.py`)
+The **Rendered Value Properties** pass (`compiler/rendered_properties.py`)
 runs before taint propagation and computes per-SSA-value string content
 properties after Tcl backslash substitution.  This enables precise detection
 of path separators (resolving escape sequences like `\x2f` to `/` before

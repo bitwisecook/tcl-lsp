@@ -105,7 +105,7 @@ sets the flag based on the active dialect:
 
 Arity checks at both the analyser (`_check_proc_call_arity` in
 `core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
-`core/compiler/compiler_checks.py`) treat each expanded word as an
+`compiler/compiler_checks.py`) treat each expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or

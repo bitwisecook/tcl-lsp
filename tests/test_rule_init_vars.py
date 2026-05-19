@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.irules_flow import (
+from compiler.irules_flow import (
     RuleInitExport,
     _find_when_bodies,
     extract_rule_init_vars,
@@ -139,8 +139,8 @@ class TestExtractRuleInitVars:
 
     def test_ir_path_with_cu(self):
         """When cu is provided, use the IR/CFG path."""
+        from compiler.compilation_unit import ensure_compilation_unit
         from core.commands.registry.runtime import configure_signatures
-        from core.compiler.compilation_unit import ensure_compilation_unit
 
         configure_signatures(dialect="f5-irules")
         source = 'when RULE_INIT {\n    set ::shared "x"\n    set local "y"\n}'
@@ -151,8 +151,8 @@ class TestExtractRuleInitVars:
 
     def test_ir_path_upvar_global_in_rule_init(self):
         """IR path should detect upvar-created global writes via CFG defs."""
+        from compiler.compilation_unit import ensure_compilation_unit
         from core.commands.registry.runtime import configure_signatures
-        from core.compiler.compilation_unit import ensure_compilation_unit
 
         configure_signatures(dialect="f5-irules")
         source = (

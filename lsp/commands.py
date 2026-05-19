@@ -12,13 +12,13 @@ from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
 import lsp.state as _state
+from compiler.optimiser import optimise_source
 from core.analysis import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures
-from core.compiler.optimiser import optimise_source
 from core.minifier import minify_tcl
 from shared.document_buffer import DocumentBuffer
 from shared.optimisation_profiles import (
@@ -61,7 +61,7 @@ def configure(server_instance: LanguageServer) -> None:
 
 
 def on_optimise_document(uri: str, profile: str = "full") -> dict | None:
-    from core.compiler.optimiser import optimise_source_multipass
+    from compiler.optimiser import optimise_source_multipass
 
     source = _state._get_doc_source(uri)
     disabled, multi_pass, max_iterations = resolve_profile(

@@ -8,12 +8,12 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from ...compiler.cfg import CFGFunction
-from ...compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
-from ...compiler.compiler_checks import run_compiler_checks
-from ...compiler.core_analyses import FunctionAnalysis
-from ...compiler.ir import when_event_name
-from ...compiler.ssa import SSAFunction
+from compiler.cfg import CFGFunction
+from compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
+from compiler.compiler_checks import run_compiler_checks
+from compiler.core_analyses import FunctionAnalysis
+from compiler.ir import when_event_name
+from compiler.ssa import SSAFunction
 
 log = logging.getLogger(__name__)
 

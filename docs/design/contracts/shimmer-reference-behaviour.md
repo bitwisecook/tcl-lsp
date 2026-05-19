@@ -57,4 +57,4 @@ See `tests/fixtures/shimmer/` for script-based cases that exercise:
 
 - Tests: `tests/test_shimmer.py`.
 - Conformance plan: `docs/plans/shimmering-conformance-plan.md`.
-- Implementation: `core/compiler/shimmer.py`.
+- Implementation: `compiler/shimmer.py`.

@@ -233,7 +233,7 @@ entirely for the common small-int case.
 **Files**:
 
 - Modify: most of `runtime/zig/valtypes/`
-- Modify: `core/compiler/codegen/wasm/_emitter/_values.py`
+- Modify: `compiler/codegen/wasm/_emitter/_values.py`
   (`_emit_obj_literal` int branch)
 
 **Test plan**:

@@ -16,9 +16,9 @@ from pathlib import Path
 # Ensure repo root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen import codegen_module, format_module_asm
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen import codegen_module, format_module_asm
+from compiler.lowering import lower_to_ir
 
 
 def compile_and_format(source: str) -> str:

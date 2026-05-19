@@ -210,7 +210,7 @@ CFG/SSA-informed diagnostics such as unreachable-code and dead-store warnings.
 
 ### 5. IR Lowering
 
-**File:** `core/compiler/lowering.py` — function `lower_to_ir()`
+**File:** `compiler/lowering.py` — function `lower_to_ir()`
 
 Converts segmented commands into a structured Intermediate Representation.
 Each Tcl command maps to a typed IR node.
@@ -347,7 +347,7 @@ Key design decisions:
 
 ### 6. Control Flow Graph
 
-**File:** `core/compiler/cfg.py` — function `build_cfg_function()`
+**File:** `compiler/cfg.py` — function `build_cfg_function()`
 
 Flattens structured IR (`IRIf`, `IRFor`, `IRSwitch`, etc.) into basic blocks
 with explicit control-flow edges.
@@ -408,7 +408,7 @@ flowchart TD
 
 ### 7. SSA Construction
 
-**File:** `core/compiler/ssa.py` — function `build_ssa()`
+**File:** `compiler/ssa.py` — function `build_ssa()`
 
 Converts the CFG to Static Single-Assignment form, where every variable is
 defined exactly once.  Phi nodes are inserted at control-flow merge points.
@@ -436,7 +436,7 @@ Key types:
 
 ### 8. Core Analyses
 
-**File:** `core/compiler/core_analyses.py` — function `analyse_function()`
+**File:** `compiler/core_analyses.py` — function `analyse_function()`
 
 Runs the main dataflow passes over the SSA graph:
 
@@ -478,7 +478,7 @@ unreachable, enabling dead-code detection.
 
 ### 9. Interprocedural Analysis
 
-**File:** `core/compiler/interprocedural.py` — function `analyse_interprocedural_ir()`
+**File:** `compiler/interprocedural.py` — function `analyse_interprocedural_ir()`
 
 Builds conservative procedure summaries across the entire module:
 
@@ -514,7 +514,7 @@ and the taint analysis uses them for cross-procedure taint propagation.
 
 ### 10. Compilation Unit
 
-**File:** `core/compiler/compilation_unit.py` — function `compile_source()`
+**File:** `compiler/compilation_unit.py` — function `compile_source()`
 
 `CompilationUnit` remains the shared artefact boundary for IR/CFG/SSA/interprocedural
 facts consumed across diagnostics and downstream passes. For operational contracts,
@@ -625,7 +625,7 @@ flowchart TD
 
 ### 13. Bytecode Assembly Backend
 
-**File:** `core/compiler/codegen.py` — functions `codegen_function()`, `codegen_module()`
+**File:** `compiler/codegen.py` — functions `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `CFGModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.2.
@@ -751,21 +751,21 @@ consumer must treat it as opaque and conservative.
 | `core/analysis/checks/` | Best-practice and security checks (W-series) |
 | `core/analysis/irules_checks.py` | iRules-specific checks (IRULE-series) |
 | `core/analysis/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
-| `core/compiler/ir.py` | IR node definitions |
-| `core/compiler/lowering.py` | IR construction from token stream |
-| `core/compiler/cfg.py` | Control flow graph construction |
-| `core/compiler/ssa.py` | SSA form construction |
-| `core/compiler/core_analyses.py` | SCCP, liveness, type inference |
-| `core/compiler/compilation_unit.py` | Pipeline orchestration and caching |
-| `core/compiler/interprocedural.py` | Call graph and procedure summaries |
-| `core/compiler/optimiser/` | Optimisation passes (O100–O125) |
-| `core/compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
-| `core/compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
-| `core/compiler/shimmer.py` | Type representation issue detection (S100–S102) |
-| `core/compiler/irules_flow.py` | iRules control-flow checks |
-| `core/compiler/codegen.py` | Tcl VM bytecode assembly backend |
-| `core/compiler/effects.py` | Command side-effect classification |
-| `core/compiler/types.py` | Type lattice definitions |
+| `compiler/ir.py` | IR node definitions |
+| `compiler/lowering.py` | IR construction from token stream |
+| `compiler/cfg.py` | Control flow graph construction |
+| `compiler/ssa.py` | SSA form construction |
+| `compiler/core_analyses.py` | SCCP, liveness, type inference |
+| `compiler/compilation_unit.py` | Pipeline orchestration and caching |
+| `compiler/interprocedural.py` | Call graph and procedure summaries |
+| `compiler/optimiser/` | Optimisation passes (O100–O125) |
+| `compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
+| `compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
+| `compiler/shimmer.py` | Type representation issue detection (S100–S102) |
+| `compiler/irules_flow.py` | iRules control-flow checks |
+| `compiler/codegen.py` | Tcl VM bytecode assembly backend |
+| `compiler/effects.py` | Command side-effect classification |
+| `compiler/types.py` | Type lattice definitions |
 | `lsp/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
 | `lsp/features/diagnostics.py` | LSP diagnostic aggregation |
 | `core/analysis/semantic_graph.py` | Call/symbol/data-flow graph queries |

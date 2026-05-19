@@ -158,7 +158,7 @@ def cmd_diagram(source: str, file_path: str) -> None:
 
 
 def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
-    from core.compiler.optimiser import (
+    from compiler.optimiser import (
         Optimisation,
         apply_optimisations,
         find_optimisations,
@@ -708,7 +708,7 @@ def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
     """Show def-use chains from compiler SSA analysis."""
     _configure_dialect_from_path(file_path)
 
-    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
 
     graph = extract_dataflow_graph(source)
     result = dataflow_graph_to_dict(graph)
@@ -762,7 +762,7 @@ def cmd_memory_aliases(source: str, file_path: str) -> None:
     """Show memory alias information from memory-SSA analysis."""
     _configure_dialect_from_path(file_path)
 
-    from core.compiler.compilation_unit import ensure_compilation_unit
+    from compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, context="cli.memory_aliases")
     if cu is None:

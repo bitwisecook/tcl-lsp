@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import ArgRole, Arity

@@ -6,13 +6,9 @@ bytecode that the VM can execute.
 
 from __future__ import annotations
 
-from compiler.parsing.lexer import TclLexer
-from compiler.parsing.lexer import _thread_local as _lexer_thread_local
-from compiler.parsing.tokens import TokenType
-from core.analysis.semantic_model import Range
-from core.compiler.cfg import CFGModule, build_cfg_function
-from core.compiler.codegen import ModuleAsm, codegen_module
-from core.compiler.ir import (
+from compiler.cfg import CFGModule, build_cfg_function
+from compiler.codegen import ModuleAsm, codegen_module
+from compiler.ir import (
     IRAssignConst,
     IRAssignValue,
     IRBarrier,
@@ -31,7 +27,11 @@ from core.compiler.ir import (
     IRTry,
     IRWhile,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.lexer import _thread_local as _lexer_thread_local
+from compiler.parsing.tokens import TokenType
+from core.analysis.semantic_model import Range
 from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 
 from .substitution import backslash_subst
@@ -502,7 +502,7 @@ def _desugar_stmt(source: str, stmt: IRStatement) -> IRStatement:
     # source args (``uplevel ?level? {body}``) from source_tokens and
     # emit as IRBarrier so the VM's command dispatcher receives the
     # same shape as before the barrier relaxation.
-    from core.compiler.ir import IRUpFrame as _IRUpFrame
+    from compiler.ir import IRUpFrame as _IRUpFrame
 
     if isinstance(stmt, _IRUpFrame):
         return _upframe_to_barrier(stmt)

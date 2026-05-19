@@ -9,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.gvn import find_redundant_computations
+from compiler.gvn import find_redundant_computations
 
 
 class TestGVNBasicStraightLine:
@@ -275,7 +275,7 @@ class TestGVNEdgeCases:
 def _irules_dialect():
     """Context manager to activate f5-irules dialect."""
     return mock.patch(
-        "core.compiler.gvn.active_dialect",
+        "compiler.gvn.active_dialect",
         return_value="f5-irules",
     )
 

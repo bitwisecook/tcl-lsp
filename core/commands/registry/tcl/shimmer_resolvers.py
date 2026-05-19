@@ -9,7 +9,8 @@ to ``ArgTypeHint`` instances.
 
 from __future__ import annotations
 
-from ....compiler.types import TclType
+from compiler.types import TclType
+
 from ..type_hints import ArgTypeHint
 
 _LIST = ArgTypeHint(expected=TclType.LIST, shimmers=True)

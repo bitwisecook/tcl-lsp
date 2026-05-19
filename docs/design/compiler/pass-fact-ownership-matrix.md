@@ -21,36 +21,36 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 
 | Producer pass/module | Primary facts produced | Typical consumers | Anchors |
 |---|---|---|---|
-| `core/compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings | CFG builder, interprocedural analysis, diagnostics range mapping | `lower_to_ir()`, `IR*` nodes |
-| `core/compiler/cfg.py` | `CFGModule` / `CFGFunction` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg_function()` |
-| `core/compiler/ssa.py` | SSA versions, phi nodes, dominance metadata | Core analyses (SCCP/liveness/types), taint, optimiser/GVN | `build_ssa()` |
-| `core/compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice, def-use chains, memory-SSA | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics, dataflow graph | `analyse_function()` |
-| `core/compiler/def_use.py` | def-use chains (per-SSA-value definition→use mapping) | dead store detection, unused variable precision, copy propagation, dataflow graph | `build_def_use_chains()` |
-| `core/compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
-| `core/compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
-| `core/compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity) | optimiser (O103), interproc taint propagation | `analyse_interprocedural_ir()` |
-| `core/compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
-| `core/compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
-| `core/compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
-| `core/compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
-| `core/compiler/irules_flow.py` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for iRules dialect | `find_irules_flow_warnings()` |
+| `compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings | CFG builder, interprocedural analysis, diagnostics range mapping | `lower_to_ir()`, `IR*` nodes |
+| `compiler/cfg.py` | `CFGModule` / `CFGFunction` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg_function()` |
+| `compiler/ssa.py` | SSA versions, phi nodes, dominance metadata | Core analyses (SCCP/liveness/types), taint, optimiser/GVN | `build_ssa()` |
+| `compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice, def-use chains, memory-SSA | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics, dataflow graph | `analyse_function()` |
+| `compiler/def_use.py` | def-use chains (per-SSA-value definition→use mapping) | dead store detection, unused variable precision, copy propagation, dataflow graph | `build_def_use_chains()` |
+| `compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
+| `compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
+| `compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity) | optimiser (O103), interproc taint propagation | `analyse_interprocedural_ir()` |
+| `compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
+| `compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
+| `compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
+| `compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
+| `compiler/irules_flow.py` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for iRules dialect | `find_irules_flow_warnings()` |
 | `lsp/features/diagnostics.py` | final LSP diagnostic projection, suppression policy application | LSP publish pipeline, async tiering scheduler | `get_diagnostics()` |
 
 ## File-path anchors
 
-- `core/compiler/lowering.py`
-- `core/compiler/cfg.py`
-- `core/compiler/ssa.py`
-- `core/compiler/core_analyses.py`
-- `core/compiler/interprocedural.py`
-- `core/compiler/optimiser/`
-- `core/compiler/gvn.py`
-- `core/compiler/taint/`
-- `core/compiler/shimmer.py`
-- `core/compiler/irules_flow.py`
-- `core/compiler/def_use.py`
-- `core/compiler/memory_ssa.py`
-- `core/compiler/dataflow_graph.py`
+- `compiler/lowering.py`
+- `compiler/cfg.py`
+- `compiler/ssa.py`
+- `compiler/core_analyses.py`
+- `compiler/interprocedural.py`
+- `compiler/optimiser/`
+- `compiler/gvn.py`
+- `compiler/taint/`
+- `compiler/shimmer.py`
+- `compiler/irules_flow.py`
+- `compiler/def_use.py`
+- `compiler/memory_ssa.py`
+- `compiler/dataflow_graph.py`
 - `lsp/features/diagnostics.py`
 
 ## Failure modes

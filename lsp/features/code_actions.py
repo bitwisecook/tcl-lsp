@@ -8,17 +8,17 @@ from textwrap import dedent
 
 from lsprotocol import types
 
+from compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warnings
+from compiler.optimiser import demorgan_transform, invert_expression
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
+from compiler.taint import find_taint_warnings
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, CodeFix, ProcDef
 from core.commands.registry import REGISTRY
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect, taint_double_encode_map
-from core.compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warnings
-from core.compiler.optimiser import demorgan_transform, invert_expression
-from core.compiler.taint import find_taint_warnings
 from core.refactoring import RefactoringResult
 from core.refactoring._brace_expr import brace_expr
 from core.refactoring._extract_datagroup import extract_to_datagroup

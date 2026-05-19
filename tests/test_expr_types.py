@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -23,8 +23,8 @@ from core.compiler.expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from core.compiler.expr_types import infer_expr_type
-from core.compiler.types import TclType, TypeKind, TypeLattice
+from compiler.expr_types import infer_expr_type
+from compiler.types import TclType, TypeKind, TypeLattice
 
 
 def _lit(text: str) -> ExprLiteral:

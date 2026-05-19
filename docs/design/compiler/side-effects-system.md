@@ -8,13 +8,13 @@ A contributor needs to understand how the compiler determines what a command rea
 
 The side-effects system is the single source of truth for all effect classification in the compiler. It is consumed by:
 
-- **GVN** (`core/compiler/gvn.py`) — kill safety for common subexpression elimination.
-- **Interprocedural analysis** (`core/compiler/interprocedural.py`) — procedure summaries across call boundaries.
-- **iRules flow checker** (`core/compiler/irules_flow.py`) — response-commit and connection-drop tracking.
-- **Execution intent** (`core/compiler/execution_intent.py`) — purity classification for command substitution intent.
-- **Core analyses** (`core/compiler/core_analyses.py`) — purity checks for constant propagation.
+- **GVN** (`compiler/gvn.py`) — kill safety for common subexpression elimination.
+- **Interprocedural analysis** (`compiler/interprocedural.py`) — procedure summaries across call boundaries.
+- **iRules flow checker** (`compiler/irules_flow.py`) — response-commit and connection-drop tracking.
+- **Execution intent** (`compiler/execution_intent.py`) — purity classification for command substitution intent.
+- **Core analyses** (`compiler/core_analyses.py`) — purity checks for constant propagation.
 
-All classification flows through a single function: `classify_side_effects()` in `core/compiler/side_effects.py`.
+All classification flows through a single function: `classify_side_effects()` in `compiler/side_effects.py`.
 
 ## Architecture
 
@@ -307,17 +307,17 @@ SideEffect(
 
 ## File-path anchors
 
-- `core/compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `_compose_with_traces()`, `EffectRegion` bridge
+- `compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `_compose_with_traces()`, `EffectRegion` bridge
 - `core/commands/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
 - `core/commands/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
-- `core/compiler/ir.py` — `CommandTrace`, `IRModule.command_traces`, `IRModule.traced_commands()`, `IRModule.has_dynamic_trace()`
-- `core/compiler/lowering.py` — `trace add/remove execution` capture (search "Capture ``trace add execution``")
-- `core/compiler/gvn.py` — GVN consumer (threads `traced_commands` from `IRModule`)
-- `core/compiler/interprocedural.py` — interprocedural consumer
-- `core/compiler/irules_flow.py` — response-commit and drop-command derivation
-- `core/compiler/execution_intent.py` — purity consumer
-- `core/compiler/core_analyses.py` — purity consumer
-- `core/compiler/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
+- `compiler/ir.py` — `CommandTrace`, `IRModule.command_traces`, `IRModule.traced_commands()`, `IRModule.has_dynamic_trace()`
+- `compiler/lowering.py` — `trace add/remove execution` capture (search "Capture ``trace add execution``")
+- `compiler/gvn.py` — GVN consumer (threads `traced_commands` from `IRModule`)
+- `compiler/interprocedural.py` — interprocedural consumer
+- `compiler/irules_flow.py` — response-commit and drop-command derivation
+- `compiler/execution_intent.py` — purity consumer
+- `compiler/core_analyses.py` — purity consumer
+- `compiler/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
 
 ## Failure modes
 

@@ -6,7 +6,7 @@ follow the flow.
 
 ## Entry point
 
-`core/compiler/codegen/wasm/__init__.py::wasm_codegen_module(ir_module)`
+`compiler/codegen/wasm/__init__.py::wasm_codegen_module(ir_module)`
 produces a `WasmModule` (defined in `_ir.py`) from an `IRModule`.
 That's the top of the call graph — every other file below executes
 under this call.
@@ -15,7 +15,7 @@ under this call.
 
 ### Phase 0 — Var-escape analysis (per proc)
 
-`core/compiler/var_escape/` runs before codegen starts.  For each
+`compiler/var_escape/` runs before codegen starts.  For each
 `IRProcedure` it identifies which local variables escape the frame
 (via `upvar`, `variable`, dynamic `$name` reads, etc.) and tags them
 `FRAME`.  The WASM emitter later routes those reads/writes through

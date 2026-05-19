@@ -6,8 +6,11 @@ import logging
 
 from lsprotocol import types
 
+from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.taint import TaintLattice
+from compiler.types import TypeKind
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
@@ -15,9 +18,6 @@ from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.operators import operator_hover
 from core.commands.registry.runtime import SIGNATURES, SubcommandSig
-from core.compiler.core_analyses import analyse_source
-from core.compiler.taint import TaintLattice
-from core.compiler.types import TypeKind
 from shared.alias import lookup_alias_for_word
 from shared.dialect import active_dialect
 from shared.ip_utils import format_ip_hover, parse_ip
@@ -217,7 +217,7 @@ def _infer_var_taint(source: str, var_name: str) -> str | None:
         tainted = [t for t in taint_entries if t.tainted]
         if tainted:
             # Join all versions to get the most conservative colour set.
-            from core.compiler.taint import taint_join
+            from compiler.taint import taint_join
 
             combined = tainted[0]
             for t in tainted[1:]:

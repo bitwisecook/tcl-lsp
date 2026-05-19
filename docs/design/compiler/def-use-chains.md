@@ -68,9 +68,9 @@ UseSite
 
 ## Module Location
 
-- **Source**: `core/compiler/def_use.py`
-- **Integration**: `core/compiler/core_analyses.py` (built in `analyse_function`)
-- **Graph export**: `core/compiler/dataflow_graph.py`
+- **Source**: `compiler/def_use.py`
+- **Integration**: `compiler/core_analyses.py` (built in `analyse_function`)
+- **Graph export**: `compiler/dataflow_graph.py`
 
 ## Example
 

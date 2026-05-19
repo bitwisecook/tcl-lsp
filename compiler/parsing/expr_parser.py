@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from core.compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,

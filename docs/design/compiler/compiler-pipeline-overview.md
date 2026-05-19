@@ -13,15 +13,15 @@ The compiler pipeline spans parsing, lowering, control/data-flow analysis, speci
 1. Parse and segment
    - source: `compiler/parsing/*`
 2. Lowering to IR
-   - source: `core/compiler/lowering.py`, `core/compiler/ir.py`
+   - source: `compiler/lowering.py`, `compiler/ir.py`
 3. CFG + SSA + core analyses
-   - source: `core/compiler/cfg.py`, `core/compiler/ssa.py`, `core/compiler/core_analyses.py`
+   - source: `compiler/cfg.py`, `compiler/ssa.py`, `compiler/core_analyses.py`
 4. Specialised passes (optimiser, shimmer, taint, etc.)
-   - source: `core/compiler/optimiser/`, `core/compiler/shimmer.py`, `core/compiler/taint/`
+   - source: `compiler/optimiser/`, `compiler/shimmer.py`, `compiler/taint/`
 5. Diagnostics composition for editor publication
    - source: `lsp/features/diagnostics.py`
 6. Bytecode/disassembly generation
-   - source: `core/compiler/codegen.py`
+   - source: `compiler/codegen.py`
 
 ## Decision rule
 

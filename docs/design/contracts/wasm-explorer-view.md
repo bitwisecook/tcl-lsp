@@ -12,7 +12,7 @@ consumes is fixed by this contract.  Both the standalone web panel
 
 ## Producer
 
-- [`core/compiler/codegen/wasm/_ir.py`](../../../core/compiler/codegen/wasm/_ir.py)
+- [`compiler/codegen/wasm/_ir.py`](../../../compiler/codegen/wasm/_ir.py)
   — `WasmModule.to_explorer_json()` returns a list of function entries
   (plus a synthetic module header).  Each instruction carries a decoded
   target (`call` → function name, `br` / `br_if` → matching structural

@@ -23,8 +23,8 @@ file.
 | 5.2 — Specialise `lindex` of constant index | not started | new `lowering_hooks/_list.py` |
 | 5.3 — Specialise `dict get` of constant key | not started | `runtime/zig/valtypes/tcl_dict.zig` + new lowering hook |
 | 5.4 — Tail-call codegen conversion | detection wired, codegen disabled | `core/optimiser/_tail_call.py` → emit IRTailCall |
-| 5.5 — Switch options lowering hook | runtime side done, lowering still routes through runtime | `core/compiler/lowering.py::_lower_switch` |
-| 5.6 — In-flight `expr` const-folding | passes exist pre-codegen | `core/compiler/codegen/wasm/_emitter/_expressions.py` |
+| 5.5 — Switch options lowering hook | runtime side done, lowering still routes through runtime | `compiler/lowering.py::_lower_switch` |
+| 5.6 — In-flight `expr` const-folding | passes exist pre-codegen | `compiler/codegen/wasm/_emitter/_expressions.py` |
 | 6.1 — TclOO scaffolding | not started | new module under `runtime/zig/cmds/oo_*.zig` |
 | 6.2 — Coroutines + NRE | not started | architecture decision needed first |
 | 6.3 — Parser strict mode | not started | `compiler/parsing/expr_parser.py` |
@@ -136,7 +136,7 @@ breaks.
 
 **Switch -matchvar/-indexvar:** depends on the same fix landing.
 The runtime switch dispatch currently doesn't accept these
-options; the lowering hook in `core/compiler/codegen/wasm/_emitter/
+options; the lowering hook in `compiler/codegen/wasm/_emitter/
 _control_flow.py::_emit_switch` would need to detect them and
 call into a new `eval_switch_cmd` that uses the same
 `run_match_cap` plumbing.
@@ -160,7 +160,7 @@ dispatch into an inline i32 load from the TclObj header at
 **Why deferred:** the runtime entry point already exists
 (`string_length` in `valtypes/tcl_string.zig:81`); the compiler-
 side hook for the value-context path needs to be added in
-`core/compiler/codegen/wasm/_emitter/cmds/` (no `string_.py`
+`compiler/codegen/wasm/_emitter/cmds/` (no `string_.py`
 exists today — the dispatch goes through the generic runtime
 path).  Estimated 1 day; the gain is roughly 200 ns → 30 ns per
 call, or ~6× on tight string-length loops (string-template engines,
@@ -247,7 +247,7 @@ whole switch through `IRSwitch` which evaluates against the
 runtime.
 
 **First step:** locate the existing `_lower_switch` in
-`core/compiler/lowering.py` and detect the all-constant-pattern
+`compiler/lowering.py` and detect the all-constant-pattern
 case.  Add a new IR node (or a flag on `IRSwitch`) so the
 codegen can pick the branch-tree form.  `-glob` / `-regexp` /
 `-matchvar` / `-indexvar` keep the runtime form.

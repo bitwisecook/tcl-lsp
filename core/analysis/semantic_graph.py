@@ -74,8 +74,8 @@ def build_call_graph(
     ``roots`` (uncalled entry points), and ``leaf_procs`` (procs with
     no outgoing calls).
     """
+    from compiler.compilation_unit import ensure_compilation_unit
     from core.analysis import analyse
-    from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(
         source, cu, context="semantic_graph.call_graph", deep_param_traits=True
@@ -270,8 +270,8 @@ def build_symbol_graph(
     Returns scope hierarchy, proc definitions with reference counts,
     variable definitions with reference locations, and package dependencies.
     """
+    from compiler.compilation_unit import ensure_compilation_unit
     from core.analysis import analyse
-    from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(
         source, cu, context="semantic_graph.symbol_graph", deep_param_traits=True
@@ -414,8 +414,8 @@ def build_dataflow_graph(
     Returns taint warnings, tainted variables per scope, and per-proc
     side-effect classification.
     """
-    from core.compiler.compilation_unit import ensure_compilation_unit
-    from core.compiler.taint import (
+    from compiler.compilation_unit import ensure_compilation_unit
+    from compiler.taint import (
         TaintWarning,
         find_taint_warnings,
     )
@@ -516,8 +516,8 @@ def build_dataflow_graph(
 
 def build_semantic_graph_bundle(source: str) -> dict[str, Any]:
     """Build call/symbol/dataflow graphs via one shared ``CompilationUnit``."""
+    from compiler.compilation_unit import ensure_compilation_unit
     from core.analysis import analyse
-    from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, context="semantic_graph.bundle", deep_param_traits=True)
     if cu is None:

@@ -7,6 +7,16 @@ import re
 from collections.abc import Callable
 from contextlib import contextmanager as _contextmanager
 
+from compiler.expr_ast import (
+    BinOp,
+    ExprBinary,
+    ExprCall,
+    ExprNode,
+    ExprRaw,
+    ExprString,
+    ExprTernary,
+    ExprUnary,
+)
 from compiler.parsing.expr_parser import parse_expr
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from shared.codes import diag
@@ -16,16 +26,6 @@ from shared.ranges import position_from_relative, range_from_token, range_from_t
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
-)
-from ...compiler.expr_ast import (
-    BinOp,
-    ExprBinary,
-    ExprCall,
-    ExprNode,
-    ExprRaw,
-    ExprString,
-    ExprTernary,
-    ExprUnary,
 )
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (

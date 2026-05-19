@@ -77,7 +77,7 @@ AliasInfo
 
 ## Module Location
 
-- **Source**: `core/compiler/dataflow_graph.py`
+- **Source**: `compiler/dataflow_graph.py`
 - **Entry point**: `extract_dataflow_graph(source, cu=None)`
 - **Per-function**: `extract_function_dataflow(name, ssa, analysis)`
 - **Tests**: `tests/test_dataflow_graph.py`

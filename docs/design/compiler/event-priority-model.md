@@ -17,13 +17,13 @@ Splitting into base + offset makes disambiguation explicit.
 
 ## Data model
 
-### `IRProcedure.base_priority` (`core/compiler/ir.py`)
+### `IRProcedure.base_priority` (`compiler/ir.py`)
 
 The declared priority from `when EVENT priority N { body }`. Defaults to 500.
-Set during lowering (`core/compiler/lowering.py`). Does **not** carry an
+Set during lowering (`compiler/lowering.py`). Does **not** carry an
 offset — a single `IRProcedure` does not know about sibling handlers.
 
-### `EventOrderEntry` (`core/compiler/irules_flow.py`)
+### `EventOrderEntry` (`compiler/irules_flow.py`)
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -64,9 +64,9 @@ There are two independent priority extraction paths:
 
 ## File-path anchors
 
-- `core/compiler/ir.py` — `IRProcedure.base_priority`
-- `core/compiler/lowering.py` — priority extraction during lowering
-- `core/compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
+- `compiler/ir.py` — `IRProcedure.base_priority`
+- `compiler/lowering.py` — priority extraction during lowering
+- `compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
 - `core/diagram/extract.py` — diagram consumer
 - `explorer/serialise.py` — JSON serialisation
 - `explorer/static/index.html` — explorer HTML consumer

@@ -34,9 +34,9 @@ try:
 except ImportError:
     FULL_VERSION = "dev"
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import WasmModule, wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import WasmModule, wasm_codegen_module
+from compiler.lowering import lower_to_ir
 
 
 def compile_tcl_to_wasm(

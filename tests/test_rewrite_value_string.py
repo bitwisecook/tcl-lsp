@@ -1,11 +1,11 @@
-"""Unit tests for ``_rewrite_value_string`` in ``core.compiler.inlining._rename``.
+"""Unit tests for ``_rewrite_value_string`` in ``compiler.inlining._rename``.
 
 PR #237 review: backslash-protection rules for the rename walker.
 """
 
 from __future__ import annotations
 
-from core.compiler.inlining._rename import _rewrite_value_string
+from compiler.inlining._rename import _rewrite_value_string
 
 
 class TestRewriteValueStringEscape:

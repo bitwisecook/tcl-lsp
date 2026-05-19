@@ -83,7 +83,7 @@ def _resolve_index(s: str, length: int) -> int | None:
 
 def _split_list_literal(text: str) -> list[str] | None:
     """Split a static Tcl list literal into its elements, or None on failure."""
-    from ...compiler.tcl_expr_eval import _split_tcl_list
+    from compiler.tcl_expr_eval import _split_tcl_list
 
     try:
         return _split_tcl_list(text)

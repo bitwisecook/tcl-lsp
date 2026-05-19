@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from ....compiler.types import TclType
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from compiler.types import TclType
+
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
 from ..models import (

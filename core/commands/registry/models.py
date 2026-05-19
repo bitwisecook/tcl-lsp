@@ -11,8 +11,9 @@ from .namespace_models import EventRequires
 from .signatures import ArgRole, Arity, BodyKind
 
 if TYPE_CHECKING:
-    from ...compiler.side_effects import SideEffect, StorageType
-    from ...compiler.types import TclType
+    from compiler.side_effects import SideEffect, StorageType
+    from compiler.types import TclType
+
     from ._base import CommandDef
     from .taint_hints import TaintColour
     from .type_hints import ArgTypeHint
@@ -518,7 +519,7 @@ class SubCommand:
 
     # Static side-effect hints for structured effect analysis.
     # When set, these override the heuristic classification in
-    # ``core.compiler.side_effects.classify_side_effects()``.
+    # ``compiler.side_effects.classify_side_effects()``.
     side_effect_hints: tuple[SideEffect, ...] | None = None
 
     # Credential arg index for security checks.
@@ -780,7 +781,7 @@ class CommandSpec:
 
     # Static side-effect hints for structured effect analysis.
     # When set, these override the heuristic classification in
-    # ``core.compiler.side_effects.classify_side_effects()``.
+    # ``compiler.side_effects.classify_side_effects()``.
     side_effect_hints: tuple[SideEffect, ...] | None = None
 
     # Variable assignment semantics.

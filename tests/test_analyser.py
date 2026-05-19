@@ -2154,7 +2154,7 @@ class TestW123UnresolvedCommand:
             baz x
         """)
         with patch(
-            "core.compiler.lowering.lower_to_ir",
+            "compiler.lowering.lower_to_ir",
             side_effect=RuntimeError("lowering failed"),
         ):
             result = analyse(source)

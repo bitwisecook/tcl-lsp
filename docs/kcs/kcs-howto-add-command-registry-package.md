@@ -148,7 +148,7 @@ the registry only knows fixed names. There are two strategies:
 $name ?path?` invocations and synthesise an instance command with the
 right signature into the per-analysis overlay. This is similar in
 spirit to how `oo::class create Foo` is recognised. It requires a
-small lowering hook in `core/compiler/lowering_hooks/` that watches
+small lowering hook in `compiler/lowering_hooks/` that watches
 for `sqlite3` calls and registers `$name` with a `SubcommandSig`
 overlay carrying the `eval` / `transaction` / `function` /
 `onecolumn` / `cache` subcommands. The overlay shape mirrors the

@@ -679,7 +679,7 @@ Zig ports mirror.
 
 ## Codegen and lowering fallback
 
-Lowering hooks in `core/compiler/lowering_hooks/` convert high-level Tcl
+Lowering hooks in `compiler/lowering_hooks/` convert high-level Tcl
 commands into IR nodes. When a hook encounters a construct it cannot
 safely specialise (e.g. `{*}` expansion in a structured command, or a
 `subst` template with unsupported backslash forms), it **falls through to
@@ -687,7 +687,7 @@ the generic `IRCall`** rather than producing incorrect specialised IR.
 
 This fallback-to-runtime pattern is intentional and preserves correctness.
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `core/compiler/codegen/_helpers.py`) are not
+`_parse_subst_template()` in `compiler/codegen/_helpers.py`) are not
 incomplete — they are conservative by design. The runtime interpreter
 handles the full Tcl specification; the compiler only inlines what it can
 prove is safe.
@@ -761,7 +761,7 @@ analysis passes handle these at different levels:
   handling for compound forms like `namespace upvar`, `dict set`,
   `dict update`, etc. — these are not in `lsp/features/declaration.py`
   which only handles single-word commands (`global`, `variable`, `upvar`).
-- **Lowering** (`core/compiler/lowering_hooks/`) has per-command hooks
+- **Lowering** (`compiler/lowering_hooks/`) has per-command hooks
   that understand subcommand structure.
 
 When checking whether a compound command is handled, search all three

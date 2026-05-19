@@ -101,8 +101,8 @@ over-approximation.
 
 ## Module Location
 
-- **Source**: `core/compiler/memory_ssa.py`
-- **Integration**: `core/compiler/core_analyses.py` (built in `analyse_function`)
+- **Source**: `compiler/memory_ssa.py`
+- **Integration**: `compiler/core_analyses.py` (built in `analyse_function`)
 - **Key functions**: `compute_aliases()`, `build_memory_ssa()`
 
 ## Example

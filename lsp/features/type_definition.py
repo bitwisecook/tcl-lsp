@@ -1,6 +1,6 @@
 """Go-to-type-definition provider.
 
-Uses the compiler's type lattice (``core.compiler.core_analyses``) to resolve
+Uses the compiler's type lattice (``compiler.core_analyses``) to resolve
 a variable's inferred class, then jumps to that ``ClassDef``.  No regex or
 source-text scanning -- the compiler already tracks TclOO instance types via
 ``TypeLattice.object_of(class_name)`` when it sees ``[Class new ...]`` or
@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from compiler.core_analyses import analyse_source
+from compiler.types import TclType, TypeKind
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef
-from core.compiler.core_analyses import analyse_source
-from core.compiler.types import TclType, TypeKind
 from shared.lsp import to_lsp_location
 
 from .symbol_resolution import find_scope_at_line, find_var_at_position, find_word_at_position

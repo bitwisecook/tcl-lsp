@@ -431,7 +431,7 @@ class _AnalyserProcMixin(_Base):
         where ``{*}`` coerces the value to a list via
         ``Tcl_ListObjGetElements``.
         """
-        from ...compiler.tcl_expr_eval import _split_tcl_list
+        from compiler.tcl_expr_eval import _split_tcl_list
 
         if not single_token:
             return None

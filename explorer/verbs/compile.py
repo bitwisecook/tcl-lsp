@@ -5,11 +5,11 @@ from __future__ import annotations
 import argparse
 import sys
 
+from compiler.cfg import build_cfg
+from compiler.codegen import format_module_asm
+from compiler.codegen.wasm import wasm_codegen_module
+from compiler.lowering import lower_to_ir
 from core.commands.registry.runtime import configure_signatures
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen import format_module_asm
-from core.compiler.codegen.wasm import wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
 from vm.compiler import compile_script
 
 from ._registry import verb

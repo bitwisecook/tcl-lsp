@@ -304,7 +304,7 @@ class TestSummaryCallsCoverage:
         # directly so a regression of issue #409 (calls only inside an
         # ``if`` condition or switch subject) would surface even if
         # downstream consumers change.
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             proc q {} {}
@@ -324,7 +324,7 @@ class TestSummaryCallsCoverage:
         assert "::s" in calls
 
     def test_stubbed_callback_call_is_recorded_on_caller_summary(self):
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin
@@ -607,8 +607,8 @@ class TestRealisticSqliteUsage:
         # it as ``ProcArgTrait.BODY``.  This is what makes the wrapper
         # pattern compose — callers of ``each_row`` inherit BODY
         # recognition on their callback arg.
+        from compiler.compilation_unit import compile_source
         from core.analysis.semantic_model import ProcArgTrait
-        from core.compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin
@@ -679,8 +679,8 @@ class TestStubTraitInference:
         # ``ArgRole.BODY`` slot, the proc-arg trait inferencer should
         # mark that parameter as ``ProcArgTrait.BODY`` — exactly as it
         # does for built-in script-runners.
+        from compiler.compilation_unit import compile_source
         from core.analysis.semantic_model import ProcArgTrait
-        from core.compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin

@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.gvn import find_redundant_computations
-from core.compiler.optimiser import (
+from compiler.gvn import find_redundant_computations
+from compiler.optimiser import (
     Optimisation,
     apply_optimisations,
     demorgan_transform,
@@ -21,7 +21,7 @@ from core.compiler.optimiser import (
     invert_expression,
     optimise_source,
 )
-from core.compiler.shimmer import (
+from compiler.shimmer import (
     ShimmerWarning,
     ThunkingWarning,
     find_shimmer_warnings,

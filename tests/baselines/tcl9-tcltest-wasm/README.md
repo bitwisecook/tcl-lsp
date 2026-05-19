@@ -2,7 +2,7 @@
 
 This directory captures the result of running the upstream **C Tcl 9.0.3**
 core test slice through the **Zig WASM runtime** (`runtime/zig/` driven
-by `core/compiler/codegen/wasm/`).  Each stem's `.test` file is
+by `compiler/codegen/wasm/`).  Each stem's `.test` file is
 bundled with the upstream `tcltest.tcl` (kept **unmodified on disk** —
 see `_patch_tcltest_source` in `tests/external/run_tcl9_tests.py` for
 the small, documented set of in-memory rewrites the bundler applies
@@ -20,7 +20,7 @@ Unlike the Python-VM-side sibling
 dev signal, every regression here represents a real WASM-runtime
 gap that blocks production correctness against upstream Tcl 9.  The
 production deliverable is the Zig WASM runtime under `runtime/zig/`
-plus the WASM codegen under `core/compiler/codegen/wasm/`; this
+plus the WASM codegen under `compiler/codegen/wasm/`; this
 harness exercises both end-to-end against the upstream framework.
 
 What this work *is* good for:
@@ -30,7 +30,7 @@ What this work *is* good for:
 - Surfacing fix candidates ranked by leverage — every `W0-*` row is
   one failed compile / trap / timeout that truncates dozens to
   hundreds of test IDs.
-- Catching regressions in `runtime/zig/` and `core/compiler/codegen/
+- Catching regressions in `runtime/zig/` and `compiler/codegen/
   wasm/` that the per-test pytest gates would not reach (the slice
   is much wider than `tests/test_wasm_*.py` covers).
 
@@ -63,7 +63,7 @@ contract can never silently drift away from upstream.
 
 3. **Never edit `tmp/tcl9.0.3/library/init.tcl`** for the same reason.
    If the boot path needs help, the help goes into `runtime/zig/` or
-   `core/compiler/codegen/wasm/`, not the library.
+   `compiler/codegen/wasm/`, not the library.
 
 4. **No new monkey-patches.**  The bundle's pre-tcltest preamble
    (`tests/external/run_tcl9_tests.py:_PRE_TCLTEST`) and the
@@ -77,7 +77,7 @@ contract can never silently drift away from upstream.
 
    | bucket | fix site |
    |---|---|
-   | `W0-codegen-bug` | `core/compiler/codegen/wasm/` (lowering / IR / codegen) |
+   | `W0-codegen-bug` | `compiler/codegen/wasm/` (lowering / IR / codegen) |
    | `W0-stub-trap` | `runtime/zig/dispatch/tcl_stub_fallback.zig` + a real handler in `runtime/zig/cmds/` |
    | `W0-runtime-error` | the named handler in `runtime/zig/cmds/*.zig` |
    | `W0-arity` | `runtime/zig/dispatch/tcl_cmd_registry.zig` arity bounds vs. the Python `CommandSpec` |
@@ -135,7 +135,7 @@ position in the alphabet.
 | id | symptom | leverage |
 |---|---|---|
 | `W0-bootstrap` | Bundle harness / setup error before WASM ever ran (test file missing, bundle pre-flight failure). | very high |
-| `W0-codegen-bug` | `core/compiler/codegen/wasm/` raised during lowering / IR build / codegen. | very high |
+| `W0-codegen-bug` | `compiler/codegen/wasm/` raised during lowering / IR build / codegen. | very high |
 | `W0-stub-trap` | wasmtime trap with `unsupported command: X` on stderr — `runtime/zig/dispatch/tcl_stub_fallback.zig` was hit. | very high |
 | `W0-runtime-error` | wasmtime trap inside an implemented Zig handler — bug in `runtime/zig/cmds/`. | very high |
 | `W0-arity` | Arity mismatch: the Python `CommandSpec` registry says N..M, the Zig runtime accepts a different range.  Caught by `make check-wasm-parity` first; surfaces here as a runtime trap inside a registered command. | very high |

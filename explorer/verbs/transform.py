@@ -6,8 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from compiler.optimiser import apply_optimisations, find_optimisations
 from core.commands.registry.runtime import configure_signatures
-from core.compiler.optimiser import apply_optimisations, find_optimisations
 from core.formatting import format_tcl
 
 from ._registry import verb
@@ -208,7 +208,7 @@ def _run_opt(args: argparse.Namespace) -> int:
     source = _combine_sources(documents)
     disabled, multi_pass, max_iterations = _resolve_disabled_optimisations(args)
     if multi_pass:
-        from core.compiler.optimiser import optimise_source_multipass
+        from compiler.optimiser import optimise_source_multipass
 
         optimised_source, optimisations, _iters = optimise_source_multipass(
             source,

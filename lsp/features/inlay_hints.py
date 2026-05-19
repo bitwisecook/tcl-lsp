@@ -6,13 +6,13 @@ import logging
 
 from lsprotocol import types
 
+from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
 from compiler.parsing.tokens import TokenType
+from compiler.types import TypeKind
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult
-from core.compiler.core_analyses import analyse_source
-from core.compiler.types import TypeKind
 
 from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,

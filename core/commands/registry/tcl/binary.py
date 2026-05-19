@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
-from ....compiler.types import TclType
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from compiler.types import TclType
+
 from ..models import (
     ArgumentValueSpec,
     CommandSpec,

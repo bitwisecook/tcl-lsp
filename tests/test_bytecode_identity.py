@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen import codegen_module, format_module_asm
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen import codegen_module, format_module_asm
+from compiler.lowering import lower_to_ir
 
 # Paths
 

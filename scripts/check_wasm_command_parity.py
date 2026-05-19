@@ -315,7 +315,7 @@ def collect_registry_commands() -> dict[str, dict]:
     # ``cmds/*.py`` module, which is what populates ``codegens["wasm"]``
     # on the affected specs.  Without this the registry knows nothing
     # about the WASM hooks and every command looks unimplemented.
-    import core.compiler.codegen.wasm._emitter.cmds  # noqa: F401, PLC0415
+    import compiler.codegen.wasm._emitter.cmds  # noqa: F401, PLC0415
     from core.commands.registry import REGISTRY  # noqa: PLC0415
     from core.commands.registry.tcl._base import _REGISTRY as TCL_DEFS  # noqa: PLC0415
 
@@ -401,8 +401,8 @@ def collect_imports_tables() -> dict[str, object]:
     # ``CommandSpec.wasm_runtime_import`` declaration in the registry
     # (populated by phase B.7c).  ``cmd_runtime_nontrapping`` is derived
     # from the same source.
+    from compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
     from core.commands.registry import REGISTRY  # noqa: PLC0415
-    from core.compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
 
     cmd_runtime: dict[str, dict[str, object]] = {}
     cmd_runtime_nontrapping: list[str] = []

@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen import (
+from compiler.cfg import build_cfg
+from compiler.codegen import (
     FunctionAsm,
     LiteralTable,
     LocalVarTable,
@@ -19,8 +19,8 @@ from core.compiler.codegen import (
     format_function_asm,
     format_module_asm,
 )
-from core.compiler.codegen.format import _esc
-from core.compiler.lowering import lower_to_ir
+from compiler.codegen.format import _esc
+from compiler.lowering import lower_to_ir
 
 # Helpers
 
@@ -225,8 +225,8 @@ class TestIRulesExprOps:
 
     def _emit_binop(self, binop):
         """Build a minimal CFG with a single branch using the given BinOp."""
-        from core.compiler.cfg import CFGBlock, CFGFunction, CFGReturn
-        from core.compiler.expr_ast import ExprBinary, ExprVar
+        from compiler.cfg import CFGBlock, CFGFunction, CFGReturn
+        from compiler.expr_ast import ExprBinary, ExprVar
 
         expr = ExprBinary(op=binop, left=ExprVar("$a", "a", 0, 2), right=ExprVar("$b", "b", 0, 2))
         blk = CFGBlock(
@@ -236,9 +236,9 @@ class TestIRulesExprOps:
         )
         _cfg = CFGFunction(name="test", entry="entry", blocks={"entry": blk})  # noqa: F841
         # Hack: inject an IRAssignExpr to exercise the expression emitter
+        from compiler.ir import IRAssignExpr
         from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
-        from core.compiler.ir import IRAssignExpr
 
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))
         stmt = IRAssignExpr(range=r, name="r", expr=expr)
@@ -247,11 +247,11 @@ class TestIRulesExprOps:
         return codegen_function(cfg2)
 
     def _emit_unaryop(self, unaryop):
+        from compiler.cfg import CFGBlock, CFGFunction, CFGReturn
+        from compiler.expr_ast import ExprUnary, ExprVar
+        from compiler.ir import IRAssignExpr
         from compiler.parsing.tokens import SourcePosition
         from core.analysis.semantic_model import Range
-        from core.compiler.cfg import CFGBlock, CFGFunction, CFGReturn
-        from core.compiler.expr_ast import ExprUnary, ExprVar
-        from core.compiler.ir import IRAssignExpr
 
         expr = ExprUnary(op=unaryop, operand=ExprVar("$a", "a", 0, 2))
         r = Range(SourcePosition(0, 0, 0), SourcePosition(0, 0, 0))
@@ -261,55 +261,55 @@ class TestIRulesExprOps:
         return codegen_function(cfg)
 
     def test_contains(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.CONTAINS)
         assert Op.IRULE_CONTAINS in _opcodes(fa)
 
     def test_starts_with(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.STARTS_WITH)
         assert Op.IRULE_STARTS_WITH in _opcodes(fa)
 
     def test_ends_with(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.ENDS_WITH)
         assert Op.IRULE_ENDS_WITH in _opcodes(fa)
 
     def test_equals(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.STR_EQUALS)
         assert Op.IRULE_EQUALS in _opcodes(fa)
 
     def test_matches_glob(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.MATCHES_GLOB)
         assert Op.IRULE_MATCHES_GLOB in _opcodes(fa)
 
     def test_matches_regex(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.MATCHES_REGEX)
         assert Op.IRULE_MATCHES_REGEX in _opcodes(fa)
 
     def test_word_and(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.WORD_AND)
         assert Op.IRULE_WORD_AND in _opcodes(fa)
 
     def test_word_or(self):
-        from core.compiler.expr_ast import BinOp
+        from compiler.expr_ast import BinOp
 
         fa = self._emit_binop(BinOp.WORD_OR)
         assert Op.IRULE_WORD_OR in _opcodes(fa)
 
     def test_word_not(self):
-        from core.compiler.expr_ast import UnaryOp
+        from compiler.expr_ast import UnaryOp
 
         fa = self._emit_unaryop(UnaryOp.WORD_NOT)
         assert Op.IRULE_WORD_NOT in _opcodes(fa)

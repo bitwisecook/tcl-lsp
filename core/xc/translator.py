@@ -11,10 +11,7 @@ import re as _re
 from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 
-from shared.codes import diag
-
-from ..commands.registry import REGISTRY
-from ..compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCommand,
@@ -25,7 +22,7 @@ from ..compiler.expr_ast import (
     UnaryOp,
     expr_text,
 )
-from ..compiler.ir import (
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -43,8 +40,11 @@ from ..compiler.ir import (
     IRTry,
     IRWhile,
 )
-from ..compiler.lowering import lower_to_ir
-from ..compiler.token_helpers import parse_command_words as _parse_command_words
+from compiler.lowering import lower_to_ir
+from compiler.token_helpers import parse_command_words as _parse_command_words
+from shared.codes import diag
+
+from ..commands.registry import REGISTRY
 from .mapping import (
     ADVISORY_EVENTS,
     COMMAND_XC_MAP,

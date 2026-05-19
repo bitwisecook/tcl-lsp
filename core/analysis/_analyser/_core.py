@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ...compiler.compilation_unit import CompilationUnit
+    from compiler.compilation_unit import CompilationUnit
 
 from compiler.parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from compiler.parsing.expr_lexer import (

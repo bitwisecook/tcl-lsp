@@ -10,7 +10,7 @@ Frame elision is an optimisation; the un-elided path is the safety floor.
 
 Today's codegen elides the frame whenever the escape analysis (`var_escape`)
 says the proc has no FRAME-tagged var, no fallback, and no `info level`
-reference (`core/compiler/codegen/wasm/_emitter/_core.py:503-532`).
+reference (`compiler/codegen/wasm/_emitter/_core.py:503-532`).
 Elision is the source of every refcount bug we have seen on the compile
 side, because the WASM-local mirror is then the slot's authoritative
 storage and nothing on the compile side currently retains / releases it.
@@ -37,7 +37,7 @@ requires editing the conditional inline.
 
 - [ ] Add a parameter `frame_elision: bool = True` to the public
   `wasm_codegen_module(ir_module, ..., frame_elision=...)` entry in
-  `core/compiler/codegen/wasm/__init__.py`.
+  `compiler/codegen/wasm/__init__.py`.
 - [ ] Thread the flag into every emitter constructor (`_WasmEmitterBase`
   + the various mixins).
 - [ ] Inside `_core.py::generate`, gate the existing elision condition on
@@ -54,8 +54,8 @@ requires editing the conditional inline.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/__init__.py`
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/codegen/wasm/__init__.py`
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
 - Modify: `tests/test_wasm_real_tcl.py` (`_compile_tcl` signature)
 - Modify: `scripts/dev/run_tcl9_tcltest_sweep.py` (CLI flag)
 - Modify: `Makefile` (new `sweep-no-elision` target)

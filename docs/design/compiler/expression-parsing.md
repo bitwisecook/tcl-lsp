@@ -14,7 +14,7 @@ are parsed into `ExprNode` AST trees; unbraced expressions fall back to
 `ExprRaw` and cannot be statically analysed (diagnostic W100).
 
 Source: [`compiler/parsing/expr_parser.py`](../../../compiler/parsing/expr_parser.py),
-[`core/compiler/expr_ast.py`](../../../core/compiler/expr_ast.py)
+[`compiler/expr_ast.py`](../../../compiler/expr_ast.py)
 
 ## Content
 

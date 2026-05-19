@@ -12,10 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.compilation_unit import compile_source
-from core.compiler.inline_uplevel import inline_uplevel_passthrough
-from core.compiler.ir import IRBlock, IRCall, IRUpFrame
-from core.compiler.lowering import lower_to_ir
+from compiler.compilation_unit import compile_source
+from compiler.inline_uplevel import inline_uplevel_passthrough
+from compiler.ir import IRBlock, IRCall, IRUpFrame
+from compiler.lowering import lower_to_ir
 
 
 def _ir_module(source: str):

@@ -6,14 +6,14 @@ duplicated across multiple test files.
 
 from __future__ import annotations
 
+from compiler.cfg import build_cfg
+from compiler.core_analyses import analyse_function
+from compiler.lowering import lower_to_ir
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
+from compiler.ssa import build_ssa
+from compiler.types import TypeLattice
 from core.analysis import analyse
-from core.compiler.cfg import build_cfg
-from core.compiler.core_analyses import analyse_function
-from core.compiler.lowering import lower_to_ir
-from core.compiler.ssa import build_ssa
-from core.compiler.types import TypeLattice
 
 # Lexer helpers
 

@@ -10,10 +10,8 @@ the LLM together with the original source for Mermaid + explanation generation.
 
 from __future__ import annotations
 
-from ..commands.registry import REGISTRY
-from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from ..compiler.expr_ast import ExprNode, expr_text
-from ..compiler.ir import (
+from compiler.expr_ast import ExprNode, expr_text
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -32,7 +30,10 @@ from ..compiler.ir import (
     IRWhile,
     when_event_name,
 )
-from ..compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
+
+from ..commands.registry import REGISTRY
+from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 
 _MAX_DEPTH = 8
 _MAX_EVENTS = 12

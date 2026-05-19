@@ -8,13 +8,13 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.known_commands import known_command_names
-
-from ...compiler.compilation_unit import CompilationUnit
-from ...compiler.ir import (
+from compiler.compilation_unit import CompilationUnit
+from compiler.ir import (
     IRBarrier,
     IRCall,
 )
+from compiler.parsing.known_commands import known_command_names
+
 from ..semantic_model import Diagnostic, Severity
 
 
@@ -44,20 +44,20 @@ class _AnalyserDiagVarCommandMixin(_Base):
         ):
             return
 
+        from compiler.compiler_checks import _collect_unconditional_top_level_procs
+        from compiler.core_analyses import (
+            _extract_foreach_elements,
+            _parse_literal_value,
+        )
+        from compiler.core_analyses import (
+            _to_set as _lattice_to_set,
+        )
+        from compiler.types import TclType, TypeKind
         from shared.dialect import active_dialect
         from shared.naming import normalise_qualified_name
 
         from ...commands.registry import REGISTRY
         from ...commands.registry.models import DialectStatus
-        from ...compiler.compiler_checks import _collect_unconditional_top_level_procs
-        from ...compiler.core_analyses import (
-            _extract_foreach_elements,
-            _parse_literal_value,
-        )
-        from ...compiler.core_analyses import (
-            _to_set as _lattice_to_set,
-        )
-        from ...compiler.types import TclType, TypeKind
         from ..class_hierarchy import build_class_hierarchy
 
         _w002_enabled = "W002" not in self._disabled_diagnostics
@@ -181,7 +181,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
             import re as _re
 
             _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
-            from ...compiler.ir import IRAssignValue
+            from compiler.ir import IRAssignValue
 
             for qname, fu_unit in _all_fus_named:
                 func_cs = _func_constsets.setdefault(qname, {})
@@ -378,7 +378,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # Resolve [cmd]-as-command sites: suppress W307 when the command
         # substitution returns a TclOO object (e.g. ``[Dog new] bark``).
         if self._cmd_command_sites:
-            from ...compiler.core_analyses import _return_type_for_command
+            from compiler.core_analyses import _return_type_for_command
 
             _known_classes = frozenset(self.result.all_classes)
             # Build set of W307 ranges from the check pipeline that we may

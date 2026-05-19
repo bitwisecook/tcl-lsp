@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.compiler.types import TclType, TypeKind, TypeLattice
+from compiler.types import TclType, TypeKind, TypeLattice
 
 from .helpers import analyse_types as _analyse
 from .helpers import var_type as _var_type

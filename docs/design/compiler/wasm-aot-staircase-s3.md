@@ -6,7 +6,7 @@
 > discipline in [`wasm-aot-staircase-s2.md`](wasm-aot-staircase-s2.md).
 
 S2 made frame elision **correct**; S3 makes it **available to more
-procs**. Today's escape analysis (`core/compiler/var_escape/`) has
+procs**. Today's escape analysis (`compiler/var_escape/`) has
 already done the heavy lifting (per-proc tags + interprocedural
 fixpoint via `_interprocedural.py`). S3 audits the conservative
 backstops and tightens them where the cost is concrete.
@@ -53,9 +53,9 @@ disable elision for ~5–10 % of procs that could otherwise elide.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
   (`_body_references_info_level`)
-- New utility under `core/compiler/var_escape/_info_subcommands.py`
+- New utility under `compiler/var_escape/_info_subcommands.py`
   (already exists — extend rather than duplicate).
 
 **Test plan**: Per-test unit; sweep neutral or positive;
@@ -99,9 +99,9 @@ coverage materially.
 
 **Files**:
 
-- Modify: `core/compiler/var_escape/_propagation.py`,
+- Modify: `compiler/var_escape/_propagation.py`,
   `_interprocedural.py`, `_types.py`
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
 
 **Test plan**:
 
@@ -150,7 +150,7 @@ S2's per-proc migration.
 **Files**:
 
 - New: `tests/test_var_escape_corners.py`
-- Modify (as needed): `core/compiler/var_escape/_interprocedural.py`
+- Modify (as needed): `compiler/var_escape/_interprocedural.py`
 
 **Test plan**: Pure unit tests; no sweep impact expected unless
 a bug is found.
@@ -197,7 +197,7 @@ here, in the escape pass, keeps the fixpoint logic in one place.
 
 **Files**:
 
-- Modify: `core/compiler/var_escape/_types.py`,
+- Modify: `compiler/var_escape/_types.py`,
   `_propagation.py`, `_interprocedural.py`
 - Modify: `core/commands/registry/models.py` (add accessor)
 - Modify: every spec under `core/commands/registry/tcl/` that

@@ -24,10 +24,10 @@ Range fidelity depends on preserving source `Range` from lowering through CFG/SS
 
 ## File-path anchors
 
-- `core/compiler/lowering.py`
-- `core/compiler/ir.py`
-- `core/compiler/optimiser/`
-- `core/compiler/gvn.py`
+- `compiler/lowering.py`
+- `compiler/ir.py`
+- `compiler/optimiser/`
+- `compiler/gvn.py`
 - `shared/source_map.py`
 - `lsp/features/diagnostics.py`
 

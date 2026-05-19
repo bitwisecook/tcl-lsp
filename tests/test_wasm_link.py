@@ -12,12 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from core.compiler.codegen.wasm_link import (
+from compiler.codegen.wasm_link import (
     merge_ir_modules,
     wasm_link,
     wasm_link_sources,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 from tests.test_wasm_execution import (  # noqa: E402
     _get_engine,
     _link_and_instantiate,
@@ -80,7 +80,7 @@ class TestMergeIrModules:
 
     def test_merge_empty(self):
         """Merging with empty modules should not fail."""
-        from core.compiler.ir import IRModule
+        from compiler.ir import IRModule
 
         merged = merge_ir_modules(IRModule(), IRModule())
         assert len(merged.top_level.statements) == 0
@@ -116,13 +116,13 @@ class TestWasmLinkSources:
         references would.  An earlier worry about "linker-mode
         DCE missing cross-file calls" turned out to be unfounded.
         """
-        from core.compiler.codegen.wasm_link import (
+        from compiler.codegen.wasm_link import (
             merge_ir_modules,
             wasm_link_sources,
         )
-        from core.compiler.inlining import apply_inline_catalogue
-        from core.compiler.lowering import lower_to_ir
-        from core.compiler.var_escape import analyse_var_escape
+        from compiler.inlining import apply_inline_catalogue
+        from compiler.lowering import lower_to_ir
+        from compiler.var_escape import analyse_var_escape
 
         # Lower each "file" individually then merge — exactly what
         # ``wasm_link_sources`` does internally.

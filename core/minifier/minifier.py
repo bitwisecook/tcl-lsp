@@ -498,7 +498,7 @@ def _aggressive_minify(
     2. Compact variable and proc names to short identifiers.
     3. Strip comments, collapse whitespace, compress expr bodies.
     """
-    from core.compiler.optimiser._manager import apply_optimisations, find_optimisations
+    from compiler.optimiser._manager import apply_optimisations, find_optimisations
 
     from .static_substr import fold_static_substrings
 
@@ -2175,11 +2175,11 @@ def _shrink_expr_ast(text: str, *, dialect: str | None = None) -> str:
     - Double negation: ``!!$x`` → ``$x``
     """
     try:
-        from compiler.parsing.expr_parser import parse_expr
-        from core.compiler.expr_ast import (
+        from compiler.expr_ast import (
             ExprRaw,
             render_expr,
         )
+        from compiler.parsing.expr_parser import parse_expr
     except Exception:
         return text
 
@@ -2203,7 +2203,7 @@ def _shrink_expr_ast(text: str, *, dialect: str | None = None) -> str:
 
 def _shrink_node(node):
     """Recursively try size-reducing transforms on an ExprNode."""
-    from core.compiler.expr_ast import (  # noqa: F811
+    from compiler.expr_ast import (  # noqa: F811
         BinOp,
         ExprBinary,
         ExprTernary,

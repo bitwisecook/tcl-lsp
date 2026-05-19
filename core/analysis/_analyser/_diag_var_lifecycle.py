@@ -8,11 +8,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from shared.naming import normalise_var_name as _normalise_var_name
-
-from ...compiler.cfg import CFGFunction
-from ...compiler.core_analyses import FunctionAnalysis
-from ...compiler.ir import (
+from compiler.cfg import CFGFunction
+from compiler.core_analyses import FunctionAnalysis
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -21,6 +19,8 @@ from ...compiler.ir import (
     IRProcedure,
     IRStatement,
 )
+from shared.naming import normalise_var_name as _normalise_var_name
+
 from ..semantic_model import Diagnostic, Severity
 from ._utils import _UNUSED_VAR_RE, _format_literal_for_message, _possible_paste_fingerprint
 

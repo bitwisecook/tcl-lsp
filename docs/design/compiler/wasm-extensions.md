@@ -52,7 +52,7 @@ Selection happens in :mod:`core.compiler.codegen.wasm.extensions`:
    `package require <name>` calls.
 2. `runtime_path_for(ir_module)` maps that result to the right
    pre-built runtime artefact.
-3. :func:`wasm_link_bundled` in `core/compiler/codegen/wasm_link.py`
+3. :func:`wasm_link_bundled` in `compiler/codegen/wasm_link.py`
    feeds the chosen runtime to Binaryen `wasm-merge`, fusing it
    with the user-code module into one `.wasm`.
 
@@ -78,7 +78,7 @@ Selection happens in :mod:`core.compiler.codegen.wasm.extensions`:
    - Add the same option to `test_options` so unit tests can
      drive the new commands.
 
-4. In `core/compiler/codegen/wasm/extensions.py`, append an
+4. In `compiler/codegen/wasm/extensions.py`, append an
    `ExtensionDescriptor(name=…, package_names=…,
    runtime_path_factory=…)` entry to `EXTENSIONS`.
 

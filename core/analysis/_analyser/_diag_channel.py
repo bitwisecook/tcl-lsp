@@ -7,9 +7,10 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.core_analyses import FunctionAnalysis
+from compiler.ssa import SSAFunction
+
 from ...commands.registry.runtime import ArgRole, arg_indices_for_role
-from ...compiler.core_analyses import FunctionAnalysis
-from ...compiler.ssa import SSAFunction
 from ..semantic_model import Diagnostic, Severity
 
 
@@ -31,8 +32,8 @@ class _AnalyserDiagChannelMixin(_Base):
         if it's a known constant that isn't a standard channel name and
         the variable type is not ``TclType.CHANNEL``, emit a warning.
         """
-        from ...compiler.ir import IRCall
-        from ...compiler.types import TclType, TypeKind
+        from compiler.ir import IRCall
+        from compiler.types import TclType, TypeKind
 
         for block in ssa.blocks.values():
             for ssa_stmt in block.statements:

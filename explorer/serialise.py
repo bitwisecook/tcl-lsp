@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import sys
 
-from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn
-from core.compiler.dataflow_graph import dataflow_graph_to_dict
-from core.compiler.gvn import RedundantComputation
-from core.compiler.interprocedural import InterproceduralAnalysis
-from core.compiler.ir import (
+from compiler.cfg import CFGBranch, CFGGoto, CFGReturn
+from compiler.dataflow_graph import dataflow_graph_to_dict
+from compiler.gvn import RedundantComputation
+from compiler.interprocedural import InterproceduralAnalysis
+from compiler.ir import (
     IRBarrier,
     IRFor,
     IRIf,
@@ -19,13 +19,13 @@ from core.compiler.ir import (
     IRScript,
     IRSwitch,
 )
-from core.compiler.irules_flow import EventOrderEntry, IrulesFlowWarning
-from core.compiler.optimiser import Optimisation
-from core.compiler.shimmer import ShimmerWarning, ThunkingWarning
-from core.compiler.taint import (
+from compiler.irules_flow import EventOrderEntry, IrulesFlowWarning
+from compiler.optimiser import Optimisation
+from compiler.shimmer import ShimmerWarning, ThunkingWarning
+from compiler.taint import (
     TaintWarning,
 )
-from core.compiler.types import TypeKind
+from compiler.types import TypeKind
 
 from .formatters import (
     format_lattice,
@@ -640,10 +640,10 @@ def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
     ranges, and label anchors.  The frontend switches to the rich
     renderer when ``instructions`` is present.
     """
-    from core.compiler.codegen import codegen_module, format_module_explorer
+    from compiler.codegen import codegen_module, format_module_explorer
 
     if cfg_module is None:
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     module_asm = codegen_module(cfg_module, ir_module)
@@ -702,10 +702,10 @@ def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=N
     when ``instructions`` is present; consumers that don't understand
     the new shape can continue to read ``text``.
     """
-    from core.compiler.codegen.wasm import wasm_codegen_module
+    from compiler.codegen.wasm import wasm_codegen_module
 
     if cfg_module is None:
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
@@ -770,7 +770,7 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
     This is the single serialisation function used by both the Flask
     endpoint and the Pyodide worker.
     """
-    from core.compiler.cfg import build_cfg
+    from compiler.cfg import build_cfg
 
     from .pipeline import compute_stats
 
@@ -781,7 +781,7 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
     wasm_optimised = None
     if result.optimised_source and result.optimised_source != result.source:
         try:
-            from core.compiler.lowering import lower_to_ir
+            from compiler.lowering import lower_to_ir
 
             opt_ir = lower_to_ir(result.optimised_source)
             opt_cfg = build_cfg(opt_ir)

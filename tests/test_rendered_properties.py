@@ -1,6 +1,6 @@
 """Tests for the Rendered Value Properties analysis pass."""
 
-from core.compiler.rendered_properties import (
+from compiler.rendered_properties import (
     RenderedProperties,
     RenderedValueProps,
     _evaluate_rendered_props_for_const,
@@ -162,7 +162,7 @@ class TestSSACopyPropagation:
 
     def test_copy_propagates_path_properties(self):
         """set path "$dir/file"; set copy $path -- copy gets W201."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         source = 'set path "$dir/file.txt"\nset copy "$path/sub"'
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
@@ -171,7 +171,7 @@ class TestSSACopyPropagation:
 
     def test_copy_of_clean_var_no_false_positive(self):
         """set x 42; set y $x -- no W201."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         source = "set x 42\nset y $x"
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
@@ -179,7 +179,7 @@ class TestSSACopyPropagation:
 
     def test_rendered_props_through_copy_chain(self):
         """Rendered properties survive a chain: set a "/etc"; set b $a."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set a "/etc/config"\nset b $a'
         cu = ensure_compilation_unit(source)
@@ -198,7 +198,7 @@ class TestPhiNodePropagation:
 
     def test_phi_may_union_across_branches(self):
         """Path in one branch, no path in other -- phi should have may HAS_FORWARD_SLASH."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'if {$cond} {\n    set x "/etc/config"\n} else {\n    set x "hello"\n}\nputs $x'
         cu = ensure_compilation_unit(source)
@@ -214,7 +214,7 @@ class TestPhiNodePropagation:
 
     def test_phi_must_intersection_both_branches_agree(self):
         """Both branches start with / -- phi should preserve STARTS_WITH_SLASH."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'if {$cond} {\n    set x "/etc/config"\n} else {\n    set x "/var/log"\n}\nputs $x'
         cu = ensure_compilation_unit(source)
@@ -231,7 +231,7 @@ class TestNamespaceAndDynamicDispatch:
 
     def test_namespaced_var_path(self):
         """Namespace-qualified variable in path concatenation."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         source = 'set path "$::config::basedir/file.txt"'
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
@@ -239,7 +239,7 @@ class TestNamespaceAndDynamicDispatch:
 
     def test_namespace_eval_is_barrier(self):
         """namespace eval body is an IRBarrier -- W201 is not detected inside."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         source = 'namespace eval myns {\n    set path "$dir/file.txt"\n}'
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
@@ -248,7 +248,7 @@ class TestNamespaceAndDynamicDispatch:
 
     def test_file_join_in_namespace(self):
         """[file join] inside namespace -- should NOT trigger W201."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         source = 'namespace eval myns {\n    set path [file join $dir "file.txt"]\n}'
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
@@ -260,7 +260,7 @@ class TestUnescapeTracking:
 
     def test_subst_sets_was_unescaped(self):
         """[subst $x] result should have WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset y [subst $x]'
         cu = ensure_compilation_unit(source)
@@ -275,7 +275,7 @@ class TestUnescapeTracking:
 
     def test_double_subst_sets_double_unescaped(self):
         """[subst [subst $x]] or chained subst should have DOUBLE_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset y [subst $x]\nset z [subst $y]'
         cu = ensure_compilation_unit(source)
@@ -290,7 +290,7 @@ class TestUnescapeTracking:
 
     def test_single_subst_no_double_unescaped(self):
         """Single [subst] should NOT have DOUBLE_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset y [subst $x]'
         cu = ensure_compilation_unit(source)
@@ -305,7 +305,7 @@ class TestUnescapeTracking:
 
     def test_non_subst_command_no_was_unescaped(self):
         """[string length $x] should NOT have WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset y [string length $x]'
         cu = ensure_compilation_unit(source)
@@ -320,7 +320,7 @@ class TestUnescapeTracking:
 
     def test_copy_propagates_was_unescaped(self):
         """set a [subst $x]; set b $a -- b inherits WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset a [subst $x]\nset b $a'
         cu = ensure_compilation_unit(source)
@@ -335,7 +335,7 @@ class TestUnescapeTracking:
 
     def test_copy_then_subst_is_double(self):
         """set a [subst $x]; set b $a; set c [subst $b] -- c is DOUBLE_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "hello"\nset a [subst $x]\nset b $a\nset c [subst $b]'
         cu = ensure_compilation_unit(source)
@@ -350,7 +350,7 @@ class TestUnescapeTracking:
 
     def test_uri_decode_sets_was_unescaped(self):
         """[URI::decode $x] should have WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "%2Fpath"\nset y [URI::decode $x]'
         cu = ensure_compilation_unit(source)
@@ -365,7 +365,7 @@ class TestUnescapeTracking:
 
     def test_uri_decode_then_subst_is_double(self):
         """[URI::decode $x] then [subst $y] -- double unescape."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "%2Fpath"\nset y [URI::decode $x]\nset z [subst $y]'
         cu = ensure_compilation_unit(source)
@@ -380,7 +380,7 @@ class TestUnescapeTracking:
 
     def test_http_uri_normalized_sets_fully_normalised(self):
         """[HTTP::uri -normalized] is FULLY_NORMALISED, not WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = "set uri [HTTP::uri -normalized]"
         cu = ensure_compilation_unit(source)
@@ -401,7 +401,7 @@ class TestUnescapeTracking:
 
     def test_normalized_then_decode_not_double(self):
         """[URI::decode [HTTP::uri -normalized]] is NOT DOUBLE_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = "set uri [HTTP::uri -normalized]\nset decoded [URI::decode $uri]"
         cu = ensure_compilation_unit(source)
@@ -416,7 +416,7 @@ class TestUnescapeTracking:
 
     def test_b64decode_sets_was_unescaped(self):
         """[b64decode $x] should have WAS_UNESCAPED."""
-        from core.compiler.compilation_unit import ensure_compilation_unit
+        from compiler.compilation_unit import ensure_compilation_unit
 
         source = 'set x "aGVsbG8="\nset y [b64decode $x]'
         cu = ensure_compilation_unit(source)
@@ -435,14 +435,14 @@ class TestFullPassIntegration:
 
     def test_hex_escape_slash_triggers_w201(self):
         r"""\x2f renders to '/' -- should trigger W201."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         ws = [w for w in find_taint_warnings(r'set path "\x2f$var"') if w.code == "W201"]
         assert len(ws) == 1
 
     def test_hex_escape_a_no_w201(self):
         r"""\x61 renders to 'a' -- should NOT trigger W201."""
-        from core.compiler.taint import find_taint_warnings
+        from compiler.taint import find_taint_warnings
 
         ws = [w for w in find_taint_warnings(r'set path "\x61$var"') if w.code == "W201"]
         assert len(ws) == 0

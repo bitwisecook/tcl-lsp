@@ -34,7 +34,7 @@ def _arg_text(arg: object) -> str:
 def global_declaration_indices(args: Sequence[object]) -> list[int]:
     """Return indices of declared variables in ``global var1 var2 ...``.
 
-    Mirrors :func:`core.compiler.memory_ssa._detect_global` -- every
+    Mirrors :func:`compiler.memory_ssa._detect_global` -- every
     argument whose text does not start with ``$`` (i.e. is a bare name,
     not a substituted reference) is a declaration.
     """
@@ -44,7 +44,7 @@ def global_declaration_indices(args: Sequence[object]) -> list[int]:
 def variable_declaration_indices(args: Sequence[object]) -> list[int]:
     """Return indices of declared variables in ``variable name ?value? ...``.
 
-    Mirrors :func:`core.compiler.memory_ssa._detect_namespace_variable`.
+    Mirrors :func:`compiler.memory_ssa._detect_namespace_variable`.
     The ``variable`` command alternates (name, value?) pairs, so every
     even-indexed arg is a name; bare-name filter matches the compiler's
     ``not a.startswith('$')`` guard.
@@ -63,7 +63,7 @@ def upvar_local_declaration_indices(
 ) -> list[int]:
     """Return indices of the *local-alias* tokens in an ``upvar`` command.
 
-    Mirrors :func:`core.compiler.memory_ssa._detect_upvar`, but returns
+    Mirrors :func:`compiler.memory_ssa._detect_upvar`, but returns
     indices into the caller's own ``args`` sequence rather than
     ``(caller, local)`` name pairs.  Handles both ``upvar`` and
     ``namespace upvar`` (including the lowered form

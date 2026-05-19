@@ -20,9 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.expr_parser import parse_expr
-from core.compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -34,7 +32,9 @@ from core.compiler.expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from core.compiler.types import TclType
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.expr_parser import parse_expr
+from compiler.types import TclType
 
 from .helpers import analyse_types as _analyse
 from .helpers import var_type as _var_type

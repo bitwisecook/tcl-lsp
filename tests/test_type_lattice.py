@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.types import TclType, TypeKind, TypeLattice, type_join
+from compiler.types import TclType, TypeKind, TypeLattice, type_join
 
 UNKNOWN = TypeLattice.unknown()
 OVERDEFINED = TypeLattice.overdefined()

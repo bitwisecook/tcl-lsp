@@ -1,12 +1,12 @@
-"""Tests for S5.4 GVN pass (`core.compiler.passes.gvn`)."""
+"""Tests for S5.4 GVN pass (`compiler.passes.gvn`)."""
 
 from __future__ import annotations
 
 import textwrap
 
-from core.compiler.ir import IRAssignExpr, IRAssignValue
-from core.compiler.lowering import lower_to_ir
-from core.compiler.passes.gvn import gvn_module
+from compiler.ir import IRAssignExpr, IRAssignValue
+from compiler.lowering import lower_to_ir
+from compiler.passes.gvn import gvn_module
 
 
 def _module(source: str):

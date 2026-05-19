@@ -14,30 +14,30 @@ produced at every stage, with field-level detail.
 
 | Term | Meaning |
 |------|---------|
-| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees ([`expr_ast.py:174`](../../core/compiler/expr_ast.py)). |
-| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by [`CFGBlock`](../../core/compiler/cfg.py) (`cfg.py:374`). |
-| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by [`build_cfg()`](../../core/compiler/cfg.py) (`cfg.py:1058`). |
-| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in [`SSAFunction.idom`](../../core/compiler/ssa.py) (`ssa.py:210`). |
-| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in [`SSAFunction.dominance_frontier`](../../core/compiler/ssa.py) (`ssa.py:210`). |
-| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See [`gvn.py:76`](../../core/compiler/gvn.py). |
-| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in [`ir.py`](../../core/compiler/ir.py); the union type `IRStatement` (`ir.py:265`) covers all statement kinds. |
-| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is [`LatticeValue`](../../core/compiler/core_analyses.py) (`core_analyses.py:111`); the type lattice is [`TypeLattice`](../../core/compiler/types.py) (`types.py:53`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in [`FunctionAnalysis.live_in / live_out`](../../core/compiler/core_analyses.py) (`core_analyses.py:176`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../core/compiler/codegen/_types.py) (`codegen/_types.py:63`). |
-| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by [`SSAPhi`](../../core/compiler/ssa.py) (`ssa.py:168`). |
-| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in [`analyse_function()`](../../core/compiler/core_analyses.py) (`core_analyses.py:1210`). |
+| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees ([`expr_ast.py:174`](../../compiler/expr_ast.py)). |
+| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by [`CFGBlock`](../../compiler/cfg.py) (`cfg.py:374`). |
+| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by [`build_cfg()`](../../compiler/cfg.py) (`cfg.py:1058`). |
+| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in [`SSAFunction.idom`](../../compiler/ssa.py) (`ssa.py:210`). |
+| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in [`SSAFunction.dominance_frontier`](../../compiler/ssa.py) (`ssa.py:210`). |
+| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See [`gvn.py:76`](../../compiler/gvn.py). |
+| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in [`ir.py`](../../compiler/ir.py); the union type `IRStatement` (`ir.py:265`) covers all statement kinds. |
+| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is [`LatticeValue`](../../compiler/core_analyses.py) (`core_analyses.py:111`); the type lattice is [`TypeLattice`](../../compiler/types.py) (`types.py:53`). |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in [`FunctionAnalysis.live_in / live_out`](../../compiler/core_analyses.py) (`core_analyses.py:176`). |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../compiler/codegen/_types.py) (`codegen/_types.py:63`). |
+| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by [`SSAPhi`](../../compiler/ssa.py) (`ssa.py:168`). |
+| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in [`analyse_function()`](../../compiler/core_analyses.py) (`core_analyses.py:1210`). |
 | **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:53`). |
-| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by [`build_ssa()`](../../core/compiler/ssa.py) (`ssa.py:359`). |
-| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias [`SSAValueKey`](../../core/compiler/ssa.py) (`ssa.py:50`). |
-| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses [`TaintLattice`](../../core/compiler/taint/_lattice.py) (`taint/_lattice.py:44`). |
+| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by [`build_ssa()`](../../compiler/ssa.py) (`ssa.py:359`). |
+| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias [`SSAValueKey`](../../compiler/ssa.py) (`ssa.py:50`). |
+| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses [`TaintLattice`](../../compiler/taint/_lattice.py) (`taint/_lattice.py:44`). |
 | **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in [`TaintColour`](../../core/commands/registry/taint_hints.py) (`taint_hints.py:17`). |
 | **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:60`). |
-| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by [`_classify_sink()`](../../core/compiler/taint/_sinks.py) (`taint/_sinks.py:99`). |
-| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See [`gvn.py`](../../core/compiler/gvn.py). |
-| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See [`optimise_static_proc_calls()`](../../core/compiler/optimiser/_propagation.py) (`_propagation.py:271`). |
-| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See [`_code_sinking.py`](../../core/compiler/optimiser/_code_sinking.py). |
-| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See [`_elimination.py`](../../core/compiler/optimiser/_elimination.py). |
-| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See [`_expr_simplify.py`](../../core/compiler/optimiser/_expr_simplify.py). |
+| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by [`_classify_sink()`](../../compiler/taint/_sinks.py) (`taint/_sinks.py:99`). |
+| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See [`gvn.py`](../../compiler/gvn.py). |
+| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See [`optimise_static_proc_calls()`](../../compiler/optimiser/_propagation.py) (`_propagation.py:271`). |
+| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See [`_code_sinking.py`](../../compiler/optimiser/_code_sinking.py). |
+| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See [`_elimination.py`](../../compiler/optimiser/_elimination.py). |
+| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See [`_expr_simplify.py`](../../compiler/optimiser/_expr_simplify.py). |
 | **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See [`models.py:462`](../../core/commands/registry/models.py). |
 | **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See [`models.py:319`](../../core/commands/registry/models.py). |
 | **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See [`models.py:249`](../../core/commands/registry/models.py). |
@@ -47,7 +47,7 @@ produced at every stage, with field-level detail.
 ## Pipeline stage summary
 
 Every Tcl source string passes through these stages (the orchestrating
-entry point is [`compile_source()`](../../core/compiler/compilation_unit.py)
+entry point is [`compile_source()`](../../compiler/compilation_unit.py)
 at `compilation_unit.py:89`):
 
 ```
@@ -129,7 +129,7 @@ class SegmentedCommand:              # command_segmenter.py:65
 - `argv[i]` is the *first* token of word `i`; multi-token words (e.g.
   `$prefix.txt`) are concatenated into `texts[i]`.
 
-### Stage 3 — IR types ([`core/compiler/ir.py`](../../core/compiler/ir.py))
+### Stage 3 — IR types ([`compiler/ir.py`](../../compiler/ir.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -246,7 +246,7 @@ IRStatement = (
   can cross them.
 - Expression conditions are parsed into `ExprNode` AST trees at lowering time.
 
-### Expression AST ([`core/compiler/expr_ast.py`](../../core/compiler/expr_ast.py))
+### Expression AST ([`compiler/expr_ast.py`](../../compiler/expr_ast.py))
 
 ```python
 @dataclass(frozen=True)
@@ -282,7 +282,7 @@ class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expression
 # UnaryOp (expr_ast.py:76): NEG, POS, BIT_NOT, NOT
 ```
 
-### Stage 4 — CFG types ([`core/compiler/cfg.py`](../../core/compiler/cfg.py))
+### Stage 4 — CFG types ([`compiler/cfg.py`](../../compiler/cfg.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -320,7 +320,7 @@ class CFGModule:       # cfg.py:389
     procedures: dict[str, CFGFunction]
 ```
 
-### Stage 5 — SSA types ([`core/compiler/ssa.py`](../../core/compiler/ssa.py))
+### Stage 5 — SSA types ([`compiler/ssa.py`](../../compiler/ssa.py))
 
 ```python
 SSAVersion = int               # ssa.py:44 — each definition gets a unique version
@@ -356,7 +356,7 @@ class SSAFunction:             # ssa.py:210
     dominator_tree: dict[str, tuple[str, ...]]
 ```
 
-### Stage 6 — Analysis types ([`core/compiler/core_analyses.py`](../../core/compiler/core_analyses.py))
+### Stage 6 — Analysis types ([`compiler/core_analyses.py`](../../compiler/core_analyses.py))
 
 ```python
 class LatticeKind(Enum):       # core_analyses.py:104 (see Glossary → Lattice)
@@ -382,7 +382,7 @@ class FunctionAnalysis:        # core_analyses.py:176 — produced by analyse_fu
     unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 169
 ```
 
-#### Type lattice ([`core/compiler/types.py`](../../core/compiler/types.py))
+#### Type lattice ([`compiler/types.py`](../../compiler/types.py))
 
 ```python
 class TclType(Enum):           # types.py:30
@@ -410,7 +410,7 @@ class TypeLattice:             # types.py:53
 # Lattice order:  UNKNOWN < KNOWN(t) < SHIMMERED(a,b) < OVERDEFINED
 ```
 
-### Stage 7 — Codegen types ([`core/compiler/codegen/`](../../core/compiler/codegen/))
+### Stage 7 — Codegen types ([`compiler/codegen/`](../../compiler/codegen/))
 
 ```python
 class Op(Enum):        # codegen/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
@@ -445,7 +445,7 @@ class ModuleAsm:       # codegen/_types.py:105
     procedures: dict[str, FunctionAsm]
 ```
 
-### Orchestration ([`core/compiler/compilation_unit.py`](../../core/compiler/compilation_unit.py))
+### Orchestration ([`compiler/compilation_unit.py`](../../compiler/compilation_unit.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -852,7 +852,7 @@ Commands and subcommands can be marked as deprecated with a replacement:
 
 ### Side effects and purity
 
-The side-effect model lives in `core/compiler/side_effects.py` and
+The side-effect model lives in `compiler/side_effects.py` and
 classifies what each command invocation reads and writes.
 
 **Enums** describe the vocabulary:
@@ -977,7 +977,7 @@ class TaintSinkSpec:                   # taint_hints.py:42
     subcommands: frozenset[str] | None # None = all invocations
 ```
 
-The taint engine (`core/compiler/taint/`) propagates colours through the
+The taint engine (`compiler/taint/`) propagates colours through the
 SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS,
 `IRULE3002` for header injection) when tainted data reaches a sink
 without sufficient safety colours.
@@ -2194,7 +2194,7 @@ A single straight-line block (no control flow):
 
 ### Taint propagation
 
-The taint engine ([`_propagation.py`](../../core/compiler/taint/_propagation.py))
+The taint engine ([`_propagation.py`](../../compiler/taint/_propagation.py))
 walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 1. **`("host", 1)`** — the `[HTTP::header value Host]` command substitution
@@ -2344,7 +2344,7 @@ for each procedure.  For `::double`:
 ### Optimisation pass — O103
 
 `optimise_static_proc_calls()` in
-[`_propagation.py:271`](../../core/compiler/optimiser/_propagation.py):
+[`_propagation.py:271`](../../compiler/optimiser/_propagation.py):
 
 1. Encounters the `[double 21]` command substitution token.
 2. Resolves `double` → qualified name `::double`.
@@ -2402,7 +2402,7 @@ immediately overwritten.
 ### Optimisation pass — O125
 
 `optimise_code_sinking()` in
-[`_code_sinking.py:514`](../../core/compiler/optimiser/_code_sinking.py):
+[`_code_sinking.py:514`](../../compiler/optimiser/_code_sinking.py):
 
 1. **Sinkability check** (`_is_sinkable()`): `IRAssignConst(name="msg", value="Request denied")`
    is sinkable — it is a simple constant assignment with no command
@@ -2481,7 +2481,7 @@ single event), so the second call is redundant.
 ### GVN pass — O105
 
 `find_redundant_computations()` in
-[`gvn.py`](../../core/compiler/gvn.py):
+[`gvn.py`](../../compiler/gvn.py):
 
 1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
    command registry → `CommandSpec.pure = True`, `cse_candidate = True`.
@@ -2557,7 +2557,7 @@ proc compute {x} {
 ### Elimination passes
 
 `optimise_elimination_passes()` in
-[`_elimination.py`](../../core/compiler/optimiser/_elimination.py):
+[`_elimination.py`](../../compiler/optimiser/_elimination.py):
 
 **O109 — Dead Store Elimination:**
 `unused₁` is assigned but never read.  The assignment `set unused 99` is
@@ -2644,7 +2644,7 @@ SCCP determines `debug₁ = CONST("0")` → the `if` condition is always
 false → the body is unreachable.
 
 `optimise_structure_elimination()` in
-[`_structure_elimination.py`](../../core/compiler/optimiser/_structure_elimination.py)
+[`_structure_elimination.py`](../../compiler/optimiser/_structure_elimination.py)
 replaces the entire `if {$debug} { ... }` block with nothing (O112),
 and a grouped O109 removes the dead `set debug 0`:
 
@@ -2835,7 +2835,7 @@ precedence as their symbolic counterparts:
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
 Shows how `_lower_command()` in
-[`lowering.py`](../../core/compiler/lowering.py) dispatches each command to
+[`lowering.py`](../../compiler/lowering.py) dispatches each command to
 the appropriate IR node using registry metadata.
 
 ### Dispatch hierarchy
@@ -2867,7 +2867,7 @@ _lower_command(cmd)
 ### Example: `lower_set()` — the `set` lowering hook
 
 `set` has a registered lowering hook
-([`_var.py:36`](../../core/compiler/lowering_hooks/_var.py)).
+([`_var.py:36`](../../compiler/lowering_hooks/_var.py)).
 It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
@@ -2950,7 +2950,7 @@ proc process {items} {
 ### Execution intent construction
 
 `build_execution_intent()` in
-[`execution_intent.py`](../../core/compiler/execution_intent.py) walks each
+[`execution_intent.py`](../../compiler/execution_intent.py) walks each
 `IRAssignValue` in the CFG and parses the command substitution:
 
 **`[llength $items]`:**
@@ -3143,7 +3143,7 @@ positives: `W103` (read before set) for `$request_count` and
 ### EventVarSummary construction
 
 `_extract_event_summary()` in
-[`connection_scope.py`](../../core/compiler/connection_scope.py) walks
+[`connection_scope.py`](../../compiler/connection_scope.py) walks
 each event's SSA blocks:
 
 **CLIENT_ACCEPTED:**
@@ -3339,7 +3339,7 @@ _place_label("L_end")         → if_end_2
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
 
-[`layout.py`](../../core/compiler/codegen/layout.py) iterates up to 10
+[`layout.py`](../../compiler/codegen/layout.py) iterates up to 10
 times, replacing 4-byte jumps with 1-byte jumps when the relative
 offset fits in [-128, 127]:
 
@@ -3431,7 +3431,7 @@ when HTTP_REQUEST {
 
 ### `classify_side_effects()` for each command
 
-[`side_effects.py:556`](../../core/compiler/side_effects.py):
+[`side_effects.py:556`](../../compiler/side_effects.py):
 
 **`HTTP::uri` (getter form):**
 

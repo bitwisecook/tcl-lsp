@@ -23,6 +23,10 @@ import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
+from compiler.interprocedural import ProcLocalSummary
+from compiler.ir import IRProcedure, IRStatement
+from compiler.lowering import lower_to_ir
 from compiler.parsing.command_segmenter import (
     TopLevelChunk,
     find_first_dirty_chunk,
@@ -33,10 +37,6 @@ from compiler.parsing.tokens import Token
 from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
-from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
-from core.compiler.interprocedural import ProcLocalSummary
-from core.compiler.ir import IRProcedure, IRStatement
-from core.compiler.lowering import lower_to_ir
 from shared.codes import default_disabled_diagnostics
 from shared.dialect import detect_dialect_from_source, dialect_scope
 from shared.document_buffer import DocumentBuffer
@@ -428,7 +428,7 @@ def _build_chunk_caches_standalone(
         if chunk_ir_map is not None:
             ir_stmts, ir_procs = chunk_ir_map[ci]
         else:
-            from core.compiler.lowering import lower_commands_to_ir
+            from compiler.lowering import lower_commands_to_ir
 
             ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 
@@ -490,7 +490,7 @@ def _build_proc_cache(
     so a procedure's FunctionUnit can be reused across edits as long as
     both the body text and the active stub overlay are unchanged.
     """
-    from core.compiler.compilation_unit import compute_stub_fingerprint
+    from compiler.compilation_unit import compute_stub_fingerprint
 
     cache: dict[tuple[str, int], FunctionUnit] = {}
     stub_fingerprint = compute_stub_fingerprint(cu.source)
@@ -1306,7 +1306,7 @@ class DocumentState:
                 if chunk_ir_map is not None:
                     ir_stmts, ir_procs = chunk_ir_map[di]
                 else:
-                    from core.compiler.lowering import lower_commands_to_ir
+                    from compiler.lowering import lower_commands_to_ir
 
                     ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 
@@ -1569,7 +1569,7 @@ class DocumentState:
                 if chunk_ir_map is not None:
                     ir_stmts, ir_procs = chunk_ir_map[ci]
                 else:
-                    from core.compiler.lowering import lower_commands_to_ir
+                    from compiler.lowering import lower_commands_to_ir
 
                     ir_stmts, ir_procs = lower_commands_to_ir(source, list(chunk.commands))
 

@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.ir import IRBarrier, IRBlock, IRUpFrame
-from core.compiler.lowering import lower_to_ir
+from compiler.ir import IRBarrier, IRBlock, IRUpFrame
+from compiler.lowering import lower_to_ir
 
 
 def _first_stmt(source: str):
@@ -238,7 +238,7 @@ class TestConstMapBarrierRelaxation:
         # nested uplevel can relax.  Mirrors tcltest's
         # ``catch {uplevel 1 $setup}`` shape where ``setup`` is set to
         # a literal earlier in the proc.
-        from core.compiler.ir import IRCatch
+        from compiler.ir import IRCatch
 
         mod = lower_to_ir("proc p {} { set body {set x 1}; catch {uplevel 1 $body} err }")
         stmts = mod.procedures["::p"].body.statements
@@ -248,7 +248,7 @@ class TestConstMapBarrierRelaxation:
         assert any(isinstance(s, IRUpFrame) for s in inner)
 
     def test_if_body_inherits_outer_const_map(self):
-        from core.compiler.ir import IRIf
+        from compiler.ir import IRIf
 
         mod = lower_to_ir("proc p {c} { set body {set x 1}; if {$c} { uplevel 1 $body } }")
         stmts = mod.procedures["::p"].body.statements

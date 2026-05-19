@@ -602,7 +602,7 @@ def fold_format(args: tuple[str, ...]) -> str | None:
 
 def _split_list(s: str) -> list[str] | None:
     """Split a Tcl list string into elements (simple cases)."""
-    from ....compiler.tcl_expr_eval import _split_tcl_list
+    from compiler.tcl_expr_eval import _split_tcl_list
 
     try:
         return _split_tcl_list(s)

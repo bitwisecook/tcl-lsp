@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-from ....compiler.side_effects import (
+from compiler.side_effects import (
     ConnectionSide,
     SideEffect,
     SideEffectTarget,
     StorageScope,
 )
+
 from .._base import CommandDef, make_av
 from ..models import (
     CommandSpec,

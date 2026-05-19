@@ -346,7 +346,7 @@ class TestStringCompareInExpr:
 
 def _taint_diag_with_code(source: str, code: str):
     """Return all taint warnings matching a specific code."""
-    from core.compiler.taint import find_taint_warnings
+    from compiler.taint import find_taint_warnings
 
     return [w for w in find_taint_warnings(source) if w.code == code]
 
@@ -2079,7 +2079,7 @@ class TestCrossEventScope:
 
     @staticmethod
     def _diag_codes_with_cu(source: str) -> list[str]:
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         cu = compile_source(source)
         configure_signatures(dialect="f5-irules")
@@ -2088,7 +2088,7 @@ class TestCrossEventScope:
 
     @staticmethod
     def _diags_with_cu(source: str, code: str):
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         cu = compile_source(source)
         configure_signatures(dialect="f5-irules")

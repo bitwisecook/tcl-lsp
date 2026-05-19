@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import WasmModule, wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import WasmModule, wasm_codegen_module
+from compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
@@ -934,7 +934,7 @@ class TestNopReduction:
         """puts should emit a call, not a NOP."""
         wasm_mod, _ = _compile_to_wasm("puts 42\n")
         top = wasm_mod.functions[0]
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         nop_count = sum(1 for instr in top.body if instr.op == WasmOp.NOP)
         # puts should be a call, not a NOP
@@ -946,7 +946,7 @@ class TestNopReduction:
         # Find the proc function
         proc_funcs = [f for f in wasm_mod.functions if f.name != "::top"]
         if proc_funcs:
-            from core.compiler.codegen.wasm import WasmOp
+            from compiler.codegen.wasm import WasmOp
 
             nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
             assert nop_count == 0
@@ -976,7 +976,7 @@ proc caller {x y} { add $x $y }
         # Find the caller function
         caller_funcs = [f for f in wasm_mod.functions if "caller" in f.name]
         assert len(caller_funcs) == 1
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         call_instrs = [i for i in caller_funcs[0].body if i.op == WasmOp.CALL]
         assert len(call_instrs) >= 1
@@ -2048,7 +2048,7 @@ class TestBreakContinue:
 
     def test_break_compiles(self):
         """break command emits a br instruction, not a NOP."""
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         wasm_mod, _ = _compile_to_wasm('proc f {} { foreach i "1 2 3" { break } }\n')
         proc_funcs = [f for f in wasm_mod.functions if "f" in f.name]

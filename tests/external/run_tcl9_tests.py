@@ -53,7 +53,7 @@ from tests.test_wasm_real_tcl import (
 )
 
 if TYPE_CHECKING:
-    from core.compiler.codegen.wasm._ir import DiagMap
+    from compiler.codegen.wasm._ir import DiagMap
 
 _EXTERNAL = Path(__file__).resolve().parent
 

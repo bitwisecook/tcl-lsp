@@ -13,11 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
-from compiler.parsing.expr_parser import parse_expr
-from compiler.parsing.lexer import TclParseError
-from compiler.parsing.lexer import _thread_local as _lexer_thread_local
-from core.compiler.codegen import FunctionAsm
-from core.compiler.expr_ast import (
+from compiler.codegen import FunctionAsm
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -31,6 +28,9 @@ from core.compiler.expr_ast import (
     ExprVar,
     UnaryOp,
 )
+from compiler.parsing.expr_parser import parse_expr
+from compiler.parsing.lexer import TclParseError
+from compiler.parsing.lexer import _thread_local as _lexer_thread_local
 
 from .commands import CommandHandler, register_builtins
 from .compiler import compile_script
@@ -375,7 +375,7 @@ class TclInterp:
         source: str = "",
     ) -> None:
         """Extract procedure definition from IR and register it."""
-        from core.compiler.ir import IRProcedure
+        from compiler.ir import IRProcedure
 
         if not isinstance(ir_proc, IRProcedure):
             return

@@ -23,10 +23,10 @@ Multiple downstream passes contribute findings that are merged in `get_diagnosti
 
 ## File-path anchors
 
-- `core/compiler/optimiser/`
-- `core/compiler/gvn.py`
-- `core/compiler/taint/`
-- `core/compiler/irules_flow.py`
+- `compiler/optimiser/`
+- `compiler/gvn.py`
+- `compiler/taint/`
+- `compiler/irules_flow.py`
 - `lsp/features/diagnostics.py`
 
 ## Failure modes

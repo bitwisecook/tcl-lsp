@@ -13,7 +13,7 @@ decomposing structured IR into basic blocks with explicit terminators
 (`CFGGoto`, `CFGBranch`, `CFGReturn`).  Each block is a straight-line
 sequence of IR statements with no branches except at the end.
 
-Source: [`core/compiler/cfg.py`](../../../core/compiler/cfg.py) (`build_cfg` at line 1058, `CFGBlock` at line 374)
+Source: [`compiler/cfg.py`](../../../compiler/cfg.py) (`build_cfg` at line 1058, `CFGBlock` at line 374)
 
 ## Content
 

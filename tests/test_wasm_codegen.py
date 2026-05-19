@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import struct
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import (
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import (
     WasmModule,
     _leb128_signed,
     _leb128_unsigned,
     wasm_codegen_module,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 # LEB128 encoding
 
@@ -132,7 +132,7 @@ def test_sccp_constprop_inlines_known_int_var():
     # Tagged immediate of 7 = 15.  The SCCP path emits an
     # i32.const for the read of $x; the non-SCCP path would have
     # gone through global_get → unbox → rebox.
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     seen_15 = False
     for instr in fn.body:
@@ -148,8 +148,8 @@ def test_sccp_constprop_inlines_known_int_var():
 def test_inline_string_round_trip_short():
     """A short string returned from a proc should round-trip via the
     inline-string encoding without observable difference."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm import wasm_codegen_module
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm import wasm_codegen_module
 
     # A 5-byte payload fits in MAX_INLINE_STR=8.
     source = 'proc f {} { return [string trimleft "  hi" " "] }\n'
@@ -372,7 +372,7 @@ def test_wasm_codegen_function_api():
 
 def test_codegen_package_exports_wasm():
     """WASM symbols should be accessible from the codegen package."""
-    from core.compiler.codegen import (
+    from compiler.codegen import (
         WasmFunction,
         WasmModule,
         wasm_codegen_function,
@@ -478,7 +478,7 @@ def test_shared_imports_deduplication():
 
 def test_puts_no_nop():
     """puts should emit a call instruction, not a NOP."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     module = _compile("puts 42\n")
     top = module.functions[0]
@@ -490,7 +490,7 @@ def test_puts_no_nop():
 
 def test_global_emits_nothing():
     """global should emit no instructions (not even a NOP)."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     module = _compile("proc f {} { global x; return 1 }\n")
     proc_funcs = [f for f in module.functions if f.name != "::top"]
@@ -504,7 +504,7 @@ def test_global_emits_nothing():
 
 def test_proc_call_emits_call():
     """Calling a known proc should emit a WASM call instruction."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     source = "proc add {a b} { expr {$a + $b} }\nproc caller {x y} { add $x $y }\n"
     module = _compile(source)
@@ -529,7 +529,7 @@ def test_proc_index_consistent():
 
 def _retain_release_call_count(module: WasmModule, fn_name: str) -> tuple[int, int]:
     """Return (retain_calls, release_calls) emitted in function ``fn_name``."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     fn = next(f for f in module.functions if fn_name in f.name)
     # Resolve import indices for tcl_obj_retain / tcl_obj_release.
@@ -588,8 +588,8 @@ def test_s52_alias_skip_self_assign():
 
 def test_s52_counter_increments():
     """The S5.2 alias-skip counter is bumped each time the peephole fires."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm._emitter import _WasmEmitter
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm._emitter import _WasmEmitter
 
     counts: list[int] = []
     orig = _WasmEmitter.generate

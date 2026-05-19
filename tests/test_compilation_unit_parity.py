@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.compilation_unit import compile_source
+from compiler.gvn import find_redundant_computations
+from compiler.irules_flow import find_irules_flow_warnings
+from compiler.optimiser import find_optimisations
+from compiler.shimmer import find_shimmer_warnings
+from compiler.taint import find_taint_warnings
 from core.analysis import analyse
 from core.commands.registry.runtime import configure_signatures
-from core.compiler.compilation_unit import compile_source
-from core.compiler.gvn import find_redundant_computations
-from core.compiler.irules_flow import find_irules_flow_warnings
-from core.compiler.optimiser import find_optimisations
-from core.compiler.shimmer import find_shimmer_warnings
-from core.compiler.taint import find_taint_warnings
 from lsp.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics
 
 
@@ -153,11 +153,11 @@ def test_taint_parity_with_prebuilt_compilation_unit():
 def test_get_diagnostics_compiles_once_without_prebuilt_compilation_unit():
     source = "set x [expr {1 + 2}]\n"
 
-    from core.compiler import compilation_unit as cu_module
+    from compiler import compilation_unit as cu_module
 
     real_compile_source = cu_module.compile_source
     with patch(
-        "core.compiler.compilation_unit.compile_source", wraps=real_compile_source
+        "compiler.compilation_unit.compile_source", wraps=real_compile_source
     ) as mocked_compile:
         # Import locally to avoid widening module-level dependencies in this test.
         from lsp.features.diagnostics import get_diagnostics

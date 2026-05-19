@@ -562,7 +562,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_pure_proc_is_folded(self):
         """[call one] should fold to 1, same as [one] in plain Tcl."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc one {} { return 1 }
@@ -580,7 +580,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_passthrough_folds_static_arg(self):
         """[call id $a] should fold when $a is constant."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc id {x} { return $x }
@@ -598,7 +598,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_impure_proc_not_folded(self):
         """[call noisy] should NOT fold when the proc has side effects."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc noisy {} { log local0. "hi"; return 1 }
@@ -612,7 +612,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_in_call_graph(self):
         """call myproc should appear in the interprocedural call graph."""
-        from core.compiler.interprocedural import analyse_interprocedural_source
+        from compiler.interprocedural import analyse_interprocedural_source
 
         src = textwrap.dedent("""\
             proc helper {} { return 1 }

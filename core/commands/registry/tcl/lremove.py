@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ....compiler.types import TclType
+from compiler.types import TclType
+
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity

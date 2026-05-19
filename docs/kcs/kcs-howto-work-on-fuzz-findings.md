@@ -88,10 +88,10 @@ surfaces at VM runtime, because the user gets immediate editor feedback.
 
 **Fix priority** (earliest first):
 
-1. **Lowering / IR** (`core/compiler/lowering.py`) — reject malformed
+1. **Lowering / IR** (`compiler/lowering.py`) — reject malformed
    structures by emitting an `IRBarrier` so the bytecode compiler never
    sees them. This also enables a diagnostic (see step 4b).
-2. **Compiler checks / diagnostics** (`core/compiler/compiler_checks.py`) —
+2. **Compiler checks / diagnostics** (`compiler/compiler_checks.py`) —
    emit an `E0xx` diagnostic for the `IRBarrier` so the LSP shows an
    error squiggle in the editor *before* the user runs the code.
 3. **Interpreter command handler** (`vm/commands/`) — add runtime
@@ -117,8 +117,8 @@ Key files:
 - `vm/commands/control.py` — `for`, `while`, `foreach` commands
 - `vm/commands/math_cmds.py` — `incr` command
 - `vm/commands/string_cmds.py` — `string` subcommands
-- `core/compiler/lowering.py` — IR lowering (structural validation)
-- `core/compiler/compiler_checks.py` — IR-based diagnostics
+- `compiler/lowering.py` — IR lowering (structural validation)
+- `compiler/compiler_checks.py` — IR-based diagnostics
 
 Common fix patterns:
 

@@ -220,7 +220,7 @@ def _is_complex_var_name(name: str) -> bool:
     """True if ``name`` has a form we refuse — namespace
     qualifiers, array indices, or embedded substitutions.  We only
     accept plain identifiers so the const-map key matches what
-    :meth:`core.compiler.lowering.Lowering._set_literal_body` tracks.
+    :meth:`compiler.lowering.Lowering._set_literal_body` tracks.
     """
     if not name:
         return True

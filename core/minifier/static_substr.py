@@ -37,11 +37,11 @@ from typing import TYPE_CHECKING
 from shared.text_edits import apply_edits
 
 if TYPE_CHECKING:
-    from core.compiler.compilation_unit import FunctionUnit
-    from core.compiler.core_analyses import LatticeValue
-    from core.compiler.interprocedural import InterproceduralAnalysis
-    from core.compiler.ssa import SSAValueKey
-    from core.compiler.taint import TaintLattice
+    from compiler.compilation_unit import FunctionUnit
+    from compiler.core_analyses import LatticeValue
+    from compiler.interprocedural import InterproceduralAnalysis
+    from compiler.ssa import SSAValueKey
+    from compiler.taint import TaintLattice
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def fold_static_substrings(source: str) -> tuple[str, int, dict[str, str]]:
     *fold_count* is the number of strings folded and *fold_map* maps
     original dynamic content to the folded static value.
     """
-    from core.compiler.compilation_unit import compile_source
+    from compiler.compilation_unit import compile_source
 
     try:
         cu = compile_source(source)
@@ -131,7 +131,7 @@ def _collect_folds_for_scope(
     folded_vars: set[str],
 ) -> None:
     """Collect static-fold edits for a single function scope."""
-    from core.compiler.ir import IRAssignValue, IRCall
+    from compiler.ir import IRAssignValue, IRCall
 
     cfg = fu.cfg
     ssa = fu.ssa
@@ -395,7 +395,7 @@ def _try_eval_pure_cmd(cmd_text: str, uses: dict[str, int], values: dict) -> str
     ``[llength ...]``, ``[lindex ...]``, ``[join ...]``, ``[concat ...]``,
     and other pure commands when all arguments are constant.
     """
-    from core.compiler.tcl_expr_eval import eval_tcl_expr_str, format_tcl_value
+    from compiler.tcl_expr_eval import eval_tcl_expr_str, format_tcl_value
 
     # Strip the surrounding [ ].
     if not cmd_text.startswith("[") or not cmd_text.endswith("]"):
@@ -534,7 +534,7 @@ def _resolve_arg_constants(
     Returns the fully-resolved string, or ``None`` if any variable
     is not a known constant.
     """
-    from core.compiler.core_analyses import LatticeKind
+    from compiler.core_analyses import LatticeKind
 
     if "$" not in arg:
         return arg
@@ -783,7 +783,7 @@ def _fold_string_via_sccp(
     constant).  Returns the folded string if everything resolves,
     or ``None`` if any part is overdefined/unknown.
     """
-    from core.compiler.core_analyses import LatticeKind
+    from compiler.core_analyses import LatticeKind
 
     pieces: list[str] = []
     has_dynamic = False

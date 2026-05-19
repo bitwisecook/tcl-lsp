@@ -189,7 +189,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
                 uri,
                 state.analysis.all_procs,
             )
-        from core.compiler.irules_flow import extract_rule_init_vars
+        from compiler.irules_flow import extract_rule_init_vars
 
         if state.conf_wrapped and state.embedded_rules:
             all_exports: list = []

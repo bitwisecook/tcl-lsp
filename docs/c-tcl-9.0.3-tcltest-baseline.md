@@ -90,7 +90,7 @@ scoring against on the day we fix the underlying issue.
 `basic, compExpr, interp, namespace, proc, string, tailcall, var`
 
 Fixed in commit `<hash>` by extending the `case IRBarrier(...)`
-match in `core/compiler/codegen/wasm/_emitter/_statements.py` to
+match in `compiler/codegen/wasm/_emitter/_statements.py` to
 also unpack the `tokens` field and pass it through to
 `_emit_eval_fallback`. The barrier path was previously discarding
 the parsed-token information, so per-arg brace flags were lost and
@@ -139,8 +139,8 @@ needed by `_arg_was_braced`.
 **Suggested fix path:**
 
 1. Verify in
-   [`core/compiler/codegen/wasm/_emitter/_statements.py:728`
-   `_resolve_proc`](../core/compiler/codegen/wasm/_emitter/_statements.py)
+   [`compiler/codegen/wasm/_emitter/_statements.py:728`
+   `_resolve_proc`](../compiler/codegen/wasm/_emitter/_statements.py)
    that `args`-tail procs land in `_proc_index` so they hit the
    direct-call path. The reproducer above shows `_resolve_proc` was
    *not* invoked for `test` — the dispatch went somewhere else
@@ -150,8 +150,8 @@ needed by `_arg_was_braced`.
    TokenType.STR`. Re-quote with `_tcl_list_quote` whenever the
    brace-status of an arg can't be recovered.
 3. Defensive backstop in
-   [`core/compiler/codegen/wasm/_emitter/_statements.py:1183`
-   `_emit_eval_fallback`](../core/compiler/codegen/wasm/_emitter/_statements.py)
+   [`compiler/codegen/wasm/_emitter/_statements.py:1183`
+   `_emit_eval_fallback`](../compiler/codegen/wasm/_emitter/_statements.py)
    — when `tokens is None`, drop the `elif a.startswith("[")` shortcut
    and always go through `_tcl_list_quote`. That branch is currently
    "trust the input is a substitution"; the args-tail path can break

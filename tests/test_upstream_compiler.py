@@ -23,9 +23,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import CFGBranch, CFGReturn, build_cfg
-from core.compiler.expr_ast import ExprNode, expr_text
-from core.compiler.ir import (
+from compiler.cfg import CFGBranch, CFGReturn, build_cfg
+from compiler.expr_ast import ExprNode, expr_text
+from compiler.ir import (
     IRAssignConst,
     IRCall,
     IRCatch,
@@ -37,9 +37,9 @@ from core.compiler.ir import (
     IRTry,
     IRWhile,
 )
-from core.compiler.lowering import lower_to_ir
-from core.compiler.ssa import build_ssa
-from core.compiler.types import TclType, TypeKind
+from compiler.lowering import lower_to_ir
+from compiler.ssa import build_ssa
+from compiler.types import TclType, TypeKind
 
 from .helpers import analyse_types as _analyse
 from .helpers import var_type as _var_type

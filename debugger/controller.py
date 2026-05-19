@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from .types import DebugAction, StackFrame, StepMode, StopEvent, Variable
 
 if TYPE_CHECKING:
-    from core.compiler.codegen import Instruction
+    from compiler.codegen import Instruction
     from vm.scope import CallFrame
 
 

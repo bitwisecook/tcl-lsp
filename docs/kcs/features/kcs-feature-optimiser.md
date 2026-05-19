@@ -44,10 +44,10 @@ O126 removes `set` statements for variables that are never read anywhere in the 
 
 ## File-path anchors
 
-- `core/compiler/optimiser/` — pass modules (`_tail_call.py`, `_manager.py`, `_helpers.py`, `_types.py`, etc.)
-- `core/compiler/optimiser/_propagation.py` — O105 constant var-ref propagation
-- `core/compiler/optimiser/_elimination.py` — O107/O108/O109/O126 elimination passes
-- `core/compiler/gvn.py` — O105/O106 GVN/CSE/LICM
+- `compiler/optimiser/` — pass modules (`_tail_call.py`, `_manager.py`, `_helpers.py`, `_types.py`, etc.)
+- `compiler/optimiser/_propagation.py` — O105 constant var-ref propagation
+- `compiler/optimiser/_elimination.py` — O107/O108/O109/O126 elimination passes
+- `compiler/gvn.py` — O105/O106 GVN/CSE/LICM
 - `lsp/features/code_actions.py`
 
 ## Failure modes
