@@ -1,33 +1,46 @@
-//! Signature-help provider — minimal Rust port of
+//! Signature-help provider — Rust port of
 //! `lsp/features/signature_help.py`.
 //!
-//! Surfaces a single [`SignatureInformation`] for the
-//! user-defined `proc` whose name appears as the first word of
-//! the active command segment at the cursor.  The active
-//! parameter is derived from a simple whitespace-aware count of
-//! arguments typed so far on the current physical line.
+//! Surfaces a single [`SignatureInformation`] for the command
+//! whose name appears as the first word of the active command
+//! segment at the cursor.  The active parameter is derived from
+//! a simple whitespace-aware count of arguments typed so far on
+//! the current physical line.
 //!
-//! What is *deferred* (planned as `S-signature-help-rich`
-//! follow-up):
+//! Two lookup paths:
 //!
-//! * Built-in command signatures from
-//!   [`tcl_registry::CommandRegistry`] / `SIGNATURES` (Python's
-//!   `_builtin_signature_help`).
-//! * Multi-line command segments (the minimal port only walks
-//!   the cursor's physical line — Python uses
-//!   `find_command_context_details_at_position`, which understands
-//!   continuation lines, embedded `[…]` / `{…}` etc.).
+//! 1. **User-defined proc** — `analysis.all_procs` keyed by
+//!    simple, qualified, or unprefixed-qualified name.  Signature
+//!    label is rendered from the proc's parameter list (including
+//!    `{name default}` brackets for optional params); the
+//!    documentation field surfaces the proc's harvested doc-
+//!    comment.
+//! 2. **Built-in command** — when the cursor's command isn't a
+//!    user proc and the caller passes a
+//!    [`tcl_registry::CommandRegistry`], look up the spec and
+//!    render its first `hover.synopsis` entry as the signature.
+//!    Parameters are whitespace-separated synopsis tokens after
+//!    the command word; `hover.summary` becomes the
+//!    documentation.  This is part of the
+//!    `S-signature-help-rich` follow-up.
+//!
+//! What is *still deferred* (planned as further
+//! `S-signature-help-rich` sub-strips):
+//!
+//! * Multi-line command segments (the port only walks the
+//!   cursor's physical line — Python uses
+//!   `find_command_context_details_at_position`, which
+//!   understands continuation lines, embedded `[…]` / `{…}`
+//!   etc.).
 //! * Command-alias resolution
 //!   (`lookup_alias_for_word(...)`).
 //! * Subcommand-scoped signatures (Python's `SubcommandSig`
 //!   path — pulls the right shape based on `args[0]`).
-//! * `_signature_documentation` doc-comment rendering.
-//!
-//! The minimal port is sufficient for the Rust LSP server to
-//! surface signature help on user-proc calls inside a single
-//! line.
+//! * `_signature_documentation` rich doc-comment rendering
+//!   (the current port surfaces the summary verbatim).
 
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+use tcl_registry::CommandRegistry;
 
 /// One element in a signature's parameter list.
 ///
@@ -72,18 +85,30 @@ pub struct SignatureHelp {
 /// cursor.
 ///
 /// Returns `None` when the cursor isn't inside a recognisable
-/// command-argument position or no matching user proc was
-/// recorded.
+/// command-argument position or no matching user proc / built-in
+/// was recorded.
+///
+/// `registry`, when `Some`, lets the lookup fall through to
+/// the built-in command set (`S-signature-help-rich`): user
+/// procs win, but if the cursor's command isn't a user proc,
+/// the spec's first `hover.synopsis` entry renders as the
+/// signature.  When `registry` is `None` the surface degrades
+/// cleanly to the minimal port's user-proc-only behaviour.
 #[must_use]
 pub fn signature_help(
     source: &str,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
 ) -> Option<SignatureHelp> {
     let (command, active_param) = command_context_on_line(source, line, character)?;
-    let proc_def = lookup_proc(analysis, &command)?;
-    Some(proc_signature_help(proc_def, active_param))
+    if let Some(proc_def) = lookup_proc(analysis, &command) {
+        return Some(proc_signature_help(proc_def, active_param));
+    }
+    let registry = registry?;
+    let spec = registry.get(&command)?;
+    builtin_signature_help(spec, active_param)
 }
 
 /// Naïve command-context detection on a single physical line.
@@ -139,6 +164,57 @@ fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcD
         }
     }
     None
+}
+
+/// Render signature help for a built-in command spec.
+///
+/// Uses the first entry of `spec.hover.synopsis` as the
+/// signature label.  Parameters are whitespace-separated
+/// tokens after the leading command word in that synopsis
+/// — that matches the shape Python's `_builtin_signature_help`
+/// produces from `SIGNATURES`.  Returns `None` when the spec
+/// has no hover record or the synopsis is empty.
+fn builtin_signature_help(
+    spec: &tcl_registry::CommandSpec,
+    active_param: u32,
+) -> Option<SignatureHelp> {
+    let hover = spec.hover.as_ref()?;
+    let synopsis_line = *hover.synopsis.first()?;
+
+    // The leading token of the synopsis is the command word
+    // itself ("puts"); everything after it is a parameter
+    // token (including bracketed optionals like
+    // `?-nonewline?`).
+    let mut tokens = synopsis_line.split_whitespace();
+    tokens.next()?;
+    let parameters: Vec<ParameterInformation> = tokens
+        .map(|t| ParameterInformation {
+            label: t.to_owned(),
+        })
+        .collect();
+
+    let active_parameter = if parameters.is_empty() {
+        0
+    } else {
+        let max_idx = u32::try_from(parameters.len() - 1).unwrap_or(0);
+        active_param.min(max_idx)
+    };
+
+    let documentation = if hover.summary.is_empty() {
+        None
+    } else {
+        Some(hover.summary.to_owned())
+    };
+
+    Some(SignatureHelp {
+        signatures: vec![SignatureInformation {
+            label: synopsis_line.to_owned(),
+            parameters,
+            documentation,
+        }],
+        active_signature: 0,
+        active_parameter,
+    })
 }
 
 fn proc_signature_help(proc_def: &ProcDef, active_param: u32) -> SignatureHelp {
@@ -203,7 +279,7 @@ mod tests {
         let src = "proc greet {name body} {}\ngre\n";
         let analysis = analyse(src);
         // Cursor mid-command name — should not surface signature help.
-        assert!(signature_help(src, 1, 3, &analysis).is_none());
+        assert!(signature_help(src, 1, 3, &analysis, None).is_none());
     }
 
     #[test]
@@ -211,7 +287,7 @@ mod tests {
         let src = "proc greet {name body} {}\ngreet \n";
         let analysis = analyse(src);
         // Cursor right after the trailing space following `greet`.
-        let h = signature_help(src, 1, 6, &analysis).expect("signature help");
+        let h = signature_help(src, 1, 6, &analysis, None).expect("signature help");
         assert_eq!(h.signatures.len(), 1);
         assert_eq!(h.signatures[0].parameters.len(), 2);
         assert_eq!(h.active_parameter, 0);
@@ -223,7 +299,7 @@ mod tests {
         let src = "proc greet {name body} {}\ngreet alice \n";
         let analysis = analyse(src);
         // Cursor right after the second space (advances to second arg).
-        let h = signature_help(src, 1, 12, &analysis).expect("signature help");
+        let h = signature_help(src, 1, 12, &analysis, None).expect("signature help");
         assert_eq!(h.active_parameter, 1);
     }
 
@@ -233,7 +309,7 @@ mod tests {
         let analysis = analyse(src);
         // Cursor at position 16 — three arg tokens typed for a
         // 1-param proc; clamp to last known param.
-        let h = signature_help(src, 1, 16, &analysis).expect("signature help");
+        let h = signature_help(src, 1, 16, &analysis, None).expect("signature help");
         assert_eq!(h.active_parameter, 0, "{h:?}");
     }
 
@@ -241,7 +317,7 @@ mod tests {
     fn help_returns_none_for_unknown_command() {
         let src = "fakecmd arg \n";
         let analysis = analyse(src);
-        assert!(signature_help(src, 0, 12, &analysis).is_none());
+        assert!(signature_help(src, 0, 12, &analysis, None).is_none());
     }
 
     #[test]
@@ -250,12 +326,122 @@ mod tests {
         // proc lands in `proc_def.doc`. Verify it surfaces.
         let src = "# greets the user\nproc greet {name} {}\ngreet \n";
         let analysis = analyse(src);
-        let h = signature_help(src, 2, 6, &analysis).expect("signature help");
+        let h = signature_help(src, 2, 6, &analysis, None).expect("signature help");
         // Doc may or may not be picked up depending on the
         // analyser's heuristics; if present, it should be
         // surfaced verbatim.
         if let Some(doc) = &h.signatures[0].documentation {
             assert!(doc.contains("greets") || !doc.is_empty(), "doc: {doc}");
         }
+    }
+
+    // -- S-signature-help-rich: built-in command signatures ----------
+    //
+    // These tests pin the contract that passing a registry
+    // lets the cursor's command resolve to a built-in spec
+    // when no user proc matches, with the spec's first
+    // `hover.synopsis` entry rendering as the signature.
+
+    #[test]
+    fn builtin_signature_surfaces_for_known_command() {
+        // No user proc named `puts`, but the registry has the
+        // spec.  Cursor in the argument list — signature help
+        // should fire.
+        let src = "puts \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 0, 5, &analysis, Some(&registry))
+            .expect("expected built-in signature help");
+        assert_eq!(h.signatures.len(), 1);
+        // Synopsis starts with the command word.
+        assert!(
+            h.signatures[0].label.starts_with("puts"),
+            "expected label to start with `puts`, got {label}",
+            label = h.signatures[0].label,
+        );
+        // At least one parameter (puts takes ?-nonewline?
+        // ?channelId? string).
+        assert!(
+            !h.signatures[0].parameters.is_empty(),
+            "expected non-empty parameters for `puts`",
+        );
+    }
+
+    #[test]
+    fn builtin_signature_active_param_advances() {
+        // `puts string`<cursor at last char> — active param
+        // should be at the last parameter index for `puts`
+        // (clamped if fewer parameters than typed args).
+        let src = "puts arg1 arg2 \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 0, 15, &analysis, Some(&registry))
+            .expect("expected built-in signature help");
+        // Active parameter is clamped to the last known param;
+        // exact value depends on the synopsis shape, but it
+        // must be a valid index.
+        let max_idx =
+            u32::try_from(h.signatures[0].parameters.len() - 1).expect("param count fits u32");
+        assert!(
+            h.active_parameter <= max_idx,
+            "active_parameter {} out of bounds (max {})",
+            h.active_parameter,
+            max_idx,
+        );
+    }
+
+    #[test]
+    fn builtin_signature_documentation_surfaces_summary() {
+        // The `puts` spec carries a non-empty
+        // `hover.summary`; the signature help should surface
+        // it as `documentation`.
+        let src = "puts \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 0, 5, &analysis, Some(&registry))
+            .expect("expected built-in signature help");
+        let doc = h.signatures[0]
+            .documentation
+            .as_ref()
+            .expect("expected non-empty documentation for `puts`");
+        assert!(!doc.is_empty(), "doc should be non-empty: {doc:?}");
+    }
+
+    #[test]
+    fn user_proc_wins_over_builtin_with_same_name() {
+        // If a user `proc puts {a b c} {}` exists, the user
+        // proc's signature should take precedence over the
+        // built-in.
+        let src = "proc puts {custom_arg} {}\nputs \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 1, 5, &analysis, Some(&registry))
+            .expect("expected user proc signature help");
+        // User-proc label uses `proc ` prefix; built-in label
+        // uses the command-name prefix.
+        assert!(
+            h.signatures[0].label.starts_with("proc "),
+            "expected user proc to win; got label {label}",
+            label = h.signatures[0].label,
+        );
+        // Parameters must reflect the user proc, not `puts`'s
+        // synopsis.
+        assert!(
+            h.signatures[0]
+                .parameters
+                .iter()
+                .any(|p| p.label == "custom_arg"),
+            "expected user param `custom_arg`; got {:?}",
+            h.signatures[0].parameters,
+        );
+    }
+
+    #[test]
+    fn builtin_signature_returns_none_without_registry() {
+        // Without a registry, unknown commands still return
+        // `None` — preserves the minimal port's behaviour.
+        let src = "puts \n";
+        let analysis = analyse(src);
+        assert!(signature_help(src, 0, 5, &analysis, None).is_none());
     }
 }

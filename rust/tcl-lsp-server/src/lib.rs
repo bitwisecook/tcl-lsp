@@ -1051,10 +1051,22 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
+        // Per-dialect cached registry — same source the
+        // completion handler uses.  Threading it through lets
+        // `S-signature-help-rich` surface signatures for
+        // built-in commands (e.g. `puts`, `lsearch`) without
+        // requiring a user proc with the same name.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_sig::signature_help(&doc.text, pos.line, pos.character, &analysis)
+            core_sig::signature_help(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
