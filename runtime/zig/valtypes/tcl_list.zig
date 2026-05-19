@@ -356,10 +356,27 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
             if (lhs != null and rhs != null) {
                 const a = lhs.?;
                 const b = rhs.?;
-                const r: i128 = if (sp[op_pos] == '-') a - b else a + b;
-                if (r > std.math.maxInt(i64)) return std.math.maxInt(i64);
-                if (r < std.math.minInt(i64)) return std.math.minInt(i64);
-                return @intCast(r);
+                // Use overflow-checked arithmetic — a + b / a - b on
+                // operands near i128 bounds (``string index abc
+                // <i128::MAX>+1``) traps in safety-checked builds and
+                // wraps in ReleaseFast.  On overflow, saturate by the
+                // direction we overflowed in: same-sign add or
+                // opposite-sign sub overflows away from zero, so the
+                // overflowing operand's sign tells us which i64 bound
+                // to pin to.
+                const is_sub = sp[op_pos] == '-';
+                const r_opt = if (is_sub) bignum.sub_overflow(a, b) else bignum.add_overflow(a, b);
+                if (r_opt) |r| {
+                    if (r > std.math.maxInt(i64)) return std.math.maxInt(i64);
+                    if (r < std.math.minInt(i64)) return std.math.minInt(i64);
+                    return @intCast(r);
+                }
+                // Overflowed i128.  ``a + b`` with both > 0 overflows
+                // positive; both < 0 overflows negative.  ``a - b``
+                // with ``a >= 0`` and ``b < 0`` overflows positive;
+                // ``a < 0`` and ``b >= 0`` overflows negative.
+                const positive_overflow = if (is_sub) (a >= 0 and b < 0) else (a > 0);
+                return if (positive_overflow) std.math.maxInt(i64) else std.math.minInt(i64);
             }
         }
     }
