@@ -112,6 +112,10 @@ pub fn references(
                 if inv.name == proc_def.name
                     || inv.name == proc_def.qualified_name
                     || inv.name == qname_no_prefix
+                    || inv
+                        .resolved_qualified_name
+                        .as_deref()
+                        .is_some_and(|r| r == proc_def.qualified_name)
                 {
                     out.push(span_to_range(&line_index, inv.range));
                 }
@@ -209,6 +213,10 @@ pub fn document_highlights(
                 if inv.name == proc_def.name
                     || inv.name == proc_def.qualified_name
                     || inv.name == qname_no_prefix
+                    || inv
+                        .resolved_qualified_name
+                        .as_deref()
+                        .is_some_and(|r| r == proc_def.qualified_name)
                 {
                     out.push((span_to_range(&line_index, inv.range), HighlightKind::Text));
                 }
@@ -441,5 +449,45 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(document_highlights(src, 0, 6, &analysis).is_empty());
+    }
+
+    // -- S-references-rich: resolved-qualified-name matching ---------
+
+    #[test]
+    fn resolved_qualified_name_matches_call_site_from_namespace() {
+        // Source: a proc defined at the top level, called from
+        // a namespace.  The call site's literal name (`greet`)
+        // matches the proc name; the resolved qualified name
+        // also matches.  We pin that the references provider
+        // finds the call site.
+        let src = "proc ::greet {} {}\nnamespace eval ::myns {\n    greet\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the proc declaration.
+        let refs = references(src, 0, 8, &analysis, true);
+        // Should include the declaration and the call site.
+        assert!(
+            refs.len() >= 2,
+            "expected proc decl + namespace call site; got {refs:?}",
+        );
+    }
+
+    #[test]
+    fn resolved_qualified_name_field_populated_for_simple_call() {
+        // Verify that the analyser actually populates
+        // `resolved_qualified_name` on
+        // `command_invocations`.  At the top level a `greet`
+        // call should resolve to `::greet`.
+        let src = "greet hi\n";
+        let analysis = analyse(src);
+        let inv = analysis
+            .command_invocations
+            .iter()
+            .find(|i| i.name == "greet")
+            .expect("expected a `greet` invocation");
+        assert_eq!(
+            inv.resolved_qualified_name.as_deref(),
+            Some("::greet"),
+            "expected resolved name to be `::greet`; got {inv:?}",
+        );
     }
 }

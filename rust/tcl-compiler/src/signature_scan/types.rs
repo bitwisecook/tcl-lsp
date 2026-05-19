@@ -167,9 +167,14 @@ pub struct SignatureAutoPathEntry {
 /// non-partial command the walker visits. Used by
 /// `WorkspaceIndex.command_usage_counts()` so background-scanned
 /// files still contribute to cross-file command-usage statistics.
-/// `resolved_qualified_name` is intentionally omitted (the full scope
-/// walk required to resolve it is what `signature_scan` skips for
-/// background files).
+///
+/// `resolved_qualified_name` is `None` when populated by the
+/// signature scanner (the full scope walk required to resolve
+/// it is what `signature_scan` skips for background files); the
+/// full analyser populates it during its body walk so the LSP
+/// references / document-highlight providers can match call
+/// sites against a proc's qualified name even when the call
+/// site uses a relative form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureCommandInvocation {
     /// Command head as written at the call site (no namespace
@@ -177,6 +182,12 @@ pub struct SignatureCommandInvocation {
     pub name: String,
     /// Source span of the command-head token.
     pub range: Span,
+    /// Scope-resolved qualified name, if the analyser was able
+    /// to compute one.  `None` from background-file scans
+    /// (which skip the scope walk); `Some("::ns::name")` from
+    /// the full analyser.  Mirrors Python's
+    /// `CommandInvocation.resolved_qualified_name`.
+    pub resolved_qualified_name: Option<String>,
 }
 
 /// The full result returned by `extract_signatures`.

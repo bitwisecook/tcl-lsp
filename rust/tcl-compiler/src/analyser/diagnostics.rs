@@ -4771,6 +4771,7 @@ foo
             crate::signature_scan::types::SignatureCommandInvocation {
                 name: "random_cmd".to_string(),
                 range: Span::new(25, 35),
+                resolved_qualified_name: None,
             },
         );
         let registry = tcl_registry::CommandRegistry::build_default();

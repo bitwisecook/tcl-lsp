@@ -74,6 +74,58 @@ impl Analyser {
             .expect("current_scope_path must be valid")
     }
 
+    /// Compute the scope-resolved qualified name for a command
+    /// invocation at the current walk position.  Mirrors
+    /// Python's `_resolve_command_qualified_name` logic.
+    ///
+    /// * Names starting with `::` are already absolute and are
+    ///   returned as-is.
+    /// * Names with embedded `::` but no leading `::` are
+    ///   absolute-from-global by Tcl convention; the helper
+    ///   prepends `::`.
+    /// * Simple names are joined with the nearest enclosing
+    ///   namespace scope: `cmd` inside `namespace eval ::ns`
+    ///   becomes `::ns::cmd`; at the top level it becomes
+    ///   `::cmd`.
+    ///
+    /// Returned strings are intended for matching against
+    /// [`super::types::ProcDef::qualified_name`] in references
+    /// / document-highlight / rename providers.  The value is
+    /// not authoritative for runtime dispatch — it's a
+    /// candidate that lets call-site → declaration matching
+    /// resolve relative call shapes.
+    #[must_use]
+    pub fn resolve_command_qualified_name(&self, cmd_name: &str) -> String {
+        if cmd_name.starts_with("::") {
+            return cmd_name.to_string();
+        }
+        if cmd_name.contains("::") {
+            return format!("::{cmd_name}");
+        }
+        // Walk the current scope path up to the nearest
+        // namespace scope and join its `name` with the cmd.
+        // The global scope's name is `"::"` so the simple-name
+        // case at the top level becomes `"::cmd"`.
+        let mut path = self.current_scope_path.clone();
+        loop {
+            let scope =
+                scope_at(&self.result.global_scope, &path).unwrap_or(&self.result.global_scope);
+            if scope.kind == super::types::ScopeKind::Namespace || path.is_empty() {
+                let prefix = scope.name.as_str();
+                return if prefix == "::" {
+                    format!("::{cmd_name}")
+                } else {
+                    format!("{prefix}::{cmd_name}")
+                };
+            }
+            if path.is_empty() {
+                break;
+            }
+            path.pop();
+        }
+        format!("::{cmd_name}")
+    }
+
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
     ///

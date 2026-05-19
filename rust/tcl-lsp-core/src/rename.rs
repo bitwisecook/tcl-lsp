@@ -163,6 +163,10 @@ pub fn rename(
                 if inv.name == proc_def.name
                     || inv.name == proc_def.qualified_name
                     || inv.name == qname_no_prefix
+                    || inv
+                        .resolved_qualified_name
+                        .as_deref()
+                        .is_some_and(|r| r == proc_def.qualified_name)
                 {
                     edits.push(TextEdit {
                         range: span_to_range(&line_index, inv.range),

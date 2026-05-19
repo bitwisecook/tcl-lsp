@@ -67,6 +67,11 @@ pub(super) fn scan(
             .push(SignatureCommandInvocation {
                 name: head.to_string(),
                 range: cmd.argv[0].span,
+                // Signature scan skips the scope walk; leave
+                // the resolved name unpopulated and let the
+                // full analyser fill it in when the same
+                // document is reopened in the foreground.
+                resolved_qualified_name: None,
             });
         let texts = &cmd.texts;
         let argv = &cmd.argv;
