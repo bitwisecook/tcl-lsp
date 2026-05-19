@@ -123,6 +123,12 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
     if let Some(text) = sprintf_format_string_at_position(source, line, character) {
         return Some(Hover::markdown(sprintf_format_hover_text(&text)));
     }
+    if let Some(text) = binary_format_string_at_position(source, line, character) {
+        return Some(Hover::markdown(binary_format_hover_text(&text)));
+    }
+    if let Some(text) = regsub_subspec_at_position(source, line, character) {
+        return Some(Hover::markdown(regsub_hover_text(&text)));
+    }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
@@ -384,6 +390,255 @@ fn string_literal_with_percent_at(line_text: &str, character: u32) -> Option<Str
                 return Some(literal);
             }
             return None;
+        }
+        i = end + 1;
+    }
+    None
+}
+
+/// `binary format` / `binary scan` specifier table.  Mirrors
+/// `_BINARY_SPEC_DESC` in `lsp/features/hover.py:295-319`.
+const BINARY_SPEC_DESC: &[(char, &str)] = &[
+    ('a', "Byte string, padded with nulls"),
+    ('A', "Byte string, padded with spaces"),
+    ('b', "Binary digits (low-to-high order)"),
+    ('B', "Binary digits (high-to-low order)"),
+    ('h', "Hexadecimal digits (low-to-high nibble)"),
+    ('H', "Hexadecimal digits (high-to-low nibble)"),
+    ('c', "8-bit signed integer"),
+    ('s', "16-bit signed integer (little-endian)"),
+    ('S', "16-bit signed integer (big-endian)"),
+    ('i', "32-bit signed integer (little-endian)"),
+    ('I', "32-bit signed integer (big-endian)"),
+    ('n', "32-bit integer (native byte order)"),
+    ('w', "64-bit signed integer (little-endian)"),
+    ('W', "64-bit signed integer (big-endian)"),
+    ('m', "64-bit integer (native byte order)"),
+    ('r', "32-bit float (little-endian)"),
+    ('R', "32-bit float (big-endian)"),
+    ('f', "32-bit float (native byte order)"),
+    ('d', "64-bit double (native byte order)"),
+    ('x', "Null padding byte (format) / skip byte (scan)"),
+    ('X', "Move cursor back one byte"),
+    ('@', "Move cursor to absolute position"),
+    ('t', "Reserved (Tcl 8.5+)"),
+];
+
+fn binary_spec_desc(letter: char) -> Option<&'static str> {
+    BINARY_SPEC_DESC
+        .iter()
+        .find(|(c, _)| *c == letter)
+        .map(|(_, d)| *d)
+}
+
+/// Scan a `binary format` / `binary scan` spec string.
+/// Tcl grammar: `type [modifier] [count|*]`, repeated.
+/// Returns each field's full token as written.  Simplified
+/// from Python's `_binary_hover` parser: we capture the
+/// `(type, modifier, count)` triple as a single string for
+/// the table; the byte-ruler diagram is deferred.
+fn scan_binary_specifiers(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if binary_spec_desc(chars[i]).is_none() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        // Optional modifier `u` / `s`.
+        if i < chars.len() && (chars[i] == 'u' || chars[i] == 's') {
+            i += 1;
+        }
+        // Optional count: `*` or digits.
+        if i < chars.len() && chars[i] == '*' {
+            i += 1;
+        } else {
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+        out.push(chars[start..i].iter().collect());
+    }
+    out
+}
+
+/// Render the binary format-spec hover markdown.  Mirrors
+/// `_binary_hover` in `lsp/features/hover.py:593-743`, minus
+/// the byte-ruler diagram (deferred).
+fn binary_format_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Binary format spec**\n".to_string()];
+    let specs = scan_binary_specifiers(text);
+    if specs.is_empty() {
+        parts.push("No specifiers found.".to_string());
+    } else {
+        parts.push("| Specifier | Meaning |".to_string());
+        parts.push("|-----------|---------|".to_string());
+        for spec in specs {
+            let type_char = spec.chars().next().unwrap_or(' ');
+            let desc = binary_spec_desc(type_char).unwrap_or("Unknown");
+            parts.push(format!("| `{spec}` | {desc} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on a `binary format` /
+/// `binary scan` format-string argument and return the
+/// literal text.  Single-line only.
+fn binary_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.len() < 3 {
+        return None;
+    }
+    if tokens[0] != "binary" || (tokens[1] != "format" && tokens[1] != "scan") {
+        return None;
+    }
+    string_literal_at(line_text, character)
+}
+
+/// `regsub` backref description table.  Mirrors
+/// `_REGSUB_BACKREF_DESC` in `lsp/features/hover.py:386-398`.
+fn regsub_backref_desc(c: char) -> Option<&'static str> {
+    match c {
+        '&' | '0' => Some("Entire matched string"),
+        '1' => Some("First capture group"),
+        '2' => Some("Second capture group"),
+        '3' => Some("Third capture group"),
+        '4' => Some("Fourth capture group"),
+        '5' => Some("Fifth capture group"),
+        '6' => Some("Sixth capture group"),
+        '7' => Some("Seventh capture group"),
+        '8' => Some("Eighth capture group"),
+        '9' => Some("Ninth capture group"),
+        _ => None,
+    }
+}
+
+/// Scan a `regsub` substitution spec for `\0` … `\9` / `\&`
+/// backreferences.  Returns each match as written (e.g.
+/// `\\1`).
+fn scan_regsub_backrefs(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '\\' {
+            i += 1;
+            continue;
+        }
+        if i + 1 >= chars.len() {
+            break;
+        }
+        let next = chars[i + 1];
+        if next == '&' || next.is_ascii_digit() {
+            out.push(chars[i..=i + 1].iter().collect());
+        }
+        i += 2;
+    }
+    out
+}
+
+/// Render the regsub substitution-spec hover markdown.
+/// Mirrors `_regsub_hover` in `lsp/features/hover.py:764-777`.
+fn regsub_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Substitution spec** (regsub)\n".to_string()];
+    let refs = scan_regsub_backrefs(text);
+    if refs.is_empty() {
+        parts.push("No backreferences found.".to_string());
+    } else {
+        parts.push("| Reference | Meaning |".to_string());
+        parts.push("|-----------|---------|".to_string());
+        for r in refs {
+            let backref_char = r.chars().nth(1).unwrap_or(' ');
+            let desc = regsub_backref_desc(backref_char).unwrap_or("Unknown");
+            // Escape the backslash for display (`\\` in
+            // markdown renders as `\`).
+            parts.push(format!("| `{r}` | {desc} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on the substitution-spec
+/// argument of a `regsub` invocation and return the literal
+/// text.  `regsub ?switches? exp string subSpec ?varName?`
+/// — `subSpec` is the 4th positional arg (after switches).
+/// Single-line only.
+fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.is_empty() || tokens[0] != "regsub" {
+        return None;
+    }
+    // The substitution spec contains backslash sequences,
+    // typically as a quoted or braced literal.  Any literal
+    // string containing `\\<digit-or-&>` overlapping the cursor
+    // counts as the subspec.  Mirrors the loose detection
+    // Python uses; precise arg-position resolution is deferred
+    // to the same multi-line-aware machinery.
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let opener = chars[i];
+        let closer = match opener {
+            '"' => '"',
+            '{' => '}',
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        let start = i + 1;
+        let mut end = start;
+        while end < chars.len() && chars[end] != closer {
+            end += 1;
+        }
+        if start <= col && col <= end {
+            let literal: String = chars[start..end].iter().collect();
+            if scan_regsub_backrefs(&literal).is_empty() {
+                return None;
+            }
+            return Some(literal);
+        }
+        i = end + 1;
+    }
+    None
+}
+
+/// Helper: find any `"..."` / `{...}` literal containing the
+/// cursor.  Shared between hover providers that need
+/// literal-context detection but don't care whether the
+/// literal contains `%`.
+fn string_literal_at(line_text: &str, character: u32) -> Option<String> {
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let opener = chars[i];
+        let closer = match opener {
+            '"' => '"',
+            '{' => '}',
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        let start = i + 1;
+        let mut end = start;
+        while end < chars.len() && chars[end] != closer {
+            end += 1;
+        }
+        if start <= col && col <= end {
+            return Some(chars[start..end].iter().collect());
         }
         i = end + 1;
     }
@@ -954,5 +1209,87 @@ mod tests {
             "expected sprintf hover, got: {value}",
             value = h.value,
         );
+    }
+
+    // -- S-hover-rich: binary format hover --------------------------
+
+    #[test]
+    fn scan_binary_specifiers_finds_basic_types() {
+        let s = scan_binary_specifiers("a4 H2 i");
+        assert_eq!(s, vec!["a4", "H2", "i"]);
+    }
+
+    #[test]
+    fn scan_binary_specifiers_handles_star_count() {
+        let s = scan_binary_specifiers("a* I*");
+        assert_eq!(s, vec!["a*", "I*"]);
+    }
+
+    #[test]
+    fn binary_format_hover_renders_specifier_table() {
+        let text = binary_format_hover_text("a4 i");
+        assert!(text.contains("**Binary format spec**"), "{text}");
+        assert!(
+            text.contains("| `a4` | Byte string, padded with nulls |"),
+            "{text}",
+        );
+        assert!(
+            text.contains("| `i` | 32-bit signed integer (little-endian) |"),
+            "{text}",
+        );
+    }
+
+    #[test]
+    fn binary_format_string_at_position_detects_braced_literal() {
+        let src = "binary format {a4 i} val\n";
+        let found = binary_format_string_at_position(src, 0, 17);
+        assert_eq!(found.as_deref(), Some("a4 i"));
+    }
+
+    #[test]
+    fn hover_fires_for_binary_specifier() {
+        let src = "binary format {a4 i} val\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let h = hover(src, 0, 17, &analysis).expect("hover");
+        assert!(h.value.contains("Binary format spec"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: regsub substitution-spec hover ---------------
+
+    #[test]
+    fn scan_regsub_backrefs_finds_each_backref() {
+        let r = scan_regsub_backrefs("\\1-\\2 (\\& and \\0)");
+        assert_eq!(r, vec!["\\1", "\\2", "\\&", "\\0"]);
+    }
+
+    #[test]
+    fn regsub_hover_renders_backref_table() {
+        let text = regsub_hover_text("prefix \\1 suffix");
+        assert!(text.contains("**Substitution spec**"), "{text}");
+        assert!(text.contains("| `\\1` | First capture group |"), "{text}");
+    }
+
+    #[test]
+    fn regsub_hover_handles_no_backrefs() {
+        let text = regsub_hover_text("plain text");
+        assert!(text.contains("No backreferences found"), "{text}");
+    }
+
+    #[test]
+    fn regsub_subspec_at_position_finds_subspec_literal() {
+        let src = "regsub foo bar {\\1-baz} out\n";
+        // Cursor inside the subspec literal.
+        let found = regsub_subspec_at_position(src, 0, 18);
+        assert_eq!(found.as_deref(), Some("\\1-baz"));
+    }
+
+    #[test]
+    fn hover_fires_for_regsub_backref() {
+        let src = "regsub foo bar {\\1-baz} out\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let h = hover(src, 0, 18, &analysis).expect("hover");
+        assert!(h.value.contains("Substitution spec"), "{}", h.value);
     }
 }
