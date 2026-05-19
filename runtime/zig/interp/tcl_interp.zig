@@ -1565,10 +1565,18 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
     // [1], and the caller's args[1..] at [2..].  Use the bump
     // allocator — the slice lives only for the handler call.
     const total: u32 = @as(u32, @intCast(words.len)) + 1;
-    const buf = obj_mod.alloc(total * 4);
+    const buf_size: u32 = total * 4;
+    const buf = obj_mod.alloc(buf_size);
+    if (buf == 0) return null;
+    defer obj_mod.free_sized(buf, buf_size);
     const slot: [*]i32 = @ptrFromInt(buf);
+    // Slots 0 and 1 are fresh +1 TclObjs we own; release after the
+    // handler returns.  Without this each ``dict for`` / ``string
+    // cat`` / etc. ensemble dispatch leaked two TclObjs per call.
     slot[0] = obj_mod.obj_new_string(@bitCast(ens_ptr), @bitCast(ens_len));
     slot[1] = obj_mod.obj_new_string(@bitCast(sub_ptr), @bitCast(sub_len));
+    defer obj_mod.tcl_obj_release(slot[0]);
+    defer obj_mod.tcl_obj_release(slot[1]);
     var k: u32 = 1;
     while (k < words.len) : (k += 1) {
         slot[k + 1] = words[k];
@@ -1607,10 +1615,15 @@ fn try_ensemble_rewrite_relative(cmd_s: anytype, words: []const i32) ?i32 {
     const handler = cmd_table_visible_lookup(ens_ptr, ens_len) orelse return null;
 
     const total: u32 = @as(u32, @intCast(words.len)) + 1;
-    const buf = obj_mod.alloc(total * 4);
+    const buf_size: u32 = total * 4;
+    const buf = obj_mod.alloc(buf_size);
+    if (buf == 0) return null;
+    defer obj_mod.free_sized(buf, buf_size);
     const slot: [*]i32 = @ptrFromInt(buf);
     slot[0] = obj_mod.obj_new_string(@bitCast(ens_ptr), @bitCast(ens_len));
     slot[1] = obj_mod.obj_new_string(@bitCast(sub_ptr), @bitCast(sub_len));
+    defer obj_mod.tcl_obj_release(slot[0]);
+    defer obj_mod.tcl_obj_release(slot[1]);
     var k: u32 = 1;
     while (k < words.len) : (k += 1) {
         slot[k + 1] = words[k];
@@ -1861,7 +1874,14 @@ pub fn eval_uplevel(words: []const i32) i32 {
 
     if (body_start >= words.len) return 0;
 
-    const body_obj = concat_words(words[body_start..]);
+    // ``concat_words`` returns the borrowed input handle when there's
+    // exactly one body word, and a fresh +1 owned obj otherwise.
+    // Only release in the multi-arg case — releasing the single-word
+    // borrow would decrement the caller's word ref and over-release.
+    const body_words = words[body_start..];
+    const body_obj = concat_words(body_words);
+    const body_owned = body_words.len > 1;
+    defer if (body_owned) obj_mod.tcl_obj_release(body_obj);
     // ``frame_depth_stash`` / ``frame_depth_restore`` save and
     // restore both the frame depth and the namespace context,
     // re-entering the target frame's recorded caller-ns for the
@@ -3465,11 +3485,18 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     }
 
     var new_words: [parse.MAX_WORDS]i32 = undefined;
-    // Slot 0: the target command name as a fresh TclObj.
-    new_words[0] = rt.obj_new_string(
+    // Slot 0: the target command name as a fresh TclObj (+1 owned).
+    // Track the original allocation separately so every return path
+    // can release it — without this each alias dispatch leaks the
+    // target-name obj, and the auto-index branch below (which
+    // overwrites ``new_words[0]`` with a different handle) would
+    // drop the original on the floor.
+    const target_name_obj = rt.obj_new_string(
         @bitCast(rec.target_name_ptr),
         @bitCast(rec.target_name_len),
     );
+    defer obj_mod.tcl_obj_release(target_name_obj);
+    new_words[0] = target_name_obj;
     // Slots 1..1+n_prefix: the frozen prefix args.  The AliasRec
     // stores u32 TclObj handles but the interpreter runs on i32
     // handles; @bitCast is the reinterpretation we want.
@@ -3569,13 +3596,20 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     // the test expects.
     const ai_loaded = try_auto_index_load(new_words[0]);
     if (ai_loaded != 0) {
+        // ai_loaded carries a +1 from try_auto_index_load; the
+        // function-exit defer below releases it.  No extra retain
+        // needed even when we swap it into ``new_words[0]`` — the
+        // slot is a local array entry whose lifetime is bounded by
+        // this function, and the +1 from try_auto_index_load is
+        // alive until the defer fires after return.
         defer obj_mod.tcl_obj_release(ai_loaded);
         const ai_bucket = procs.proc_lookup(ai_loaded);
         if (ai_bucket != 0) {
             // Swap in the loaded FQ name as the dispatched command
             // name so ``info level 0`` etc see the canonical form.
+            // Releasing ``target_name_obj`` happens via the outer
+            // ``defer`` (it stays alive for the duration of the call).
             new_words[0] = ai_loaded;
-            obj_mod.tcl_obj_retain(ai_loaded);
             const result = eval_proc_call_bucket(new_words[0..total], ai_bucket);
             interp_reg.leave(save);
             return result;
@@ -4668,6 +4702,14 @@ fn eval_interp_eval(words: []const i32) i32 {
         if (k + 1 < words.len) total += 1;
     }
     const script_ptr: u32 = if (total == 0) 0 else alloc(total);
+    if (total > 0 and script_ptr == 0) {
+        // OOM allocating the concat buffer — bail rather than write
+        // through ``@ptrFromInt(0)`` below.
+        return 0;
+    }
+    // Reclaim the concat buffer before returning so every ``interp
+    // eval child …`` call doesn't leak ``total`` bytes of slab.
+    defer if (total > 0) obj_mod.free_sized(script_ptr, total);
     var off: u32 = 0;
     k = 3;
     while (k < words.len) : (k += 1) {

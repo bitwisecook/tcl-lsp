@@ -770,6 +770,12 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
         code;
     _ = globals.global_set(code_name, code_val);
     obj.tcl_obj_release(code_name);
+    // Only release on the default branch — that "NONE" obj was
+    // minted here.  Caller-supplied ``code`` keeps its +1 ownership
+    // discipline (the explicit ``error msg info code`` form passes
+    // a borrowed ``words[3]``; the typed-error path's
+    // ``detect_error_code`` ownership is handled at the call site
+    // below).
     if (default_code) obj.tcl_obj_release(code_val);
 }
 
@@ -865,7 +871,14 @@ pub export fn tcl_cmd_error(msg: i32) void {
         const frames_mod = @import("tcl_frames.zig");
         state.error_frame_line = frames_mod.frame_get_line(0);
     }
-    stamp_error_globals(msg, 0, detect_error_code(msg));
+    // ``detect_error_code`` returns a fresh +1 owned obj when the
+    // msg matches a typed pattern (``wrong # args:``, divide-by-zero,
+    // overflow, …).  ``stamp_error_globals`` retains it via
+    // ``global_set`` so it's safe to release here once the stamp
+    // completes; without this every typed error leaked one TclObj.
+    const code = detect_error_code(msg);
+    stamp_error_globals(msg, 0, code);
+    if (code != 0) obj.tcl_obj_release(code);
     if (state.catch_depth > 0) {
         state.error_flag = 1;
         state.error_msg = msg;
