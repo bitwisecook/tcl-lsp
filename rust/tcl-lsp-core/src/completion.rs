@@ -54,10 +54,11 @@ pub enum CompletionKind {
 
 /// A single completion suggestion.
 ///
-/// Mirrors the subset of `lsprotocol.types.CompletionItem` the
-/// minimal port emits today: a label, an insert-text, and a
-/// kind.  `detail`, `documentation`, and `sort_text` live in
-/// the `S-completion-rich` follow-up.
+/// Mirrors the subset of `lsprotocol.types.CompletionItem` we
+/// emit today: label, insert-text, kind, and an optional
+/// detail line.  The detail is what the editor shows in the
+/// right-hand column of the completion list (typically a
+/// parameter-list summary for procs).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
     /// Label shown in the completion list — for variables,
@@ -68,6 +69,10 @@ pub struct CompletionItem {
     pub insert_text: String,
     /// LSP completion kind.
     pub kind: CompletionKind,
+    /// Optional detail text — typically a parameter-list
+    /// summary for procs / a synopsis line for built-in
+    /// commands.  `None` for items without extra detail.
+    pub detail: Option<String>,
 }
 
 /// Compute completions for a position in `source`.
@@ -223,6 +228,7 @@ fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<Comp
             label,
             insert_text: name.to_owned(),
             kind: CompletionKind::Variable,
+            detail: None,
         });
     }
     items
@@ -312,6 +318,7 @@ fn switch_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<Co
             label: name.to_owned(),
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
+            detail: None,
         })
         .collect()
 }
@@ -330,6 +337,7 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             label: name.to_owned(),
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
+            detail: None,
         })
         .collect()
 }
@@ -354,8 +362,33 @@ fn builtin_completions(registry: &CommandRegistry, partial: &str) -> Vec<Complet
             label: name.to_owned(),
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
+            detail: None,
         })
         .collect()
+}
+
+/// Render a parameter-list summary for a proc completion's
+/// `detail` field.  Mirrors Python's `_proc_signature_str`.
+/// Returns `"(no args)"` for paramless procs, otherwise a
+/// space-separated list with `{name default}` for optional
+/// params.
+fn proc_signature_str(proc_def: &ProcDef) -> String {
+    if proc_def.params.is_empty() {
+        return "(no args)".to_string();
+    }
+    proc_def
+        .params
+        .iter()
+        .map(|p| {
+            if p.has_default {
+                let default = p.default_value.as_deref().unwrap_or("");
+                format!("{{{} {}}}", p.name, default)
+            } else {
+                p.name.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionItem> {
@@ -379,6 +412,7 @@ fn proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionI
             label: proc_def.name.clone(),
             insert_text: qname.to_owned(),
             kind: CompletionKind::Function,
+            detail: Some(proc_signature_str(proc_def)),
         });
     }
     items

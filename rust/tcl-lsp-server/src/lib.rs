@@ -1302,6 +1302,7 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
+        detail: item.detail,
         ..CompletionItem::default()
     }
 }

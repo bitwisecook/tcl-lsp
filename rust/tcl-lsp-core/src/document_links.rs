@@ -45,8 +45,27 @@ pub struct DocumentLink {
 /// `workspace_root`, when `Some`, is the directory used to
 /// resolve relative paths.  Typically the document's enclosing
 /// directory.  When `None`, only absolute paths produce links.
+///
+/// `~/...` paths expand against `$HOME`; the helper reads
+/// the env var at call-time so server tests can stub it (see
+/// `document_links_with_home`).
 #[must_use]
 pub fn document_links(source: &str, workspace_root: Option<&str>) -> Vec<DocumentLink> {
+    let home = std::env::var("HOME").ok();
+    document_links_with_home(source, workspace_root, home.as_deref())
+}
+
+/// Same as [`document_links`] but lets callers pass an
+/// explicit `home` directory string (for testability under
+/// `#![forbid(unsafe_code)]`, where we can't mutate
+/// `std::env`).  Production callers should use the
+/// zero-argument [`document_links`].
+#[must_use]
+pub fn document_links_with_home(
+    source: &str,
+    workspace_root: Option<&str>,
+    home: Option<&str>,
+) -> Vec<DocumentLink> {
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
 
@@ -91,7 +110,7 @@ pub fn document_links(source: &str, workspace_root: Option<&str>) -> Vec<Documen
                 continue;
             }
         }
-        let Some(target) = resolve_path(path, workspace_root) else {
+        let Some(target) = resolve_path(path, workspace_root, home) else {
             continue;
         };
         let arg_tok = seg.argv.get(idx);
@@ -117,19 +136,27 @@ pub fn document_links(source: &str, workspace_root: Option<&str>) -> Vec<Documen
 /// through; relative paths are joined to `workspace_root`.
 /// When `workspace_root` is `None`, relative paths return
 /// `None` (no anchor to resolve against).
-fn resolve_path(path: &str, workspace_root: Option<&str>) -> Option<String> {
+fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) -> Option<String> {
     if path.is_empty() {
         return None;
     }
-    let resolved = if std::path::Path::new(path).is_absolute() {
+    // Tilde expansion: `~/...` → `$HOME/...`; `~user/...` is
+    // not supported (would need /etc/passwd parsing).
+    let expanded = if let Some(rest) = path.strip_prefix("~/") {
+        let home = home?;
+        let home_trimmed = home.trim_end_matches('/');
+        format!("{home_trimmed}/{rest}")
+    } else if path == "~" {
+        home?.to_string()
+    } else {
         path.to_string()
+    };
+    let resolved = if std::path::Path::new(&expanded).is_absolute() {
+        expanded
     } else {
         let root = workspace_root?;
-        // Naive join — strip trailing `/` from root, prefix
-        // path.  Avoids pulling in `std::path::PathBuf` for a
-        // simple URI assembly.
         let root_trimmed = root.trim_end_matches('/');
-        format!("{root_trimmed}/{path}")
+        format!("{root_trimmed}/{expanded}")
     };
     Some(format!("file://{resolved}"))
 }
@@ -209,5 +236,28 @@ mod tests {
         let links = document_links(src, Some("/home/user/"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/helper.tcl");
+    }
+
+    #[test]
+    fn tilde_expansion_uses_supplied_home() {
+        let src = "source ~/lib/init.tcl\n";
+        let links = document_links_with_home(src, None, Some("/test-home"));
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
+    }
+
+    #[test]
+    fn tilde_without_home_produces_no_link() {
+        let src = "source ~/lib/init.tcl\n";
+        let links = document_links_with_home(src, None, None);
+        assert!(links.is_empty(), "{links:?}");
+    }
+
+    #[test]
+    fn bare_tilde_expands_to_home() {
+        let src = "source ~\n";
+        let links = document_links_with_home(src, None, Some("/test-home"));
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target, "file:///test-home");
     }
 }
