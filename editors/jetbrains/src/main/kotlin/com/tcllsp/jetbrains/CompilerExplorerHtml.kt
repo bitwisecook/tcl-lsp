@@ -1,5 +1,9 @@
 package com.tcllsp.jetbrains
 
+import com.intellij.openapi.diagnostic.Logger
+
+private val LOG = Logger.getInstance("com.tcllsp.jetbrains.CompilerExplorerHtml")
+
 /**
  * Generates HTML for the Compiler Explorer, adapted for JCEF from the VS Code webview.
  *
@@ -95,13 +99,41 @@ private fun adaptHtmlForJcef(html: String): String {
         </script>
     """.trimIndent()
 
-    result = result.replace("<head>", "<head>\n$shim")
+    // Inject the shim right after the opening `<head>` tag. Match
+    // case-insensitively and tolerate attributes/whitespace inside the
+    // tag — and require the match to succeed before returning, because
+    // a silent no-op replacement is exactly the failure mode this fix
+    // exists to prevent.
+    val headRegex = Regex("(?i)<head(?:\\s[^>]*)?>")
+    val headMatch = headRegex.find(result)
+    if (headMatch == null) {
+        LOG.error(
+            "JCEF adapter could not find a <head> tag in the compiler explorer " +
+                "HTML — the JS-bridge shim was not injected. Compiler Explorer " +
+                "will be unusable until the upstream template is restored."
+        )
+        return result
+    }
+    val insertAt = headMatch.range.last + 1
+    result = result.substring(0, insertAt) + "\n" + shim + result.substring(insertAt)
 
-    // Remove Content-Security-Policy that blocks inline scripts in JCEF
-    result = result.replace(
-        Regex("""<meta\s+http-equiv="Content-Security-Policy"[^>]*>"""),
-        "<!-- CSP removed for JCEF -->"
-    )
+    // Remove the Content-Security-Policy meta that blocks inline scripts
+    // (including the shim above) in JCEF. Tolerate attribute reordering
+    // and case variants for the same reason; warn if the CSP was present
+    // but didn't get stripped so a regression is loud rather than silent.
+    val cspRegex =
+        Regex(
+            """(?i)<meta\s+[^>]*http-equiv\s*=\s*["']Content-Security-Policy["'][^>]*>"""
+        )
+    if (cspRegex.containsMatchIn(result)) {
+        result = cspRegex.replaceFirst(result, "<!-- CSP removed for JCEF -->")
+        if (cspRegex.containsMatchIn(result)) {
+            LOG.warn(
+                "JCEF adapter found but could not strip the Content-Security-Policy " +
+                    "meta tag — the inline shim may be blocked."
+            )
+        }
+    }
 
     return result
 }
