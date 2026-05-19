@@ -2705,27 +2705,26 @@ fn foreach_append_var_frame(var_name_obj: i32) void {
     obj_mod.free_sized(buf, total);
 }
 
-/// Compiled-proc epilogue hook: when the body's tail raised an
-/// error, append ``(procedure "X" line N)`` to ``::errorInfo`` using
-/// the current frame's proc name and tracked line.  Called by the
-/// codegen-emitted epilogue BEFORE ``tcl_frame_pop`` so the frame's
-/// metadata is still readable.  No-op when no error is pending.
-/// Mirrors the interpreted-proc stamp emitted by
-/// :func:`proc_dispatch_stamp_error_frame` for the eval-fallback /
-/// uplevel paths.
-pub export fn proc_stamp_error_frame(name_ptr: u32, name_len: u32) void {
+/// Shared body for the two proc-error-frame stamp entry points
+/// below.  Skips when no error is pending; consumes the
+/// ``return -code error`` marker (which bypasses the frame per Tcl 9
+/// ``TclUpdateReturnInfo``); strips any namespace prefix off
+/// ``name_ptr/name_len`` so the frame text uses the bare (last-
+/// segment) name; defaults the line to 1 when no
+/// ``error_frame_line`` was captured; delegates to
+/// :func:`proc_append_procedure_frame`; finally clears
+/// ``error_frame_line`` + ``error_info_supplied`` so the surrounding
+/// ``eval_script`` correctly stamps the outer ``invoked from within``
+/// callsite frame on the way out.  Mirrors Tcl 9
+/// ``MakeProcError`` + the ``checkForCatch`` ``ERR_ALREADY_LOGGED``
+/// reset (tclProc.c / tclExecute.c).
+fn proc_stamp_error_frame_inner(name_ptr: u32, name_len: u32) void {
     const tcl_catch = @import("tcl_catch.zig");
     if (tcl_catch.state.error_flag == 0) return;
-    // ``return -code error msg`` from inside the body should NOT
-    // add a procedure frame — Tcl 9's ``TclUpdateReturnInfo`` path
-    // bypasses ``MakeProcError``.  Consume the marker flag and bail.
     if (tcl_catch.state.return_via_error_code != 0) {
         tcl_catch.state.return_via_error_code = 0;
         return;
     }
-    // Strip the namespace prefix so the frame uses only the simple
-    // (last-segment) name — reference Tcl reports
-    // ``(procedure "foo" line N)`` for ``::tcl::test::error::foo``.
     var bare_ptr = name_ptr;
     var bare_len = name_len;
     if (bare_len > 0 and bare_ptr != 0) {
@@ -2749,79 +2748,31 @@ pub export fn proc_stamp_error_frame(name_ptr: u32, name_len: u32) void {
     if (line_n == 0) line_n = 1;
     proc_append_procedure_frame(bare_ptr, bare_len, line_n);
     tcl_catch.state.error_frame_line = 0;
-    // Reference Tcl's ``checkForCatch`` (tclExecute.c) clears
-    // ``ERR_ALREADY_LOGGED`` after each command's traceback decision
-    // inside the bytecode loop.  By the time ``MakeProcError`` stamps
-    // the ``(procedure "X" line N)`` frame, the flag is already gone,
-    // so the SURROUNDING ``eval_script``'s ``TclLogCommandInfo`` adds
-    // ``\n    invoked from within\n"<callsite>"`` on the way out.
-    // Mirror that here: any compiled body whose tail raised must drop
-    // ``error_info_supplied`` so a wrapping interpreted eval frame
-    // appends the outer call-site frame instead of skipping it
-    // (error-2.6's ``invoked from within "foo2"`` tail).
     tcl_catch.state.error_info_supplied = 0;
 }
 
-/// Append the ``(procedure "X" line N)`` errorInfo frame after a
-/// proc body's dispatch returns TCL_ERROR, common to both the
-/// interpreted and compiled-proc dispatch paths.  Reads the proc
-/// name from the *bucket*, the line from
-/// ``tcl_catch.state.error_frame_line`` (captured at the moment of
-/// the body's ``tcl_cmd_error`` / ``tcl_cmd_error_full`` call), then
-/// delegates to :func:`proc_append_procedure_frame`.
+/// Compiled-proc epilogue hook: when the body's tail raised an
+/// error, append ``(procedure "X" line N)`` to ``::errorInfo`` using
+/// the proc's qualified name (passed by codegen) and the frame's
+/// tracked line.  Called by the codegen-emitted epilogue BEFORE
+/// ``tcl_frame_pop`` so the frame's metadata is still readable.
+/// All shared logic lives in :func:`proc_stamp_error_frame_inner`.
+pub export fn proc_stamp_error_frame(name_ptr: u32, name_len: u32) void {
+    proc_stamp_error_frame_inner(name_ptr, name_len);
+}
+
+/// Append the ``(procedure "X" line N)`` errorInfo frame after the
+/// interpreted-proc dispatch returns TCL_ERROR.  Reads the proc
+/// name from the *bucket* (compiled procs go through
+/// :func:`proc_stamp_error_frame` instead, called from the codegen
+/// epilogue).  Shared logic lives in
+/// :func:`proc_stamp_error_frame_inner`.
 fn proc_dispatch_stamp_error_frame(bucket: i32, result: i32) void {
     const ir = result_mod.snapshot(result);
     if (ir.code != .ERROR) return;
-    const tcl_catch = @import("tcl_catch.zig");
-    // ``return -code error msg`` skips the procedure frame — see
-    // ``proc_stamp_error_frame`` for the rationale.  Consume the
-    // marker and bail.
-    if (tcl_catch.state.return_via_error_code != 0) {
-        tcl_catch.state.return_via_error_code = 0;
-        return;
-    }
     const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
     const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
-    // Strip the full namespace qualifier so the frame uses only the
-    // simple (last-segment) name — reference Tcl reports
-    // ``(procedure "foo" line 4)`` even when ``foo`` is registered
-    // as ``::tcl::test::error::foo`` (error-2.3 / error-2.6).
-    var bare_ptr = name_ptr;
-    var bare_len = name_len;
-    if (bare_len > 0 and bare_ptr != 0) {
-        const np: [*]const u8 = @ptrFromInt(name_ptr);
-        // Find the last ``::`` and skip past it.
-        var k: u32 = 0;
-        var last_colcol_end: u32 = 0;
-        while (k + 1 < name_len) : (k += 1) {
-            if (np[k] == ':' and np[k + 1] == ':') {
-                last_colcol_end = k + 2;
-            }
-        }
-        if (last_colcol_end > 0 and last_colcol_end < name_len) {
-            bare_ptr = name_ptr + last_colcol_end;
-            bare_len = name_len - last_colcol_end;
-        } else if (bare_len >= 2 and np[0] == ':' and np[1] == ':') {
-            // Leading ``::`` with no further qualification.
-            bare_ptr = name_ptr + 2;
-            bare_len = name_len - 2;
-        }
-    }
-    // Default to line 1 when no error-time line was captured — a
-    // body that errored before any ``frame_set_line`` ran (e.g.
-    // arity-error stubs synthesised by the dispatcher itself before
-    // the body's prologue executes).
-    var line_n = tcl_catch.state.error_frame_line;
-    if (line_n == 0) line_n = 1;
-    proc_append_procedure_frame(bare_ptr, bare_len, line_n);
-    // Clear so a subsequent un-related error doesn't carry over the
-    // line number from a previous proc's body.
-    tcl_catch.state.error_frame_line = 0;
-    // Same rationale as ``proc_stamp_error_frame``: drop the
-    // ``ERR_ALREADY_LOGGED``-shaped flag so the surrounding
-    // ``eval_script`` adds ``\n    invoked from within\n"<callsite>"``
-    // on the way out.  See that function's comment for details.
-    tcl_catch.state.error_info_supplied = 0;
+    proc_stamp_error_frame_inner(name_ptr, name_len);
 }
 
 /// Append ``\n    (procedure "X" line N)`` to ``::errorInfo`` after
