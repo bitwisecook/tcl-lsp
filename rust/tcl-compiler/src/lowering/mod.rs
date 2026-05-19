@@ -744,6 +744,9 @@ impl<'r> Lowerer<'r> {
             "for" => Some(self.lower_for(seg, namespace)),
             "while" => Some(self.lower_while(seg, namespace)),
             "foreach" => Some(self.lower_foreach(seg, namespace, false)),
+            "foreachLine" if args.len() == 3 => {
+                Some(self.lower_foreach_line(seg, namespace))
+            }
             "lmap" => Some(self.lower_foreach(seg, namespace, true)),
             "catch" => Some(self.lower_catch(seg, namespace)),
             "try" => Some(self.lower_try(seg, namespace)),
@@ -1931,6 +1934,50 @@ mod tests {
         assert!(
             !inner.body.statements.is_empty(),
             "expected lowered body, got empty"
+        );
+    }
+
+    #[test]
+    fn foreach_line_lowers_to_foreach_statement() {
+        // PR #433 (0f9288d2): `foreachLine var filename body` lowers
+        // to a single-iterator IRForeach so variables assigned
+        // inside the body propagate to the enclosing scope.  The
+        // generic stdlib-proc path would route through IRBarrier and
+        // lose that lattice information.
+        let m = lower_to_ir(
+            "foreachLine line /etc/hosts { set count [expr {$count + 1}] }",
+            &reg(),
+        );
+        let stmts = &m.top_level.statements;
+        let last = stmts.last().expect("at least one statement");
+        match last {
+            Statement::Foreach {
+                iterators,
+                is_lmap,
+                ..
+            } => {
+                assert!(!is_lmap);
+                assert_eq!(iterators.len(), 1);
+                assert_eq!(iterators[0].vars, vec!["line".to_owned()]);
+            }
+            other => panic!("expected Statement::Foreach, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn foreach_line_dynamic_body_routes_through_barrier() {
+        // Dynamic body (`$body` substituted) — fall through to the
+        // runtime command via Barrier instead of trying to lower
+        // the literal `$body` text as a script.
+        let m = lower_to_ir(
+            "proc f {} { set body {return 1}\n foreachLine line /etc/hosts $body }",
+            &reg(),
+        );
+        let body = &m.procedures.get("::f").expect("f registered").body.statements;
+        let last = body.last().expect("body has statements");
+        assert!(
+            matches!(last, Statement::Barrier { .. } | Statement::Foreach { .. }),
+            "expected Barrier or Foreach (if const-map fired), got {last:?}",
         );
     }
 

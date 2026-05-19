@@ -313,6 +313,58 @@ impl Lowerer<'_> {
         }
     }
 
+    /// Lower `foreachLine varName filename body` (Tcl 9.0+, TIP 670)
+    /// as a single-iterator [`Statement::Foreach`] so variables
+    /// assigned inside the body propagate to the enclosing scope —
+    /// matching plain `foreach`'s lattice behaviour rather than the
+    /// opaque [`Statement::Barrier`] treatment used for generic
+    /// stdlib procs.  Mirrors `core/compiler/lowering.py` after
+    /// PR #433.
+    pub(super) fn lower_foreach_line(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Statement {
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let arg_single = seg.arg_single_token();
+
+        // `foreachLine varName filename body` — exactly three args.
+        if args.len() != 3 {
+            return Self::barrier(seg, "malformed foreachLine");
+        }
+
+        // Body must be a single static brace-string literal; dynamic
+        // bodies fall through to the runtime command.
+        let body_tok = arg_tokens.get(2);
+        if body_tok.is_none() || arg_single.get(2).copied() != Some(true) {
+            return Self::barrier(seg, "foreachLine with dynamic body");
+        }
+
+        // Single iterator binding the loop variable.  `list_arg`
+        // semantically carries "the iteration source" — for plain
+        // `foreach` that's the list; for `foreachLine` it's the
+        // filename (the runtime reads lines from it).  Downstream
+        // dataflow doesn't care: the lattice-propagation matters,
+        // not the literal value.
+        let iterators = vec![ForeachIterator {
+            vars: parse_param_names(&args[0]),
+            list_arg: args[1].clone(),
+        }];
+
+        let body = self.lower_body_from_tok(&args[2], body_tok, namespace);
+
+        Statement::Foreach {
+            span: seg.span,
+            iterators,
+            body,
+            body_span: body_tok.map_or(seg.span, |t| t.span),
+            is_lmap: false,
+            raw_args: args.to_vec(),
+            is_dict_iteration: false,
+        }
+    }
+
     // ── catch ─────────────────────────────────────────────────────
 
     /// Lower `catch body ?resultVar? ?optionsVar?`.
