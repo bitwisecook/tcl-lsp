@@ -231,6 +231,7 @@ pub fn info_all() i32 {
     }
     if (total == 0) return obj_new_string(0, 0);
     const buf = obj.alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     i = 0;
@@ -247,7 +248,7 @@ pub fn info_all() i32 {
         off += 1;
     }
     if (off > 0) off -= 1; // strip trailing space
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 fn write_id(dst: [*]u8, off_in: u32, id: u32) u32 {
@@ -305,6 +306,7 @@ fn build_info_pair(script_obj: i32, kind: []const u8) i32 {
     // and ``kind.len`` for the trailing word.
     const cap: u32 = s.len * 2 + 8 + 1 + @as(u32, @intCast(kind.len));
     const buf = obj.alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     off = obj.list_elem_quote(buf, off, s.ptr, s.len);
     const dst: [*]u8 = @ptrFromInt(buf);
@@ -314,7 +316,7 @@ fn build_info_pair(script_obj: i32, kind: []const u8) i32 {
         dst[off] = c;
         off += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 // -- Dispatch -----------------------------------------------------------------

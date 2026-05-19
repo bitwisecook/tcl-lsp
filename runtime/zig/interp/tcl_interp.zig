@@ -1742,6 +1742,7 @@ pub fn concat_words(ws: []const i32) i32 {
     }
     total += @as(u32, @intCast(ws.len)) - 1; // spaces
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     for (ws, 0..) |w, wi| {
         const s = obj_ensure_string(w);
@@ -1753,7 +1754,7 @@ pub fn concat_words(ws: []const i32) i32 {
             off += 1;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_mod.obj_new_string_take(buf, total, total);
 }
 
 /// ``upvar ?level? otherVar myVar ?otherVar myVar ...?``
@@ -2665,10 +2666,15 @@ fn switch_opt_prefix(opt_ptr: [*]const u8, opt_len: u32, comptime full: []const 
 /// option-set wording exactly so switch-3.x return-code tests catch
 /// the upstream string.
 fn switch_bad_option(opt_ptr: [*]const u8, opt_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
     const prefix: []const u8 = "bad option \"";
     const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
     const total: u32 = @intCast(prefix.len + opt_len + suffix.len);
     const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const bp: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     for (prefix) |c| {
@@ -2684,8 +2690,7 @@ fn switch_bad_option(opt_ptr: [*]const u8, opt_len: u32) void {
         bp[off] = c;
         off += 1;
     }
-    const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
-    const catch_mod = @import("tcl_catch.zig");
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 

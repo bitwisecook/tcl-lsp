@@ -355,6 +355,10 @@ fn raise_alias_loop_error(new_name_ptr: u32, new_name_len: u32) void {
     const suffix: []const u8 = "\": would create a loop";
     const total: u32 = @as(u32, @intCast(prefix.len)) + new_name_len + @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (new_name_len > 0) {
@@ -362,7 +366,7 @@ fn raise_alias_loop_error(new_name_ptr: u32, new_name_len: u32) void {
         for (0..new_name_len) |k| d[prefix.len + k] = np[k];
     }
     for (suffix, 0..) |b, k| d[prefix.len + new_name_len + k] = b;
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = rt.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -561,6 +565,10 @@ pub fn interp_alias_create(
         const suffix: []const u8 = "\": interpreter deleted";
         const total: u32 = @as(u32, @intCast(prefix.len)) + new_name_len + @as(u32, @intCast(suffix.len));
         const buf = alloc(total);
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         for (prefix, 0..) |b, k| d[k] = b;
         if (new_name_len > 0) {
@@ -568,7 +576,7 @@ pub fn interp_alias_create(
             for (0..new_name_len) |k| d[prefix.len + k] = np[k];
         }
         for (suffix, 0..) |b, k| d[prefix.len + new_name_len + k] = b;
-        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+        const msg = rt.obj_new_string_take(buf, total, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -659,6 +667,10 @@ pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u
         const suffix: []const u8 = "\" not found";
         const total: u32 = @as(u32, @intCast(prefix.len)) + new_name_len + @as(u32, @intCast(suffix.len));
         const buf = alloc(total);
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         for (prefix, 0..) |b, k| d[k] = b;
         if (new_name_len > 0) {
@@ -666,7 +678,7 @@ pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u
             for (0..new_name_len) |k| d[prefix.len + k] = np[k];
         }
         for (suffix, 0..) |b, k| d[prefix.len + new_name_len + k] = b;
-        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+        const msg = rt.obj_new_string_take(buf, total, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -1611,6 +1623,10 @@ pub fn eval_interp_target(words: []const i32) i32 {
             path.len +
             @as(u32, @intCast(suffix.len));
         const buf = alloc(total);
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         var off: u32 = 0;
         for (prefix) |b| {
@@ -1639,7 +1655,7 @@ pub fn eval_interp_target(words: []const i32) i32 {
             d[off] = b;
             off += 1;
         }
-        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(off));
+        const msg = rt.obj_new_string_take(buf, off, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -1696,6 +1712,10 @@ pub fn eval_interp_target(words: []const i32) i32 {
             path.len +
             @as(u32, @intCast(suffix.len));
         const buf = alloc(total);
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         var off: u32 = 0;
         for (prefix) |b| {
@@ -1724,7 +1744,7 @@ pub fn eval_interp_target(words: []const i32) i32 {
             d[off] = b;
             off += 1;
         }
-        const msg = rt.obj_new_string(@bitCast(buf), @bitCast(off));
+        const msg = rt.obj_new_string_take(buf, off, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -1739,6 +1759,7 @@ pub fn eval_interp_target(words: []const i32) i32 {
         if (i > 0) total_len += 1;
     }
     const buf = alloc(total_len);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     // Names are in reverse order in name_ptrs (closest-to-target
     // first); emit them in forward order (closest-to-caller first).
@@ -1757,7 +1778,7 @@ pub fn eval_interp_target(words: []const i32) i32 {
             off = obj_mod.list_elem_quote_nth(buf, off, name_ptrs[i], name_lens[i]);
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return rt.obj_new_string_take(buf, off, total_len);
 }
 
 /// ``interp issafe ?path?`` — read the ``INTERP_SAFE`` flag on the
@@ -1880,6 +1901,10 @@ fn raise_expected_integer(handle: i32) void {
     const suffix: []const u8 = "\"";
     const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (s.len > 0) {
@@ -1887,7 +1912,7 @@ fn raise_expected_integer(handle: i32) void {
         for (0..s.len) |k| d[prefix.len + k] = sp[k];
     }
     for (suffix, 0..) |b, k| d[prefix.len + s.len + k] = b;
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = rt.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 

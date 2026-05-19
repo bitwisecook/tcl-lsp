@@ -1018,11 +1018,12 @@ fn build_capture_value(
         const end_str = obj.itoa(@intCast(end_inclusive));
         const total: u32 = start_len + 1 + @as(u32, @intCast(end_str.len));
         const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
         const dst: [*]u8 = @ptrFromInt(buf);
         for (0..start_len) |k| dst[k] = start_buf[k];
         dst[start_len] = ' ';
         for (0..end_str.len) |k| dst[start_len + 1 + k] = end_str.ptr[k];
-        return obj_new_string(@bitCast(buf), @bitCast(total));
+        return obj.obj_new_string_take(buf, total, total);
     }
     // Substring mode: extract the bytes covering [start_cp, end_cp).
     const sb_start = codepoint_to_byte(sub_s.ptr, sub_s.len, start_cp);
@@ -1030,10 +1031,11 @@ fn build_capture_value(
     if (sb_end <= sb_start) return obj_new_string(0, 0);
     const len = sb_end - sb_start;
     const buf = alloc(len);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     const src: [*]const u8 = @ptrFromInt(sub_s.ptr + sb_start);
     for (0..len) |k| dst[k] = src[k];
-    return obj_new_string(@bitCast(buf), @bitCast(len));
+    return obj.obj_new_string_take(buf, len, len);
 }
 
 /// Append one capture (already decoded into start/end codepoints) to
