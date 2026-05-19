@@ -389,7 +389,10 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
 /// :func:`ensure_array_value_owned`.
 fn bucket_set_value(bucket: u32, value: i32) void {
     const old: i32 = read_i32(bucket + 12);
-    if (value != 0) obj.tcl_obj_retain(value);
+    // Same-handle re-stamp (``set arr(k) $val`` with $val unchanged)
+    // must be a no-op on rc.  Gate both retain AND release on the
+    // inequality or the unconditional retain leaks +1 per repeat.
+    if (value != 0 and value != old) obj.tcl_obj_retain(value);
     write_i32(bucket + 12, value);
     if (old != 0 and old != value) obj.tcl_obj_release(old);
 }

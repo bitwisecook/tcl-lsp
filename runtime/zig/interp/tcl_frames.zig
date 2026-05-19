@@ -750,8 +750,12 @@ pub export fn frame_set_argv(argv: i32) void {
     // argv list (built per-call from words[]) gets freed by the
     // parser-side release at end-of-statement (MM-B.4) before the
     // proc body's ``info level 0`` can read it.
+    //
+    // Same-handle re-stamp must be a net no-op on rc — gate both
+    // retain and release on the inequality, otherwise a duplicate
+    // ``frame_set_argv(same_list)`` leaks +1 per call.
     const old = frame_argv[frame_depth - 1];
-    if (argv != 0) obj.tcl_obj_retain(argv);
+    if (argv != 0 and argv != old) obj.tcl_obj_retain(argv);
     frame_argv[frame_depth - 1] = argv;
     if (old != 0 and old != argv) obj.tcl_obj_release(old);
 }
@@ -797,7 +801,9 @@ pub export fn frame_set_script(script_obj: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.script_obj;
-    if (script_obj != 0) obj.tcl_obj_retain(script_obj);
+    // Gate retain on inequality — see ``frame_set_argv`` for the
+    // same-handle re-stamp rationale.
+    if (script_obj != 0 and script_obj != old) obj.tcl_obj_retain(script_obj);
     fi.script_obj = script_obj;
     if (old != 0 and old != script_obj) obj.tcl_obj_release(old);
 }
@@ -847,7 +853,7 @@ pub export fn frame_set_cmd_text(cmd_text: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.cmd_text;
-    if (cmd_text != 0) obj.tcl_obj_retain(cmd_text);
+    if (cmd_text != 0 and cmd_text != old) obj.tcl_obj_retain(cmd_text);
     fi.cmd_text = cmd_text;
     if (old != 0 and old != cmd_text) obj.tcl_obj_release(old);
 }
@@ -858,7 +864,7 @@ pub export fn frame_set_proc_name(proc_name: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.proc_name;
-    if (proc_name != 0) obj.tcl_obj_retain(proc_name);
+    if (proc_name != 0 and proc_name != old) obj.tcl_obj_retain(proc_name);
     fi.proc_name = proc_name;
     if (old != 0 and old != proc_name) obj.tcl_obj_release(old);
 }
@@ -1107,7 +1113,9 @@ pub export fn frame_local_set_at(idx: u32, value: i32) i32 {
     if (idx >= LOCALS_ARRAY_CAP) return value;
     const slot = &frame_locals_array[frame_depth - 1][idx];
     const old = slot.*;
-    if (value != 0) obj.tcl_obj_retain(value);
+    // Same-handle re-stamp must be a net no-op on rc — see
+    // ``frame_set_argv`` for the rationale.
+    if (value != 0 and value != old) obj.tcl_obj_retain(value);
     slot.* = value;
     if (old != 0 and old != value) obj.tcl_obj_release(old);
     return value;

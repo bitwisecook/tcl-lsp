@@ -15,6 +15,7 @@ const obj_new_string = obj.obj_new_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 const obj_new_string_copy = obj.obj_new_string_copy;
+const obj_new_string_take = obj.obj_new_string_take;
 const try_parse_int = obj.try_parse_int;
 const is_space = obj.is_space;
 const list_count_elements = obj.list_count_elements;
@@ -382,10 +383,11 @@ pub export fn string_index(value: i32, idx: i32) i32 {
     const cl = utf8_lead_len(sp[start]);
     const actual = if (start + cl > s.len) s.len - start else cl;
     const buf = alloc(actual);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var k: u32 = 0;
     while (k < actual) : (k += 1) dst[k] = sp[start + k];
-    return obj_new_string(@bitCast(buf), @bitCast(actual));
+    return obj_new_string_take(buf, actual, actual);
 }
 
 // Exported: string range — extract codepoints [first..last] inclusive.
@@ -428,7 +430,9 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
     const n_elems = list_count_elements(sm.ptr, sm.len);
     if (n_elems < 2) return value;
     const n_pairs: u32 = @intCast(@divTrunc(n_elems, 2));
-    const buf = alloc(sv.len * 2 + 64);
+    const alloc_size = sv.len * 2 + 64;
+    const buf = alloc(alloc_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     var out_len: u32 = 0;
     var pos: u32 = 0;
@@ -470,7 +474,7 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
         out_len += 1;
         pos += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return obj_new_string_take(buf, out_len, alloc_size);
 }
 
 // Exported: string match — glob pattern matching (* and ? wildcards).
@@ -1139,13 +1143,14 @@ pub export fn string_repeat(value: i32, count: i32) i32 {
     const cn: u32 = @intCast(n);
     const total = sv.len * cn;
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var i: u32 = 0;
     while (i < cn) : (i += 1) {
         memcpy(buf + off, sv.ptr, sv.len);
         off += sv.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_new_string_take(buf, total, total);
 }
 
 // Exported: string reverse — reverse a string.

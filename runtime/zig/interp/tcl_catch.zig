@@ -296,7 +296,11 @@ pub export fn tcl_return_set(value: i32) void {
     state.pending_return_level = 1;
     state.pending_return_armed = 1;
     const old = state.return_val;
-    if (value != 0) obj.tcl_obj_retain(value);
+    // Same-handle re-stamp must be a no-op on rc.  Earlier code
+    // retained unconditionally and only skipped the matching
+    // release when ``old == value``, so every duplicate stamp
+    // leaked +1.  Gate both sides on the inequality.
+    if (value != 0 and value != old) obj.tcl_obj_retain(value);
     state.return_val = value;
     if (old != 0 and old != value) obj.tcl_obj_release(old);
 }
