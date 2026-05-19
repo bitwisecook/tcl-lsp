@@ -156,6 +156,27 @@ pub struct Analyser {
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
     pub registry: Option<tcl_registry::CommandRegistry>,
+    /// When `true`, the proc handler runs the deep-recursive
+    /// pass of [`super::param_traits::infer_param_traits_deep`]
+    /// after the shallow pass and unions the results via
+    /// [`super::param_traits::merge_traits`].  Off by default —
+    /// the shallow pass is fast enough for synchronous analysis
+    /// and catches the common patterns; the deep pass is
+    /// intended for asynchronous use behind the `S*` call-graph
+    /// / symbol-graph / dataflow-graph / semantic-graph builders.
+    /// Mirrors Python's `deep_param_traits=True` opt-in surface.
+    pub deep_param_traits: bool,
+    /// Per-document stub-command overlay built at the top of
+    /// [`Self::analyse`] from `result.stub_commands` via
+    /// [`super::types::build_stub_overlay`].  Lets analyser /
+    /// compiler queries see user-declared `# tcl-lsp: stub`
+    /// commands as first-class members of the command surface
+    /// without mutating the global [`tcl_registry::CommandRegistry`].
+    /// `None` outside an active analysis run.  Mirrors the
+    /// `_stub_signatures_var` `ContextVar` from Python's
+    /// `core/commands/registry/runtime.py` but tied to the
+    /// (single-threaded) analyser instead of a thread-local.
+    pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -204,6 +225,8 @@ impl Analyser {
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
             registry: None,
+            deep_param_traits: false,
+            stub_overlay: None,
             line_offsets: None,
         }
     }
@@ -283,8 +306,15 @@ impl Analyser {
             &mut self.result.suppressed_lines,
             super::utils::parse_noqa_line_suppressions(source),
         );
-        // Inline ``# tcl-lsp: stub …`` block scan.
+        // Inline ``# tcl-lsp: stub …`` block scan.  After
+        // capturing the parsed records, build the per-document
+        // overlay so analyser / compiler queries see the
+        // user-declared stubs as first-class commands (without
+        // mutating the global registry).  Mirrors the
+        // `_stub_signatures_var` `ContextVar` wiring in Python's
+        // `core/commands/registry/runtime.py`.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
@@ -356,6 +386,7 @@ impl Analyser {
             // the next command.
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
+            self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
 
@@ -609,6 +640,7 @@ impl Analyser {
             }
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+            self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
     }

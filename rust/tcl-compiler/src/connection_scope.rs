@@ -221,7 +221,15 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn cu(source: &str) -> CompilationUnit {
-        let registry = CommandRegistry::build_default();
+        // C43 sub-strip 4: `when` is registry-resolved.  This
+        // module's tests all lower iRule code (`when
+        // CLIENT_ACCEPTED { ... }`), so the test registry must
+        // load iRules to make `when` resolve to `LoweringHookId
+        // ::When`.  Without the load, `when` would fall through
+        // to `lower_default` and no `::when::*` procedures would
+        // be registered for the connection-scope builder to walk.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
         CompilationUnit::build_for(source, &registry, false)
     }
 

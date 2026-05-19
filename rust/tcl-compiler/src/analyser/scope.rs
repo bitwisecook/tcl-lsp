@@ -74,6 +74,117 @@ impl Analyser {
             .expect("current_scope_path must be valid")
     }
 
+    /// Walk every `Var` token in a segmented command and call
+    /// [`Self::record_var_read`] for each.  This is how the
+    /// analyser tracks `$x` substitutions in arg positions
+    /// (`puts $x`, `string length $name`, etc.) — without it,
+    /// `VarDef.references` would only carry the explicit
+    /// single-arg `set x` read sites that `handle_set_command`
+    /// records.
+    ///
+    /// The token-text helper uses [`tcl_lexer::SourceMap`] to
+    /// recover each `$name` token's textual content from the
+    /// source bytes — `Var` tokens carry only their span, not
+    /// the inner name.  The `$` prefix is stripped; `${name}`
+    /// braced forms are decoded down to `name`.
+    pub fn record_arg_var_reads(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+        scope_path: &[usize],
+    ) {
+        use tcl_lexer::TokenType;
+        // Collect (name, span) tuples in a first pass so the
+        // source borrow releases before we mutate `self` via
+        // `record_var_read`.  Token spans that exceed the
+        // source bounds (which happens in test harnesses that
+        // pass synthetic tokens against an empty source) are
+        // silently skipped — they aren't reading anything
+        // meaningful.
+        let head_span = cmd.argv.first().map(|t| t.span);
+        let source_len = u32::try_from(self.source.len()).unwrap_or(u32::MAX);
+        let mut reads: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        for tok in &cmd.all_tokens {
+            if tok.kind != TokenType::Var {
+                continue;
+            }
+            if head_span.is_some_and(|hs| tok.span == hs) {
+                continue;
+            }
+            if tok.span.end() > source_len {
+                continue;
+            }
+            let text = &self.source[tok.span.start() as usize..tok.span.end() as usize];
+            let name = if let Some(rest) = text.strip_prefix('$') {
+                if let Some(stripped) = rest.strip_prefix('{') {
+                    stripped.strip_suffix('}').unwrap_or(stripped)
+                } else {
+                    rest
+                }
+            } else {
+                continue;
+            };
+            if name.is_empty() {
+                continue;
+            }
+            reads.push((name.to_string(), tok.span));
+        }
+        for (name, span) in reads {
+            self.record_var_read(&name, span, scope_path);
+        }
+    }
+
+    /// Compute the scope-resolved qualified name for a command
+    /// invocation at the current walk position.  Mirrors
+    /// Python's `_resolve_command_qualified_name` logic.
+    ///
+    /// * Names starting with `::` are already absolute and are
+    ///   returned as-is.
+    /// * Names with embedded `::` but no leading `::` are
+    ///   absolute-from-global by Tcl convention; the helper
+    ///   prepends `::`.
+    /// * Simple names are joined with the nearest enclosing
+    ///   namespace scope: `cmd` inside `namespace eval ::ns`
+    ///   becomes `::ns::cmd`; at the top level it becomes
+    ///   `::cmd`.
+    ///
+    /// Returned strings are intended for matching against
+    /// [`super::types::ProcDef::qualified_name`] in references
+    /// / document-highlight / rename providers.  The value is
+    /// not authoritative for runtime dispatch — it's a
+    /// candidate that lets call-site → declaration matching
+    /// resolve relative call shapes.
+    #[must_use]
+    pub fn resolve_command_qualified_name(&self, cmd_name: &str) -> String {
+        if cmd_name.starts_with("::") {
+            return cmd_name.to_string();
+        }
+        if cmd_name.contains("::") {
+            return format!("::{cmd_name}");
+        }
+        // Walk the current scope path up to the nearest
+        // namespace scope and join its `name` with the cmd.
+        // The global scope's name is `"::"` so the simple-name
+        // case at the top level becomes `"::cmd"`.
+        let mut path = self.current_scope_path.clone();
+        loop {
+            let scope =
+                scope_at(&self.result.global_scope, &path).unwrap_or(&self.result.global_scope);
+            if scope.kind == super::types::ScopeKind::Namespace || path.is_empty() {
+                let prefix = scope.name.as_str();
+                return if prefix == "::" {
+                    format!("::{cmd_name}")
+                } else {
+                    format!("{prefix}::{cmd_name}")
+                };
+            }
+            if path.is_empty() {
+                break;
+            }
+            path.pop();
+        }
+        format!("::{cmd_name}")
+    }
+
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
     ///

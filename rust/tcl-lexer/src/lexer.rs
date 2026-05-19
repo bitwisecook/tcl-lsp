@@ -185,6 +185,38 @@ impl Default for LexerConfig {
     }
 }
 
+impl LexerConfig {
+    /// Build a config preset for the given dialect name.
+    ///
+    /// Mirrors Python's per-request dialect resolution in
+    /// `core/parsing/lexer.py::_expand_syntax_active` /
+    /// `_irules_brace_separator_active`:
+    ///
+    /// * `expand_syntax` — true for Tcl 8.5+ and dialects
+    ///   that build on Tcl 8.5+ (Tk, Expect, EDA flavours).
+    ///   False for Tcl 8.4 and iRules.
+    /// * `irules_brace_separator` — true only for iRules.
+    ///
+    /// Unknown dialect names fall back to `Self::default()`
+    /// (Tcl-8.5+ semantics) so a typo in a workspace's
+    /// `languageId` doesn't change parsing behaviour.
+    #[must_use]
+    pub fn for_dialect(dialect: &str) -> Self {
+        match dialect {
+            "tcl8.4" => Self {
+                expand_syntax: false,
+                ..Self::default()
+            },
+            "f5-irules" => Self {
+                expand_syntax: false,
+                irules_brace_separator: true,
+                ..Self::default()
+            },
+            _ => Self::default(),
+        }
+    }
+}
+
 /// Errors produced by the Tcl lexer.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum LexError {
@@ -2503,5 +2535,34 @@ mod tests {
         let (start, end) = map.range_positions(expand.span);
         assert_eq!(start, SourcePosition::new(0, 0, 0));
         assert_eq!(end, SourcePosition::new(0, 0, 0));
+    }
+
+    #[test]
+    fn for_dialect_tcl84_disables_expand_syntax() {
+        let cfg = LexerConfig::for_dialect("tcl8.4");
+        assert!(!cfg.expand_syntax);
+        assert!(!cfg.irules_brace_separator);
+    }
+
+    #[test]
+    fn for_dialect_tcl86_keeps_defaults() {
+        let cfg = LexerConfig::for_dialect("tcl8.6");
+        assert!(cfg.expand_syntax);
+        assert!(!cfg.irules_brace_separator);
+    }
+
+    #[test]
+    fn for_dialect_irules_enables_brace_separator() {
+        let cfg = LexerConfig::for_dialect("f5-irules");
+        assert!(!cfg.expand_syntax);
+        assert!(cfg.irules_brace_separator);
+    }
+
+    #[test]
+    fn for_dialect_unknown_falls_back_to_defaults() {
+        let cfg = LexerConfig::for_dialect("not-a-real-dialect");
+        let default = LexerConfig::default();
+        assert_eq!(cfg.expand_syntax, default.expand_syntax);
+        assert_eq!(cfg.irules_brace_separator, default.irules_brace_separator);
     }
 }

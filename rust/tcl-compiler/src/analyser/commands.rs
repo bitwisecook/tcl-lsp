@@ -102,6 +102,11 @@ impl Analyser {
                 );
             }
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+            // `S-document-highlight-rich` / `S-references-rich`
+            // follow-up: record every `$var` substitution in
+            // arg positions so `VarDef.references` carries the
+            // read spans the LSP providers consume.
+            self.record_arg_var_reads(&cmd, scope_path);
             cmd_idx += 1 + consumed;
         }
         self.body_depth -= 1;
@@ -168,10 +173,12 @@ impl Analyser {
         // points at the unresolved name rather than the whole
         // command line.
         let cmd_tok = arg_tokens_in[0];
+        let resolved = self.resolve_command_qualified_name(cmd_name);
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
                 name: cmd_name.to_string(),
                 range: cmd_tok.span,
+                resolved_qualified_name: Some(resolved),
             },
         );
 
@@ -185,10 +192,12 @@ impl Analyser {
             if let (Some(target_name), Some(target_tok)) =
                 (args.first(), arg_tokens_in.get(1).copied())
             {
+                let resolved = self.resolve_command_qualified_name(target_name);
                 self.result.command_invocations.push(
                     crate::signature_scan::types::SignatureCommandInvocation {
                         name: target_name.clone(),
                         range: target_tok.span,
+                        resolved_qualified_name: Some(resolved),
                     },
                 );
             }
@@ -546,10 +555,12 @@ impl Analyser {
             let abs_start = arg_start + head_byte_off;
             let abs_end = abs_start
                 + u32::try_from(head.len()).expect("token length fits in u32 for in-memory source");
+            let resolved = self.resolve_command_qualified_name(head);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: head.to_string(),
                     range: tcl_lexer::Span::new(abs_start, abs_end),
+                    resolved_qualified_name: Some(resolved),
                 },
             );
         }
@@ -560,10 +571,12 @@ impl Analyser {
             let abs_start = arg_start + off_in_outer;
             let abs_end = abs_start
                 + u32::try_from(name.len()).expect("token length fits in u32 for in-memory source");
+            let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
+                    resolved_qualified_name: Some(resolved),
                 },
             );
         }
@@ -599,10 +612,12 @@ impl Analyser {
             let abs_start = inner_base + off;
             let abs_end = abs_start
                 + u32::try_from(name.len()).expect("token length fits in u32 for in-memory source");
+            let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
+                    resolved_qualified_name: Some(resolved),
                 },
             );
         }

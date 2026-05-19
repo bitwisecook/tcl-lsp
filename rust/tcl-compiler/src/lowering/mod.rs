@@ -9,6 +9,8 @@
 use std::collections::HashMap;
 
 use tcl_lexer::TokenType;
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::alias::{detect_interp_alias, resolve_alias, CommandAliasMap};
@@ -656,6 +658,210 @@ impl<'r> Lowerer<'r> {
         })
     }
 
+    /// Try to dispatch *`cmd_name`* through the registry's typed
+    /// [`LoweringHookId`] for structured commands that have
+    /// migrated off the `match cmd_name` block in
+    /// [`lower_command`](Self::lower_command).  Returns
+    /// `Some(stmt)` when the hook ID matches a migrated form;
+    /// returns `None` otherwise so `lower_command` falls back to
+    /// its remaining string-pattern arms.
+    ///
+    /// C43 migration sequencing: each structured command form
+    /// migrates as its own sub-commit per the chunk-log row's
+    /// "each command form's hook lands as its own sub-commit"
+    /// directive.
+    ///
+    /// * Sub-strip 1 — `eval`, `uplevel` (pilot, dialect-agnostic
+    ///   single-method dispatch).
+    /// * Sub-strip 2 — `if`, `switch`, `for`, `while`, `catch`,
+    ///   `try` (straightforward single-method dispatch).
+    /// * Sub-strip 3 — `proc`, `namespace eval`, `foreach`,
+    ///   `lmap`, `dict` (arity / subcommand / shared-method
+    ///   preconditions handled inside the match arm; falling
+    ///   the precondition returns `None` so `lower_command`'s
+    ///   `_ => lower_default(...)` arm catches it).
+    /// * Sub-strip 4 — `when` (iRules dialect; production
+    ///   callers load the dialect, tests that need it call
+    ///   `load_irules()` explicitly), and `foreachLine` (Tcl
+    ///   9.0+, always registered in `build_default()` via the
+    ///   `tcl::foreachline` spec; the bare-name registration
+    ///   now carries the dedicated `LoweringHookId::ForeachLine`
+    ///   stamp so the registry resolves it without the string
+    ///   match).  With sub-strip 4 in, `lower_command` no
+    ///   longer has any per-name fallback — every structured
+    ///   form routes through `resolve_call().lowering_hook`,
+    ///   and unmatched commands flow straight to
+    ///   `lower_default`.
+    ///
+    /// The migrated forms pick up two benefits over the string
+    /// match:
+    ///
+    /// 1. Canonical resolution via [`CommandRegistry::resolve_call`]
+    ///    instead of bare name comparison, so any future spec
+    ///    that aliases an existing form (e.g. an iRules-specific
+    ///    `eval` variant) automatically dispatches correctly
+    ///    when its `lowering_hook` is stamped.
+    /// 2. The hook ID is the canonical key consumed by downstream
+    ///    audit / LSP / compiler-explorer surfaces; once the
+    ///    runtime path also routes through it, the registry is
+    ///    the single source of truth for "what does this form
+    ///    lower to".
+    fn try_dispatch_structured_hook(
+        &mut self,
+        cmd_name: &str,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Option<Statement> {
+        let args = seg.args();
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let resolved = self
+            .registry
+            .resolve_call(cmd_name, &arg_refs, DialectSet::empty())?;
+        match resolved.lowering_hook? {
+            // C34a: static-body uplevel.  Match `uplevel 1 {body}`,
+            // `uplevel #0 {body}`, and the canonical no-level form
+            // `uplevel {body}` (level defaults to 1) when the body
+            // arg is a brace-string literal token.  Dynamic forms
+            // (`uplevel 1 $body` / `uplevel $lvl {body}`) fall
+            // through to the default lowering so a runtime
+            // `Call` / `Barrier` carries the unresolved arguments.
+            LoweringHookId::Uplevel => Some(
+                self.try_lower_uplevel_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
+            // C35b: `eval $body` / `eval {body}` with a literal /
+            // const-folded body relaxes to a `Statement::Block` so
+            // downstream analyses see the inlined script.  Dynamic
+            // bodies (`eval $dyn` with no const-map binding,
+            // `eval [cmd]`) fall through to the default barrier
+            // dispatch.
+            LoweringHookId::Eval => Some(
+                self.try_lower_eval_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
+            // C43 sub-strip 2: straightforward control-flow forms.
+            // Each is a single-method dispatch with no arity /
+            // shared-method / subcommand complications, so the
+            // migration is a pure 1:1 swap of the dispatch key.
+            LoweringHookId::If => Some(self.lower_if(seg, namespace)),
+            LoweringHookId::Switch => Some(self.lower_switch(seg, namespace)),
+            LoweringHookId::For => Some(self.lower_for(seg, namespace)),
+            LoweringHookId::While => Some(self.lower_while(seg, namespace)),
+            LoweringHookId::Catch => Some(self.lower_catch(seg, namespace)),
+            LoweringHookId::Try => Some(self.lower_try(seg, namespace)),
+
+            // C43 sub-strip 3: forms with shape preconditions.
+            // The original `match cmd_name` block guarded these
+            // arms so calls with the wrong arity / shape fell
+            // through to `lower_default` instead of crashing
+            // the dedicated lowerer.  Mirror that here by
+            // returning `None` on precondition failure —
+            // `lower_command` then falls through to its
+            // `_ => lower_default(...)` arm.
+            //
+            // `proc name params body` — exactly three args and
+            // at least three token slices (the body needs to
+            // be a real token, not synthesised whitespace).
+            LoweringHookId::Proc => {
+                if args.len() == 3 && seg.arg_tokens().len() >= 3 {
+                    Some(self.lower_proc(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `namespace eval ns body` — the subcommand match
+            // is already handled by `resolve_call`, so the
+            // hook only fires for the `eval` subcommand.  Keep
+            // the arity / token-count guards (a tokenless body
+            // would derail body lowering).
+            LoweringHookId::NamespaceEval => {
+                if args.len() >= 3 && seg.arg_tokens().len() >= 3 {
+                    Some(self.lower_namespace_eval(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `foreach vars list body` / `lmap vars list body`
+            // — share `lower_foreach(... is_lmap)`.  The
+            // dedicated lowerer handles its own shape errors,
+            // so no precondition here.
+            LoweringHookId::Foreach => Some(self.lower_foreach(seg, namespace, false)),
+            LoweringHookId::Lmap => Some(self.lower_foreach(seg, namespace, true)),
+            // `dict <subcommand> ...` — must have at least one
+            // arg so the subcommand can be picked.  Bare `dict`
+            // falls through to `lower_default`.
+            LoweringHookId::Dict => {
+                if args.is_empty() {
+                    None
+                } else {
+                    Some(self.lower_dict(seg, namespace))
+                }
+            }
+
+            // C43 sub-strip 4: the last two structured forms.
+            //
+            // `when EVENT ?priority N? body` — iRules event
+            // handler.  The hook stamp lives on the `when` spec
+            // in `tcl-registry/src/commands/irules/when.rs`,
+            // which `load_dialect(DialectSet::IRULES)` brings
+            // into the registry.  Production callers (LSP
+            // server / Python bindings) load the active dialect
+            // before lowering; tests that lower iRule code call
+            // `registry.load_irules()` explicitly (see
+            // `irules_checks::tests::registry`).  Callers that
+            // lower iRule code against a vanilla `build_default()`
+            // registry now silently flow through to
+            // `lower_default` — that path was always a
+            // misconfiguration; the dialect needs to match the
+            // source.
+            LoweringHookId::When => {
+                if args.len() >= 2 && seg.arg_tokens().len() >= 2 {
+                    Some(self.lower_when(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `foreachLine varName filename body` — Tcl 9.0
+            // (TIP 670).  Always registered in `build_default()`
+            // via `tcl::foreachline::spec`, so no dialect-load
+            // dance is needed.  The `lower_foreach_line`
+            // emitter handles its own shape errors and
+            // dynamic-body fallback, but we keep the original
+            // `args.len() == 3` guard to mirror the previous
+            // string-pattern arm's contract — an under- or
+            // over-argued `foreachLine` flows to
+            // `lower_default` instead of triggering a barrier
+            // inside the dedicated emitter.
+            LoweringHookId::ForeachLine => {
+                if args.len() == 3 {
+                    Some(self.lower_foreach_line(seg, namespace))
+                } else {
+                    None
+                }
+            }
+
+            // Non-structured hooks (`Expr` / `Return` / `Set` /
+            // `Incr` / `AppendOrLappend` / `Unset` / `Global` /
+            // `Variable` / `Upvar`) are handled by
+            // [`try_lower_hook`] before [`lower_command`] reaches
+            // this dispatcher.  They can still reach here when
+            // their static dispatcher returned `None` for the
+            // input shape (e.g. `try_lower_expr` rejects
+            // multi-arg `expr`); fall through to `lower_default`.
+            LoweringHookId::Expr
+            | LoweringHookId::Return
+            | LoweringHookId::Set
+            | LoweringHookId::Incr
+            | LoweringHookId::AppendOrLappend
+            | LoweringHookId::Unset
+            | LoweringHookId::Global
+            | LoweringHookId::Variable
+            | LoweringHookId::Upvar => None,
+        }
+    }
+
     /// Lower a single command.
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
@@ -691,80 +897,37 @@ impl<'r> Lowerer<'r> {
             return Some(barrier);
         }
 
-        // C43 status: the registry now declares a typed
-        // `LoweringHookId` for every structured command spec
-        // (Proc / When / NamespaceEval / If / Switch / For /
-        // While / Foreach / Lmap / Catch / Try / Dict / Eval /
-        // Uplevel).  Downstream consumers (LSP, compiler explorer,
-        // coverage audit) can read the canonical hook from the
-        // registry instead of re-parsing names.  Runtime dispatch
-        // still flows through the string-pattern match below — the
-        // structured methods need `&mut self` access to the const-
-        // map / proc-depth / dead-code-depth state, and switching
-        // to a registry-driven runtime path requires the iRules
-        // dialect to always be loaded (test harnesses use
-        // `build_default()` without `load_irules()`, so `when`
-        // isn't registered there).  The migration to a
-        // hook-ID-driven runtime dispatch lands as a follow-up
-        // sub-strip once the registry-load path is unified.
-        match cmd_name {
-            "proc" if args.len() == 3 && seg.arg_tokens().len() >= 3 => {
-                Some(self.lower_proc(seg, namespace))
-            }
-
-            "when" if args.len() >= 2 && seg.arg_tokens().len() >= 2 => {
-                Some(self.lower_when(seg, namespace))
-            }
-
-            "namespace" if args.len() >= 3 && args[0] == "eval" && seg.arg_tokens().len() >= 3 => {
-                Some(self.lower_namespace_eval(seg, namespace))
-            }
-
-            // C34a: static-body uplevel. Match `uplevel 1 {body}`,
-            // `uplevel #0 {body}`, and the canonical no-level form
-            // `uplevel {body}` (level defaults to 1) when the body
-            // arg is a brace-string literal token. Dynamic forms
-            // (``uplevel 1 $body`` / ``uplevel $lvl {body}``) fall
-            // through to the default lowering so a runtime ``Call`` /
-            // ``Barrier`` carries the unresolved arguments.
-            "uplevel" => Some(
-                self.try_lower_uplevel_static(seg, namespace)
-                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
-            ),
-
-            // C35b: ``eval $body`` / ``eval {body}`` with a literal /
-            // const-folded body relaxes to a ``Statement::Block`` so
-            // downstream analyses see the inlined script. Dynamic
-            // bodies (``eval $dyn`` with no const-map binding, ``eval
-            // [cmd]``) fall through to the default barrier dispatch.
-            "eval" => Some(
-                self.try_lower_eval_static(seg, namespace)
-                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
-            ),
-
-            "if" => Some(self.lower_if(seg, namespace)),
-            "switch" => Some(self.lower_switch(seg, namespace)),
-            "for" => Some(self.lower_for(seg, namespace)),
-            "while" => Some(self.lower_while(seg, namespace)),
-            "foreach" => Some(self.lower_foreach(seg, namespace, false)),
-            "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
-            "lmap" => Some(self.lower_foreach(seg, namespace, true)),
-            "catch" => Some(self.lower_catch(seg, namespace)),
-            "try" => Some(self.lower_try(seg, namespace)),
-            "dict" if !args.is_empty() => Some(self.lower_dict(seg, namespace)),
-
-            _ => Some(self.lower_default(seg, namespace)),
+        // C43: registry-driven hook-ID dispatch covers all 15
+        // structured command forms — every typed
+        // `LoweringHookId` (Proc, When, NamespaceEval, If,
+        // Switch, For, While, Foreach, Lmap, ForeachLine, Catch,
+        // Try, Dict, Eval, Uplevel) now flows through
+        // [`try_dispatch_structured_hook`].  Commands that
+        // aren't in the registry, or whose hook is `None`, fall
+        // through to [`lower_default`] below.  The string-
+        // pattern `match cmd_name` block that used to handle
+        // these forms is gone.
+        if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
+            return Some(stmt);
         }
+
+        Some(self.lower_default(seg, namespace))
     }
 
     /// Lower `proc name params body`.
-    #[allow(clippy::too_many_lines)] // sequential, comment-heavy
+    ///
+    /// Sequential phases:
+    ///   1. Empty-simple-name barrier (`proc ::ns:: {…} {…}`).
+    ///   2. Dynamic name resolution (`proc $x …` / `proc [cmd] …`).
+    ///   3. Dynamic body / params check, with const-map body
+    ///      materialisation when possible.
+    ///   4. IR registration + emit the runtime `proc` call.
     fn lower_proc(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
 
-        // Empty-simple-name procs (`proc ::ns:: {args} {body}`): Tcl
-        // 9 lets a trailing `::` register a command named `""` inside
+        // Phase 1: empty-simple-name procs (`proc ::ns:: {args} {body}`).
+        // Tcl 9 lets a trailing `::` register a command named `""` inside
         // the target namespace (`TclGetNamespaceForQualName` returns
         // `simpleName=""` rather than NULL for trailing colons on
         // cmd/var lookups — tclNamesp.c:2493).  Our static
@@ -787,124 +950,29 @@ impl<'r> Lowerer<'r> {
             };
         }
 
-        // Dynamic proc names: a bare ``$var`` whose value is in the
-        // const-map can be resolved at lowering time (C36b — main
-        // commit `2ad4efc9`). Multi-token names (``foo_$x``) and
-        // command-substitution names (``$name[suffix]``) stay on
-        // the runtime path.
-        let proc_name_owned: String;
-        let mut args_owned: Vec<String>;
-        let name_was_substituted: bool;
-        if proc_name_initial.contains('$') || proc_name_initial.contains('[') {
-            let arg_tokens = seg.arg_tokens();
-            let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
-            let resolved = if !proc_name_initial.contains('[')
-                && single_token_proc_name
-                && arg_tokens
-                    .first()
-                    .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
-            {
-                self.const_map_lookup(proc_name_initial)
-            } else {
-                None
+        // Phase 2: dynamic proc name resolution.
+        let (proc_name_owned, args_owned, name_was_substituted) =
+            match self.resolve_dynamic_proc_name(seg, args_borrow) {
+                Ok(triple) => triple,
+                Err(barrier) => return *barrier,
             };
-            let Some(literal) = resolved else {
-                return Statement::Barrier {
-                    span: seg.span,
-                    reason: "dynamic proc name".into(),
-                    command: "proc".into(),
-                    canonical_command: None,
-                    args: args_borrow.to_vec(),
-                    tokens: Some(Self::cmd_tokens(seg)),
-                };
-            };
-            proc_name_owned = literal;
-            args_owned = args_borrow.to_vec();
-            args_owned[0].clone_from(&proc_name_owned);
-            name_was_substituted = true;
-        } else {
-            proc_name_owned = proc_name_initial.clone();
-            args_owned = args_borrow.to_vec();
-            name_was_substituted = false;
-        }
-        // Re-bind ``args`` and ``proc_name`` to the (possibly
-        // substituted) owned values.
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
 
-        // Dynamic body / params materialisation (PR #393, 0fc2d6a9).
-        //
-        // A body that is a single ``$var`` / ``[cmd]`` token (and not
-        // a multi-token word like ``"foo$bar"``) can be materialised:
-        //   * ``[subst -nocommands {…}]`` evaluates when every
-        //     ``$var`` inside is const-tracked.
-        //   * Bare ``$var`` looks up the const-map.
-        // A multi-token body (single-token-word == false) is always
-        // dynamic — the source text contains runtime substitutions we
-        // can't compile.  Dynamic params have no static arg-list, so
-        // any dynamic-params shape bails to a runtime barrier.
-        //
-        // When the body is dynamic and we can't materialise it BUT
-        // the proc name resolved via the const-map, we still register
-        // the IRProcedure (with an empty body) so static analysis
-        // sees the proc; the IRCall below carries the correct dynamic
-        // body bytes to the runtime ``proc`` command.
-        let arg_tokens = seg.arg_tokens();
-        let params_tok = arg_tokens[1];
-        let body_tok = arg_tokens[2];
-        // `single_token_word[0]` covers the command itself; args[0..]
-        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
-        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
-        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
-        let body_is_dynamic = matches!(
-            body_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) || !body_is_single;
-        let params_is_dynamic = matches!(
-            params_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) || !params_is_single;
-        let materialised_body: Option<String> =
-            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
-                // `args[2]` is the `word_piece`-reconstructed source — for
-                // a Cmd token that's `[subst -nocommands {…}]` (with the
-                // brackets re-added).  `eval_subst_nocommands_body`
-                // segments its input as a top-level Tcl command stream
-                // and expects the inner content, so strip the outer
-                // `[…]` before handing it over.  Mirrors Python's
-                // `body_tok.text`, which the lexer already stores without
-                // brackets.
-                args[2]
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
-            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
-                self.const_map_lookup(&args[2])
-            } else {
-                None
+        // Phase 3: dynamic body / params check, plus body
+        // materialisation via the const-map (PR #393 / `0fc2d6a9`).
+        let (materialised_body, body_is_dynamic, body_offset) =
+            match self.check_proc_body_dynamic(seg, args, name_was_substituted) {
+                Ok(triple) => triple,
+                Err(barrier) => return *barrier,
             };
-        if params_is_dynamic
-            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
-        {
-            return Statement::Barrier {
-                span: seg.span,
-                reason: if params_is_dynamic {
-                    "dynamic proc params"
-                } else {
-                    "dynamic proc body"
-                }
-                .into(),
-                command: "proc".into(),
-                canonical_command: None,
-                args: args_borrow.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
-            };
-        }
 
+        // Phase 4: lower the body (materialised, static, or empty
+        // for dynamic-with-resolved-name), register the IRProcedure,
+        // and emit the runtime `proc` Call.
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
         let body_text = &args[2];
-        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // C37b: fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
@@ -916,7 +984,6 @@ impl<'r> Lowerer<'r> {
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
-            // Lower the materialised text as a fresh script.
             self.lower_script(&text, namespace)
         } else if body_is_dynamic {
             // Dynamic body, no materialisation possible — but the
@@ -962,6 +1029,131 @@ impl<'r> Lowerer<'r> {
             tokens: Some(Self::cmd_tokens(seg)),
             foreach_groups: None,
         }
+    }
+
+    /// Resolve a proc name that may be a `$var` / `[cmd]` substitution.
+    ///
+    /// Returns the resolved name, the (possibly rewritten) args
+    /// vector, and a `name_was_substituted` flag.  A literal name
+    /// short-circuits to `Ok` with the original args.  A dynamic
+    /// name that can't be resolved via the const-map returns `Err`
+    /// with a "dynamic proc name" barrier — the caller propagates
+    /// it as the statement.
+    ///
+    /// C36b — main commit `2ad4efc9`.  Multi-token names
+    /// (`foo_$x`) and command-substitution names (`$name[suffix]`)
+    /// stay on the runtime path.
+    fn resolve_dynamic_proc_name(
+        &mut self,
+        seg: &SegmentedCommand,
+        args_borrow: &[String],
+    ) -> Result<(String, Vec<String>, bool), Box<Statement>> {
+        let proc_name_initial = &args_borrow[0];
+        if !proc_name_initial.contains('$') && !proc_name_initial.contains('[') {
+            return Ok((proc_name_initial.clone(), args_borrow.to_vec(), false));
+        }
+
+        let arg_tokens = seg.arg_tokens();
+        let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
+        let resolved = if !proc_name_initial.contains('[')
+            && single_token_proc_name
+            && arg_tokens
+                .first()
+                .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
+        {
+            self.const_map_lookup(proc_name_initial)
+        } else {
+            None
+        };
+
+        let Some(literal) = resolved else {
+            return Err(Box::new(Statement::Barrier {
+                span: seg.span,
+                reason: "dynamic proc name".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            }));
+        };
+
+        let mut args_owned = args_borrow.to_vec();
+        args_owned[0].clone_from(&literal);
+        Ok((literal, args_owned, true))
+    }
+
+    /// Check whether the proc body and/or params are dynamic, and
+    /// attempt to materialise the body from the const-map (PR #393 /
+    /// `0fc2d6a9`).
+    ///
+    /// Returns:
+    ///   * `Ok((Some(text), _, body_offset))` — body materialised
+    ///     successfully; caller should lower `text` as a fresh
+    ///     script.
+    ///   * `Ok((None, body_is_dynamic, body_offset))` — body is
+    ///     static (lower from source) or dynamic-with-name-resolved
+    ///     (lower as empty Script).
+    ///   * `Err(barrier)` — params dynamic, or body dynamic without
+    ///     name substitution.  Caller propagates the barrier.
+    fn check_proc_body_dynamic(
+        &mut self,
+        seg: &SegmentedCommand,
+        args: &[String],
+        name_was_substituted: bool,
+    ) -> Result<(Option<String>, bool, u32), Box<Statement>> {
+        let arg_tokens = seg.arg_tokens();
+        let params_tok = arg_tokens[1];
+        let body_tok = arg_tokens[2];
+        // `single_token_word[0]` covers the command itself; args[0..]
+        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
+        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
+        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
+        let body_is_dynamic = matches!(
+            body_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !body_is_single;
+        let params_is_dynamic = matches!(
+            params_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !params_is_single;
+        let materialised_body: Option<String> =
+            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
+                // `args[2]` is the `word_piece`-reconstructed source
+                // — for a Cmd token that's `[subst -nocommands {…}]`
+                // (with the brackets re-added).
+                // `eval_subst_nocommands_body` segments its input as
+                // a top-level Tcl command stream and expects the
+                // inner content, so strip the outer `[…]` before
+                // handing it over.  Mirrors Python's `body_tok.text`,
+                // which the lexer already stores without brackets.
+                args[2]
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
+            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
+                self.const_map_lookup(&args[2])
+            } else {
+                None
+            };
+        if params_is_dynamic
+            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
+        {
+            return Err(Box::new(Statement::Barrier {
+                span: seg.span,
+                reason: if params_is_dynamic {
+                    "dynamic proc params"
+                } else {
+                    "dynamic proc body"
+                }
+                .into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: seg.args().to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            }));
+        }
+        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
     /// Lower `when EVENT ?priority N? body`.
@@ -2318,5 +2510,331 @@ mod tests {
             matches!(stmt, Statement::Block { .. }),
             "expected Block (relaxed), got {stmt:?}",
         );
+    }
+
+    // C43 first sub-strip: `eval` and `uplevel` migrate to
+    // registry-driven hook-ID dispatch.  The next three tests
+    // confirm the new path produces the same output the string-
+    // pattern arms used to produce.
+
+    #[test]
+    fn registry_dispatch_eval_static_body_lowers_to_block() {
+        // `eval {body}` with a literal body should still relax
+        // to `Statement::Block` when dispatched through the
+        // registry-driven path.
+        let m = lower_to_ir("eval { set y 2 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Block { .. }),
+            "expected Block via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_uplevel_static_body_lowers_to_upframe() {
+        // `uplevel 1 {body}` with a literal body should lower
+        // to a UpFrame via the registry-driven path.
+        let m = lower_to_ir("uplevel 1 { set z 3 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::UpFrame { .. }),
+            "expected UpFrame via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_unknown_command_falls_through_to_default() {
+        // After C43 sub-strip 4, `lower_command` has no per-
+        // name fallback — commands that aren't in the registry
+        // (or whose `lowering_hook` is `None`) route directly
+        // to [`Lowerer::lower_default`], which emits a generic
+        // `Statement::Call`.  Pin that contract with a clearly
+        // unknown command name.
+        let m = lower_to_ir("totallyMadeUpCommand arg1 arg2", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "totallyMadeUpCommand",
+                "expected generic Call via lower_default, got command={command}",
+            ),
+            other => panic!("expected Call via lower_default, got {other:?}"),
+        }
+    }
+
+    // C43 sub-strip 2: `if`, `switch`, `for`, `while`, `catch`,
+    // `try` migrate to registry-driven hook-ID dispatch.  These
+    // tests pin the new path's output to the same shape the
+    // string-pattern arms used to produce.
+
+    #[test]
+    fn registry_dispatch_if_lowers_to_if() {
+        let m = lower_to_ir("if {1} { set q 4 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::If { .. }),
+            "expected If via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_switch_lowers_to_switch() {
+        let m = lower_to_ir("switch a { a { set q 1 } b { set q 2 } }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Switch { .. }),
+            "expected Switch via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_for_lowers_to_for() {
+        let m = lower_to_ir("for {set i 0} {$i < 3} {incr i} { set q $i }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::For { .. }),
+            "expected For via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_while_lowers_to_while() {
+        let m = lower_to_ir("while {0} { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::While { .. }),
+            "expected While via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_catch_lowers_to_catch() {
+        let m = lower_to_ir("catch { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Catch { .. }),
+            "expected Catch via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_try_lowers_to_try() {
+        let m = lower_to_ir("try { set q 1 } on error e { set q 2 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Try { .. }),
+            "expected Try via registry hook, got {stmt:?}",
+        );
+    }
+
+    // C43 sub-strip 3: `proc`, `namespace eval`, `foreach`,
+    // `lmap`, `dict` migrate to registry-driven hook-ID dispatch,
+    // with shape preconditions enforced inside each match arm.
+
+    #[test]
+    fn registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure() {
+        let m = lower_to_ir("proc greet {name} { puts hi }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "proc",
+                "expected `proc` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+        assert!(
+            m.procedures.contains_key("::greet"),
+            "expected ::greet to be registered in module.procedures, got keys={:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_proc_wrong_arity_falls_through_to_default() {
+        // `proc` with two args — fails the `args.len() == 3`
+        // precondition.  The registry-driven path returns None,
+        // falls through to the residual string match's
+        // `_ => lower_default(...)` arm, which produces a
+        // runtime `Call` rather than registering a procedure.
+        let m = lower_to_ir("proc greet onlytwo", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
+        );
+        assert!(
+            !m.procedures.contains_key("::greet"),
+            "expected ::greet NOT to be registered when arity is wrong",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_namespace_eval_lowers_to_barrier() {
+        // `lower_namespace_eval` emits a `Statement::Barrier`
+        // tagged with `reason: "namespace eval"`.
+        let m = lower_to_ir("namespace eval ::myns { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Barrier { reason, .. } => assert_eq!(
+                reason, "namespace eval",
+                "expected `namespace eval` barrier via registry hook, got reason={reason}",
+            ),
+            other => panic!("expected Barrier via registry hook, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn registry_dispatch_namespace_non_eval_subcommand_falls_through() {
+        // `namespace import` has no `lowering_hook` on its
+        // subcommand spec, so `resolve_call` returns hook=None.
+        // The registry-driven dispatcher returns None and the
+        // residual string match's `_ => lower_default(...)`
+        // arm produces a generic `Call`.
+        let m = lower_to_ir("namespace import ::foo::*", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_lowers_to_foreach() {
+        let m = lower_to_ir("foreach v {1 2 3} { set q $v }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_lmap_lowers_to_foreach() {
+        // `lmap` shares `lower_foreach(... is_lmap=true)` with
+        // `foreach`; both produce `Statement::Foreach`.
+        let m = lower_to_ir("lmap v {1 2 3} { expr {$v + 1} }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach (is_lmap=true) via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_dict_lowers_via_lower_dict() {
+        // `dict set d k v` exercises the `lower_dict`
+        // subcommand-dispatch path.  Pin the registry-driven
+        // route by checking the canonical command name on the
+        // emitted Call.
+        let m = lower_to_ir("dict set d k v", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "dict",
+                "expected `dict` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn registry_dispatch_dict_empty_args_falls_through_to_default() {
+        // Bare `dict` — fails the `!args.is_empty()`
+        // precondition, falls through to `lower_default`.
+        let m = lower_to_ir("dict", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Call { .. }),
+            "expected Call via lower_default fallback, got {stmt:?}",
+        );
+    }
+
+    // C43 sub-strip 4: `when` and `foreachLine` migrate to
+    // registry-driven hook-ID dispatch — the last two structured
+    // forms.  `when` is dialect-gated (iRules), so its test
+    // registry loads the dialect explicitly.  `foreachLine` is
+    // a Tcl 9.0+ command always registered in `build_default()`.
+
+    #[test]
+    fn registry_dispatch_when_lowers_via_lower_when_with_irules_loaded() {
+        // The iRules `when` spec carries `LoweringHookId::When`
+        // and only enters the registry after
+        // `load_dialect(IRULES)`.  Production callers (LSP
+        // server, Python bindings) always pair `build_default()`
+        // with the active dialect; this test mirrors that.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &registry);
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "when",
+                "expected `when` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+        assert!(
+            m.procedures.contains_key("::when::HTTP_REQUEST"),
+            "expected ::when::HTTP_REQUEST procedure to be registered, got keys={:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_when_without_irules_loaded_falls_through() {
+        // Without `load_irules()`, the registry has no `when`
+        // spec, so `resolve_call` returns `None` and
+        // `try_dispatch_structured_hook` falls through to
+        // `lower_default`.  This is a misconfiguration on the
+        // caller's side (the source uses iRules but the
+        // registry doesn't know about it); the lowerer emits a
+        // generic `Call` rather than silently treating it as
+        // an event handler.  Pinning this behaviour catches
+        // future drift if `build_default()` ever folds in
+        // iRules.
+        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "when",
+                "expected generic Call via lower_default, got command={command}",
+            ),
+            other => panic!("expected Call via lower_default, got {other:?}"),
+        }
+        assert!(
+            !m.procedures.keys().any(|k| k.starts_with("::when::")),
+            "expected NO ::when::* procedure registered without iRules loaded",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_line_lowers_via_lower_foreach_line() {
+        // `foreachLine` is a Tcl 9.0+ command (TIP 670) and
+        // `build_default()` registers it via the
+        // `tcl::foreachline` spec.  No dialect-load dance is
+        // needed.  The body is a brace-string literal here, so
+        // the dedicated lowerer relaxes to a typed `Foreach`
+        // (not a barrier).
+        let m = lower_to_ir("foreachLine line readme.txt { set q $line }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_line_wrong_arity_falls_through_to_default() {
+        // `foreachLine` with two args — fails the
+        // `args.len() == 3` precondition, falls through to
+        // `lower_default`.
+        let m = lower_to_ir("foreachLine onlytwo args", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "foreachLine",
+                "expected generic Call via lower_default, got command={command}",
+            ),
+            other => panic!("expected Call via lower_default, got {other:?}"),
+        }
     }
 }

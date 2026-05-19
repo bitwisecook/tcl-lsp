@@ -210,6 +210,46 @@ impl Analyser {
     /// is still emitted so downstream consumers see the
     /// signature.
     ///
+    /// Infer per-parameter traits for a proc body.  Always runs
+    /// the shallow pass (`infer_param_traits`); when
+    /// [`Self::deep_param_traits`] is set, also runs the
+    /// recursive deep pass (`infer_param_traits_deep`) and
+    /// unions both via [`super::param_traits::merge_traits`].
+    /// Threads the analyser's pre-built dialect-aware registry
+    /// through so iRules-only `arg_role_resolver` callbacks
+    /// (e.g. `when`) fire on body args.  When [`Self::registry`]
+    /// is `None` (outside an active `analyse` run, e.g. a unit-
+    /// test harness) we skip the inference rather than pay the
+    /// cost of a fresh `build_default` on every proc.  Mirrors
+    /// `infer_param_traits` (shallow) and
+    /// `infer_param_traits_deep` (deep) in
+    /// `core/analysis/proc_arg_traits.py`.
+    fn infer_proc_param_traits(
+        &self,
+        params: &[crate::signature_scan::types::ParamDef],
+        body_text: &str,
+    ) -> std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>
+    {
+        let Some(registry) = self.registry.as_ref() else {
+            return std::collections::HashMap::new();
+        };
+        let overlay = self.stub_overlay.as_ref();
+        let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        let shallow =
+            super::param_traits::infer_param_traits(&param_names, body_text, registry, overlay);
+        if self.deep_param_traits {
+            let deep = super::param_traits::infer_param_traits_deep(
+                &param_names,
+                body_text,
+                registry,
+                overlay,
+            );
+            super::param_traits::merge_traits(shallow, deep)
+        } else {
+            shallow
+        }
+    }
+
     /// W113 (proc shadows built-in), parameter-trait inference,
     /// and the user-defined ``unknown`` proc detection from
     /// `_proc.py` are deferred to **C41d** / future strips —
@@ -293,24 +333,8 @@ impl Analyser {
             self.result.unknown_proc_info = Some(info);
         }
 
-        // Infer per-parameter traits from a shallow body scan.
-        // Mirrors ``infer_param_traits`` in
-        // ``core/analysis/proc_arg_traits.py:212-232`` — top-level
-        // command walk only (deep recursion deferred).  Threads
-        // the analyser's pre-built dialect-aware registry through
-        // so iRules-only ``arg_role_resolver`` callbacks (e.g.
-        // ``when``) fire on body args.  When ``self.registry`` is
-        // ``None`` (outside an active ``analyse`` run, e.g. a
-        // unit-test harness) we skip the inference rather than
-        // pay the cost of a fresh ``build_default`` on every
-        // proc.
         let body_text = &args[2];
-        let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        let param_traits = if let Some(registry) = self.registry.as_ref() {
-            super::param_traits::infer_param_traits(&param_names, body_text, registry)
-        } else {
-            std::collections::HashMap::new()
-        };
+        let param_traits = self.infer_proc_param_traits(&params, body_text);
 
         let proc = ProcDef {
             name: simple,
@@ -3457,5 +3481,133 @@ mod tests {
         let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
         // ``bogus_command`` should be flagged.
         assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    // -- deep_param_traits plumbing ----------------------------------
+    //
+    // These tests pin the contract that flipping
+    // `Analyser::deep_param_traits` actually changes the
+    // `ProcDef.param_traits` surface: the shallow pass alone
+    // misses traits hidden inside braced bodies, the deep pass
+    // catches them, and the union of both is what the analyser
+    // exposes.  Sub-strip (c) of `SYNC-MAY19-stub-overlay` —
+    // future `S*` call-graph / symbol-graph / dataflow-graph /
+    // semantic-graph builders flip this on.
+
+    #[test]
+    fn analyse_with_deep_param_traits_surfaces_nested_eval() {
+        // `$body` is buried inside a `foreach` body — the
+        // shallow pass walks only top-level commands and misses
+        // it.  Flipping `deep_param_traits` on must surface
+        // `Eval`.
+        let source = "proc f {items body} {\n  foreach item $items {\n    uplevel 1 $body\n  }\n}";
+        let mut shallow = crate::analyser::Analyser::new();
+        let shallow_r = shallow.analyse(source, "tcl");
+        let shallow_proc = shallow_r.all_procs.get("::f").expect("::f proc registered");
+        let shallow_body_traits = shallow_proc.param_traits.get("body");
+        assert!(
+            !shallow_body_traits.is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Eval)),
+            "shallow pass should miss nested Eval, got {shallow_body_traits:?}",
+        );
+
+        let mut deep = crate::analyser::Analyser::new();
+        deep.deep_param_traits = true;
+        let deep_r = deep.analyse(source, "tcl");
+        let deep_proc = deep_r.all_procs.get("::f").expect("::f proc registered");
+        let deep_body_traits = deep_proc
+            .param_traits
+            .get("body")
+            .expect("body traits present with deep_param_traits on");
+        assert!(
+            deep_body_traits.contains(&crate::analyser::ProcArgTrait::Eval),
+            "deep pass should surface nested Eval, got {deep_body_traits:?}",
+        );
+    }
+
+    #[test]
+    fn analyse_with_deep_param_traits_off_matches_shallow() {
+        // For procs without nested-body usage, deep + shallow
+        // produce the same trait map.  This pins that the deep
+        // pass doesn't accidentally lose any shallow trait.
+        let source = "proc g {body} { uplevel 1 $body }";
+        let mut shallow = crate::analyser::Analyser::new();
+        let shallow_r = shallow.analyse(source, "tcl");
+
+        let mut deep = crate::analyser::Analyser::new();
+        deep.deep_param_traits = true;
+        let deep_r = deep.analyse(source, "tcl");
+
+        let shallow_traits = shallow_r
+            .all_procs
+            .get("::g")
+            .expect("::g registered")
+            .param_traits
+            .clone();
+        let deep_traits = deep_r
+            .all_procs
+            .get("::g")
+            .expect("::g registered")
+            .param_traits
+            .clone();
+        assert_eq!(
+            shallow_traits, deep_traits,
+            "deep + shallow should match for top-level-only bodies",
+        );
+    }
+
+    // -- stub-overlay end-to-end -------------------------------------
+    //
+    // These tests pin the contract that the stub overlay built
+    // from `# tcl-lsp: stub` directives during `analyse()`
+    // propagates into the per-proc `param_traits` map.  Sub-strip
+    // (a) of `SYNC-MAY19-stub-overlay`.
+
+    #[test]
+    fn analyse_with_stub_overlay_propagates_role_to_param_traits() {
+        // The source declares a `# tcl-lsp: stub my_eval
+        // {script:body}` directive, then defines a proc that
+        // invokes `my_eval $body`.  The body arg's role flows
+        // from the stub overlay → `param_traits["body"]
+        // .contains(Body)`.
+        let source = "\
+# tcl-lsp: stubs-begin\n\
+# tcl-lsp: stub my_eval {script:body}\n\
+# tcl-lsp: stubs-end\n\
+proc runs {body} {\n\
+    my_eval $body\n\
+}\n";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        let body_traits = proc
+            .param_traits
+            .get("body")
+            .expect("body param has traits");
+        assert!(
+            body_traits.contains(&crate::analyser::ProcArgTrait::Body),
+            "expected Body trait via stub overlay, got {body_traits:?}",
+        );
+    }
+
+    #[test]
+    fn analyse_without_stub_directive_leaves_body_untyped() {
+        // Same proc, no stub directive — without the overlay
+        // entry, `my_eval` isn't a known command, so the body
+        // arg has no recorded role and `param_traits` is empty
+        // for `body`.  This pins that the stub directive (not
+        // some background heuristic) is what gives the
+        // parameter its `Body` trait.
+        let source = "proc runs {body} { my_eval $body }";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        assert!(
+            !proc
+                .param_traits
+                .get("body")
+                .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
+            "expected NO Body trait without stub directive, got {:?}",
+            proc.param_traits.get("body"),
+        );
     }
 }

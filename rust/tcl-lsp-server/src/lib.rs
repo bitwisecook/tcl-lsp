@@ -33,6 +33,7 @@ use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
+use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -75,11 +76,17 @@ use tower_lsp::lsp_types::{
     LinkedEditingRanges, Location, MarkupContent, MarkupKind, MessageType, OneOf,
     ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
+    DiagnosticOptions, DiagnosticServerCapabilities, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, FullDocumentDiagnosticReport,
+    PrepareRenameResponse, RelatedFullDocumentDiagnosticReport, RenameOptions,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
     SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    TypeDefinitionProviderCapability,
     Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
@@ -120,6 +127,133 @@ pub struct Backend {
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
     dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
+    /// Workspace folder roots received from `initialize` /
+    /// `workspace/didChangeWorkspaceFolders`.  Stored as
+    /// `Url` (typically `file://...` directories).
+    /// `S-workspace-init` minimal port — the folder list
+    /// supports cross-document features (workspace symbols
+    /// already walks every cached document; future
+    /// `S-workspace-symbols-rich` extends this by scanning
+    /// folder contents on disk).
+    workspace_folders: Mutex<Vec<Url>>,
+    /// Optional per-folder dialect override map keyed on the
+    /// folder URL prefix (typically `file://...`).  Populated
+    /// from the `initializationOptions.folderDialects` JSON
+    /// object when present.  `S-workspace-init` / `SYNC-MAY19-
+    /// dialect-contextvar`: enables multi-folder workspaces
+    /// with mixed dialects to parse correctly by selecting the
+    /// longest-prefix folder's dialect when a document is
+    /// opened.
+    folder_dialects: Mutex<Vec<(Url, String)>>,
+    /// Cached `AnalysisResult` per document, populated by
+    /// `did_open` / `did_change` and consumed by request
+    /// handlers that previously re-analysed on every call.
+    /// `S-async-diagnostics` cached-analysis surface — once
+    /// this entry exists, request handlers consult it before
+    /// falling back to a fresh `analyser.analyse(...)`.
+    analyses: Mutex<HashMap<Url, tcl_compiler::analyser::AnalysisResult>>,
+    /// `S-hover-sync11`: LRU(256) cache of hover responses
+    /// keyed on `(uri, line, character)`.  Invalidated per
+    /// URI on `did_change` / `did_close` so stale answers
+    /// don't outlive the document version that produced them.
+    /// `None` entries record "no hover here" so repeated
+    /// requests for the same empty position are also fast.
+    hover_cache: Mutex<HoverCache>,
+    /// Per-URI semantic-tokens delta cache.  Records the last
+    /// `result_id` and packed token stream we returned for
+    /// each document so `semanticTokens/full/delta` can short-
+    /// circuit when nothing changed.  Invalidated on
+    /// `did_change` / `did_close`.
+    semantic_tokens_cache: Mutex<HashMap<Url, SemanticTokensEntry>>,
+}
+
+/// Cached semantic-tokens result keyed on the URI.
+#[derive(Debug, Clone)]
+struct SemanticTokensEntry {
+    /// `result_id` returned to the client; bumped on every
+    /// recompute so clients can request deltas against the
+    /// stored snapshot.
+    result_id: String,
+    /// Packed `(deltaLine, deltaCol, length, type, modifiers)`
+    /// stream — same shape `tcl_lsp_core::semantic_tokens`
+    /// emits.
+    data: Vec<u32>,
+}
+
+/// Result of a `HoverCache::get` lookup.
+#[derive(Debug, Clone)]
+enum HoverLookup {
+    /// Cache miss — the caller must compute the hover.
+    Miss,
+    /// Cached "no hover here" answer (the provider returned
+    /// `None` for this position last time).
+    HitEmpty,
+    /// Cached hover response.
+    Hit(tcl_lsp_core::hover::Hover),
+}
+
+/// LRU cache of hover responses bounded at 256 entries.
+/// Keys are `(uri, line, character)`.  Stored values
+/// distinguish between "no entry" and "entry with empty
+/// hover" so repeated requests on positions that have no
+/// hover are also fast.  On capacity overflow the oldest
+/// entry is evicted.
+#[derive(Debug, Default)]
+struct HoverCache {
+    /// FIFO queue of cache keys in insertion order.  Doubles
+    /// as the eviction order — bounded LRU; reads don't
+    /// promote.  256 is the SYNC11-mandated cap.
+    order: std::collections::VecDeque<(Url, u32, u32)>,
+    entries: HashMap<(Url, u32, u32), Option<tcl_lsp_core::hover::Hover>>,
+}
+
+impl HoverCache {
+    const CAP: usize = 256;
+
+    fn get(&self, key: &(Url, u32, u32)) -> HoverLookup {
+        match self.entries.get(key) {
+            None => HoverLookup::Miss,
+            Some(None) => HoverLookup::HitEmpty,
+            Some(Some(h)) => HoverLookup::Hit(h.clone()),
+        }
+    }
+
+    fn put(&mut self, key: (Url, u32, u32), value: Option<tcl_lsp_core::hover::Hover>) {
+        use std::collections::hash_map::Entry;
+        match self.entries.entry(key.clone()) {
+            Entry::Occupied(mut e) => {
+                e.insert(value);
+            }
+            Entry::Vacant(slot) => {
+                if self.order.len() >= Self::CAP {
+                    if let Some(old) = self.order.pop_front() {
+                        // The slot we're about to fill matches
+                        // `key`; the popped key is different, so
+                        // remove it via a direct lookup.
+                        if old != key {
+                            // The Vacant binding holds the entry,
+                            // so we can't remove via the same map
+                            // without giving it up.  Stash the key,
+                            // drop the entry, then evict, then
+                            // re-insert.
+                            drop(slot);
+                            self.entries.remove(&old);
+                            self.order.push_back(key.clone());
+                            self.entries.insert(key, value);
+                            return;
+                        }
+                    }
+                }
+                slot.insert(value);
+                self.order.push_back(key);
+            }
+        }
+    }
+
+    fn invalidate_uri(&mut self, uri: &Url) {
+        self.order.retain(|(u, _, _)| u != uri);
+        self.entries.retain(|(u, _, _), _| u != uri);
+    }
 }
 
 impl std::fmt::Debug for Backend {
@@ -147,23 +281,152 @@ impl Backend {
             documents: Mutex::new(HashMap::new()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
+            workspace_folders: Mutex::new(Vec::new()),
+            folder_dialects: Mutex::new(Vec::new()),
+            analyses: Mutex::new(HashMap::new()),
+            hover_cache: Mutex::new(HoverCache::default()),
+            semantic_tokens_cache: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Read the cached `AnalysisResult` for `uri` if one
+    /// exists.  Returns a clone so the caller can run on a
+    /// `spawn_blocking` worker without holding the mutex.
+    /// Falls back to `None` when no cache entry exists; the
+    /// caller is expected to compute a fresh analysis in
+    /// that case.
+    async fn cached_analysis(&self, uri: &Url) -> Option<tcl_compiler::analyser::AnalysisResult> {
+        self.analyses.lock().await.get(uri).cloned()
+    }
+
+    /// Resolve an analysis for the document.  Consults the
+    /// cache first; computes a fresh analysis when no entry
+    /// exists.  Returns owned data the caller can move into
+    /// a `spawn_blocking` worker.
+    async fn analysis_for(
+        &self,
+        uri: &Url,
+        text: String,
+        dialect: String,
+    ) -> tcl_compiler::analyser::AnalysisResult {
+        if let Some(cached) = self.cached_analysis(uri).await {
+            return cached;
+        }
+        tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            analyser.analyse(&text, &dialect).clone()
+        })
+        .await
+        .unwrap_or_default()
+    }
+
+    /// Return a snapshot of the current workspace folder
+    /// URLs.  Used by cross-document features (workspace
+    /// symbols, cross-doc references / rename / call-
+    /// hierarchy).
+    pub async fn workspace_folder_urls(&self) -> Vec<Url> {
+        self.workspace_folders.lock().await.clone()
+    }
+
+    /// `S-workspace-init`: copy the workspace folders the
+    /// editor sent into `self.workspace_folders` so cross-
+    /// document features can resolve relative paths and (in
+    /// the future) scan folder contents for a workspace index.
+    /// Both the newer `workspace_folders` field and the
+    /// single-root `root_uri` fallback are supported.
+    async fn apply_workspace_folders(&self, params: &InitializeParams) {
+        if let Some(folders) = &params.workspace_folders {
+            let urls: Vec<Url> = folders.iter().map(|f| f.uri.clone()).collect();
+            *self.workspace_folders.lock().await = urls;
+        } else if let Some(root) = &params.root_uri {
+            *self.workspace_folders.lock().await = vec![root.clone()];
+        }
+    }
+
+    /// `SYNC-MAY19-dialect-contextvar`: read per-folder dialect
+    /// overrides from `params.initialization_options`.
+    ///
+    /// Expected shape:
+    /// `{ "folderDialects": { "file:///path": "f5-irules",
+    ///                        "file:///other": "tcl9.0" } }`.
+    ///
+    /// Unknown dialect names and unparseable folder URLs are
+    /// dropped silently rather than failing the entire
+    /// initialise — the server keeps starting up with whatever
+    /// valid entries it could pull from the editor.
+    async fn apply_initialization_options(&self, params: &InitializeParams) {
+        let Some(opts) = &params.initialization_options else {
+            return;
+        };
+        let Some(entries) = opts
+            .as_object()
+            .and_then(|m| m.get("folderDialects"))
+            .and_then(serde_json::Value::as_object)
+        else {
+            return;
+        };
+        let mut parsed: Vec<(Url, String)> = Vec::new();
+        for (folder_url, dialect_val) in entries {
+            let Ok(url) = Url::parse(folder_url) else {
+                continue;
+            };
+            let Some(dialect) = dialect_val.as_str() else {
+                continue;
+            };
+            if DialectSet::parse(dialect).is_none() {
+                continue;
+            }
+            parsed.push((url, dialect.to_owned()));
+        }
+        *self.folder_dialects.lock().await = parsed;
     }
 
     /// Resolve the dialect string a freshly opened document should
     /// be tagged with.
     ///
-    /// Prefer a dialect derived from the LSP ``languageId`` field
-    /// (so ``"tcl-irule"``/``"f5-irules"``/``"tcl9.0"``/etc. set the
-    /// per-document dialect without relying on
-    /// ``workspace/didChangeConfiguration``).  Fall back to the
-    /// session-wide ``default_dialect`` when the language id does
-    /// not name a known dialect.
-    async fn dialect_for_open(&self, language_id: &str) -> String {
+    /// Resolution order (`SYNC-MAY19-dialect-contextvar`):
+    ///
+    /// 1. The LSP ``languageId`` field — when it names a known
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
+    ///    / etc.), use it directly.
+    /// 2. The per-folder override map (`folder_dialects`) — when
+    ///    the document URI sits under one of the configured folder
+    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The session-wide ``default_dialect`` fallback.
+    async fn dialect_for_open(&self, uri: &Url, language_id: &str) -> String {
         if let Some(d) = Self::dialect_from_language_id(language_id) {
             return d.to_owned();
         }
+        if let Some(d) = self.resolve_folder_dialect(uri).await {
+            return d;
+        }
         self.default_dialect.lock().await.clone()
+    }
+
+    /// Look up the per-folder dialect override for `uri`,
+    /// preferring the deepest (longest-prefix) match so nested
+    /// folders shadow their parents.
+    async fn resolve_folder_dialect(&self, uri: &Url) -> Option<String> {
+        let folders = self.folder_dialects.lock().await;
+        let mut best: Option<(usize, &str)> = None;
+        let target = uri.as_str();
+        for (folder, dialect) in folders.iter() {
+            if !uri_under_folder(target, folder.as_str()) {
+                continue;
+            }
+            // Track the longest-prefix match so nested folder
+            // mappings (`file:///workspace/irules/` inside
+            // `file:///workspace/`) shadow their parents.
+            let len = folder.as_str().len();
+            let take = match best {
+                Some((existing, _)) => len > existing,
+                None => true,
+            };
+            if take {
+                best = Some((len, dialect));
+            }
+        }
+        best.map(|(_, d)| d.to_owned())
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
@@ -216,9 +479,10 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
+        let analysis = self
+            .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_definition::definition(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
@@ -269,73 +533,49 @@ impl Backend {
         cache.insert(key.to_owned(), Arc::clone(&arc));
         arc
     }
+
+    /// Run the analyser on `text` and push the resulting
+    /// diagnostics to the LSP client for `uri`.  Mirrors
+    /// the Python server's `publish_diagnostics` flow.  Runs
+    /// the analyser on a `spawn_blocking` worker so the LSP
+    /// event loop stays responsive.  `S-async-diagnostics`
+    /// minimal port — the cached-analysis surface and
+    /// debounced streaming contract lands in a follow-up.
+    async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+        let result = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&text, &dialect).clone();
+            let diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            (analysis, diagnostics)
+        })
+        .await;
+        match result {
+            Ok((analysis, diags)) => {
+                // Cache the analysis so the per-method
+                // handlers don't have to re-run it on every
+                // request.
+                self.analyses.lock().await.insert(uri.clone(), analysis);
+                self.client.publish_diagnostics(uri, diags, None).await;
+            }
+            Err(err) => {
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("diagnostics worker panicked: {err}"),
+                    )
+                    .await;
+            }
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+        self.apply_workspace_folders(&params).await;
+        self.apply_initialization_options(&params).await;
         Ok(InitializeResult {
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
-                )),
-                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
-                document_symbol_provider: Some(OneOf::Left(true)),
-                hover_provider: Some(HoverProviderCapability::Simple(true)),
-                completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec!["$".to_owned()]),
-                    ..CompletionOptions::default()
-                }),
-                signature_help_provider: Some(SignatureHelpOptions {
-                    trigger_characters: Some(vec![" ".to_owned()]),
-                    retrigger_characters: None,
-                    work_done_progress_options: WorkDoneProgressOptions::default(),
-                }),
-                definition_provider: Some(OneOf::Left(true)),
-                declaration_provider: Some(DeclarationCapability::Simple(true)),
-                type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
-                implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
-                references_provider: Some(OneOf::Left(true)),
-                document_highlight_provider: Some(OneOf::Left(true)),
-                rename_provider: Some(OneOf::Left(true)),
-                selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
-                document_formatting_provider: Some(OneOf::Left(true)),
-                document_range_formatting_provider: Some(OneOf::Left(true)),
-                document_link_provider: Some(DocumentLinkOptions {
-                    resolve_provider: Some(false),
-                    work_done_progress_options: WorkDoneProgressOptions::default(),
-                }),
-                inlay_hint_provider: Some(OneOf::Left(true)),
-                code_lens_provider: Some(CodeLensOptions {
-                    resolve_provider: Some(false),
-                }),
-                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
-                // Note: tower-lsp 0.20 does not expose
-                // `type_hierarchy_provider` on `ServerCapabilities`;
-                // the type-hierarchy core provider lives in
-                // `tcl-lsp-core::type_hierarchy` and will be wired
-                // once we upgrade tower-lsp (tracked under
-                // `S-type-hierarchy-rich`).
-                semantic_tokens_provider: Some(
-                    SemanticTokensServerCapabilities::SemanticTokensOptions(
-                        SemanticTokensOptions {
-                            work_done_progress_options: WorkDoneProgressOptions::default(),
-                            legend: SemanticTokensLegend {
-                                token_types: Vec::new(),
-                                token_modifiers: Vec::new(),
-                            },
-                            range: Some(false),
-                            full: Some(SemanticTokensFullOptions::Bool(true)),
-                        },
-                    ),
-                ),
-                workspace_symbol_provider: Some(OneOf::Left(true)),
-                linked_editing_range_provider: Some(
-                    tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
-                ),
-                ..ServerCapabilities::default()
-            },
+            capabilities: build_server_capabilities(),
             server_info: Some(ServerInfo {
                 name: "tcl-lsp-server".to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
@@ -355,13 +595,22 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let dialect = self
-            .dialect_for_open(&params.text_document.language_id)
+            .dialect_for_open(
+                &params.text_document.uri,
+                &params.text_document.language_id,
+            )
             .await;
+        let uri = params.text_document.uri.clone();
+        let text = params.text_document.text.clone();
+        let dialect_for_diags = dialect.clone();
         let mut docs = self.documents.lock().await;
         docs.insert(
             params.text_document.uri,
             DocumentState::new(params.text_document.text, dialect),
         );
+        drop(docs);
+        self.publish_analyser_diagnostics(uri, text, dialect_for_diags)
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -370,20 +619,42 @@ impl LanguageServer for Backend {
         let Some(change) = params.content_changes.into_iter().last() else {
             return;
         };
+        let uri = params.text_document.uri.clone();
         let mut docs = self.documents.lock().await;
-        if let Some(doc) = docs.get_mut(&params.text_document.uri) {
+        let (text, dialect) = if let Some(doc) = docs.get_mut(&uri) {
             // Preserve the document's dialect across edits; only the
             // text content changes here.
-            doc.text = change.text;
+            doc.text.clone_from(&change.text);
+            (change.text, doc.dialect.clone())
         } else {
             // didChange before didOpen — fall back to the session
             // default dialect; the languageId is not available here.
             let dialect = self.default_dialect.lock().await.clone();
             docs.insert(
-                params.text_document.uri,
-                DocumentState::new(change.text, dialect),
+                uri.clone(),
+                DocumentState::new(change.text.clone(), dialect.clone()),
             );
-        }
+            (change.text, dialect)
+        };
+        drop(docs);
+        // `S-hover-sync11`: drop every cached hover response
+        // for this URI so subsequent requests return answers
+        // against the freshly-edited source rather than stale
+        // pre-edit results.
+        self.hover_cache.lock().await.invalidate_uri(&uri);
+        // `S-semantic-tokens-rich` delta: drop the cached
+        // token snapshot so the next `semanticTokens/full/delta`
+        // returns a fresh full result instead of an empty edit
+        // list against an outdated baseline.
+        self.semantic_tokens_cache.lock().await.remove(&uri);
+        // Evict the stale `AnalysisResult` so any request that
+        // arrives before `publish_analyser_diagnostics` finishes
+        // re-running the analyser falls through to a fresh
+        // run via `analysis_for` rather than serving pre-edit
+        // results (PR #454 Codex review P1).  `publish_*` will
+        // reinsert the fresh entry when it completes.
+        self.analyses.lock().await.remove(&uri);
+        self.publish_analyser_diagnostics(uri, text, dialect).await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
@@ -406,10 +677,17 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.documents
-            .lock()
-            .await
-            .remove(&params.text_document.uri);
+        let uri = &params.text_document.uri;
+        self.documents.lock().await.remove(uri);
+        self.analyses.lock().await.remove(uri);
+        self.hover_cache.lock().await.invalidate_uri(uri);
+        self.semantic_tokens_cache.lock().await.remove(uri);
+        // Clear any previously-published diagnostics so the
+        // editor's problem panel doesn't keep showing them
+        // for a closed file.
+        self.client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
     }
 
     async fn folding_range(
@@ -440,18 +718,31 @@ impl LanguageServer for Backend {
         &self,
         params: CompletionParams,
     ) -> jsonrpc::Result<Option<CompletionResponse>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position.text_document.uri)
-            .await
-        else {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position.position;
+        // Fetch the cached per-dialect registry on the async
+        // path before spawning so the worker can read built-in
+        // command names alongside the user-defined procs the
+        // analyser surfaces.  Threads through as
+        // `S-completion-rich`: minimal completion only knows
+        // user procs / vars; rich completion adds the registry's
+        // command set.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         // Pure-CPU work; spawn_blocking off the LSP event loop.
         let items = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_completion::completions(&doc.text, pos.line, pos.character, &analysis)
+            core_completion::completions(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -566,9 +857,10 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let ranges = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_references::references(&doc.text, pos.line, pos.character, &analysis, include_decl)
         })
         .await
@@ -603,17 +895,15 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let ranges = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            // Document highlight reuses the references finder
-            // (same algorithm: enumerate every span the symbol
-            // appears at within the document) but does not
-            // include the declaration as a separate kind in
-            // this minimal port — every match lands as
-            // `Text`. Read/Write distinction is recorded as a
-            // follow-up under `S-document-highlight-rich`.
-            core_references::references(&doc.text, pos.line, pos.character, &analysis, true)
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let entries = tokio::task::spawn_blocking(move || {
+            // `S-document-highlight-rich`: the kinded entry
+            // point tags variable defining spans as `Write` and
+            // their reads as `Read`; command-invocation heads
+            // stay `Text`.
+            core_references::document_highlights(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -621,14 +911,18 @@ impl LanguageServer for Backend {
             message: format!("document_highlight worker panicked: {err}").into(),
             data: None,
         })?;
-        if ranges.is_empty() {
+        if entries.is_empty() {
             return Ok(None);
         }
-        let highlights = ranges
+        let highlights = entries
             .into_iter()
-            .map(|r| DocumentHighlight {
+            .map(|(r, kind)| DocumentHighlight {
                 range: lift_lsp_range(r),
-                kind: Some(DocumentHighlightKind::TEXT),
+                kind: Some(match kind {
+                    core_references::HighlightKind::Read => DocumentHighlightKind::READ,
+                    core_references::HighlightKind::Write => DocumentHighlightKind::WRITE,
+                    core_references::HighlightKind::Text => DocumentHighlightKind::TEXT,
+                }),
             })
             .collect();
         Ok(Some(highlights))
@@ -647,9 +941,10 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let items = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
             core_call_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
@@ -679,21 +974,114 @@ impl LanguageServer for Backend {
 
     async fn incoming_calls(
         &self,
-        _params: CallHierarchyIncomingCallsParams,
+        params: CallHierarchyIncomingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
-        // S-call-hierarchy-rich: incoming-call enumeration
-        // requires the call-graph index that the analyser
-        // doesn't surface today.  Stub-empty.
-        Ok(Some(Vec::new()))
+        let item = params.item;
+        let uri = item.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let core_item = core_call_hierarchy::CallHierarchyItem {
+            name: item.name,
+            detail: item.detail,
+            range: CoreLspRange {
+                start_line: item.range.start.line,
+                start_character: item.range.start.character,
+                end_line: item.range.end.line,
+                end_character: item.range.end.character,
+            },
+            selection_range: CoreLspRange {
+                start_line: item.selection_range.start.line,
+                start_character: item.selection_range.start.character,
+                end_line: item.selection_range.end.line,
+                end_character: item.selection_range.end.character,
+            },
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let incoming = tokio::task::spawn_blocking(move || {
+            core_call_hierarchy::incoming_calls(&doc.text, &core_item, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("incoming_calls worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted = incoming
+            .into_iter()
+            .map(|c| CallHierarchyIncomingCall {
+                from: CallHierarchyItem {
+                    name: c.from.name,
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    detail: c.from.detail,
+                    uri: uri.clone(),
+                    range: lift_lsp_range(c.from.range),
+                    selection_range: lift_lsp_range(c.from.selection_range),
+                    data: None,
+                },
+                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
+            })
+            .collect();
+        Ok(Some(lifted))
     }
 
     async fn outgoing_calls(
         &self,
-        _params: CallHierarchyOutgoingCallsParams,
+        params: CallHierarchyOutgoingCallsParams,
     ) -> jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
-        // S-call-hierarchy-rich: outgoing-call enumeration
-        // requires the per-proc callee list.  Stub-empty.
-        Ok(Some(Vec::new()))
+        let item = params.item;
+        let uri = item.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let core_item = core_call_hierarchy::CallHierarchyItem {
+            name: item.name,
+            detail: item.detail,
+            range: CoreLspRange {
+                start_line: item.range.start.line,
+                start_character: item.range.start.character,
+                end_line: item.range.end.line,
+                end_character: item.range.end.character,
+            },
+            selection_range: CoreLspRange {
+                start_line: item.selection_range.start.line,
+                start_character: item.selection_range.start.character,
+                end_line: item.selection_range.end.line,
+                end_character: item.selection_range.end.character,
+            },
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let outgoing = tokio::task::spawn_blocking(move || {
+            core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("outgoing_calls worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted = outgoing
+            .into_iter()
+            .map(|c| CallHierarchyOutgoingCall {
+                to: CallHierarchyItem {
+                    name: c.to.name,
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    detail: c.to.detail,
+                    uri: uri.clone(),
+                    range: lift_lsp_range(c.to.range),
+                    selection_range: lift_lsp_range(c.to.selection_range),
+                    data: None,
+                },
+                from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
+            })
+            .collect();
+        Ok(Some(lifted))
     }
 
     // Note: type_hierarchy LSP methods aren't exposed by
@@ -705,28 +1093,179 @@ impl LanguageServer for Backend {
 
     async fn linked_editing_range(
         &self,
-        _params: LinkedEditingRangeParams,
+        params: LinkedEditingRangeParams,
     ) -> jsonrpc::Result<Option<LinkedEditingRanges>> {
-        // S-linked-editing-range-rich: the Python provider
-        // links matched-pair tokens (proc declaration ↔
-        // call sites) so renaming one updates the other.
-        // Our minimal port returns no linked edits (the
-        // editor falls back to pairing brackets / quotes
-        // itself).
-        Ok(None)
+        // `S-linked-editing-range-rich`: when the cursor sits
+        // on a proc declaration's name or inside the proc's
+        // body, return every range that should be edited in
+        // lock-step (the declaration plus any self-call sites
+        // inside the body).  Editors then paint these as
+        // linked-edit chips so renaming one updates the others
+        // as the user types.
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let pos = params.text_document_position_params.position;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let result = tokio::task::spawn_blocking(move || {
+            core_linked_editing_range::linked_editing_ranges(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("linked_editing_range worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let Some(linked) = result else {
+            return Ok(None);
+        };
+        Ok(Some(LinkedEditingRanges {
+            ranges: linked.ranges.into_iter().map(lift_lsp_range).collect(),
+            word_pattern: Some(linked.word_pattern),
+        }))
+    }
+
+    async fn diagnostic(
+        &self,
+        params: DocumentDiagnosticParams,
+    ) -> jsonrpc::Result<DocumentDiagnosticReportResult> {
+        // `S-diagnostics-pipeline`: pull-based diagnostic
+        // report.  Editors that support
+        // `textDocument/diagnostic` request diagnostics on
+        // demand rather than relying on the
+        // `publish_diagnostics` push.  We run the analyser via
+        // the cached-analysis surface (the same shape every
+        // other request uses) and lift each analyser
+        // diagnostic to the LSP wire shape.
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(empty_diagnostic_report());
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let items = tokio::task::spawn_blocking(move || lift_analyser_diagnostics(&doc.text, &analysis.diagnostics))
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("diagnostic worker panicked: {err}").into(),
+                data: None,
+            })?;
+        Ok(DocumentDiagnosticReportResult::Report(
+            DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                related_documents: None,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: None,
+                    items,
+                },
+            }),
+        ))
     }
 
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
     ) -> jsonrpc::Result<Option<SemanticTokensResult>> {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        // `S-semantic-tokens-rich`: real classification.  The
+        // packed integer stream is 5 ints per token
+        // `[deltaLine, deltaCol, length, type, modifiers]`.
+        let core_data = core_semantic_tokens::full(&doc.text).data;
+        let result_id = next_semantic_tokens_id();
+        self.semantic_tokens_cache.lock().await.insert(
+            uri,
+            SemanticTokensEntry {
+                result_id: result_id.clone(),
+                data: core_data.clone(),
+            },
+        );
+        Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
+            result_id: Some(result_id),
+            data: lift_semantic_token_data(&core_data),
+        })))
+    }
+
+    async fn semantic_tokens_full_delta(
+        &self,
+        params: SemanticTokensDeltaParams,
+    ) -> jsonrpc::Result<Option<SemanticTokensFullDeltaResult>> {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let previous_result_id = params.previous_result_id;
+        let new_data = core_semantic_tokens::full(&doc.text).data;
+        let new_result_id = next_semantic_tokens_id();
+
+        // Compare against the cached snapshot.  When the
+        // previous_result_id matches the cached one *and* the
+        // packed data is unchanged, return an empty edit list.
+        // Otherwise return a fresh full token set — the LSP
+        // spec accepts this as a valid response.  Computing a
+        // minimal edit diff is a further follow-up.
+        let mut cache = self.semantic_tokens_cache.lock().await;
+        let prev = cache.get(&uri);
+        let return_empty_delta = prev
+            .is_some_and(|entry| entry.result_id == previous_result_id && entry.data == new_data);
+        cache.insert(
+            uri,
+            SemanticTokensEntry {
+                result_id: new_result_id.clone(),
+                data: new_data.clone(),
+            },
+        );
+        drop(cache);
+        if return_empty_delta {
+            return Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
+                SemanticTokensDelta {
+                    result_id: Some(new_result_id),
+                    edits: Vec::new(),
+                },
+            )));
+        }
+        Ok(Some(SemanticTokensFullDeltaResult::Tokens(
+            LspSemanticTokens {
+                result_id: Some(new_result_id),
+                data: lift_semantic_token_data(&new_data),
+            },
+        )))
+    }
+
+    async fn semantic_tokens_range(
+        &self,
+        params: SemanticTokensRangeParams,
+    ) -> jsonrpc::Result<Option<SemanticTokensRangeResult>> {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
-        let _ = core_semantic_tokens::full(&doc.text);
-        Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
+        // `S-semantic-tokens-rich`: filter tokens to those that
+        // start inside the requested range.  Editors call this
+        // when only the visible viewport needs colouring.
+        let core_range = CoreLspRange {
+            start_line: params.range.start.line,
+            start_character: params.range.start.character,
+            end_line: params.range.end.line,
+            end_character: params.range.end.character,
+        };
+        let core_data = core_semantic_tokens::range(&doc.text, core_range).data;
+        Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
-            data: Vec::new(),
+            data: lift_semantic_token_data(&core_data),
         })))
     }
 
@@ -749,9 +1288,10 @@ impl LanguageServer for Backend {
             let text = doc.text.clone();
             let dialect = doc.dialect.clone();
             let q = query.clone();
+            let analysis = self
+                .analysis_for(&uri, text.clone(), dialect.clone())
+                .await;
             let symbols = tokio::task::spawn_blocking(move || {
-                let mut analyser = Analyser::new();
-                let analysis = analyser.analyse(&text, &dialect).clone();
                 core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
             })
             .await
@@ -788,10 +1328,21 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentLinkParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let links = core_document_links::document_links(&doc.text);
+        // `S-document-links-rich`: pass the document's
+        // enclosing directory as the workspace root so
+        // relative `source <path>` arguments resolve.  When
+        // the URI isn't a `file://` URL we leave the workspace
+        // root unset and only absolute paths surface as links.
+        let workspace_root = uri
+            .to_file_path()
+            .ok()
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+            .and_then(|p| p.to_str().map(str::to_owned));
+        let links = core_document_links::document_links(&doc.text, workspace_root.as_deref());
         if links.is_empty() {
             return Ok(None);
         }
@@ -817,7 +1368,8 @@ impl LanguageServer for Backend {
     }
 
     async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -826,7 +1378,24 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let hints = core_inlay_hints::inlay_hints(&doc.text, range);
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        // Build analysis on a worker so the inlay-hints
+        // provider can surface parameter-name hints at user-
+        // proc call sites (`S-inlay-hints-rich`).  When the
+        // analyser surfaces an empty all_procs map (no user
+        // procs in the document), the provider still returns
+        // an empty hint set.
+        let hints = tokio::task::spawn_blocking(move || {
+            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("inlay_hint worker panicked: {err}").into(),
+            data: None,
+        })?;
         if hints.is_empty() {
             return Ok(None);
         }
@@ -850,10 +1419,26 @@ impl LanguageServer for Backend {
     }
 
     async fn code_lens(&self, params: CodeLensParams) -> jsonrpc::Result<Option<Vec<CodeLens>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let lenses = core_code_lens::code_lenses(&doc.text);
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        // S-code-lens-rich: surface per-proc reference counts
+        // above each definition.  The provider walks
+        // `analysis.command_invocations` per proc, so the
+        // worker needs the full analysis result.
+        let lenses = tokio::task::spawn_blocking(move || {
+            core_code_lens::code_lenses(&doc.text, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_lens worker panicked: {err}").into(),
+            data: None,
+        })?;
         if lenses.is_empty() {
             return Ok(None);
         }
@@ -876,7 +1461,8 @@ impl LanguageServer for Backend {
         &self,
         params: CodeActionParams,
     ) -> jsonrpc::Result<Option<Vec<CodeActionOrCommand>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -885,18 +1471,49 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let actions = core_code_actions::code_actions(&doc.text, range);
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        // `S-code-actions-rich`: walks the analyser's
+        // diagnostics for fixes whose span overlaps the
+        // requested range.  Run analysis on a worker.
+        let actions = tokio::task::spawn_blocking(move || {
+            core_code_actions::code_actions(&doc.text, range, Some(&analysis))
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_action worker panicked: {err}").into(),
+            data: None,
+        })?;
         if actions.is_empty() {
             return Ok(None);
         }
         let lifted = actions
             .into_iter()
             .map(|a| {
+                // Build a WorkspaceEdit from the action's
+                // edits so accepting the action actually
+                // applies the fix.
+                let mut changes = std::collections::HashMap::new();
+                let lifted_edits: Vec<TextEdit> = a
+                    .edits
+                    .into_iter()
+                    .map(|e| TextEdit {
+                        range: lift_lsp_range(e.range),
+                        new_text: e.new_text,
+                    })
+                    .collect();
+                changes.insert(uri.clone(), lifted_edits);
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
-                    kind: None,
+                    kind: Some(tower_lsp::lsp_types::CodeActionKind::QUICKFIX),
                     diagnostics: None,
-                    edit: None,
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    }),
                     command: None,
                     is_preferred: None,
                     disabled: None,
@@ -989,6 +1606,36 @@ impl LanguageServer for Backend {
         Ok(Some(lifted))
     }
 
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> jsonrpc::Result<Option<PrepareRenameResponse>> {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let pos = params.position;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let result = tokio::task::spawn_blocking(move || {
+            core_rename::prepare_rename(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("prepare_rename worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let Some(p) = result else {
+            return Ok(None);
+        };
+        Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+            range: lift_lsp_range(p.range),
+            placeholder: p.placeholder,
+        }))
+    }
+
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
@@ -996,10 +1643,22 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // Per-dialect cached registry for `S-rename-rich`
+        // safety gating — proc renames refuse to overwrite
+        // built-in command names.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let edits = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_rename::rename(&doc.text, pos.line, pos.character, &new_name, &analysis)
+            core_rename::rename(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &new_name,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1030,17 +1689,32 @@ impl LanguageServer for Backend {
         &self,
         params: SignatureHelpParams,
     ) -> jsonrpc::Result<Option<SignatureHelp>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position_params.text_document.uri)
-            .await
-        else {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
+        // Per-dialect cached registry — same source the
+        // completion handler uses.  Threading it through lets
+        // `S-signature-help-rich` surface signatures for
+        // built-in commands (e.g. `puts`, `lsearch`) without
+        // requiring a user proc with the same name.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_sig::signature_help(&doc.text, pos.line, pos.character, &analysis)
+            core_sig::signature_help(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1052,25 +1726,48 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
-        let Some(doc) = self
-            .read_document(&params.text_document_position_params.text_document.uri)
-            .await
-        else {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
-        // Pure-CPU work — analyser + hover walker. Move it off
-        // the LSP event loop via `spawn_blocking`. SYNC11's full
-        // contract (debounce, LRU keyed on `(uri, version, line,
-        // char)`, `Ok(None)` on missing cached analysis,
-        // `[timing] hover` debug logs) lands in the
-        // `S-hover-sync11` follow-up once `S-diagnostics`
-        // establishes the cached-analysis surface this Backend
-        // currently lacks.
+        // `S-hover-sync11`: consult the LRU(256) result cache
+        // first.  Cache hits return the previous hover for
+        // `(uri, line, character)` directly without re-running
+        // the provider.  The cache is invalidated by URI in
+        // `did_change` / `did_close`, so the stored entry is
+        // always pinned to the source text the editor last sent.
+        let cache_key = (uri.clone(), pos.line, pos.character);
+        match self.hover_cache.lock().await.get(&cache_key) {
+            HoverLookup::HitEmpty => return Ok(None),
+            HoverLookup::Hit(h) => return Ok(Some(lift_hover(h))),
+            HoverLookup::Miss => {}
+        }
+        // Cache miss: run the provider.  Consults the cached
+        // analysis from `did_open` / `did_change`; the
+        // `analysis_for` helper falls back to a fresh
+        // `analyser.analyse(...)` when the publisher hasn't
+        // populated the cache yet.  Worker-offload via
+        // `spawn_blocking` keeps the LSP event loop responsive.
+        // SYNC11's debounce + `[timing] hover` debug logs are
+        // documented but not yet wired — they need an upgraded
+        // logging layer beyond the bare `Client::log_message`.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
-            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_hover::hover(&doc.text, pos.line, pos.character, &analysis)
+            core_hover::hover(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1078,6 +1775,10 @@ impl LanguageServer for Backend {
             message: format!("hover worker panicked: {err}").into(),
             data: None,
         })?;
+        self.hover_cache
+            .lock()
+            .await
+            .put(cache_key, result.clone());
         Ok(result.map(lift_hover))
     }
 }
@@ -1094,6 +1795,8 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
+        detail: item.detail,
+        sort_text: item.sort_text,
         ..CompletionItem::default()
     }
 }
@@ -1138,6 +1841,219 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             character: r.end_character,
         },
     }
+}
+
+/// Lift the analyser's diagnostic records into the LSP wire
+/// shape.  Shared by both the push-based `publish_diagnostics`
+/// path (via `publish_analyser_diagnostics`) and the pull-
+/// based `textDocument/diagnostic` handler.
+fn lift_analyser_diagnostics(
+    text: &str,
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    let line_index = tcl_lexer::LineIndex::new(text);
+    diagnostics
+        .iter()
+        .cloned()
+        .map(|d| {
+            let start = line_index.position_at(d.span.start());
+            let end = line_index.position_at(d.span.end());
+            tower_lsp::lsp_types::Diagnostic {
+                range: Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character,
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character,
+                    },
+                },
+                severity: Some(match d.severity {
+                    tcl_compiler::analyser::Severity::Error => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                    }
+                    tcl_compiler::analyser::Severity::Warning => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                    }
+                    tcl_compiler::analyser::Severity::Hint
+                    | tcl_compiler::analyser::Severity::Suggestion => {
+                        tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                    }
+                }),
+                code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+                code_description: None,
+                source: Some("tcl-lsp".to_string()),
+                message: d.message,
+                related_information: None,
+                tags: None,
+                data: None,
+            }
+        })
+        .collect()
+}
+
+/// Build an empty `DocumentDiagnosticReportResult` for callers
+/// that hit a no-document or no-analysis path.
+fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
+    DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(
+        RelatedFullDocumentDiagnosticReport {
+            related_documents: None,
+            full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                result_id: None,
+                items: Vec::new(),
+            },
+        },
+    ))
+}
+
+/// `true` when `uri` sits under the workspace folder `folder`.
+///
+/// Performs the directory-boundary check the prefix-only
+/// `target.starts_with(folder)` form gets wrong — without
+/// the boundary check `file:///workspace/app` would also
+/// match `file:///workspace/app2/...` (PR #454 Codex review P2).
+/// The match succeeds when:
+///
+/// * `uri == folder`, OR
+/// * `uri == folder` with the folder's trailing slash trimmed, OR
+/// * `uri` starts with `folder + "/"`.
+fn uri_under_folder(uri: &str, folder: &str) -> bool {
+    let folder_trimmed = folder.trim_end_matches('/');
+    if uri == folder_trimmed || uri == folder {
+        return true;
+    }
+    // The boundary check: the byte immediately after the
+    // folder prefix in `uri` must be `/`.  Compare against the
+    // trimmed form so a trailing slash on `folder` doesn't
+    // change the behaviour.
+    let needle = format!("{folder_trimmed}/");
+    uri.starts_with(&needle)
+}
+
+/// Return a fresh `result_id` for a semantic-tokens response.
+/// Monotonically increasing via an atomic counter so each
+/// snapshot we hand out is uniquely identifiable, letting
+/// clients consult our cache via
+/// `semanticTokens/full/delta { previousResultId }`.
+/// Build the `ServerCapabilities` advertised in the response
+/// to `initialize`.  Kept as a free function so the
+/// `LanguageServer::initialize` handler stays focused on
+/// state setup and result construction — the long capability
+/// literal lives here rather than inside the trait method.
+fn build_server_capabilities() -> ServerCapabilities {
+    ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::FULL,
+        )),
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
+        completion_provider: Some(CompletionOptions {
+            trigger_characters: Some(vec!["$".to_owned()]),
+            ..CompletionOptions::default()
+        }),
+        signature_help_provider: Some(SignatureHelpOptions {
+            trigger_characters: Some(vec![" ".to_owned()]),
+            retrigger_characters: None,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        definition_provider: Some(OneOf::Left(true)),
+        declaration_provider: Some(DeclarationCapability::Simple(true)),
+        type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
+        references_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+        selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+        document_formatting_provider: Some(OneOf::Left(true)),
+        document_range_formatting_provider: Some(OneOf::Left(true)),
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        inlay_hint_provider: Some(OneOf::Left(true)),
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
+        // Note: tower-lsp 0.20 does not expose
+        // `type_hierarchy_provider` on `ServerCapabilities`;
+        // the type-hierarchy core provider lives in
+        // `tcl-lsp-core::type_hierarchy` and will be wired
+        // once we upgrade tower-lsp (tracked under
+        // `S-type-hierarchy-rich`).
+        semantic_tokens_provider: Some(semantic_tokens_capability()),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
+        linked_editing_range_provider: Some(
+            tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
+        ),
+        // `S-diagnostics-pipeline`: advertise pull-based
+        // diagnostics so editors that support it can request
+        // diagnostics on demand alongside the existing
+        // push-based `publish_diagnostics`.
+        diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+            identifier: Some("tcl-lsp".to_string()),
+            inter_file_dependencies: false,
+            workspace_diagnostics: false,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+        ..ServerCapabilities::default()
+    }
+}
+
+/// Build the semantic-tokens capability advertising the
+/// classifier's legend, range support, and delta support.
+fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
+    SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
+        work_done_progress_options: WorkDoneProgressOptions::default(),
+        legend: SemanticTokensLegend {
+            token_types: core_semantic_tokens::legend_token_types()
+                .into_iter()
+                .map(tower_lsp::lsp_types::SemanticTokenType::new)
+                .collect(),
+            token_modifiers: core_semantic_tokens::legend_token_modifiers()
+                .into_iter()
+                .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
+                .collect(),
+        },
+        range: Some(true),
+        // Delta support — the handler implements the minimal
+        // valid shape (returns full tokens when
+        // previousResultId doesn't match, otherwise empty
+        // edits).
+        full: Some(SemanticTokensFullOptions::Delta {
+            delta: Some(true),
+        }),
+    })
+}
+
+fn next_semantic_tokens_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("st-{id}")
+}
+
+/// Convert the core's `Vec<u32>` packed semantic-tokens
+/// stream (`[deltaLine, deltaCol, length, type, modifiers]`
+/// per token) into a `Vec<SemanticToken>` for the wire layer.
+fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp::lsp_types::SemanticToken> {
+    let mut tokens: Vec<tower_lsp::lsp_types::SemanticToken> = Vec::with_capacity(data.len() / 5);
+    for chunk in data.chunks_exact(5) {
+        tokens.push(tower_lsp::lsp_types::SemanticToken {
+            delta_line: chunk[0],
+            delta_start: chunk[1],
+            length: chunk[2],
+            token_type: chunk[3],
+            token_modifiers_bitset: chunk[4],
+        });
+    }
+    tokens
 }
 
 fn lift_parameter_information(p: CoreParameterInformation) -> ParameterInformation {
@@ -1424,6 +2340,202 @@ mod tests {
         assert!(
             kids[0].children.is_none(),
             "leaf symbol's empty children must lift to None",
+        );
+    }
+
+    /// Build a fresh `Backend` for unit tests that only
+    /// exercise the dialect-resolution helpers.  `Client`
+    /// isn't publicly constructible, so we build via
+    /// `LspService::new` and copy the wrapped `Client` into a
+    /// fresh `Backend` with reset state.
+    fn test_backend() -> Backend {
+        let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        Backend {
+            client: service.inner().client.clone(),
+            documents: Mutex::new(HashMap::new()),
+            default_dialect: Mutex::new("tcl8.6".to_owned()),
+            dialect_registries: Mutex::new(HashMap::new()),
+            workspace_folders: Mutex::new(Vec::new()),
+            folder_dialects: Mutex::new(Vec::new()),
+            analyses: Mutex::new(HashMap::new()),
+            hover_cache: Mutex::new(HoverCache::default()),
+            semantic_tokens_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_folder_dialect_picks_deepest_prefix() {
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![
+            (
+                Url::parse("file:///workspace/").unwrap(),
+                "tcl9.0".to_owned(),
+            ),
+            (
+                Url::parse("file:///workspace/irules/").unwrap(),
+                "f5-irules".to_owned(),
+            ),
+        ];
+        let inside =
+            Url::parse("file:///workspace/irules/rule.tcl").expect("parse target uri");
+        assert_eq!(
+            backend.resolve_folder_dialect(&inside).await,
+            Some("f5-irules".to_owned()),
+        );
+        let outside_irules =
+            Url::parse("file:///workspace/main.tcl").expect("parse target uri");
+        assert_eq!(
+            backend.resolve_folder_dialect(&outside_irules).await,
+            Some("tcl9.0".to_owned()),
+        );
+        let unrelated = Url::parse("file:///elsewhere/x.tcl").unwrap();
+        assert_eq!(backend.resolve_folder_dialect(&unrelated).await, None);
+    }
+
+    #[tokio::test]
+    async fn resolve_folder_dialect_respects_directory_boundary() {
+        // Regression for PR #454 Codex review P2: a prefix-only
+        // match would incorrectly select `file:///workspace/app`'s
+        // dialect for a document inside `file:///workspace/app2/`.
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![
+            (
+                Url::parse("file:///workspace/app").unwrap(),
+                "f5-irules".to_owned(),
+            ),
+            (
+                Url::parse("file:///workspace/app2/").unwrap(),
+                "tcl9.0".to_owned(),
+            ),
+        ];
+        let sibling = Url::parse("file:///workspace/app2/main.tcl").unwrap();
+        assert_eq!(
+            backend.resolve_folder_dialect(&sibling).await,
+            Some("tcl9.0".to_owned()),
+            "sibling folder must not inherit prefix-matched dialect",
+        );
+        let inside_app = Url::parse("file:///workspace/app/inner.tcl").unwrap();
+        assert_eq!(
+            backend.resolve_folder_dialect(&inside_app).await,
+            Some("f5-irules".to_owned()),
+        );
+    }
+
+    #[test]
+    fn uri_under_folder_handles_trailing_slash_and_boundary() {
+        assert!(uri_under_folder(
+            "file:///ws/app/file.tcl",
+            "file:///ws/app/",
+        ));
+        assert!(uri_under_folder(
+            "file:///ws/app/file.tcl",
+            "file:///ws/app",
+        ));
+        // The folder itself counts as a match.
+        assert!(uri_under_folder(
+            "file:///ws/app",
+            "file:///ws/app/",
+        ));
+        // A sibling folder does not.
+        assert!(!uri_under_folder(
+            "file:///ws/app2/file.tcl",
+            "file:///ws/app",
+        ));
+        assert!(!uri_under_folder(
+            "file:///ws/app2/file.tcl",
+            "file:///ws/app/",
+        ));
+    }
+
+    #[test]
+    fn hover_cache_round_trips_an_entry() {
+        let mut cache = HoverCache::default();
+        let uri = Url::parse("file:///x.tcl").unwrap();
+        let key = (uri.clone(), 0, 5);
+        // Miss before insertion.
+        assert!(matches!(cache.get(&key), HoverLookup::Miss));
+        // Insert and read back.
+        let h = tcl_lsp_core::hover::Hover {
+            value: "demo".to_owned(),
+            kind: tcl_lsp_core::hover::HoverKind::Markdown,
+        };
+        cache.put(key.clone(), Some(h.clone()));
+        match cache.get(&key) {
+            HoverLookup::Hit(got) => assert_eq!(got.value, "demo"),
+            other => panic!("expected Hit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn hover_cache_records_empty_hovers() {
+        let mut cache = HoverCache::default();
+        let uri = Url::parse("file:///x.tcl").unwrap();
+        let key = (uri, 0, 5);
+        cache.put(key.clone(), None);
+        // An empty hover is distinct from a miss.
+        assert!(matches!(cache.get(&key), HoverLookup::HitEmpty));
+    }
+
+    #[test]
+    fn hover_cache_invalidates_by_uri() {
+        let mut cache = HoverCache::default();
+        let uri_a = Url::parse("file:///a.tcl").unwrap();
+        let uri_b = Url::parse("file:///b.tcl").unwrap();
+        let h = tcl_lsp_core::hover::Hover {
+            value: "x".to_owned(),
+            kind: tcl_lsp_core::hover::HoverKind::Markdown,
+        };
+        cache.put((uri_a.clone(), 0, 0), Some(h.clone()));
+        cache.put((uri_b.clone(), 0, 0), Some(h));
+        cache.invalidate_uri(&uri_a);
+        assert!(matches!(cache.get(&(uri_a, 0, 0)), HoverLookup::Miss));
+        assert!(matches!(cache.get(&(uri_b, 0, 0)), HoverLookup::Hit(_)));
+    }
+
+    #[test]
+    fn hover_cache_caps_at_256_entries() {
+        let mut cache = HoverCache::default();
+        let uri = Url::parse("file:///x.tcl").unwrap();
+        let h = tcl_lsp_core::hover::Hover {
+            value: "x".to_owned(),
+            kind: tcl_lsp_core::hover::HoverKind::Markdown,
+        };
+        for i in 0..300 {
+            cache.put((uri.clone(), 0, i), Some(h.clone()));
+        }
+        assert_eq!(cache.entries.len(), HoverCache::CAP);
+        // Earliest insertions were evicted.
+        assert!(matches!(
+            cache.get(&(uri.clone(), 0, 0)),
+            HoverLookup::Miss,
+        ));
+        // Most-recent insertions survive.
+        assert!(matches!(
+            cache.get(&(uri, 0, 299)),
+            HoverLookup::Hit(_),
+        ));
+    }
+
+    #[tokio::test]
+    async fn dialect_for_open_falls_back_to_folder_dialect() {
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![(
+            Url::parse("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let doc = Url::parse("file:///workspace/main.tcl").unwrap();
+        // A `tcl` language id maps to `tcl8.6` directly, so the
+        // folder override is *not* consulted (language_id is the
+        // most specific signal we have).
+        assert_eq!(
+            backend.dialect_for_open(&doc, "tcl").await,
+            "tcl8.6".to_owned(),
+        );
+        // An unknown language id (`plaintext`) lets the folder
+        // override take effect.
+        assert_eq!(
+            backend.dialect_for_open(&doc, "plaintext").await,
+            "f5-irules".to_owned(),
         );
     }
 }

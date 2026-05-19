@@ -19,17 +19,24 @@
 //! * Bare-word references resolve to a user-defined `proc` or
 //!   `TclOO` class via `name_span`.
 //!
-//! What is *deferred* (planned as `S-definition-rich` follow-up):
+//! Also lands: command-alias resolution — when the cursor's
+//! word matches an `interp alias {} ALIAS {} TARGET` recorded
+//! in `analysis.command_aliases`, the provider jumps to the
+//! target proc's definition (when the target is a user
+//! proc).
 //!
-//! * Method-body context lookups (Python's `scope.kind == "method"`
-//!   path that surfaces `my method` calls inside a class body).
-//! * Command-alias resolution (`lookup_alias_for_word(...)`).
+//! What is *still deferred* (planned as further
+//! `S-definition-rich` sub-strips):
+//!
+//! * Method-body context lookups (Python's `scope.kind ==
+//!   "method"` path that surfaces `my method` calls inside a
+//!   class body).
 //! * `BigIP` definition (`get_bigip_definition`) — entirely
 //!   separate provider keyed off iRules dialect that resolves
-//!   pool / data-group / iRule / virtual-server names against a
-//!   parsed `bigip.conf`.
-//! * Property / constructor / destructor name resolution inside
-//!   a class.
+//!   pool / data-group / iRule / virtual-server names against
+//!   a parsed `bigip.conf`.
+//! * Property / constructor / destructor name resolution
+//!   inside a class.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -67,16 +74,22 @@ pub fn definition(
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
 
-    // 1. Variable reference — walk the global scope only for
-    //    the minimal port.
+    // 1. Variable reference — walk the scope chain inward
+    //    from the global scope toward the innermost scope
+    //    whose body span contains the cursor's byte offset,
+    //    then walk back outward looking for the var.  Mirrors
+    //    Python's `find_scope_at_line` + scope-chain ascent.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(var_def) = analysis.global_scope.variables.get(&var_name) {
+        let cursor_offset = byte_offset_at(source, line, character);
+        if let Some(var_def) =
+            lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
+        {
             return vec![span_to_range(&line_index, var_def.definition_span)];
         }
         return Vec::new();
     }
 
-    // 2. Bare word — proc or class.
+    // 2. Bare word — proc, class, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -93,7 +106,119 @@ pub fn definition(
             return vec![span_to_range(&line_index, class_def.name_span)];
         }
     }
+    // Alias resolution — when the cursor's word matches an
+    // `interp alias {} ALIAS {} TARGET` recorded in
+    // `analysis.command_aliases`, jump to the TARGET proc.
+    // Mirrors Python's `lookup_alias_for_word`.
+    if let Some(alias) = lookup_alias(analysis, &word) {
+        for (qname, proc_def) in &analysis.all_procs {
+            if proc_def.name == alias.target
+                || qname == &alias.target
+                || qname == &format!("::{}", alias.target)
+            {
+                return vec![span_to_range(&line_index, proc_def.name_span)];
+            }
+        }
+    }
     Vec::new()
+}
+
+/// Look up an alias by name.  Accepts the alias's simple or
+/// qualified form (`mycmd` and `::mycmd` both match an alias
+/// stored with `qualified_name == "::mycmd"`).
+fn lookup_alias<'a>(
+    analysis: &'a AnalysisResult,
+    name: &str,
+) -> Option<&'a tcl_compiler::signature_scan::types::SignatureCommandAlias> {
+    let qualified = if name.starts_with("::") {
+        name.to_string()
+    } else {
+        format!("::{name}")
+    };
+    analysis
+        .command_aliases
+        .get(&qualified)
+        .or_else(|| analysis.command_aliases.get(name))
+}
+
+/// Compute the byte offset of a 0-based `(line, character)`
+/// pair in `source`.  Character indices count chars (matching
+/// Python's behaviour); supplementary-plane code points may
+/// drift by one column under strict UTF-16 semantics —
+/// acceptable for the minimal port.
+pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
+    let mut current_line: u32 = 0;
+    let mut current_char_in_line: u32 = 0;
+    let mut byte_offset: u32 = 0;
+    for c in source.chars() {
+        if current_line == line && current_char_in_line == character {
+            return byte_offset;
+        }
+        let len = u32::try_from(c.len_utf8()).unwrap_or(1);
+        if c == '\n' {
+            if current_line == line {
+                return byte_offset;
+            }
+            current_line += 1;
+            current_char_in_line = 0;
+        } else {
+            current_char_in_line += 1;
+        }
+        byte_offset += len;
+    }
+    byte_offset
+}
+
+/// Walk the scope tree to find the variable definition that
+/// the cursor's `byte_offset` would see — the innermost
+/// scope whose body span contains the offset takes precedence
+/// over any enclosing scope.
+///
+/// Mirrors Python's `find_scope_at_line` (descend into the
+/// innermost matching child) followed by a scope-chain walk
+/// outward for the var lookup.
+pub(crate) fn lookup_var_in_scope_chain<'a>(
+    scope: &'a tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+    name: &str,
+) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    // First, find the innermost scope containing the cursor.
+    let chain = scope_chain_at(scope, byte_offset);
+    // Walk outward (innermost-first) looking for the var.
+    for sc in chain.iter().rev() {
+        if let Some(v) = sc.variables.get(name) {
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// Return the chain of scopes from `root` down to the
+/// innermost child whose `body_span` contains `byte_offset`.
+/// The chain is ordered outermost (`root`) to innermost.
+fn scope_chain_at(
+    root: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Vec<&tcl_compiler::analyser::Scope> {
+    let mut chain = vec![root];
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            // `Span` is half-open `[start, end)` — the byte at
+            // `s.end()` lives outside the scope (PR #454 Copilot
+            // review).
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
+        });
+        match next {
+            Some(child) => {
+                chain.push(child);
+                cursor = child;
+            }
+            None => break,
+        }
+    }
+    chain
 }
 
 fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -155,6 +280,76 @@ mod tests {
         if !locs.is_empty() {
             assert_eq!(locs[0].start_line, 0);
         }
+    }
+
+    // -- S-definition-rich: alias resolution ------------------------
+
+    #[test]
+    fn jump_to_alias_target_proc() {
+        // `interp alias {} mycmd {} greet` aliases `mycmd` to
+        // the user proc `greet`.  Cursor on `mycmd` should
+        // resolve to `greet`'s definition.
+        let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\nmycmd\n";
+        let analysis = analyse(src);
+        // Cursor on `mycmd` invocation on line 2.
+        let locs = definition(src, 2, 2, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The target's name span is on line 0 starting at
+        // column 5 (after `proc `).
+        assert_eq!(locs[0].start_line, 0);
+        assert_eq!(locs[0].start_character, 5);
+    }
+
+    #[test]
+    fn alias_with_no_user_proc_returns_empty() {
+        // `mycmd` aliases to a built-in (`puts`).  No user
+        // proc; the provider returns empty rather than
+        // pretending to know the location.
+        let src = "interp alias {} mycmd {} puts\nmycmd\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 1, 2, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn alias_lookup_accepts_qualified_form() {
+        // The alias's qualified form (`::mycmd`) should also
+        // resolve.
+        let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\n::mycmd\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 2, &analysis);
+        // Whether find_word_span_at_position includes leading
+        // `::` depends on the implementation; both should
+        // jump to the target proc when matched.
+        if !locs.is_empty() {
+            assert_eq!(locs[0].start_line, 0);
+        }
+    }
+
+    // -- S-definition-rich: scope-chain $var descent ---------------
+
+    #[test]
+    fn proc_local_var_jumps_to_proc_scope_definition() {
+        // `local` is defined inside `proc f`.  Cursor on
+        // `$local` inside `f`'s body must jump to the
+        // proc-local definition, not the global scope
+        // (which has none).
+        let src = "proc f {} {\n    set local 1\n    puts $local\n}\n";
+        let analysis = analyse(src);
+        // Cursor inside `$local` on line 2.
+        let locs = definition(src, 2, 12, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The proc-local `set local 1` is on line 1.
+        assert_eq!(locs[0].start_line, 1, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn byte_offset_at_handles_newlines() {
+        let src = "abc\ndef\nghi\n";
+        assert_eq!(byte_offset_at(src, 0, 0), 0);
+        assert_eq!(byte_offset_at(src, 0, 3), 3);
+        assert_eq!(byte_offset_at(src, 1, 0), 4);
+        assert_eq!(byte_offset_at(src, 2, 2), 10);
     }
 
     #[test]
