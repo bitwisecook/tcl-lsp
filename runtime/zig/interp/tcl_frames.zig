@@ -2631,6 +2631,43 @@ pub export fn var_resolve(name: i32) i32 {
     return globals.global_get(name);
 }
 
+/// Raise the canonical ``can't set "<name>": variable is array``
+/// error using the user's original (unqualified) name spelling.
+/// Used by :func:`var_set` to detect the conflict BEFORE the bare
+/// name is qualified to ``::ns::name`` and routed through
+/// ``global_set`` (which would report the qualified form).
+fn raise_set_array_conflict(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": variable is array";
+    const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_len > 0 and name_ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
@@ -2705,6 +2742,44 @@ pub export fn var_set(name: i32, value: i32) i32 {
     }
     if (current_frame() != null) {
         return local_set(name, value);
+    }
+    // Scalar-vs-array conflict detection: when the unqualified name
+    // already exists as an array in the current scope (proc-local,
+    // namespace, or global), Tcl 9 raises ``can't set "<name>":
+    // variable is array`` using the *user's original spelling* —
+    // not the qualified form ``global_set`` would derive.  Probe
+    // here and raise with the bare ``sn`` so error-3.3's
+    // ``catch {format 44} a`` reports ``"a"`` rather than
+    // ``"::tcl::test::error::a"``.  We check both the bare name
+    // (for root-namespace writes) and the current-namespace
+    // qualified form (for inside ``namespace eval``).
+    {
+        const tcl_array = @import("../valtypes/tcl_array.zig");
+        if (tcl_array.array_exists_raw(sn.ptr, sn.len)) {
+            raise_set_array_conflict(sn.ptr, sn.len);
+            return 0;
+        }
+        if (tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
+            const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+            if (ns_full.len > 2) {
+                const probe_total: u32 = ns_full.len + 2 + sn.len;
+                const probe_buf = obj.alloc(probe_total);
+                if (probe_buf != 0) {
+                    defer obj.free_sized(probe_buf, probe_total);
+                    const probe_dst: [*]u8 = @ptrFromInt(probe_buf);
+                    const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                    for (0..ns_full.len) |i| probe_dst[i] = ns_p[i];
+                    probe_dst[ns_full.len] = ':';
+                    probe_dst[ns_full.len + 1] = ':';
+                    const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                    for (0..sn.len) |i| probe_dst[ns_full.len + 2 + i] = name_p[i];
+                    if (tcl_array.array_exists_raw(probe_buf, probe_total)) {
+                        raise_set_array_conflict(sn.ptr, sn.len);
+                        return 0;
+                    }
+                }
+            }
+        }
     }
     // At script level: an unqualified name resolves to the *current
     // namespace's* variable table (per Tcl 9 — ``set X 99`` inside

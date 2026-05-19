@@ -52,11 +52,14 @@ def _emit_cmd_return(emitter, args: tuple[str, ...]) -> None:
     if args and len(args) >= 3 and args[0] == "-code" and args[1] == "error" and len(args) == 3:
         # return -code error <msg>
         emitter._emit_value(args[2])
-        # ``_RUNTIME_IMPORTS`` keys the error import as
-        # ``tcl_error`` (internal key) → WASM name
-        # ``tcl_cmd_error``; use the internal key to look up
-        # the shared import slot.
-        err_idx = emitter._shared_imports.get("tcl_error")
+        # Route through ``tcl_cmd_error_via_return`` (NOT plain
+        # ``tcl_cmd_error``) so the surrounding proc's epilogue
+        # skips the ``(procedure "X" line N)`` frame stamp —
+        # Tcl 9 ``TclUpdateReturnInfo`` bypasses ``MakeProcError``
+        # for the ``return -code error`` path (proc-old-7.2).
+        err_idx = emitter._shared_imports.get("tcl_error_via_return")
+        if err_idx is None:
+            err_idx = emitter._shared_imports.get("tcl_error")
         if err_idx is None:
             emitter._emit_eval_fallback("return", args)
             return

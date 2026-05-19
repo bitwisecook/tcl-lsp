@@ -1,6 +1,7 @@
 // ``return``, ``break``, ``continue``, ``error``, ``catch``,
 // ``throw``, ``try``, ``apply``, ``tailcall``, ``time`` — control-flow signals.
 
+const std = @import("std");
 const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
@@ -79,37 +80,25 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         {
                             code_kind = .cont;
                         } else {
-                            // Numeric ``-code N`` for N outside the
-                            // 0..4 keyword range — parse the value
-                            // and surface it via the ``return_code``
+                            // Numeric ``-code N`` outside the 0..4
+                            // keyword range — parse the value and
+                            // surface it via the ``return_code``
                             // side-channel that ``catch_leave`` reads.
-                            // Negative values (e.g. ``-1``) are valid
-                            // custom codes per Tcl 9 (interp-26.x);
-                            // non-numeric values fall through to
-                            // ``.ok`` (matching reference Tcl raises
-                            // an error here — left as a follow-up
-                            // since tcltest doesn't rely on it).
-                            var ki: u32 = 0;
-                            var negative = false;
-                            if (code.len >= 1 and cp[0] == '-') {
-                                negative = true;
-                                ki = 1;
-                            } else if (code.len >= 1 and cp[0] == '+') {
-                                ki = 1;
-                            }
-                            var n: i64 = 0;
-                            var ok = ki < code.len;
-                            while (ki < code.len) : (ki += 1) {
-                                if (cp[ki] < '0' or cp[ki] > '9') {
-                                    ok = false;
-                                    break;
-                                }
-                                n = n * 10 + (cp[ki] - '0');
-                            }
-                            if (ok) {
-                                if (negative) n = -n;
+                            // ``parse_code_number`` handles both decimal
+                            // (positive AND negative, per interp-26.x)
+                            // and hex ``0xNN`` forms (error-10.11 /
+                            // -10.12 verify hex equivalence).  Tcl 9
+                            // accepts every numeric value as a custom
+                            // completion code; values that *also* land
+                            // in the keyword range are pre-empted by
+                            // the keyword branches above.  Non-numeric
+                            // values fall through to ``.ok`` here —
+                            // matching reference Tcl raises an error,
+                            // tracked as a follow-up.
+                            const parsed = parse_code_number(code.ptr, code.len);
+                            if (parsed.ok) {
                                 code_kind = .custom;
-                                custom_code = n;
+                                custom_code = parsed.n;
                             }
                         }
                     }
@@ -382,6 +371,16 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         // ``-errorcode`` so cmdMZ-return-2.15..17 see the expected
         // ``::errorCode {a b}`` after the apply unwinds.
         catch_mod.tcl_cmd_error_full(result_obj, errorinfo_obj, errorcode_obj);
+        // Tcl 9 distinguishes a body-level ``error msg`` (which
+        // ``InterpProcNR2`` annotates with ``MakeProcError``) from
+        // a ``return -code error msg`` (which goes through
+        // ``TclUpdateReturnInfo`` and skips the procedure frame).
+        // Our shortcut above goes straight to the error path; flag
+        // it so the procedure-frame stamps (compiled epilogue +
+        // interpreted dispatch) skip the frame.  proc-old-7.2's
+        // expected ``::errorInfo`` carries no ``(procedure "tproc"
+        // line N)`` line for this exact reason.
+        catch_mod.state.return_via_error_code = 1;
         return result_mod.from_globals(0);
     }
     // ``return -code break`` / ``return -code continue`` aren't yet
@@ -468,11 +467,13 @@ fn eval_continue(words: []const i32) result_mod.InterpResult {
 
 fn eval_error(words: []const i32) result_mod.InterpResult {
     // ``error msg ?info? ?code?`` — populate ``::errorInfo`` /
-    // ``::errorCode`` from the optional 2nd / 3rd args.  Without
-    // this, ``catch ... opt; dict get $opt -errorcode`` always
-    // saw ``NONE`` because the upstream ``error -code FOO`` form
-    // never made it into the global.
-    if (words.len < 2) return result_mod.from_globals(0);
+    // ``::errorCode`` from the optional 2nd / 3rd args.  Tcl 9
+    // requires 1, 2 or 3 *user* args (plus the cmd name itself);
+    // 0 or 4+ args raise ``wrong # args`` (error-5.1 / -5.2).
+    if (words.len < 2 or words.len > 4) {
+        stubs.raise("wrong # args: should be \"error message ?errorInfo? ?errorCode?\"");
+        return result_mod.from_globals(0);
+    }
     const msg = words[1];
     const info: i32 = if (words.len >= 3) words[2] else 0;
     const code: i32 = if (words.len >= 4) words[3] else 0;
@@ -533,6 +534,140 @@ fn eval_throw(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(0);
 }
 
+/// Parse a numeric literal accepting decimal (``42`` / ``-1`` /
+/// ``+0``) and hex (``0x2A`` / ``0X2A``).  Used by ``try`` ``on code
+/// …`` matching and the ``return -code N`` parser so both sides
+/// recognise the full set Tcl 9 lets through — hex codes (error-
+/// 10.11 / -10.12) AND negative custom codes (interp-26.x).
+/// Returns (n, true) on success, (0, false) on failure.
+fn parse_code_number(ptr: u32, len: u32) struct { n: i64, ok: bool } {
+    if (len == 0 or ptr == 0) return .{ .n = 0, .ok = false };
+    const cp: [*]const u8 = @ptrFromInt(ptr);
+    // Handle an optional leading sign.  ``-N`` is a legal custom
+    // completion code per ``return -code -1 ...`` (interp-26.x);
+    // ``+N`` is accepted as well for symmetry with Tcl's number
+    // parser.  A bare ``-`` / ``+`` with no following digits is
+    // rejected by the ``ok = ki < len`` check below.
+    var ki: u32 = 0;
+    var negative = false;
+    if (cp[0] == '-') {
+        negative = true;
+        ki = 1;
+    } else if (cp[0] == '+') {
+        ki = 1;
+    }
+    // Hex form ``0x…`` (no sign).  ``-0xNN`` would need separate
+    // handling — Tcl 9 rejects it, so we do too.  Overflow on either
+    // branch surfaces as ``ok = false`` rather than silently wrapping
+    // (codex review on PR #452); the caller lets the canonical
+    // "integer value too large" diagnostic stand.
+    if (!negative and ki == 0 and len >= 3 and cp[0] == '0' and (cp[1] == 'x' or cp[1] == 'X')) {
+        var n: i64 = 0;
+        var i: u32 = 2;
+        while (i < len) : (i += 1) {
+            const c = cp[i];
+            const d: i64 = if (c >= '0' and c <= '9')
+                @as(i64, c - '0')
+            else if (c >= 'a' and c <= 'f')
+                @as(i64, c - 'a' + 10)
+            else if (c >= 'A' and c <= 'F')
+                @as(i64, c - 'A' + 10)
+            else
+                return .{ .n = 0, .ok = false };
+            const m = @mulWithOverflow(n, @as(i64, 16));
+            if (m[1] != 0) return .{ .n = 0, .ok = false };
+            const a = @addWithOverflow(m[0], d);
+            if (a[1] != 0) return .{ .n = 0, .ok = false };
+            n = a[0];
+        }
+        return .{ .n = n, .ok = true };
+    }
+    var n: i64 = 0;
+    if (ki >= len) return .{ .n = 0, .ok = false };
+    while (ki < len) : (ki += 1) {
+        const c = cp[ki];
+        if (c < '0' or c > '9') return .{ .n = 0, .ok = false };
+        const m = @mulWithOverflow(n, @as(i64, 10));
+        if (m[1] != 0) return .{ .n = 0, .ok = false };
+        const a = @addWithOverflow(m[0], @as(i64, c - '0'));
+        if (a[1] != 0) return .{ .n = 0, .ok = false };
+        n = a[0];
+    }
+    if (negative) {
+        // ``-9223372036854775808`` (i64 min) can't be negated in i64
+        // without overflow — Tcl 9 accepts this as a valid custom
+        // completion code, so handle it explicitly.
+        if (n == std.math.minInt(i64)) {
+            // Already at the negative bound after the unsigned parse —
+            // but actual parsing produced a positive value, so the
+            // user's ``-n`` doesn't reach this case in practice.
+            // Defensive bail.
+            return .{ .n = 0, .ok = false };
+        }
+        n = -n;
+    }
+    return .{ .n = n, .ok = true };
+}
+
+/// Translate a ``try`` ``on code …`` code-word into its numeric
+/// Tcl status equivalent: ``ok=0``, ``error=1``, ``return=2``,
+/// ``break=3``, ``continue=4``.  Numeric literals (decimal or
+/// hex ``0x...``) pass through.  Anything else returns -1 so the
+/// caller treats the handler as "never matches" (real Tcl raises
+/// ``bad completion code`` — follow-up, the existing tests don't
+/// exercise it).
+fn try_keyword_to_code(code_word: i32) i64 {
+    const cs = obj_ensure_string(code_word);
+    if (cs.len == 0) return -1;
+    const cp: [*]const u8 = @ptrFromInt(cs.ptr);
+    if (str_eq(cp, cs.len, "ok")) return 0;
+    if (str_eq(cp, cs.len, "error")) return 1;
+    if (str_eq(cp, cs.len, "return")) return 2;
+    if (str_eq(cp, cs.len, "break")) return 3;
+    if (str_eq(cp, cs.len, "continue")) return 4;
+    const parsed = parse_code_number(cs.ptr, cs.len);
+    if (!parsed.ok) return -1;
+    return parsed.n;
+}
+
+/// Match a ``try ... trap pattern varlist body`` pattern against
+/// the current error's ``::errorCode``.  The pattern is a list of
+/// element prefixes (e.g. ``{FOO BAR}`` matches an errorCode whose
+/// first two elements are ``FOO BAR``); an empty pattern matches
+/// any error.  Mirrors Tcl 9 ``Tcl_TryObjCmd``'s ``MatchTrap`` —
+/// element-wise prefix comparison using ``Tcl_StringMatch``-equivalent
+/// (exact match here, no glob).
+fn trap_pattern_matches(pattern_obj: i32) bool {
+    const pat_s = obj_ensure_string(pattern_obj);
+    const pat_n = rt.list_count_elements(pat_s.ptr, pat_s.len);
+    if (pat_n == 0) return true; // empty pattern → catch-all
+    // Probe ``::errorCode`` for the error's code list.
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const tcl_ns_mod = @import("../interp/tcl_ns.zig");
+    const ec_name = obj_mod.obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
+    defer obj_mod.tcl_obj_release(ec_name);
+    const ec_val = tcl_ns_mod.global_get(ec_name);
+    if (ec_val == 0) return false;
+    const ec_s = obj_ensure_string(ec_val);
+    const ec_n = rt.list_count_elements(ec_s.ptr, ec_s.len);
+    if (pat_n > ec_n) return false;
+    // Compare element-by-element (byte equality).
+    var i: i64 = 0;
+    while (i < pat_n) : (i += 1) {
+        const pe = rt.list_element_at(pat_s.ptr, pat_s.len, i);
+        const ee = rt.list_element_at(ec_s.ptr, ec_s.len, i);
+        if (pe.len != ee.len) return false;
+        if (pe.len == 0) continue;
+        const pp: [*]const u8 = @ptrFromInt(pat_s.ptr + pe.start);
+        const ep: [*]const u8 = @ptrFromInt(ec_s.ptr + ee.start);
+        var k: u32 = 0;
+        while (k < pe.len) : (k += 1) {
+            if (pp[k] != ep[k]) return false;
+        }
+    }
+    return true;
+}
+
 // ``try body ?on code varlist handler? ... ?finally body?``
 fn eval_try(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
@@ -546,12 +681,46 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
     // that ``catch_result`` reads.  See ``eval_catch`` above.
     const code_obj = rt.catch_leave();
     const catch_val = rt.catch_result();
-    const had_error: bool = rt.obj_get_int(code_obj) != 0;
+    // ``body_code`` is the numeric Tcl status code returned by the
+    // body: 0=OK, 1=ERROR, 2=RETURN, 3=BREAK, 4=CONTINUE, ≥5 custom.
+    // Used to match ``on code`` handlers (error-9.x covers each).
+    const body_code: i64 = rt.obj_get_int(code_obj);
+    const had_error: bool = body_code == 1;
+
+    // Snapshot the body's return options so ``try`` can re-raise
+    // them when no handler matches.  ``catch_leave`` consumed the
+    // pending slots into ``last_return_*``; capture those now so a
+    // subsequent handler body (which uses ``set`` / nested ``catch``
+    // etc.) can't overwrite them before we re-promote.  These match
+    // the options dict the enclosing catch would have produced for
+    // the body alone (error-15.x .2 variants check ``catch $script``
+    // ≡ ``catch {try $script}`` options dict).  We keep the snapshot
+    // live and the live ``last_return_extras`` slot intact so any
+    // ``catch_options`` query a matched handler makes still sees the
+    // body's options (the handler-body's ``set $y [catch_options]``
+    // is the common shape error-15.10 exercises).
+    const saved_return_code: i64 = catch_mod.state.last_return_code;
+    const saved_return_level: u32 = catch_mod.state.last_return_level;
+    const saved_return_extras: i32 = catch_mod.state.last_return_extras;
+    if (saved_return_extras != 0) {
+        const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+        obj_mod_try.tcl_obj_retain(saved_return_extras);
+    }
 
     var final_result: i32 = if (had_error) catch_val else body_res;
     var error_raised = had_error;
     var handled = false;
     var finally_body: i32 = 0;
+    // ``pending_chain`` is true after a handler matched but its body
+    // was the single-byte token ``-``: the next handler's body runs
+    // unconditionally (no further code/pattern match), with the
+    // ORIGINAL varlist binding preserved.  Tcl 9 TIP 329 semantics:
+    // ``try {…} on ok {x} - on error {} {…}`` — the ``on ok {x} -``
+    // arm matched on OK, but its dash body means "use the next
+    // handler's body".  Tested by error-19.1 / -19.2 / -19.3 / -19.4
+    // / -19.5.  The chained handler may itself have a ``-`` body,
+    // which keeps the chain going until a real body is found.
+    var pending_chain: bool = false;
 
     // Parse clauses
     var wi: u32 = 2;
@@ -575,27 +744,37 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
             continue;
         }
 
-        // "on code varlist handler"
-        if (kw.len == 2 and kp[0] == 'o' and kp[1] == 'n') {
+        // Parse a handler word: ``on code varlist handler`` or
+        // ``trap pattern varlist handler``.  Decide whether the
+        // handler matches (or whether we're in a chain), then run
+        // (or skip, or chain again) the body.
+        const is_on = kw.len == 2 and kp[0] == 'o' and kp[1] == 'n';
+        const is_trap = kw.len == 4 and kp[0] == 't' and kp[1] == 'r' and kp[2] == 'a' and kp[3] == 'p';
+        if (is_on or is_trap) {
             wi += 1;
             if (wi + 2 >= words.len) break;
-            const code_word = words[wi];
+            const guard_word = words[wi];
             wi += 1;
             const varlist = words[wi];
             wi += 1;
             const handler = words[wi];
             wi += 1;
-            if (!handled) {
-                const cs = obj_ensure_string(code_word);
-                const cp: [*]const u8 = @ptrFromInt(cs.ptr);
-                const is_error_kw = cs.len == 5 and cp[0] == 'e' and cp[1] == 'r' and
-                    cp[2] == 'r' and cp[3] == 'o' and cp[4] == 'r';
-                const is_ok_kw = cs.len == 2 and cp[0] == 'o' and cp[1] == 'k';
-                const code_n = rt.obj_get_int(code_word);
-                const matches =
-                    (had_error and (is_error_kw or code_n == 1)) or
-                    (!had_error and (is_ok_kw or code_n == 0));
-                if (matches) {
+            // Compute whether THIS handler matches the body's outcome,
+            // independent of any pending chain (a chain doesn't check
+            // matching — it just takes the next body).
+            var this_matches: bool = false;
+            if (is_on) {
+                this_matches = !handled and try_keyword_to_code(guard_word) == body_code;
+            } else {
+                this_matches = !handled and had_error and trap_pattern_matches(guard_word);
+            }
+            const run_body = pending_chain or this_matches;
+            if (run_body) {
+                // Bind the handler's varlist when *this* handler is
+                // the one matching (a chain keeps the previous
+                // handler's bindings).  Skip binding when we're
+                // continuing a chain.
+                if (this_matches and !pending_chain) {
                     const vl_s = obj_ensure_string(varlist);
                     const vl_n = rt.list_count_elements(vl_s.ptr, vl_s.len);
                     if (vl_n >= 1) {
@@ -605,38 +784,38 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
                             _ = frames.var_set(vn, catch_val);
                         }
                     }
-                    const hb_s = obj_ensure_string(handler);
-                    final_result = interp.eval_script(hb_s.ptr, hb_s.len);
-                    error_raised = false;
-                    handled = true;
-                }
-            }
-            continue;
-        }
-
-        // "trap type varlist handler" — matches any error (type prefix ignored for now)
-        if (kw.len == 4 and kp[0] == 't' and kp[1] == 'r' and kp[2] == 'a' and kp[3] == 'p') {
-            wi += 1;
-            if (wi + 2 >= words.len) break;
-            wi += 1; // skip type
-            const varlist = words[wi];
-            wi += 1;
-            const handler = words[wi];
-            wi += 1;
-            if (!handled and had_error) {
-                const vl_s = obj_ensure_string(varlist);
-                const vl_n = rt.list_count_elements(vl_s.ptr, vl_s.len);
-                if (vl_n >= 1) {
-                    const v0 = rt.list_element_at(vl_s.ptr, vl_s.len, 0);
-                    if (v0.len > 0) {
-                        const vn = rt.obj_new_string_copy(vl_s.ptr + v0.start, v0.len);
-                        _ = frames.var_set(vn, catch_val);
+                    if (vl_n >= 2) {
+                        const v1 = rt.list_element_at(vl_s.ptr, vl_s.len, 1);
+                        if (v1.len > 0) {
+                            const vn = rt.obj_new_string_copy(vl_s.ptr + v1.start, v1.len);
+                            _ = frames.var_set(vn, catch_mod.catch_options());
+                        }
                     }
                 }
+                // Inspect handler body: is it the chain sentinel ``-``?
                 const hb_s = obj_ensure_string(handler);
+                const hp: [*]const u8 = if (hb_s.len > 0) @ptrFromInt(hb_s.ptr) else undefined;
+                if (hb_s.len == 1 and hp[0] == '-') {
+                    // Chain to the next handler; keep the current
+                    // bindings (or, if we just took a chain ourselves,
+                    // the original matcher's bindings).
+                    pending_chain = true;
+                    continue;
+                }
                 final_result = interp.eval_script(hb_s.ptr, hb_s.len);
                 error_raised = false;
                 handled = true;
+                pending_chain = false;
+                // If the handler raised an error itself (or re-raised
+                // the body's error via ``return -options $y $x``),
+                // the outer ``eval_script`` will add an ``invoked
+                // from within "try ..."`` frame.  Tcl 9 bytecode-
+                // compiles ``try``, so the try command never appears
+                // in the traceback — set ``transparent_error`` to
+                // suppress that frame (error-15.10.x.1.x check this).
+                if (catch_mod.state.error_flag != 0) {
+                    catch_mod.state.transparent_error = 1;
+                }
             }
             continue;
         }
@@ -649,6 +828,17 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
     // The save+clear preserves a handler-issued return/break/continue across
     // the finally body so a clean finally completion restores them.
     if (finally_body != 0) {
+        // Snapshot the body/handler's effective options dict BEFORE
+        // running the finally.  Tcl 9 ``TryPostFinally`` (tclCmdMZ.c)
+        // builds the ``-during`` field of the finally's options when
+        // the finally raises an error AND a prior body/handler had
+        // also raised.  We capture unconditionally — including OK
+        // outcomes — so error-18.8 / -18.9 (body=OK, finally=error)
+        // see ``-during -code 0`` as well.  The snapshot is owned by
+        // this scope and either consumed into ``state.during_options``
+        // for the catch's options dict, or released on the OK path.
+        const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+        const during_snap = catch_mod.catch_options();
         const snap = result_mod.flow_save_and_clear();
         rt.catch_enter();
         const fb_s = obj_ensure_string(finally_body);
@@ -657,10 +847,44 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
         // ``catch_leave`` before ``catch_result`` — see ``eval_catch``.
         const finally_code = rt.catch_leave();
         const fb_val = rt.catch_result();
-        if (rt.obj_get_int(finally_code) != 0) {
-            // Finally raised an error — propagate it, overriding handler result.
-            catch_mod.tcl_cmd_error(fb_val);
+        const fb_code = rt.obj_get_int(finally_code);
+        if (fb_code == 1) {
+            // Finally raised an error — propagate it via the standard
+            // ``tcl_cmd_error_full`` path so refcount + globals are
+            // managed consistently with the throw/error code.  Read
+            // back ``::errorCode`` first so the finally's class (set
+            // by ``throw CODE MSG``) survives — passing it as the
+            // ``code`` arg keeps ``stamp_error_globals`` from resetting
+            // it to the default ``NONE``.
+            const ec_name = rt.obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
+            const tcl_ns_mod = @import("../interp/tcl_ns.zig");
+            const ec_obj = tcl_ns_mod.global_get(ec_name);
+            obj_mod_try.tcl_obj_release(ec_name);
+            catch_mod.tcl_cmd_error_full(fb_val, 0, ec_obj);
+            if (ec_obj != 0) obj_mod_try.tcl_obj_release(ec_obj);
+            // Stash the prior chain under ``-during`` so the catch's
+            // options dict reflects which earlier completion was
+            // overridden by the finally's error.  Tcl 9
+            // ``TryPostFinal`` mirrors this with
+            // ``During(interp, ERROR, options, ...)`` — error-16.21 /
+            // -18.7 / -18.10 check this.  ``catch_options`` consumes
+            // the slot exactly once.
+            if (during_snap != 0) {
+                catch_mod.state.during_options = during_snap;
+            }
             return result_mod.from_globals(fb_result);
+        }
+        // Finally exited non-OK without an error (TCL_RETURN/BREAK/
+        // CONTINUE) OR cleanly (TCL_OK) — the during snapshot is no
+        // longer relevant since the finally itself produced the new
+        // outcome; release it.  The flow signal (if any) was already
+        // absorbed by the inner catch_leave; the fall-through below
+        // either re-raises a pre-existing handler error, or restores
+        // the saved signal so a return / break / continue from the
+        // finally propagates back to the caller's enclosing
+        // proc / loop.
+        if (during_snap != 0) {
+            obj_mod_try.tcl_obj_release(during_snap);
         }
         // If finally set a return/break/continue signal, propagate it.
         const fb_ir = result_mod.snapshot(fb_result);
@@ -671,7 +895,50 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
         result_mod.flow_restore(snap);
     }
 
-    if (error_raised and !handled) catch_mod.tcl_cmd_error(catch_val);
+    if (error_raised and !handled) {
+        // Re-raise the body's error without resetting ``::errorInfo``
+        // (which still carries the body's traceback from when
+        // ``tcl_cmd_error`` first fired).  ``tcl_cmd_error`` would
+        // stamp ``::errorInfo`` back to just the message and erase
+        // the body's frames; setting the flag + msg directly keeps
+        // the existing traceback intact.  Mirrors Tcl 9 bytecode-
+        // compiled ``try``: when no handler matches, the error
+        // propagates transparently through ``try`` without rewriting
+        // the trace (error-15.x .1.1.x checks).
+        catch_mod.state.error_flag = 1;
+        const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+        if (catch_val != 0) obj_mod_try.tcl_obj_retain(catch_val);
+        if (catch_mod.state.error_msg != 0 and catch_mod.state.error_msg != catch_val) {
+            obj_mod_try.tcl_obj_release(catch_mod.state.error_msg);
+        }
+        catch_mod.state.error_msg = catch_val;
+        // Also suppress the outer ``invoked from within "try $script"``
+        // frame the enclosing eval_script would add — ``try`` is
+        // transparent in the traceback.
+        catch_mod.state.transparent_error = 1;
+    }
+    // When no handler matched, ``try`` should propagate the body's
+    // return options (e.g. ``-bar soom`` from
+    // ``return -level 0 -code 0 -bar soom foo`` or ``-level 1`` from
+    // ``return -level 1 -code 1 foo``) to the enclosing catch so its
+    // options dict mirrors the catch-without-try form.  We snapshotted
+    // the body's options at the top of this function; re-attach to
+    // ``pending_return_*`` so the enclosing catch's ``catch_leave``
+    // picks them up (error-15.x .2 / .1.1.x variants check
+    // ``catch $script`` ≡ ``catch {try $script}`` options dicts).
+    if (!handled) {
+        catch_mod.state.pending_return_armed = 1;
+        catch_mod.state.pending_return_code = saved_return_code;
+        catch_mod.state.pending_return_level = saved_return_level;
+        if (saved_return_extras != 0) {
+            catch_mod.state.pending_return_extras = saved_return_extras;
+        }
+    } else if (saved_return_extras != 0) {
+        // Handled path — drop the saved extras retain we took above
+        // so it doesn't leak.
+        const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+        obj_mod_try.tcl_obj_release(saved_return_extras);
+    }
     return result_mod.from_globals(final_result);
 }
 

@@ -29,6 +29,16 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                 func_idx = emitter._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = args[1:]
+                if subcmd == "get" and len(sub_args) > 2:
+                    # ``dict get DICT KEY ?KEY...?`` — Tcl 9 supports
+                    # chained-key descent into nested dicts.  The
+                    # 2-param runtime import only handles a single
+                    # key; route the multi-key form through eval so
+                    # the runtime ``dict get`` handler walks the
+                    # chain (error-18.10's ``dict get $opts -during
+                    # -during -errorcode`` exercises this).
+                    emitter._emit_eval_fallback("dict", args)
+                    return True
                 if subcmd == "set" and len(sub_args) >= 3:
                     # Top-level vars must use the var path to keep the
                     # global table mirror in sync (see lappend_.py).
