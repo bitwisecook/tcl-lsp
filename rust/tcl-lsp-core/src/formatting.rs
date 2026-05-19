@@ -27,8 +27,6 @@
 //! * Brace-placement normalisation (K&R / Allman /
 //!   per-file-config).
 //! * Comment-block reflow.
-//! * Range-formatting (currently emits a whole-document
-//!   replacement when given a range).
 //! * Configurable tab width / indentation style via
 //!   `FormatterConfig`.
 //! * `lsp/features/code_actions.py`-driven indentation
@@ -63,37 +61,103 @@ pub fn formatting(source: &str) -> Vec<TextEdit> {
 }
 
 /// Compute formatting edits for a range within the
-/// document.  The current implementation falls back to a
-/// whole-document format (the LSP allows this — the
-/// editor handles applying overlapping edits gracefully).
+/// document.
+///
+/// True range-aware formatting: only the line slice
+/// `[range.start_line, range.end_line]` (extended to whole
+/// lines) is re-normalised, with the brace depth at the
+/// start of the slice computed from the source prefix above
+/// it.  Emits a single `TextEdit` that replaces the slice
+/// with its formatted form, or an empty `Vec` when the
+/// slice is already normalised.
+///
+/// Range-formatting only touches the line range requested;
+/// edits outside it are left untouched.  Editors that
+/// invoke `textDocument/rangeFormatting` (eg. `format
+/// selection`) only need the selected slice to change.
 #[must_use]
-pub fn range_formatting(source: &str, _range: LspRange) -> Vec<TextEdit> {
-    formatting(source)
+pub fn range_formatting(source: &str, range: LspRange) -> Vec<TextEdit> {
+    let lines: Vec<&str> = source.split('\n').collect();
+    if lines.is_empty() {
+        return Vec::new();
+    }
+    let line_count = u32::try_from(lines.len()).unwrap_or(u32::MAX);
+    let start_line = range.start_line.min(line_count.saturating_sub(1));
+    let end_line = range
+        .end_line
+        .min(line_count.saturating_sub(1))
+        .max(start_line);
+
+    // Brace depth at the start of `start_line` — count
+    // running `{` / `}` over every line before it.  Matches
+    // the same string / comment skip rules `brace_delta`
+    // uses inside the formatter.
+    let mut prefix_depth: i32 = 0;
+    for prior in lines.iter().take(start_line as usize) {
+        prefix_depth = (prefix_depth + brace_delta(prior)).max(0);
+    }
+
+    // Slice of lines we re-format.
+    let slice_end = (end_line as usize) + 1;
+    let slice_lines: Vec<&str> = lines[start_line as usize..slice_end].to_vec();
+    let formatted_slice = format_lines(&slice_lines, prefix_depth);
+    let original_slice = slice_lines.join("\n");
+    // The slice has no trailing newline (line ranges are
+    // half-open in LSP, but our split here gave us all the
+    // lines `start_line..=end_line`).  The formatter appends
+    // a trailing newline.  Compare against the joined slice
+    // plus the formatter's expected trailing newline to skip
+    // edits when nothing changed.
+    let original_with_nl = if formatted_slice.ends_with('\n') {
+        format!("{original_slice}\n")
+    } else {
+        original_slice.clone()
+    };
+    if formatted_slice == original_with_nl {
+        return Vec::new();
+    }
+
+    // Replacement range covers the full slice, line-anchored
+    // (column 0 of `start_line` to column 0 of the line
+    // *after* `end_line`).  When `end_line` is the last line
+    // of the document, anchor the end at the post-final-char
+    // position so editors interpret the edit correctly.
+    let edit_range = if (end_line + 1) < line_count {
+        LspRange {
+            start_line,
+            start_character: 0,
+            end_line: end_line + 1,
+            end_character: 0,
+        }
+    } else {
+        let last_line_len =
+            u32::try_from(lines[end_line as usize].chars().count()).unwrap_or(u32::MAX);
+        LspRange {
+            start_line,
+            start_character: 0,
+            end_line,
+            end_character: last_line_len,
+        }
+    };
+    vec![TextEdit {
+        range: edit_range,
+        new_text: formatted_slice,
+    }]
 }
 
-/// Whitespace-normalise `source`.  Pure function so tests
-/// can exercise the algorithm without invoking the LSP
-/// edit-emission layer.
-#[must_use]
-pub fn format_source(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let mut depth: i32 = 0;
+/// Format an explicit line slice, given the brace depth at
+/// the start of the slice.  Shared core between
+/// [`format_source`] (depth 0, all lines) and
+/// [`range_formatting`] (depth from prefix walk, partial
+/// slice).
+fn format_lines(lines: &[&str], initial_depth: i32) -> String {
+    let mut out = String::new();
+    let mut depth = initial_depth;
     let mut prev_blank = false;
-    // We need to keep newline-only lines but collapse runs.
-    let lines: Vec<&str> = source.split('\n').collect();
-    let total = lines.len();
-    for (idx, line) in lines.iter().enumerate() {
-        // The final `split('\n')` element is the empty
-        // string after a trailing newline.  Drop it so we
-        // emit exactly one trailing newline at the end.
-        if idx + 1 == total && line.is_empty() {
-            break;
-        }
+    for line in lines {
         let trimmed = line.trim_end();
         let stripped = trimmed.trim_start();
         if stripped.is_empty() {
-            // Blank line — emit once even if multiple
-            // adjacent blanks.
             if !prev_blank && !out.is_empty() {
                 out.push('\n');
                 prev_blank = true;
@@ -101,12 +165,6 @@ pub fn format_source(source: &str) -> String {
             continue;
         }
         prev_blank = false;
-        // Compute leading-brace adjustment: a line that
-        // starts with `}` decreases indent before the line;
-        // a line ending with `{` increases indent for the
-        // next line.  We use the running brace-delta of
-        // the *stripped* content (excluding string /
-        // braced literals — best-effort).
         let leading_close = leading_close_braces(stripped);
         let line_depth = (depth - leading_close).max(0);
         for _ in 0..line_depth {
@@ -116,8 +174,29 @@ pub fn format_source(source: &str) -> String {
         out.push('\n');
         depth = (depth + brace_delta(stripped)).max(0);
     }
+    out
+}
+
+/// Whitespace-normalise `source`.  Pure function so tests
+/// can exercise the algorithm without invoking the LSP
+/// edit-emission layer.
+#[must_use]
+pub fn format_source(source: &str) -> String {
+    let lines: Vec<&str> = source.split('\n').collect();
+    // The final `split('\n')` element is the empty string
+    // after a trailing newline — drop it so we emit exactly
+    // one trailing newline at the end.
+    let trailing_empty = lines.last().is_some_and(|s| s.is_empty());
+    let effective: &[&str] = if trailing_empty {
+        &lines[..lines.len() - 1]
+    } else {
+        &lines[..]
+    };
+    let mut out = format_lines(effective, 0);
     // Ensure exactly one trailing newline when the source
-    // had any content at all.
+    // had any content at all — `format_lines` always appends
+    // a newline after the last non-blank line, but an
+    // entirely blank input produces an empty string.
     if !out.ends_with('\n') && !out.is_empty() {
         out.push('\n');
     }
@@ -262,10 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn range_formatting_returns_whole_document_edit() {
-        // For now the range variant falls back to a whole-
-        // document format; the edit should be non-empty
-        // for an unnormalised source.
+    fn range_formatting_emits_edit_for_dirty_range() {
         let src = "set x 1   \n";
         let edits = range_formatting(
             src,
@@ -274,6 +350,69 @@ mod tests {
                 start_character: 0,
                 end_line: 0,
                 end_character: 5,
+            },
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert!(edits[0].new_text.contains("set x 1"), "{edits:?}");
+        // Trailing whitespace stripped.
+        assert!(!edits[0].new_text.contains("   "), "{edits:?}");
+    }
+
+    #[test]
+    fn range_formatting_no_edits_when_slice_is_clean() {
+        // Whole document is already formatted — range over a
+        // clean slice should emit no edits.
+        let src = "proc foo {} {\n    set x 1\n}\n";
+        let edits = range_formatting(
+            src,
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 2,
+                end_character: 0,
+            },
+        );
+        assert!(edits.is_empty(), "{edits:?}");
+    }
+
+    #[test]
+    fn range_formatting_preserves_brace_depth_from_prefix() {
+        // Inside a proc body, the lines should be indented
+        // 4 spaces.  Format only line 1 (the body's `set x`
+        // line) — the formatter must pick up `depth = 1`
+        // from the prefix walk.
+        let src = "proc foo {} {\nset x 1\n}\n";
+        let edits = range_formatting(
+            src,
+            LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 1,
+                end_character: 100,
+            },
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        // Inside the proc body — should be indented 4 spaces.
+        assert!(
+            edits[0].new_text.starts_with("    set x 1"),
+            "expected indented set; got {:?}",
+            edits[0].new_text,
+        );
+    }
+
+    #[test]
+    fn range_formatting_clamps_end_at_eof() {
+        // Source has 2 lines; request a range whose end
+        // extends past EOF.  Should still emit one valid
+        // edit anchored at the final line's end.
+        let src = "set x 1   \nset y 2\n";
+        let edits = range_formatting(
+            src,
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 99,
+                end_character: 0,
             },
         );
         assert_eq!(edits.len(), 1, "{edits:?}");
