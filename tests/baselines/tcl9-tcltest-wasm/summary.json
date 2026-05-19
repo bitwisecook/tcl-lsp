@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T14:16:58Z",
+  "generated_at": "2026-05-19T14:39:24Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -318,11 +318,11 @@
       "total": 3579
     },
     "lsearch": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 164,
+      "failed_max": 0,
+      "passed_min": 165,
       "skipped": 0,
       "total": 165
     },

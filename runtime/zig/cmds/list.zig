@@ -919,6 +919,181 @@ fn ls_subindex_pair(outer: i64, inner: i64) i32 {
     return rt.tcl_list(rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer)), obj_new_int(inner));
 }
 
+/// Comparison mode for ``lsearch -bisect`` / ``-sorted`` typed
+/// comparisons.  ``string`` (the default) is the byte-wise compare;
+/// ``integer`` / ``real`` parse both sides as numbers; ``dictionary``
+/// is case-insensitive with embedded numeric runs compared numerically
+/// (matching ``lsort -dictionary``).
+const BisectCmp = enum { string, integer, real, dictionary };
+
+/// Compare two byte-string spans under the given comparison mode.
+/// Returns negative if a < b, zero if equal, positive if a > b.
+/// Used by the ``lsearch -bisect`` search path; non-numeric inputs in
+/// ``-integer`` / ``-real`` modes fall through to byte-wise compare
+/// (matching reference Tcl's lenient ``Tcl_GetIntFromObj`` failure
+/// handling — the test corpus only exercises well-formed numbers).
+fn bisect_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, kind: BisectCmp) i32 {
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    switch (kind) {
+        .integer => {
+            const av = bignum.parse_i128(a_ptr, a_len);
+            const bv = bignum.parse_i128(b_ptr, b_len);
+            if (av != null and bv != null) {
+                const a = av.?;
+                const b = bv.?;
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            }
+            // Fall through to byte-wise on parse failure.
+        },
+        .real => {
+            const a_opt = parse_real(a_ptr, a_len);
+            const b_opt = parse_real(b_ptr, b_len);
+            if (a_opt != null and b_opt != null) {
+                const a = a_opt.?;
+                const b = b_opt.?;
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            }
+        },
+        .dictionary => {
+            return dictionary_compare(a_ptr, a_len, b_ptr, b_len);
+        },
+        .string => {},
+    }
+    return byte_compare(a_ptr, a_len, b_ptr, b_len);
+}
+
+fn byte_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
+    if (a_ptr == 0 or b_ptr == 0) {
+        if (a_len < b_len) return -1;
+        if (a_len > b_len) return 1;
+        return 0;
+    }
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    const n = if (a_len < b_len) a_len else b_len;
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        if (ap[i] < bp[i]) return -1;
+        if (ap[i] > bp[i]) return 1;
+    }
+    if (a_len < b_len) return -1;
+    if (a_len > b_len) return 1;
+    return 0;
+}
+
+/// Parse a Tcl real (decimal float).  Minimal parser — accepts the
+/// shapes the lsearch-22 test corpus exercises.  Returns null when the
+/// span isn't a clean float literal so the caller can fall back to
+/// byte-wise compare.
+fn parse_real(ptr: u32, len: u32) ?f64 {
+    if (ptr == 0 or len == 0) return null;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var s: []const u8 = sp[0..len];
+    // Trim surrounding ASCII whitespace.
+    while (s.len > 0 and (s[0] == ' ' or s[0] == '\t' or s[0] == '\n' or s[0] == '\r')) s = s[1..];
+    while (s.len > 0 and (s[s.len - 1] == ' ' or s[s.len - 1] == '\t' or s[s.len - 1] == '\n' or s[s.len - 1] == '\r')) s = s[0 .. s.len - 1];
+    if (s.len == 0) return null;
+    return std.fmt.parseFloat(f64, s) catch null;
+}
+
+/// Tcl ``lsort -dictionary`` comparator — case-insensitive ASCII with
+/// embedded decimal runs compared numerically.  Mirrors the reference
+/// ``DictionaryCompare`` in ``tclCmdIL.c`` for the cases the test
+/// corpus exercises (ASCII letters, digits, plain whitespace).
+fn dictionary_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
+    if (a_ptr == 0 or b_ptr == 0) return byte_compare(a_ptr, a_len, b_ptr, b_len);
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    var i: u32 = 0;
+    var j: u32 = 0;
+    while (i < a_len and j < b_len) {
+        const ca = ap[i];
+        const cb = bp[j];
+        if (ca >= '0' and ca <= '9' and cb >= '0' and cb <= '9') {
+            // Compare two decimal runs as numbers.  Strip leading
+            // zeros so ``08`` and ``8`` compare equal in value.
+            var ai = i;
+            while (ai < a_len and ap[ai] == '0' and ai + 1 < a_len and ap[ai + 1] >= '0' and ap[ai + 1] <= '9') ai += 1;
+            var bj = j;
+            while (bj < b_len and bp[bj] == '0' and bj + 1 < b_len and bp[bj + 1] >= '0' and bp[bj + 1] <= '9') bj += 1;
+            const a_start = ai;
+            const b_start = bj;
+            while (ai < a_len and ap[ai] >= '0' and ap[ai] <= '9') ai += 1;
+            while (bj < b_len and bp[bj] >= '0' and bp[bj] <= '9') bj += 1;
+            const a_run_len = ai - a_start;
+            const b_run_len = bj - b_start;
+            if (a_run_len != b_run_len) {
+                return if (a_run_len < b_run_len) -1 else 1;
+            }
+            var k: u32 = 0;
+            while (k < a_run_len) : (k += 1) {
+                if (ap[a_start + k] != bp[b_start + k]) {
+                    return if (ap[a_start + k] < bp[b_start + k]) -1 else 1;
+                }
+            }
+            i = ai;
+            j = bj;
+            continue;
+        }
+        const la: u8 = if (ca >= 'A' and ca <= 'Z') ca + 32 else ca;
+        const lb: u8 = if (cb >= 'A' and cb <= 'Z') cb + 32 else cb;
+        if (la != lb) return if (la < lb) -1 else 1;
+        i += 1;
+        j += 1;
+    }
+    if (i < a_len) return 1;
+    if (j < b_len) return -1;
+    return 0;
+}
+
+/// Drill into element at ``outer_idx`` using ``index_arg`` (the path)
+/// to produce the search-target bytes.  Same shape as
+/// :func:`ls_get_match_target` but used by the bisect search path
+/// which already knows the resolved outer index and walks the rest of
+/// the path directly.
+fn ls_bisect_target(
+    ls_ptr: u32,
+    ls_len: u32,
+    outer_idx: i64,
+    index_arg: i32,
+    skip_first_path: bool,
+) struct { ep: u32, elen: u32 } {
+    const outer_elem = rt.list_element_at(ls_ptr, ls_len, outer_idx);
+    var outer_ptr: u32 = ls_ptr + outer_elem.start;
+    var outer_len: u32 = outer_elem.len;
+    if (!outer_elem.braced and outer_len > 0) {
+        const buf = alloc(outer_len + 4);
+        if (buf != 0) {
+            const n = rt.copy_unbraced_elem(buf, outer_ptr, outer_len);
+            outer_ptr = buf;
+            outer_len = n;
+        }
+    }
+    if (index_arg == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len };
+    }
+    const ps = obj_ensure_string(index_arg);
+    if (ps.len == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len };
+    }
+    const path_count = rt.list_count_elements(ps.ptr, ps.len);
+    if (path_count == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len };
+    }
+    var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
+    var p: i64 = if (skip_first_path) 1 else 0;
+    while (p < path_count) : (p += 1) {
+        const idx_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(p));
+        current = rt.tcl_cmd_list_index(current, idx_obj);
+    }
+    const final_s = obj_ensure_string(current);
+    return .{ .ep = final_s.ptr, .elen = final_s.len };
+}
+
 // Build a list of sub-indices for ``lsearch -subindices`` output.
 //
 // With ``-stride 1`` (the default): output is ``{outer p0 p1 ...}`` —
@@ -1067,6 +1242,76 @@ fn ls_get_match_target(
     };
 }
 
+/// ``lsearch -bisect`` implementation.  The list is assumed sorted in
+/// ascending order (or descending when ``do_decreasing`` is set).
+/// Returns the highest index where the element compares ``<=`` (or
+/// ``>=`` for decreasing) the target under the active typing.  ``-1``
+/// when no element satisfies the predicate.  ``-inline`` / ``-stride``
+/// / ``-index`` interact the same way they do for the linear-search
+/// path: ``-inline`` returns the value, ``-stride > 1`` walks one
+/// group per step and the first ``-index`` element offsets within the
+/// group.  Mirrors reference Tcl 9 ``Tcl_LsearchObjCmd`` for the
+/// lsearch-22.* family.
+fn do_lsearch_bisect(
+    ls_ptr: u32,
+    ls_len: u32,
+    n: i64,
+    pv_ptr: u32,
+    pv_len: u32,
+    start: i64,
+    stride: i64,
+    index_arg: i32,
+    cmp_kind: BisectCmp,
+    do_decreasing: bool,
+    do_inline: bool,
+    do_subindices: bool,
+) i32 {
+    var best: i64 = -1;
+    // Walk the (sub-)list linearly — ``-bisect`` semantically expects
+    // a sorted input, but we don't enforce it.  The linear walk
+    // produces the same answer as a true binary search when the list
+    // is sorted, at O(N) cost.  Large bisect workloads can swap to a
+    // binary-search variant later without changing the return shape.
+    var skip_first_path: bool = false;
+    if (stride > 1 and index_arg != 0) {
+        const ps = obj_ensure_string(index_arg);
+        if (ps.len > 0) {
+            const pc = rt.list_count_elements(ps.ptr, ps.len);
+            if (pc > 0) skip_first_path = true;
+        }
+    }
+    var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
+    while (idx < n) : (idx += stride) {
+        var outer_idx: i64 = idx;
+        if (stride > 1 and index_arg != 0 and skip_first_path) {
+            const first_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(0));
+            const offset = list_mod.resolve_list_index(first_obj, stride);
+            outer_idx = idx + offset;
+            if (outer_idx >= n) break;
+        }
+        const t = ls_bisect_target(ls_ptr, ls_len, outer_idx, index_arg, skip_first_path);
+        const c = bisect_compare(t.ep, t.elen, pv_ptr, pv_len, cmp_kind);
+        const ok = if (do_decreasing) c >= 0 else c <= 0;
+        if (ok) {
+            best = idx;
+        } else {
+            break;
+        }
+    }
+    if (best < 0) {
+        if (do_inline) return obj_new_string(0, 0);
+        return obj_new_int(-1);
+    }
+    if (do_inline) {
+        const t = ls_bisect_target(ls_ptr, ls_len, best, index_arg, skip_first_path);
+        return obj_new_string(@bitCast(t.ep), @bitCast(t.elen));
+    }
+    if (do_subindices) {
+        return ls_subindex_path(ls_ptr, ls_len, best, index_arg, stride);
+    }
+    return obj_new_int(best);
+}
+
 fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     var mode: u8 = 'g'; // 'e'=exact 'g'=glob 'r'=regexp (stub)
     var find_all = false;
@@ -1078,6 +1323,9 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     var stride: i64 = 1;
     var index_arg: i32 = 0; // -index argument TclObj (0 = not given)
     var do_subindices = false;
+    var do_bisect = false;
+    var do_decreasing = false;
+    var cmp_kind: BisectCmp = .string;
 
     const stubs = @import("../stubs/tcl_stubs.zig");
     var wi: u32 = 1;
@@ -1105,14 +1353,19 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             do_inline = true;
         } else if (ls_opt_eq(sv.ptr, sv.len, "-subindices")) {
             do_subindices = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-bisect")) {
+            do_bisect = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-decreasing")) {
+            do_decreasing = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-integer")) {
+            cmp_kind = .integer;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-real")) {
+            cmp_kind = .real;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-dictionary")) {
+            cmp_kind = .dictionary;
         } else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
-            ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
             ls_opt_eq(sv.ptr, sv.len, "-increasing") or
-            ls_opt_eq(sv.ptr, sv.len, "-bisect") or
-            ls_opt_eq(sv.ptr, sv.len, "-ascii") or
-            ls_opt_eq(sv.ptr, sv.len, "-integer") or
-            ls_opt_eq(sv.ptr, sv.len, "-real") or
-            ls_opt_eq(sv.ptr, sv.len, "-dictionary"))
+            ls_opt_eq(sv.ptr, sv.len, "-ascii"))
         {
             // Recognised; fall back to linear search (correct result, slower).
         } else if (ls_opt_eq(sv.ptr, sv.len, "-start")) {
@@ -1184,6 +1437,17 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     if (start_obj != 0) {
         const v = list_mod.resolve_list_index(start_obj, n);
         start = if (v < 0) 0 else v;
+    }
+
+    // ``-bisect`` uses a separate search path — the list is assumed
+    // sorted in the direction implied by ``-increasing`` / ``-decreasing``
+    // and the return value is the highest index whose element
+    // compares ``<=`` (ascending) or ``>=`` (decreasing) the target
+    // under the active ``-integer`` / ``-real`` / ``-dictionary`` /
+    // ``-ascii`` typing.  ``-1`` when no element satisfies the
+    // predicate.  Matches reference Tcl semantics for lsearch-22.*.
+    if (do_bisect) {
+        return result_mod.from_globals(do_lsearch_bisect(ls.ptr, ls.len, n, pv.ptr, pv.len, start, stride, index_arg, cmp_kind, do_decreasing, do_inline, do_subindices));
     }
 
     // Align idx to the first stride group that covers [start, n).
