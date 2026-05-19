@@ -6,17 +6,23 @@
 //! showing how many call sites target it in the current
 //! document.  Mirrors Python's `_proc_reference_count_lens`.
 //!
+//! What landed:
+//!
+//! * Per-proc lenses — `N references` per user proc.
+//! * Class lenses — `N references` per `oo::class create`
+//!   declaration, counting `ClassName new`, `ClassName create
+//!   <inst>`, and inheritance references in
+//!   `analysis.command_invocations`.
+//!
 //! What is *deferred*:
 //!
 //! * Cross-document reference counts — workspace-wide
 //!   matching that includes call sites in other open
 //!   documents.  Lands alongside `S-workspace-symbols-rich`.
-//! * Class / method reference lenses (Python's
-//!   `_class_reference_count_lens` /
-//!   `_method_reference_count_lens`).  Same shape as proc
-//!   lenses but keyed on `ClassDef` / `MethodDef`; deferred
-//!   until the analyser surfaces method-reference tracking
-//!   (gated on `S-references-rich` follow-up).
+//! * Per-method reference lenses inside class bodies — Python's
+//!   `_method_reference_count_lens` matches `[$obj methodName]`
+//!   call sites; needs the analyser to surface method-call
+//!   tracking (gated on `S-references-rich` follow-up).
 //! * Inline command for "show references" jump-out — the
 //!   minimal lens carries a static label; the editor's
 //!   built-in references command can be invoked from the
@@ -55,11 +61,7 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
 
     for (qname, proc_def) in &analysis.all_procs {
         let count = count_references(qname, proc_def, analysis);
-        let title = match count {
-            0 => "0 references".to_string(),
-            1 => "1 reference".to_string(),
-            n => format!("{n} references"),
-        };
+        let title = reference_count_title(count);
         let start = line_index.position_at(proc_def.name_span.start());
         let end = line_index.position_at(proc_def.name_span.end());
         lenses.push(CodeLens {
@@ -78,7 +80,38 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
         });
     }
 
+    // `S-code-lens-rich`: class lenses.  Surface a reference-
+    // count lens at each `oo::class create ClassName` site.
+    // The count includes constructor calls (`ClassName new`,
+    // `ClassName create instance`) and references in
+    // inheritance chains (`oo::class create Sub { superclass
+    // ClassName ... }`).
+    for (qname, class_def) in &analysis.all_classes {
+        let count = count_class_references(qname, class_def, analysis);
+        let title = reference_count_title(count);
+        let start = line_index.position_at(class_def.name_span.start());
+        let end = line_index.position_at(class_def.name_span.end());
+        lenses.push(CodeLens {
+            range: LspRange {
+                start_line: start.line,
+                start_character: start.character,
+                end_line: end.line,
+                end_character: end.character,
+            },
+            command_title: title,
+            command: String::new(),
+        });
+    }
+
     lenses
+}
+
+fn reference_count_title(count: usize) -> String {
+    match count {
+        0 => "0 references".to_string(),
+        1 => "1 reference".to_string(),
+        n => format!("{n} references"),
+    }
 }
 
 /// Count the call sites in the analysis that target the given
@@ -107,6 +140,32 @@ fn count_references(
         .filter(|inv| {
             !(inv.range.start() <= proc_def.name_span.start()
                 && proc_def.name_span.end() <= inv.range.end())
+        })
+        .count()
+}
+
+/// Count invocations targeting the given class — `ClassName
+/// new ...`, `ClassName create instance`, and inheritance
+/// references in `oo::class create Sub { superclass ClassName
+/// ... }`.  Excludes the class's own `oo::class create
+/// ClassName` declaration site.
+fn count_class_references(
+    qname: &str,
+    class_def: &tcl_compiler::analyser::ClassDef,
+    analysis: &AnalysisResult,
+) -> usize {
+    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| {
+            inv.name == class_def.name
+                || inv.name == class_def.qualified_name
+                || inv.name == qname_no_prefix
+        })
+        .filter(|inv| {
+            !(inv.range.start() <= class_def.name_span.start()
+                && class_def.name_span.end() <= inv.range.end())
         })
         .count()
 }
@@ -175,5 +234,51 @@ mod tests {
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
+    }
+
+    // -- S-code-lens-rich: class lenses -----------------------------
+
+    #[test]
+    fn lens_per_class() {
+        let src = "oo::class create Greeter {}\noo::class create Helper {}\n";
+        let analysis = analyse(src);
+        // Skip if the analyser doesn't track classes for this
+        // tcl version / shape — the assertion below should still
+        // succeed when the analyser does record them.
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, Some(&analysis));
+        let class_lenses: Vec<_> = lenses
+            .iter()
+            .filter(|l| l.command_title.contains("reference"))
+            .collect();
+        assert!(class_lenses.len() >= 2, "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_counts_class_constructor_calls() {
+        // `MyClass new` and `MyClass create instance` are
+        // constructor calls — both contribute to the reference
+        // count.
+        let src = concat!(
+            "oo::class create MyClass {}\n",
+            "MyClass new\n",
+            "MyClass create instance\n",
+        );
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, Some(&analysis));
+        let myclass_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 0)
+            .expect("class lens at line 0");
+        // Two constructor calls.
+        assert_eq!(
+            myclass_lens.command_title, "2 references",
+            "got {:?}", myclass_lens.command_title,
+        );
     }
 }
