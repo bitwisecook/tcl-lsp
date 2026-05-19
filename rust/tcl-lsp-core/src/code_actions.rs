@@ -13,6 +13,10 @@
 //!   W302 (`catch` without result variable), the provider
 //!   offers two quick-fixes that splice a trailing ` result`
 //!   or ` result opts` after the body's closing brace.
+//! * `unset -nocomplain` action — when the analyser emits
+//!   W213 (unset on possibly-undefined variable), the provider
+//!   offers an `Add '-nocomplain' to unset` quick-fix that
+//!   splices the flag right after the `unset` keyword.
 //!
 //! What is *deferred*:
 //!
@@ -97,6 +101,17 @@ pub fn code_actions(
                 });
             }
         }
+        // `S-code-actions-rich`: synthetic W213 quick-fix.
+        // W213 fires on `unset $var` when the variable may not
+        // exist; the canonical Tcl idiom is `unset -nocomplain
+        // $var`, so offer that as a one-click fix.  The diag
+        // span starts at `unset`; we splice ` -nocomplain`
+        // immediately after the keyword (offset +5).
+        if diag.code == "W213" {
+            if let Some(action) = build_unset_nocomplain_action(source, diag, &line_index) {
+                actions.push(action);
+            }
+        }
         for fix in &diag.fixes {
             let fix_start = line_index.position_at(fix.span.start());
             let fix_end = line_index.position_at(fix.span.end());
@@ -125,6 +140,37 @@ pub fn code_actions(
     }
 
     actions
+}
+
+/// Build the `Add '-nocomplain'` quick-fix for a W213
+/// diagnostic.  Validates that the diag span starts with the
+/// `unset` keyword (defends against the diag shape changing
+/// in future analyser revisions) before emitting an
+/// insertion edit at offset +5 of the span start.
+fn build_unset_nocomplain_action(
+    source: &str,
+    diag: &tcl_compiler::analyser::Diagnostic,
+    line_index: &LineIndex,
+) -> Option<CodeAction> {
+    let start = diag.span.start() as usize;
+    if !source.get(start..start + 5).is_some_and(|s| s == "unset") {
+        return None;
+    }
+    let insert_offset = diag.span.start().checked_add(5)?;
+    let pos = line_index.position_at(insert_offset);
+    let insertion = LspRange {
+        start_line: pos.line,
+        start_character: pos.character,
+        end_line: pos.line,
+        end_character: pos.character,
+    };
+    Some(CodeAction {
+        title: "Add '-nocomplain' to unset".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: insertion,
+            new_text: " -nocomplain".to_string(),
+        }],
+    })
 }
 
 /// `true` when `a` and `b` overlap (touch, intersect, or are
@@ -268,6 +314,63 @@ mod tests {
         assert_eq!(actions.len(), 2);
         let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
         assert!(titles.contains(&"A") && titles.contains(&"B"));
+    }
+
+    // -- S-code-actions-rich: W213 unset -nocomplain action ----------
+
+    #[test]
+    fn w213_emits_unset_nocomplain_action() {
+        // Confirm the analyser emits W213 on `unset xs` inside a
+        // proc where `xs` is possibly undefined, then verify the
+        // provider surfaces the `-nocomplain` quick-fix.
+        let src = "proc foo {} { unset xs }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == "W213"),
+            "expected W213 from {:?}",
+            analysis.diagnostics,
+        );
+        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let nocomplain = actions
+            .iter()
+            .find(|a| a.title == "Add '-nocomplain' to unset");
+        assert!(nocomplain.is_some(), "expected quick-fix in {actions:?}");
+        let act = nocomplain.unwrap();
+        assert_eq!(act.edits.len(), 1);
+        assert_eq!(act.edits[0].new_text, " -nocomplain");
+        // The edit is an insertion (zero-width range).
+        assert_eq!(
+            act.edits[0].range.start_character,
+            act.edits[0].range.end_character,
+        );
+    }
+
+    #[test]
+    fn w213_action_inserts_after_unset_keyword() {
+        // Verify the insertion point is exactly after the 5
+        // chars of `unset` — splicing produces a syntactically
+        // correct `unset -nocomplain xs` command.
+        let src = "proc foo {} { unset xs }\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let act = actions
+            .iter()
+            .find(|a| a.title == "Add '-nocomplain' to unset")
+            .expect("expected unset action");
+        // Apply the edit and check the result.
+        let edit = &act.edits[0];
+        let line0 = src.lines().nth(edit.range.start_line as usize).unwrap();
+        let chars: Vec<char> = line0.chars().collect();
+        let col = edit.range.start_character as usize;
+        let before: String = chars[..col].iter().collect();
+        let after: String = chars[col..].iter().collect();
+        let spliced = format!("{before}{}{after}", edit.new_text);
+        assert!(
+            spliced.contains("unset -nocomplain xs"),
+            "spliced line: {spliced}",
+        );
     }
 
     // -- S-code-actions-rich: catch-result-variable actions ----------
