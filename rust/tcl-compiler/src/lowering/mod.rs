@@ -754,6 +754,7 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower `proc name params body`.
+    #[allow(clippy::too_many_lines)] // sequential, comment-heavy
     fn lower_proc(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
@@ -789,6 +790,7 @@ impl<'r> Lowerer<'r> {
         // the runtime path.
         let proc_name_owned: String;
         let mut args_owned: Vec<String>;
+        let name_was_substituted: bool;
         if proc_name_initial.contains('$') || proc_name_initial.contains('[') {
             let arg_tokens = seg.arg_tokens();
             let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
@@ -815,32 +817,91 @@ impl<'r> Lowerer<'r> {
             proc_name_owned = literal;
             args_owned = args_borrow.to_vec();
             args_owned[0].clone_from(&proc_name_owned);
+            name_was_substituted = true;
         } else {
             proc_name_owned = proc_name_initial.clone();
             args_owned = args_borrow.to_vec();
+            name_was_substituted = false;
         }
         // Re-bind ``args`` and ``proc_name`` to the (possibly
         // substituted) owned values.
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
 
-        let params = parse_param_names(&args[1]);
-        let qualified = qualify_proc_name(namespace, proc_name);
-        let body_tok = seg.arg_tokens()[2];
-        let body_text = &args[2];
-        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        // C36c: if the body is a ``[subst -nocommands {template}]``
-        // command sub and every ``\$var`` inside *template* is in the
-        // current const-map, evaluate the subst at compile time and
-        // lower the resulting string as a fresh script. Catches the
-        // tcltest ``Option`` factory shape where the accessor body
-        // is built from a template plus const-known option name /
-        // default / description. Mirrors main commit `d4d2cdd5`.
-        let materialised_body = if body_tok.kind == tcl_lexer::TokenType::Cmd {
-            self.eval_subst_nocommands_body(&args[2])
+        // Dynamic body / params materialisation (PR #393, 0fc2d6a9).
+        //
+        // A body that is a single ``$var`` / ``[cmd]`` token (and not
+        // a multi-token word like ``"foo$bar"``) can be materialised:
+        //   * ``[subst -nocommands {…}]`` evaluates when every
+        //     ``$var`` inside is const-tracked.
+        //   * Bare ``$var`` looks up the const-map.
+        // A multi-token body (single-token-word == false) is always
+        // dynamic — the source text contains runtime substitutions we
+        // can't compile.  Dynamic params have no static arg-list, so
+        // any dynamic-params shape bails to a runtime barrier.
+        //
+        // When the body is dynamic and we can't materialise it BUT
+        // the proc name resolved via the const-map, we still register
+        // the IRProcedure (with an empty body) so static analysis
+        // sees the proc; the IRCall below carries the correct dynamic
+        // body bytes to the runtime ``proc`` command.
+        let arg_tokens = seg.arg_tokens();
+        let params_tok = arg_tokens[1];
+        let body_tok = arg_tokens[2];
+        // `single_token_word[0]` covers the command itself; args[0..]
+        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
+        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
+        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
+        let body_is_dynamic = matches!(
+            body_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !body_is_single;
+        let params_is_dynamic = matches!(
+            params_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !params_is_single;
+        let materialised_body: Option<String> = if body_is_single
+            && body_tok.kind == tcl_lexer::TokenType::Cmd
+        {
+            // `args[2]` is the `word_piece`-reconstructed source — for
+            // a Cmd token that's `[subst -nocommands {…}]` (with the
+            // brackets re-added).  `eval_subst_nocommands_body`
+            // segments its input as a top-level Tcl command stream
+            // and expects the inner content, so strip the outer
+            // `[…]` before handing it over.  Mirrors Python's
+            // `body_tok.text`, which the lexer already stores without
+            // brackets.
+            args[2]
+                .strip_prefix('[')
+                .and_then(|s| s.strip_suffix(']'))
+                .and_then(|inner| self.eval_subst_nocommands_body(inner))
+        } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
+            self.const_map_lookup(&args[2])
         } else {
             None
         };
+        if params_is_dynamic
+            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
+        {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: if params_is_dynamic {
+                    "dynamic proc params"
+                } else {
+                    "dynamic proc body"
+                }
+                .into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        }
+
+        let params = parse_param_names(&args[1]);
+        let qualified = qualify_proc_name(namespace, proc_name);
+        let body_text = &args[2];
+        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // C37b: fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
@@ -852,8 +913,16 @@ impl<'r> Lowerer<'r> {
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
-            // Lower the substituted text as a fresh script.
+            // Lower the materialised text as a fresh script.
             self.lower_script(&text, namespace)
+        } else if body_is_dynamic {
+            // Dynamic body, no materialisation possible — but the
+            // proc name resolved via the const-map (otherwise we'd
+            // have bailed above).  Leave the IRProcedure body empty
+            // so static analysis doesn't try to compile the literal
+            // ``$body`` source text as a script.  The runtime
+            // ``proc`` IRCall below carries the actual body bytes.
+            Script::default()
         } else {
             self.lower_body(body_text, body_offset, namespace)
         };
@@ -1863,6 +1932,85 @@ mod tests {
             !inner.body.statements.is_empty(),
             "expected lowered body, got empty"
         );
+    }
+
+    #[test]
+    fn proc_var_body_const_map_materialised() {
+        // PR #393 (0fc2d6a9): a bare `$body` body word whose value
+        // is in the const-map materialises into the IRProcedure body
+        // (matching the `proc $name {x} $body` shape).
+        let m = lower_to_ir(
+            "proc factory {} { set name {Greeter}\n set body {return hi}\n proc $name {} $body }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        // The body was const-resolved to "return hi"; lowering it
+        // produces a Return statement.
+        assert!(
+            !inner.body.statements.is_empty(),
+            "expected lowered body, got empty"
+        );
+    }
+
+    #[test]
+    fn proc_var_body_unresolved_keeps_empty_body() {
+        // `$body` has no const-map binding but `$name` does — the
+        // proc name resolves, but the body stays empty (the runtime
+        // proc call below carries the dynamic body text).
+        let m = lower_to_ir(
+            "proc factory {} { set name {Greeter}\n proc $name {} $body }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        assert!(
+            inner.body.statements.is_empty(),
+            "expected empty body for unresolved dynamic body, got {:?}",
+            inner.body.statements
+        );
+    }
+
+    #[test]
+    fn proc_dynamic_params_routes_through_barrier() {
+        // A dynamic params word — there's no static arg-list to
+        // build a real IRProcedure from, so the whole proc shape
+        // bails to a Barrier.  Even when the name resolves via the
+        // const-map.  PR #393 (0fc2d6a9).
+        let m = lower_to_ir(
+            "proc factory {} { set name {x}\n proc $name $params { puts hi } }",
+            &reg(),
+        );
+        // No inner procedure should be registered — params couldn't
+        // be parsed statically.
+        assert!(
+            !m.procedures.contains_key("::x"),
+            "dynamic-params shape must not AOT-register: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn proc_multi_token_body_word_is_dynamic() {
+        // `proc foo {} "pre${body}post"` — the body is a quoted
+        // multi-token word.  Even though the first token is Str,
+        // single_token_word is false so the whole word is dynamic
+        // and we route through Barrier (matching Python's
+        // multi-token guard).
+        let m = lower_to_ir(
+            r#"proc factory {} { set body {return hi}; proc inner {} "pre${body}post" }"#,
+            &reg(),
+        );
+        // `::inner` would only be registered if the body was
+        // materialised — which can't happen for multi-token words.
+        // We allow either no entry or an empty-body entry; the key
+        // assertion is that the literal source text isn't compiled
+        // as a script.
+        if let Some(inner) = m.procedures.get("::inner") {
+            assert!(
+                inner.body.statements.is_empty(),
+                "multi-token body must not be statically lowered, got {:?}",
+                inner.body.statements
+            );
+        }
     }
 
     #[test]
