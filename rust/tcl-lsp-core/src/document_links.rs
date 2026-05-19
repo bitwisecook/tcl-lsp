@@ -12,15 +12,23 @@
 //!   index (Tcl's `auto_path` / pkgIndex.tcl scan).  Lands
 //!   alongside the workspace-init chunk that builds that
 //!   index.
-//! * Tilde expansion (`~/path/to/file`) — needs the user's
-//!   home directory, plumbed in by the server from
-//!   workspace folders.
-//! * `[file join ...]` / variable-interpolated paths — the
-//!   minimal port resolves only literal path arguments.
+//! * Variable-interpolated paths (`source [file join $dir
+//!   init.tcl]`) — requires resolving the variable's value,
+//!   which the workspace-index follow-up will surface from
+//!   `RULE_INIT` / global `set` calls.
 //! * Workspace-folder enumeration that lets a `source` link
 //!   resolve across multiple roots; the single
 //!   `workspace_root` parameter is sufficient for the
 //!   common single-root case.
+//!
+//! What landed:
+//!
+//! * Tilde expansion (`~/path/to/file`) — via the
+//!   `home` argument plumbed in by the server from the env.
+//! * Literal `[file join a b c]` — recognised when every
+//!   sub-arg is a simple bareword / quoted string; the joined
+//!   path resolves against `workspace_root` like any other
+//!   relative arg.
 
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::LineIndex;
@@ -102,15 +110,27 @@ pub fn document_links_with_home(
         }
         let Some(idx) = path_idx else { continue };
         let path = &seg.texts[idx];
-        // Skip non-literal paths (variable substitution / command
-        // substitution / multi-token).  `single_token_word[idx]`
-        // is `false` for those.
-        if let Some(&single) = seg.single_token_word.get(idx) {
-            if !single {
-                continue;
+        // Literal `[file join a b c]` resolution: when the
+        // arg is a command substitution whose head is `file
+        // join` and every remaining sub-arg is a literal,
+        // build the joined path on the fly.  Falls through
+        // to the literal-path resolver below so tilde
+        // expansion / `workspace_root` anchoring stays
+        // consistent.
+        let path_owned = if let Some(joined) = literal_file_join(path.as_str()) {
+            joined
+        } else {
+            // Skip non-literal paths (variable substitution /
+            // command substitution / multi-token).  The
+            // `single_token_word[idx]` is `false` for those.
+            if let Some(&single) = seg.single_token_word.get(idx) {
+                if !single {
+                    continue;
+                }
             }
-        }
-        let Some(target) = resolve_path(path, workspace_root, home) else {
+            path.clone()
+        };
+        let Some(target) = resolve_path(&path_owned, workspace_root, home) else {
             continue;
         };
         let arg_tok = seg.argv.get(idx);
@@ -127,6 +147,61 @@ pub fn document_links_with_home(
     }
 
     links
+}
+
+/// Try to interpret `arg` as a literal `[file join …]`
+/// command substitution and return the joined path.  Returns
+/// `None` if the shape doesn't match — typically because the
+/// argument is a different command, or because one of the
+/// sub-arguments contains a substitution that we can't resolve
+/// statically.
+///
+/// Mirrors the literal-only branch of Python's `_resolve_path`
+/// logic that recognises `[file join …]` source-arg expressions.
+fn literal_file_join(arg: &str) -> Option<String> {
+    let inner = arg.strip_prefix('[')?.strip_suffix(']')?;
+    let inner = inner.trim();
+    let rest = inner.strip_prefix("file")?.trim_start();
+    let rest = rest.strip_prefix("join")?.trim_start();
+    if rest.is_empty() {
+        return None;
+    }
+    // Each remaining token must be a simple literal — no `$`,
+    // no nested `[…]`, no continuation lines.  Quoted strings
+    // strip the surrounding `"`; braced strings strip the `{}`.
+    let mut parts: Vec<String> = Vec::new();
+    for tok in rest.split_whitespace() {
+        let literal = if let Some(b) = tok.strip_prefix('{').and_then(|t| t.strip_suffix('}')) {
+            b.to_string()
+        } else if let Some(q) = tok.strip_prefix('"').and_then(|t| t.strip_suffix('"')) {
+            q.to_string()
+        } else {
+            tok.to_string()
+        };
+        if literal.contains('$') || literal.contains('[') || literal.is_empty() {
+            return None;
+        }
+        parts.push(literal);
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    // `[file join a b c]` joins with `/` on POSIX-style paths
+    // (Tcl uses platform-native separator at runtime; for
+    // document-link surfacing the editor's URI is always
+    // `file:///...` which uses `/`).  If any part is absolute
+    // it resets the joined accumulator (matches Tcl's `file
+    // join` semantics).
+    let mut joined = String::new();
+    for part in parts {
+        if std::path::Path::new(&part).is_absolute() || joined.is_empty() {
+            joined = part;
+        } else {
+            let trimmed = joined.trim_end_matches('/');
+            joined = format!("{trimmed}/{part}");
+        }
+    }
+    Some(joined)
 }
 
 /// Resolve `path` against `workspace_root` (when provided).
@@ -259,5 +334,65 @@ mod tests {
         let links = document_links_with_home(src, None, Some("/test-home"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
+    }
+
+    // -- S-document-links-rich: literal `[file join …]` --------------
+
+    #[test]
+    fn file_join_joins_literal_segments() {
+        // `[file join lib core init.tcl]` → `lib/core/init.tcl`.
+        assert_eq!(
+            literal_file_join("[file join lib core init.tcl]"),
+            Some("lib/core/init.tcl".to_owned()),
+        );
+    }
+
+    #[test]
+    fn file_join_handles_quoted_and_braced_segments() {
+        assert_eq!(
+            literal_file_join(r#"[file join "lib" {core} init.tcl]"#),
+            Some("lib/core/init.tcl".to_owned()),
+        );
+    }
+
+    #[test]
+    fn file_join_absolute_segment_resets_accumulator() {
+        // Per Tcl's `file join` semantics, an absolute path
+        // resets the joined accumulator.
+        assert_eq!(
+            literal_file_join("[file join /etc /opt/foo bar]"),
+            Some("/opt/foo/bar".to_owned()),
+        );
+    }
+
+    #[test]
+    fn file_join_returns_none_for_variable_segments() {
+        assert!(literal_file_join("[file join $dir foo]").is_none());
+        assert!(literal_file_join("[file join [pwd] foo]").is_none());
+    }
+
+    #[test]
+    fn file_join_returns_none_for_non_file_join_subst() {
+        assert!(literal_file_join("[exec ls]").is_none());
+        assert!(literal_file_join("[file dirname /foo]").is_none());
+    }
+
+    #[test]
+    fn source_with_literal_file_join_surfaces_link() {
+        let src = "source [file join lib helper.tcl]\n";
+        let links = document_links(src, Some("/home/user/project"));
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(
+            links[0].target,
+            "file:///home/user/project/lib/helper.tcl",
+        );
+    }
+
+    #[test]
+    fn source_with_absolute_file_join_segment_surfaces_link() {
+        let src = "source [file join /usr/local/lib tcl init.tcl]\n";
+        let links = document_links(src, None);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///usr/local/lib/tcl/init.tcl");
     }
 }
