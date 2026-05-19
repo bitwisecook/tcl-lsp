@@ -36,7 +36,7 @@ ignore the command and the user can rename manually.
 
 ## File-path anchors
 
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

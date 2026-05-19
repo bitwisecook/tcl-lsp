@@ -26,10 +26,10 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 
 ## File-path anchors
 
-- `lsp/features/semantic_tokens.py`
+- `server/features/semantic_tokens.py`
 - `shared/document_buffer.py`
-- `lsp/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
-- `lsp/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
+- `server/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
+- `server/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
 
 ## Failure modes
 

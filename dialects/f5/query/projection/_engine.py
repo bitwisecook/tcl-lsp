@@ -242,7 +242,7 @@ def _resolve_pilot_value(
     if " " not in kind:
         return fallback_raw, None
     module, _, object_type = kind.partition(" ")
-    from ...registry.pilot import pilot_property_spec_for
+    from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 
     spec = pilot_property_spec_for(module, object_type, tmsh_name)
     if spec is None or not spec.attr:
@@ -266,8 +266,8 @@ def _project_via_pilot_spec(kind: str, attr: str, raw: object, root: Root) -> ob
     if " " not in kind:
         return _PILOT_MISS
     module, _, object_type = kind.partition(" ")
-    from ...registry.pilot import pilot_property_spec_for
-    from ...registry.value_specs import ProjectionContext
+    from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
+    from dialects.f5.bigip.registry.value_specs import ProjectionContext
 
     spec = pilot_property_spec_for(module, object_type, attr)
     if spec is None:
@@ -400,7 +400,7 @@ def _rule_refs_value(obj: BigipRule, root: Root) -> ObjectRef:
 
 
 def _extract_rule_refs(obj: BigipRule, root: Root) -> tuple[list[str], list[str], list[str]]:
-    from ...grep import compute_grep
+    from dialects.f5.bigip.grep import compute_grep
 
     report = compute_grep(
         sources={root.uri: root.source},

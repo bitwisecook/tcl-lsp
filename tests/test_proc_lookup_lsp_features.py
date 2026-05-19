@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.analysis import analyse
-from core.analysis.proc_lookup import find_proc_by_reference
-from lsp.features.call_hierarchy import prepare_call_hierarchy
-from lsp.features.definition import get_definition
-from lsp.features.references import get_references
-from lsp.features.rename import get_rename_edits
-from lsp.features.signature_help import get_signature_help
+from analyser import analyse
+from analyser.proc_lookup import find_proc_by_reference
+from server.features.call_hierarchy import prepare_call_hierarchy
+from server.features.definition import get_definition
+from server.features.references import get_references
+from server.features.rename import get_rename_edits
+from server.features.signature_help import get_signature_help
 
 TEST_URI = "file:///proc-lookup.tcl"
 

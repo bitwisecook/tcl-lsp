@@ -262,7 +262,7 @@ class TestResolveTagStyle:
 
 class TestGenerateStubForProc:
     def _make_proc(self, name, params):
-        from core.analysis.semantic_model import ProcDef, Range
+        from analyser.semantic_model import ProcDef, Range
 
         r = Range.zero()
         return ProcDef(
@@ -274,7 +274,7 @@ class TestGenerateStubForProc:
         )
 
     def test_basic(self):
-        from core.analysis.semantic_model import ParamDef
+        from analyser.semantic_model import ParamDef
 
         pd = self._make_proc("greet", [ParamDef(name="name")])
         stub = generate_stub_for_proc(pd)
@@ -282,7 +282,7 @@ class TestGenerateStubForProc:
         assert "# @param name" in stub
 
     def test_with_defaults(self):
-        from core.analysis.semantic_model import ParamDef
+        from analyser.semantic_model import ParamDef
 
         pd = self._make_proc(
             "greet",
@@ -320,7 +320,7 @@ class TestParseDocstringEdgeCases:
 
 class TestFindProc:
     def _make_result(self):
-        from core.analysis.semantic_model import AnalysisResult, ProcDef, Range
+        from analyser.semantic_model import AnalysisResult, ProcDef, Range
 
         r = Range.zero()
         result = AnalysisResult()

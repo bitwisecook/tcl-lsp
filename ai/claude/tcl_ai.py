@@ -56,7 +56,7 @@ from ai.shared.diagnostics import (
 
 
 def cmd_diagnostics(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -78,7 +78,7 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 
 
 def cmd_symbols(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     events = _detect_events(source)
@@ -325,7 +325,7 @@ def cmd_command_info(command_name: str) -> None:
 
 
 def cmd_validate(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -365,7 +365,7 @@ def cmd_validate(source: str, file_path: str) -> None:
 
 
 def cmd_review(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -400,7 +400,7 @@ def cmd_review(source: str, file_path: str) -> None:
 
 
 def cmd_find_legacy(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -427,7 +427,7 @@ def cmd_find_legacy(source: str, file_path: str) -> None:
 
 def cmd_context(source: str, file_path: str) -> None:
     from ai.shared.irule_analysis import ordered_events as _ordered_events
-    from core.analysis import analyse
+    from analyser import analyse
 
     basename = os.path.basename(file_path)
     ext = os.path.splitext(file_path)[1].lower()
@@ -544,7 +544,7 @@ def _count_scope_symbols(scope, lines: list[str], depth: int = 0) -> int:
 
 
 def cmd_call_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_call_graph
+    from analyser.semantic_graph import build_call_graph
 
     data = build_call_graph(source)
     nodes = data.get("nodes", [])
@@ -591,7 +591,7 @@ def cmd_call_graph(source: str, file_path: str) -> None:
 
 
 def cmd_symbol_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_symbol_graph
+    from analyser.semantic_graph import build_symbol_graph
 
     data = build_symbol_graph(source)
     summary = data.get("summary", {})
@@ -652,7 +652,7 @@ def _print_scope(scope: dict, depth: int) -> None:
 
 
 def cmd_dataflow_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_dataflow_graph
+    from analyser.semantic_graph import build_dataflow_graph
 
     data = build_dataflow_graph(source)
     summary = data.get("summary", {})
@@ -2261,7 +2261,7 @@ def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
@@ -2272,7 +2272,7 @@ def cmd_generate_docstring(
 ) -> None:
     """Generate a docstring stub for a specific proc."""
     _configure_dialect_from_path(file_path)
-    from core.analysis import analyse
+    from analyser import analyse
     from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
@@ -2291,7 +2291,7 @@ def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: b
     """Add docstring stubs to all undocumented procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis import analyse
+    from analyser import analyse
     from core.formatting.docstring import resolve_tag_style
 
     result = analyse(source)

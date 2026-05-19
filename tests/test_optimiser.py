@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
+from analyser.semantic_model import Range
 from compiler.optimiser import (
     demorgan_transform,
     find_optimisations,
@@ -17,8 +19,6 @@ from compiler.optimiser import (
 from compiler.optimiser._helpers import _full_command_range
 from compiler.parsing.tokens import SourcePosition
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
 
 
 class TestOptimiser:
@@ -1926,7 +1926,7 @@ class TestTailCallOptimisation:
 
     def test_o122_output_is_valid_tcl(self):
         """O122 rewrite should not produce trailing syntax errors."""
-        from core.analysis import analyse
+        from analyser import analyse
 
         source = textwrap.dedent("""\
             proc gcd {a b} {

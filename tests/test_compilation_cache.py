@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler import interprocedural as interproc_module
 from compiler.compilation_unit import compile_source
-from lsp.workspace.document_state import DocumentState, _build_proc_cache
+from server.workspace.document_state import DocumentState, _build_proc_cache
 
 
 class TestCompileSourceCache:

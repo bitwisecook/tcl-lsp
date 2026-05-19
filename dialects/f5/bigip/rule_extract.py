@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 from shared.document_buffer import DocumentBuffer
 
 # Match:  ltm rule /Common/name {  or  gtm rule /Common/name {

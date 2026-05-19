@@ -12,12 +12,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from analyser.semantic_model import Range
 from compiler.parsing.command_segmenter import SegmentedCommand, segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_base
 from compiler.parsing.tokens import Token, TokenType
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
-from core.analysis.semantic_model import Range
 from shared.ranges import position_from_relative
 
 from .irules_object_refs import resolve_object_ref_args

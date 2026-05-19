@@ -168,7 +168,7 @@ unterminated `[`, E202 = unterminated `"`, E203 = unterminated `{`).
 
 ### 4. Semantic Analyser
 
-**File:** `core/analysis/analyser.py` — class `Analyser`
+**File:** `analyser/analyser.py` — class `Analyser`
 
 A single-pass walk over segmented commands that builds a semantic model:
 scopes, procedure definitions, variable definitions, command invocations.
@@ -587,7 +587,7 @@ flowchart LR
 
 ### 12. Diagnostics Provider
 
-**File:** `lsp/features/diagnostics.py` — function `get_diagnostics()`
+**File:** `server/features/diagnostics.py` — function `get_diagnostics()`
 
 `get_diagnostics()` is the policy boundary that merges analyser + pass findings,
 applies suppression/disable rules, and converts to LSP diagnostics. Integration
@@ -653,7 +653,7 @@ implementation.
 
 ### 14. Async Diagnostic Scheduler
 
-**File:** `lsp/async_diagnostics.py` — class `DiagnosticScheduler`
+**File:** `server/async_diagnostics.py` — class `DiagnosticScheduler`
 
 Tiered publishing and cancellation rules are maintained in:
 
@@ -747,10 +747,10 @@ consumer must treat it as opaque and conservative.
 | `compiler/parsing/expr_lexer.py` | Expression tokenisation |
 | `compiler/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
 | `compiler/parsing/substitution.py` | Tcl backslash substitution helpers |
-| `core/analysis/analyser.py` | Semantic analysis, scope tracking |
-| `core/analysis/checks/` | Best-practice and security checks (W-series) |
-| `core/analysis/irules_checks.py` | iRules-specific checks (IRULE-series) |
-| `core/analysis/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
+| `analyser/analyser.py` | Semantic analysis, scope tracking |
+| `analyser/checks/` | Best-practice and security checks (W-series) |
+| `analyser/irules_checks.py` | iRules-specific checks (IRULE-series) |
+| `analyser/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
 | `compiler/ir.py` | IR node definitions |
 | `compiler/lowering.py` | IR construction from token stream |
 | `compiler/cfg.py` | Control flow graph construction |
@@ -766,6 +766,6 @@ consumer must treat it as opaque and conservative.
 | `compiler/codegen.py` | Tcl VM bytecode assembly backend |
 | `compiler/effects.py` | Command side-effect classification |
 | `compiler/types.py` | Type lattice definitions |
-| `lsp/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
-| `lsp/features/diagnostics.py` | LSP diagnostic aggregation |
-| `core/analysis/semantic_graph.py` | Call/symbol/data-flow graph queries |
+| `server/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
+| `server/features/diagnostics.py` | LSP diagnostic aggregation |
+| `analyser/semantic_graph.py` | Call/symbol/data-flow graph queries |

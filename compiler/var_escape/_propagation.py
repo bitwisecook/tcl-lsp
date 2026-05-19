@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
-from core.analysis.var_scoping import (
+from analyser.var_scoping import (
     global_declaration_indices,
     upvar_local_declaration_indices,
     variable_declaration_indices,

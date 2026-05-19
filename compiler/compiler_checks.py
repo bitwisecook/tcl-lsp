@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 
+from analyser.checks import run_all_checks
+from analyser.semantic_model import Diagnostic, Range, Severity
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.lexer import TclLexer
@@ -29,8 +31,6 @@ from compiler.registry.runtime import (
     arg_indices_for_role,
     iter_body_arguments,
 )
-from core.analysis.checks import run_all_checks
-from core.analysis.semantic_model import Diagnostic, Range, Severity
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name

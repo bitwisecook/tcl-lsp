@@ -11,8 +11,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from analyser.semantic_model import Range
 from compiler.parsing.tokens import SourcePosition
-from core.analysis.semantic_model import Range
 
 from ._text_utils import offset_to_line_char
 

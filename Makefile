@@ -110,7 +110,7 @@ SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
 VSCE_PUBLISHER := bitwisecook
 
 # Build-info files (generated, gitignored)
-BUILD_INFO      := $(ROOT)lsp/_build_info.py
+BUILD_INFO      := $(ROOT)server/_build_info.py
 BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 
 # Zipapps
@@ -204,9 +204,9 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			exit 1; \
 		fi
 	@set -euo pipefail; \
-		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(lsp/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
+		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(server/|compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
 		if [[ -n "$$RAW_SERVER" ]]; then \
-			echo "VSIX contains raw lsp/core/pyproject.toml/uv.lock (should be .pyz only):"; \
+			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be .pyz only):"; \
 			echo "$$RAW_SERVER"; \
 			exit 1; \
 		fi
@@ -298,11 +298,11 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/dev/tcl_test_client.py
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' --exclude 'server/commands.py' server compiler analyser dialects shared core explorer tclpkg tests scripts/dev/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' ai core explorer lsp tests vm scripts
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'server/server.py' ai core explorer server compiler analyser dialects shared tests vm scripts
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
@@ -930,11 +930,11 @@ editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_even
 	@echo "==> Generating editor catalogs"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_catalogs.py
 
-core/bigip/_port_names_table.py: scripts/generate_port_names.py core/bigip/data/scf_port_names.csv $(UV_STAMP)
+dialects/f5/bigip/_port_names_table.py: scripts/generate_port_names.py dialects/f5/bigip/data/scf_port_names.csv $(UV_STAMP)
 	@echo "==> Generating BIG-IP port-name table"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_port_names.py
 
-generate: editors/zed/src/generated/tcl_commands.json core/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
+generate: editors/zed/src/generated/tcl_commands.json dialects/f5/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
 
 check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	@echo "==> Checking generated catalogs are up to date"

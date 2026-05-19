@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from core.analysis.var_scoping import (
+from analyser.var_scoping import (
     global_declaration_indices,
     upvar_local_declaration_indices,
     variable_declaration_indices,
@@ -197,7 +197,7 @@ def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:
 
     Returns a list of ``(caller_var, local_var)`` pairs.
 
-    Delegates to :func:`core.analysis.var_scoping.upvar_local_declaration_indices`
+    Delegates to :func:`analyser.var_scoping.upvar_local_declaration_indices`
     so the LSP declaration provider and the compiler share a single source
     of truth for the upvar grammar.
     """
@@ -212,7 +212,7 @@ def _detect_upvar(stmt: IRStatement) -> list[tuple[str, str]]:
 def _detect_global(stmt: IRStatement) -> list[str]:
     """Detect ``global varName ...`` declarations.
 
-    Delegates to :func:`core.analysis.var_scoping.global_declaration_indices`.
+    Delegates to :func:`analyser.var_scoping.global_declaration_indices`.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
@@ -224,7 +224,7 @@ def _detect_global(stmt: IRStatement) -> list[str]:
 def _detect_namespace_variable(stmt: IRStatement) -> list[str]:
     """Detect ``variable varName ?value?`` declarations.
 
-    Delegates to :func:`core.analysis.var_scoping.variable_declaration_indices`.
+    Delegates to :func:`analyser.var_scoping.variable_declaration_indices`.
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []

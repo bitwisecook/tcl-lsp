@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types as lsp_types
 
-from lsp.features.hover import get_hover
+from server.features.hover import get_hover
 from shared.ip_utils import (
     IPClass,
     format_ip_hover,

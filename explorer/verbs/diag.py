@@ -7,9 +7,9 @@ import json
 import sys
 from typing import Any, cast
 
+from analyser import analyse
+from analyser.semantic_model import Severity
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
 
 from ._registry import verb
 from ._utils import (

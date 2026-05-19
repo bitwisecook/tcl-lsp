@@ -7,17 +7,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from compiler.parsing.tokens import SourcePosition
-from compiler.registry.runtime import configure_signatures
-from core.analysis.conf_wrapped import (
+from analyser.conf_wrapped import (
     _shift_position,
     _shift_range,
     analyse_conf_wrapped,
 )
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
+from compiler.parsing.tokens import SourcePosition
+from compiler.registry.runtime import configure_signatures
 from dialects.f5.bigip.rule_extract import find_embedded_rules, is_conf_wrapped_irules
-from lsp.features.document_symbols import get_document_symbols
-from lsp.features.irules_context import find_enclosing_when_event
+from server.features.document_symbols import get_document_symbols
+from server.features.irules_context import find_enclosing_when_event
 from shared.dialect import detect_dialect_from_source
 
 # -- Detection ----------------------------------------------------------------

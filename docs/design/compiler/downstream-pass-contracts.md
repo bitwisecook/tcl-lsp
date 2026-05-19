@@ -30,7 +30,7 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 - `compiler/irules_flow.py` (`find_irules_flow_warnings`)
 - `compiler/value_shapes.py`
 - `compiler/var_refs.py`
-- `lsp/features/diagnostics.py` (pass aggregation and suppression)
+- `server/features/diagnostics.py` (pass aggregation and suppression)
 
 ## Failure modes
 

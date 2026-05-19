@@ -1,7 +1,7 @@
 """Tests for index-bounds and loop-termination checks (W230-W242).
 
 Semantics validated against Tcl 9.0.3 (built from source) — see
-``core/analysis/checks/_bounds.py`` for the reference notes.
+``analyser/checks/_bounds.py`` for the reference notes.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 
 def _diag_with_code(source: str, code: str):

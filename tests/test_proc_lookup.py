@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.analysis.proc_lookup import find_proc_by_reference, iter_procs_by_reference
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Range
+from analyser.proc_lookup import find_proc_by_reference, iter_procs_by_reference
+from analyser.semantic_model import AnalysisResult, ProcDef, Range
 
 
 def _proc(name: str, qname: str) -> ProcDef:

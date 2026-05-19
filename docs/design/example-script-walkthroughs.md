@@ -3589,7 +3589,7 @@ appear instantly and others arrive after a brief delay.
 ### Phase 1 — Basic diagnostics (fast, synchronous)
 
 `get_basic_diagnostics()` in
-[`diagnostics.py:487`](../../lsp/features/diagnostics.py) runs on every
+[`diagnostics.py:487`](../../server/features/diagnostics.py) runs on every
 keystroke and returns immediately.  It produces:
 
 ```
@@ -3629,7 +3629,7 @@ the raw source text for formatting issues.
 ### Phase 2 — Deep diagnostics (expensive, background thread)
 
 `get_deep_diagnostics()` in
-[`diagnostics.py:568`](../../lsp/features/diagnostics.py) runs in a
+[`diagnostics.py:568`](../../server/features/diagnostics.py) runs in a
 background thread via `asyncio.to_thread` to avoid blocking the editor.
 It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
 and analysis results).
@@ -3678,7 +3678,7 @@ CompilationUnit (shared)
 ### Async scheduling and cancellation
 
 The `DiagnosticScheduler` in
-[`async_diagnostics.py`](../../lsp/async_diagnostics.py) manages the
+[`async_diagnostics.py`](../../server/async_diagnostics.py) manages the
 lifecycle of deep diagnostic tasks:
 
 ```

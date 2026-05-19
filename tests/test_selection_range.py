@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.selection_range import get_selection_ranges
+from server.features.selection_range import get_selection_ranges
 
 
 def _chain_to_list(sr: types.SelectionRange) -> list[types.Range]:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ai.shared.docstring_ops import collect_proc_docs, insert_docstring_stubs
-from core.analysis.semantic_model import (
+from analyser.semantic_model import (
     AnalysisResult,
     ParamDef,
     ProcDef,

@@ -7,13 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser.semantic_model import Range
 from compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
 from compiler.expr_ast import ExprRaw
 from compiler.ir import IRAssignConst, IRAssignExpr
 from compiler.lowering import lower_to_ir
 from compiler.parsing.tokens import SourcePosition
 from compiler.ssa import build_ssa
-from core.analysis.semantic_model import Range
 
 
 def _dummy_range() -> Range:

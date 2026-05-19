@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from core.analysis.semantic_model import AnalysisResult
+from analyser.semantic_model import AnalysisResult
 
 
 class TkMode(Enum):

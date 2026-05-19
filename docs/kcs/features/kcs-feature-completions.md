@@ -20,7 +20,7 @@ The completion provider offers context-sensitive suggestions based on the cursor
 
 ## File-path anchors
 
-- `lsp/features/completion.py`
+- `server/features/completion.py`
 
 ## Failure modes
 

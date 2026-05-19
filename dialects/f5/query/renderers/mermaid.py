@@ -77,9 +77,8 @@ def _render_object_graph(
     ``config_uri`` (synthetic ObjectRefs, e.g. from tests) — the graph
     engine needs the source/config maps to walk references.
     """
+    from dialects.f5.bigip.graph_export import export_graph
     from dialects.f5.bigip.parser import parse_bigip_conf
-
-    from ...graph_export import export_graph
 
     # Group seeds by config_uri and pull their full-paths.
     seed_paths_by_uri: dict[str, list[str]] = {}

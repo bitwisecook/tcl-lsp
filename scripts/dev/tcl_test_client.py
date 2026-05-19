@@ -16,20 +16,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
+    from analyser import analyse
+    from analyser.semantic_model import Diagnostic, Severity
     from compiler.parsing.lexer import TclLexer
     from compiler.parsing.tokens import TokenType
-    from core.analysis import analyse
-    from core.analysis.semantic_model import Diagnostic, Severity
     from shared.source_map import offset_to_line_col as _offset_to_line_col
 except ModuleNotFoundError:
     # Allow running this file directly from anywhere.
     ROOT = Path(__file__).resolve().parents[2]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
+    from analyser import analyse
+    from analyser.semantic_model import Diagnostic, Severity
     from compiler.parsing.lexer import TclLexer
     from compiler.parsing.tokens import TokenType
-    from core.analysis import analyse
-    from core.analysis.semantic_model import Diagnostic, Severity
     from shared.source_map import offset_to_line_col as _offset_to_line_col
 
 

@@ -41,7 +41,7 @@ Most regressions can be localized by comparing outputs at boundaries: lowering, 
 - `compiler/cfg.py`
 - `compiler/ssa.py`
 - `compiler/core_analyses.py`
-- `lsp/features/diagnostics.py`
+- `server/features/diagnostics.py`
 
 ## Failure modes
 

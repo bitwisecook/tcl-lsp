@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.inlay_hints import get_inlay_hints
+from server.features.inlay_hints import get_inlay_hints
 
 FULL_RANGE = types.Range(
     start=types.Position(line=0, character=0),

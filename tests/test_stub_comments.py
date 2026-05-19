@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from core.analysis.semantic_model import ProcArgTrait, Range
-from core.analysis.stub_comments import (
+from analyser.semantic_model import ProcArgTrait, Range
+from analyser.stub_comments import (
     is_stubs_begin,
     is_stubs_end,
     parse_expr_stub_line,
@@ -170,7 +170,7 @@ class TestScanSourceEdgeCases:
 
 class TestAnalyserIntegration:
     def test_inline_stubs_parsed(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"
@@ -187,7 +187,7 @@ class TestAnalyserIntegration:
         assert analyser.result.stub_expr_defs[0].name == "sizeof"
 
     def test_stub_outside_block_ignored(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = "# tcl-lsp: stub my_cmd {arg1 arg2}\nset x 1\n"
         analyser = Analyser()
@@ -195,7 +195,7 @@ class TestAnalyserIntegration:
         assert len(analyser.result.stub_commands) == 0
 
     def test_multiple_stubs_blocks(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"
@@ -214,7 +214,7 @@ class TestAnalyserIntegration:
         assert names == {"cmd_a", "cmd_b"}
 
     def test_proc_arg_traits_populated(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "proc safe_incr {varName {amount 1}} {\n"
@@ -229,7 +229,7 @@ class TestAnalyserIntegration:
         assert ProcArgTrait.VAR_WRITE in proc.param_traits.get("varName", frozenset())
 
     def test_w113_proc_shadows_builtin(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = "proc set {a b} {\n    return $a\n}\n"
         analyser = Analyser()
@@ -239,7 +239,7 @@ class TestAnalyserIntegration:
         assert "set" in w113[0].message
 
     def test_w113_no_shadow_for_custom_proc(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = "proc my_custom_proc {a} {\n    return $a\n}\n"
         analyser = Analyser()
@@ -248,7 +248,7 @@ class TestAnalyserIntegration:
         assert len(w113) == 0
 
     def test_w116_stub_shadows_builtin_command(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"
@@ -263,7 +263,7 @@ class TestAnalyserIntegration:
         assert "set" in w116[0].message
 
     def test_w116_no_shadow_for_unknown_command(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"
@@ -277,7 +277,7 @@ class TestAnalyserIntegration:
         assert len(w116) == 0
 
     def test_w117_stub_shadows_builtin_math_func(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"
@@ -292,7 +292,7 @@ class TestAnalyserIntegration:
         assert "sin" in w117[0].message
 
     def test_w117_no_shadow_for_custom_func(self):
-        from core.analysis import Analyser
+        from analyser import Analyser
 
         source = (
             "# tcl-lsp: stubs-begin\n"

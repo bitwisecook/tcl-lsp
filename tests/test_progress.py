@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.state as _lsp_state
-import lsp.workspace_init as server_module
+import server.state as _lsp_state
+import server.workspace_init as server_module
 
 
 class TestRunBackgroundScanProgress:
@@ -56,7 +56,7 @@ class TestScannerProgressCallback:
     def test_scan_all_invokes_cb(self, tmp_path):
         (tmp_path / "a.tcl").write_text("proc a {} {}\n")
         (tmp_path / "b.tcl").write_text("proc b {} {}\n")
-        from lsp.workspace.scanner import BackgroundScanner
+        from server.workspace.scanner import BackgroundScanner
 
         scanner = BackgroundScanner()
         scanner.configure(workspace_roots=[str(tmp_path)])

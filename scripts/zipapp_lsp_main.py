@@ -14,7 +14,7 @@ import sys
 def main() -> int:
     if "--help" in sys.argv or "-h" in sys.argv:
         try:
-            from lsp._build_info import BUILD_TIMESTAMP, FULL_VERSION
+            from server._build_info import BUILD_TIMESTAMP, FULL_VERSION
         except ImportError:
             FULL_VERSION = "dev"
             BUILD_TIMESTAMP = ""
@@ -28,7 +28,7 @@ def main() -> int:
         print("  Starts the language server on stdin/stdout (JSON-RPC).")
         return 0
 
-    from lsp.server import server
+    from server.server import server
 
     server.start_io()
     return 0

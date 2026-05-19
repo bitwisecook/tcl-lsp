@@ -17,8 +17,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.registry.runtime import ArgRole, arg_indices_for_role, arg_indices_for_roles
-from lsp.features import compute_semantic_tokens_edits, semantic_tokens_full
-from lsp.workspace.document_state import DocumentState
+from server.features import compute_semantic_tokens_edits, semantic_tokens_full
+from server.workspace.document_state import DocumentState
 
 
 class TestComputeSemanticTokensEdits:

@@ -27,7 +27,7 @@ Multiple downstream passes contribute findings that are merged in `get_diagnosti
 - `compiler/gvn.py`
 - `compiler/taint/`
 - `compiler/irules_flow.py`
-- `lsp/features/diagnostics.py`
+- `server/features/diagnostics.py`
 
 ## Failure modes
 

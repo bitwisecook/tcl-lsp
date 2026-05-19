@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lsprotocol import types
 
 from compiler.registry.runtime import configure_signatures
-from lsp.features.code_actions import get_code_actions
+from server.features.code_actions import get_code_actions
 
 
 def _diag(

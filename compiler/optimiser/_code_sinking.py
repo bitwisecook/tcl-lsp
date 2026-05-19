@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 from shared.codes import opt
 from shared.naming import normalise_var_name as _normalise_var_name
 

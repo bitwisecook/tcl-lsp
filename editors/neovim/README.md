@@ -46,7 +46,7 @@ and drop it somewhere on PATH (renamed or symlinked to
 
 ## Neovim 0.11+ (native LSP)
 
-1. Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/tcl_lsp.lua`.
+1. Copy `tcl_lsp.lua` to `~/.config/nvim/server/tcl_lsp.lua`.
 2. Edit the `cmd` line to point at your server.
 3. Register the filetype and enable the server in your `init.lua`:
 

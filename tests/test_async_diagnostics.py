@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.async_diagnostics import DiagnosticScheduler
+from server.async_diagnostics import DiagnosticScheduler
 
 
 def _diag(code: str) -> types.Diagnostic:

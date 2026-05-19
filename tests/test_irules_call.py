@@ -12,18 +12,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
+from analyser.semantic_model import Severity
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from lsp.features.call_hierarchy import (
+from server.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
     prepare_call_hierarchy,
 )
-from lsp.features.completion import get_completions
-from lsp.features.definition import get_definition
-from lsp.features.references import get_references
-from lsp.features.rename import get_rename_edits
+from server.features.completion import get_completions
+from server.features.definition import get_definition
+from server.features.references import get_references
+from server.features.rename import get_rename_edits
 
 TEST_URI = "file:///test.irul"
 

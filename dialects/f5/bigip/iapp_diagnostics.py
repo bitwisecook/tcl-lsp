@@ -16,8 +16,8 @@ Diagnostic codes
 
 from __future__ import annotations
 
+from analyser.semantic_model import Diagnostic, Range, Severity
 from compiler.parsing.tokens import SourcePosition
-from core.analysis.semantic_model import Diagnostic, Range, Severity
 from shared.codes import diag
 from shared.dialect import active_dialect
 

@@ -26,8 +26,8 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 - `compiler/compilation_unit.py` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
 - `compiler/interprocedural.py` (`analyse_interprocedural_ir`)
-- `lsp/features/diagnostics.py` (`get_diagnostics`, CU consumption)
-- `core/analysis/analyser.py` (CU-assisted semantic diagnostics)
+- `server/features/diagnostics.py` (`get_diagnostics`, CU consumption)
+- `analyser/analyser.py` (CU-assisted semantic diagnostics)
 
 ## Failure modes
 

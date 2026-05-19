@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.call_hierarchy import (
+from server.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
     prepare_call_hierarchy,

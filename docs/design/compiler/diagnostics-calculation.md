@@ -13,8 +13,8 @@ for immediate feedback (basic diagnostics) and an expensive asynchronous phase
 (deep diagnostics) that runs in a background thread.  The `DiagnosticScheduler`
 manages task lifecycle with cancellation and version tracking.
 
-Source: [`lsp/features/diagnostics.py`](../../../lsp/features/diagnostics.py),
-[`lsp/async_diagnostics.py`](../../../lsp/async_diagnostics.py)
+Source: [`server/features/diagnostics.py`](../../../server/features/diagnostics.py),
+[`server/async_diagnostics.py`](../../../server/async_diagnostics.py)
 
 ## Content
 

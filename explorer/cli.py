@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from lsp._build_info import BUILD_TIMESTAMP, FULL_VERSION
+    from server._build_info import BUILD_TIMESTAMP, FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
@@ -90,7 +90,7 @@ def style(text: str, colour: str, enabled: bool) -> str:
 
 
 # Need Range import for SourceAnnotation type hint
-from core.analysis.semantic_model import Range  # noqa: E402
+from analyser.semantic_model import Range  # noqa: E402
 
 # IR statement helpers (CLI-specific: use Ansi colours)
 

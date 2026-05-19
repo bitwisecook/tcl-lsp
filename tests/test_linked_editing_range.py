@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.features.linked_editing_range import get_linked_editing_ranges
+from server.features.linked_editing_range import get_linked_editing_ranges
 
 TEST_URI = "file:///test.tcl"  # noqa: F841 (keep parity with other tests)
 

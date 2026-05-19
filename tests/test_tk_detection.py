@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_model import AnalysisResult, PackageRequire, Range
+from analyser.semantic_model import AnalysisResult, PackageRequire, Range
 from dialects.tk.dialect.detection import has_tk_require
 
 

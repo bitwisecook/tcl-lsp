@@ -632,7 +632,7 @@ class CommandSpec:
     warn_without_terminator: bool = False
 
     # Analysis check dispatch traits.  These drive the targeted-check
-    # routing in ``core/analysis/checks/_orchestrator.py`` so that
+    # routing in ``analyser/checks/_orchestrator.py`` so that
     # command-specific checks are declared on the spec, not in consumer
     # frozensets.
     evaluates_code: bool = False  # eval, uplevel

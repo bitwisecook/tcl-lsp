@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from .config import DocstringTagStyle
 
 if TYPE_CHECKING:
-    from core.analysis.semantic_model import ProcDef
+    from analyser.semantic_model import ProcDef
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_graph import (
+from analyser.semantic_graph import (
     build_call_graph,
     build_dataflow_graph,
     build_semantic_graph_bundle,

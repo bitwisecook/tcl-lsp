@@ -148,7 +148,7 @@ _DISPATCH = {
 
 def _get_version() -> str:
     try:
-        from lsp._build_info import FULL_VERSION
+        from server._build_info import FULL_VERSION
 
         return FULL_VERSION
     except ImportError:
@@ -431,7 +431,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
     from ai.shared.irule_analysis import ordered_events_as_dicts
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = [_diagnostic_to_dict(d) for d in result.diagnostics]
@@ -461,7 +461,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
 def _tool_validate(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     groups: dict[str, list[dict]] = {}
@@ -490,7 +490,7 @@ def _tool_validate(source: str, dialect: str = "") -> str:
 def _tool_review(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     security = [
@@ -517,7 +517,7 @@ def _tool_review(source: str, dialect: str = "") -> str:
 def _tool_find_legacy(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     patterns = []
@@ -768,7 +768,7 @@ _SYNTHETIC_URI = "file:///source.tcl"
 def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.hover import get_hover
+    from server.features.hover import get_hover
 
     result = get_hover(source, line, character)
     if result is None:
@@ -791,7 +791,7 @@ def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> st
 def _tool_complete(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.completion import get_completions
+    from server.features.completion import get_completions
 
     items = get_completions(source, line, character)
     return json.dumps({"items": [_completion_item_to_dict(i) for i in items], "total": len(items)})
@@ -811,7 +811,7 @@ def _tool_complete(source: str, line: int, character: int, dialect: str = "") ->
 def _tool_goto_definition(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.definition import get_definition
+    from server.features.definition import get_definition
 
     locations = get_definition(source, _SYNTHETIC_URI, line, character)
     return json.dumps({"locations": [_lsp_location_to_dict(loc) for loc in locations]})
@@ -831,7 +831,7 @@ def _tool_goto_definition(source: str, line: int, character: int, dialect: str =
 def _tool_find_references(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.references import get_references
+    from server.features.references import get_references
 
     refs = get_references(source, _SYNTHETIC_URI, line, character)
     return json.dumps({"references": [_lsp_location_to_dict(r) for r in refs], "total": len(refs)})
@@ -849,7 +849,7 @@ def _tool_find_references(source: str, line: int, character: int, dialect: str =
 def _tool_symbols(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.document_symbols import get_document_symbols
+    from server.features.document_symbols import get_document_symbols
 
     syms = get_document_symbols(source)
     return json.dumps({"symbols": [_document_symbol_to_dict(s) for s in syms]})
@@ -880,8 +880,8 @@ def _tool_code_actions(
 
     from lsprotocol import types as lsp
 
-    from lsp.features.code_actions import get_code_actions
-    from lsp.features.diagnostics import get_diagnostics
+    from server.features.code_actions import get_code_actions
+    from server.features.diagnostics import get_diagnostics
 
     range_ = lsp.Range(
         start=lsp.Position(line=start_line, character=start_character),
@@ -955,7 +955,7 @@ def _tool_format_source(
 def _tool_rename(source: str, line: int, character: int, new_name: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.rename import get_rename_edits
+    from server.features.rename import get_rename_edits
 
     result = get_rename_edits(source, _SYNTHETIC_URI, line, character, new_name)
     if result is None:
@@ -1076,7 +1076,7 @@ def _tool_diagram(source: str, dialect: str = "") -> str:
 def _tool_call_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_call_graph
+    from analyser.semantic_graph import build_call_graph
 
     return json.dumps(build_call_graph(source))
 
@@ -1093,7 +1093,7 @@ def _tool_call_graph(source: str, dialect: str = "") -> str:
 def _tool_symbol_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_symbol_graph
+    from analyser.semantic_graph import build_symbol_graph
 
     return json.dumps(build_symbol_graph(source))
 
@@ -1110,7 +1110,7 @@ def _tool_symbol_graph(source: str, dialect: str = "") -> str:
 def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_dataflow_graph
+    from analyser.semantic_graph import build_dataflow_graph
 
     return json.dumps(build_dataflow_graph(source))
 
@@ -1602,7 +1602,7 @@ def _tool_generate_docstring(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
-    from core.analysis import analyse
+    from analyser import analyse
     from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
@@ -1627,7 +1627,7 @@ def _tool_generate_docstring(
 )
 def _tool_read_proc_docs(source: str) -> str:
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
@@ -1656,7 +1656,7 @@ def _tool_update_docstrings(
     decoration: str = "false",
 ) -> str:
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis import analyse
+    from analyser import analyse
     from core.formatting.docstring import resolve_tag_style
 
     tag = resolve_tag_style(style)

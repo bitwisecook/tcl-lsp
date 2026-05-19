@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from core.analysis.mro import MROError, tcloo_linearise
+from analyser.mro import MROError, tcloo_linearise
 
 from .types import TclError, TclResult, TclReturn, TclTailcall
 

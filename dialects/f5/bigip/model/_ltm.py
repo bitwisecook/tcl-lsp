@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import TYPE_CHECKING
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 
 from ._enums import DataGroupType, ProfileType
 

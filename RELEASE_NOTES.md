@@ -12,7 +12,7 @@
   manifest and into the VS Code, JetBrains, Zed, and emacs catalogs.
 - **iApp diagnostics.** A new `iapp_diagnostics` pathway flags
   iApp-template authoring problems that previously went unreported.
-- **Domain-aware analysis checks.** `core/analysis/checks/_domain.py`
+- **Domain-aware analysis checks.** `analyser/checks/_domain.py`
   hosts cross-cutting checks that depend on combined command +
   dialect + side-effect context.
 - **Option-dialect auditing.** `scripts/audit_option_dialects.py`

@@ -210,15 +210,15 @@ line_length = 100
 - Global + project config loading: `shared/user_config.py`
   (`load_user_config`, `load_project_config`, `merge_settings_layers`)
 - Platform detection: `_config_dir()` and `_is_posix_compat_windows()`
-- Layer storage: `lsp/state.py`
+- Layer storage: `server/state.py`
   (`global_config_settings`, `editor_config_settings`, `project_config_settings`)
-- Layer merge + apply: `lsp/settings.py` (`_merged_settings`,
+- Layer merge + apply: `server/settings.py` (`_merged_settings`,
   `_apply_merged_settings_now`)
-- Server integration: `lsp/workspace_init.py` → `on_initialized()`
+- Server integration: `server/workspace_init.py` → `on_initialized()`
   loads global and project layers before any analysis runs
-- File-level directive parser: `core/analysis/_analyser/_utils.py`
+- File-level directive parser: `analyser/_analyser/_utils.py`
   (`parse_file_suppression`)
-- Per-document suppression filter: `lsp/features/diagnostics.py`
+- Per-document suppression filter: `server/features/diagnostics.py`
   (`_is_suppressed`)
-- Export command: `lsp/server.py` → `_export_config()`
+- Export command: `server/server.py` → `_export_config()`
 - CLI config: `explorer/tcl_cli.py` → `_config_file_paths()`

@@ -19,7 +19,7 @@ The provider looks up the command or proc under the cursor and shows the expecte
 
 ## File-path anchors
 
-- `lsp/features/signature_help.py`
+- `server/features/signature_help.py`
 
 ## Failure modes
 

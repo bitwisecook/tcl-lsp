@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 
 from .model import BigipConfig
 from .registry.data import (

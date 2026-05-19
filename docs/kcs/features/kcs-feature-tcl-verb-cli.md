@@ -105,7 +105,7 @@ python tcl.pyz venv delete .venv
 ## File-path anchors
 
 - `explorer/tcl_cli.py`
-- `core/analysis/semantic_graph.py`
+- `analyser/semantic_graph.py`
 - `compiler/registry/info.py`
 - `tests/test_core_lift_consumers.py`
 - `scripts/zipapp_tcl_main.py`

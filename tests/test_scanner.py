@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.workspace.scanner import (
+from server.workspace.scanner import (
     BackgroundScanner,
     _dialect_from_ext,
     path_to_uri,

@@ -83,9 +83,9 @@ validation.
 - `dialects/f5/bigip/iapp_vars.py` — iApp variable reference extraction
 - `dialects/f5/bigip/iapp_diagnostics.py` — cross-file diagnostic validation
 - `compiler/registry/iapps/tmsh__commands.py` — tmsh:: command registry
-- `lsp/features/semantic_tokens.py` — `_collect_apl_tokens()`, embedded Tcl
-- `lsp/server.py` — `_is_apl_source()`, `_publish_apl_diagnostics()`
-- `lsp/workspace/scanner.py` — APL model caching, sibling file discovery
+- `server/features/semantic_tokens.py` — `_collect_apl_tokens()`, embedded Tcl
+- `server/server.py` — `_is_apl_source()`, `_publish_apl_diagnostics()`
+- `server/workspace/scanner.py` — APL model caching, sibling file discovery
 - `editors/vscode/package.json` — `tcl-apl` language registration and colours
 - `editors/vscode/apl-language-configuration.json` — editor behaviour
 - `editors/zed/languages/apl/config.toml` — Zed APL language registration

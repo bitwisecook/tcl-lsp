@@ -60,11 +60,21 @@ source = "vcs"
 raw-options = { local_scheme = "no-local-version" }
 
 [tool.hatch.build.hooks.vcs]
-version-file = "lsp/_version.py"
+version-file = "server/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lsp", "core", "explorer", "vm", "tclpkg", "f5q", "shared"]
-exclude = ["explorer/static", "core/bigip/data/scf_port_names.csv"]
+packages = [
+    "server",
+    "compiler",
+    "analyser",
+    "dialects",
+    "shared",
+    "core",
+    "explorer",
+    "vm",
+    "tclpkg",
+]
+exclude = ["explorer/static", "dialects/f5/bigip/data/scf_port_names.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,12 +94,12 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
-"lsp/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
+"server/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
 
 [tool.coverage.run]
-source = ["lsp", "core", "explorer"]
+source = ["server", "compiler", "analyser", "dialects", "shared", "core", "explorer"]
 omit = [
-    "lsp/_build_info.py",
+    "server/_build_info.py",
     "*/test_*",
     "*/__pycache__/*",
 ]

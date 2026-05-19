@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 
+from analyser import analyse
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
 
 from ..cli import main as explorer_main
 from ._registry import verb

@@ -7,10 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
+from analyser.semantic_model import Severity
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from lsp.features.diagnostics import get_diagnostics
+from server.features.diagnostics import get_diagnostics
 
 
 def _diag_with_code(source: str, code: str):
@@ -1705,7 +1705,7 @@ class TestNonAscii:
         assert len(diags) == 0
 
     def test_strict_mode_flags_all_non_ascii(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("strict")
@@ -1718,7 +1718,7 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_common_mode_allows_symbols(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("common")
@@ -1733,7 +1733,7 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_off_mode_disables_w108(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("off")

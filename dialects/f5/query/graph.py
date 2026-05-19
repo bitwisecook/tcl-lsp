@@ -46,7 +46,7 @@ def _grep_inputs(obj: ObjectRef) -> tuple[dict[str, str], dict]:
 
 
 def forward_refs(obj: ObjectRef) -> list[str]:
-    from ..grep import compute_grep
+    from dialects.f5.bigip.grep import compute_grep
 
     sources, configs = _grep_inputs(obj)
     # Exact-path seed: ``refs(/Common/p)`` must not also match
@@ -74,7 +74,7 @@ def forward_refs(obj: ObjectRef) -> list[str]:
 
 
 def reverse_refs(obj: ObjectRef) -> list[str]:
-    from ..grep import compute_grep
+    from dialects.f5.bigip.grep import compute_grep
 
     sources, configs = _grep_inputs(obj)
     # Exact-path seed: ``referenced_by(/Common/p)`` returns only

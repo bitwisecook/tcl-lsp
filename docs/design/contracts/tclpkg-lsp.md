@@ -30,9 +30,9 @@ not appear.
 
 ## File-path anchors
 
-- ``lsp/settings.py:58`` — ``_KNOWN_TCL_LSP_SECTIONS``
-- ``lsp/workspace_init.py:248`` — project root and venv detection in ``on_initialized``
-- ``lsp/commands.py:825`` — ``tcl-lsp.tclpkg.install`` command handler
-- ``lsp/features/code_actions.py:383`` — ``_tclpkg_install_action()``
+- ``server/settings.py:58`` — ``_KNOWN_TCL_LSP_SECTIONS``
+- ``server/workspace_init.py:248`` — project root and venv detection in ``on_initialized``
+- ``server/commands.py:825`` — ``tcl-lsp.tclpkg.install`` command handler
+- ``server/features/code_actions.py:383`` — ``_tclpkg_install_action()``
 - ``shared/codes.py:248`` — W130–W134 code registration
 - ``editors/vscode/package.json`` — ``tclLsp.packageManager.*`` settings

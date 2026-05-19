@@ -1345,10 +1345,10 @@ class TestCanonicalisationAuditMarkers:
         "core/compiler/var_escape/_propagation.py",
         "core/compiler/var_escape/_cfg_propagation.py",
         "core/diagram/extract.py",
-        "core/analysis/_analyser/_diag_commands.py",
-        "core/analysis/_analyser/_diag_var_command.py",
-        "core/analysis/_analyser/_diag_var_lifecycle.py",
-        "core/analysis/_analyser/_diag_racy.py",
+        "analyser/_analyser/_diag_commands.py",
+        "analyser/_analyser/_diag_var_command.py",
+        "analyser/_analyser/_diag_var_lifecycle.py",
+        "analyser/_analyser/_diag_racy.py",
     )
 
     MARKER = "# canonicalisation: audited #246"

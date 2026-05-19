@@ -10,14 +10,14 @@ statically from command invocations:
 
 from __future__ import annotations
 
-from compiler.registry import REGISTRY
-from core.analysis.semantic_model import (
+from analyser.semantic_model import (
     AnalysisResult,
     CommandInvocation,
     Diagnostic,
     Range,
     Severity,
 )
+from compiler.registry import REGISTRY
 from shared.codes import diag
 
 from .common import (

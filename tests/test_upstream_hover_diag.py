@@ -24,9 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.diagnostics import get_diagnostics
-from lsp.features.document_symbols import get_document_symbols
-from lsp.features.hover import get_hover
+from server.features.diagnostics import get_diagnostics
+from server.features.document_symbols import get_document_symbols
+from server.features.hover import get_hover
 
 
 def _hover_text(result: types.Hover) -> str:

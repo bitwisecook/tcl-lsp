@@ -9,12 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol.types import MarkupContent
 
+from analyser import analyse
+from analyser.semantic_model import Severity
 from compiler.irules_flow import find_irules_flow_warnings
 from compiler.registry.runtime import configure_signatures
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from lsp.features.completion import get_completions
-from lsp.features.hover import get_hover
+from server.features.completion import get_completions
+from server.features.hover import get_hover
 
 
 def _diag_with_code(source: str, code: str):
@@ -1077,7 +1077,7 @@ class TestEnhancedHovers:
     def test_http_respond_lifecycle_note_in_signature_help(self):
         configure_signatures(dialect="f5-irules")
         src = "HTTP::respond 200 "
-        from lsp.features.signature_help import get_signature_help
+        from server.features.signature_help import get_signature_help
 
         result = get_signature_help(src, 0, 18)
         assert result is not None

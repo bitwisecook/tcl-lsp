@@ -30,11 +30,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from lsprotocol import types
 
-import lsp.lifecycle as _lifecycle
-import lsp.settings as _lsp_settings
-import lsp.state as _lsp_state
+import server.lifecycle as _lifecycle
+import server.settings as _lsp_settings
+import server.state as _lsp_state
 from core.formatting import FormatterConfig
-from lsp.feature_config import FeatureConfig
+from server.feature_config import FeatureConfig
 
 
 @pytest.fixture

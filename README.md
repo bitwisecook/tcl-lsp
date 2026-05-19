@@ -28,7 +28,7 @@ and communicates over stdio, making it compatible with any LSP client.
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
-| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
+| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/server/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
 | [Zed](editors/zed/) | Full extension (TOML + Rust) | Install from Zed extension registry | 16 built-in snippets, MCP context server, `/tcl-doc` and `/irule-event` slash commands |
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
@@ -80,7 +80,7 @@ Zero-plugin setup on Neovim 0.11+ using the native LSP client.  Also works
 with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 
 ```lua
--- ~/.config/nvim/lsp/tcl_lsp.lua  (Neovim 0.11+)
+-- ~/.config/nvim/server/tcl_lsp.lua  (Neovim 0.11+)
 return {
   cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
@@ -2067,7 +2067,7 @@ Useful overrides:
 tcl-lsp/
   Makefile                Build system
   pyproject.toml          Python project metadata (hatchling)
-  lsp/                    Python LSP server
+  server/                    Python LSP server
     __main__.py           Entry point (python -m server)
     server.py             pygls server, handler wiring
     async_diagnostics.py  Background diagnostic scheduler (tiered publishing)
@@ -2296,11 +2296,11 @@ source take effect on the next editor reload.
 
 ### Adding a new diagnostic check
 
-1. Add a check function to the appropriate submodule in `core/analysis/checks/`
+1. Add a check function to the appropriate submodule in `analyser/checks/`
    (e.g. `_security.py`, `_style.py`, `_domain.py`, `_syntax.py`) following
    the existing pattern -- each check receives the command name, argument
    texts, argument tokens, all tokens, and the source string.
-2. Register it in the `ALL_CHECKS` list in `core/analysis/checks/_orchestrator.py`.
+2. Register it in the `ALL_CHECKS` list in `analyser/checks/_orchestrator.py`.
 3. If the check can be auto-fixed, include a `CodeFix` in the diagnostic's
    `fixes` tuple.
 4. Add tests to `tests/test_checks.py`.

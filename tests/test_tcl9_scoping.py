@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.analysis import analyse
+from analyser import analyse
 
 # Helpers
 

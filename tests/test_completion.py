@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lsprotocol.types import TextEdit
 
 from compiler.registry.runtime import configure_signatures
-from lsp.features.completion import get_completions
+from server.features.completion import get_completions
 
 
 class TestCommandCompletion:
@@ -187,7 +187,7 @@ class TestVariableCompletion:
         """The lexer's bare-var rule uses ``ch.isalnum()`` (Unicode), so
         non-ASCII names like ``ñame`` lex as a single bare token.  An
         ASCII-only regex would force ``${...}`` unnecessarily."""
-        from lsp.features.completion import _var_needs_braces
+        from server.features.completion import _var_needs_braces
 
         # Names that lex as a bare ``$name`` -- braces NOT required.
         for name in ["foo", "foo_bar", "::foo", "::ns::foo", "ñame", "café", "__中文__"]:
@@ -457,7 +457,7 @@ class TestVariableCompletion:
         recursively and the parent pointer is rewritten to the new
         lexical parent, so the redirect-to-global behaviour can't depend
         on a parent pointer that points outside the local subtree."""
-        from core.analysis import analyse
+        from analyser import analyse
 
         source = textwrap.dedent("""\
             set ::globalvar 9

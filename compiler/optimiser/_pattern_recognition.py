@@ -193,7 +193,7 @@ def _statement_delete_rewrite_range(
     next_stmt_start: int | None,
 ):
     """Compute the range for deleting a statement including trailing whitespace."""
-    from core.analysis.semantic_model import Range
+    from analyser.semantic_model import Range
 
     from ._helpers import _advance_position
 
@@ -225,7 +225,7 @@ def _statement_rewrite_context(
     cfg,
 ):
     """Build rewrite context maps for statement ranges and next-statement offsets."""
-    from core.analysis.semantic_model import Range
+    from analyser.semantic_model import Range
 
     entries: list[tuple[str, int, Range]] = []
     for block_name, block in cfg.blocks.items():

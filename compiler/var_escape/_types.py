@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Iterable
 
 if TYPE_CHECKING:
-    from core.analysis.semantic_model import Range
+    from analyser.semantic_model import Range
 
 
 class EscapeTag(Enum):

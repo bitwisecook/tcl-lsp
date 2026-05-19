@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRModule

@@ -20,10 +20,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import lsp.settings as _lsp_settings
-import lsp.state as _lsp_state
+import server.settings as _lsp_settings
+import server.state as _lsp_state
 from core.formatting import FormatterConfig
-from lsp.feature_config import FeatureConfig
+from server.feature_config import FeatureConfig
 
 
 def _install_diag_capture(captured: dict) -> tuple[Any, Any]:
@@ -34,7 +34,7 @@ def _install_diag_capture(captured: dict) -> tuple[Any, Any]:
     ``# type: ignore`` for the deliberate signature-mismatch only appears
     once instead of in every test method.
     """
-    import lsp.diagnostics_pipeline as _dp
+    import server.diagnostics_pipeline as _dp
 
     orig_publish = _dp._publish_diags_to_client
     orig_server = _dp._server
@@ -60,7 +60,7 @@ def _install_diag_capture(captured: dict) -> tuple[Any, Any]:
 
 
 def _restore_diag_capture(orig: tuple[Any, Any]) -> None:
-    import lsp.diagnostics_pipeline as _dp
+    import server.diagnostics_pipeline as _dp
 
     orig_publish, orig_server = orig
     _dp._publish_diags_to_client = orig_publish  # type: ignore[assignment]
@@ -334,7 +334,7 @@ class TestPerFolderDialect:
         known.  The unknown-command check now unions ``active_extra_commands()``
         into ``registry_names``.
         """
-        from core.analysis import Analyser
+        from analyser import Analyser
         from shared.dialect import dialect_scope
 
         src = "cmd_alpha foo bar\n"
@@ -411,7 +411,7 @@ class TestPerFolderDialect:
         never fires — the user keeps seeing the stale warnings even though
         the per-folder config has resolved to the correct value.
         """
-        import lsp.diagnostics_pipeline as _dp
+        import server.diagnostics_pipeline as _dp
 
         folder = "file:///workspaces/proj-b"
         file_uri = f"{folder}/test.tcl"
@@ -459,7 +459,7 @@ class TestAnalyserOptInDiagnostics:
 
     def test_w123_does_not_fire_with_default_config(self, reset_per_folder_state):
         """Sanity: W123 stays opt-in (off by default in the LSP path)."""
-        import lsp.diagnostics_pipeline as _dp
+        import server.diagnostics_pipeline as _dp
 
         folder = "file:///workspaces/proj"
         _lsp_state.get_or_init_folder_feature_config(folder)
@@ -482,7 +482,7 @@ class TestAnalyserOptInDiagnostics:
 
     def test_w123_fires_when_user_enables_it(self, reset_per_folder_state):
         """``tclLsp.diagnostics.W123: true`` makes the analyser emit W123."""
-        import lsp.diagnostics_pipeline as _dp
+        import server.diagnostics_pipeline as _dp
 
         folder = "file:///workspaces/proj"
         _lsp_state.get_or_init_folder_feature_config(folder)
@@ -516,7 +516,7 @@ class TestAnalyserOptInDiagnostics:
         ``disabled_diagnostics`` and forces ``force_reanalyse=True`` for
         any doc whose effective set changed.
         """
-        import lsp.diagnostics_pipeline as _dp
+        import server.diagnostics_pipeline as _dp
 
         folder = "file:///workspaces/proj"
         _lsp_state.get_or_init_folder_feature_config(folder)
@@ -567,7 +567,7 @@ class TestPerFolderNonAscii:
         assert cfg.non_ascii_mode == "strict"
 
     def test_non_ascii_mode_scope_swaps_module_var(self, reset_per_folder_state):
-        from core.analysis.checks._style import _non_ascii_mode_var, non_ascii_mode_scope
+        from analyser.checks._style import _non_ascii_mode_var, non_ascii_mode_scope
 
         baseline = _non_ascii_mode_var.get()
         with non_ascii_mode_scope("off"):

@@ -19,7 +19,7 @@ The compiler pipeline spans parsing, lowering, control/data-flow analysis, speci
 4. Specialised passes (optimiser, shimmer, taint, etc.)
    - source: `compiler/optimiser/`, `compiler/shimmer.py`, `compiler/taint/`
 5. Diagnostics composition for editor publication
-   - source: `lsp/features/diagnostics.py`
+   - source: `server/features/diagnostics.py`
 6. Bytecode/disassembly generation
    - source: `compiler/codegen.py`
 

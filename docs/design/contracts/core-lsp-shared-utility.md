@@ -6,7 +6,7 @@ Behaviour drifts between features/passes because equivalent logic (offset mappin
 
 ## Operational context
 
-Shared utility modules were lifted to provide one internal contract surface across `core/` and `lsp/`:
+Shared utility modules were lifted to provide one internal contract surface across `core/` and `server/`:
 
 - source/position mapping
 - parsing word-shape helpers
@@ -23,7 +23,7 @@ Shared utility modules were lifted to provide one internal contract surface acro
 2. `DocumentState.buffer` is the canonical `DocumentBuffer` for an open document. It is lazily created and invalidated when `source` changes.
 3. Use `DocumentBuffer.lines` instead of `source.split("\n")`. The result is cached per buffer.
 4. Use `position_from_offset()` (`shared/ranges.py`) instead of `position_from_relative()` when a `line_starts` array is available. It is O(log n) vs O(text_len).
-5. `SourceMap` (`shared/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `lsp/` or `core/` hot paths.
+5. `SourceMap` (`shared/source_map.py`) is retained for backward compatibility in non-hot-path code (explorer, scripts, tests). Do not add new usages in `server/` or `core/` hot paths.
 
 ### Other contracts
 
@@ -47,20 +47,20 @@ Shared utility modules were lifted to provide one internal contract surface acro
 - `compiler/parsing/token_positions.py`
 - `compiler/value_shapes.py`
 - `compiler/var_refs.py`
-- `core/analysis/proc_lookup.py`
-- `lsp/features/package_suggestions.py`
-- `lsp/features/irules_context.py`
+- `analyser/proc_lookup.py`
+- `server/features/package_suggestions.py`
+- `server/features/irules_context.py`
 
 Primary consumers:
 
-- `lsp/workspace/document_state.py` — `DocumentState.buffer` property
-- `lsp/features/semantic_tokens.py` — `position_from_offset` with shared `_line_starts`
-- `lsp/server.py`
+- `server/workspace/document_state.py` — `DocumentState.buffer` property
+- `server/features/semantic_tokens.py` — `position_from_offset` with shared `_line_starts`
+- `server/server.py`
 - `dialects/f5/bigip/parser.py`
 - `dialects/f5/bigip/rule_extract.py`
 - `dialects/f5/bigip/validator.py`
 - `shared/position.py`
-- `core/analysis/analyser.py`
+- `analyser/analyser.py`
 - `compiler/compiler_checks.py`
 - `compiler/lowering.py`
 - `compiler/optimiser/`
@@ -71,15 +71,15 @@ Primary consumers:
 - `compiler/interprocedural.py`
 - `compiler/gvn.py`
 - `core/refactoring/_spans.py`
-- `lsp/features/definition.py`
-- `lsp/features/references.py`
-- `lsp/features/rename.py`
-- `lsp/features/call_hierarchy.py`
-- `lsp/features/signature_help.py`
-- `lsp/features/code_actions.py`
-- `lsp/features/completion.py`
-- `lsp/features/semantic_tokens.py`
-- `lsp/features/inlay_hints.py`
+- `server/features/definition.py`
+- `server/features/references.py`
+- `server/features/rename.py`
+- `server/features/call_hierarchy.py`
+- `server/features/signature_help.py`
+- `server/features/code_actions.py`
+- `server/features/completion.py`
+- `server/features/semantic_tokens.py`
+- `server/features/inlay_hints.py`
 
 ## Failure modes
 

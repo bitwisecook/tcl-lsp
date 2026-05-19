@@ -16,7 +16,7 @@
 ## File-path anchors
 
 - `core/...`
-- `lsp/...`
+- `server/...`
 - `docs/...`
 
 ## Failure modes

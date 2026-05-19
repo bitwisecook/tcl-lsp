@@ -37,11 +37,11 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from analyser.semantic_model import CodeFix, Range
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.analysis.semantic_model import CodeFix, Range
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token
@@ -1282,7 +1282,7 @@ def _find_generic_static_names(
     ``upvar 1 static::debug local`` will have ``static::debug`` added to
     the call's ``defs`` by the CFG builder.
     """
-    from core.analysis.irules_checks import _is_generic_static_name
+    from analyser.irules_checks import _is_generic_static_name
 
     warnings: list[IrulesFlowWarning] = []
     seen: set[str] = set()  # deduplicate across events

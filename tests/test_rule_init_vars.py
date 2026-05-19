@@ -14,9 +14,9 @@ from compiler.irules_flow import (
     _find_when_bodies,
     extract_rule_init_vars,
 )
-from lsp.features.completion import get_completions
-from lsp.workspace.scanner import BackgroundScanner
-from lsp.workspace.workspace_index import WorkspaceIndex
+from server.features.completion import get_completions
+from server.workspace.scanner import BackgroundScanner
+from server.workspace.workspace_index import WorkspaceIndex
 
 # Priority extraction from _find_when_bodies
 
@@ -179,8 +179,8 @@ class TestWorkspaceIndexRuleInitVars:
         priority: int = 500,
         is_array: bool = False,
     ) -> RuleInitExport:
+        from analyser.semantic_model import Range
         from compiler.parsing.tokens import SourcePosition
-        from core.analysis.semantic_model import Range
 
         r = Range(
             start=SourcePosition(0, 0, 0),
@@ -266,7 +266,7 @@ class TestWorkspaceIndexRuleInitVars:
         assert len(results) == 2
 
     def test_remove_cleans_rule_init_vars(self):
-        from core.analysis import analyse
+        from analyser import analyse
 
         idx = WorkspaceIndex()
         result = analyse("set x 1")
@@ -468,8 +468,8 @@ class TestWorkspaceIndexStaticVars:
         priority: int = 500,
         is_array: bool = False,
     ) -> RuleInitExport:
+        from analyser.semantic_model import Range
         from compiler.parsing.tokens import SourcePosition
-        from core.analysis.semantic_model import Range
 
         r = Range(
             start=SourcePosition(0, 0, 0),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.analysis import analyse
+from analyser import analyse
 from dialects.tk.dialect.common import is_widget_path, parent_widget_path
 from dialects.tk.dialect.diagnostics import check_tk_diagnostics
 from dialects.tk.dialect.extract import extract_tk_layout

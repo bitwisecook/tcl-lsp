@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
 from compiler.compilation_unit import compile_source
 from compiler.gvn import find_redundant_computations
 from compiler.irules_flow import find_irules_flow_warnings
@@ -15,8 +16,7 @@ from compiler.optimiser import find_optimisations
 from compiler.registry.runtime import configure_signatures
 from compiler.shimmer import find_shimmer_warnings
 from compiler.taint import find_taint_warnings
-from core.analysis import analyse
-from lsp.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics
+from server.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics
 
 
 def _diag_key(d):
@@ -160,7 +160,7 @@ def test_get_diagnostics_compiles_once_without_prebuilt_compilation_unit():
         "compiler.compilation_unit.compile_source", wraps=real_compile_source
     ) as mocked_compile:
         # Import locally to avoid widening module-level dependencies in this test.
-        from lsp.features.diagnostics import get_diagnostics
+        from server.features.diagnostics import get_diagnostics
 
         get_diagnostics(source)
 

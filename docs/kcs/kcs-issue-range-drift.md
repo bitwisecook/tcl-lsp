@@ -29,7 +29,7 @@ Range fidelity depends on preserving source `Range` from lowering through CFG/SS
 - `compiler/optimiser/`
 - `compiler/gvn.py`
 - `shared/source_map.py`
-- `lsp/features/diagnostics.py`
+- `server/features/diagnostics.py`
 
 ## Failure modes
 

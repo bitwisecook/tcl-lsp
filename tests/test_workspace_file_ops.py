@@ -11,13 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.analysis import analyse
-from core.analysis.semantic_model import AnalysisResult
-from lsp.features.workspace_file_ops import (
+from analyser import analyse
+from analyser.semantic_model import AnalysisResult
+from server.features.workspace_file_ops import (
     compute_batch_rename_edits,
     compute_rename_edits,
 )
-from lsp.workspace.scanner import path_to_uri
+from server.workspace.scanner import path_to_uri
 
 
 class _FakeIndex:

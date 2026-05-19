@@ -83,7 +83,7 @@ full details on Python setup across platforms.
 
 3. Install the **LSP** package from Package Control
 
-The server source in `lsp/`, `core/`, and `explorer/` is used directly
+The server source in `server/`, `core/`, and `explorer/` is used directly
 from the repository — no build step needed.
 
 ## What the plugin provides

@@ -19,9 +19,9 @@ from lsprotocol import types
 
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import SIGNATURES, configure_signatures
-from lsp.features.completion import get_completions
-from lsp.features.diagnostics import get_diagnostics
-from lsp.features.hover import get_hover
+from server.features.completion import get_completions
+from server.features.diagnostics import get_diagnostics
+from server.features.hover import get_hover
 
 
 def _hover_text(result: types.Hover) -> str:
@@ -402,7 +402,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_suppressed_by_workspace_package(self):
         """W120 suppressed when package is required in another workspace file."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -414,7 +414,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_still_emitted_without_workspace_package(self):
         """W120 still fires when package is not in workspace context."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -426,7 +426,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w123_suppressed_by_workspace_proc(self):
         """W123 suppressed when command exists as a workspace proc."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "my_custom_proc arg1 arg2"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -438,7 +438,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_suppressed_by_source_graph_parent(self):
         """W120 suppressed when parent file (via source graph) has the package."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         parent_uri = "file:///project/main.tcl"
@@ -454,7 +454,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_not_suppressed_by_unrelated_source_graph(self):
         """W120 still fires when source graph exists but file is not sourced."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         parent_uri = "file:///project/main.tcl"

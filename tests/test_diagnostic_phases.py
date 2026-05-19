@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from server.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
 
 
 def _str_code(d: types.Diagnostic) -> str:

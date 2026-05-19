@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from lsprotocol import types
 
-import lsp.commands as server_module
-import lsp.state as _lsp_state
+import server.commands as server_module
+import server.state as _lsp_state
 from dialects.f5.bigip.parser import parse_bigip_conf
 
 

@@ -19,6 +19,7 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import cast
 
+from analyser.semantic_model import Range
 from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
@@ -26,7 +27,6 @@ from compiler.parsing.lexer import TclLexer, TclParseError
 from compiler.parsing.tokens import Token, TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
-from core.analysis.semantic_model import Range
 from shared.alias import (
     detect_interp_alias,
 )

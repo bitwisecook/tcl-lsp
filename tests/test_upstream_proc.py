@@ -21,8 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 from .helpers import diag_codes as _diag_codes
 

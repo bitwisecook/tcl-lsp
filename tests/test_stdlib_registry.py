@@ -9,10 +9,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
+from analyser import analyse
 from compiler.registry import REGISTRY
-from core.analysis import analyse
-from lsp.features.completion import get_completions
-from lsp.features.hover import get_hover
+from server.features.completion import get_completions
+from server.features.hover import get_hover
 
 
 def _hover_text(result: types.Hover) -> str:

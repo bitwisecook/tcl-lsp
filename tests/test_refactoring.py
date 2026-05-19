@@ -18,7 +18,7 @@ from core.refactoring._extract_variable import extract_variable
 from core.refactoring._if_to_switch import if_to_switch
 from core.refactoring._inline_variable import inline_variable
 from core.refactoring._switch_to_dict import switch_to_dict
-from lsp.features.code_actions import get_code_actions
+from server.features.code_actions import get_code_actions
 
 # ── Extract variable ──────────────────────────────────────────────────
 

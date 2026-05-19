@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 
 
 @dataclass(frozen=True, slots=True)

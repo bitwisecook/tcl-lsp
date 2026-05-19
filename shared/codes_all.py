@@ -7,6 +7,13 @@ via :mod:`shared.codes`.  Each module registers its codes via
 
 # analysis
 # compiler
+import analyser  # noqa: F401
+import analyser._analyser._utils  # noqa: F401
+import analyser.checks._domain  # noqa: F401
+import analyser.checks._security  # noqa: F401
+import analyser.checks._style  # noqa: F401
+import analyser.checks._syntax  # noqa: F401
+import analyser.irules_checks  # noqa: F401
 import compiler.compiler_checks  # noqa: F401
 import compiler.gvn  # noqa: F401
 import compiler.irules_flow  # noqa: F401
@@ -21,13 +28,6 @@ import compiler.optimiser._unused_procs  # noqa: F401
 import compiler.shimmer  # noqa: F401
 import compiler.taint._sinks  # noqa: F401
 import compiler.taint._uri_split  # noqa: F401
-import core.analysis  # noqa: F401
-import core.analysis._analyser._utils  # noqa: F401
-import core.analysis.checks._domain  # noqa: F401
-import core.analysis.checks._security  # noqa: F401
-import core.analysis.checks._style  # noqa: F401
-import core.analysis.checks._syntax  # noqa: F401
-import core.analysis.irules_checks  # noqa: F401
 import dialects.f5.bigip.iapp_diagnostics  # noqa: F401
 import dialects.f5.bigip.validator  # noqa: F401
 import dialects.f5.xc.translator  # noqa: F401

@@ -53,7 +53,7 @@ The refactoring extracts the raw source text of the quoted argument, strips the 
 ## File-path anchors
 
 - `core/refactoring/_brace_expr.py`
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

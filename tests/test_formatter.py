@@ -1430,7 +1430,7 @@ class TestLSPFormatting:
     def test_get_formatting_returns_text_edit(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1442,7 +1442,7 @@ class TestLSPFormatting:
     def test_get_formatting_no_change(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "puts hello\n"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1452,7 +1452,7 @@ class TestLSPFormatting:
     def test_get_formatting_respects_tab_size(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=2, insert_spaces=True)
@@ -1462,7 +1462,7 @@ class TestLSPFormatting:
     def test_get_formatting_uses_tabs(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=False)
@@ -1472,7 +1472,7 @@ class TestLSPFormatting:
     def test_range_formatting(self):
         from lsprotocol.types import FormattingOptions, Position, Range
 
-        from lsp.features.formatting import get_range_formatting
+        from server.features.formatting import get_range_formatting
 
         source = "set x 1\nproc foo {} {\nputs hi\n}\nset y 2"
         options = FormattingOptions(tab_size=4, insert_spaces=True)

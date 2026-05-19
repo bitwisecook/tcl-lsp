@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
+from analyser import analyse
 from dialects.tk.dialect.diagnostics import check_tk_diagnostics
 
 

@@ -200,7 +200,7 @@ O126 runs as a high-priority elimination pass (priority 10, higher than O109 at 
 ## File-path anchors
 
 - `compiler/core_analyses.py` — `_unused_variables()`, `_unused_parameters()` analysis
-- `core/analysis/analyser.py` — W211/W214 diagnostic emission
+- `analyser/analyser.py` — W211/W214 diagnostic emission
 - `compiler/optimiser/_elimination.py` — O126 unused variable removal, O109 dead store elimination
 - `compiler/optimiser/_types.py` — O126 priority in `_OPT_PRIORITY`
 - `compiler/connection_scope.py` — iRules cross-event variable tracking

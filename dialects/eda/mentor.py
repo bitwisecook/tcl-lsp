@@ -6,8 +6,8 @@ SDC base commands are provided separately by ``eda_sdc_base``.
 
 from __future__ import annotations
 
-from .models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from .signatures import Arity
+from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from compiler.registry.signatures import Arity
 
 _SOURCE = "Siemens EDA ModelSim / Questa / Calibre"
 _DIALECT = frozenset({"mentor-eda-tcl"})

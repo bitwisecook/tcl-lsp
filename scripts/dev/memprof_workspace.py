@@ -73,8 +73,8 @@ def main() -> None:
         sys.exit(1)
 
     # Import after argv parsing so import-time cost is measured too.
-    from lsp.workspace.scanner import BackgroundScanner
-    from lsp.workspace.workspace_index import EntrySource, WorkspaceIndex
+    from server.workspace.scanner import BackgroundScanner
+    from server.workspace.workspace_index import EntrySource, WorkspaceIndex
 
     gc.collect()
     tracemalloc.start(25)

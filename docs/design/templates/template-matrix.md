@@ -23,9 +23,9 @@
 ## File-path anchors
 
 - `core/...`
-- `lsp/...`
+- `server/...`
 - `core/...`
-- `lsp/...`
+- `server/...`
 
 ## Failure modes
 

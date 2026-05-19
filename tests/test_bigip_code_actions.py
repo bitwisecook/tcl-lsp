@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from lsp.features._bigip_code_actions import get_bigip_code_actions
+from server.features._bigip_code_actions import get_bigip_code_actions
 
 
 def _range(line: int) -> types.Range:
@@ -65,7 +65,7 @@ def test_run_rename_partition_drives_through_query_engine():
     """``run_rename_partition`` builds the WorkspaceEdit by running
     ``rename_partition(...)`` through the query engine, so its
     cascade and post-rewrite parse guard fire here too."""
-    from lsp.features._bigip_code_actions import run_rename_partition
+    from server.features._bigip_code_actions import run_rename_partition
 
     source = "auth partition Tenant_A { default-route-domain 0 }\nltm pool /Tenant_A/web_pool { }\n"
     edit = run_rename_partition(
@@ -87,7 +87,7 @@ def test_run_rename_partition_safely_quotes_query_arguments():
     import pytest
 
     from dialects.f5.query.errors import BuiltinError
-    from lsp.features._bigip_code_actions import run_rename_partition
+    from server.features._bigip_code_actions import run_rename_partition
 
     source = "auth partition Tenant_A { description default }\nltm pool /Tenant_A/web_pool { }\n"
     with pytest.raises(BuiltinError) as exc:
@@ -109,7 +109,7 @@ def test_run_rename_partition_refuses_common_renames():
     import pytest
 
     from dialects.f5.query.errors import BuiltinError
-    from lsp.features._bigip_code_actions import run_rename_partition
+    from server.features._bigip_code_actions import run_rename_partition
 
     source = "auth partition Common { description default }\n"
     with pytest.raises(BuiltinError) as exc:

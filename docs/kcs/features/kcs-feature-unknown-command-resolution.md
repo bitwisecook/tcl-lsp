@@ -54,10 +54,10 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 ## File-path anchors
 
-- `core/analysis/analyser.py` — `_emit_unresolved_command_diagnostics`, `_extract_unknown_proc_info`
-- `core/analysis/semantic_model.py` — `UnknownProcInfo`
+- `analyser/analyser.py` — `_emit_unresolved_command_diagnostics`, `_extract_unknown_proc_info`
+- `analyser/semantic_model.py` — `UnknownProcInfo`
 - `shared/text.py` — `edit_distance`, `suggest_similar`
-- `lsp/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
+- `server/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
 
 ## Failure modes
 

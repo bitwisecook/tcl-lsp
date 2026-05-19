@@ -16,9 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.analysis import analyse
 
 
 def lex(source: str) -> list:
@@ -267,7 +267,7 @@ class TestGlobalsAndNamespaces:
         # reach the global -- attempting it errors with ``can't read
         # "foo"``.  Completion must therefore offer the qualified
         # form ``$::foo`` from those scopes.
-        from lsp.features.completion import get_completions
+        from server.features.completion import get_completions
 
         source = "set foo 1\nnamespace eval ::ns {\n    puts $\n}"
         items = get_completions(source, 2, 10)
@@ -278,7 +278,7 @@ class TestGlobalsAndNamespaces:
 
     def test_global_unqualified_stays_bare_at_top_level(self):
         # At the global scope itself, bare ``$foo`` is correct.
-        from lsp.features.completion import get_completions
+        from server.features.completion import get_completions
 
         source = "set foo 1\nputs $"
         items = get_completions(source, 1, 6)

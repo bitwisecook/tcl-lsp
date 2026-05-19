@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import analyse
 from compiler.registry.runtime import (
     SIGNATURES,
     ArgRole,
@@ -16,8 +17,7 @@ from compiler.registry.runtime import (
     arg_indices_for_role,
     configure_signatures,
 )
-from core.analysis import analyse
-from lsp.features.completion import get_completions
+from server.features.completion import get_completions
 
 
 def _command_sig(name: str) -> CommandSig:

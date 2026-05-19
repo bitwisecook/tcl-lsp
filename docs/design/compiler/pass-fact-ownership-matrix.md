@@ -34,7 +34,7 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 | `compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
 | `compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
 | `compiler/irules_flow.py` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for iRules dialect | `find_irules_flow_warnings()` |
-| `lsp/features/diagnostics.py` | final LSP diagnostic projection, suppression policy application | LSP publish pipeline, async tiering scheduler | `get_diagnostics()` |
+| `server/features/diagnostics.py` | final LSP diagnostic projection, suppression policy application | LSP publish pipeline, async tiering scheduler | `get_diagnostics()` |
 
 ## File-path anchors
 
@@ -51,7 +51,7 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 - `compiler/def_use.py`
 - `compiler/memory_ssa.py`
 - `compiler/dataflow_graph.py`
-- `lsp/features/diagnostics.py`
+- `server/features/diagnostics.py`
 
 ## Failure modes
 

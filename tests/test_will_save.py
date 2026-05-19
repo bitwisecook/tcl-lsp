@@ -11,7 +11,7 @@ from lsprotocol import types
 
 from core.formatting import FormatterConfig
 from core.formatting.config import IndentStyle
-from lsp.features.formatting import get_formatting
+from server.features.formatting import get_formatting
 
 
 def _lsp_options_for(config: FormatterConfig) -> types.FormattingOptions:

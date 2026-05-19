@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 try:
-    from lsp._build_info import FULL_VERSION
+    from server._build_info import FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
 

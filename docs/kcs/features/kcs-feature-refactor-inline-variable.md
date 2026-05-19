@@ -52,7 +52,7 @@ The refactoring uses the semantic model to count references. It only fires when 
 ## File-path anchors
 
 - `core/refactoring/_inline_variable.py`
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

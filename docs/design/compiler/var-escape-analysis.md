@@ -265,7 +265,7 @@ When `summary.dynamic_barrier` is True:
   many of the same commands as `dynamic_barrier`. Var-escape reuses that
   flag as a fast pre-check — if side-effects says a command is a barrier,
   var-escape also marks it.
-- **var_scoping** helpers (`core/analysis/var_scoping.py`) provide the
+- **var_scoping** helpers (`analyser/var_scoping.py`) provide the
   index tables for `global`, `variable`, and `upvar` declarations. Reused
   directly.
 

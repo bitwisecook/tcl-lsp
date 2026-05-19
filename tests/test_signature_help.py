@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.features.signature_help import get_signature_help
+from server.features.signature_help import get_signature_help
 
 
 class TestSignatureHelpUserProcs:

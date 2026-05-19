@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.analysis.semantic_model import Range
+from analyser.semantic_model import Range
 
 # sys.* — typed projection for the system module.
 #

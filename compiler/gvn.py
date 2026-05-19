@@ -39,11 +39,11 @@ import logging
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from analyser.semantic_model import Range
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import loop_list_header_commands
-from core.analysis.semantic_model import Range
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (

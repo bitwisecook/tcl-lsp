@@ -25,7 +25,7 @@ The merge is per-key inside each section: a higher layer that sets
 `[optimiser] disabled = O109` still inherits `[optimiser] profile =
 readability` from a lower layer.
 
-Implementation: [`lsp/settings.py:_merged_settings`](../../../lsp/settings.py)
+Implementation: [`server/settings.py:_merged_settings`](../../../server/settings.py)
 calls `merge_settings_layers(global, editor, project)`; the last layer
 wins for any key it sets.
 
@@ -125,7 +125,7 @@ default. The least-surprising rule is the declarative one: **higher
 layer wins, full stop.**
 
 The one place we already deviate is `dialect` itself — see
-[`_DIALECT_SCHEMA_DEFAULT`](../../../lsp/settings.py) and
+[`_DIALECT_SCHEMA_DEFAULT`](../../../server/settings.py) and
 [dialect-detection.md](dialect-detection.md). That deviation exists
 specifically because VS Code's per-file workspace-folder echo of the
 schema-default `tcl8.6` was blocking the iRules / iApps file-extension
@@ -190,7 +190,7 @@ Documented in
 [`kcs-qa-how-tcl-lsp-loads-configuration.md`](../../kcs/kcs-qa-how-tcl-lsp-loads-configuration.md)
 under "How to figure out where a setting is coming from". The
 canonical mechanism is the `tcl-lsp.getEffectiveConfig` command
-([`lsp/commands.py:on_get_effective_config`](../../../lsp/commands.py)),
+([`server/commands.py:on_get_effective_config`](../../../server/commands.py)),
 which returns the resolved per-folder values the analyser will use
 for a given URI. The server also logs `Loaded user config from <path>`
 and `Loaded project config from <path>` on every load.

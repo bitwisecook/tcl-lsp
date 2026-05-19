@@ -170,7 +170,7 @@ also controls O124.
 - `compiler/optimiser/_manager.py` — wired as module-level pass
 - `compiler/optimiser/_types.py` — O124 priority (10, highest)
 - `compiler/interprocedural.py` — call graph used by the pass
-- `lsp/server.py` — O124 in `_ALL_OPTIMISATION_CODES`
+- `server/server.py` — O124 in `_ALL_OPTIMISATION_CODES`
 - `editors/vscode/package.json` — VS Code toggle
 - `editors/jetbrains/.../TclLspSettings.kt` — JetBrains toggle
 

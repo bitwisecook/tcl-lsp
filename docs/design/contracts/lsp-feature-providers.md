@@ -6,7 +6,7 @@ A language feature (hover, completion, rename, references, symbols, semantic tok
 
 ## Operational context
 
-LSP features are implemented as focused providers under `lsp/features/`, each consuming shared semantic and compiler facts. Behaviour consistency depends on shared symbol resolution and workspace state.
+LSP features are implemented as focused providers under `server/features/`, each consuming shared semantic and compiler facts. Behaviour consistency depends on shared symbol resolution and workspace state.
 
 ## Decision rules / contracts
 
@@ -16,30 +16,30 @@ LSP features are implemented as focused providers under `lsp/features/`, each co
 4. BIG-IP config (`bigip*.conf`) feature overlays must remain context-aware:
    semantic tokens should add BIG-IP value categories without regressing Tcl tokenisation, and definition should resolve cross-object references via the shared BIG-IP object registry (`dialects/f5/bigip/object_registry.py`) rather than hardcoded per-provider maps.
 5. BIG-IP object and reference mappings are maintained in the in-repo registry catalogue (`dialects/f5/bigip/registry/`) and consumed through the registry facade (`dialects/f5/bigip/object_registry.py`).
-5. Proc-oriented features must use shared proc-reference matching (`core/analysis/proc_lookup.py`) so definition/references/rename/call hierarchy/signature help stay precedence-consistent.
+5. Proc-oriented features must use shared proc-reference matching (`analyser/proc_lookup.py`) so definition/references/rename/call hierarchy/signature help stay precedence-consistent.
 6. Package suggestions and iRules event-context inference must use shared helpers (`package_suggestions.py`, `irules_context.py`) to avoid action/command drift and insertion-line regressions.
 
 ## File-path anchors
 
-- `lsp/features/completion.py`
-- `lsp/features/hover.py`
-- `lsp/features/definition.py`
-- `lsp/features/references.py`
-- `lsp/features/rename.py`
-- `lsp/features/semantic_tokens.py`
-- `lsp/features/call_hierarchy.py`
-- `lsp/features/document_symbols.py`
-- `lsp/features/document_links.py`
-- `lsp/features/folding.py`
-- `lsp/features/selection_range.py`
-- `lsp/features/signature_help.py`
-- `lsp/features/code_actions.py`
-- `lsp/features/inlay_hints.py`
-- `lsp/features/workspace_symbols.py`
-- `lsp/features/symbol_resolution.py`
-- `lsp/features/package_suggestions.py`
-- `lsp/features/irules_context.py`
-- `core/analysis/proc_lookup.py`
+- `server/features/completion.py`
+- `server/features/hover.py`
+- `server/features/definition.py`
+- `server/features/references.py`
+- `server/features/rename.py`
+- `server/features/semantic_tokens.py`
+- `server/features/call_hierarchy.py`
+- `server/features/document_symbols.py`
+- `server/features/document_links.py`
+- `server/features/folding.py`
+- `server/features/selection_range.py`
+- `server/features/signature_help.py`
+- `server/features/code_actions.py`
+- `server/features/inlay_hints.py`
+- `server/features/workspace_symbols.py`
+- `server/features/symbol_resolution.py`
+- `server/features/package_suggestions.py`
+- `server/features/irules_context.py`
+- `analyser/proc_lookup.py`
 - `dialects/f5/bigip/object_registry.py`
 - `dialects/f5/bigip/registry/data.py`
 - `dialects/f5/bigip/registry/objects/`

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.analysis.semantic_model import AnalysisResult
+from analyser.semantic_model import AnalysisResult
 from core.formatting.docstring import (
     DocstringTagStyle,
     generate_stub_for_proc,

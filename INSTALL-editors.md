@@ -103,7 +103,7 @@ Language Server**.
 
 Drop `tcl-lsp-server-<v>.pyz` at `~/bin/tcl-lsp-server.pyz`.
 
-`~/.config/nvim/lsp/tcl_lsp.lua`:
+`~/.config/nvim/server/tcl_lsp.lua`:
 
 ```lua
 return {
@@ -311,7 +311,7 @@ hook global WinSetOption filetype=tcl %{ lsp-enable-window }
 
 Geany 2.0+ bundles `geany-lsp`. Enable it under **Tools > Plugin
 Manager > LSP Client**, then edit
-`~/.config/geany/plugins/lsp/lsp.conf`:
+`~/.config/geany/plugins/server/lsp.conf`:
 
 ```ini
 [Tcl]

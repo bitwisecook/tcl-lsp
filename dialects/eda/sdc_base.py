@@ -6,8 +6,8 @@ EDA vendor tools.  Each vendor dialect inherits these.
 
 from __future__ import annotations
 
-from .models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from .signatures import ArgRole, Arity
+from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from compiler.registry.signatures import ArgRole, Arity
 
 _SOURCE = "Synopsys Design Constraints (SDC) 2.1 specification"
 

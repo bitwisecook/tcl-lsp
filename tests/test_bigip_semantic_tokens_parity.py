@@ -31,7 +31,7 @@ def test_semantic_tokens_keyword_catalogue_covers_headline_projection_kinds():
     long-tail of minimal kinds is allowed to stay regex-uncovered
     in v1.
     """
-    from lsp.features._semantic_tokens._bigip import (
+    from server.features._semantic_tokens._bigip import (
         _BIGIP_DECL_TYPE,
         _BIGIP_KEYWORD_TYPE,
     )

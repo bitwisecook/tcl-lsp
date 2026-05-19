@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.features.type_definition import get_type_definition
+from server.features.type_definition import get_type_definition
 
 TEST_URI = "file:///test.tcl"
 

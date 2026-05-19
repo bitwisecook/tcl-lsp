@@ -212,7 +212,7 @@ The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it rea
 - `core/minifier/minifier.py` (`unminify_error`, `SymbolMap.parse`, `SymbolMap.reverse`)
 - `core/minifier/__init__.py` (exports `unminify_error`)
 - `explorer/tcl_cli.py` (`unminify-error` verb with `--symbol-map`, `--error`, `--error-file`, `--minified`, `--original`)
-- `lsp/server.py` (`tcl-lsp.unminifyError` command)
+- `server/server.py` (`tcl-lsp.unminifyError` command)
 - `ai/mcp/tcl_mcp_server.py` (`unminify_error` MCP tool)
 - `editors/vscode/src/extension.ts` (`unminifyError` handler)
 - `editors/vscode/package.json` (`tclLsp.unminifyError` command registration)

@@ -15,9 +15,8 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
+    from analyser.semantic_model import StubCommandDef
     from compiler.side_effects import StorageType
-
-    from ...analysis.semantic_model import StubCommandDef
 
 from compiler.parsing.tokens import Token
 from compiler.types import TclType

@@ -50,7 +50,7 @@ The refactoring inserts a `set var expr` line before the line containing the sel
 ## File-path anchors
 
 - `core/refactoring/_extract_variable.py`
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

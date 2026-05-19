@@ -140,13 +140,13 @@ Every :class:`Reference` the dispatch emits carries a
 reference token lives in the source.  The LSP layer consumes
 these for:
 
-- **Document links** — `lsp/features/_bigip_links.py` emits a
+- **Document links** — `server/features/_bigip_links.py` emits a
   `DocumentLink` per reference, with the range scoped to the
   reference token (not the surrounding property line).
-- **Go to definition** — `lsp/features/definition.py` walks every
+- **Go to definition** — `server/features/definition.py` walks every
   block's properties through the registry and picks the
   reference whose span covers the cursor offset.
-- **Semantic tokens** — `lsp/features/_semantic_tokens/_bigip.py`
+- **Semantic tokens** — `server/features/_semantic_tokens/_bigip.py`
   emits `object` tokens at every registry reference with a
   populated range.
 - **Reference / rename** — uses TMSH-path-bounded regex (already

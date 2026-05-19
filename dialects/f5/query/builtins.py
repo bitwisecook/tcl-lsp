@@ -2077,9 +2077,9 @@ def _builtin_with_folder(path: Any, folder: Any) -> str:
     with_ctx=True,
 )
 def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
+    from dialects.f5.bigip.grep import compute_grep
     from dialects.f5.bigip.types import ObjectPath
 
-    from ..grep import compute_grep
     from .edit_plan import EditOp
 
     old_s = _as_str(old, name="rename", arg=1).strip()
@@ -2651,7 +2651,7 @@ def _builtin_in_folder(path: Any, folder: Any) -> bool:
     with_ctx=True,
 )
 def _builtin_references_to(path: Any, *, ctx: Any) -> list[str]:
-    from ..grep import compute_grep
+    from dialects.f5.bigip.grep import compute_grep
 
     target = _as_str(path, name="references_to", arg=1).strip()
     if not target:
@@ -2757,9 +2757,8 @@ def _builtin_can_see(referrer_path: Any, target_path: Any) -> bool:
     with_ctx=True,
 )
 def _builtin_check_partition_visibility(*, ctx: Any) -> list[str]:
+    from dialects.f5.bigip.grep import compute_grep
     from dialects.f5.bigip.types import ObjectPath
-
-    from ..grep import compute_grep
 
     violations: list[str] = []
     seen: set[tuple[str, str]] = set()

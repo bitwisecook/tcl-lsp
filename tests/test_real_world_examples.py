@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from compiler.gvn import find_redundant_computations
 from compiler.optimiser import find_optimisations, optimise_source
 from compiler.registry.runtime import configure_signatures
-from lsp.features.diagnostics import get_diagnostics
+from server.features.diagnostics import get_diagnostics
 
 
 def _example_text(*parts: str) -> str:

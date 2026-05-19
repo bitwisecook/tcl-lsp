@@ -388,8 +388,8 @@ def _format_value_via_spec(op: "EditOp") -> str | None:
     still works because unmigrated properties go through the generic
     encoder; migrated properties get the spec-aware path.
     """
-    from ..registry.pilot import pilot_property_spec_for
-    from ..registry.value_specs import ParseContext, RenderContext
+    from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
+    from dialects.f5.bigip.registry.value_specs import ParseContext, RenderContext
 
     if " " not in op.object_kind:
         return None

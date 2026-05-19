@@ -26,7 +26,7 @@ from ._encoding import (
 )
 
 if TYPE_CHECKING:
-    from core.analysis.semantic_model import Range
+    from analyser.semantic_model import Range
 
 # WASM type constants
 

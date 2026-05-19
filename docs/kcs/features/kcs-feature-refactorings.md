@@ -64,7 +64,7 @@ The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns struct
 - `core/refactoring/_switch_to_dict.py`
 - `core/refactoring/_brace_expr.py`
 - `core/refactoring/_extract_datagroup.py`
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 - `ai/mcp/tcl_mcp_server.py`
 
 ## Failure modes

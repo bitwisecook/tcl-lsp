@@ -46,7 +46,7 @@ section headings here.
 
 ### In scope
 
-- All diagnostic codes produced by `core/analysis/` and `compiler/`,
+- All diagnostic codes produced by `analyser/` and `compiler/`,
   including E, W (style, security, variable), S, T, and every IRULExxxx
   family.
 - All O-codes produced by `compiler/optimiser/`.

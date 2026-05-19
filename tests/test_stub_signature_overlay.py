@@ -14,6 +14,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser.semantic_graph import build_call_graph
+from analyser.semantic_model import (
+    Range,
+    SourcePosition,
+    StubArgDef,
+    StubCommandDef,
+)
 from compiler.registry.runtime import (
     SIGNATURES,
     arg_indices_for_role,
@@ -24,13 +31,6 @@ from compiler.registry.runtime import (
     stub_to_command_sig,
 )
 from compiler.registry.signatures import ArgRole
-from core.analysis.semantic_graph import build_call_graph
-from core.analysis.semantic_model import (
-    Range,
-    SourcePosition,
-    StubArgDef,
-    StubCommandDef,
-)
 
 _ZERO = Range(
     start=SourcePosition(line=0, character=0, offset=0),
@@ -607,8 +607,8 @@ class TestRealisticSqliteUsage:
         # it as ``ProcArgTrait.BODY``.  This is what makes the wrapper
         # pattern compose — callers of ``each_row`` inherit BODY
         # recognition on their callback arg.
+        from analyser.semantic_model import ProcArgTrait
         from compiler.compilation_unit import compile_source
-        from core.analysis.semantic_model import ProcArgTrait
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin
@@ -679,8 +679,8 @@ class TestStubTraitInference:
         # ``ArgRole.BODY`` slot, the proc-arg trait inferencer should
         # mark that parameter as ``ProcArgTrait.BODY`` — exactly as it
         # does for built-in script-runners.
+        from analyser.semantic_model import ProcArgTrait
         from compiler.compilation_unit import compile_source
-        from core.analysis.semantic_model import ProcArgTrait
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin

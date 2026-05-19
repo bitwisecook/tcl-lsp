@@ -121,7 +121,7 @@ def test_internal_codes_are_real():
 
 def test_server_diagnostic_codes_match_registry():
     """The server's _ALL_DIAGNOSTIC_CODES matches the registry."""
-    from lsp.settings import _ALL_DIAGNOSTIC_CODES
+    from server.settings import _ALL_DIAGNOSTIC_CODES
 
     assert _ALL_DIAGNOSTIC_CODES == diagnostic_codes(), (
         "lsp.settings._ALL_DIAGNOSTIC_CODES does not match registry"
@@ -130,7 +130,7 @@ def test_server_diagnostic_codes_match_registry():
 
 def test_server_optimisation_codes_match_registry():
     """The server's _ALL_OPTIMISATION_CODES matches the registry."""
-    from lsp.settings import _ALL_OPTIMISATION_CODES
+    from server.settings import _ALL_OPTIMISATION_CODES
 
     assert _ALL_OPTIMISATION_CODES == optimisation_codes(), (
         "lsp.settings._ALL_OPTIMISATION_CODES does not match registry"

@@ -20,7 +20,7 @@ Formatting is implemented as an engine/config/runtime pipeline and surfaced thro
 - `core/formatting/config.py`
 - `core/formatting/engine.py`
 - `core/formatting/formatter.py`
-- `lsp/features/formatting.py`
+- `server/features/formatting.py`
 
 ## Failure modes
 

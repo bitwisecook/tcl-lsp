@@ -25,12 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from lsprotocol import types
 
-import lsp.settings as _lsp_settings
-import lsp.state as _lsp_state
+import server.settings as _lsp_settings
+import server.state as _lsp_state
 from core.formatting import FormatterConfig
-from lsp.feature_config import FeatureConfig
-from lsp.features.diagnostics import get_diagnostics
-from lsp.features.formatting import get_formatting
+from server.feature_config import FeatureConfig
+from server.features.diagnostics import get_diagnostics
+from server.features.formatting import get_formatting
 
 FOLDER_A = "file:///home/user/proj-a"
 FOLDER_B = "file:///home/user/proj-b"

@@ -70,6 +70,6 @@ There are two independent priority extraction paths:
 - `core/diagram/extract.py` — diagram consumer
 - `explorer/serialise.py` — JSON serialisation
 - `explorer/static/index.html` — explorer HTML consumer
-- `lsp/workspace/workspace_index.py` — `RuleInitVarDef`
+- `server/workspace/workspace_index.py` — `RuleInitVarDef`
 - `tests/test_irules_checks.py` — priority and offset assertions
 - `tests/test_rule_init_vars.py` — RULE_INIT priority assertions

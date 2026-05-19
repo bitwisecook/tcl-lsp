@@ -10,7 +10,7 @@ tool dialects.
 ## Repository layout
 
 ```
-lsp/             Python LSP server runtime and feature wiring
+server/             Python LSP server runtime and feature wiring
 core/            Reusable Tcl parser/compiler/analysis modules
 vm/              Bytecode VM, interpreter, and REPL
 debugger/        Interactive Tcl debugger (CLI, VM/tclsh/tkinter backends)
@@ -550,7 +550,7 @@ without restarting.
 A small set of features cannot follow this pattern because their handler
 registration changes the `ServerCapabilities` advertised during `initialize`,
 which alters client behaviour irreversibly for the session. These are listed
-in `_RESTART_REQUIRED_TOGGLES` in `lsp/server.py` and are registered
+in `_RESTART_REQUIRED_TOGGLES` in `server/server.py` and are registered
 conditionally at import time. Currently this set includes:
 
 - **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and
@@ -757,9 +757,9 @@ analysis passes handle these at different levels:
 - **Subcommand dispatch** in the registry uses `SubCommand` entries on the
   parent spec. The `arg_role_resolver` on the parent inspects the
   subcommand word to assign roles.
-- **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
+- **Variable scoping** (`analyser/var_scoping.py`) has explicit
   handling for compound forms like `namespace upvar`, `dict set`,
-  `dict update`, etc. — these are not in `lsp/features/declaration.py`
+  `dict update`, etc. — these are not in `server/features/declaration.py`
   which only handles single-word commands (`global`, `variable`, `upvar`).
 - **Lowering** (`compiler/lowering_hooks/`) has per-command hooks
   that understand subcommand structure.

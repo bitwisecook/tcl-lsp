@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from analyser import Analyser
 from compiler.lowering import lower_commands_to_ir, lower_to_ir
 from compiler.parsing.command_segmenter import (
     segment_commands,
@@ -19,8 +20,7 @@ from compiler.parsing.command_segmenter import (
 )
 from compiler.parsing.token_positions import shift_position, shift_range, shift_token
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
-from core.analysis import Analyser
-from lsp.workspace.document_state import DocumentState
+from server.workspace.document_state import DocumentState
 
 
 class TestPositionShifting:
@@ -49,7 +49,7 @@ class TestPositionShifting:
         assert shifted.type is TokenType.ESC
 
     def test_shift_range(self):
-        from core.analysis.semantic_model import Range
+        from analyser.semantic_model import Range
 
         r = Range(
             start=SourcePosition(line=0, character=0, offset=0),
@@ -342,7 +342,7 @@ class TestStyleDiagnosticCaching:
 
     def test_cached_style_diagnostics_match_full(self):
         """Cached style diagnostics should produce same result as full computation."""
-        from lsp.features.diagnostics import get_basic_diagnostics
+        from server.features.diagnostics import get_basic_diagnostics
 
         source1 = "set x 10\nset y 20\n"
         source2 = "set x 10\nset y 99\n"
@@ -370,7 +370,7 @@ class TestSemanticTokenCaching:
 
     def test_semantic_token_cache_roundtrip(self):
         """Cached semantic tokens should produce same result as full computation."""
-        from lsp.features import semantic_tokens_full
+        from server.features import semantic_tokens_full
 
         source = "set x 10\nset y 20\nproc foo {a} { return $a }\n"
         state = DocumentState(uri="test")
@@ -416,7 +416,7 @@ class TestSemanticTokenCaching:
         state.update(source1)
 
         # Populate semantic token cache.
-        from lsp.features import semantic_tokens_full
+        from server.features import semantic_tokens_full
 
         cache_info = state.get_semantic_token_cache()
         assert cache_info is not None

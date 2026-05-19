@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lsprotocol import types
 
 from compiler.registry.runtime import configure_signatures
-from lsp.features.hover import get_hover
+from server.features.hover import get_hover
 
 
 def _hover_text(result: types.Hover) -> str:

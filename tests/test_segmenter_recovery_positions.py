@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.signature_scan import extract_signatures
+from analyser.signature_scan import extract_signatures
 
 
 def _build_source(prelude_lines: int, *, delimiter: str) -> tuple[str, int]:
