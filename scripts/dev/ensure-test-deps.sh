@@ -4,7 +4,7 @@
 # Covers tools whose absence currently turns into failures or pytest skips
 # during a pre-PR ``make test-slow`` run:
 #   * ``tclsh9.0`` / ``tclsh8.6`` — Tcl interpreters used by
-#     ``scripts/capture_reference_bytecode.sh``, the irule_test framework,
+#     ``scripts/capture/bytecode.sh``, the irule_test framework,
 #     and the cli_venv tests.
 #   * ``node`` / ``npm`` — the VS Code extension's TypeScript catalog
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).

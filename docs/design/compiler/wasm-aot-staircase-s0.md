@@ -42,13 +42,13 @@ we can't tell a fast-path safety violation from a real refcount bug.
   once compile-side discipline lands.
 - [ ] Cross-reference each `tcl_obj_retain` and `tcl_obj_release` site in
   `runtime/zig/` to the contract entry that justifies it.
-- [ ] Add a CI lint script `scripts/check_refcount_contract.py` that
+- [ ] Add a CI lint script `scripts/check/refcount_contract.py` that
   warns when a new `pub export fn` is added without a contract row.
 
 **Files**:
 
 - New: `docs/design/runtime/refcount-contract.md`
-- New: `scripts/check_refcount_contract.py`
+- New: `scripts/check/refcount_contract.py`
 - Reference (read-only): `runtime/zig/**/*.zig`
 
 **Test plan**: This is documentation; the test is the lint script

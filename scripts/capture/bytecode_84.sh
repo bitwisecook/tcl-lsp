@@ -5,13 +5,13 @@
 # which dumps bytecode to stderr during compilation.
 #
 # Usage:
-#   ./scripts/capture_reference_bytecode_84.sh [TCLSH_PATH]
+#   ./scripts/capture/bytecode_84.sh [TCLSH_PATH]
 #
 # If TCLSH_PATH is not provided, uses TCLSH84 environment variable, or
 # tries to find tclsh8.4 in PATH.
 #
 # For macOS custom builds, pass the path to the tclsh binary:
-#   ./scripts/capture_reference_bytecode_84.sh ~/src/tcl8.4.20/unix/tclsh
+#   ./scripts/capture/bytecode_84.sh ~/src/tcl8.4.20/unix/tclsh
 #
 # The script will automatically set DYLD_LIBRARY_PATH from the tclsh
 # directory for the duration of the run.

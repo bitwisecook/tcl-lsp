@@ -1,6 +1,6 @@
 """Generated from ``dialects/f5/bigip/data/scf_port_names.csv`` — do not edit by hand.
 
-Regenerate with ``make generate`` (which runs ``scripts/generate_port_names.py``).
+Regenerate with ``make generate`` (which runs ``scripts/codegen/port_names.py``).
 The dict literal below is the canonical mcpd service-name → port-number
 table.  Keys are pre-lowercased so callers don't need to ``.lower()`` at
 lookup time.

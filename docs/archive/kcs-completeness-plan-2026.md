@@ -33,7 +33,7 @@ section headings here.
 
 ## Success criteria
 
-- `scripts/check_kcs_index_links.py` reports no broken links after
+- `scripts/check/kcs_index_links.py` reports no broken links after
   every phase.
 - `make prep-pr` is green after every commit.
 - The KCS help database (`shared/help/kcs_help.db`) builds cleanly and
@@ -390,7 +390,7 @@ Before a new page is considered done in this plan, it passes:
 - [ ] Cross-links in place per the rules above; no orphans.
 - [ ] Linked from the relevant index page
   (`codes/README.md`, `features/README.md`, or `docs/kcs/README.md`).
-- [ ] `scripts/check_kcs_index_links.py` passes.
+- [ ] `scripts/check/kcs_index_links.py` passes.
 - [ ] `make prep-pr` passes.
 
 ## Open items

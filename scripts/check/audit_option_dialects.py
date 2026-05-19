@@ -8,7 +8,7 @@ rejection.  Records the per-version availability so the registry can be
 updated with accurate ``dialects`` frozensets.
 
 Run from repo root:
-    uv run --extra dev python scripts/audit_option_dialects.py
+    uv run --extra dev python scripts/check/audit_option_dialects.py
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 TCL_DIRS = {

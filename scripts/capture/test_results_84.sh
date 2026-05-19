@@ -6,7 +6,7 @@
 # (like capture_reference_bytecode_84.sh).
 #
 # Usage:
-#   ./scripts/capture_reference_test_results_84.sh [TCLSH_PATH] [TESTS_DIR]
+#   ./scripts/capture/test_results_84.sh [TCLSH_PATH] [TESTS_DIR]
 #
 # If TCLSH_PATH is not provided, uses TCLSH84 environment variable, or
 # tries to find tclsh8.4 in PATH, or looks in ~/src/tcl8.4.20/unix/tclsh.
@@ -15,7 +15,7 @@
 #   <tclsh_dir>/../tests/
 #
 # For macOS custom builds:
-#   ./scripts/capture_reference_test_results_84.sh ~/src/tcl8.4.20/unix/tclsh
+#   ./scripts/capture/test_results_84.sh ~/src/tcl8.4.20/unix/tclsh
 #
 # The script will automatically set DYLD_LIBRARY_PATH from the tclsh
 # directory for the duration of the run.

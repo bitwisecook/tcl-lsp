@@ -3,7 +3,7 @@
 # cleanly on a given commit and no open high/critical alerts remain on
 # main.
 #
-# Usage:  scripts/release_codeql_gate.sh <commit-sha>
+# Usage:  scripts/release/codeql_gate.sh <commit-sha>
 #
 # The release skill calls this once, against HEAD of main after the
 # RELEASE_NOTES.md PR has merged — that is the commit the tag will

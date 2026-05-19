@@ -24,7 +24,7 @@
 /scripts/tcl_regex_sha256sums.txt       @bitwisecook
 
 # Installer script published to releases — runs on user machines.
-/scripts/install.sh                     @bitwisecook
+/scripts/install/install.sh                     @bitwisecook
 
 # Python dependency manifest.  A PR that adds a new dependency runs that
 # dep's PEP-517 backend in CI (during `uv sync`), so a malicious package

@@ -91,7 +91,7 @@ def test_vscode_settings_match_catalogue() -> None:
 
 def test_jetbrains_generated_catalog_is_fresh() -> None:
     """JetBrains DiagnosticCatalog.kt matches generator dry_run output."""
-    from scripts.generate_editor_settings import generate_jetbrains_catalog
+    from scripts.codegen.editor_settings import generate_jetbrains_catalog
 
     path, expected = generate_jetbrains_catalog(dry_run=True)
     assert path.exists(), f"Missing generated file: {path}"

@@ -164,7 +164,7 @@ def test_vscode_optimiser_settings_match_registry():
 
 def test_all_generated_files_are_fresh():
     """Every generated file on disk matches the generator's dry_run output."""
-    from scripts.generate_editor_settings import render_all
+    from scripts.codegen.editor_settings import render_all
 
     stale = []
     for path, expected in render_all(dry_run=True):
@@ -251,7 +251,7 @@ def test_no_overlap_between_public_and_internal():
 
 def test_generator_is_idempotent():
     """Running the generator twice must produce identical output."""
-    from scripts.generate_editor_settings import render_all
+    from scripts.codegen.editor_settings import render_all
 
     results_1 = render_all(dry_run=True)
     results_2 = render_all(dry_run=True)

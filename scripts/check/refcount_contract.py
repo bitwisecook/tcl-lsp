@@ -12,8 +12,8 @@ Exit codes:
 
 Usage:
 
-    uv run python scripts/check_refcount_contract.py
-    uv run python scripts/check_refcount_contract.py --strict
+    uv run python scripts/check/refcount_contract.py
+    uv run python scripts/check/refcount_contract.py --strict
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 RUNTIME = REPO / "runtime" / "zig"
 CONTRACT = REPO / "docs" / "design" / "runtime" / "refcount-contract.md"
 

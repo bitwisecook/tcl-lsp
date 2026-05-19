@@ -26,8 +26,8 @@ blocks (so ``#`` inside code is never mistaken for a heading).
 
 Usage::
 
-    python scripts/filter_readme.py --editor "VS Code" README.md -o build/README.md
-    python scripts/filter_readme.py --editor "VS Code" README.md  # stdout
+    python scripts/install/filter_readme.py --editor "VS Code" README.md -o build/README.md
+    python scripts/install/filter_readme.py --editor "VS Code" README.md  # stdout
 """
 
 from __future__ import annotations

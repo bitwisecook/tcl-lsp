@@ -2,7 +2,7 @@
 """Query reference test results captured from real tclsh.
 
 Reads from tests/test_reference/<version>/*.results files produced by
-scripts/capture_reference_test_results.sh.
+scripts/capture/test_results.sh.
 
 Usage:
     python3 test_results.py status
@@ -143,7 +143,7 @@ def resolve_version(version: str | None) -> str:
         return versions[-1]
     print("ERROR: No reference test data found.", file=sys.stderr)
     print(f"  Expected in: {REF_DIR}/", file=sys.stderr)
-    print("  Run: ./scripts/capture_reference_test_results.sh", file=sys.stderr)
+    print("  Run: ./scripts/capture/test_results.sh", file=sys.stderr)
     sys.exit(1)
 
 
@@ -488,7 +488,7 @@ def cmd_status() -> None:
     if not versions:
         print("No reference test data found.")
         print(f"  Expected in: {REF_DIR}/")
-        print("  Run: ./scripts/capture_reference_test_results.sh")
+        print("  Run: ./scripts/capture/test_results.sh")
         return
 
     print("Reference test data:")

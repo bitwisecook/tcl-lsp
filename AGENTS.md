@@ -154,7 +154,7 @@ The project uses GNU Make. Key targets:
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language (Python via Ruff + ty, TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`). On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
 | `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. On success writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`. |
 | `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`. Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
-| `make capture-bytecode-refs` | Run `scripts/capture_reference_bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
+| `make capture-bytecode-refs` | Run `scripts/capture/bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
 | `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
 | `make check-rust`  | Rust format check + clippy on the Zed extension and any top-level Cargo workspace. Skip with `SKIP_CHECK_RUST=1`. |
 | `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
@@ -229,7 +229,7 @@ Zig entry — or vice versa — is a merge-blocking regression.
 
 ### Gate mechanics
 
-`scripts/check_wasm_command_parity.py` walks five locations:
+`scripts/check/wasm_command_parity.py` walks five locations:
 
 1. Python registry under `compiler/registry/tcl/`
 2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)

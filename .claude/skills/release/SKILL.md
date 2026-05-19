@@ -149,7 +149,7 @@ tag_sha="$(git rev-parse HEAD)"
 make release-codeql-gate SHA="$tag_sha"
 ```
 
-`release-codeql-gate` runs `scripts/release_codeql_gate.sh`, which:
+`release-codeql-gate` runs `scripts/release/codeql_gate.sh`, which:
 
 1. Locates the push-triggered CodeQL run for `$tag_sha` (polling for up to
    2 min; dispatches `workflow_dispatch` as a fallback if none appears).
@@ -182,7 +182,7 @@ The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
 After `make release-tag` pushes the tag, CI builds and uploads every
 artefact, then the `publish-checksums` job aggregates them into a
 `SHA256SUMS` file (cosign-signed when keyless OIDC is enabled). The
-installer (`scripts/install.sh`) verifies downloads against this file.
+installer (`scripts/install/install.sh`) verifies downloads against this file.
 
 **Wait for CI to finish, then verify locally** before publishing to any
 editor marketplace. A SUMS mismatch means an artefact was modified
@@ -217,7 +217,7 @@ cd - && rm -rf /tmp/release-verify
 ```
 
 Also smoke-test the installer one-liner from a clean shell and
-verify the installed payload — `scripts/smoke_installer.sh`
+verify the installed payload — `scripts/release/smoke_installer.sh`
 wraps the full check matrix:
 
 1. installer exits 0;
@@ -230,7 +230,7 @@ wraps the full check matrix:
    (default 22).
 
 ```bash
-bash scripts/smoke_installer.sh "$tag"
+bash scripts/release/smoke_installer.sh "$tag"
 ```
 
 Env knobs the script honours: `TCL_LSP_PREFIX` (install destination,

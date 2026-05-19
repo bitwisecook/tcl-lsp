@@ -18,7 +18,7 @@ The VM test boundary validates emitted assembly/disassembly against Tcl referenc
 
 - `compiler/codegen/` (package: `__init__.py`, `opcodes.py`, `layout.py`, `format.py`)
 - `tests/bytecode_reference/`
-- `scripts/capture_reference_bytecode.sh`
+- `scripts/capture/bytecode.sh`
 
 ## Failure modes
 

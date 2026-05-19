@@ -10,8 +10,8 @@ Output: ``shared/help/kcs_help.db``
 
 Usage::
 
-    python scripts/build_kcs_db.py          # default paths
-    python scripts/build_kcs_db.py --out /tmp/kcs_help.db  # custom output
+    python scripts/build/kcs_db.py          # default paths
+    python scripts/build/kcs_db.py --out /tmp/kcs_help.db  # custom output
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _FEATURES_DIR = _REPO_ROOT / "docs" / "kcs" / "features"
 _SCREENSHOTS_DIR = _REPO_ROOT / "docs" / "screenshots"
 _DEFAULT_OUT = _REPO_ROOT / "core" / "help" / "kcs_help.db"

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import jinja2
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 # TypeScript formatting helpers (match prettier output without requiring it)

@@ -70,7 +70,7 @@ JETBRAINS_TOKEN_SRC=""
 if [ -n "${JETBRAINS_TOKEN:-}" ]; then
     JETBRAINS_TOKEN_RESOLVED="$JETBRAINS_TOKEN"
     JETBRAINS_TOKEN_SRC="env"
-elif JETBRAINS_TOKEN_RESOLVED="$(bash "$ROOT/scripts/jetbrains_token.sh" 2>/dev/null)" \
+elif JETBRAINS_TOKEN_RESOLVED="$(bash "$ROOT/scripts/release/jetbrains_token.sh" 2>/dev/null)" \
         && [ -n "$JETBRAINS_TOKEN_RESOLVED" ]; then
     case "$(uname -s)" in
         Darwin) JETBRAINS_TOKEN_SRC="macOS Keychain" ;;
@@ -105,7 +105,7 @@ if [ -n "$JETBRAINS_TOKEN_SRC" ]; then
     fi
 else
     warn "JetBrains token not found. Either set \$JETBRAINS_TOKEN, or store it"
-    warn "  in the OS keystore (see scripts/jetbrains_token.sh header for the"
+    warn "  in the OS keystore (see scripts/release/jetbrains_token.sh header for the"
     warn "  exact 'security add-generic-password' / 'secret-tool store' incantation)."
 fi
 unset JETBRAINS_TOKEN_RESOLVED JETBRAINS_TOKEN_SRC

@@ -285,7 +285,7 @@ jobs:
           sed \
             -e "s/@@INSTALLER_VERSION_TAG@@/${tag}/" \
             -e "s/@@INSTALLER_VERSION_SHA@@/(${sha})/" \
-            scripts/install.sh > "$tmp"
+            scripts/install/install.sh > "$tmp"
           # Sanity-check that both placeholders were actually replaced
           # before we upload — failing loudly here beats publishing a
           # script that reports itself as "dev (unstamped)".

@@ -1,16 +1,16 @@
 """Build a zipapp (.pyz) for the LSP server, the CLIs, or the AI/MCP servers.
 
 Usage:
-    python scripts/build_zipapp.py <profile> --version VERSION --output PATH
+    python scripts/build/zipapps.py <profile> --version VERSION --output PATH
 
 Profiles:
 
-    tcl       Unified Tcl tools CLI         (entry: scripts/zipapp_tcl_main.py)
+    tcl       Unified Tcl tools CLI         (entry: scripts/zipapp-main/tcl.py)
     cli       Compiler-explorer CLI         (entry: tooling.explorer.cli)
     f5        F5 BIG-IP CLI                 (entry: tooling.f5.main)
-    lsp       LSP server                    (entry: scripts/zipapp_lsp_main.py)
-    ai        AI analysis CLI               (entry: scripts/zipapp_ai_main.py)
-    mcp       MCP server                    (entry: scripts/zipapp_mcp_main.py)
+    lsp       LSP server                    (entry: scripts/zipapp-main/lsp.py)
+    ai        AI analysis CLI               (entry: scripts/zipapp-main/ai.py)
+    mcp       MCP server                    (entry: scripts/zipapp-main/mcp.py)
     wasm      Tcl→WASM compiler CLI         (entry: tooling.wasm.main)
     gui       Standalone web GUI            (--static-dir REQUIRED)
     gui-cdn   Web GUI (Pyodide from CDN)    (--static-dir REQUIRED)
@@ -33,7 +33,7 @@ import zipapp
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 # All seven concern packages — keep in dependency order (top-down).
 ALL_PACKAGES: tuple[str, ...] = (
@@ -57,7 +57,7 @@ class Profile:
     are stripped post-install).  Exactly one of `entry_script` or
     `entry_module` describes how the zipapp boots:
 
-    - `entry_script` points at a hand-written `scripts/zipapp_*_main.py`
+    - `entry_script` points at a hand-written `scripts/zipapp-main/*.py`
       that becomes the zipapp's `__main__.py` verbatim.
     - `entry_module` is a `module.path:function` reference; the helper
       synthesises a one-line `__main__.py` that imports and calls it.
@@ -199,7 +199,7 @@ PROFILES: dict[str, Profile] = {
         # so it ships everything except ai/.
         packages=_BASE_BACKEND + ("server", "tooling"),
         pip_packages=("argcomplete>=3.0",),
-        entry_script=ROOT / "scripts" / "zipapp_tcl_main.py",
+        entry_script=ROOT / "scripts" / "zipapp-main" / "tcl.py",
     ),
     "lsp": Profile(
         name="lsp",
@@ -207,19 +207,19 @@ PROFILES: dict[str, Profile] = {
         # tclpkg — those have to ship with the LSP zipapp.
         packages=_BASE_BACKEND + ("server", "tooling"),
         pip_packages=("pygls>=2.0", "lsprotocol>=2024.0.0"),
-        entry_script=ROOT / "scripts" / "zipapp_lsp_main.py",
+        entry_script=ROOT / "scripts" / "zipapp-main" / "lsp.py",
     ),
     "ai": Profile(
         name="ai",
         packages=_BASE_BACKEND + ("server", "tooling", "ai"),
         pip_packages=("jinja2>=3.1",),
-        entry_script=ROOT / "scripts" / "zipapp_ai_main.py",
+        entry_script=ROOT / "scripts" / "zipapp-main" / "ai.py",
     ),
     "mcp": Profile(
         name="mcp",
         packages=_BASE_BACKEND + ("server", "tooling", "ai"),
         pip_packages=("lsprotocol>=2024.0.0", "jinja2>=3.1"),
-        entry_script=ROOT / "scripts" / "zipapp_mcp_main.py",
+        entry_script=ROOT / "scripts" / "zipapp-main" / "mcp.py",
     ),
     "wasm": Profile(
         name="wasm",
@@ -255,7 +255,7 @@ def build_gui(version: str, output: Path, static_dir: Path, *, cdn: bool) -> Non
     label = "gui-cdn" if cdn else "gui"
     with tempfile.TemporaryDirectory(prefix=f"zipapp-{label}-") as tmp:
         stage = Path(tmp)
-        shutil.copy2(ROOT / "scripts" / "zipapp_gui_main.py", stage / "__main__.py")
+        shutil.copy2(ROOT / "scripts" / "zipapp-main" / "gui.py", stage / "__main__.py")
         shutil.copytree(static_dir, stage / "static")
         _create_archive(stage, str(output))
     _report(output)

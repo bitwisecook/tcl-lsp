@@ -2,13 +2,13 @@
 # capture_reference_bytecode.sh — Capture reference disassembly from tclsh.
 #
 # Usage:
-#   ./scripts/capture_reference_bytecode.sh
+#   ./scripts/capture/bytecode.sh
 #
 # Automatically runs against tclsh8.5, tclsh8.6, and tclsh9.0,
 # skipping any that are not found in PATH.
 #
 # For Tcl 8.4, use the dedicated script:
-#   ./scripts/capture_reference_bytecode_84.sh [TCLSH_PATH]
+#   ./scripts/capture/bytecode_84.sh [TCLSH_PATH]
 # (Tcl 8.4 uses tcl_traceCompile 2 instead of tcl::unsupported::disassemble)
 #
 # Writes output to tests/bytecode_reference/<version>/ for each

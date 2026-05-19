@@ -112,8 +112,8 @@ def built_db(
 ) -> Path:
     """Build a KCS database from sample data and return its path."""
     # Temporarily override the module-level paths
-    import scripts.build_kcs_db as mod
-    from scripts.build_kcs_db import (
+    import scripts.build.kcs_db as mod
+    from scripts.build.kcs_db import (
         build_database,
     )
 

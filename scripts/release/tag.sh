@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # release.sh — create and push the annotated release tag.
 #
-# Usage:  scripts/release.sh X.Y.Z
+# Usage:  scripts/release/tag.sh X.Y.Z
 #         make release-tag V=X.Y.Z
 #
 # All version literals in the repo derive from the latest annotated tag
@@ -12,7 +12,7 @@
 # which builds + publishes the release artefacts.
 set -euo pipefail
 
-V="${1:?Usage: scripts/release.sh X.Y.Z}"
+V="${1:?Usage: scripts/release/tag.sh X.Y.Z}"
 
 # Validate the version literal.
 [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {

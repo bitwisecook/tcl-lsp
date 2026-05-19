@@ -3,9 +3,9 @@
 # and capture pass/fail/skip results as reference data.
 #
 # Usage:
-#   ./scripts/capture_reference_test_results.sh              # auto-detect all
-#   ./scripts/capture_reference_test_results.sh tclsh9.0     # explicit name
-#   ./scripts/capture_reference_test_results.sh /path/tclsh  # explicit path
+#   ./scripts/capture/test_results.sh              # auto-detect all
+#   ./scripts/capture/test_results.sh tclsh9.0     # explicit name
+#   ./scripts/capture/test_results.sh /path/tclsh  # explicit path
 #
 # Each tclsh version uses its OWN test source tree (not a shared one).
 # The script searches /usr/src/tcl<version>*/tests/ first, then falls

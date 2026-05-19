@@ -170,7 +170,7 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
 
-$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py $(ROOT)scripts/filter_readme.py
+$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build/zipapps.py $(ROOT)scripts/zipapp-main/lsp.py $(ROOT)scripts/install/filter_readme.py
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -184,11 +184,11 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
 	@echo "==> Building LSP server zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
 		--version $(VERSION) \
 		--output $(STAGE_DIR)/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
-	$(PYTHON) $(ROOT)scripts/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
+	$(PYTHON) $(ROOT)scripts/install/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
@@ -300,7 +300,7 @@ tcl9-triage: $(UV_STAMP) ## Refresh docs/kcs/kcs-tcl9-triage.md from tmp/tcl9-re
 
 lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	@echo "==> Checking KCS docs index links"
-	cd $(ROOT) && $(UV) run python scripts/check_kcs_index_links.py
+	cd $(ROOT) && $(UV) run python scripts/check/kcs_index_links.py
 	@echo "==> Linting Python code with Ruff"
 	cd $(ROOT) && $(UV) run --extra dev ruff check .
 	@echo "==> Checking Python formatting with Ruff"
@@ -403,11 +403,11 @@ check-wasm-parity: $(UV_STAMP) ## Check WASM command parity (registry vs Zig run
 		exit 0; \
 	fi; \
 	echo "==> Checking WASM command parity"; \
-	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --check
+	cd $(ROOT) && $(UV) run python scripts/check/wasm_command_parity.py --check
 
 snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity.json from current sources
 	@echo "==> Snapshotting WASM command parity baseline"
-	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --snapshot
+	cd $(ROOT) && $(UV) run python scripts/check/wasm_command_parity.py --snapshot
 
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
@@ -580,7 +580,7 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@echo "==> test-slow: PASSED — stamped tmp/check-all.stamp + tmp/test-slow.stamp"
 
 install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
-	@bash $(ROOT)scripts/install-hooks.sh
+	@bash $(ROOT)scripts/install/hooks.sh
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
@@ -735,8 +735,8 @@ capture-bytecode-refs: ensure-tcl-deps ## Capture missing tests/bytecode_referen
 		echo "    Skipping for now — affected snippets will pytest-skip with 'no reference file: ...'."; \
 		exit 0; \
 	fi; \
-	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture_reference_bytecode.sh"; \
-	bash $(ROOT)scripts/capture_reference_bytecode.sh
+	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture/bytecode.sh"; \
+	bash $(ROOT)scripts/capture/bytecode.sh
 
 test-emacs: ensure-emacs-deps ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \
@@ -804,7 +804,7 @@ fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_
 define smoke_help
 _smoke-zipapp-$(1): $$(BUILD_INFO)
 	@echo "==> Smoke-testing $(1) zipapp"
-	$$(PYTHON) $$(ROOT)scripts/build_zipapp.py $(1) --version $$(VERSION) --output $$(BUILD_DIR)/smoke-$(1).pyz
+	$$(PYTHON) $$(ROOT)scripts/build/zipapps.py $(1) --version $$(VERSION) --output $$(BUILD_DIR)/smoke-$(1).pyz
 	$$(PYTHON) $$(BUILD_DIR)/smoke-$(1).pyz --help > /dev/null
 	@rm -f $$(BUILD_DIR)/smoke-$(1).pyz
 .PHONY: _smoke-zipapp-$(1)
@@ -817,7 +817,7 @@ $(eval $(call smoke_help,cli))
 # AI smoke: build and run the `context` verb against the sample iRule.
 _smoke-zipapp-ai: $(BUILD_INFO)
 	@echo "==> Smoke-testing ai zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
 	$(PYTHON) $(BUILD_DIR)/smoke-ai.pyz context samples/for_screenshots/ai-scene.irul > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-ai.pyz
 .PHONY: _smoke-zipapp-ai
@@ -829,7 +829,7 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	@echo "==> Smoke-testing tcl zipapp"
 	@SAMPLE=samples/for_screenshots/ai-scene.irul; \
 	PYZ=$(BUILD_DIR)/smoke-tcl.pyz; \
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl --version $(VERSION) --output $$PYZ; \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py tcl --version $(VERSION) --output $$PYZ; \
 	$(PYTHON) $$PYZ --help > /dev/null; \
 	$(PYTHON) $$PYZ format $$SAMPLE > /dev/null; \
 	$(PYTHON) $$PYZ lint --source "set x 1" > /dev/null; \
@@ -850,7 +850,7 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 _smoke-zipapp-f5: $(BUILD_INFO)
 	@echo "==> Smoke-testing f5 zipapp"
 	@PYZ=$(BUILD_DIR)/smoke-f5.pyz; \
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 --version $(VERSION) --output $$PYZ; \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py f5 --version $(VERSION) --output $$PYZ; \
 	$(PYTHON) $$PYZ --help > /dev/null; \
 	$(PYTHON) $$PYZ cleanup samples/bigip/bigip.conf > /dev/null; \
 	$(PYTHON) $$PYZ cleanup --json samples/bigip/bigip.conf > /dev/null; \
@@ -951,22 +951,22 @@ $(BUILD_INFO_JSON): .FORCE
 #
 # Depends on: the generator script + command registry runtime + dialect spec packs.
 REGISTRY_SRCS := $(shell find $(ROOT)compiler/registry $(ROOT)dialects -name '*.py' -not -path '*__pycache__*')
-_CATALOG_DEPS := $(UV_STAMP) scripts/generate_catalogs.py $(REGISTRY_SRCS)
+_CATALOG_DEPS := $(UV_STAMP) scripts/codegen/catalogs.py $(REGISTRY_SRCS)
 
 editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
 	@echo "==> Generating editor catalogs"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_catalogs.py
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/catalogs.py
 
-dialects/f5/bigip/_port_names_table.py: scripts/generate_port_names.py dialects/f5/bigip/data/scf_port_names.csv $(UV_STAMP)
+dialects/f5/bigip/_port_names_table.py: scripts/codegen/port_names.py dialects/f5/bigip/data/scf_port_names.csv $(UV_STAMP)
 	@echo "==> Generating BIG-IP port-name table"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_port_names.py
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/port_names.py
 
 generate: editors/zed/src/generated/tcl_commands.json dialects/f5/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
 
 check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	@echo "==> Checking generated catalogs are up to date"
 	@TMPDIR=$$(mktemp -d) && \
-	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_catalogs.py --output-dir "$$TMPDIR" && \
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/catalogs.py --output-dir "$$TMPDIR" && \
 	diff -q "$$TMPDIR/tcl_commands.json" editors/zed/src/generated/tcl_commands.json && \
 	diff -q "$$TMPDIR/irule_events.json" editors/zed/src/generated/irule_events.json && \
 	diff -q "$$TMPDIR/iruleEvents.json" editors/vscode/src/generated/iruleEvents.json && \
@@ -974,7 +974,7 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	echo "Generated catalogs are up to date." || \
 	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
 	@echo "==> Checking generated BIG-IP port-name table is up to date"
-	@cd $(ROOT) && $(UV) run --extra dev python scripts/generate_port_names.py --check
+	@cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/port_names.py --check
 
 # Generated editor settings from code registry
 #
@@ -992,17 +992,17 @@ SETTINGS_SRCS := \
 	$(ROOT)compiler/gvn.py \
 	$(ROOT)compiler/shimmer.py
 SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
-_SETTINGS_DEPS := $(UV_STAMP) scripts/generate_editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
+_SETTINGS_DEPS := $(UV_STAMP) scripts/codegen/editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
 
 editors/vscode/src/generated/diagnosticCatalog.ts: $(_SETTINGS_DEPS)
 	@echo "==> Generating editor settings from code registry"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py
 
 gen-editor-settings: editors/vscode/src/generated/diagnosticCatalog.ts ## Regenerate editor diagnostic/optimiser settings from code registry
 
 check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
-	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py --check
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py --check
 
 # Unified codegen — regenerate ALL generated files from registries
 
@@ -1071,7 +1071,7 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 #
 # Every zipapp boils down to:
 #
-#   scripts/build_zipapp.py <profile> --version <V> --output <OUT>
+#   scripts/build/zipapps.py <profile> --version <V> --output <OUT>
 #
 # The seven "plain" zipapps (tcl / cli / f5 / lsp / ai / mcp / wasm) share
 # the same dependency set: PY_SRCS + BUILD_INFO (plus KCS_DB for the
@@ -1104,7 +1104,7 @@ zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
 define plain_zipapp_recipe
 $$($(2)): $$(PY_SRCS) $$(BUILD_INFO) $(3)
 	@echo "==> Building $(1) zipapp"
-	$$(PYTHON) $$(ROOT)scripts/build_zipapp.py $(1) \
+	$$(PYTHON) $$(ROOT)scripts/build/zipapps.py $(1) \
 		--version $$(VERSION) \
 		--output $$@
 endef
@@ -1124,7 +1124,7 @@ zipapp-gui: $(ZIPAPP_GUI) ## Build the standalone GUI zipapp (bundles Pyodide)
 
 $(ZIPAPP_GUI): explorer-build $(BUILD_INFO_JSON)
 	@echo "==> Building gui zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py gui \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_STATIC)
@@ -1133,7 +1133,7 @@ zipapp-gui-cdn: $(ZIPAPP_GUI_CDN) ## Build the CDN GUI zipapp (loads Pyodide fro
 
 $(ZIPAPP_GUI_CDN): explorer-build-cdn
 	@echo "==> Building gui-cdn zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui-cdn \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py gui-cdn \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_CDN_DIR)
@@ -1142,7 +1142,7 @@ claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
 $(CLAUDE_SKILLS): $(ZIPAPP_AI)
 	@echo "==> Building Claude skills release zip"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py claude-skills \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py claude-skills \
 		--version $(VERSION) \
 		--output $@ \
 		--ai-pyz $(ZIPAPP_AI)
@@ -1164,7 +1164,7 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
 	@# Build LSP server zipapp into plugin resources
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
 		--version $(VERSION) \
 		--output $(JB_DIR)/src/main/resources/tcl-lsp-server.pyz
 	@# Extract compiler explorer HTML from VS Code extension
@@ -1182,7 +1182,7 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 
 publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
 	@echo "==> Resolving JetBrains Marketplace credentials"
-	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/jetbrains_token.sh)" || exit 1; \
+	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/release/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
 	echo "==> Publishing JetBrains plugin to Marketplace"; \
 	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew publishPlugin
@@ -1215,7 +1215,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@ls -lh $(ST_PACKAGE)
 
 publish-sublime: sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
-	@bash $(ROOT)scripts/publish_sublime.sh
+	@bash $(ROOT)scripts/release/publish_sublime.sh
 
 # Zed extension
 
@@ -1229,10 +1229,10 @@ zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building LSP + MCP server zipapps for bundling"
 	@mkdir -p $(ZED_BUNDLED)
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
 		--version $(VERSION) \
 		--output $(ZED_BUNDLED)/tcl-lsp-server.pyz
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp \
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py mcp \
 		--version $(VERSION) \
 		--output $(ZED_BUNDLED)/tcl-lsp-mcp-server.pyz
 	@echo "==> Building Zed extension WASM (with bundled servers)"
@@ -1260,7 +1260,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@ls -lh $(ZED_ARCHIVE)
 
 publish-zed: zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
-	@bash $(ROOT)scripts/publish_zed.sh
+	@bash $(ROOT)scripts/release/publish_zed.sh
 
 # Release
 
@@ -1289,23 +1289,23 @@ release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-m
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
 release-tag: ## Create + push the annotated release tag (V=x.y.z); run release-codeql-gate first
-	@bash $(ROOT)scripts/release.sh $(V)
+	@bash $(ROOT)scripts/release/tag.sh $(V)
 
 release-codeql-gate: ## Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
-	@bash $(ROOT)scripts/release_codeql_gate.sh $(SHA)
+	@bash $(ROOT)scripts/release/codeql_gate.sh $(SHA)
 
 publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
-	@bash $(ROOT)scripts/publish_verify.sh
+	@bash $(ROOT)scripts/release/publish_verify.sh
 
 # KCS help database
 
 kcs-db: $(KCS_DB) ## Build the KCS help database from docs/kcs/features/
 
-$(KCS_DB): $(wildcard docs/kcs/features/kcs-feature-*.md) $(wildcard docs/screenshots/*.png docs/screenshots/*.gif) scripts/build_kcs_db.py
+$(KCS_DB): $(wildcard docs/kcs/features/kcs-feature-*.md) $(wildcard docs/screenshots/*.png docs/screenshots/*.gif) scripts/build/kcs_db.py
 	@echo "==> Building KCS help database"
-	$(PYTHON) $(ROOT)scripts/build_kcs_db.py --out $@
+	$(PYTHON) $(ROOT)scripts/build/kcs_db.py --out $@
 
 clean-kcs-db: ## Remove the generated KCS help database
 	rm -f $(KCS_DB)
