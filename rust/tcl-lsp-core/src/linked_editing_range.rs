@@ -117,7 +117,10 @@ fn matches_self_call(name: &str, proc: &ProcDef) -> bool {
 }
 
 fn span_contains(span: Span, offset: u32) -> bool {
-    span.start() <= offset && offset <= span.end()
+    // `Span` is half-open `[start, end)` so `offset == span.end()`
+    // sits one byte past the span — strictly before the end is the
+    // correct containment check (PR #454 Copilot review).
+    span.start() <= offset && offset < span.end()
 }
 
 fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {

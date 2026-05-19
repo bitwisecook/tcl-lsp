@@ -233,7 +233,29 @@ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) ->
         let root_trimmed = root.trim_end_matches('/');
         format!("{root_trimmed}/{expanded}")
     };
-    Some(format!("file://{}", percent_encode_path(&resolved)))
+    Some(file_uri_for_path(&resolved))
+}
+
+/// Build a `file://` URI for a resolved filesystem path.
+///
+/// Normalises Windows backslash separators to forward slashes
+/// and ensures the URI's path component starts with `/` so
+/// drive-letter paths (`C:/foo`) become `file:///C:/foo`
+/// rather than `file://C:/foo` (PR #454 Copilot review).
+/// The path bytes are percent-encoded per RFC 3986 so special
+/// characters (spaces, `#`, `%`, non-ASCII) survive parsing
+/// through `Url::parse`.
+fn file_uri_for_path(path: &str) -> String {
+    let normalised: String = path
+        .chars()
+        .map(|c| if c == '\\' { '/' } else { c })
+        .collect();
+    let encoded = percent_encode_path(&normalised);
+    if encoded.starts_with('/') {
+        format!("file://{encoded}")
+    } else {
+        format!("file:///{encoded}")
+    }
 }
 
 /// Percent-encode the path component of a `file://` URI per
@@ -425,6 +447,33 @@ mod tests {
     fn percent_encode_path_escapes_non_ascii() {
         // UTF-8 bytes for `é` are 0xC3 0xA9.
         assert_eq!(percent_encode_path("/caf\u{00E9}/x.tcl"), "/caf%C3%A9/x.tcl");
+    }
+
+    #[test]
+    fn file_uri_for_unix_absolute_path() {
+        // `/foo/bar.tcl` → `file:///foo/bar.tcl` (one slash
+        // from `file://` + the leading `/` of the path).
+        assert_eq!(file_uri_for_path("/foo/bar.tcl"), "file:///foo/bar.tcl");
+    }
+
+    #[test]
+    fn file_uri_for_windows_drive_letter_path() {
+        // `C:/Users/me/file.tcl` → `file:///C:/Users/me/file.tcl`
+        // — `file_uri_for_path` must insert the third slash
+        // so the host component is empty and the path starts
+        // at the drive letter (PR #454 Copilot review).
+        assert_eq!(
+            file_uri_for_path("C:/Users/me/file.tcl"),
+            "file:///C:/Users/me/file.tcl",
+        );
+    }
+
+    #[test]
+    fn file_uri_normalises_windows_backslashes() {
+        assert_eq!(
+            file_uri_for_path(r"C:\Users\me\file.tcl"),
+            "file:///C:/Users/me/file.tcl",
+        );
     }
 
     #[test]

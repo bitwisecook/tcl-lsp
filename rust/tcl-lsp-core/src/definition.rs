@@ -204,8 +204,11 @@ fn scope_chain_at(
     let mut cursor = root;
     loop {
         let next = cursor.children.iter().find(|c| {
+            // `Span` is half-open `[start, end)` — the byte at
+            // `s.end()` lives outside the scope (PR #454 Copilot
+            // review).
             c.body_span
-                .is_some_and(|s| s.start() <= byte_offset && byte_offset <= s.end())
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
         });
         match next {
             Some(child) => {

@@ -153,11 +153,12 @@ pub fn full(source: &str) -> SemanticTokens {
 pub fn range(source: &str, range: crate::definition::LspRange) -> SemanticTokens {
     let mut entries = collect_entries(source);
     entries.retain(|(line, col, _, _)| {
-        let starts_after_or_at_range_start = (*line, *col)
-            >= (range.start_line, range.start_character);
-        let starts_before_range_end = (*line, *col)
-            <= (range.end_line, range.end_character);
-        starts_after_or_at_range_start && starts_before_range_end
+        // Half-open interval per LSP `Range` semantics (PR #454
+        // Copilot review): start is inclusive, end is exclusive.
+        let pos = (*line, *col);
+        let start = (range.start_line, range.start_character);
+        let end = (range.end_line, range.end_character);
+        pos >= start && pos < end
     });
     encode_entries(&entries)
 }
@@ -216,23 +217,28 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
         TokenType::Str => Some(TokenKind::String),
         TokenType::Esc => {
             // Quoted strings vs barewords vs numbers.  The
-            // segmenter doesn't differentiate; peek at the
-            // source byte to disambiguate.
+            // lexer sets `tok.in_quote = true` on every Esc /
+            // Var / Cmd token emitted from inside `"..."`, so
+            // multi-fragment quoted strings (e.g. `"a $b c"`)
+            // get every literal fragment classified as String
+            // — including the leading fragment whose span may
+            // not include the opening `"`.  This matches the
+            // lexer contract and avoids the prior byte-peek
+            // heuristic that missed inner fragments (PR #454
+            // Copilot review).
+            if tok.in_quote {
+                return Some(TokenKind::String);
+            }
             let start = span.start() as usize;
-            let bytes = source.as_bytes();
-            if start < bytes.len() && bytes[start] == b'"' {
-                Some(TokenKind::String)
+            let text = source
+                .get(start..(start + len).min(source.len()))
+                .unwrap_or("");
+            if is_number_literal(text) {
+                Some(TokenKind::Number)
+            } else if text.contains("::") {
+                Some(TokenKind::Namespace)
             } else {
-                let text = source
-                    .get(start..(start + len).min(source.len()))
-                    .unwrap_or("");
-                if is_number_literal(text) {
-                    Some(TokenKind::Number)
-                } else if text.contains("::") {
-                    Some(TokenKind::Namespace)
-                } else {
-                    None
-                }
+                None
             }
         }
         _ => None,
@@ -480,5 +486,36 @@ mod tests {
             },
         );
         assert_eq!(wide.data, full_data.data);
+    }
+
+    #[test]
+    fn range_excludes_token_at_exact_end_position() {
+        // Regression for PR #454 Codex review: LSP ranges are
+        // half-open [start, end), so a token starting exactly
+        // at `end` is OUTSIDE the range.
+        let src = "set a 1\nset b 2\n";
+        // Range whose end exactly coincides with line 1, col 0
+        // (the `set` of the second command).  That token should
+        // not appear in the range result.
+        let r = range(
+            src,
+            crate::definition::LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 1,
+                end_character: 0,
+            },
+        );
+        // The full document has at least one line-1 token at col
+        // 0 (the `set` of `set b 2`).  The half-open range must
+        // exclude it; the range data must therefore be strictly
+        // shorter than the full data.
+        let full_data = full(src);
+        assert!(
+            r.data.len() < full_data.data.len(),
+            "range data {} should drop the line-1 token; full data {}",
+            r.data.len(),
+            full_data.data.len(),
+        );
     }
 }
