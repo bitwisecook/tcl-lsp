@@ -109,10 +109,15 @@ fn eval_coroutine(words: []const i32) result_mod.InterpResult {
             const n_parts = obj.list_count_elements(lam.ptr, lam.len);
             if (n_parts >= 2) {
                 const body_elem = obj.list_element_at(lam.ptr, lam.len, 1);
-                body = if (body_elem.braced)
-                    obj.obj_new_string_copy(lam.ptr + body_elem.start, body_elem.len)
-                else
-                    obj.obj_new_string(@bitCast(lam.ptr + body_elem.start), @bitCast(body_elem.len));
+                // Always copy the bytes — the unbraced branch used to
+                // ``obj_new_string`` (borrow) wrapping ``lam.ptr +
+                // body_elem.start``, but ``lam.ptr`` is borrowed from
+                // ``words[3]``'s buffer.  ``coro_mod.create`` retains
+                // the body TclObj header, but its ``str_ptr`` still
+                // pointed into ``words[3]``'s buffer.  After dispatch
+                // releases ``words[3]`` the buffer is freed and the
+                // coroutine's body string-rep dangles.
+                body = obj.obj_new_string_copy(lam.ptr + body_elem.start, body_elem.len);
             }
         } else if (w2s.len == 4 and w2s[0] == 'e' and w2s[1] == 'v' and
             w2s[2] == 'a' and w2s[3] == 'l')
