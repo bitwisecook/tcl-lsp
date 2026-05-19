@@ -2206,7 +2206,36 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
     if (str_eq(sp, sub.len, "expose")) return interp_impl.eval_interp_expose(new_words[0..new_len]);
     if (str_eq(sp, sub.len, "hidden")) return interp_impl.eval_interp_hidden(new_words[0..new_len]);
     if (str_eq(sp, sub.len, "invokehidden")) return eval_interp_invokehidden(new_words[0..new_len]);
-    if (str_eq(sp, sub.len, "issafe")) return interp_impl.eval_interp_issafe(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "issafe")) {
+        // ``<child> issafe`` takes no extra args (the child identity
+        // is supplied implicitly).  Matches ``ChildObjCmd``'s
+        // ``CHILD_ISSAFE`` branch in tclInterp.c, which raises
+        // ``wrong # args: should be "<child> issafe"`` when the
+        // caller appends arguments.
+        if (words.len != 2) {
+            emit_child_arity_error(child_name.ptr, child_name.len, " issafe");
+            return 0;
+        }
+        return interp_impl.eval_interp_issafe(new_words[0..new_len]);
+    }
+    if (str_eq(sp, sub.len, "marktrusted")) {
+        // ``<child> marktrusted`` takes no extra args.  Routes to
+        // the same handler as ``interp marktrusted path`` after
+        // injecting the child's identity in slot 2.
+        if (words.len != 2) {
+            emit_child_arity_error(child_name.ptr, child_name.len, " marktrusted");
+            return 0;
+        }
+        return interp_impl.eval_interp_marktrusted(new_words[0..new_len]);
+    }
+    if (str_eq(sp, sub.len, "recursionlimit")) {
+        // ``<child> recursionlimit ?newlimit?`` — 0 or 1 extra arg.
+        if (words.len < 2 or words.len > 3) {
+            emit_child_arity_error(child_name.ptr, child_name.len, " recursionlimit ?newlimit?");
+            return 0;
+        }
+        return interp_impl.eval_interp_recursionlimit(new_words[0..new_len]);
+    }
 
     // Unknown subcommand — match tclsh's per-child wording.
     emit_child_bad_option(sub.ptr, sub.len);
@@ -2750,6 +2779,9 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                 } else if (rv != 0 and rv != result) {
                     obj_mod.tcl_obj_release(rv);
                 }
+                // Apply ``return -code N`` at the proc boundary —
+                // see the matching site in eval_proc_call_bucket.
+                apply_pending_return_code(rv);
             }
         }
         // ``return -code break`` / ``return -code continue`` from
@@ -3030,6 +3062,13 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // ``return`` doesn't see a stale pointer in its release
         // path.  Caller's standard "holds 1" contract is met.
         result_mod.consume(.RETURN);
+        // Apply ``return -code N``'s pending code at the proc-
+        // dispatch boundary, mirroring C Tcl's
+        // ``TclUpdateReturnInfo`` in tclProc.c's InterpProcNR2.
+        // Without this, ``proc p {} {return -code 3 X}`` would
+        // absorb the TCL_RETURN to TCL_OK and lose the BREAK code
+        // (interp-26.2 / 26.3).
+        apply_pending_return_code(rv);
         return rv;
     }
     // Body-raised break/continue without an enclosing loop is a Tcl
@@ -3090,6 +3129,8 @@ pub fn eval_interp(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "issafe") or str_eq(sp, sub.len, "safe")) {
         return interp_impl.eval_interp_issafe(words);
     }
+    if (str_eq(sp, sub.len, "marktrusted")) return interp_impl.eval_interp_marktrusted(words);
+    if (str_eq(sp, sub.len, "recursionlimit")) return interp_impl.eval_interp_recursionlimit(words);
     // ``interp share interpA channel interpB`` / ``interp transfer
     // interpA channel interpB`` — channel ownership manipulation
     // between interpreters.  Our runtime exposes ``stdin`` /
@@ -3259,6 +3300,18 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
         return 0;
     }
 
+    // Safe-interpreter gate: a safe interp can't reach into the
+    // hidden table.  Matches ``InvokeHiddenObjCmd`` /
+    // ``ChildInvokeHidden`` in tclInterp.c which raise
+    // ``not allowed to invoke hidden commands from safe interpreter``
+    // before the path resolves.
+    if (interp_reg.interp_is_safe(interp_reg.interp_current())) {
+        const err_text = "not allowed to invoke hidden commands from safe interpreter";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
     // words[0] = "interp", words[1] = "invokehidden", words[2] = path.
     // Resolve the path up front so cross-interp invokehidden lands in
     // the resolved child's hidden table / namespace tree.
@@ -3391,13 +3444,16 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     };
     if (saw_namespace) {
         tcl_ns.current_ns = tcl_ns.ns_create_from_fqn(ns_name_ptr, ns_name_len);
-    } else {
-        // Both ``-global`` (explicit) and the default (no flag) land
-        // at the target interp's root — matches the C Tcl behaviour
-        // where ``InvokeHiddenObjCmd`` pushes the global frame when
-        // neither flag is set.
+    } else if (use_global) {
+        // ``-global`` swaps to the root namespace, mirroring C Tcl's
+        // ``TclObjInvokeNamespace(... ::, TCL_INVOKE_HIDDEN)`` path.
         tcl_ns.current_ns = tcl_ns.ns_root();
     }
+    // Default (no flag) — invoke the hidden command at the caller's
+    // current frame.  ``ChildInvokeHidden`` in tclInterp.c routes
+    // this through ``TclNRInvoke`` which does NOT push a fresh
+    // namespace frame, so an inner ``upvar`` reaches the caller's
+    // locals (interp-20.35 / 20.36 / 20.40 / 20.41).
     const result = eval_proc_call_bucket(new_words[0..total], @bitCast(cmd));
     interp_reg.leave(save);
     return result;
@@ -3437,6 +3493,20 @@ fn eval_interp_eval(words: []const i32) i32 {
         }
     }
 
+    // Detect "deleted-interp eval" before swapping: a parent alias
+    // whose dispatch landed here after the target interp was torn
+    // down should report ``attempt to call eval in deleted
+    // interpreter`` rather than walking the zeroed namespace.
+    // Matches ``ChildEval``'s pre-check in tclInterp.c (Tcl 9.0.3
+    // interp.test 18.7 / 18.8 / 18.9 / 18.10).
+    if (interp_reg.is_deleted(target_interp)) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "attempt to call eval in deleted interpreter";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
     // Swap into the target interp, eval, restore.  Single-interp
     // callers that hand us ``path == {}`` resolve to the current
     // interp and skip the swap — same shape the alias / invokehidden
@@ -3450,7 +3520,99 @@ fn eval_interp_eval(words: []const i32) i32 {
     };
     const result = if (off > 0) eval_script(script_ptr, off) else 0;
     interp_reg.leave(save);
+
+    // ``ChildEval`` (tclInterp.c) wraps the child eval in
+    // ``Tcl_EvalObjEx`` which calls ``TclUpdateReturnInfo`` when the
+    // child returns ``TCL_RETURN``.  That converts the child's
+    // pending ``-code N`` into the actual outer status code so
+    // ``catch {interp eval child return -code N}`` reports ``N``
+    // (interp-26.1).  Our model encodes the pending code in
+    // ``pending_return_code``; mirror the absorption here.
+    absorb_return_at_eval_boundary();
     return result;
+}
+
+/// Apply pending ``return -code N`` semantics at an eval boundary.
+/// Mirrors C Tcl's ``TclUpdateReturnInfo``: if the body left
+/// ``return_flag`` set, decrement the return-level counter; when
+/// it reaches zero, translate ``pending_return_code`` into the
+/// matching flag (error / break / continue / TCL_RETURN / custom).
+///
+/// Called from ``eval_interp_eval`` (and the per-child ``<c> eval``
+/// dispatch above) so the outer catch sees the user-requested code
+/// rather than the generic ``TCL_RETURN`` our internal ``return``
+/// flag normally carries.
+fn absorb_return_at_eval_boundary() void {
+    const tcl_catch = @import("tcl_catch.zig");
+    if (tcl_catch.state.return_flag == 0) return;
+    if (tcl_catch.state.return_level > 0) {
+        tcl_catch.state.return_level -= 1;
+        return;
+    }
+    // ``pending_return_code == 0`` AND ``return_code != 0`` means a
+    // lower-level absorber (proc dispatch) already translated a
+    // ``return -code N`` into its terminal flag/code shape — the
+    // proc returned with the custom code stamped onto ``return_code``
+    // and the catch above us should surface that verbatim, not re-
+    // process through ``apply_pending_return_code``.  Leave the
+    // state untouched in that case.
+    if (tcl_catch.state.pending_return_code == 0 and tcl_catch.state.return_code != 0) {
+        return;
+    }
+    // return_level == 0 and there is a pending ``-code`` to apply
+    // (or it's a plain ``return`` with ``-code 0`` that should
+    // convert into TCL_OK).  Clear ``return_flag`` first so the
+    // ``apply_pending_return_code`` decision is purely a function of
+    // the pending code — apply will re-set the flag for TCL_RETURN
+    // / custom codes that should keep propagating.
+    const saved_val = tcl_catch.state.return_val;
+    tcl_catch.state.return_flag = 0;
+    tcl_catch.state.return_val = 0;
+    apply_pending_return_code(saved_val);
+}
+
+/// Translate ``pending_return_code`` into the matching control-flow
+/// flag once a ``return -code N`` has reached the absorber level.
+/// Shared between :fn:`absorb_return_at_eval_boundary` (interp eval
+/// boundary) and :fn:`eval_proc_call_bucket`'s proc-dispatch
+/// boundary so both code paths apply identical semantics.  Mirrors
+/// the post-absorb leg of C Tcl's ``TclUpdateReturnInfo``.
+fn apply_pending_return_code(rv: i32) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    const pc = tcl_catch.state.pending_return_code;
+    tcl_catch.state.pending_return_code = 0;
+    switch (pc) {
+        // TCL_OK — clean exit, no flags.
+        0 => {},
+        // TCL_ERROR — surface as an error with the return value
+        // as the error message.
+        1 => {
+            tcl_catch.state.error_flag = 1;
+            tcl_catch.state.error_msg = rv;
+        },
+        // TCL_RETURN — propagate one more eval level.  Re-set the
+        // flag so the outer absorb decrements again (each level
+        // strips one ``-code return`` layer).
+        2 => {
+            tcl_catch.state.return_flag = 1;
+            tcl_catch.state.return_val = rv;
+        },
+        // TCL_BREAK / TCL_CONTINUE
+        3 => {
+            tcl_catch.state.break_flag = 1;
+        },
+        4 => {
+            tcl_catch.state.continue_flag = 1;
+        },
+        // Custom numeric (N < 0 or N >= 5).  Re-set ``return_flag``
+        // and stamp ``return_code`` so the surrounding ``catch``
+        // surfaces the exact value via ``catch_leave``.
+        else => {
+            tcl_catch.state.return_flag = 1;
+            tcl_catch.state.return_val = rv;
+            tcl_catch.state.return_code = pc;
+        },
+    }
 }
 
 // -- Main eval entry point --
@@ -3754,6 +3916,24 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // wasm32 4 GiB linear-memory ceiling.
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
+        // A command may have torn down the interpreter we're
+        // currently evaluating in (e.g. ``suicide`` alias which
+        // dispatches ``interp delete tst`` in the parent — see
+        // interp-18.9 / 18.10).  Match C Tcl's ``ChildEval`` mid-
+        // loop check and raise the canonical diagnostic instead of
+        // continuing past the deletion into stale namespace state.
+        // Only fire when there is MORE script to execute — a
+        // self-delete on the final command (interp-16.0 / 16.1 /
+        // 16.2's ``xxx alias kill kill; xxx eval kill``) is a
+        // clean exit; the error only matters if the script would
+        // otherwise reach unreachable post-delete commands.
+        if (pos < script_len and interp_reg.is_deleted(interp_reg.interp_current())) {
+            const tcl_catch_d = @import("tcl_catch.zig");
+            const err_text = "attempt to call eval in deleted interpreter";
+            const msg = obj_mod.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            tcl_catch_d.tcl_cmd_error(msg);
+            return result;
+        }
         const ir = result_mod.snapshot(result);
         // ``Tcl_LogCommandInfo`` (parse-9.2 / parse-9.1): when an
         // error fires inside the executed command, append THIS
@@ -3973,6 +4153,18 @@ fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
         // leak pattern as the cold path (issue #303).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(body_ptr, tokens_ptr, tok_len);
+        // Mid-script interp deletion check — mirrors the cold-path
+        // probe in :fn:`eval_script` (interp-18.7..18.10).  Only
+        // fires when there are MORE commands left to run so a clean
+        // last-command self-delete (interp-16.0/1/2) doesn't get
+        // flagged as a deleted-interp error.
+        if (i + 1 < n_cmds and interp_reg.is_deleted(interp_reg.interp_current())) {
+            const tcl_catch_d = @import("tcl_catch.zig");
+            const err_text = "attempt to call eval in deleted interpreter";
+            const msg = obj_mod.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            tcl_catch_d.tcl_cmd_error(msg);
+            return result;
+        }
         if (has_signal()) return result;
         _ = next_pos;
     }
@@ -4012,8 +4204,12 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 // Phase 1.3 fix: copy braced-word bytes into an owned
                 // buffer instead of borrowing from the source script.
                 // See ``proc_register::ensure_owned`` for the matching
-                // proc-table-side promotion.
-                word_objs[wi] = obj_mod.obj_new_string_copy(wptr_abs, tok.len);
+                // proc-table-side promotion.  ``obj_new_braced_string``
+                // applies Tcl's ``\<newline>`` → space substitution
+                // that ``Tcl_ParseBraces`` performs in C (interp-20.33,
+                // parseOld-7.4) — falls back to the regular copy when
+                // the span has no line-continuation escapes.
+                word_objs[wi] = obj_mod.obj_new_braced_string(wptr_abs, tok.len);
             } else {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
             }
@@ -4081,7 +4277,7 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
         // Phase 1.3 fix: see the matching site above for the
         // borrow-vs-copy rationale.
         const word_obj: i32 = if (tok.braced)
-            obj_mod.obj_new_string_copy(wptr_abs, tok.len)
+            obj_mod.obj_new_braced_string(wptr_abs, tok.len)
         else
             subst_word(wptr_abs, tok.len);
 

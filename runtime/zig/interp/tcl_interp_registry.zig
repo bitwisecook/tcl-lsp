@@ -52,6 +52,52 @@ const tcl_ns = @import("tcl_ns.zig");
 /// discussion.
 pub const INTERP_SAFE: u32 = 0x1;
 
+/// Default per-interp recursion limit.  Matches Tcl 9's
+/// ``Tcl_CreateInterp`` initial value
+/// (``tclBasic.c`` ``Tcl_CreateInterp`` sets ``interp->maxNestingDepth = 1000``).
+pub const DEFAULT_RECURSION_LIMIT: u32 = 1000;
+
+/// Predicate: is the interp at ``addr`` flagged ``INTERP_SAFE``?
+/// Empty paths and root-interp queries route through here.
+pub fn interp_is_safe(addr: u32) bool {
+    if (addr == 0) return false;
+    const i: *Interp = @ptrFromInt(addr);
+    return (i.flags & INTERP_SAFE) != 0;
+}
+
+/// Read the per-interp recursion limit, seeding the default on
+/// first read so ``interp recursionlimit child`` always returns a
+/// non-zero answer without forcing every ``child_create`` site to
+/// remember to set it.
+pub fn interp_recursion_limit(addr: u32) u32 {
+    if (addr == 0) return DEFAULT_RECURSION_LIMIT;
+    const i: *Interp = @ptrFromInt(addr);
+    if (i.recursion_limit == 0) i.recursion_limit = DEFAULT_RECURSION_LIMIT;
+    return i.recursion_limit;
+}
+
+/// Update the per-interp recursion limit.  Values < 1 are rejected
+/// by the caller (matches Tcl 9, which bounces non-positive limits).
+pub fn interp_set_recursion_limit(addr: u32, new_limit: u32) void {
+    if (addr == 0) return;
+    const i: *Interp = @ptrFromInt(addr);
+    i.recursion_limit = new_limit;
+}
+
+/// Set / clear the ``INTERP_SAFE`` flag on ``addr``.  Used by
+/// ``interp marktrusted`` (clear) — there is no Tcl-level command
+/// to set the flag after creation; ``interp create -safe`` is the
+/// only path for that direction.
+pub fn interp_set_safe(addr: u32, safe: bool) void {
+    if (addr == 0) return;
+    const i: *Interp = @ptrFromInt(addr);
+    if (safe) {
+        i.flags |= INTERP_SAFE;
+    } else {
+        i.flags &= ~INTERP_SAFE;
+    }
+}
+
 /// Set on an ``Interp`` once ``interp delete path`` has torn it down.
 /// Dispatch paths that might still hold the stale ``Interp*`` (cross-
 /// interp alias redirect Commands whose ``OFF_IMPORT_REF_HEAD`` slot
@@ -119,6 +165,16 @@ pub const Interp = extern struct {
     /// collide, and so a deleted-then-recreated anonymous interp
     /// under one parent doesn't skew the issuer state in another.
     id_issuer: u32,
+
+    /// Per-interp recursion limit (``Tcl_SetRecursionLimit`` /
+    /// ``interp recursionlimit``).  Stored as ``u32`` for ABI
+    /// stability; ``0`` is treated as "uninitialised" and seeded to
+    /// the default (1000) on first read.  We accept and store the
+    /// value but don't actively enforce it — the WASM runtime has
+    /// no deep-recursion harness yet, so this is purely the
+    /// observable state behind the ``interp recursionlimit`` query
+    /// / setter.
+    recursion_limit: u32,
 };
 
 /// Root-interp singleton.  ``interp_root()`` allocates lazily and

@@ -1319,6 +1319,65 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 /// Create a new string TclObj by copying *len* bytes from *src*.
 /// The new TclObj owns its byte buffer (capacity = aligned alloc
 /// size) so subsequent appends can grow in place when refcount==1.
+/// Build a TclObj from a braced-word source span, applying Tcl's
+/// ``\<newline>`` → space substitution that ``Tcl_ParseBraces``
+/// performs in C.  Inside braces, every other escape stays literal
+/// — only the line-continuation sequence is collapsed.  When no
+/// substitution is needed (the common case) this falls through to
+/// :func:`obj_new_string_copy` so the inline-string fast path is
+/// preserved.
+///
+/// Reference Tcl behaviour (parseOld-7.4, interp-20.33/34): a braced
+/// string ``{a\<NL>b}`` has length ``a b`` (3 chars) once parsed —
+/// the backslash-newline plus any whitespace immediately following
+/// the newline collapses to a single space.  See ``Tcl_ParseBraces``
+/// in ``tmp/tcl9.0.3/generic/tclParse.c`` for the canonical C-side
+/// implementation.
+pub fn obj_new_braced_string(src: u32, len: u32) i32 {
+    if (len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(src);
+    // Scan for ``\<newline>`` — the only substitution that fires
+    // inside braces.  No match → fast-path through the regular
+    // string-copy constructor (preserves the inline-string
+    // optimisation).
+    var has_bs_nl = false;
+    var i: u32 = 0;
+    while (i + 1 < len) : (i += 1) {
+        if (sp[i] == '\\' and sp[i + 1] == '\n') {
+            has_bs_nl = true;
+            break;
+        }
+    }
+    if (!has_bs_nl) return obj_new_string_copy(src, len);
+
+    // Allocate worst-case-sized output buffer (substitution can only
+    // *shrink* the byte span — each ``\<NL>...`` collapses to one
+    // space).  Walk again, emitting bytes verbatim except for the
+    // collapse sequence.
+    const out_buf = alloc(len);
+    if (out_buf == 0) return 0;
+    const dst: [*]u8 = @ptrFromInt(out_buf);
+    var off: u32 = 0;
+    i = 0;
+    while (i < len) {
+        if (i + 1 < len and sp[i] == '\\' and sp[i + 1] == '\n') {
+            // Collapse ``\<NL><whitespace>*`` → single space.
+            dst[off] = ' ';
+            off += 1;
+            i += 2;
+            while (i < len) : (i += 1) {
+                const c = sp[i];
+                if (c != ' ' and c != '\t') break;
+            }
+            continue;
+        }
+        dst[off] = sp[i];
+        off += 1;
+        i += 1;
+    }
+    return obj_new_string_take(out_buf, off, len);
+}
+
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
     // S6.2 — inline-string optimisation.  Strings short enough to
