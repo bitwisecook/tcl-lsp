@@ -1965,19 +1965,43 @@ mod tests {
     }
 
     #[test]
-    fn foreach_line_dynamic_body_routes_through_barrier() {
-        // Dynamic body (`$body` substituted) — fall through to the
-        // runtime command via Barrier instead of trying to lower
-        // the literal `$body` text as a script.
-        let m = lower_to_ir(
-            "proc f {} { set body {return 1}\n foreachLine line /etc/hosts $body }",
-            &reg(),
-        );
-        let body = &m.procedures.get("::f").expect("f registered").body.statements;
-        let last = body.last().expect("body has statements");
+    fn foreach_line_var_body_routes_through_barrier() {
+        // `foreachLine line file $body` — the body is a Var token,
+        // which is single-token but NOT a braced literal.  Compiling
+        // the literal `$body` text as a static loop body would
+        // produce incorrect IR / data-flow; the lowering must fall
+        // through to the runtime command via Barrier.
+        let m = lower_to_ir("foreachLine line /etc/hosts $body", &reg());
+        let last = m
+            .top_level
+            .statements
+            .last()
+            .expect("top-level statement");
+        match last {
+            Statement::Barrier { reason, command, .. } => {
+                assert_eq!(command, "foreachLine");
+                assert!(
+                    reason.contains("dynamic body"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected Barrier for Var body, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn foreach_line_cmd_body_routes_through_barrier() {
+        // Same guard for a `[cmd]` body — single-token but a Cmd
+        // substitution, not a braced literal.
+        let m = lower_to_ir("foreachLine line /etc/hosts [build-body]", &reg());
+        let last = m
+            .top_level
+            .statements
+            .last()
+            .expect("top-level statement");
         assert!(
-            matches!(last, Statement::Barrier { .. } | Statement::Foreach { .. }),
-            "expected Barrier or Foreach (if const-map fired), got {last:?}",
+            matches!(last, Statement::Barrier { .. }),
+            "expected Barrier for Cmd body, got {last:?}"
         );
     }
 
