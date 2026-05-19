@@ -856,9 +856,29 @@ pub fn recursion_check_enter() bool {
     const cur = interp_reg.interp_current();
     const ci: *interp_reg.Interp = @ptrFromInt(cur);
     const limit = interp_reg.interp_recursion_limit(cur);
+    // WASM-stack fail-safe.  Each interpreter dispatch lands ~10
+    // wasm stack frames; wasmtime's default 512 KiB stack runs out
+    // long before reference Tcl's default 1000.  Check both the
+    // per-interp ``recursionlimit`` (user-visible knob) and the
+    // physical frame footprint (``frame_depth + parked_top``) so
+    // an ``uplevel``-style pattern that parks the top frame still
+    // trips the safety net before the wasm trap kicks in
+    // (test_wasm_tier2_fixes error-1.8 case).
     const HARD_CAP: u32 = 512;
+    // Physical wasm-stack ceiling.  Each frame_push / parked_top
+    // increment maps to ~10 wasm stack frames; wasmtime's default
+    // 512 KiB stack runs out around ~120 nested dispatches.  Pick
+    // a cap that leaves head-room above reference Tcl's typical
+    // ``recursionlimit 50`` test bodies (interp-29.3.x reach
+    // frame_depth ~50) but trips on a runaway ``uplevel`` chain
+    // (test_recursion_limit_bounded_iteration ``up 200`` parks
+    // ~100 frames before its first ``return``).
+    const FRAME_CAP: u32 = 60;
     ci.num_levels += 1;
-    if (ci.num_levels > limit or ci.num_levels > HARD_CAP) {
+    if (ci.num_levels > limit or
+        ci.num_levels > HARD_CAP or
+        frames.frame_depth + frames.parked_top >= FRAME_CAP)
+    {
         ci.num_levels -= 1;
         const tcl_catch_lim = @import("tcl_catch.zig");
         const msg_text: []const u8 = "too many nested evaluations (infinite loop?)";

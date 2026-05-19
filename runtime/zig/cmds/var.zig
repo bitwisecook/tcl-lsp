@@ -70,6 +70,7 @@ fn eval_incr(words: []const i32) result_mod.InterpResult {
     // (interp-29.3.x ``incr ::i`` inside ``proc p`` relies on this).
     const name_s = obj_ensure_string(words[1]);
     var is_qualified = false;
+    var is_array_elem = false;
     if (name_s.len >= 2) {
         const np: [*]const u8 = @ptrFromInt(name_s.ptr);
         var qi: u32 = 0;
@@ -79,9 +80,25 @@ fn eval_incr(words: []const i32) result_mod.InterpResult {
                 break;
             }
         }
+        // Detect ``arr(key)`` array-element syntax — these need to
+        // route through ``var_resolve`` (which splits the name and
+        // consults the array directory) instead of
+        // ``local_get_silent`` (scalar-bucket lookup that would
+        // miss every element and return 0).  Copilot review on
+        // PR #451 flagged ``incr arr(key)`` inside a proc body
+        // silently overwriting an existing element with ``incr 1``.
+        if (np[name_s.len - 1] == ')') {
+            var pi: u32 = 0;
+            while (pi < name_s.len) : (pi += 1) {
+                if (np[pi] == '(') {
+                    if (pi > 0) is_array_elem = true;
+                    break;
+                }
+            }
+        }
     }
     const in_proc = frames.frame_depth > 0;
-    const cur: i32 = if (in_proc and !is_qualified)
+    const cur: i32 = if (in_proc and !is_qualified and !is_array_elem)
         frames.local_get_silent(words[1])
     else
         frames.var_resolve(words[1]);

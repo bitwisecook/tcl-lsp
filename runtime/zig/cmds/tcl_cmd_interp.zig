@@ -680,18 +680,22 @@ pub fn interp_alias_delete(child_interp: u32, new_name_ptr: u32, new_name_len: u
     const cmd = alias_mod.find_command_by_rec(child.root_ns, rec);
     if (cmd != 0) {
         const r2 = alias_mod.alias_rec(cmd);
-        // Read the Command's stored simple-name from its header
-        // and clear the corresponding bucket.  ``ns_cmd_clear``
-        // tombstones the bucket without freeing — the Command and
-        // AliasRec stay around in bump memory, but ``alias_clear``
-        // below also un-links them from the per-interp chains so
+        // Read the Command's stored name from its header and strip
+        // any ``::`` prefix — alias Commands renamed into a
+        // namespace store the FQN on the header, but
+        // ``ns_cmd_clear`` keys buckets by the simple name (Codex /
+        // Copilot review on PR #451).  ``ns_cmd_clear`` tombstones
+        // the bucket without freeing — the Command and AliasRec
+        // stay around in bump memory, but ``alias_clear`` below
+        // also un-links them from the per-interp chains so
         // ``interp aliases`` no longer sees them.
-        const name_ptr: u32 = @bitCast(obj_mod.read_i32(cmd));
-        const name_len: u32 = @bitCast(obj_mod.read_i32(cmd + 4));
+        const hdr_ptr: u32 = @bitCast(obj_mod.read_i32(cmd));
+        const hdr_len: u32 = @bitCast(obj_mod.read_i32(cmd + 4));
+        const simple = simple_name_of(hdr_ptr, hdr_len);
         // Walk the namespace tree starting at the child's root for
         // a bucket holding ``cmd``.  Use the live-name spelling
         // (post-rename).
-        _ = tcl_ns.ns_cmd_clear(alias_mod.alias_host_ns(child.root_ns, cmd), name_ptr, name_len);
+        _ = tcl_ns.ns_cmd_clear(alias_mod.alias_host_ns(child.root_ns, cmd), simple.ptr, simple.len);
         _ = r2;
     }
     alias_mod.alias_clear_rec(rec);
@@ -1295,7 +1299,13 @@ pub fn eval_interp_create(words: []const i32) i32 {
     // children — safe-6.x specifies the trusted-equivalent set
     // intentionally redacted (no ``machine`` / ``os`` / ``user``
     // when the interp is safe; ``MakeSafe`` strips those).
-    seed_child_globals(child, safe_flag);
+    //
+    // Use the *effective* safety state on the child (which may
+    // have inherited ``INTERP_SAFE`` from the parent) rather than
+    // the raw ``-safe`` flag — Codex review on PR #451 caught a
+    // path where a safe parent's child without ``-safe`` got the
+    // trusted ``tcl_platform`` seed despite being marked safe.
+    seed_child_globals(child, (flags & interp_reg.INTERP_SAFE) != 0);
 
     // Return the path as supplied (or the auto-generated simple
     // name) — matches tclsh's ``Tcl_SetObjResult(interp, childPtr)``
@@ -1619,12 +1629,15 @@ pub fn eval_interp_target(words: []const i32) i32 {
     }
 
     // Resolve the target interp.  ``parent_interp == 0`` is the
-    // single-interp shortcut C Tcl uses when the alias lives in
-    // the same interp as its target — interpret as "the caller's
-    // own interp" (interp_current).
+    // single-interp shortcut: the alias's target Command lives in
+    // the same interp as the alias itself, i.e. ``src_interp``
+    // resolved from ``words[2]``.  Previously this branch fell
+    // through to ``interp_current()``, which returned the caller
+    // instead of the alias's source interp when ``interp target``
+    // was invoked from a sibling / parent (Codex / Copilot review).
     const rec = alias_mod.alias_rec(alias_cmd);
     const target_interp: u32 = if (rec.parent_interp == 0)
-        interp_reg.interp_current()
+        src_interp
     else
         rec.parent_interp;
 

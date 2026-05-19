@@ -1336,14 +1336,17 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 pub fn obj_new_braced_string(src: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
     const sp: [*]const u8 = @ptrFromInt(src);
-    // Scan for ``\<newline>`` — the only substitution that fires
-    // inside braces.  No match → fast-path through the regular
-    // string-copy constructor (preserves the inline-string
-    // optimisation).
+    // Scan for ``\<line-terminator>`` — the only substitution that
+    // fires inside braces.  All three Tcl-recognised forms count:
+    // ``\<LF>``, ``\<CR>``, and the two-byte ``\<CR><LF>``.  No
+    // match → fast-path through the regular string-copy
+    // constructor (preserves the inline-string optimisation).
+    // Matches the codegen-side ``_braced_lineconts`` helper in
+    // ``core/compiler/codegen/wasm/_emitter/_values.py``.
     var has_bs_nl = false;
     var i: u32 = 0;
     while (i + 1 < len) : (i += 1) {
-        if (sp[i] == '\\' and sp[i + 1] == '\n') {
+        if (sp[i] == '\\' and (sp[i + 1] == '\n' or sp[i + 1] == '\r')) {
             has_bs_nl = true;
             break;
         }
@@ -1360,11 +1363,16 @@ pub fn obj_new_braced_string(src: u32, len: u32) i32 {
     var off: u32 = 0;
     i = 0;
     while (i < len) {
-        if (i + 1 < len and sp[i] == '\\' and sp[i + 1] == '\n') {
-            // Collapse ``\<NL><whitespace>*`` → single space.
+        if (i + 1 < len and sp[i] == '\\' and (sp[i + 1] == '\n' or sp[i + 1] == '\r')) {
+            // Collapse ``\<line-terminator><whitespace>*`` → space.
+            // ``\<CR><LF>`` consumes the trailing ``<LF>`` so the
+            // pair is treated as one logical line terminator
+            // (matches reference Tcl's ``TclParseBackslash``).
             dst[off] = ' ';
             off += 1;
+            const was_cr = sp[i + 1] == '\r';
             i += 2;
+            if (was_cr and i < len and sp[i] == '\n') i += 1;
             while (i < len) : (i += 1) {
                 const c = sp[i];
                 if (c != ' ' and c != '\t') break;

@@ -400,18 +400,6 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_value(self, value: str, *, was_braced: bool = False) -> Ownership:
-        # Pre-pass: collapse ``\<newline><whitespace>*`` to a single
-        # space.  Mirrors Tcl 9's ``Tcl_ParseBraces`` substitution.
-        # Both braced literals (which intentionally preserve the
-        # raw bytes through the lexer) and any other literal that
-        # somehow leaked the sequence through (compiler-generated
-        # joined argv strings, e.g.) get the same treatment.  Safe
-        # because a literal ``\<newline>`` would only survive parsing
-        # if the source was a brace-quoted word — bare and
-        # double-quoted words have the substitution applied at
-        # lex time.
-        if "\\\n" in value or "\\\r" in value:
-            value = _braced_lineconts(value)
         """Emit an i32 TclObj pointer for *value* and return its
         :class:`Ownership` tag.
 
@@ -441,6 +429,18 @@ class _WasmEmitterValuesMixin(_Base):
         so ``\\{`` stays as the two-char sequence ``\\{`` instead of
         collapsing to ``{``.
         """
+        # Pre-pass: collapse ``\<newline><whitespace>*`` (and the
+        # ``\<CR>`` / ``\<CR><LF>`` variants) to a single space.
+        # Mirrors Tcl 9's ``Tcl_ParseBraces`` substitution.  Both
+        # braced literals (which intentionally preserve the raw bytes
+        # through the lexer) and any other literal that somehow leaked
+        # the sequence through (compiler-generated joined argv strings,
+        # e.g.) get the same treatment.  Safe because a literal
+        # ``\<newline>`` would only survive parsing if the source was
+        # a brace-quoted word — bare and double-quoted words have the
+        # substitution applied at lex time.
+        if "\\\n" in value or "\\\r" in value:
+            value = _braced_lineconts(value)
         if not was_braced:
             var = self._resolve_var_name(value)
             if var is not None:
