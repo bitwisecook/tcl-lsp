@@ -654,11 +654,12 @@ mod tests {
         }
         // `set` does NOT carry the trait — its VarWrite at arg 0 is
         // a single-target def, not a vararg list.
-        assert!(!reg
-            .get("set")
-            .unwrap()
-            .traits
-            .contains(Traits::CREATES_DYNAMIC_BARRIER),);
+        assert!(
+            !reg.get("set")
+                .unwrap()
+                .traits
+                .contains(Traits::CREATES_DYNAMIC_BARRIER)
+        );
     }
 
     /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
