@@ -793,6 +793,15 @@ fn codepoint_lower(cp: u32) u32 {
     // Cyrillic: А-Я (0x410-0x42F) → а-я (0x430-0x44F)
     if (cp >= 0x410 and cp <= 0x42F) return cp + 32;
     if (cp >= 0x400 and cp <= 0x40F) return cp + 80;
+    // Supplementary planes — bicameral scripts where every capital
+    // pairs with a lowercase at a fixed offset.  Adlam, Warang Citi,
+    // Osage, etc. show up in the Tcl 9 string.test corpus
+    // (string-17.9 hits Warang Citi U+118A0 ↔ U+118C0).
+    if (cp >= 0x118A0 and cp <= 0x118BF) return cp + 32; // Warang Citi cap → small
+    if (cp >= 0x10400 and cp <= 0x10427) return cp + 40; // Deseret cap → small
+    if (cp >= 0x104B0 and cp <= 0x104D3) return cp + 40; // Osage cap → small
+    if (cp >= 0x10C80 and cp <= 0x10CB2) return cp + 64; // Old Hungarian cap → small
+    if (cp >= 0x1E900 and cp <= 0x1E921) return cp + 34; // Adlam cap → small
     return cp;
 }
 
@@ -814,6 +823,12 @@ fn codepoint_upper(cp: u32) u32 {
     if (cp >= 0x3C3 and cp <= 0x3CB) return cp - 32;
     if (cp >= 0x430 and cp <= 0x44F) return cp - 32;
     if (cp >= 0x450 and cp <= 0x45F) return cp - 80;
+    // Supplementary planes — see ``codepoint_lower`` for the mirror.
+    if (cp >= 0x118C0 and cp <= 0x118DF) return cp - 32; // Warang Citi small → cap
+    if (cp >= 0x10428 and cp <= 0x1044F) return cp - 40; // Deseret small → cap
+    if (cp >= 0x104D8 and cp <= 0x104FB) return cp - 40; // Osage small → cap
+    if (cp >= 0x10CC0 and cp <= 0x10CF2) return cp - 64; // Old Hungarian small → cap
+    if (cp >= 0x1E922 and cp <= 0x1E943) return cp - 34; // Adlam small → cap
     return cp;
 }
 

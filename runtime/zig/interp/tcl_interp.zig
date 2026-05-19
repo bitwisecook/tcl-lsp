@@ -1869,7 +1869,14 @@ pub fn eval_foreach(words: []const i32) i32 {
         return 0;
     }
     const n_pairs = pair_words / 2;
-    const MAX_PAIRS = 63; // (MAX_WORDS-2)/2
+    // Derived from ``parse.MAX_WORDS``: ``foreach varlist1 list1
+    // varlist2 list2 ... body`` carries 1 cmd-word + 2N pair-words + 1
+    // body-word, so the largest ``n_pairs`` the parser can ever hand
+    // us is ``(MAX_WORDS - 2) / 2``.  Tracking the parser cap directly
+    // keeps the two limits from drifting (Copilot review on PR #443
+    // flagged the stale literal that survived the ``MAX_WORDS = 128
+    // → 512`` bump).
+    const MAX_PAIRS = (parse.MAX_WORDS - 2) / 2;
     if (n_pairs > MAX_PAIRS) return 0;
     const body_s = obj_ensure_string(words[words.len - 1]);
 

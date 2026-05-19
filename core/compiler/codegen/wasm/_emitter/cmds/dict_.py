@@ -97,7 +97,12 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             else:
                 emitter._emit(WasmOp.DROP)
             return True
-        if all(
+        # Odd arity is a ``wrong # args`` error in Tcl 9 — fall through
+        # to the eval-fallback path so the runtime dispatcher in
+        # ``cmds/dict.zig::eval_dict_create`` raises the canonical
+        # message rather than the compile-time fast path silently
+        # dropping the trailing key (Copilot review on PR #443).
+        if len(kv) % 2 == 0 and all(
             not a.startswith("$")
             and not a.startswith("[")
             and not emitter._has_embedded_subst(a)
@@ -105,7 +110,25 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             and a not in emitter._local_index
             for a in kv
         ):
-            emitter._emit_obj_literal(" ".join(kv))
+            # Canonicalise duplicate keys at compile time so the literal
+            # string rep matches Tcl 9's ``Tcl_DictObjPut`` semantics —
+            # later occurrences of the same key REPLACE the value, while
+            # the key's insertion position is preserved (tclDictObj.c).
+            # Without this, ``string map [dict create a X b Y a Z] aaa``
+            # walks the literal ``a X b Y a Z`` list and uses the first
+            # ``a→X`` mapping; Tcl 9 expects last-wins (``a→Z``) because
+            # the canonical dict has only one ``a`` entry.
+            canon: list[str] = []
+            key_pos: dict[str, int] = {}
+            for wi in range(0, len(kv), 2):
+                k, v = kv[wi], kv[wi + 1]
+                if k in key_pos:
+                    canon[key_pos[k] + 1] = v
+                else:
+                    key_pos[k] = len(canon)
+                    canon.append(k)
+                    canon.append(v)
+            emitter._emit_obj_literal(" ".join(canon))
             if defs:
                 def_idx = emitter._intern_local(defs[0])
                 emitter._emit_local_set(def_idx)
