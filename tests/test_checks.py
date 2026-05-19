@@ -1233,6 +1233,23 @@ class TestUnbracedBody:
         assert len(diags) == 1
         assert diags[0].severity == Severity.ERROR
 
+    def test_eval_var_quickfix_preserves_dollar(self):
+        # Regression for #438 — the quick-fix used to wrap ``args[idx]``
+        # (the *post-substitution* value, ``script``) and produced
+        # ``{script}``, silently dropping the ``$``.  It must wrap the
+        # raw source slice so ``$script`` round-trips intact.
+        diags = _diag_with_code("eval $script", "W105")
+        assert len(diags) == 1
+        assert diags[0].fixes
+        assert diags[0].fixes[0].new_text == "{$script}"
+
+    def test_while_var_quickfix_preserves_dollar(self):
+        # Same shape as above for ``while`` body argument.
+        diags = _diag_with_code("while 1 $body", "W105")
+        assert len(diags) == 1
+        assert diags[0].fixes
+        assert diags[0].fixes[0].new_text == "{$body}"
+
 
 # W106: Dangerous unbraced switch body
 
