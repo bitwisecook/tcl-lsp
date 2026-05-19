@@ -102,6 +102,11 @@ impl Analyser {
                 );
             }
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+            // `S-document-highlight-rich` / `S-references-rich`
+            // follow-up: record every `$var` substitution in
+            // arg positions so `VarDef.references` carries the
+            // read spans the LSP providers consume.
+            self.record_arg_var_reads(&cmd, scope_path);
             cmd_idx += 1 + consumed;
         }
         self.body_depth -= 1;

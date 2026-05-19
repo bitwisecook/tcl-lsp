@@ -74,6 +74,65 @@ impl Analyser {
             .expect("current_scope_path must be valid")
     }
 
+    /// Walk every `Var` token in a segmented command and call
+    /// [`Self::record_var_read`] for each.  This is how the
+    /// analyser tracks `$x` substitutions in arg positions
+    /// (`puts $x`, `string length $name`, etc.) — without it,
+    /// `VarDef.references` would only carry the explicit
+    /// single-arg `set x` read sites that `handle_set_command`
+    /// records.
+    ///
+    /// The token-text helper uses [`tcl_lexer::SourceMap`] to
+    /// recover each `$name` token's textual content from the
+    /// source bytes — `Var` tokens carry only their span, not
+    /// the inner name.  The `$` prefix is stripped; `${name}`
+    /// braced forms are decoded down to `name`.
+    pub fn record_arg_var_reads(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+        scope_path: &[usize],
+    ) {
+        use tcl_lexer::TokenType;
+        // Collect (name, span) tuples in a first pass so the
+        // source borrow releases before we mutate `self` via
+        // `record_var_read`.  Token spans that exceed the
+        // source bounds (which happens in test harnesses that
+        // pass synthetic tokens against an empty source) are
+        // silently skipped — they aren't reading anything
+        // meaningful.
+        let head_span = cmd.argv.first().map(|t| t.span);
+        let source_len = u32::try_from(self.source.len()).unwrap_or(u32::MAX);
+        let mut reads: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        for tok in &cmd.all_tokens {
+            if tok.kind != TokenType::Var {
+                continue;
+            }
+            if head_span.is_some_and(|hs| tok.span == hs) {
+                continue;
+            }
+            if tok.span.end() > source_len {
+                continue;
+            }
+            let text = &self.source[tok.span.start() as usize..tok.span.end() as usize];
+            let name = if let Some(rest) = text.strip_prefix('$') {
+                if let Some(stripped) = rest.strip_prefix('{') {
+                    stripped.strip_suffix('}').unwrap_or(stripped)
+                } else {
+                    rest
+                }
+            } else {
+                continue;
+            };
+            if name.is_empty() {
+                continue;
+            }
+            reads.push((name.to_string(), tok.span));
+        }
+        for (name, span) in reads {
+            self.record_var_read(&name, span, scope_path);
+        }
+    }
+
     /// Compute the scope-resolved qualified name for a command
     /// invocation at the current walk position.  Mirrors
     /// Python's `_resolve_command_qualified_name` logic.

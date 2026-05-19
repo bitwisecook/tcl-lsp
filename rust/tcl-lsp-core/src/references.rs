@@ -472,6 +472,32 @@ mod tests {
     }
 
     #[test]
+    fn document_highlights_surfaces_var_reads_from_arg_positions() {
+        // After the `record_arg_var_reads` follow-up, `$x`
+        // reads in command arguments populate
+        // `VarDef.references` and surface as `Read` spans in
+        // the document-highlight provider.
+        let src = "set x 1\nputs $x\nputs $x\n";
+        let analysis = analyse(src);
+        let highlights = document_highlights(src, 1, 6, &analysis);
+        let reads: Vec<_> = highlights
+            .iter()
+            .filter(|(_, k)| *k == HighlightKind::Read)
+            .collect();
+        assert!(
+            reads.len() >= 2,
+            "expected >= 2 Read entries (for two `$x` sites); got {highlights:?}",
+        );
+        // The defining `set x` span is Write.
+        assert!(
+            highlights
+                .iter()
+                .any(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write),
+            "expected Write on line 0; got {highlights:?}",
+        );
+    }
+
+    #[test]
     fn resolved_qualified_name_field_populated_for_simple_call() {
         // Verify that the analyser actually populates
         // `resolved_qualified_name` on

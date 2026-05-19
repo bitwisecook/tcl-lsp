@@ -386,6 +386,7 @@ impl Analyser {
             // the next command.
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
+            self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
 
@@ -639,6 +640,7 @@ impl Analyser {
             }
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+            self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
     }
