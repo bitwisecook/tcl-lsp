@@ -212,6 +212,7 @@ pub fn check_list_syntax(ptr: u32, len: u32) i32 {
             }
         } else if (src[i] == '"') {
             i += 1;
+            var closed = false;
             while (i < len) {
                 if (src[i] == '\\' and i + 1 < len) {
                     i += 2;
@@ -219,9 +220,51 @@ pub fn check_list_syntax(ptr: u32, len: u32) i32 {
                 }
                 if (src[i] == '"') {
                     i += 1;
+                    closed = true;
                     break;
                 }
                 i += 1;
+            }
+            if (!closed) {
+                stubs.raise("unmatched open quote in list");
+                return -1;
+            }
+            // After closing '"', next char must be whitespace or end —
+            // mirrors the brace branch's check.  Raises Tcl 9's
+            // ``list element in quotes followed by "<tok>" instead of
+            // space`` so list parsers fail loud on ``"a"def`` rather
+            // than silently dropping the tail.
+            if (i < len and !is_space(src[i])) {
+                const tok_start = i;
+                var tok_end = i;
+                while (tok_end < len and !is_space(src[tok_end])) tok_end += 1;
+                const tok_len = tok_end - tok_start;
+                const prefix = "list element in quotes followed by \"";
+                const suffix = "\" instead of space";
+                const total: u32 = @intCast(prefix.len + tok_len + suffix.len);
+                const buf_addr: u32 = obj.alloc(total);
+                if (buf_addr == 0) {
+                    stubs.raise("list element in quotes followed by something instead of space");
+                    return -1;
+                }
+                const buf: [*]u8 = @ptrFromInt(buf_addr);
+                var off: u32 = 0;
+                for (prefix) |c| {
+                    buf[off] = c;
+                    off += 1;
+                }
+                for (0..tok_len) |k| {
+                    buf[off] = src[tok_start + k];
+                    off += 1;
+                }
+                for (suffix) |c| {
+                    buf[off] = c;
+                    off += 1;
+                }
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                const msg_obj = obj.obj_new_string_take(buf_addr, total, total);
+                catch_mod.tcl_cmd_error(msg_obj);
+                return -1;
             }
         } else {
             while (i < len and !is_space(src[i])) {

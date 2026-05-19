@@ -1176,21 +1176,27 @@ class _WasmEmitterValuesMixin(_Base):
             if func_idx is not None:
                 param_count = len(rimp.params)
                 if cmd_name == "linsert" and len(cmd_args) > param_count:
-                    # Multi-value ``[linsert list idx v1 v2 …]`` — see
-                    # ``_emit_cmd_runtime`` for the index-ordering
-                    # rationale.  Value-context variant leaves the
-                    # final running-result on the stack.
-                    list_arg = cmd_args[0]
-                    index_arg = cmd_args[1]
-                    values = cmd_args[2:]
-                    self._emit_value(list_arg)
-                    iter_values = (
-                        values if _is_end_relative_index(index_arg) else tuple(reversed(values))
-                    )
-                    for v in iter_values:
-                        self._emit_value(index_arg)
-                        self._emit_value(v)
-                        self._emit_call(func_idx)
+                    if _is_end_relative_index(cmd_args[1]):
+                        # ``[linsert list end-N v1 v2 …]`` — chained
+                        # single-value inserts at ``end-N`` work
+                        # because each iteration re-resolves against
+                        # the now-longer list.
+                        list_arg = cmd_args[0]
+                        index_arg = cmd_args[1]
+                        values = cmd_args[2:]
+                        self._emit_value(list_arg)
+                        for v in values:
+                            self._emit_value(index_arg)
+                            self._emit_value(v)
+                            self._emit_call(func_idx)
+                        return
+                    # Numeric / variable indices — route through the
+                    # eval fallback so ``eval_linsert`` resolves the
+                    # index ONCE against the original list and inserts
+                    # all values with the position incrementing.
+                    # Otherwise ``[linsert {} 2 a b c]`` would land
+                    # ``c b a`` (linsert-1.10).
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                     return
                 if cmd_name == "lreplace" and len(cmd_args) > param_count:
                     # Multi-value ``[lreplace list first last v1 v2 …]``

@@ -113,31 +113,73 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
     // by routing through the same loop after splitting the index
     // list.  ``tcl_cmd_list_index`` handles bare numeric / ``end`` /
     // ``end-N`` indices; the multi-index walk is a simple fold.
+    //
+    // ``current`` starts as ``words[1]`` (caller-owned, NOT
+    // released).  Once any intermediate ``tcl_cmd_list_index`` runs
+    // ``owns_current`` flips to true and every subsequent
+    // reassignment releases the previous handle so the walk doesn't
+    // leak one TclObj per index level.  The error path mirrors the
+    // happy path's bookkeeping (release ``ei`` / current intermediate
+    // before returning).
     var current: i32 = words[1];
+    var owns_current: bool = false;
     if (words.len == 3) {
         // Single index argument — may be a flat ``5`` or a list
-        // ``{2 1}`` per Tcl 9 semantics.  Walk the elements so the
-        // list-form behaves like the explicit multi-arg form.
+        // ``{2 1}`` (or even a single-element list like ``{2}`` or
+        // ``"2"``) per Tcl 9 semantics.  Treat the argument as an
+        // index list and walk each element so list-form and
+        // scalar-form behave the same: ``lindex L {2}`` and
+        // ``lindex L 2`` both pick index 2; ``lindex L b`` raises
+        // ``bad index`` after extracting and validating the single
+        // element ``b``.
+        //
+        // A malformed-list index (``lindex L \{``) is NOT a valid
+        // index list — reference Tcl reports ``bad index "{": ...``
+        // for the original string, not the empty content of the
+        // unterminated brace.  So a syntactic list check on the arg
+        // gates the walk: on failure, the whole arg is the offending
+        // index (lindex-10.4).
         const idx_arg = words[2];
         const is_s = obj_ensure_string(idx_arg);
         // ``lindex L {}`` — empty index list returns the list
         // verbatim (lindex-10.1: ``$x = ""`` should not error).
         if (is_s.len == 0) return result_mod.from_globals(current);
+        if (list_parse.validate_list_braces(is_s.ptr, is_s.len) == false) {
+            list_mod.raise_bad_list_index(idx_arg);
+            return result_mod.from_globals(0);
+        }
         const idx_count = rt.list_count_elements(is_s.ptr, is_s.len);
         if (idx_count == 0) return result_mod.from_globals(current);
-        if (idx_count == 1) {
-            return result_mod.from_globals(rt.tcl_cmd_list_index(current, idx_arg));
-        }
         var k: i64 = 0;
         while (k < idx_count) : (k += 1) {
-            const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
-            current = rt.tcl_cmd_list_index(current, ei);
+            const k_obj = obj_new_int(k);
+            const ei = rt.tcl_cmd_list_index(idx_arg, k_obj);
+            obj_mod.tcl_obj_release(k_obj);
+            if (!list_mod.is_valid_list_index(ei)) {
+                list_mod.raise_bad_list_index(ei);
+                obj_mod.tcl_obj_release(ei);
+                if (owns_current) obj_mod.tcl_obj_release(current);
+                return result_mod.from_globals(0);
+            }
+            const next = rt.tcl_cmd_list_index(current, ei);
+            obj_mod.tcl_obj_release(ei);
+            if (owns_current) obj_mod.tcl_obj_release(current);
+            current = next;
+            owns_current = true;
         }
         return result_mod.from_globals(current);
     }
     var ai: u32 = 2;
     while (ai < words.len) : (ai += 1) {
-        current = rt.tcl_cmd_list_index(current, words[ai]);
+        if (!list_mod.is_valid_list_index(words[ai])) {
+            list_mod.raise_bad_list_index(words[ai]);
+            if (owns_current) obj_mod.tcl_obj_release(current);
+            return result_mod.from_globals(0);
+        }
+        const next = rt.tcl_cmd_list_index(current, words[ai]);
+        if (owns_current) obj_mod.tcl_obj_release(current);
+        current = next;
+        owns_current = true;
     }
     return result_mod.from_globals(current);
 }
@@ -173,37 +215,134 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"linsert list index ?element ...?\"");
         return result_mod.from_globals(0);
     }
-    if (words.len >= 4) {
-        const list_arg = words[1];
-        const idx_arg = words[2];
-        const idx_s = obj_ensure_string(idx_arg);
-        var forward = false;
-        if (idx_s.len >= 3) {
-            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
-            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
-        }
-        var result: i32 = list_arg;
-        if (forward) {
-            var wi: u32 = 3;
-            while (wi < words.len) : (wi += 1) {
-                result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi]);
-            }
-        } else {
-            var wi: u32 = words.len;
-            while (wi > 3) {
-                wi -= 1;
-                result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi]);
-            }
-        }
-        return result_mod.from_globals(result);
+    const list_arg = words[1];
+    const idx_arg = words[2];
+    // Validate list syntax — ``linsert \{ 12 2`` must raise
+    // ``unmatched open brace in list`` rather than silently producing
+    // garbage (linsert-2.4).
+    const ls = obj_ensure_string(list_arg);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // Validate index — ``linsert a b`` must raise ``bad index "b"``
+    // rather than treating ``b`` as 0 (linsert-2.2/2.3).
+    if (!list_mod.is_valid_list_index(idx_arg)) {
+        list_mod.raise_bad_list_index(idx_arg);
+        return result_mod.from_globals(0);
     }
-    // linsert LIST INDEX with no values is a degenerate no-op
-    // returning LIST.
-    return result_mod.from_globals(words[1]);
+    // ``linsert LIST INDEX`` with no values still canonicalises the
+    // input list — ``linsert "a\nb\nc" 0`` → ``a b c`` (linsert-2.5/
+    // 2.6, TIP 323).  Round-trip through ``list_count_elements`` +
+    // ``list_element_at`` so each element comes back canonically
+    // quoted regardless of the input's whitespace flavour.
+    if (words.len < 4) {
+        return result_mod.from_globals(canonicalise_list(list_arg));
+    }
+    // Resolve the insertion position ONCE from the original list
+    // length.  ``end`` semantically denotes the slot AFTER the last
+    // element, so resolve as if the list had n+1 positions (matching
+    // ``tcl_cmd_list_insert`` / reference ``Tcl_LinsertObjCmd``).
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    var resolved_idx: i64 = list_mod.resolve_list_index(idx_arg, n_i64 + 1);
+    if (resolved_idx < 0) resolved_idx = 0;
+    if (resolved_idx > n_i64) resolved_idx = n_i64;
+    // Insert in FORWARD order with the position incrementing — each
+    // value lands AFTER the previous one.  This unifies the two
+    // earlier reverse-iteration branches whose clamping interacted
+    // badly when the index exceeded the original length (linsert-1.10:
+    // ``linsert {} 2 a b c`` was returning ``c b a``).
+    //
+    // Each iteration creates a fresh ``pos_obj`` and a fresh
+    // ``next`` result; release them as we go so the chain doesn't
+    // leak one TclObj per inserted value.  ``result`` starts as
+    // ``list_arg`` (caller-owned, NOT released) and is replaced by
+    // the function's fresh return on every step.
+    var result: i32 = list_arg;
+    var owns_result: bool = false;
+    var pos: i64 = resolved_idx;
+    var wi: u32 = 3;
+    while (wi < words.len) : (wi += 1) {
+        const pos_obj = obj_new_int(pos);
+        const next = rt.tcl_cmd_list_insert(result, pos_obj, words[wi]);
+        obj_mod.tcl_obj_release(pos_obj);
+        if (owns_result) obj_mod.tcl_obj_release(result);
+        result = next;
+        owns_result = true;
+        pos += 1;
+    }
+    return result_mod.from_globals(result);
+}
+
+/// Build the canonical Tcl list representation of *list_arg*.  Used by
+/// ``linsert LIST INDEX`` with no values (TIP 323) — the resulting
+/// string round-trips every element through ``list_elem_quote`` so
+/// whitespace-only sources (``"a\nb\nc"``) come back as ``a b c``.
+fn canonicalise_list(list_arg: i32) i32 {
+    const ls = obj_ensure_string(list_arg);
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    if (n_i64 == 0) return obj_new_string(0, 0);
+    const n: u32 = @intCast(n_i64);
+    // Worst case: every element doubles in length plus brace pair,
+    // plus n-1 separators.  Compute the cap in u64 so the cap math
+    // doesn't wrap (ReleaseFast) or trap (Debug) for very large
+    // inputs near the u32 boundary; if it would exceed u32, abort
+    // with an empty list rather than allocate an undersized slab.
+    const cap64: u64 = @as(u64, ls.len) * 2 + @as(u64, n) * 3 + 4;
+    if (cap64 > std.math.maxInt(u32)) return obj_new_string(0, 0);
+    const cap: u32 = @intCast(cap64);
+    const buf = alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const elem = rt.list_element_at(ls.ptr, ls.len, @intCast(i));
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        if (elem.braced) {
+            // Braced elements are already literal — re-quote with
+            // ``list_elem_quote`` so the result follows canonical
+            // form (a brace-pair becomes ``{...}`` again if any
+            // special chars are present).
+            off = list_mod.append_list_element(buf, off, ls.ptr, elem, off == 0);
+        } else {
+            // Unbraced: decode any backslash escapes, then re-quote.
+            const scratch = alloc(elem.len);
+            if (scratch == 0) {
+                const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &obj_mod.list_elem_quote else &obj_mod.list_elem_quote_nth;
+                off = quoter(buf, off, ls.ptr + elem.start, elem.len);
+            } else {
+                const dec_len = rt.copy_unbraced_elem(scratch, ls.ptr + elem.start, elem.len);
+                const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &obj_mod.list_elem_quote else &obj_mod.list_elem_quote_nth;
+                off = quoter(buf, off, scratch, dec_len);
+                obj_mod.free_sized(scratch, elem.len);
+            }
+        }
+    }
+    return obj_mod.obj_new_string_take(buf, off, cap);
 }
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
-    if (words.len < 4) return result_mod.from_globals(0);
+    if (words.len < 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lreplace list first last ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
+    // Validate list syntax — ``lreplace`` raises ``unmatched open
+    // brace in list`` for malformed input before parsing indices,
+    // matching reference Tcl (listobj-7.2/7.3).
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    if (!list_mod.is_valid_list_index(words[2])) {
+        list_mod.raise_bad_list_index(words[2]);
+        return result_mod.from_globals(0);
+    }
+    if (!list_mod.is_valid_list_index(words[3])) {
+        list_mod.raise_bad_list_index(words[3]);
+        return result_mod.from_globals(0);
+    }
     return result_mod.from_globals(do_lreplace(words[1], words[2], words[3], words, 4));
 }
 
@@ -809,83 +948,564 @@ fn ls_subindex_pair(outer: i64, inner: i64) i32 {
     return rt.tcl_list(rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer)), obj_new_int(inner));
 }
 
-// Build a list of sub-indices ``{outer i1 i2 ...}`` from the outer
-// element position plus an -index PATH so the lsearch -subindices
-// return value reflects the full traversal depth, not just the first
-// drill level.  Used when *index_arg* is a multi-element list.
-fn ls_subindex_path(outer: i64, path_obj: i32) i32 {
+/// Comparison mode for ``lsearch -bisect`` / ``-sorted`` typed
+/// comparisons.  ``string`` (the default) is the byte-wise compare;
+/// ``integer`` / ``real`` parse both sides as numbers; ``dictionary``
+/// is case-insensitive with embedded numeric runs compared numerically
+/// (matching ``lsort -dictionary``).
+const BisectCmp = enum { string, integer, real, dictionary };
+
+/// Compare two byte-string spans under the given comparison mode.
+/// Returns negative if a < b, zero if equal, positive if a > b.
+/// Used by the ``lsearch -bisect`` search path; non-numeric inputs in
+/// ``-integer`` / ``-real`` modes fall through to byte-wise compare
+/// (matching reference Tcl's lenient ``Tcl_GetIntFromObj`` failure
+/// handling — the test corpus only exercises well-formed numbers).
+fn bisect_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, kind: BisectCmp) i32 {
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    switch (kind) {
+        .integer => {
+            const av = bignum.parse_i128(a_ptr, a_len);
+            const bv = bignum.parse_i128(b_ptr, b_len);
+            if (av != null and bv != null) {
+                const a = av.?;
+                const b = bv.?;
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            }
+            // Fall through to byte-wise on parse failure.
+        },
+        .real => {
+            const a_opt = parse_real(a_ptr, a_len);
+            const b_opt = parse_real(b_ptr, b_len);
+            if (a_opt != null and b_opt != null) {
+                const a = a_opt.?;
+                const b = b_opt.?;
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            }
+        },
+        .dictionary => {
+            return dictionary_compare(a_ptr, a_len, b_ptr, b_len);
+        },
+        .string => {},
+    }
+    return byte_compare(a_ptr, a_len, b_ptr, b_len);
+}
+
+fn byte_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
+    if (a_ptr == 0 or b_ptr == 0) {
+        if (a_len < b_len) return -1;
+        if (a_len > b_len) return 1;
+        return 0;
+    }
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    const n = if (a_len < b_len) a_len else b_len;
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        if (ap[i] < bp[i]) return -1;
+        if (ap[i] > bp[i]) return 1;
+    }
+    if (a_len < b_len) return -1;
+    if (a_len > b_len) return 1;
+    return 0;
+}
+
+/// Parse a Tcl real (decimal float).  Minimal parser — accepts the
+/// shapes the lsearch-22 test corpus exercises.  Returns null when the
+/// span isn't a clean float literal so the caller can fall back to
+/// byte-wise compare.
+fn parse_real(ptr: u32, len: u32) ?f64 {
+    if (ptr == 0 or len == 0) return null;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var s: []const u8 = sp[0..len];
+    // Trim surrounding ASCII whitespace.
+    while (s.len > 0 and (s[0] == ' ' or s[0] == '\t' or s[0] == '\n' or s[0] == '\r')) s = s[1..];
+    while (s.len > 0 and (s[s.len - 1] == ' ' or s[s.len - 1] == '\t' or s[s.len - 1] == '\n' or s[s.len - 1] == '\r')) s = s[0 .. s.len - 1];
+    if (s.len == 0) return null;
+    return std.fmt.parseFloat(f64, s) catch null;
+}
+
+/// Tcl ``lsort -dictionary`` comparator — case-insensitive ASCII with
+/// embedded decimal runs compared numerically.  Mirrors the reference
+/// ``DictionaryCompare`` in ``tclCmdIL.c`` for the cases the test
+/// corpus exercises (ASCII letters, digits, plain whitespace).
+fn dictionary_compare(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
+    if (a_ptr == 0 or b_ptr == 0) return byte_compare(a_ptr, a_len, b_ptr, b_len);
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    var i: u32 = 0;
+    var j: u32 = 0;
+    while (i < a_len and j < b_len) {
+        const ca = ap[i];
+        const cb = bp[j];
+        if (ca >= '0' and ca <= '9' and cb >= '0' and cb <= '9') {
+            // Compare two decimal runs as numbers.  Strip leading
+            // zeros so ``08`` and ``8`` compare equal in value.
+            var ai = i;
+            while (ai < a_len and ap[ai] == '0' and ai + 1 < a_len and ap[ai + 1] >= '0' and ap[ai + 1] <= '9') ai += 1;
+            var bj = j;
+            while (bj < b_len and bp[bj] == '0' and bj + 1 < b_len and bp[bj + 1] >= '0' and bp[bj + 1] <= '9') bj += 1;
+            const a_start = ai;
+            const b_start = bj;
+            while (ai < a_len and ap[ai] >= '0' and ap[ai] <= '9') ai += 1;
+            while (bj < b_len and bp[bj] >= '0' and bp[bj] <= '9') bj += 1;
+            const a_run_len = ai - a_start;
+            const b_run_len = bj - b_start;
+            if (a_run_len != b_run_len) {
+                return if (a_run_len < b_run_len) -1 else 1;
+            }
+            var k: u32 = 0;
+            while (k < a_run_len) : (k += 1) {
+                if (ap[a_start + k] != bp[b_start + k]) {
+                    return if (ap[a_start + k] < bp[b_start + k]) -1 else 1;
+                }
+            }
+            i = ai;
+            j = bj;
+            continue;
+        }
+        const la: u8 = if (ca >= 'A' and ca <= 'Z') ca + 32 else ca;
+        const lb: u8 = if (cb >= 'A' and cb <= 'Z') cb + 32 else cb;
+        if (la != lb) return if (la < lb) -1 else 1;
+        i += 1;
+        j += 1;
+    }
+    if (i < a_len) return 1;
+    if (j < b_len) return -1;
+    return 0;
+}
+
+/// Drill into element at ``outer_idx`` using ``index_arg`` (the path)
+/// to produce the search-target bytes.  Same shape as
+/// :func:`ls_get_match_target` but used by the bisect search path
+/// which already knows the resolved outer index and walks the rest of
+/// the path directly.
+fn ls_bisect_target(
+    ls_ptr: u32,
+    ls_len: u32,
+    outer_idx: i64,
+    index_arg: i32,
+    skip_first_path: bool,
+) struct { ep: u32, elen: u32, scratch_buf: u32, scratch_cap: u32 } {
+    const outer_elem = rt.list_element_at(ls_ptr, ls_len, outer_idx);
+    var outer_ptr: u32 = ls_ptr + outer_elem.start;
+    var outer_len: u32 = outer_elem.len;
+    // ``scratch_buf`` is the caller-owned decode buffer.  The caller
+    // frees it after consuming ``ep`` / ``elen`` — without this the
+    // alloc would leak on every bisect step over an unbraced
+    // element.
+    var scratch_buf: u32 = 0;
+    var scratch_cap: u32 = 0;
+    if (!outer_elem.braced and outer_len > 0) {
+        const cap = outer_len + 4;
+        const buf = alloc(cap);
+        if (buf != 0) {
+            const n = rt.copy_unbraced_elem(buf, outer_ptr, outer_len);
+            outer_ptr = buf;
+            outer_len = n;
+            scratch_buf = buf;
+            scratch_cap = cap;
+        }
+    }
+    if (index_arg == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
+    }
+    const ps = obj_ensure_string(index_arg);
+    if (ps.len == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
+    }
+    const path_count = rt.list_count_elements(ps.ptr, ps.len);
+    if (path_count == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
+    }
+    // Drill into the element via the path.  Each iteration creates
+    // a fresh TclObj (``idx_obj`` from ``obj_new_int`` + ``tcl_cmd_list_index``;
+    // ``next`` from ``tcl_cmd_list_index``); release them as we go
+    // so a bisect step over a deep path doesn't leak one obj per
+    // level.  The final ``current`` is released after we copy its
+    // string rep into a caller-owned buffer.
+    var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
+    var p: i64 = if (skip_first_path) 1 else 0;
+    while (p < path_count) : (p += 1) {
+        const p_obj = obj_new_int(p);
+        const idx_obj = rt.tcl_cmd_list_index(index_arg, p_obj);
+        obj_mod.tcl_obj_release(p_obj);
+        const next = rt.tcl_cmd_list_index(current, idx_obj);
+        obj_mod.tcl_obj_release(idx_obj);
+        obj_mod.tcl_obj_release(current);
+        current = next;
+    }
+    // Copy ``current``'s string rep into a fresh buffer the caller
+    // owns; without this we'd hand back a borrowed pointer into a
+    // TclObj we release immediately below.
+    const final_s = obj_ensure_string(current);
+    var out_buf: u32 = 0;
+    var out_cap: u32 = 0;
+    var out_len: u32 = 0;
+    if (final_s.len > 0 and final_s.ptr != 0) {
+        out_cap = final_s.len + 4;
+        out_buf = alloc(out_cap);
+        if (out_buf != 0) {
+            const dst: [*]u8 = @ptrFromInt(out_buf);
+            const src: [*]const u8 = @ptrFromInt(final_s.ptr);
+            var k: u32 = 0;
+            while (k < final_s.len) : (k += 1) dst[k] = src[k];
+            out_len = final_s.len;
+        } else {
+            out_cap = 0;
+        }
+    }
+    obj_mod.tcl_obj_release(current);
+    if (scratch_buf != 0) obj_mod.free_sized(scratch_buf, scratch_cap);
+    return .{ .ep = out_buf, .elen = out_len, .scratch_buf = out_buf, .scratch_cap = out_cap };
+}
+
+// Build a list of sub-indices for ``lsearch -subindices`` output.
+//
+// With ``-stride 1`` (the default): output is ``{outer p0 p1 ...}`` —
+// the outer index followed by every level of the ``-index`` path.
+//
+// With ``-stride > 1``: the FIRST path element selects the element
+// inside the group (relative to ``outer``), so the result is
+// ``{outer+p0 p1 p2 ...}`` — only ``p1...`` survive as sub-indices.
+// Tracks reference Tcl 9 ``Tcl_LsearchObjCmd`` in ``tclCmdIL.c``
+// (lsearch-26.* / 27.* expect the merged-first-index form).
+//
+// Each path level is resolved against the actual element at that
+// level (rather than emitted verbatim), so ``-index end`` reports
+// the numeric tail index — lsearch-19.7 expects ``{0 1}``, not
+// ``{0 end}``.
+fn ls_subindex_path(ls_ptr: u32, ls_len: u32, outer: i64, path_obj: i32, stride: i64) i32 {
     if (path_obj == 0) return obj_new_int(outer);
     const ps = obj_ensure_string(path_obj);
     if (ps.len == 0) return obj_new_int(outer);
     const path_count = rt.list_count_elements(ps.ptr, ps.len);
     if (path_count == 0) return obj_new_int(outer);
-    var result: i32 = rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer));
-    var i: i64 = 0;
-    while (i < path_count) : (i += 1) {
-        const idx_obj = rt.tcl_cmd_list_index(path_obj, obj_new_int(i));
-        result = rt.tcl_list(result, idx_obj);
+    var start_index: i64 = 0;
+    var first_outer: i64 = outer;
+    if (stride > 1) {
+        const zero_obj = obj_new_int(0);
+        const first_obj = rt.tcl_cmd_list_index(path_obj, zero_obj);
+        obj_mod.tcl_obj_release(zero_obj);
+        const offset = list_mod.resolve_list_index(first_obj, stride);
+        obj_mod.tcl_obj_release(first_obj);
+        first_outer = outer + offset;
+        start_index = 1;
     }
+    // Walk the same drilling path the matcher took so each ``end`` /
+    // ``end-N`` / arithmetic index reports the absolute number it
+    // resolved to.  ``current_obj`` starts at the outer element (or,
+    // for stride > 1, the within-group target).
+    const elem = rt.list_element_at(ls_ptr, ls_len, first_outer);
+    var current_ptr: u32 = ls_ptr + elem.start;
+    var current_len: u32 = elem.len;
+    // Decode any unbraced backslash escapes into a scratch buffer.
+    // Track the alloc size so the scratch can be freed once we're
+    // done drilling — without this the buffer would leak on every
+    // ``-subindices`` call that hits an unbraced element.
+    var scratch_buf: u32 = 0;
+    var scratch_cap: u32 = 0;
+    if (!elem.braced and current_len > 0) {
+        scratch_cap = current_len + 4;
+        scratch_buf = alloc(scratch_cap);
+        if (scratch_buf != 0) {
+            const decoded = rt.copy_unbraced_elem(scratch_buf, current_ptr, current_len);
+            current_ptr = scratch_buf;
+            current_len = decoded;
+        } else {
+            scratch_cap = 0;
+        }
+    }
+    // Build the subindex result list from a null seed.  ``tcl_list``
+    // returns a fresh, owned TclObj per call, so every iteration's
+    // accumulator gets released before the next one is built — the
+    // old form leaked one TclObj per appended index plus the
+    // initial empty-list seed.
+    var current_obj: i32 = obj_new_string(@bitCast(current_ptr), @bitCast(current_len));
+    const seed_obj: i32 = obj_new_string(0, 0);
+    const first_outer_obj: i32 = obj_new_int(first_outer);
+    var result: i32 = rt.tcl_list(seed_obj, first_outer_obj);
+    obj_mod.tcl_obj_release(seed_obj);
+    obj_mod.tcl_obj_release(first_outer_obj);
+    var i: i64 = start_index;
+    while (i < path_count) : (i += 1) {
+        const i_obj = obj_new_int(i);
+        const idx_obj = rt.tcl_cmd_list_index(path_obj, i_obj);
+        obj_mod.tcl_obj_release(i_obj);
+        const cs = obj_ensure_string(current_obj);
+        const n_cur = rt.list_count_elements(cs.ptr, cs.len);
+        const resolved = list_mod.resolve_list_index(idx_obj, n_cur);
+        const resolved_obj = obj_new_int(resolved);
+        const new_result = rt.tcl_list(result, resolved_obj);
+        obj_mod.tcl_obj_release(resolved_obj);
+        obj_mod.tcl_obj_release(result);
+        result = new_result;
+        const next_current = rt.tcl_cmd_list_index(current_obj, idx_obj);
+        obj_mod.tcl_obj_release(idx_obj);
+        obj_mod.tcl_obj_release(current_obj);
+        current_obj = next_current;
+    }
+    obj_mod.tcl_obj_release(current_obj);
+    if (scratch_buf != 0) obj_mod.free_sized(scratch_buf, scratch_cap);
     return result;
 }
 
-// Get the matchable bytes for element at `idx`, optionally drilling
-// into a sub-element via `index_arg` (a TclObj whose string is either
-// a single index or a list of indices forming an -index PATH).
-// Returns (ep, elen, sub_idx) — sub_idx is the FIRST level's index
-// for the legacy ls_subindex_pair caller; multi-level subindices use
-// ls_subindex_path instead.
+// Get the matchable bytes for the search target at *idx*, optionally
+// drilling via an ``-index`` *path*.  ``stride`` distinguishes the two
+// shapes of the path:
+//
+//   * ``stride == 1``: ``idx`` selects the outer element; the FULL
+//     path drills into it.
+//   * ``stride > 1``: ``idx`` is the group start, ``path[0]``
+//     selects the element WITHIN the group (full position
+//     ``idx + path[0]``) and the rest of the path drills into that
+//     element.
+//
+// Returns (ep, elen, sub_idx) — sub_idx is the FIRST drill level's
+// index, retained for the legacy ``ls_subindex_pair`` caller.  Multi-
+// level subindices use :func:`ls_subindex_path` instead.
 fn ls_get_match_target(
     ls_ptr: u32,
     ls_len: u32,
     idx: i64,
     index_arg: i32,
-) struct { ep: u32, elen: u32, sub_idx: i64 } {
-    const outer_elem = rt.list_element_at(ls_ptr, ls_len, idx);
+    stride: i64,
+) struct { ep: u32, elen: u32, sub_idx: i64, scratch_buf: u32, scratch_cap: u32 } {
+    // Compute the outer position the search target belongs to.  With
+    // stride > 1 and a path, ``path[0]`` shifts the group-relative
+    // offset.
+    var outer_idx: i64 = idx;
+    var skip_first: bool = false;
+    if (stride > 1 and index_arg != 0) {
+        const ps_check = obj_ensure_string(index_arg);
+        if (ps_check.len > 0) {
+            const pc_check = rt.list_count_elements(ps_check.ptr, ps_check.len);
+            if (pc_check > 0) {
+                const zero_obj = obj_new_int(0);
+                const first_obj = rt.tcl_cmd_list_index(index_arg, zero_obj);
+                obj_mod.tcl_obj_release(zero_obj);
+                const offset = list_mod.resolve_list_index(first_obj, stride);
+                obj_mod.tcl_obj_release(first_obj);
+                outer_idx = idx + offset;
+                skip_first = true;
+            }
+        }
+    }
+    const outer_elem = rt.list_element_at(ls_ptr, ls_len, outer_idx);
     var outer_ptr: u32 = ls_ptr + outer_elem.start;
     var outer_len: u32 = outer_elem.len;
+    // Track the unbraced-decode scratch buffer so the caller can
+    // free it after consuming ``ep`` / ``elen`` — without this the
+    // alloc would leak on every ``lsearch -index`` step over an
+    // unbraced element.
+    var scratch_buf: u32 = 0;
+    var scratch_cap: u32 = 0;
     if (!outer_elem.braced and outer_len > 0) {
-        const buf = alloc(outer_len + 4);
+        const cap = outer_len + 4;
+        const buf = alloc(cap);
         if (buf != 0) {
             const n = rt.copy_unbraced_elem(buf, outer_ptr, outer_len);
             outer_ptr = buf;
             outer_len = n;
+            scratch_buf = buf;
+            scratch_cap = cap;
         }
     }
     if (index_arg == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
     // Treat index_arg as an -index PATH: a list of indices walked
     // depth-first.  Empty path / non-list values fall through to the
     // legacy single-index behaviour (one drill level).
     const ps = obj_ensure_string(index_arg);
     if (ps.len == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
     const path_count = rt.list_count_elements(ps.ptr, ps.len);
     if (path_count == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
-    // Build a TclObj for the outer element so tcl_cmd_list_index can
-    // recursively descend.  ``obj_new_string`` here points into the
-    // already-decoded scratch buffer, which is safe because the
-    // caller keeps it alive for the duration of the search.
+    // Drill into the element.  Every iteration creates fresh TclObjs
+    // (``p_obj`` / ``idx_obj`` / ``next``); release as we go so a
+    // search over a deep path doesn't leak one obj per level.
     var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
     var first_sub: i64 = 0;
-    var p: i64 = 0;
+    var p: i64 = if (skip_first) 1 else 0;
+    var first_recorded = false;
     while (p < path_count) : (p += 1) {
-        const idx_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(p));
+        const p_obj = obj_new_int(p);
+        const idx_obj = rt.tcl_cmd_list_index(index_arg, p_obj);
+        obj_mod.tcl_obj_release(p_obj);
         const cs = obj_ensure_string(current);
         const n_cur = rt.list_count_elements(cs.ptr, cs.len);
         const resolved = list_mod.resolve_list_index(idx_obj, n_cur);
-        if (p == 0) first_sub = resolved;
-        current = rt.tcl_cmd_list_index(current, idx_obj);
+        if (!first_recorded) {
+            first_sub = resolved;
+            first_recorded = true;
+        }
+        const next = rt.tcl_cmd_list_index(current, idx_obj);
+        obj_mod.tcl_obj_release(idx_obj);
+        obj_mod.tcl_obj_release(current);
+        current = next;
     }
+    // Copy the drilled bytes into a fresh caller-owned buffer
+    // (replacing the no-longer-needed unbraced-decode scratch),
+    // then release ``current``.  Without the copy the caller would
+    // hold a borrowed pointer into a TclObj we're about to free.
     const final_s = obj_ensure_string(current);
+    if (scratch_buf != 0) {
+        obj_mod.free_sized(scratch_buf, scratch_cap);
+        scratch_buf = 0;
+        scratch_cap = 0;
+    }
+    var out_ep: u32 = 0;
+    var out_elen: u32 = 0;
+    if (final_s.len > 0 and final_s.ptr != 0) {
+        const out_cap = final_s.len + 4;
+        const out_buf = alloc(out_cap);
+        if (out_buf != 0) {
+            const dst: [*]u8 = @ptrFromInt(out_buf);
+            const src: [*]const u8 = @ptrFromInt(final_s.ptr);
+            var k: u32 = 0;
+            while (k < final_s.len) : (k += 1) dst[k] = src[k];
+            out_ep = out_buf;
+            out_elen = final_s.len;
+            scratch_buf = out_buf;
+            scratch_cap = out_cap;
+        }
+    }
+    obj_mod.tcl_obj_release(current);
     return .{
-        .ep = final_s.ptr,
-        .elen = final_s.len,
+        .ep = out_ep,
+        .elen = out_elen,
         .sub_idx = first_sub,
+        .scratch_buf = scratch_buf,
+        .scratch_cap = scratch_cap,
     };
+}
+
+/// ``lsearch -bisect`` implementation.  The list is assumed sorted in
+/// ascending order (or descending when ``do_decreasing`` is set).
+/// Returns the highest index where the element compares ``<=`` (or
+/// ``>=`` for decreasing) the target under the active typing.  ``-1``
+/// when no element satisfies the predicate.  ``-inline`` / ``-stride``
+/// / ``-index`` interact the same way they do for the linear-search
+/// path: ``-inline`` returns the value, ``-stride > 1`` walks one
+/// group per step and the first ``-index`` element offsets within the
+/// group.
+///
+/// Mirrors the binary-search branch in reference Tcl 9
+/// ``Tcl_LsearchObjCmd`` (``tclCmdIL.c``, ``mode == SORTED`` /
+/// ``-bisect``): ``lower = start - groupSize``, ``upper = listc``,
+/// loop while ``lower + groupSize != upper``, midpoint aligned to
+/// the group boundary.  On exact match the bisect variant keeps
+/// raising ``lower`` to find the LAST equal element; when no exact
+/// match exists, the final ``lower`` is the highest index whose
+/// element compares ``<=`` (ascending) or ``>=`` (decreasing) the
+/// pattern.  O(log N) per call.
+fn do_lsearch_bisect(
+    ls_ptr: u32,
+    ls_len: u32,
+    n: i64,
+    pv_ptr: u32,
+    pv_len: u32,
+    start: i64,
+    stride: i64,
+    index_arg: i32,
+    cmp_kind: BisectCmp,
+    do_decreasing: bool,
+    do_inline: bool,
+    do_subindices: bool,
+) i32 {
+    var skip_first_path: bool = false;
+    var group_offset: i64 = 0;
+    if (stride > 1 and index_arg != 0) {
+        const ps = obj_ensure_string(index_arg);
+        if (ps.len > 0) {
+            const pc = rt.list_count_elements(ps.ptr, ps.len);
+            if (pc > 0) {
+                const zero_obj = obj_new_int(0);
+                const first_obj = rt.tcl_cmd_list_index(index_arg, zero_obj);
+                obj_mod.tcl_obj_release(zero_obj);
+                group_offset = list_mod.resolve_list_index(first_obj, stride);
+                obj_mod.tcl_obj_release(first_obj);
+                skip_first_path = true;
+            }
+        }
+    }
+
+    // ``best`` is the group start of an exact match (if any); ``-1``
+    // means no exact match was seen.  ``best_outer`` is the matching
+    // element's full position (``best + group_offset`` for stride > 1).
+    var best: i64 = -1;
+    var best_outer: i64 = -1;
+    // C Tcl: ``lower = start - groupSize``, ``upper = listc``.  The
+    // loop maintains the invariant that the answer (if any) is in
+    // ``(lower, upper)``.  Starting ``lower`` one group below the
+    // search-start lets a match at ``start`` itself remain reachable
+    // through the midpoint pivot.
+    var lower: i64 = start - stride;
+    var upper: i64 = n;
+    while (lower + stride != upper) {
+        // Midpoint, aligned to a group boundary.  ``@divTrunc``
+        // matches C integer division; the modulo subtraction lines
+        // up with ``i -= i % groupSize`` in tclCmdIL.c.
+        var i: i64 = @divTrunc(lower + upper, 2);
+        const rem = @mod(i, stride);
+        i -= rem;
+        // Group offset (``path[0]``) shifts the target inside the
+        // group.  For lsearch-26.* / 27.* the matcher compares
+        // against ``listv[i + groupOffset]``, NOT ``listv[i]``.
+        const outer_idx: i64 = i + group_offset;
+        if (outer_idx < 0 or outer_idx >= n) {
+            // Path[0] resolved outside the group's coverage — treat
+            // as no-match in the ascending direction.
+            if (!do_decreasing) upper = i else lower = i;
+            continue;
+        }
+        const t = ls_bisect_target(ls_ptr, ls_len, outer_idx, index_arg, skip_first_path);
+        // C convention: ``match = compare(pattern, target)`` returns
+        // positive when pattern > target.  Our ``bisect_compare`` has
+        // the same shape — first arg is the "a" side.
+        const match = bisect_compare(pv_ptr, pv_len, t.ep, t.elen, cmp_kind);
+        if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
+        if (match == 0) {
+            best = i;
+            best_outer = outer_idx;
+            // Bisect keeps searching higher to find the LAST equal.
+            lower = i;
+        } else if (match > 0) {
+            // pattern > target
+            if (!do_decreasing) lower = i else upper = i;
+        } else {
+            // pattern < target
+            if (!do_decreasing) upper = i else lower = i;
+        }
+    }
+    // No exact match — ``lower`` is the highest index whose element
+    // compares ``<=`` (ascending) or ``>=`` (decreasing) the pattern.
+    if (best < 0) {
+        if (lower < 0) {
+            if (do_inline) return obj_new_string(0, 0);
+            return obj_new_int(-1);
+        }
+        best = lower;
+        best_outer = lower + group_offset;
+    }
+    if (do_inline) {
+        const t = ls_bisect_target(ls_ptr, ls_len, best_outer, index_arg, skip_first_path);
+        const result = obj_mod.obj_new_string_copy(t.ep, t.elen);
+        if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
+        return result;
+    }
+    if (do_subindices) {
+        return ls_subindex_path(ls_ptr, ls_len, best, index_arg, stride);
+    }
+    return obj_new_int(best);
 }
 
 fn eval_lsearch(words: []const i32) result_mod.InterpResult {
@@ -895,9 +1515,13 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     var nocase = false;
     var do_inline = false;
     var start: i64 = 0;
+    var start_obj: i32 = 0; // -start argument TclObj (0 = not given)
     var stride: i64 = 1;
     var index_arg: i32 = 0; // -index argument TclObj (0 = not given)
     var do_subindices = false;
+    var do_bisect = false;
+    var do_decreasing = false;
+    var cmp_kind: BisectCmp = .string;
 
     const stubs = @import("../stubs/tcl_stubs.zig");
     var wi: u32 = 1;
@@ -925,19 +1549,28 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             do_inline = true;
         } else if (ls_opt_eq(sv.ptr, sv.len, "-subindices")) {
             do_subindices = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-bisect")) {
+            do_bisect = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-decreasing")) {
+            do_decreasing = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-integer")) {
+            cmp_kind = .integer;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-real")) {
+            cmp_kind = .real;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-dictionary")) {
+            cmp_kind = .dictionary;
         } else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
-            ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
-            ls_opt_eq(sv.ptr, sv.len, "-bisect") or
-            ls_opt_eq(sv.ptr, sv.len, "-integer") or
-            ls_opt_eq(sv.ptr, sv.len, "-real") or
-            ls_opt_eq(sv.ptr, sv.len, "-dictionary"))
+            ls_opt_eq(sv.ptr, sv.len, "-increasing") or
+            ls_opt_eq(sv.ptr, sv.len, "-ascii"))
         {
             // Recognised; fall back to linear search (correct result, slower).
         } else if (ls_opt_eq(sv.ptr, sv.len, "-start")) {
             wi += 1;
             if (wi + 1 >= words.len) break;
-            const v = obj_mod.obj_get_int(words[wi]);
-            start = if (v < 0) 0 else v;
+            // Resolve against the list length below, after we know
+            // ``n``.  ``-start end-N`` (lsearch-10.3) and ``-start
+            // 0xFF`` both need the list context.
+            start_obj = words[wi];
         } else if (ls_opt_eq(sv.ptr, sv.len, "-stride")) {
             wi += 1;
             if (wi + 1 >= words.len) break;
@@ -992,7 +1625,65 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
 
     const ls = obj_ensure_string(list_obj);
     const pv = obj_ensure_string(pat_obj);
+    // Validate the list arg before anything else.  Reference Tcl
+    // raises ``unmatched open brace in list`` / ``list element in
+    // braces followed by ...`` before searching; without the guard,
+    // ``lsearch "{" pat`` would silently scan the malformed string
+    // and return wrong results.
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
     const n = rt.list_count_elements(ls.ptr, ls.len);
+
+    // Validate every element of the ``-index`` path up front so a
+    // malformed element (``-index {0 b}``) raises the canonical
+    // ``bad index`` error before the search starts, instead of
+    // silently resolving to 0 via the ``obj_get_int`` fallback deep
+    // inside the drilling loops (``ls_bisect_target`` /
+    // ``ls_get_match_target`` / ``ls_subindex_path``).
+    if (index_arg != 0) {
+        const ips = obj_ensure_string(index_arg);
+        if (ips.len > 0) {
+            const ipc = rt.list_count_elements(ips.ptr, ips.len);
+            var ki: i64 = 0;
+            while (ki < ipc) : (ki += 1) {
+                const k_obj = obj_new_int(ki);
+                const elem_obj = rt.tcl_cmd_list_index(index_arg, k_obj);
+                obj_mod.tcl_obj_release(k_obj);
+                if (!list_mod.is_valid_list_index(elem_obj)) {
+                    list_mod.raise_bad_list_index(elem_obj);
+                    obj_mod.tcl_obj_release(elem_obj);
+                    return result_mod.from_globals(0);
+                }
+                obj_mod.tcl_obj_release(elem_obj);
+            }
+        }
+    }
+
+    // Resolve ``-start`` now that ``n`` is known.  Reference Tcl
+    // accepts ``end[-+]N`` and integer arithmetic here (lsearch-10.3
+    // / 10.4 / 10.5).  Negative resolutions clamp to 0.
+    // Validate the index syntax first so ``-start b`` raises the
+    // canonical ``bad index "b"`` error instead of silently
+    // resolving to 0 via the ``obj_get_int`` fallback.
+    if (start_obj != 0) {
+        if (!list_mod.is_valid_list_index(start_obj)) {
+            list_mod.raise_bad_list_index(start_obj);
+            return result_mod.from_globals(0);
+        }
+        const v = list_mod.resolve_list_index(start_obj, n);
+        start = if (v < 0) 0 else v;
+    }
+
+    // ``-bisect`` uses a separate search path — the list is assumed
+    // sorted in the direction implied by ``-increasing`` / ``-decreasing``
+    // and the return value is the highest index whose element
+    // compares ``<=`` (ascending) or ``>=`` (decreasing) the target
+    // under the active ``-integer`` / ``-real`` / ``-dictionary`` /
+    // ``-ascii`` typing.  ``-1`` when no element satisfies the
+    // predicate.  Matches reference Tcl semantics for lsearch-22.*.
+    if (do_bisect) {
+        return result_mod.from_globals(do_lsearch_bisect(ls.ptr, ls.len, n, pv.ptr, pv.len, start, stride, index_arg, cmp_kind, do_decreasing, do_inline, do_subindices));
+    }
 
     // Align idx to the first stride group that covers [start, n).
     var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
@@ -1048,7 +1739,7 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     } else {
         // -index path: random-access (lists using -index are typically small).
         while (idx < n) : (idx += stride) {
-            const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg);
+            const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg, stride);
             const raw: bool = switch (mode) {
                 'e' => ls_match_exact(nocase, pv.ptr, pv.len, t.ep, t.elen),
                 'r' => blk: {
@@ -1061,18 +1752,27 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
                     tcl_str.glob_match(pv.ptr, pv.len, t.ep, t.elen),
             };
             const matched = if (negate) !raw else raw;
-            if (!matched) continue;
+            if (!matched) {
+                if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
+                continue;
+            }
             if (!find_all) {
-                if (do_inline) return result_mod.from_globals(obj_new_string(@bitCast(t.ep), @bitCast(t.elen)));
-                if (do_subindices) return result_mod.from_globals(ls_subindex_path(idx, index_arg));
-                return result_mod.from_globals(obj_new_int(idx));
+                const result_obj: i32 = if (do_inline)
+                    obj_mod.obj_new_string_copy(t.ep, t.elen)
+                else if (do_subindices)
+                    ls_subindex_path(ls.ptr, ls.len, idx, index_arg, stride)
+                else
+                    obj_new_int(idx);
+                if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
+                return result_mod.from_globals(result_obj);
             }
             const entry: i32 = if (do_inline)
-                obj_new_string(@bitCast(t.ep), @bitCast(t.elen))
+                obj_mod.obj_new_string_copy(t.ep, t.elen)
             else if (do_subindices)
-                ls_subindex_path(idx, index_arg)
+                ls_subindex_path(ls.ptr, ls.len, idx, index_arg, stride)
             else
                 obj_new_int(idx);
+            if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
             acc = list_mod.tcl_cmd_lappend(acc, entry);
         }
     }
@@ -1083,8 +1783,31 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lrange(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 4) return result_mod.from_globals(rt.tcl_cmd_list_range(words[1], words[2], words[3]));
-    return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len != 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lrange list first last\"");
+        return result_mod.from_globals(0);
+    }
+    // Validate list syntax — raises ``unmatched open brace in list``
+    // / ``list element in quotes followed by ... instead of space`` /
+    // ``list element in braces followed by ... instead of space``
+    // when *list* is malformed.  Reference Tcl: ``Tcl_LrangeObjCmd``
+    // calls ``TclListObjGetElements`` which fails before any index
+    // resolution.
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // Validate index syntax — ``lrange L b 6`` must raise ``bad
+    // index "b"`` rather than silently treating ``b`` as 0.
+    if (!list_mod.is_valid_list_index(words[2])) {
+        list_mod.raise_bad_list_index(words[2]);
+        return result_mod.from_globals(0);
+    }
+    if (!list_mod.is_valid_list_index(words[3])) {
+        list_mod.raise_bad_list_index(words[3]);
+        return result_mod.from_globals(0);
+    }
+    return result_mod.from_globals(rt.tcl_cmd_list_range(words[1], words[2], words[3]));
 }
 
 fn eval_concat(words: []const i32) result_mod.InterpResult {

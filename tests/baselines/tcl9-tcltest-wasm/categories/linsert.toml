@@ -1,6 +1,6 @@
 # linsert.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '5 of 28 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 28
-observed_passed = 23
-observed_failed = 5
+observed_passed = 28
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["linsert-1.10", "linsert-2.2", "linsert-2.3", "linsert-2.4", "linsert-2.6"]
