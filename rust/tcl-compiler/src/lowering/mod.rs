@@ -9,6 +9,8 @@
 use std::collections::HashMap;
 
 use tcl_lexer::TokenType;
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::alias::{detect_interp_alias, resolve_alias, CommandAliasMap};
@@ -656,6 +658,75 @@ impl<'r> Lowerer<'r> {
         })
     }
 
+    /// Try to dispatch *`cmd_name`* through the registry's typed
+    /// [`LoweringHookId`] for structured commands that have
+    /// migrated off the `match cmd_name` block in
+    /// [`lower_command`](Self::lower_command).  Returns
+    /// `Some(stmt)` when the hook ID matches a migrated form;
+    /// returns `None` otherwise so `lower_command` falls back to
+    /// its remaining string-pattern arms.
+    ///
+    /// C43 migration sequencing: each structured command form
+    /// migrates as its own sub-commit per the chunk-log row's
+    /// "each command form's hook lands as its own sub-commit"
+    /// directive.  This commit covers `eval` and `uplevel` —
+    /// simple, dialect-agnostic single-method dispatch.
+    ///
+    /// The migrated forms pick up two benefits over the string
+    /// match:
+    ///
+    /// 1. Canonical resolution via [`CommandRegistry::resolve_call`]
+    ///    instead of bare name comparison, so any future spec
+    ///    that aliases an existing form (e.g. an iRules-specific
+    ///    `eval` variant) automatically dispatches correctly
+    ///    when its `lowering_hook` is stamped.
+    /// 2. The hook ID is the canonical key consumed by downstream
+    ///    audit / LSP / compiler-explorer surfaces; once the
+    ///    runtime path also routes through it, the registry is
+    ///    the single source of truth for "what does this form
+    ///    lower to".
+    fn try_dispatch_structured_hook(
+        &mut self,
+        cmd_name: &str,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Option<Statement> {
+        let args = seg.args();
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let resolved = self
+            .registry
+            .resolve_call(cmd_name, &arg_refs, DialectSet::empty())?;
+        match resolved.lowering_hook? {
+            // C34a: static-body uplevel.  Match `uplevel 1 {body}`,
+            // `uplevel #0 {body}`, and the canonical no-level form
+            // `uplevel {body}` (level defaults to 1) when the body
+            // arg is a brace-string literal token.  Dynamic forms
+            // (`uplevel 1 $body` / `uplevel $lvl {body}`) fall
+            // through to the default lowering so a runtime
+            // `Call` / `Barrier` carries the unresolved arguments.
+            LoweringHookId::Uplevel => Some(
+                self.try_lower_uplevel_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
+            // C35b: `eval $body` / `eval {body}` with a literal /
+            // const-folded body relaxes to a `Statement::Block` so
+            // downstream analyses see the inlined script.  Dynamic
+            // bodies (`eval $dyn` with no const-map binding,
+            // `eval [cmd]`) fall through to the default barrier
+            // dispatch.
+            LoweringHookId::Eval => Some(
+                self.try_lower_eval_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
+            // Other structured hooks not yet migrated — fall
+            // through to the string-pattern match in
+            // `lower_command`.
+            _ => None,
+        }
+    }
+
     /// Lower a single command.
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
@@ -691,6 +762,16 @@ impl<'r> Lowerer<'r> {
             return Some(barrier);
         }
 
+        // C43: registry-driven hook-ID dispatch for structured
+        // command forms that have migrated off the string-pattern
+        // match below.  Currently covers `eval` and `uplevel`;
+        // other forms (proc, when, if, switch, for, while,
+        // foreach, lmap, catch, try, dict, namespace eval) still
+        // resolve via the `match cmd_name` block.
+        if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
+            return Some(stmt);
+        }
+
         // C43 status: the registry now declares a typed
         // `LoweringHookId` for every structured command spec
         // (Proc / When / NamespaceEval / If / Switch / For /
@@ -698,15 +779,15 @@ impl<'r> Lowerer<'r> {
         // Uplevel).  Downstream consumers (LSP, compiler explorer,
         // coverage audit) can read the canonical hook from the
         // registry instead of re-parsing names.  Runtime dispatch
-        // still flows through the string-pattern match below — the
-        // structured methods need `&mut self` access to the const-
-        // map / proc-depth / dead-code-depth state, and switching
-        // to a registry-driven runtime path requires the iRules
-        // dialect to always be loaded (test harnesses use
-        // `build_default()` without `load_irules()`, so `when`
-        // isn't registered there).  The migration to a
-        // hook-ID-driven runtime dispatch lands as a follow-up
-        // sub-strip once the registry-load path is unified.
+        // for the remaining (non-migrated) forms still flows
+        // through the string-pattern match below — the structured
+        // methods need `&mut self` access to the const-map /
+        // proc-depth / dead-code-depth state, and switching the
+        // iRules `when` form to registry-driven dispatch requires
+        // the iRules dialect to always be loaded (test harnesses
+        // use `build_default()` without `load_irules()`, so `when`
+        // isn't registered there).  Per-form migration to
+        // hook-ID-driven dispatch lands as its own sub-strip.
         match cmd_name {
             "proc" if args.len() == 3 && seg.arg_tokens().len() >= 3 => {
                 Some(self.lower_proc(seg, namespace))
@@ -719,28 +800,6 @@ impl<'r> Lowerer<'r> {
             "namespace" if args.len() >= 3 && args[0] == "eval" && seg.arg_tokens().len() >= 3 => {
                 Some(self.lower_namespace_eval(seg, namespace))
             }
-
-            // C34a: static-body uplevel. Match `uplevel 1 {body}`,
-            // `uplevel #0 {body}`, and the canonical no-level form
-            // `uplevel {body}` (level defaults to 1) when the body
-            // arg is a brace-string literal token. Dynamic forms
-            // (``uplevel 1 $body`` / ``uplevel $lvl {body}``) fall
-            // through to the default lowering so a runtime ``Call`` /
-            // ``Barrier`` carries the unresolved arguments.
-            "uplevel" => Some(
-                self.try_lower_uplevel_static(seg, namespace)
-                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
-            ),
-
-            // C35b: ``eval $body`` / ``eval {body}`` with a literal /
-            // const-folded body relaxes to a ``Statement::Block`` so
-            // downstream analyses see the inlined script. Dynamic
-            // bodies (``eval $dyn`` with no const-map binding, ``eval
-            // [cmd]``) fall through to the default barrier dispatch.
-            "eval" => Some(
-                self.try_lower_eval_static(seg, namespace)
-                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
-            ),
 
             "if" => Some(self.lower_if(seg, namespace)),
             "switch" => Some(self.lower_switch(seg, namespace)),
@@ -2352,6 +2411,52 @@ mod tests {
         assert!(
             matches!(stmt, Statement::Block { .. }),
             "expected Block (relaxed), got {stmt:?}",
+        );
+    }
+
+    // C43 first sub-strip: `eval` and `uplevel` migrate to
+    // registry-driven hook-ID dispatch.  The next three tests
+    // confirm the new path produces the same output the string-
+    // pattern arms used to produce.
+
+    #[test]
+    fn registry_dispatch_eval_static_body_lowers_to_block() {
+        // `eval {body}` with a literal body should still relax
+        // to `Statement::Block` when dispatched through the
+        // registry-driven path.
+        let m = lower_to_ir("eval { set y 2 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Block { .. }),
+            "expected Block via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_uplevel_static_body_lowers_to_upframe() {
+        // `uplevel 1 {body}` with a literal body should lower
+        // to a UpFrame via the registry-driven path.
+        let m = lower_to_ir("uplevel 1 { set z 3 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::UpFrame { .. }),
+            "expected UpFrame via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_unmigrated_form_falls_through_to_string_match() {
+        // `if` hasn't migrated to registry-driven dispatch yet, so
+        // it must still produce `Statement::If` via the string-
+        // pattern fallback in `lower_command`.  This pins the
+        // backward-compatibility contract: the registry-driven
+        // dispatcher returning `None` for unmigrated hooks lets
+        // the string match handle them.
+        let m = lower_to_ir("if {1} { set q 4 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::If { .. }),
+            "expected If via string-pattern fallback, got {stmt:?}",
         );
     }
 }
