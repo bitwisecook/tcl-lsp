@@ -116,9 +116,12 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
     // sits on the format-string argument of a known
     // format-bearing command, surface a markdown table of the
     // specifiers it contains.  Currently covers `clock format`
-    // / `clock scan`.
+    // / `clock scan` and `format` / `scan`.
     if let Some(text) = clock_format_string_at_position(source, line, character) {
         return Some(Hover::markdown(clock_format_hover_text(&text)));
+    }
+    if let Some(text) = sprintf_format_string_at_position(source, line, character) {
+        return Some(Hover::markdown(sprintf_format_hover_text(&text)));
     }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
@@ -235,37 +238,130 @@ fn clock_format_hover_text(text: &str) -> String {
     parts.join("\n")
 }
 
-/// Detect when the cursor sits on a `clock format` /
-/// `clock scan` format-string argument and return the
-/// literal text.  Single-line only — multi-line literals
-/// are deferred.
-fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+/// `printf`-style format-specifier descriptions for
+/// sprintf-hover.  Mirrors `_SPRINTF_SPEC_DESC` in
+/// `lsp/features/hover.py:234-253`.
+const SPRINTF_SPEC_DESC: &[(char, &str)] = &[
+    ('d', "Signed decimal integer"),
+    ('i', "Signed decimal integer"),
+    ('u', "Unsigned decimal integer"),
+    ('o', "Unsigned octal integer"),
+    ('x', "Unsigned hexadecimal (lowercase)"),
+    ('X', "Unsigned hexadecimal (uppercase)"),
+    ('f', "Floating-point (fixed notation)"),
+    ('e', "Floating-point (scientific, lowercase)"),
+    ('E', "Floating-point (scientific, uppercase)"),
+    ('g', "Shorter of %e or %f"),
+    ('G', "Shorter of %E or %f"),
+    ('s', "String"),
+    ('c', "Character (by Unicode code point)"),
+    ('%', "Literal percent sign"),
+    ('b', "Unsigned binary integer"),
+    ('B', "Unsigned binary integer (alternate form)"),
+    ('a', "Double hex fraction (lowercase)"),
+    ('A', "Double hex fraction (uppercase)"),
+];
+
+fn sprintf_spec_desc(letter: char) -> Option<&'static str> {
+    SPRINTF_SPEC_DESC
+        .iter()
+        .find(|(c, _)| *c == letter)
+        .map(|(_, d)| *d)
+}
+
+/// Scan `text` for sprintf-style format specifiers.  Captures
+/// the full specifier as written, e.g. `%05d` or `%-10s`.
+/// Mirrors `_SPRINTF_RE` (`%[positional$]?[flags]*[width]?[.prec]?[type]`)
+/// in `lsp/features/_semantic_tokens/_format_args.py`.
+fn scan_sprintf_specifiers(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        // Positional argument `<digit>+$`.
+        let digits_start = i;
+        while i < chars.len() && chars[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i < chars.len() && chars[i] == '$' && i > digits_start {
+            i += 1;
+        } else {
+            // Roll back — those digits were flags / width.
+            i = digits_start;
+        }
+        // Flags: `-` / `+` / ` ` / `#` / `0`.
+        while i < chars.len() && matches!(chars[i], '-' | '+' | ' ' | '#' | '0') {
+            i += 1;
+        }
+        // Width.
+        while i < chars.len() && chars[i].is_ascii_digit() {
+            i += 1;
+        }
+        // Precision.
+        if i < chars.len() && chars[i] == '.' {
+            i += 1;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+        // Type character.
+        if i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '%') {
+            i += 1;
+            out.push(chars[start..i].iter().collect());
+        }
+    }
+    out
+}
+
+/// Render a markdown table of sprintf-style specifiers in
+/// `text`.  Mirrors `_sprintf_hover` in
+/// `lsp/features/hover.py:567-590`.
+fn sprintf_format_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Format string** (sprintf-style)\n".to_string()];
+    let specs = scan_sprintf_specifiers(text);
+    if specs.is_empty() {
+        parts.push("No specifiers found.".to_string());
+    } else {
+        parts.push("| Specifier | Meaning |".to_string());
+        parts.push("|-----------|---------|".to_string());
+        for spec in specs {
+            let type_char = spec.chars().last().unwrap_or(' ');
+            let desc = sprintf_spec_desc(type_char).unwrap_or("Unknown");
+            parts.push(format!("| `{spec}` | {desc} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on a `format` / `scan`
+/// format-string argument and return the literal text.
+/// `format <fmtString> ?arg arg ...?` — the first arg is the
+/// format.  Single-line context only.
+fn sprintf_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
-    // Tokenise the line on whitespace — the first two tokens
-    // must be `clock format` or `clock scan` for the hover to
-    // fire.  This is the same single-line context detection
-    // used by `signature_help` / `completion`; multi-line
-    // command segments lift later (gated on the same
-    // multi-line-aware machinery `S-signature-help-rich`
-    // defers).
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.len() < 3 {
+    if tokens.is_empty() {
         return None;
     }
-    if tokens[0] != "clock" || (tokens[1] != "format" && tokens[1] != "scan") {
+    if tokens[0] != "format" && tokens[0] != "scan" {
         return None;
     }
-    // The format string is the LAST string-literal argument
-    // for `clock format` (`clock format $time -format "%Y..."`)
-    // or the SECOND-LAST for `clock scan` style.  Python uses
-    // a registry-driven arg-role lookup; the minimal version
-    // here picks the first literal that contains `%` and
-    // overlaps the cursor.
-    // Walk the line again with chars to compute column spans.
+    string_literal_with_percent_at(line_text, character)
+}
+
+/// Find a `"..."` or `{...}` literal that contains `character`
+/// AND has at least one `%` in it.  Helper shared between
+/// `clock_format_string_at_position` and
+/// `sprintf_format_string_at_position`.
+fn string_literal_with_percent_at(line_text: &str, character: u32) -> Option<String> {
     let chars: Vec<char> = line_text.chars().collect();
     let col = (character as usize).min(chars.len());
-    // Find the literal span containing the cursor.  Recognise
-    // `"..."` and `{...}` literal delimiters.
     let mut i = 0;
     while i < chars.len() {
         let opener = chars[i];
@@ -292,6 +388,29 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
         i = end + 1;
     }
     None
+}
+
+/// Detect when the cursor sits on a `clock format` /
+/// `clock scan` format-string argument and return the
+/// literal text.  Single-line only — multi-line literals
+/// are deferred.
+fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    // Tokenise the line on whitespace — the first two tokens
+    // must be `clock format` or `clock scan` for the hover to
+    // fire.  This is the same single-line context detection
+    // used by `signature_help` / `completion`; multi-line
+    // command segments lift later (gated on the same
+    // multi-line-aware machinery `S-signature-help-rich`
+    // defers).
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.len() < 3 {
+        return None;
+    }
+    if tokens[0] != "clock" || (tokens[1] != "format" && tokens[1] != "scan") {
+        return None;
+    }
+    string_literal_with_percent_at(line_text, character)
 }
 
 /// Find the word and its `[start, end)` columns at the given
@@ -759,6 +878,80 @@ mod tests {
         assert!(
             h.value.contains("Clock format string"),
             "expected clock hover, got: {value}",
+            value = h.value,
+        );
+    }
+
+    // -- S-hover-rich: sprintf format hover --------------------------
+
+    #[test]
+    fn scan_sprintf_specifiers_finds_basic_types() {
+        let s = scan_sprintf_specifiers("%d - %s : %x");
+        assert_eq!(s, vec!["%d", "%s", "%x"]);
+    }
+
+    #[test]
+    fn scan_sprintf_specifiers_captures_width_and_precision() {
+        let s = scan_sprintf_specifiers("%05d %-10s %.3f");
+        assert_eq!(s, vec!["%05d", "%-10s", "%.3f"]);
+    }
+
+    #[test]
+    fn scan_sprintf_specifiers_captures_positional() {
+        let s = scan_sprintf_specifiers("%1$s %2$d");
+        assert_eq!(s, vec!["%1$s", "%2$d"]);
+    }
+
+    #[test]
+    fn scan_sprintf_specifiers_handles_literal_percent() {
+        let s = scan_sprintf_specifiers("%% done");
+        assert_eq!(s, vec!["%%"]);
+    }
+
+    #[test]
+    fn sprintf_format_hover_renders_specifier_table() {
+        let text = sprintf_format_hover_text("%d - %s");
+        assert!(text.contains("**Format string** (sprintf-style)"), "{text}");
+        assert!(text.contains("| `%d` | Signed decimal integer |"), "{text}");
+        assert!(text.contains("| `%s` | String |"), "{text}");
+    }
+
+    #[test]
+    fn sprintf_format_hover_handles_empty_format() {
+        let text = sprintf_format_hover_text("no specifiers here");
+        assert!(text.contains("No specifiers found"), "{text}");
+    }
+
+    #[test]
+    fn sprintf_format_string_at_position_detects_braced_literal() {
+        let src = "format {%d items} $count\n";
+        let found = sprintf_format_string_at_position(src, 0, 10);
+        assert_eq!(found.as_deref(), Some("%d items"));
+    }
+
+    #[test]
+    fn sprintf_format_string_at_position_detects_quoted_literal() {
+        let src = "format \"%d\" 42\n";
+        let found = sprintf_format_string_at_position(src, 0, 9);
+        assert_eq!(found.as_deref(), Some("%d"));
+    }
+
+    #[test]
+    fn sprintf_format_string_at_position_skips_non_format_commands() {
+        let src = "puts \"%d\"\n";
+        let found = sprintf_format_string_at_position(src, 0, 7);
+        assert!(found.is_none(), "{found:?}");
+    }
+
+    #[test]
+    fn hover_fires_for_sprintf_specifier() {
+        let src = "format {%d items} $count\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let h = hover(src, 0, 10, &analysis).expect("hover");
+        assert!(
+            h.value.contains("Format string"),
+            "expected sprintf hover, got: {value}",
             value = h.value,
         );
     }
