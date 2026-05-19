@@ -29,6 +29,11 @@ use std::borrow::Cow;
 /// render. The Python reference implementation produces lone-surrogate
 /// `str` objects in those edge cases; Rust `String` cannot, so we pick
 /// the closest valid-UTF-8 approximation.
+///
+/// `\u`-escaped high-surrogate codepoints (U+D800–U+DBFF) immediately
+/// followed by a `\u`-escaped low surrogate (U+DC00–U+DFFF) combine
+/// into the single supplementary-plane codepoint they encode, matching
+/// Tcl 9 `tclParse.c::TclParseBackslash`.
 #[must_use]
 pub fn backslash_subst(text: &str) -> Cow<'_, str> {
     if !text.contains('\\') {
@@ -61,7 +66,7 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
             }
             '\n' | '\r' => consume_line_continuation(&mut out, escape_ch, &mut chars),
             'x' => scan_hex_escape(&mut out, text, escape_i, 2, &mut chars),
-            'u' => scan_hex_escape(&mut out, text, escape_i, 4, &mut chars),
+            'u' => scan_unicode_escape(&mut out, text, escape_i, &mut chars),
             'U' => scan_hex_escape(&mut out, text, escape_i, 8, &mut chars),
             '0'..='7' => scan_octal_escape(&mut out, text, escape_i, &mut chars),
             _ => {
@@ -98,6 +103,55 @@ fn consume_line_continuation(out: &mut String, first: char, chars: &mut CharIndi
         }
     }
     out.push(' ');
+}
+
+/// Parse `\uHHHH` (1–4 hex digits) and, when the parsed codepoint is a
+/// high surrogate immediately followed by a `\uLLLL` low surrogate,
+/// combine the pair into the supplementary-plane codepoint they
+/// encode.  Mirrors the Tcl 9 `TclParseBackslash` behaviour the
+/// Python reference implementation gained in PR #426.
+fn scan_unicode_escape(
+    out: &mut String,
+    text: &str,
+    escape_i: usize,
+    chars: &mut CharIndices<'_>,
+) {
+    let letter = chars.next().expect("caller peeked 'u'").1;
+    let digits_start = escape_i + 1;
+    let digits_end = scan_digits(text, digits_start, 4, chars, |c| c.is_ascii_hexdigit());
+    if digits_end == digits_start {
+        out.push(letter);
+        return;
+    }
+    let digits = &text[digits_start..digits_end];
+    let value = u32::from_str_radix(digits, 16).expect("hex digits parse");
+
+    // Surrogate-pair combining: if `value` is a high surrogate and the
+    // next six bytes are `\u` + 4 hex digits encoding a low surrogate,
+    // emit the combined supplementary-plane codepoint.  The lookahead
+    // peeks at raw bytes — backslash, `u`, and hex digits are all
+    // ASCII so byte-level slicing is on character boundaries.
+    if (0xD800..=0xDBFF).contains(&value) && text.len() >= digits_end + 6 {
+        let bytes = text.as_bytes();
+        let ok_prefix = bytes[digits_end] == b'\\' && bytes[digits_end + 1] == b'u';
+        let low_digits = &bytes[digits_end + 2..digits_end + 6];
+        let ok_hex = low_digits.iter().all(u8::is_ascii_hexdigit);
+        if ok_prefix && ok_hex {
+            let low_str = &text[digits_end + 2..digits_end + 6];
+            let low = u32::from_str_radix(low_str, 16).expect("hex digits parse");
+            if (0xDC00..=0xDFFF).contains(&low) {
+                let combined = 0x10000 + ((value - 0xD800) << 10) + (low - 0xDC00);
+                out.push(char::from_u32(combined).unwrap_or('\u{FFFD}'));
+                // Advance past the consumed `\uLLLL` (6 ASCII bytes = 6 chars).
+                for _ in 0..6 {
+                    chars.next();
+                }
+                return;
+            }
+        }
+    }
+
+    out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
 }
 
 fn scan_hex_escape(
@@ -252,6 +306,63 @@ mod tests {
     #[test]
     fn wide_unicode_escape() {
         assert_eq!(subst(r"\U0001F600"), "\u{1F600}");
+    }
+
+    #[test]
+    fn surrogate_pair_combines() {
+        // U+1F600 GRINNING FACE = D83D + DE00 (UTF-16 surrogate pair).
+        let input = "\\u".to_owned() + "D83D" + "\\u" + "DE00";
+        assert_eq!(subst(&input), "\u{1F600}");
+        // U+10000 = D800 + DC00 (smallest supplementary codepoint).
+        let input = "\\u".to_owned() + "D800" + "\\u" + "DC00";
+        assert_eq!(subst(&input), "\u{10000}");
+        // U+10FFFF (max valid codepoint) = DBFF + DFFF.
+        let input = "\\u".to_owned() + "DBFF" + "\\u" + "DFFF";
+        assert_eq!(subst(&input), "\u{10FFFF}");
+    }
+
+    #[test]
+    fn surrogate_pair_with_surrounding_text() {
+        // The combine path needs to advance the iterator past the
+        // consumed low-surrogate escape; verify trailing chars
+        // still appear in the output.
+        let input = "pre".to_owned() + "\\u" + "D83D" + "\\u" + "DE00" + "post";
+        assert_eq!(subst(&input), format!("pre{}post", '\u{1F600}'));
+    }
+
+    #[test]
+    fn lone_high_surrogate_falls_back_to_replacement() {
+        // No following \u — first surrogate maps to U+FFFD; the
+        // trailing literal text passes through.
+        let input = "\\u".to_owned() + "D800x";
+        assert_eq!(subst(&input), "\u{FFFD}x");
+    }
+
+    #[test]
+    fn high_surrogate_followed_by_non_low_surrogate_does_not_combine() {
+        // \uD800 (high surrogate) followed by ASCII 'A' — high
+        // surrogate is invalid on its own and becomes U+FFFD.
+        let input = "\\u".to_owned() + "D800A";
+        assert_eq!(subst(&input), "\u{FFFD}A");
+    }
+
+    #[test]
+    fn high_surrogate_followed_by_unicode_escape_not_a_low_surrogate() {
+        // \uD800 + A — the second escape is valid but not a low
+        // surrogate, so the pair does not combine.
+        let input = "\\u".to_owned() + "D800" + "\\u" + "0041";
+        assert_eq!(subst(&input), "\u{FFFD}A");
+    }
+
+    #[test]
+    fn surrogate_pair_with_short_low_unit_does_not_combine() {
+        // The low-surrogate unit must be exactly 4 hex digits.  Three
+        // digits then 'x' means the second \u parses as \uDE0 (a
+        // 3-digit unicode escape = U+0DE0, not a surrogate), then 'x'
+        // — and the combine condition (exactly 4 trailing hex digits)
+        // fails so the high surrogate also degrades to U+FFFD.
+        let input = "\\u".to_owned() + "D800" + "\\u" + "DE0x";
+        assert_eq!(subst(&input), "\u{FFFD}\u{0DE0}x");
     }
 
     #[test]
