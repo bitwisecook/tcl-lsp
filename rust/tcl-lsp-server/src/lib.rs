@@ -129,6 +129,15 @@ pub struct Backend {
     /// `S-workspace-symbols-rich` extends this by scanning
     /// folder contents on disk).
     workspace_folders: Mutex<Vec<Url>>,
+    /// Optional per-folder dialect override map keyed on the
+    /// folder URL prefix (typically `file://...`).  Populated
+    /// from the `initializationOptions.folderDialects` JSON
+    /// object when present.  `S-workspace-init` / `SYNC-MAY19-
+    /// dialect-contextvar`: enables multi-folder workspaces
+    /// with mixed dialects to parse correctly by selecting the
+    /// longest-prefix folder's dialect when a document is
+    /// opened.
+    folder_dialects: Mutex<Vec<(Url, String)>>,
     /// Cached `AnalysisResult` per document, populated by
     /// `did_open` / `did_change` and consumed by request
     /// handlers that previously re-analysed on every call.
@@ -164,6 +173,7 @@ impl Backend {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
+            folder_dialects: Mutex::new(Vec::new()),
             analyses: Mutex::new(HashMap::new()),
         }
     }
@@ -210,17 +220,46 @@ impl Backend {
     /// Resolve the dialect string a freshly opened document should
     /// be tagged with.
     ///
-    /// Prefer a dialect derived from the LSP ``languageId`` field
-    /// (so ``"tcl-irule"``/``"f5-irules"``/``"tcl9.0"``/etc. set the
-    /// per-document dialect without relying on
-    /// ``workspace/didChangeConfiguration``).  Fall back to the
-    /// session-wide ``default_dialect`` when the language id does
-    /// not name a known dialect.
-    async fn dialect_for_open(&self, language_id: &str) -> String {
+    /// Resolution order (`SYNC-MAY19-dialect-contextvar`):
+    ///
+    /// 1. The LSP ``languageId`` field — when it names a known
+    ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl9.0"``
+    ///    / etc.), use it directly.
+    /// 2. The per-folder override map (`folder_dialects`) — when
+    ///    the document URI sits under one of the configured folder
+    ///    URLs, use the deepest-matching folder's dialect.
+    /// 3. The session-wide ``default_dialect`` fallback.
+    async fn dialect_for_open(&self, uri: &Url, language_id: &str) -> String {
         if let Some(d) = Self::dialect_from_language_id(language_id) {
             return d.to_owned();
         }
+        if let Some(d) = self.resolve_folder_dialect(uri).await {
+            return d;
+        }
         self.default_dialect.lock().await.clone()
+    }
+
+    /// Look up the per-folder dialect override for `uri`,
+    /// preferring the deepest (longest-prefix) match so nested
+    /// folders shadow their parents.
+    async fn resolve_folder_dialect(&self, uri: &Url) -> Option<String> {
+        let folders = self.folder_dialects.lock().await;
+        let mut best: Option<(usize, &str)> = None;
+        let target = uri.as_str();
+        for (folder, dialect) in folders.iter() {
+            let prefix = folder.as_str();
+            if !target.starts_with(prefix) {
+                continue;
+            }
+            let take = match best {
+                Some((len, _)) => prefix.len() > len,
+                None => true,
+            };
+            if take {
+                best = Some((prefix.len(), dialect));
+            }
+        }
+        best.map(|(_, d)| d.to_owned())
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
@@ -421,6 +460,35 @@ impl LanguageServer for Backend {
         } else if let Some(root) = &params.root_uri {
             *self.workspace_folders.lock().await = vec![root.clone()];
         }
+        // `SYNC-MAY19-dialect-contextvar`: parse the
+        // `folderDialects` object from `initializationOptions`
+        // (when present) so multi-folder workspaces can mix
+        // dialects.  Shape: `{ "folderDialects": { "file:///path":
+        // "f5-irules", "file:///other": "tcl9.0" } }`.  Unknown
+        // dialect names are dropped silently rather than
+        // failing the whole initialise.
+        if let Some(opts) = &params.initialization_options {
+            let folder_map = opts
+                .as_object()
+                .and_then(|m| m.get("folderDialects"))
+                .and_then(serde_json::Value::as_object);
+            if let Some(entries) = folder_map {
+                let mut parsed: Vec<(Url, String)> = Vec::new();
+                for (folder_url, dialect_val) in entries {
+                    let Ok(url) = Url::parse(folder_url) else {
+                        continue;
+                    };
+                    let Some(dialect) = dialect_val.as_str() else {
+                        continue;
+                    };
+                    if DialectSet::parse(dialect).is_none() {
+                        continue;
+                    }
+                    parsed.push((url, dialect.to_owned()));
+                }
+                *self.folder_dialects.lock().await = parsed;
+            }
+        }
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -508,7 +576,10 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let dialect = self
-            .dialect_for_open(&params.text_document.language_id)
+            .dialect_for_open(
+                &params.text_document.uri,
+                &params.text_document.language_id,
+            )
             .await;
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
@@ -1837,6 +1908,76 @@ mod tests {
         assert!(
             kids[0].children.is_none(),
             "leaf symbol's empty children must lift to None",
+        );
+    }
+
+    /// Build a fresh `Backend` for unit tests that only
+    /// exercise the dialect-resolution helpers.  `Client`
+    /// isn't publicly constructible, so we build via
+    /// `LspService::new` and copy the wrapped `Client` into a
+    /// fresh `Backend` with reset state.
+    fn test_backend() -> Backend {
+        let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        Backend {
+            client: service.inner().client.clone(),
+            documents: Mutex::new(HashMap::new()),
+            default_dialect: Mutex::new("tcl8.6".to_owned()),
+            dialect_registries: Mutex::new(HashMap::new()),
+            workspace_folders: Mutex::new(Vec::new()),
+            folder_dialects: Mutex::new(Vec::new()),
+            analyses: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_folder_dialect_picks_deepest_prefix() {
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![
+            (
+                Url::parse("file:///workspace/").unwrap(),
+                "tcl9.0".to_owned(),
+            ),
+            (
+                Url::parse("file:///workspace/irules/").unwrap(),
+                "f5-irules".to_owned(),
+            ),
+        ];
+        let inside =
+            Url::parse("file:///workspace/irules/rule.tcl").expect("parse target uri");
+        assert_eq!(
+            backend.resolve_folder_dialect(&inside).await,
+            Some("f5-irules".to_owned()),
+        );
+        let outside_irules =
+            Url::parse("file:///workspace/main.tcl").expect("parse target uri");
+        assert_eq!(
+            backend.resolve_folder_dialect(&outside_irules).await,
+            Some("tcl9.0".to_owned()),
+        );
+        let unrelated = Url::parse("file:///elsewhere/x.tcl").unwrap();
+        assert_eq!(backend.resolve_folder_dialect(&unrelated).await, None);
+    }
+
+    #[tokio::test]
+    async fn dialect_for_open_falls_back_to_folder_dialect() {
+        let backend = test_backend();
+        *backend.folder_dialects.lock().await = vec![(
+            Url::parse("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let doc = Url::parse("file:///workspace/main.tcl").unwrap();
+        // A `tcl` language id maps to `tcl8.6` directly, so the
+        // folder override is *not* consulted (language_id is the
+        // most specific signal we have).
+        assert_eq!(
+            backend.dialect_for_open(&doc, "tcl").await,
+            "tcl8.6".to_owned(),
+        );
+        // An unknown language id (`plaintext`) lets the folder
+        // override take effect.
+        assert_eq!(
+            backend.dialect_for_open(&doc, "plaintext").await,
+            "f5-irules".to_owned(),
         );
     }
 }
