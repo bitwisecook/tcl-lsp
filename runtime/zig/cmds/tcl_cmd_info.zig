@@ -2075,6 +2075,30 @@ fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) 
     return obj.obj_new_string_take(buf, merge_total, merge_total);
 }
 
+/// ``info globals ?pattern?`` — list global variables (the root
+/// namespace's variables).  Mirrors Tcl 9's ``Tcl_InfoGlobalsCmd``
+/// in tclCmdIL.c: same shape as ``info vars`` at the top level but
+/// always anchored at the global ns regardless of the caller's
+/// current namespace, and arrays as well as scalars are included.
+///
+/// Used by the safe-interp test set (safe-6.1, safe-6.3) which
+/// expects a fresh ``interp create -safe`` to expose the standard
+/// ``tcl_*`` globals seeded by :func:`seed_child_globals`.
+pub fn info_globals(pattern: i32) i32 {
+    var pat_ptr: u32 = 0;
+    var pat_len: u32 = 0;
+    var has_pattern = false;
+    if (pattern != 0) {
+        const ps = obj_ensure_string(pattern);
+        if (ps.len > 0) {
+            pat_ptr = ps.ptr;
+            pat_len = ps.len;
+            has_pattern = true;
+        }
+    }
+    return root_namespace_names_matching(pat_ptr, pat_len, has_pattern);
+}
+
 // -- Dispatch --------------------------------------------------------------
 
 /// Dispatch for 'info' command — one-word / two-word cases.  The
@@ -2158,6 +2182,7 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub_l, "level")) return info_level(arg);
     if (str_eq(sp, sub_l, "script")) return info_script();
     if (str_eq(sp, sub_l, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub_l, "globals")) return info_globals(arg);
     if (str_eq(sp, sub_l, "constant")) return info_constant(arg);
     if (str_eq(sp, sub_l, "consts")) return info_consts(arg);
     if (str_eq(sp, sub_l, "locals")) {

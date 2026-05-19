@@ -80,6 +80,25 @@ def _tcl9_test_file(name: str) -> Path:
     return p
 
 
+def _tcl9_library_root() -> Path | None:
+    """Return path to the Tcl 9 ``library/`` source tree, or None if missing.
+
+    The harness preopens this directory at guest ``/library`` so
+    bundles can resolve ``[info library]`` + ``file exists`` checks
+    against the real upstream library (safe-stock.test's opt /
+    cookiejar discovery, ``source [file join $tcl_library X]`` in
+    other tests).  ``WasiConfig.preopen_dir`` grants the bundle
+    capability-scoped access to this directory; we rely on the
+    bundles not writing into it rather than on the host preopen
+    enforcing read-only perms — the test corpus is read-only by
+    construction, and any accidental write would land in the
+    checked-out source tree.
+    """
+    tests_dir = ensure_tcl_source("9.0")
+    p = tests_dir.parent / "library"
+    return p if p.exists() else None
+
+
 def _tcl9_opt_library() -> Path | None:
     """Return path to Tcl 9's optparse.tcl, or None if missing.
 
@@ -119,8 +138,14 @@ set ::argv {}
 set ::argv0 ""
 set ::argc 0
 set ::tcl_interactive 0
-set ::auto_path {}
-set ::tcl_library ""
+# ``tcl_library`` points at the C Tcl 9 ``library/`` tree that
+# :func:`_tcl9_library_root` preopens at guest ``/library``.  Bundles
+# that resolve ``[info library]`` + ``file exists`` (safe-stock.test
+# discovering ``opt`` / ``cookiejar``, source-based ``[file join $tcl_library X]``
+# lookups elsewhere) hit the real upstream Tcl library files instead
+# of trapping with ``cannot find opt library`` at bundle setup.
+set ::tcl_library /library
+set ::auto_path [list /library]
 # Seed ::env with the handful of variables tcltest bundles probe at
 # load time.  chanio.test / io.test / fCmd.test all read ``::env(HOME)``
 # inside a ``testConstraint`` body that runs *before* any individual
@@ -705,12 +730,25 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
             src_path = helpers_dir / helper
             if src_path.exists():
                 shutil.copyfile(src_path, Path(host_tmp) / helper)
+        # Preopen the C Tcl ``library/`` tree at guest ``/library`` so
+        # ``[info library]`` lookups and ``file exists`` probes hit
+        # real upstream files (see :func:`_tcl9_library_root`).  No
+        # copy — the tree is shared via wasmtime's capability-bound
+        # preopen.  ``preopen_dir`` grants normal read/write access
+        # to the host directory; we rely on the bundles being well-
+        # behaved (they don't write to ``$tcl_library``) rather than
+        # on the host preopen enforcing read-only perms.
+        extra_preopens: list[tuple[str, str]] = []
+        lib_root = _tcl9_library_root()
+        if lib_root is not None:
+            extra_preopens.append((str(lib_root), "/library"))
         try:
             result = _run_wasm(
                 wasm,
                 capture_stdout=True,
                 capture_stderr=True,
                 preopen_tmpdir=host_tmp,
+                extra_preopens=tuple(extra_preopens),
             )
         except Exception as trap:
             pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
@@ -782,8 +820,17 @@ class TestTcltest9Init:
             pytest.skip(f"Tcl 9 tcltest.tcl does not yet compile: {exc}")
 
         with tempfile.TemporaryDirectory(prefix="tcl9test-init-") as host_tmp:
+            extra_preopens: list[tuple[str, str]] = []
+            lib_root = _tcl9_library_root()
+            if lib_root is not None:
+                extra_preopens.append((str(lib_root), "/library"))
             try:
-                result = _run_wasm(wasm, capture_stderr=True, preopen_tmpdir=host_tmp)
+                result = _run_wasm(
+                    wasm,
+                    capture_stderr=True,
+                    preopen_tmpdir=host_tmp,
+                    extra_preopens=tuple(extra_preopens),
+                )
             except Exception as trap:
                 stderr_text = getattr(trap, "tcl_stderr", "")
                 record_tcl9_result(
@@ -1008,6 +1055,16 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         src_path = helpers_dir / helper
                         if src_path.exists():
                             shutil.copyfile(src_path, Path(host_tmp) / helper)
+                    # See :func:`_tcl9_library_root` — capability-bound
+                    # share of the C Tcl 9 ``library/`` tree at guest
+                    # ``/library``.  Drives ``[info library]`` /
+                    # ``[file exists [file join $tcl_library …]]``
+                    # checks (safe-stock.test, source-based package
+                    # lookups elsewhere).
+                    extra_preopens: list[tuple[str, str]] = []
+                    lib_root = _tcl9_library_root()
+                    if lib_root is not None:
+                        extra_preopens.append((str(lib_root), "/library"))
                     # 45s wasmtime epoch watchdog: most healthy
                     # bundles finish in under 5s, the slowest non-pathological
                     # one (interp.test) takes ~12s.  A 45s cap surfaces
@@ -1021,6 +1078,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         capture_stdout=True,
                         capture_stderr=True,
                         preopen_tmpdir=host_tmp,
+                        extra_preopens=tuple(extra_preopens),
                         timeout_s=45,
                     )
                 ran = True
