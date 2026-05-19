@@ -758,6 +758,30 @@ impl<'r> Lowerer<'r> {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
 
+        // Empty-simple-name procs (`proc ::ns:: {args} {body}`): Tcl
+        // 9 lets a trailing `::` register a command named `""` inside
+        // the target namespace (`TclGetNamespaceForQualName` returns
+        // `simpleName=""` rather than NULL for trailing colons on
+        // cmd/var lookups — tclNamesp.c:2493).  Our static
+        // `normalise_qualified_name` strips the trailing colons
+        // (`"a::".split("::")` filters the empty trailing element),
+        // so an AOT-lifted empty-name proc would register under the
+        // namespace name itself — a different command than the
+        // runtime lookup needs.  Route the whole shape through the
+        // runtime `proc` builtin via `Statement::Barrier`.  Carries
+        // namespace-old-1.27 / 2.1 / 2.2 and namespace-14.11.
+        // Mirrors `core/compiler/lowering.py` after PR #430.
+        if proc_name_initial.ends_with("::") {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: "empty-simple-name proc".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        }
+
         // Dynamic proc names: a bare ``$var`` whose value is in the
         // const-map can be resolved at lowering time (C36b — main
         // commit `2ad4efc9`). Multi-token names (``foo_$x``) and
@@ -1766,6 +1790,46 @@ mod tests {
             matches!(last, Statement::Barrier { .. }),
             "expected Barrier, got {last:?}"
         );
+    }
+
+    #[test]
+    fn proc_with_trailing_colons_routes_through_barrier() {
+        // Tcl 9 ``proc ::ns:: {args} {body}`` registers a command
+        // named ``""`` inside ``::ns``.  Static normalisation would
+        // strip the trailing ``::`` and register the proc under the
+        // namespace name itself — wrong cmd.  Route through
+        // Statement::Barrier so the runtime ``proc`` builtin handles
+        // the registration.  PR #430 (3ff02ff2).
+        let m = lower_to_ir("proc ::ns:: {a b} { puts $a$b }", &reg());
+        // No procedure entry should have been AOT-registered under
+        // ``::ns`` (which is what the bug would produce) or any
+        // empty-key variant.
+        assert!(
+            !m.procedures.contains_key("::ns")
+                && !m.procedures.contains_key("::ns::")
+                && !m.procedures.contains_key(""),
+            "trailing-:: proc should not be AOT-registered; got {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        // The top-level statement should be a Barrier with the
+        // empty-simple-name reason.
+        let top = m
+            .top_level
+            .statements
+            .last()
+            .expect("at least one top-level statement");
+        match top {
+            Statement::Barrier {
+                reason, command, ..
+            } => {
+                assert_eq!(command, "proc");
+                assert!(
+                    reason.contains("empty-simple-name"),
+                    "unexpected barrier reason: {reason}"
+                );
+            }
+            other => panic!("expected Statement::Barrier, got {other:?}"),
+        }
     }
 
     #[test]
