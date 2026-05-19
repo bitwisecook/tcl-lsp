@@ -79,6 +79,21 @@ pub struct CompletionItem {
 /// registry surfaces at the same cursor contexts.  Returns an
 /// empty vector when there is no useful suggestion (delimiter
 /// run, EOF, etc.).
+///
+/// The trigger contexts checked in order:
+///
+/// 1. **Variable trigger** (`$prefix` / `${prefix}`) — short-
+///    circuits to global-scope variable names.
+/// 2. **Switch completion** — when the partial starts with `-`
+///    and the surrounding command's spec declares matching
+///    options.  Requires `registry`.
+/// 3. **Subcommand completion** — when the cursor is at word
+///    index 1 (i.e. the first argument of a command) and the
+///    surrounding command's spec declares subcommands.
+///    Requires `registry`.
+/// 4. **Command + proc completion** — default fallback:
+///    user-defined procs from `analysis.all_procs`, plus all
+///    built-in commands the `registry` knows about.
 #[must_use]
 pub fn completions(
     source: &str,
@@ -91,6 +106,34 @@ pub fn completions(
         return variable_completions(&analysis.global_scope, &partial, trigger);
     }
     let partial = word_partial_at_position(source, line, character);
+
+    // Context-aware completions — switch + subcommand.  Both
+    // require the caller-provided registry to look up the
+    // surrounding command's spec.  Without a registry we
+    // can't tell which switches / subcommands are valid, so
+    // fall through to plain command + proc completion.
+    if let Some(registry) = registry {
+        if let Some((cmd, word_idx)) = command_context_on_line(source, line, character) {
+            if let Some(spec) = registry.get(&cmd) {
+                // Switch completion fires when the identifier
+                // partial is preceded by a literal `-` on the
+                // line.  `word_partial_at_position` stops at the
+                // dash (it's not an identifier char), so detect
+                // the dash here and rebuild the switch partial.
+                if let Some(switch_partial) =
+                    switch_partial_at_position(source, line, character, &partial)
+                {
+                    if !spec.options.is_empty() {
+                        return switch_completions(spec, &switch_partial);
+                    }
+                }
+                if word_idx == 1 && !spec.subcommands.is_empty() {
+                    return subcommand_completions(spec, &partial);
+                }
+            }
+        }
+    }
+
     let mut items = proc_completions(analysis, &partial);
     if let Some(registry) = registry {
         items.extend(builtin_completions(registry, &partial));
@@ -183,6 +226,112 @@ fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<Comp
         });
     }
     items
+}
+
+/// Determine the surrounding command's name and the cursor's
+/// word index on the current line.  Returns `(command,
+/// word_index)` where `word_index` is the 0-based position of
+/// the cursor (0 = typing the command name, 1 = typing the
+/// first argument, etc.).
+///
+/// **Single-line context only.**  Continuation lines, embedded
+/// `[…]` / `{…}` token nesting, and `;` command separators are
+/// deferred to the same multi-line-aware machinery
+/// `S-signature-help-rich` will eventually land — see
+/// `core/parsing/find_command_context_*` for the Python
+/// reference.  The single-line approach covers the common
+/// editor cases (cursor on the same logical line as the
+/// command head) and shares its shape with the single-line
+/// helper in [`crate::signature_help`].
+fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, usize)> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let prefix: String = chars[..col].iter().collect();
+
+    // Tokenise on whitespace.  The first token is the command;
+    // the count of subsequent tokens (adjusted for whether the
+    // cursor sits mid-token) gives the word index.
+    let tokens: Vec<&str> = prefix.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let command = tokens[0].to_owned();
+
+    // If the prefix ends with whitespace the cursor is *between*
+    // tokens — at the start of a fresh word.  Otherwise the
+    // cursor is inside the last token.
+    let ends_in_space = prefix.ends_with(|c: char| c.is_whitespace());
+    let word_index = if ends_in_space {
+        tokens.len()
+    } else {
+        tokens.len().saturating_sub(1)
+    };
+    Some((command, word_index))
+}
+
+/// Detect a `-switch` partial at the cursor.  Returns
+/// `Some(switch_partial)` (including the leading dash) when
+/// the character immediately preceding the identifier run
+/// before the cursor is a `-`; returns `None` otherwise.
+///
+/// `partial` is the identifier-only partial computed by
+/// [`word_partial_at_position`]; the helper reconstructs the
+/// switch-aware partial by prepending the dash without
+/// re-walking the line.
+fn switch_partial_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    partial: &str,
+) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let start = col.checked_sub(partial.chars().count())?;
+    if start == 0 {
+        return None;
+    }
+    if chars[start - 1] != '-' {
+        return None;
+    }
+    Some(format!("-{partial}"))
+}
+
+fn switch_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
+    let mut names: Vec<&str> = spec
+        .options
+        .iter()
+        .map(|opt| opt.name)
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| CompletionItem {
+            label: name.to_owned(),
+            insert_text: name.to_owned(),
+            kind: CompletionKind::Function,
+        })
+        .collect()
+}
+
+fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
+    let mut names: Vec<&str> = spec
+        .subcommands
+        .iter()
+        .map(|sub| sub.name)
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| CompletionItem {
+            label: name.to_owned(),
+            insert_text: name.to_owned(),
+            kind: CompletionKind::Function,
+        })
+        .collect()
 }
 
 /// Math operators that the registry registers as commands
@@ -436,5 +585,142 @@ mod tests {
                 "variable trigger should suppress built-ins; got {it:?}",
             );
         }
+    }
+
+    // -- S-completion-rich: subcommand completion --------------------
+    //
+    // When the cursor sits at word-index 1 of a known command
+    // whose spec declares non-empty `subcommands`, the
+    // completion surface lists subcommand names (not user procs
+    // or unrelated built-ins).
+
+    #[test]
+    fn subcommand_completion_surfaces_subcommands_at_word_index_1() {
+        // `string l` — partial `l`, cursor at word-index 1 of
+        // `string`.  The registry declares many `string`
+        // subcommands; expect `length` and similar `l*` ones.
+        let src = "string l\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 8, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"length"),
+            "expected `length` subcommand; got {labels:?}",
+        );
+        // No proc / unrelated commands should leak through.
+        assert!(
+            !labels.contains(&"puts"),
+            "subcommand context should not include `puts`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_lists_all_subcommands_with_empty_partial() {
+        // `string ` (cursor just past the space) — empty partial,
+        // word-index 1 of `string`.  Should list every `string`
+        // subcommand, alphabetically.
+        let src = "string \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // `string` has at minimum `length`, `match`, `range`,
+        // `tolower`, `toupper` across all dialects.
+        assert!(labels.contains(&"length"), "{labels:?}");
+        assert!(labels.contains(&"match"), "{labels:?}");
+        // Should be sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted, "expected sorted subcommands");
+    }
+
+    #[test]
+    fn subcommand_completion_falls_through_when_word_index_not_1() {
+        // `string length f` — cursor at word-index 2 (after
+        // `length` argument).  Subcommand completion should NOT
+        // fire; we fall through to command + proc completion
+        // (which would surface built-ins like `foreach`,
+        // `format`, etc.).
+        let src = "string length f\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Some f-prefixed command should surface (foreach,
+        // format, file…), confirming we fell through.
+        assert!(
+            labels.iter().any(|l| l.starts_with('f')),
+            "expected at least one f-prefixed command via fallback; got {labels:?}",
+        );
+        // String's `length` subcommand should NOT be in the
+        // result — we're past word-index 1.
+        assert!(
+            !labels.contains(&"length"),
+            "should not surface `length` subcommand at word-index 2; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_skipped_when_command_has_no_subcommands() {
+        // `puts hel` — `puts` declares no subcommands, so we
+        // should fall through to command + proc completion (and
+        // ideally find no commands starting with `hel`).
+        let src = "proc helper {} {}\nputs hel\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 8, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // The user proc `helper` should surface (fallback path).
+        assert!(
+            labels.contains(&"helper"),
+            "expected `helper` proc via fallback; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: switch completion ------------------------
+    //
+    // When the partial starts with `-` and the surrounding
+    // command's spec declares matching options, the completion
+    // surface lists option names (not subcommands or built-ins).
+
+    #[test]
+    fn switch_completion_surfaces_options_for_dash_partial() {
+        // `lsearch -n` — partial `-n`.  The `lsearch` spec
+        // declares many `-...` options; expect at least one
+        // starting with `-n` (`-nocase`).
+        let src = "lsearch -n\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 10, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with("-n")),
+            "expected at least one `-n*` switch; got {labels:?}",
+        );
+        // No unrelated commands / procs.
+        assert!(
+            !labels.iter().any(|l| !l.starts_with('-')),
+            "all switch-completion items must start with '-'; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_lists_all_options_for_bare_dash() {
+        // `lsearch -` — partial `-`, every option should
+        // surface.
+        let src = "lsearch -\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 9, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Every result must start with `-`.
+        for l in &labels {
+            assert!(l.starts_with('-'), "non-switch in result: {l}");
+        }
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
     }
 }
