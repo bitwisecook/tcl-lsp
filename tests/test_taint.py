@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from compiler.registry.taint_hints import TaintColour
 from compiler.taint import (
     TaintLattice,
     TaintWarning,
     find_taint_warnings,
     taint_join,
 )
-from core.commands.registry.taint_hints import TaintColour
 
 
 def _codes(source: str) -> list[str]:
@@ -400,7 +400,7 @@ class TestIRulesOutputSinks:
     """Tainted data in HTTP responses should warn in iRules dialect."""
 
     def test_http_respond_tainted_body(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -411,7 +411,7 @@ class TestIRulesOutputSinks:
         assert "HTTP::respond" in ws[0].sink_command
 
     def test_http_respond_literal_clean(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -421,7 +421,7 @@ class TestIRulesOutputSinks:
         assert len(ws) == 0
 
     def test_http_header_insert_tainted(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -432,7 +432,7 @@ class TestIRulesOutputSinks:
         assert "header" in ws[0].sink_command.lower()
 
     def test_http_header_remove_clean(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -442,7 +442,7 @@ class TestIRulesOutputSinks:
         assert len(ws) == 0
 
     def test_http_cookie_insert_tainted(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -452,7 +452,7 @@ class TestIRulesOutputSinks:
         assert len(ws) >= 1
 
     def test_not_in_tcl86_dialect(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         ws = _taint_warnings(
@@ -469,7 +469,7 @@ class TestLogInjection:
     """Tainted data in log commands should warn in iRules dialect."""
 
     def test_log_tainted_data(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -480,14 +480,14 @@ class TestLogInjection:
         assert "log" in ws[0].sink_command
 
     def test_log_literal_clean(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings('log local0. "static message"', "IRULE3003")
         assert len(ws) == 0
 
     def test_log_not_in_tcl86(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         ws = _taint_warnings(
@@ -875,7 +875,7 @@ class TestCrlfFree:
 
     def test_ip_client_addr_augments_crlf_free(self):
         """IP::client_addr → augmented with CRLF_FREE; suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -886,7 +886,7 @@ class TestCrlfFree:
 
     def test_tcp_client_port_augments_crlf_free(self):
         """TCP::client_port → augmented with CRLF_FREE; suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -897,7 +897,7 @@ class TestCrlfFree:
 
     def test_ssl_sni_augments_crlf_free(self):
         """SSL::sni (FQDN) → augmented with CRLF_FREE; suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -908,7 +908,7 @@ class TestCrlfFree:
 
     def test_uri_encode_adds_crlf_free(self):
         """URI::encode strips CR/LF; suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -919,7 +919,7 @@ class TestCrlfFree:
 
     def test_html_encode_adds_crlf_free(self):
         """HTML::encode strips CR/LF; suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -930,7 +930,7 @@ class TestCrlfFree:
 
     def test_generic_taint_irule3003_still_warns(self):
         """Generic tainted data in log without CRLF_FREE still fires."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -941,7 +941,7 @@ class TestCrlfFree:
 
     def test_crlf_free_suppresses_irule3002(self):
         """CRLF_FREE value in header insert suppresses IRULE3002."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -953,7 +953,7 @@ class TestCrlfFree:
 
     def test_crlf_free_survives_safe_concat(self):
         """CRLF_FREE from IP addr survives safe prefix/suffix interpolation."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -964,7 +964,7 @@ class TestCrlfFree:
 
     def test_interpolation_without_crlf_preserves(self):
         """Interpolation without literal CRLF preserves CRLF_FREE."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1183,7 +1183,7 @@ class TestHtmlEscaped:
 
     def test_html_encode_produces_colour(self):
         """HTML::encode adds HTML_ESCAPED colour."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1194,7 +1194,7 @@ class TestHtmlEscaped:
 
     def test_generic_taint_irule3001_fires(self):
         """Generic taint in HTTP::respond body fires IRULE3001."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1205,7 +1205,7 @@ class TestHtmlEscaped:
 
     def test_interpolation_invalidates_html_escaped(self):
         """Interpolation destroys HTML_ESCAPED — IRULE3001 fires again."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1218,7 +1218,7 @@ class TestHtmlEscaped:
 
     def test_html_escaped_propagates_through_copy(self):
         """HTML_ESCAPED propagates through variable copy."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1230,7 +1230,7 @@ class TestHtmlEscaped:
 
     def test_html_encode_also_sets_crlf_free(self):
         """HTML::encode also adds CRLF_FREE — suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1241,7 +1241,7 @@ class TestHtmlEscaped:
 
     def test_html_encode_recognised_as_sanitiser(self):
         """html_encode (portable helper) produces HTML_ESCAPED colour."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1252,7 +1252,7 @@ class TestHtmlEscaped:
 
     def test_html_encode_produces_crlf_free(self):
         """html_encode also adds CRLF_FREE — suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1317,7 +1317,7 @@ class TestUrlEncoded:
 
     def test_uri_encode_also_sets_crlf_free(self):
         """URI::encode adds both URL_ENCODED and CRLF_FREE."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1338,7 +1338,7 @@ class TestHeaderTokenSafe:
 
     def test_crlf_free_in_header_value_suppresses_irule3002(self):
         """CRLF_FREE in value position of HTTP::header insert suppresses."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1349,7 +1349,7 @@ class TestHeaderTokenSafe:
 
     def test_crlf_free_in_cookie_value_suppresses_irule3002(self):
         """CRLF_FREE in cookie value suppresses IRULE3002."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1360,7 +1360,7 @@ class TestHeaderTokenSafe:
 
     def test_generic_taint_in_header_value_warns(self):
         """Generic taint in header value position fires IRULE3002."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         ws = _taint_warnings(
@@ -1480,7 +1480,7 @@ class TestInterproceduralColours:
 
     def test_helper_returning_uri_encode_suppresses_irule3003(self):
         """Proc that URI::encode's its arg returns CRLF_FREE."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = """\
@@ -1494,7 +1494,7 @@ log local0. $safe
 
     def test_helper_returning_html_encode_suppresses_irule3001(self):
         """Proc that HTML::encode's its arg returns HTML_ESCAPED."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = """\
@@ -1542,7 +1542,7 @@ puts $lst
 
     def test_helper_with_ip_addr_param_augmented(self):
         """Proc receiving IP_ADDRESS param still has augmented colours."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = """\
@@ -1574,7 +1574,7 @@ class TestInterpolationColourInvalidation:
 
     def test_html_escaped_stripped(self):
         """HTML_ESCAPED lost on interpolation."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -1605,7 +1605,7 @@ class TestInterpolationColourInvalidation:
 
     def test_crlf_free_preserved_without_literal_crlf(self):
         """CRLF_FREE preserved when interpolation adds no literal CR/LF."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set addr [IP::client_addr]\nset msg "client:${addr}"\nlog local0. $msg'
@@ -1660,7 +1660,7 @@ class TestSinkSuppressionMatrix:
 
     def test_irule3001_not_suppressed_by_crlf_free(self):
         """CRLF_FREE does NOT suppress IRULE3001 (XSS)."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set raw [HTTP::query]\nset enc [URI::encode $raw]\nHTTP::respond 200 content $enc"
@@ -1669,7 +1669,7 @@ class TestSinkSuppressionMatrix:
 
     def test_irule3001_suppressed_by_html_escaped(self):
         """HTML_ESCAPED suppresses IRULE3001."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -1680,7 +1680,7 @@ class TestSinkSuppressionMatrix:
 
     def test_irule3002_suppressed_by_ip_address(self):
         """IP_ADDRESS (augmented CRLF_FREE) suppresses IRULE3002."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set addr [IP::client_addr]\nHTTP::header insert X-Client $addr"
@@ -1689,7 +1689,7 @@ class TestSinkSuppressionMatrix:
 
     def test_irule3002_suppressed_by_port(self):
         """PORT (augmented CRLF_FREE) suppresses IRULE3002."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set port [TCP::client_port]\nHTTP::header insert X-Port $port"
@@ -1698,7 +1698,7 @@ class TestSinkSuppressionMatrix:
 
     def test_irule3003_suppressed_by_fqdn(self):
         """FQDN (augmented CRLF_FREE) suppresses IRULE3003."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set sni [SSL::sni]\nlog local0. $sni"
@@ -1732,7 +1732,7 @@ class TestT100SinkSuppression:
 
     def test_exec_with_shell_atom_suppressed(self):
         """exec with SHELL_ATOM tainted data → T100 suppressed."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         # IP::client_addr produces IP_ADDRESS which augments to SHELL_ATOM
@@ -1772,7 +1772,7 @@ class TestT100SinkSuppression:
 
     def test_subst_not_suppressed_by_shell_atom(self):
         """subst is never suppressed by SHELL_ATOM."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set addr [IP::client_addr]\nsubst $addr"
@@ -1787,7 +1787,7 @@ class TestT100SinkSuppression:
 
     def test_exec_with_port_suppressed(self):
         """exec with PORT tainted data → T100 suppressed (PORT augments to SHELL_ATOM)."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set port [TCP::client_port]\nexec firewall-cmd $port"
@@ -1861,7 +1861,7 @@ class TestPathNormalisedSetterConstraint:
 
     def test_path_normalised_suppresses_irule3101(self):
         """file normalize → PATH_NORMALISED → IRULE3101 suppressed."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set raw [HTTP::uri]\nset norm [file normalize $raw]\nHTTP::uri $norm"
@@ -1870,7 +1870,7 @@ class TestPathNormalisedSetterConstraint:
 
     def test_generic_taint_still_fires_irule3101(self):
         """Generic tainted variable without PATH_NORMALISED → IRULE3101 fires."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set raw [HTTP::query]\nHTTP::uri $raw"
@@ -1879,7 +1879,7 @@ class TestPathNormalisedSetterConstraint:
 
     def test_path_prefixed_still_suppresses_irule3101(self):
         """PATH_PREFIXED (existing behaviour) still suppresses IRULE3101."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set path [HTTP::path]\nHTTP::uri $path"
@@ -1895,7 +1895,7 @@ class TestIrule3004OpenRedirect:
 
     def test_tainted_redirect_fires(self):
         """Generic tainted data in HTTP::redirect fires IRULE3004."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set dest [HTTP::query]\nHTTP::redirect $dest"
@@ -1905,7 +1905,7 @@ class TestIrule3004OpenRedirect:
 
     def test_tainted_header_redirect_fires(self):
         """Tainted header value in redirect fires IRULE3004."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set url [HTTP::header value Redirect-To]\nHTTP::redirect $url"
@@ -1914,7 +1914,7 @@ class TestIrule3004OpenRedirect:
 
     def test_path_prefixed_suppresses_irule3004(self):
         """PATH_PREFIXED (relative redirect) suppresses IRULE3004."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set p [HTTP::path]\nHTTP::redirect $p"
@@ -1923,7 +1923,7 @@ class TestIrule3004OpenRedirect:
 
     def test_path_normalised_suppresses_irule3004(self):
         """PATH_NORMALISED suppresses IRULE3004."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set raw [HTTP::query]\nset norm [file normalize $raw]\nHTTP::redirect $norm"
@@ -1932,7 +1932,7 @@ class TestIrule3004OpenRedirect:
 
     def test_html_escaped_does_not_suppress_irule3004(self):
         """HTML_ESCAPED is wrong encoding for redirect — doesn't suppress."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nHTTP::redirect $safe"
@@ -1941,7 +1941,7 @@ class TestIrule3004OpenRedirect:
 
     def test_literal_redirect_clean(self):
         """Literal redirect URL produces no warning."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'HTTP::redirect "https://example.com/home"'
@@ -1950,7 +1950,7 @@ class TestIrule3004OpenRedirect:
 
     def test_not_in_tcl86(self):
         """IRULE3004 only fires in iRules dialect."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         source = "set dest [read $fd]\nHTTP::redirect $dest"
@@ -1959,7 +1959,7 @@ class TestIrule3004OpenRedirect:
 
     def test_message_format(self):
         """IRULE3004 message includes variable name and command."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = "set url [HTTP::query]\nHTTP::redirect $url"
@@ -2129,7 +2129,7 @@ class TestIrule3103UriSplit:
 
     def test_split_uri_on_question_mark(self):
         """Splitting HTTP::uri on '?' fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset parts [split $uri "?"]'
@@ -2140,7 +2140,7 @@ class TestIrule3103UriSplit:
 
     def test_split_uri_on_ampersand(self):
         """Splitting HTTP::uri on '&' fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset parts [split $uri "&"]'
@@ -2150,7 +2150,7 @@ class TestIrule3103UriSplit:
 
     def test_split_uri_on_question_and_ampersand(self):
         """Splitting HTTP::uri on '?&' fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset parts [split $uri "?&"]'
@@ -2161,7 +2161,7 @@ class TestIrule3103UriSplit:
 
     def test_inline_command_substitution(self):
         """Inline [HTTP::uri] in split fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set parts [split [HTTP::uri] "?"]'
@@ -2170,7 +2170,7 @@ class TestIrule3103UriSplit:
 
     def test_split_non_uri_clean(self):
         """Splitting a non-HTTP::uri variable does not fire IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set x "foo?bar"\nset parts [split $x "?"]'
@@ -2179,7 +2179,7 @@ class TestIrule3103UriSplit:
 
     def test_split_http_path_clean(self):
         """Splitting HTTP::path on '?' does not fire IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set p [HTTP::path]\nset parts [split $p "?"]'
@@ -2188,7 +2188,7 @@ class TestIrule3103UriSplit:
 
     def test_split_uri_on_slash_clean(self):
         """Splitting HTTP::uri on '/' does not fire IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset parts [split $uri "/"]'
@@ -2197,7 +2197,7 @@ class TestIrule3103UriSplit:
 
     def test_copy_propagation(self):
         """Tracing through a variable copy still detects HTTP::uri."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset copy $uri\nset parts [split $copy "?"]'
@@ -2206,7 +2206,7 @@ class TestIrule3103UriSplit:
 
     def test_tcl_dialect_clean(self):
         """Non-iRules dialect does not fire IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         source = 'set x "foo"\nset parts [split $x "?"]'
@@ -2215,7 +2215,7 @@ class TestIrule3103UriSplit:
 
     def test_uri_setter_not_flagged(self):
         """HTTP::uri setter form (with arg) is not a getter origin."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'HTTP::uri "/new"\nset parts [split [HTTP::uri /path] "?"]'
@@ -2228,7 +2228,7 @@ class TestIrule3103ExprOperators:
 
     def test_starts_with_path_pattern(self):
         """HTTP::uri starts_with '/api' fires IRULE3103 suggesting HTTP::path."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] starts_with "/api" } { log local0. x }'
@@ -2239,7 +2239,7 @@ class TestIrule3103ExprOperators:
 
     def test_starts_with_via_variable(self):
         """Variable tracing: $uri starts_with '/api' fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nif { $uri starts_with "/api" } { log local0. x }'
@@ -2249,7 +2249,7 @@ class TestIrule3103ExprOperators:
 
     def test_ends_with_extension(self):
         """HTTP::uri ends_with '.html' fires IRULE3103 suggesting HTTP::path."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] ends_with ".html" } { log local0. x }'
@@ -2259,7 +2259,7 @@ class TestIrule3103ExprOperators:
 
     def test_contains_query_param(self):
         """HTTP::uri contains '&key=' fires IRULE3103 suggesting HTTP::query."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] contains "&key=" } { log local0. x }'
@@ -2269,7 +2269,7 @@ class TestIrule3103ExprOperators:
 
     def test_contains_equals_query(self):
         """HTTP::uri contains 'param=val' fires IRULE3103 suggesting HTTP::query."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] contains "user=test" } { log local0. x }'
@@ -2279,7 +2279,7 @@ class TestIrule3103ExprOperators:
 
     def test_matches_glob_path(self):
         """HTTP::uri matches_glob '/api/*' fires IRULE3103 suggesting HTTP::path."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] matches_glob "/api/*" } { log local0. x }'
@@ -2289,7 +2289,7 @@ class TestIrule3103ExprOperators:
 
     def test_matches_glob_query(self):
         """HTTP::uri matches_glob '*&key=*' fires IRULE3103 suggesting HTTP::query."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] matches_glob "*&key=*" } { log local0. x }'
@@ -2299,7 +2299,7 @@ class TestIrule3103ExprOperators:
 
     def test_non_uri_clean(self):
         """Non-HTTP::uri variable in expression does not fire IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set p [HTTP::path]\nif { $p starts_with "/api" } { log local0. x }'
@@ -2308,7 +2308,7 @@ class TestIrule3103ExprOperators:
 
     def test_ambiguous_operand_clean(self):
         """Ambiguous operand (not clearly path or query) does not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] contains "something" } { log local0. x }'
@@ -2321,7 +2321,7 @@ class TestIrule3103StringMatch:
 
     def test_string_match_path_pattern(self):
         """string match '/api/*' $uri fires IRULE3103 suggesting HTTP::path."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset m [string match "/api/*" $uri]'
@@ -2331,7 +2331,7 @@ class TestIrule3103StringMatch:
 
     def test_string_match_query_pattern(self):
         """string match '*&key=*' $uri fires IRULE3103 suggesting HTTP::query."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset m [string match "*&key=*" $uri]'
@@ -2341,7 +2341,7 @@ class TestIrule3103StringMatch:
 
     def test_string_first_question_mark(self):
         """string first '?' $uri fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset pos [string first "?" $uri]'
@@ -2351,7 +2351,7 @@ class TestIrule3103StringMatch:
 
     def test_string_match_non_uri_clean(self):
         """string match on non-HTTP::uri does not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set p [HTTP::path]\nset m [string match "/api/*" $p]'
@@ -2360,7 +2360,7 @@ class TestIrule3103StringMatch:
 
     def test_string_match_ambiguous_pattern_clean(self):
         """string match with ambiguous pattern does not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset m [string match "*something*" $uri]'
@@ -2369,7 +2369,7 @@ class TestIrule3103StringMatch:
 
     def test_string_match_in_if_condition(self):
         """[string match ...] inside if condition fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nif { [string match "/static/*" $uri] } { log local0. x }'
@@ -2379,7 +2379,7 @@ class TestIrule3103StringMatch:
 
     def test_string_first_in_if_condition(self):
         """[string first "?" ...] inside if condition fires IRULE3103."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nif { [string first "?" $uri] >= 0 } { log local0. x }'
@@ -2392,7 +2392,7 @@ class TestIrule3103EdgeCases:
 
     def test_glob_question_mark_is_wildcard_not_query(self):
         """Glob ? is a single-char wildcard — classified as path, not query."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         # /api/?? uses ? as glob wildcard, should be path-like (not query)
@@ -2403,7 +2403,7 @@ class TestIrule3103EdgeCases:
 
     def test_glob_bare_question_not_query(self):
         """Glob with bare ? wildcard and no path prefix — no fire (ambiguous)."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset m [string match "??" $uri]'
@@ -2412,7 +2412,7 @@ class TestIrule3103EdgeCases:
 
     def test_glob_question_path_with_wildcard(self):
         """Glob /api/? should not be classified as query-like."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] matches_glob "/api/?" } { log local0. x }'
@@ -2423,7 +2423,7 @@ class TestIrule3103EdgeCases:
 
     def test_regex_question_is_quantifier_not_query(self):
         """Regex ? is a quantifier, not a query delimiter — no fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'if { [HTTP::uri] matches_regex "^/api/v[0-9]+/?$" } { log local0. x }'
@@ -2434,7 +2434,7 @@ class TestIrule3103EdgeCases:
 
     def test_regex_escaped_question_is_query(self):
         r"""Regex \? is a literal question mark — signals query matching."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = r'if { [HTTP::uri] matches_regex "\\?key=" } { log local0. x }'
@@ -2444,7 +2444,7 @@ class TestIrule3103EdgeCases:
 
     def test_later_reassignment_no_false_positive(self):
         """Variable reassigned to URI after expr check should not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri "foo"\nset ok [expr { $uri starts_with "/api" }]\nset uri [HTTP::uri]'
@@ -2453,7 +2453,7 @@ class TestIrule3103EdgeCases:
 
     def test_string_match_nocase_in_if_condition(self):
         """[string match -nocase ...] inside if condition is detected."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -2465,7 +2465,7 @@ class TestIrule3103EdgeCases:
 
     def test_split_separator_from_constant_variable(self):
         """SCCP-resolved separator variable still triggers split warning."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nset sep "?"\nset parts [split $uri $sep]'
@@ -2476,7 +2476,7 @@ class TestIrule3103EdgeCases:
 
     def test_phi_mixed_uri_and_non_uri_no_warning(self):
         """Mixed-origin phi node (URI + non-URI) must not produce a warning."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -2493,7 +2493,7 @@ class TestIrule3103EdgeCases:
 
     def test_string_first_with_ampersand_in_if_condition(self):
         """[string first "&" ...] in if condition should be detected."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = 'set uri [HTTP::uri]\nif { [string first "&" $uri] >= 0 } { log local0. x }'
@@ -2504,7 +2504,7 @@ class TestIrule3103EdgeCases:
 
     def test_split_separator_from_copied_constant_variable(self):
         """SCCP separator propagation through variable copy remains detectable."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -2517,7 +2517,7 @@ class TestIrule3103EdgeCases:
 
     def test_nested_boolean_expression_emits_one_hit_per_uri_use(self):
         """Nested expressions should emit one warning per concrete URI-pattern use."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -2533,7 +2533,7 @@ class TestIrule3103EdgeCases:
 
     def test_phi_both_branches_uri_still_warns(self):
         """When all phi inputs are URI-derived, warning should still be produced."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = (
@@ -2552,7 +2552,7 @@ class TestIrule3103EdgeCases:
 
     def test_regex_escaped_ampersand_is_query(self):
         r"""Regex \& is a literal ampersand and should classify as query-like."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         source = r'if { [HTTP::uri] matches_regex "key\\&id" } { log local0. x }'

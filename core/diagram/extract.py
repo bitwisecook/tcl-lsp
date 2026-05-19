@@ -31,9 +31,8 @@ from compiler.ir import (
     when_event_name,
 )
 from compiler.lowering import lower_to_ir
-
-from ..commands.registry import REGISTRY
-from ..commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 
 _MAX_DEPTH = 8
 _MAX_EVENTS = 12
@@ -70,7 +69,7 @@ def _condition_text(node: ExprNode) -> str:
 
 
 def _multiplicity(event_name: str) -> str:
-    from core.commands.registry.namespace_data import event_multiplicity
+    from compiler.registry.namespace_data import event_multiplicity
 
     return event_multiplicity(event_name)
 

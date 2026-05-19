@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 from ..._ir import ValType, WasmOp
 from ..._parsing import _parse_array_ref

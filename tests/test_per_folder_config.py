@@ -287,7 +287,7 @@ class TestPerFolderDialect:
         ``when`` is an iRules-only command; it must be present under the
         f5-irules folder scope and absent under a vanilla tcl8.6 scope.
         """
-        from core.commands.registry.runtime import SIGNATURES
+        from compiler.registry.runtime import SIGNATURES
 
         a = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/tcl-only")
         b = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/irules-only")

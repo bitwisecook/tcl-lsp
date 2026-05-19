@@ -21,9 +21,9 @@ from urllib.parse import quote, unquote, urlparse
 from compiler.irules_flow import RuleInitExport
 from core.analysis.semantic_model import AnalysisResult, ProcDef
 from core.analysis.signature_scan import extract_signatures
-from core.bigip.apl_model import AplModel, resolve_apl_includes
-from core.bigip.model import BigipConfig
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.apl_model import AplModel, resolve_apl_includes
+from dialects.f5.bigip.model import BigipConfig
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 log = logging.getLogger(__name__)
 

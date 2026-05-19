@@ -27,7 +27,7 @@ from enum import Flag, auto
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.substitution import backslash_subst
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import REGISTRY
+from compiler.registry import REGISTRY
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .ir import (

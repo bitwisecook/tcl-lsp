@@ -24,6 +24,6 @@ def _cmd_expr(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register the expr command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("expr", _cmd_expr)

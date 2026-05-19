@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from lsprotocol import types
 
+from compiler.registry import REGISTRY
+from compiler.registry.models import CommandSpec
+from compiler.registry.runtime import SIGNATURES, SubcommandSig
 from core.analysis import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult, ProcDef
-from core.commands.registry import REGISTRY
-from core.commands.registry.models import CommandSpec
-from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from core.formatting.docstring import format_docstring
 from shared.alias import lookup_alias_for_word
 from shared.dialect import active_dialect

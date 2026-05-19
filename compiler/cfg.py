@@ -21,10 +21,10 @@ from dataclasses import dataclass, field
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import arg_indices_for_role
+from compiler.registry.signatures import ArgRole
 from core.analysis.semantic_model import Range
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import arg_indices_for_role
-from core.commands.registry.signatures import ArgRole
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from .expr_ast import (

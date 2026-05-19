@@ -6,8 +6,8 @@ import re
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_base
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry.command_registry import REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry.command_registry import REGISTRY
+from compiler.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
     options_with_value,

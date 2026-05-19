@@ -26,7 +26,7 @@ from typing import Literal, overload
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry.runtime import (
+from compiler.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
     is_switch_case_list_form,
@@ -44,7 +44,7 @@ _scope_barrier_cache: frozenset[str] | None = None
 def _scope_barrier_commands() -> frozenset[str]:
     global _scope_barrier_cache
     if _scope_barrier_cache is None:
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         _scope_barrier_cache = REGISTRY.dynamic_barrier_commands()
     return _scope_barrier_cache
@@ -577,10 +577,10 @@ def _compact_names(
 
     Returns (renamed_source, symbol_map).
     """
+    from compiler.registry import REGISTRY
     from core.analysis import analyse
     from core.analysis.semantic_graph import find_proc_call_sites
     from core.analysis.semantic_model import Scope
-    from core.commands.registry import REGISTRY
 
     analysis = analyse(source)
     symbol_map = SymbolMap()

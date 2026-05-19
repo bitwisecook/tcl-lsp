@@ -13,8 +13,8 @@ else:
 
 from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import REGISTRY as _REGISTRY
-from core.commands.registry import EmitContext
+from compiler.registry import REGISTRY as _REGISTRY
+from compiler.registry import EmitContext
 
 from ....ir import (
     CommandTokens,

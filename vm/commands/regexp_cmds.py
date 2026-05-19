@@ -534,7 +534,7 @@ def _regsub_command_replace(
 
 def register() -> None:
     """Register regexp commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("regexp", _cmd_regexp)
     REGISTRY.register_handler("regsub", _cmd_regsub)

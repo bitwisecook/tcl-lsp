@@ -306,6 +306,6 @@ def codegen_string(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("string", codegen_string)

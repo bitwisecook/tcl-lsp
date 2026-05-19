@@ -304,7 +304,7 @@ least the basic class/method dispatch tests pass.
 - `runtime/zig/cmds/oo_class.zig` (new)
 - `runtime/zig/cmds/oo_define.zig` (new)
 - `runtime/zig/dispatch/tcl_cmd_table.zig` (registration)
-- `core/commands/registry/tcl/oo_*.py` (specs already exist)
+- `compiler/registry/tcl/oo_*.py` (specs already exist)
 
 ### 6.2 — Coroutines + NRE
 

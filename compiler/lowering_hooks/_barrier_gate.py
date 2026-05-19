@@ -28,7 +28,7 @@ from __future__ import annotations
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclParseError
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry import REGISTRY
+from compiler.registry import REGISTRY
 
 _DYNAMIC_BARRIER_COMMANDS = REGISTRY.dynamic_barrier_commands()
 

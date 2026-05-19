@@ -12,7 +12,7 @@ else:
     _Base = object
 
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import EmitContext, WasmRuntimeImport
+from compiler.registry import EmitContext, WasmRuntimeImport
 
 from ....ir import (
     CommandTokens,

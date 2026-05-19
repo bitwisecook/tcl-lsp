@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.commands.registry.runtime import TAINT_HINTS, TYPE_HINTS
-from core.commands.registry.signatures import Arity
-from core.commands.registry.taint_hints import TaintColour
-from core.commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from compiler.registry.runtime import TAINT_HINTS, TYPE_HINTS
+from compiler.registry.signatures import Arity
+from compiler.registry.taint_hints import TaintColour
+from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 
 from ..types import TclType
 

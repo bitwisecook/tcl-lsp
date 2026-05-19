@@ -7,8 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.grep import DIRECTIONS, compute_grep, report_to_dict
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.grep import DIRECTIONS, compute_grep, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 from ._emit import add_format_arg
 from ._registry import verb

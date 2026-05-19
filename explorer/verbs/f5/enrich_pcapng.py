@@ -6,8 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.pcap_enrich import build_merged_name_index, enrich_capture_file
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.pcap_enrich import build_merged_name_index, enrich_capture_file
 
 from ._registry import verb
 

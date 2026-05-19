@@ -9,15 +9,15 @@ from lsprotocol import types
 from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.info import effective_event_requires
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.operators import operator_hover
+from compiler.registry.runtime import SIGNATURES, SubcommandSig
 from compiler.taint import TaintLattice
 from compiler.types import TypeKind
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
-from core.commands.registry import REGISTRY
-from core.commands.registry.info import effective_event_requires
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.operators import operator_hover
-from core.commands.registry.runtime import SIGNATURES, SubcommandSig
 from shared.alias import lookup_alias_for_word
 from shared.dialect import active_dialect
 from shared.ip_utils import format_ip_hover, parse_ip
@@ -178,7 +178,7 @@ _COLOUR_LABELS: list[tuple[int, str]] = [
 
 def _taint_colour_labels(taint: TaintLattice) -> list[str]:
     """Return human-readable labels for the colour flags present in *taint*."""
-    from core.commands.registry.taint_hints import TaintColour
+    from compiler.registry.taint_hints import TaintColour
 
     _flag_labels: list[tuple[TaintColour, str]] = [
         (TaintColour.PATH_PREFIXED, "path-prefixed"),

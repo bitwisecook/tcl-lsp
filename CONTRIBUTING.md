@@ -53,7 +53,7 @@ Do not duplicate utility functions across modules. If two or more files need
 the same helper, extract it into an appropriate shared module.
 
 - Identifier helpers live in `shared/naming.py`.
-- Command registry helpers live in `core/commands/registry/_base.py`.
+- Command registry helpers live in `compiler/registry/_base.py`.
   The `make_av(source)` factory there returns an `_av` closure bound to a
   documentation source string.  Use `_av = make_av(_SOURCE)` at module level
   in command definition files rather than defining a per-file `_av` function.
@@ -183,7 +183,7 @@ with `--log-level DEBUG`.
 
 When code needs to classify commands (e.g. "is this a diagram-worthy action?",
 "does this always mutate state?", "can this be translated to XC?"), the metadata
-must live as a field on `CommandSpec` in `core/commands/registry/models.py`.
+must live as a field on `CommandSpec` in `compiler/registry/models.py`.
 
 **Do not** create hardcoded `frozenset` or `set` literals of command names in
 consumer modules. This scatters knowledge about commands across the codebase and
@@ -196,7 +196,7 @@ The pattern to follow:
    (e.g. `is_diagram_action(name)`) and a bulk query
    (e.g. `diagram_action_commands()`).
 3. **Set the flag** on each relevant command spec in
-   `core/commands/registry/{irules,tcl,iapps}/`.
+   `compiler/registry/{irules,tcl,iapps}/`.
 4. **Use the registry** in the consumer module instead of a local set.
 
 Existing examples of this pattern: `pure`, `commits_response`,

@@ -14,7 +14,7 @@ from lsprotocol import types
 
 import lsp.commands as server_module
 import lsp.state as _lsp_state
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def test_describe_irule_event_reports_known_event() -> None:

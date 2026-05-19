@@ -56,9 +56,9 @@ Primary consumers:
 - `lsp/workspace/document_state.py` — `DocumentState.buffer` property
 - `lsp/features/semantic_tokens.py` — `position_from_offset` with shared `_line_starts`
 - `lsp/server.py`
-- `core/bigip/parser.py`
-- `core/bigip/rule_extract.py`
-- `core/bigip/validator.py`
+- `dialects/f5/bigip/parser.py`
+- `dialects/f5/bigip/rule_extract.py`
+- `dialects/f5/bigip/validator.py`
 - `shared/position.py`
 - `core/analysis/analyser.py`
 - `compiler/compiler_checks.py`

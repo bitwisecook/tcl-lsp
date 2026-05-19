@@ -286,7 +286,7 @@ def optimise_elimination_passes(
     # Also skip variables that are upvar/global/variable aliases —
     # writes to them are visible in other scopes even though the local
     # analysis sees no local reads.
-    from core.commands.registry.runtime import scope_alias_commands
+    from compiler.registry.runtime import scope_alias_commands
 
     scope_aliases: set[str] = set()
     _alias_cmds = scope_alias_commands()

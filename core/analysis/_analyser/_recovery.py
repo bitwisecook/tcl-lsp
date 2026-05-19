@@ -11,9 +11,9 @@ else:
 from compiler.parsing.command_segmenter import SegmentedCommand
 from compiler.parsing.known_commands import known_command_names
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.registry import REGISTRY
 from shared.ranges import position_from_relative
 
-from ...commands.registry import REGISTRY
 from ..semantic_model import (
     CodeFix,
     Diagnostic,

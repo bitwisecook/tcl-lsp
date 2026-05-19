@@ -7,9 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.diff import compute_diff, report_to_dict
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.tmsh_parse import looks_like_tmsh_output, normalise_tmsh_to_scf
+from dialects.f5.bigip.diff import compute_diff, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.tmsh_parse import looks_like_tmsh_output, normalise_tmsh_to_scf
 
 from ._paths import read_path
 from ._registry import verb

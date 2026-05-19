@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import (
+from dialects.f5.query import (
     format_builtins,
     format_examples,
     format_grammar,
@@ -28,8 +28,8 @@ from core.bigip.query import (
     parse_query,
     run_query,
 )
-from core.bigip.query.errors import EvalError, ParseError, QueryError
-from core.bigip.query.output import render
+from dialects.f5.query.errors import EvalError, ParseError, QueryError
+from dialects.f5.query.output import render
 from explorer.f5_cli import main
 
 SAMPLE_CONF = """ltm node /Common/n1 {
@@ -739,7 +739,7 @@ def test_object_subscript_iteration_matches_jq_value_semantics():
 
 
 def test_field_slot_scanner_ignores_nested_blocks():
-    from core.bigip.query.projection._engine import _iter_top_level_scalar_slots
+    from dialects.f5.query.projection._engine import _iter_top_level_scalar_slots
 
     body = """{
     pool /Common/top
@@ -947,7 +947,7 @@ def test_flatten_non_integer_depth_raises_builtin_error():
     Regression for copilot review on PR #418 — the ``flatten`` special
     form used to raise ``EvalError`` for type validation.
     """
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query('[[1, 2]] | flatten("two")', {"m": ""})
@@ -963,7 +963,7 @@ def test_range_one_two_three_args():
 
 
 def test_range_step_zero_is_rejected():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query("[range(0, 5, 0)]", {"m": ""})
@@ -1091,7 +1091,7 @@ def test_tonumber_parses_int_then_float():
 
 
 def test_tonumber_rejects_non_numeric():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query('tonumber("abc")', {"m": ""})
@@ -1132,7 +1132,7 @@ def test_capture_returns_named_groups():
 
 
 def test_capture_rejects_no_match():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query('capture("abc", "^(?<x>z)")', {"m": ""})
@@ -1304,7 +1304,7 @@ def test_empty_emits_no_values():
 
 
 def test_error_raises_with_message():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError, match="boom"):
         run_query('1 | error("boom")', {"m": ""})
@@ -1365,7 +1365,7 @@ def test_combinations_non_integer_n_raises_builtin_error():
     """Regression for copilot review on PR #418 — argument-type errors
     on builtins are ``BuiltinError``, not ``EvalError``.
     """
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query('[1, 2, 3] | combinations("two")', {"m": ""})
@@ -1542,7 +1542,7 @@ def test_bessel_approximations_match_known_values():
 def test_now_returns_a_float_epoch(monkeypatch):
     # Pin the underlying time source so the suite doesn't depend on
     # the host clock being accurate (hermetic VMs, time mocks, etc.).
-    import core.bigip.query.builtins as _bq
+    import dialects.f5.query.builtins as _bq
 
     monkeypatch.setattr(_bq._time, "time", lambda: 1_700_000_000.5)
     [out] = run_query("now", {"m": ""}).values_per_file["m"]
@@ -1622,7 +1622,7 @@ def test_map_values_on_object_rejects_multi_value_body():
     ambiguous, so we fail loudly rather than silently keeping the
     first / dropping the entry.
     """
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError, match="map_values"):
         run_query("{a: 1, b: 2} | map_values((., . * 10))", {"m": ""})
@@ -1688,14 +1688,14 @@ def test_min_max_and_max_min_return_pairs():
 
 
 def test_halt_raises_a_builtin_error():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError, match="halt"):
         run_query("1 | halt", {"m": ""})
 
 
 def test_halt_error_carries_exit_code():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError, match="exit_code=5"):
         run_query("1 | halt_error(5)", {"m": ""})
@@ -1806,7 +1806,7 @@ def test_sort_bare_after_stream_errors_clearly():
     — better than silently producing one-element lists per item — and the
     docs steer users to the ``[...] | sort`` form above.
     """
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     with pytest.raises(BuiltinError):
         run_query(".ltm.virtual[].name | sort", {"m": _SORT_SCF})
@@ -3306,7 +3306,7 @@ def test_pool_members_writes_are_rejected_not_corrupted():
     edit pipeline must reject the write with a clear error rather
     than corrupt the config silently.
     """
-    from core.bigip.query.errors import EditError
+    from dialects.f5.query.errors import EditError
 
     src = (
         "ltm pool /Common/web_pool {\n"
@@ -4424,7 +4424,7 @@ def test_virtual_rate_class_is_pathref():
     string before the rate-class kind was projected).  Stringifying it
     yields the full-path; the projection auto-derefs to the rate-class
     object when one is defined in the same config."""
-    from core.bigip.query.values import PathRef
+    from dialects.f5.query.values import PathRef
 
     rc = _run(".ltm.virtual.fwd_vs.rate-class", _VS_FLAGS_CONF)
     values = rc.values_per_file["mem://1"]
@@ -6759,7 +6759,7 @@ def test_audit_followup_dispatch_bugs_resolved():
     now produces populated containers.
     """
     cfg = parse_query  # noqa: F841 — placeholder to keep imports stable
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     cfg = parse_bigip_conf(_AUDIT_FOLLOWUP_CONF)
     monitor_types = sorted(m.monitor_type for m in cfg.monitors.values())
@@ -6782,7 +6782,7 @@ def test_audit_followup_new_kinds_dispatch():
     path into ``cfg.pem_rules`` (BigipPemRule, with ``source``
     field projected as ``body``).
     """
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     cfg = parse_bigip_conf(_AUDIT_FOLLOWUP_CONF)
     # ltm html-rule subtypes route to dedicated containers.
@@ -6837,7 +6837,7 @@ def test_sibling_completeness_new_kinds_dispatch():
       module (distinct from ``ltm dns analytics global-settings``,
       which is a different kind under ``ltm``).
     """
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     cfg = parse_bigip_conf(_SIBLING_FOLLOWUP_CONF)
     assert "/Common/asp1" in cfg.net_routing_as_paths
@@ -6892,8 +6892,8 @@ def test_every_module_kind_round_trips():
     a subtype probe from :data:`_AGGREGATE_KIND_PROBES`); any one
     populating the container counts as success.
     """
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.query.projection import MODULE_KINDS
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.query.projection import MODULE_KINDS
 
     failed: list[tuple[str, str, str, str]] = []
     for module, kinds in MODULE_KINDS.items():
@@ -7107,7 +7107,7 @@ def test_review_bug1_field_edit_rejects_newline_injection():
     # a fresh stanza on a new line, escaping the surrounding scope.
     # The SCF scalar encoder now rejects any value containing
     # newlines / braces / control chars.
-    from core.bigip.query.errors import EditError
+    from dialects.f5.query.errors import EditError
 
     src = (
         "ltm virtual /Common/web_vs {\n"
@@ -7164,7 +7164,7 @@ def test_review_bug1_field_edit_validates_post_splice_parse():
     # check is wired up by inspecting the error path on a forbidden
     # value (which would otherwise have been silently spliced before
     # the encoder existed).
-    from core.bigip.query.errors import EditError
+    from dialects.f5.query.errors import EditError
 
     src = "ltm virtual /Common/v { destination /Common/1.1.1.1:80 description x }\n"
     with pytest.raises(EditError):
@@ -7222,7 +7222,7 @@ def test_review_bug7_regex_pattern_length_capped():
     # Bug 7 — every user-supplied regex (``match`` / ``sub`` / ``gsub``
     # / ``[~"..."]``) routes through ``_safe_regex_compile`` which
     # caps pattern length to keep compile + match cost bounded.
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = "ltm node /Common/n { address 1.1.1.1 }\n"
     long_pattern = "a" * 2000
@@ -7235,7 +7235,7 @@ def test_review_bug7_regex_rejects_nested_quantifier_redos():
     # Bug 7, partner case — refuse the textbook ``(a+)+`` catastrophic-
     # backtracking shape.  Not a complete ReDoS detector (that's
     # undecidable), but copy-paste CVE patterns get caught at the door.
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = "ltm node /Common/n { address 1.1.1.1 }\n"
     with pytest.raises(BuiltinError) as exc:
@@ -7247,7 +7247,7 @@ def test_review_bug8_active_root_lookup_uses_contextvar():
     # Bug 8 — graph-builtin context map is now a ``ContextVar`` so
     # the runner is safe under concurrent ``run_query`` calls.
     # Verify the new lookup helper is the only public knob.
-    from core.bigip.query import runner
+    from dialects.f5.query import runner
 
     assert hasattr(runner, "_lookup_active_root")
     # The legacy module-global ``_ACTIVE_ROOTS`` dict is gone.
@@ -7262,8 +7262,8 @@ def test_review_bug4_merge_picks_up_every_dict_field():
     # every PEM, security, GTM, APM, CM, sys, and net object.
     # ``BigipConfig.merge()`` is now introspection-driven and picks
     # up new kinds automatically.
-    from core.bigip.model import BigipConfig
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.model import BigipConfig
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     a = parse_bigip_conf("ltm pool /Common/p { }\n")
     b = parse_bigip_conf("pem policy /Common/q { }\nnet vlan /Common/v { tag 100 }\n")
@@ -7280,8 +7280,8 @@ def test_review_bug4_merge_picks_up_every_dict_field():
 def test_review_bug4_merge_overlay_semantics_match_dict_update():
     # Bug 4, semantics check — keys from the second ``merge`` win on
     # conflict (standard ``dict.update`` semantics).
-    from core.bigip.model import BigipConfig
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.model import BigipConfig
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     earlier = parse_bigip_conf("ltm pool /Common/p { description first }\n")
     later = parse_bigip_conf("ltm pool /Common/p { description second }\n")
@@ -7304,8 +7304,8 @@ def test_review_bug6_query_projection_kinds_covered_by_object_registry():
     # the registry, or at least one ``<projection-kind> <subtype>``
     # is".  A failure means a contributor added a new kind to one
     # layer without the other — fix by adding the missing entry.
-    from core.bigip.query.projection import MODULE_KINDS
-    from core.bigip.registry.data import OBJECT_KIND_SPECS
+    from dialects.f5.bigip.registry.data import OBJECT_KIND_SPECS
+    from dialects.f5.query.projection import MODULE_KINDS
 
     proj_kinds = {
         tmsh for module_table in MODULE_KINDS.values() for _attr, tmsh in module_table.values()
@@ -7595,7 +7595,7 @@ def test_can_see_enforces_partition_visibility_rules():
 
 
 def test_rename_partition_refuses_to_rename_common():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = "ltm pool /Common/p { }\n"
     with pytest.raises(BuiltinError) as exc:
@@ -7604,7 +7604,7 @@ def test_rename_partition_refuses_to_rename_common():
 
 
 def test_rename_partition_refuses_tenant_to_common():
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = "ltm pool /Tenant_A/p { }\n"
     with pytest.raises(BuiltinError) as exc:
@@ -7628,7 +7628,7 @@ def test_rename_refuses_move_that_breaks_partition_visibility():
     """Moving ``/Common/X`` to a tenant partition breaks visibility
     for every other-partition referrer.  The rename is refused with
     an explicit list."""
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = (
         "ltm pool /Common/shared_pool { }\n"
@@ -7870,7 +7870,7 @@ def test_rename_prefix_refuses_non_path_inputs():
     """``rename_prefix("pool", "X")`` raises rather than producing a
     broad textual rewrite — path-prefix migration only makes sense
     when both arguments are BIG-IP full-path prefixes."""
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
 
     src = "ltm pool /Common/p { }\n"
     with pytest.raises(BuiltinError) as exc:
@@ -7895,8 +7895,8 @@ def test_tmsh_delta_emits_deletes_before_creates():
     """Rename-shaped diffs (delete old object + create same-name new)
     must emit the delete first so a unique listener/destination on
     the target device frees up before the create lands."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh_delta
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh_delta
 
     old_source = "ltm pool /Common/old_pool {\n    monitor /Common/http\n}\n"
     new_source = "ltm pool /Common/new_pool {\n    monitor /Common/http\n}\n"
@@ -7934,7 +7934,7 @@ def test_compact_one_line_net_route_populates_typed_fields():
     """Compact stanza ``net route /Common/r { network 10.0.0.0/8 gw 1.2.3.4 }``
     now produces a typed Network and IPAddress rather than swallowing
     everything into the ``network`` value."""
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     src = "net route /Common/r { network 10.0.0.0/8 gw 192.168.1.1 }\n"
     cfg = parse_bigip_conf(src)
@@ -7967,8 +7967,8 @@ def test_references_to_uses_exact_path_not_substring():
 def test_tmsh_delta_pool_member_add():
     """Adding a pool member emits ``members add { ... }`` so existing
     members keep their connections."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh_delta
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh_delta
 
     old = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
     new = (
@@ -7989,8 +7989,8 @@ def test_tmsh_delta_pool_member_add():
 
 
 def test_tmsh_delta_pool_member_delete():
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh_delta
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh_delta
 
     old = (
         "ltm pool /Common/p {\n"
@@ -8009,8 +8009,8 @@ def test_tmsh_delta_pool_member_delete():
 
 def test_tmsh_delta_pool_member_modify():
     """Address churn on a single member emits ``members modify``."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh_delta
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh_delta
 
     old = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
     new = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.99 } }\n}\n"
@@ -8024,8 +8024,8 @@ def test_tmsh_delta_pool_non_member_change_falls_back_to_full_body():
     """When a non-member field changes (monitor / lb-mode / ...) the
     delta falls back to a full-body modify since the granular
     member-list operators don't cover non-member properties."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh_delta
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh_delta
 
     old = "ltm pool /Common/p {\n    monitor /Common/http\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
     new = "ltm pool /Common/p {\n    monitor /Common/https\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
@@ -8046,8 +8046,8 @@ def test_tmsh_full_body_uses_replace_all_with_for_list_fields():
     ``none``).  The full-body renderer uses ``replace-all-with``
     so the emitted script lands cleanly on every supported BIG-IP
     version."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.tmsh_emit import emit_tmsh
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.tmsh_emit import emit_tmsh
 
     src = (
         "ltm pool /Common/p {\n"
@@ -8089,7 +8089,7 @@ def test_registry_drives_tmsh_list_operator_selection():
     list-valued property; the renderer uses this so adding a new
     list field is one registry edit, not a parser + renderer
     + test change."""
-    from core.bigip.registry import list_operator_for, property_spec_for
+    from dialects.f5.bigip.registry import list_operator_for, property_spec_for
 
     # ``replace-all-with`` is preferred (and available) on the
     # common list properties.
@@ -8281,7 +8281,7 @@ def test_cm_ha_group_projects_typed_fields():
     # ``pools`` resolves as a stream of PathRefs; their string form is
     # the canonical full-path even when the targets aren't projected
     # in the same config.
-    from core.bigip.query.values import PathRef
+    from dialects.f5.query.values import PathRef
 
     pools = _run('.cm["ha-group"].hag1.pools[]', _GAPS_CONF)
     pool_refs = pools.values_per_file["mem://1"]
@@ -8413,18 +8413,18 @@ def test_rule_iteration_does_not_eagerly_compute_refs():
     per rule (O(n × full-config grep)).  After the lazy-refs fix
     every rule's ``__refs__`` is a :class:`LazyField` until something
     actually reads ``.refs``."""
-    from core.bigip.query.projection._engine import root_container
-    from core.bigip.query.values import LazyField, Root
+    from dialects.f5.query.projection._engine import root_container
+    from dialects.f5.query.values import LazyField, Root
 
     src = """ltm rule /Common/r1 { when HTTP_REQUEST { pool /Common/p } }
 ltm rule /Common/r2 { when HTTP_REQUEST { pool /Common/p } }
 ltm pool /Common/p { members { /Common/n:80 { address 1.1.1.1 } } }
 """
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     cfg = parse_bigip_conf(src)
-    from core.bigip.query.projection import Container
-    from core.bigip.query.source_map import SourceMap
+    from dialects.f5.query.projection import Container
+    from dialects.f5.query.source_map import SourceMap
 
     root = Root(
         uri="mem://lazy",

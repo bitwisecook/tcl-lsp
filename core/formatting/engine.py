@@ -12,8 +12,8 @@ from enum import Enum, auto
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import (
     SIGNATURES,
     ArgRole,
     CommandSig,

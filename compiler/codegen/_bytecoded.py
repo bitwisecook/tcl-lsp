@@ -21,7 +21,7 @@ class _BytecodedMixin:
     """Mixin: bytecoded command optimisations dispatched via REGISTRY hooks."""
 
     def _try_bytecoded(self: _Emitter, cmd: str, args: tuple[str, ...]) -> bool:
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         spec = REGISTRY.get_any(cmd)
         if spec is None:

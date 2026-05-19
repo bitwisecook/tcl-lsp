@@ -9,8 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.pcap_remap import remap_pcap
-from core.bigip.redact_map import build_map
+from dialects.f5.bigip.pcap_remap import remap_pcap
+from dialects.f5.bigip.redact_map import build_map
 from explorer.f5_cli import main
 
 
@@ -179,7 +179,7 @@ def test_remap_pcap_rewrites_peer_ips_in_legacy_trailer():
 def test_remap_pcap_unknown_trailer_errors_by_default():
     """A structurally valid legacy trailer with an unknown (type, version)
     must trigger UnknownTrailerError unless --on-unknown is set."""
-    from core.bigip.pcap_remap import UnknownTrailerError
+    from dialects.f5.bigip.pcap_remap import UnknownTrailerError
 
     # type=HIGH but version=99 — not in the schema registry.
     weird = bytes([3, 40, 99]) + b"\x00" * 39

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def _tcl_commands_catalog() -> dict:
     """Generate a JSON catalog of Tcl commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     commands = []
     for name in sorted(REGISTRY.command_names()):
@@ -46,7 +46,7 @@ def _tcl_commands_catalog() -> dict:
 
 def _irule_events_catalog() -> dict:
     """Generate a JSON catalog of iRules events."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     when_values = REGISTRY.argument_values("when", 0, "f5-irules")
     events = sorted(v.value for v in when_values if v.value)
@@ -63,7 +63,7 @@ def _vscode_irule_events_catalog() -> dict:
     Includes event descriptions, flags (common/hot/deprecated), and
     ordering so the VS Code extension doesn't need hardcoded lists.
     """
-    from core.commands.registry.namespace_data import EVENT_DESCRIPTIONS, EVENT_PROPS
+    from compiler.registry.namespace_data import EVENT_DESCRIPTIONS, EVENT_PROPS
 
     events = []
     for name in sorted(EVENT_PROPS):

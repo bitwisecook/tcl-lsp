@@ -386,7 +386,7 @@ The same content backing every `--help-*` flag is exposed as
 Python functions:
 
 ```python
-from core.bigip.query import (
+from dialects.f5.query import (
     format_grammar,    # full grammar reference
     format_builtins,   # all builtins, or one named function
     format_examples,   # worked-example cookbook

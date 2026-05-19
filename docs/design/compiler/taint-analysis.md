@@ -19,7 +19,7 @@ Source: [`compiler/taint/`](../../../compiler/taint/) —
 [`_sinks.py`](../../../compiler/taint/_sinks.py),
 [`_propagation.py`](../../../compiler/taint/_propagation.py),
 [`_api.py`](../../../compiler/taint/_api.py),
-[`core/commands/registry/taint_hints.py`](../../../core/commands/registry/taint_hints.py)
+[`compiler/registry/taint_hints.py`](../../../compiler/registry/taint_hints.py)
 
 ## Content
 

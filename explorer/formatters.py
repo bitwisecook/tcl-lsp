@@ -21,10 +21,10 @@ from compiler.ir import (
     IRStatement,
     IRSwitch,
 )
+from compiler.registry.taint_hints import TaintColour
 from compiler.taint import TaintLattice
 from compiler.types import TypeKind, TypeLattice
 from core.analysis.semantic_model import Range
-from core.commands.registry.taint_hints import TaintColour
 from shared.source_map import offset_to_line_col
 
 # LineIndex — source offset mapping

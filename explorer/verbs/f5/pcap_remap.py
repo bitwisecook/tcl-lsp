@@ -6,9 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.f5_trailer import load_schema_overlay, schema_summary
-from core.bigip.pcap_remap import UnknownTrailerError, remap_pcap
-from core.bigip.redact_map import RedactionMap
+from dialects.f5.bigip.f5_trailer import load_schema_overlay, schema_summary
+from dialects.f5.bigip.pcap_remap import UnknownTrailerError, remap_pcap
+from dialects.f5.bigip.redact_map import RedactionMap
 
 from ._registry import verb
 
@@ -33,7 +33,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "IPv4 header and TCP / UDP / ICMP / ICMPv6 checksums are "
         "recomputed.  In addition to the IP layer, the F5 Ethernet "
         "trailer (legacy and DPT formats; what `tcpdump -i 0.0:nnnp` "
-        "adds) is parsed via core.bigip.f5_trailer and each peer-IP "
+        "adds) is parsed via dialects.f5.bigip.f5_trailer and each peer-IP "
         "field is rewritten at its schema-known offset.  L4 payload "
         "bytes are NOT scanned.  Use --reverse to apply the map in the "
         "opposite direction."

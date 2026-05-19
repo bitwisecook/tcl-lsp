@@ -224,6 +224,6 @@ def fire_command_traces(
 
 def register() -> None:
     """Register trace command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("trace", _cmd_trace)

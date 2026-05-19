@@ -10,9 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lsprotocol.types import MarkupContent
 
 from compiler.irules_flow import find_irules_flow_warnings
+from compiler.registry.runtime import configure_signatures
 from core.analysis import analyse
 from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
 from lsp.features.completion import get_completions
 from lsp.features.hover import get_hover
 

@@ -36,9 +36,9 @@ def event_multiplicity(event_name: str) -> str:
     Returns one of ``"init"``, ``"once_per_connection"``,
     ``"per_request"``, or ``"unknown"``.
 
-    Delegates to :func:`core.commands.registry.namespace_data.event_multiplicity`.
+    Delegates to :func:`compiler.registry.namespace_data.event_multiplicity`.
     """
-    from core.commands.registry.namespace_data import (
+    from compiler.registry.namespace_data import (
         event_multiplicity as _event_multiplicity,
     )
 
@@ -50,7 +50,7 @@ def ordered_events(source: str) -> list[EventInfo]:
 
     Each entry includes its 1-based index and multiplicity.
     """
-    from core.commands.registry.namespace_data import order_events_for_file
+    from compiler.registry.namespace_data import order_events_for_file
 
     names = order_events_for_file(source)
     return [

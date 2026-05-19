@@ -307,7 +307,7 @@ def _cmd_chan(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register I/O commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("puts", _cmd_puts)
     REGISTRY.register_handler("gets", _cmd_gets)

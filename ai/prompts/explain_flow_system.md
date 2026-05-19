@@ -6,7 +6,7 @@ analyser. It is loaded by:
 - the `explain_flow` MCP tool (`ai/mcp/tcl_mcp_server.py`), and
 - the Claude `explain-flow` skill (`ai/claude/skills/explain-flow/`).
 
-The underlying Python lives in `core/bigip/explain_flow.py` and is
+The underlying Python lives in `dialects/f5/bigip/explain_flow.py` and is
 imported unchanged by both the MCP tool and the
 `f5 explain-flow` CLI verb (`explorer/verbs/f5/explain_flow.py`).
 Keep this file in sync with `report_to_mcp_dict` — it is the contract

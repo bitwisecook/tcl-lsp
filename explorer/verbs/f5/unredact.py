@@ -11,7 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.redact_map import RedactionMap, apply_map
+from dialects.f5.bigip.redact_map import RedactionMap, apply_map
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path

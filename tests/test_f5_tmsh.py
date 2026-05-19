@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.tmsh_emit import emit_tmsh
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.tmsh_emit import emit_tmsh
 from explorer.f5_cli import main
 
 SAMPLE = (

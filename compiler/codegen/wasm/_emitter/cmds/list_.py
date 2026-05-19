@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 from ..._encoding import _tcl_list_quote, _tcl_token_value
 from ..._ir import ValType, WasmOp

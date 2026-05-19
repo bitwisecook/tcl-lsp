@@ -41,9 +41,9 @@ from typing import TypeAlias
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import loop_list_header_commands
 from core.analysis.semantic_model import Range
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import loop_list_header_commands
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (

@@ -196,7 +196,7 @@ KCS tag: `lowering`.
 The central metadata type for a Tcl command — describes its argument
 layout, purity, side effects, taint properties, event validity, and
 dialect membership.  See
-[`models.py:462`](../core/commands/registry/models.py).
+[`models.py:462`](../compiler/registry/models.py).
 
 ```mermaid
 flowchart TD
@@ -218,7 +218,7 @@ and [Command registry event model](design/contracts/command-registry-event-model
 An ensemble operation selected by the first argument (e.g.
 `string length`, `HTTP::header value`).  Each has its own arity, purity,
 return type, and taint transform hooks.  See
-[`models.py:319`](../core/commands/registry/models.py).
+[`models.py:319`](../compiler/registry/models.py).
 
 See also: [Command registry](design/compiler/command-registry.md).
 
@@ -226,7 +226,7 @@ See also: [Command registry](design/compiler/command-registry.md).
 
 An invocation form of a command — getter (reads state) or setter (writes
 state), each with its own arity and side-effect classification.  See
-[`models.py:249`](../core/commands/registry/models.py).
+[`models.py:249`](../compiler/registry/models.py).
 
 See also: [Command registry](design/compiler/command-registry.md).
 
@@ -903,7 +903,7 @@ A `Flag` enum describing safety properties of tainted data (e.g.
 `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `|`
 and join by intersection (`&`) — only properties shared by all incoming
 paths survive.  Defined in
-[`TaintColour`](../core/commands/registry/taint_hints.py)
+[`TaintColour`](../compiler/registry/taint_hints.py)
 (`taint_hints.py:17`).
 
 ```mermaid

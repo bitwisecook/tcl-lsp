@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.commands.registry.namespace_data import (
+from compiler.registry.namespace_data import (
     EVENT_PROPS,
     FLOW_CHAINS,
     MASTER_ORDER,

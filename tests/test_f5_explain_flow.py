@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.explain_flow import (
+from dialects.f5.bigip.explain_flow import (
     _extract_event_blocks,
     _extract_peer_tuple_from_trailer,
     _parse_destination,
@@ -18,7 +18,7 @@ from core.bigip.explain_flow import (
     pair_sessions,
     report_to_mcp_dict,
 )
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 from explorer.f5_cli import main
 
 # ---------------------------------------------------------------------------
@@ -446,8 +446,8 @@ def test_explain_flow_policy_decisions_in_mcp_dict(tmp_path):
 
 def test_compact_policy_decision_omits_unmatched_conditions():
     """`matched_on` in the compact MCP shape must list only conditions that matched."""
-    from core.bigip.explain_flow import _compact_policy_decision
-    from core.bigip.policy_eval import (
+    from dialects.f5.bigip.explain_flow import _compact_policy_decision
+    from dialects.f5.bigip.policy_eval import (
         ConditionTrace,
         PolicyDecision,
         RuleDecision,

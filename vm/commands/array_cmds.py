@@ -400,7 +400,7 @@ def _cmd_parray(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register array commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     _ARRAY_DISPATCH.update(
         {

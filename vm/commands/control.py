@@ -650,7 +650,7 @@ def _tcl_bool(s: str) -> bool:
 
 def register() -> None:
     """Register control flow commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("eval", _cmd_eval)
     REGISTRY.register_handler("source", _cmd_source)

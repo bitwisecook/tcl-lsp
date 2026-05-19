@@ -29,8 +29,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.pcap_remap import remap_pcap
-from core.bigip.redact_map import build_map
+from dialects.f5.bigip.pcap_remap import remap_pcap
+from dialects.f5.bigip.redact_map import build_map
 
 pytestmark = pytest.mark.skipif(shutil.which("tshark") is None, reason="tshark not on PATH")
 
@@ -330,8 +330,8 @@ def test_real_fixture_short_frames_redact_round_trips():
     NOISE LOW v2 / MED v4 / HIGH v1 trailers.  Redact, verify with
     tshark that originals are gone, then unredact and verify originals
     are back."""
-    from core.bigip.pcap_remap import remap_pcap
-    from core.bigip.redact_map import build_map
+    from dialects.f5.bigip.pcap_remap import remap_pcap
+    from dialects.f5.bigip.redact_map import build_map
 
     src_pcap = _FIXTURES_DIR / "short-frames.pcap"
     if not src_pcap.is_file():  # pragma: no cover
@@ -359,8 +359,8 @@ def test_real_fixture_short_frames_redact_round_trips():
 
 def test_real_fixture_fcs0_pcapng_redact_round_trips():
     """fcs0.pcap (PCAPNG) tests the modern format path end-to-end."""
-    from core.bigip.pcap_remap import remap_pcap
-    from core.bigip.redact_map import build_map
+    from dialects.f5.bigip.pcap_remap import remap_pcap
+    from dialects.f5.bigip.redact_map import build_map
 
     src_pcap = _FIXTURES_DIR / "fcs0.pcap"
     if not src_pcap.is_file():  # pragma: no cover
@@ -391,8 +391,8 @@ def test_real_fixture_trailer_sample_unknown_provider():
     """trailer-sample.pcap has DPT provider=5/type=1 trailers, which
     are now in the schema as no-IP-fields entries.  unknown_policy=
     'error' must NOT fire on them."""
-    from core.bigip.pcap_remap import remap_pcap
-    from core.bigip.redact_map import build_map
+    from dialects.f5.bigip.pcap_remap import remap_pcap
+    from dialects.f5.bigip.redact_map import build_map
 
     src_pcap = _FIXTURES_DIR / "trailer-sample.pcap"
     if not src_pcap.is_file():  # pragma: no cover

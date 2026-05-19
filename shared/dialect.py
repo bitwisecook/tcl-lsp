@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
-from core.commands.registry.runtime import (
+from compiler.registry.runtime import (
     _canonical_dialect,
     _dialect_var,
     _extra_commands_var,
@@ -119,7 +119,7 @@ def detect_dialect_from_source(source: str) -> str | None:
 
     Returns ``None`` if no dialect hint is found.
     """
-    from core.commands.registry.dialects import KNOWN_DIALECTS
+    from compiler.registry.dialects import KNOWN_DIALECTS
 
     lines = source.split("\n", _PKG_REQUIRE_SCAN_LINES)
 
@@ -147,7 +147,7 @@ def detect_dialect_from_source(source: str) -> str | None:
             return _TCL_VERSION_MAP.get(m.group(1))
 
     # Conf-wrapped iRules: ``ltm rule /path { ... }`` or ``gtm rule /path { ... }``
-    from ..bigip.rule_extract import is_conf_wrapped_irules
+    from dialects.f5.bigip.rule_extract import is_conf_wrapped_irules
 
     if is_conf_wrapped_irules(source):
         return "f5-irules"

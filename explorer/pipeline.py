@@ -23,13 +23,13 @@ from compiler.irules_flow import (
     find_irules_flow_warnings,
 )
 from compiler.optimiser import Optimisation, apply_optimisations, find_optimisations
+from compiler.registry.runtime import available_dialects, configure_signatures
 from compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
 from compiler.ssa import SSAFunction
 from compiler.taint import (
     TaintWarning,
     find_taint_warnings,
 )
-from core.commands.registry.runtime import available_dialects, configure_signatures
 
 # Data types
 

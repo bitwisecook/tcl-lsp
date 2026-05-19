@@ -5,7 +5,7 @@ import logging
 from compiler.parsing.expr_lexer import ExprTokenType
 from compiler.parsing.token_positions import token_content_base
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
-from core.commands.registry.runtime import (
+from compiler.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
 )

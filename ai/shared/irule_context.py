@@ -8,7 +8,7 @@ either has to be force-fed the entire bigip.conf or guess.
 
 This module assembles a focused bundle: the iRule body plus every
 BIG-IP object the rule references (resolved against the surrounding
-:class:`~core.bigip.model.BigipConfig`), with optional one-hop
+:class:`~dialects.f5.bigip.model.BigipConfig`), with optional one-hop
 transitive expansion (pool → members → nodes; pool → monitor;
 persistence → profile chain).
 
@@ -29,8 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.bigip.irules_refs import extract_irules_object_references
-from core.bigip.model import (
+from dialects.f5.bigip.irules_refs import extract_irules_object_references
+from dialects.f5.bigip.model import (
     BigipConfig,
     BigipDataGroup,
     BigipMonitor,
@@ -148,7 +148,7 @@ def build_irule_context(
     :attr:`IruleContextBundle.source_slices`) so renderers can echo
     the operator's exact text rather than synthesising a stanza.
     """
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)
 

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from compiler.optimiser import apply_optimisations, find_optimisations
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from core.formatting import format_tcl
 
 from ._registry import verb

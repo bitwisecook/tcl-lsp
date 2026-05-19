@@ -22,7 +22,7 @@ literal/dynamic split) and pass that.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 from ..._ir import WasmOp
 

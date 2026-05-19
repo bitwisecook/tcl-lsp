@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.bigip.model import (
+from dialects.f5.bigip.model import (
     BigipPolicy,
     BigipPolicyAction,
     BigipPolicyCondition,
     BigipPolicyRule,
 )
-from core.bigip.policy_eval import RequestState, evaluate_policy
+from dialects.f5.bigip.policy_eval import RequestState, evaluate_policy
 
 
 def _policy(strategy: str, *rules: BigipPolicyRule) -> BigipPolicy:
@@ -417,7 +417,7 @@ def test_unknown_strategy_falls_through_to_best_match_approx():
 
 
 def test_request_state_from_session_lowercases_headers():
-    from core.bigip.policy_eval import request_state_from_session
+    from dialects.f5.bigip.policy_eval import request_state_from_session
 
     class _FakeFlow:
         http_method = "GET"

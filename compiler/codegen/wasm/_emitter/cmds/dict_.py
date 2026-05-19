@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 from ..._imports import (
     subcommand_runtime_import_for,

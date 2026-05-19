@@ -24,9 +24,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
-from core.bigip.query._probes import PROBES_ENABLED
-from core.bigip.query.output import render
+from dialects.f5.query import run_query
+from dialects.f5.query._probes import PROBES_ENABLED
+from dialects.f5.query.output import render
 
 # ---------------------------------------------------------------------------
 # Rich fixture — a small "data centre" with config + CMDB + threat feed.
@@ -412,7 +412,7 @@ class TestTableOutputDeep:
         """When the row value is an ObjectRef (an actual BIG-IP
         object), the table renderer pulls its ``.fields`` rather
         than calling ``str`` — so users see structured data."""
-        from core.bigip.query.values import ObjectRef
+        from dialects.f5.query.values import ObjectRef
 
         obj = ObjectRef(
             kind="ltm pool",
@@ -701,7 +701,7 @@ class TestHttpComposition:
         follows redirects automatically (both GET and HEAD), so
         the only way to *observe* a 3xx without writing a custom
         opener is to test the predicate directly."""
-        from core.bigip.query.builtins import _builtin_http_redirect
+        from dialects.f5.query.builtins import _builtin_http_redirect
 
         assert _builtin_http_redirect({"status": 301, "headers": {}, "body": ""})
         assert _builtin_http_redirect({"status": 302, "headers": {}, "body": ""})
@@ -956,7 +956,7 @@ class TestProbeGateDeep:
     ]
 
     def test_every_probe_builtin_is_gated(self):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         cfg = "ltm node /Common/n {address 10.0.0.1}"
         for query in self.GATED:
@@ -993,7 +993,7 @@ class TestEdgeCases:
         ``EvalError`` rather than silently producing ``null``.
         This matches the behaviour for missing fields on BIG-IP
         objects."""
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         json_path = tmp_path / "empty.json"
         json_path.write_text("{}")

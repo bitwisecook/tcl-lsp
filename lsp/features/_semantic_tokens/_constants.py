@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
-from core.commands.registry.command_registry import REGISTRY
+from compiler.registry.command_registry import REGISTRY
 
 log = logging.getLogger(__name__)
 

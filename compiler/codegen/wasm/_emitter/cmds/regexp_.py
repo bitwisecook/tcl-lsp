@@ -28,7 +28,7 @@ Known limit (separate work):
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _split_options_and_positionals(

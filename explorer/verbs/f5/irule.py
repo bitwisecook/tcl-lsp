@@ -30,10 +30,10 @@ import re
 import sys
 from pathlib import Path
 
-from core.bigip.model import BigipConfig
-from core.commands.registry.info import lookup_event_info
-from core.commands.registry.namespace_data import event_multiplicity, order_events_for_file
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.info import lookup_event_info
+from compiler.registry.namespace_data import event_multiplicity, order_events_for_file
+from compiler.registry.runtime import configure_signatures
+from dialects.f5.bigip.model import BigipConfig
 
 from ...pipeline import AVAILABLE_DIALECTS
 from .._utils import (
@@ -392,7 +392,7 @@ def _is_directory_target(output: str) -> bool:
 
 
 def _run_irule_lint(args: argparse.Namespace) -> int:
-    from core.bigip.lint import run_lint
+    from dialects.f5.bigip.lint import run_lint
 
     from .validate import _to_json, _to_text
 
@@ -433,8 +433,8 @@ def _run_irule_lint(args: argparse.Namespace) -> int:
 
 
 def _run_irule_trace(args: argparse.Namespace) -> int:
-    from core.bigip.irules_refs import extract_irules_object_references
-    from core.bigip.lint import _classify_reference_kind, _resolve_reference
+    from dialects.f5.bigip.irules_refs import extract_irules_object_references
+    from dialects.f5.bigip.lint import _classify_reference_kind, _resolve_reference
 
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
@@ -508,7 +508,7 @@ def _run_irule_trace(args: argparse.Namespace) -> int:
 
 def _merge_configs_for_trace(configs: dict[str, BigipConfig]) -> BigipConfig:
     """Lazy import so we don't pull lint code at module load."""
-    from core.bigip.lint import _merge_configs
+    from dialects.f5.bigip.lint import _merge_configs
 
     if not configs:
         return BigipConfig()

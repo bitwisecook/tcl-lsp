@@ -15,15 +15,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.registry import REGISTRY
+from compiler.registry.command_registry import CommandRegistry
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, PackageRequire, Range
-from core.commands.registry import REGISTRY
-from core.commands.registry.command_registry import CommandRegistry
-from core.commands.registry.stdlib import stdlib_command_specs
-from core.commands.registry.tcllib import tcllib_command_specs
-from core.commands.registry.tk import tk_command_specs
 from core.packages import PackageResolver
-from core.tk.detection import has_tk_require
+from dialects.stdlib import stdlib_command_specs
+from dialects.tcllib import tcllib_command_specs
+from dialects.tk.dialect.detection import has_tk_require
+from dialects.tk.specs import tk_command_specs
 from lsp.features.package_suggestions import rank_package_suggestions
 from lsp.workspace.workspace_index import EntrySource, WorkspaceIndex
 
@@ -717,7 +717,7 @@ class TestTcllibCrossConcerns:
 
     def test_tcllib_commands_present_across_dialects(self):
         """Tcllib commands should be available in all Tcl dialects."""
-        from core.commands.registry.runtime import SIGNATURES, configure_signatures
+        from compiler.registry.runtime import SIGNATURES, configure_signatures
 
         for dialect in ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"):
             configure_signatures(dialect=dialect)

@@ -40,8 +40,8 @@ from typing import TYPE_CHECKING
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.commands.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
-from core.commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from compiler.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
+from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg

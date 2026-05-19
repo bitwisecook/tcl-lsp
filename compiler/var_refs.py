@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from shared.naming import normalise_var_name
 
 _DEFAULT_CACHE_SIZE = 512

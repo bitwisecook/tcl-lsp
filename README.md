@@ -881,8 +881,8 @@ def _parse_yaml(source, *, uri, options=()):
 ```
 
 **Auto-discovered plugins** — drop any of the above into
-`$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
-`~/.config/f5q/plugins/*.py`) and the engine picks them up on the
+`$XDG_CONFIG_HOME/dialects/f5/query/plugins/*.py` (default
+`~/.config/dialects/f5/query/plugins/*.py`) and the engine picks them up on the
 first registry access, no import dance required.  Broken plugins
 warn to stderr and are skipped; `f5 q --help-plugins` shows what
 loaded.

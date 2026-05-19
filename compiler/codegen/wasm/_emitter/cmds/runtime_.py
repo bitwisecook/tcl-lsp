@@ -14,7 +14,7 @@ command already has a ``codegens["wasm"]`` entry and skips).
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _make_runtime_hook(cmd: str):

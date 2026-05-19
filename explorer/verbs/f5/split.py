@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.emit import emit_split_by_partition
+from dialects.f5.bigip.emit import emit_split_by_partition
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path

@@ -116,7 +116,7 @@ the CLI, `parser=` on `load()` / `q()` from Python).
 
 ## XDG plugin auto-loader
 
-Drop a Python file into `$XDG_CONFIG_HOME/f5q/plugins/` and it
+Drop a Python file into `$XDG_CONFIG_HOME/dialects/f5/query/plugins/` and it
 loads transparently on the first registry access — no
 `import my_plugin` ceremony, no PYTHONPATH dance.
 

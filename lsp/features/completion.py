@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis import analyse
-from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import (
     SIGNATURES,
     SubcommandSig,
 )
+from core.analysis import analyse
+from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope
 from core.formatting.config import FormatterConfig, IndentStyle
 from core.formatting.docstring import format_docstring
 from shared.dialect import active_dialect

@@ -28,7 +28,7 @@ from ._types import _InterprocTaintResult
 
 
 def _arity_from_params(params: tuple[str, ...]):  # noqa: ANN202
-    from core.commands.registry.signatures import Arity
+    from compiler.registry.signatures import Arity
 
     if params and params[-1] == "args":
         return Arity(len(params) - 1)

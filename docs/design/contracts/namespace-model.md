@@ -747,7 +747,7 @@ Same scan-first-20-lines convention.
 ## File layout
 
 ```
-core/commands/registry/
+compiler/registry/
     namespace_registry.py       # NamespaceRegistry facade
     namespace_models.py         # NamespaceScope, NamespaceTracker,
                                 # ProfileSpec, ProtocolNamespaceSpec,

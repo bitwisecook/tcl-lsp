@@ -200,7 +200,7 @@ def codegen_concat(emitter: _Emitter, args: tuple[str, ...]) -> bool:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("llength", codegen_llength)
     REGISTRY.register_codegen("lassign", codegen_lassign)

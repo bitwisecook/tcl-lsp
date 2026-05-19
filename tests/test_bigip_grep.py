@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from core.bigip.grep import compute_grep, report_to_dict
-from core.bigip.parser import parse_bigip_conf
-from core.commands.registry.runtime import active_signature_profile
+from compiler.registry.runtime import active_signature_profile
+from dialects.f5.bigip.grep import compute_grep, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
 from explorer import f5_cli
 
 

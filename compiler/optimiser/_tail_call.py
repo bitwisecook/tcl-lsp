@@ -15,8 +15,8 @@ from dataclasses import dataclass
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.registry.dialects import dialects_since
 from core.analysis.semantic_model import Range
-from core.commands.registry.dialects import dialects_since
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name as _normalise_qualified_name

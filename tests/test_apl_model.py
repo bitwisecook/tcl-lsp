@@ -9,17 +9,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.apl_model import (
+from dialects.f5.bigip.apl_model import (
     apl_name_to_tcl_var,
     parse_apl,
     resolve_apl_includes,
     tcl_var_to_apl_name,
 )
-from core.bigip.iapp_diagnostics import (
+from dialects.f5.bigip.iapp_diagnostics import (
     validate_iapp_implementation,
     validate_iapp_presentation,
 )
-from core.bigip.iapp_vars import extract_iapp_var_refs
+from dialects.f5.bigip.iapp_vars import extract_iapp_var_refs
 
 
 class TestAplModel:
@@ -205,18 +205,18 @@ class TestIappCrossFileDiagnostics:
         ``ContextVar``; the per-method hook ensures every test starts in
         the right context regardless of pytest's collection order.
         """
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-iapps")
 
     def teardown_method(self) -> None:
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def test_validators_silent_outside_iapp_dialects(self):
         """IAPP7001/7002/7003 must not fire in plain Tcl / iRules dialects."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         apl_source = "section basic {\n    string addr\n}\n"
         impl_source = "set port $::basic__port\n"  # undefined

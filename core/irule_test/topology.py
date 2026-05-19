@@ -1,6 +1,6 @@
 """SCF topology bridge -- generate Tcl test setup from bigip.conf.
 
-This module uses the existing ``core.bigip.parser`` to parse an SCF/bigip.conf
+This module uses the existing ``dialects.f5.bigip.parser`` to parse an SCF/bigip.conf
 file and generates the Tcl commands to load the topology into the iRule
 test framework.  This is the glue between the Python-side editor tooling
 (LSP, AI skills, MCP) and the pure-Tcl test framework.
@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.bigip.model import BigipConfig, ProfileType
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.model import BigipConfig, ProfileType
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 # Map our ProfileType enum to the string the Tcl orchestrator expects
 _PROFILE_TYPE_TO_TCL: dict[ProfileType, str] = {

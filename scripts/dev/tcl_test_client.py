@@ -260,7 +260,7 @@ def _build_word(fragments: list[TokenView]) -> WordNode:
 
 def _resolve_body_args(cmd: CommandNode) -> None:
     """If words in *cmd* are BODY arguments per SIGNATURES, recursively expand them."""
-    from core.commands.registry.runtime import body_arg_indices
+    from compiler.registry.runtime import body_arg_indices
 
     if not cmd.words:
         return
@@ -286,7 +286,7 @@ def _expand_body_word(word: WordNode) -> None:
 
 def _resolve_expression_args(cmd: CommandNode) -> None:
     """If words in *cmd* are EXPR arguments, parse expression sub-language."""
-    from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+    from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
     if not cmd.words:
         return

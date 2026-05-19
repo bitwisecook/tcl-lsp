@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from compiler.registry.taint_hints import TaintColour
 from core.analysis.checks._helpers import _build_file_join_fix
 from core.analysis.semantic_model import CodeFix
-from core.commands.registry.taint_hints import TaintColour
 from shared.codes import diag
 from shared.ranges import range_from_token
 

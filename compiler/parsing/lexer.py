@@ -31,12 +31,12 @@ def _strict_quoting() -> bool:
 
 # Set of dialects that support {*} argument expansion (introduced in
 # Tcl 8.5).  Derived once at import time from
-# ``core.commands.registry.dialects.dialects_since`` so any new dialect
+# ``compiler.registry.dialects.dialects_since`` so any new dialect
 # added there (or any dialect that intentionally opts out of version-based
 # trait inheritance, e.g. f5-bigip) inherits the correct {*} behaviour
 # without a manual list to keep in sync.
 def _build_expand_syntax_dialects() -> frozenset[str]:
-    from core.commands.registry.dialects import dialects_since
+    from compiler.registry.dialects import dialects_since
 
     return frozenset(dialects_since("tcl8.5"))
 
@@ -59,7 +59,7 @@ def _expand_syntax_active() -> bool:
     """
     if getattr(_thread_local, "expand_syntax_force_off", False):
         return False
-    from core.commands.registry.runtime import _dialect_var
+    from compiler.registry.runtime import _dialect_var
 
     return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
 
@@ -85,7 +85,7 @@ def expand_syntax_disabled_scope():
 
 def _irules_brace_separator_active() -> bool:
     """Whether the iRules ``}{`` brace-word boundary is enabled."""
-    from core.commands.registry.runtime import _dialect_var
+    from compiler.registry.runtime import _dialect_var
 
     return _dialect_var.get() == "f5-irules"
 

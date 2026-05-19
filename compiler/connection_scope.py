@@ -13,8 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 
 from .ir import IRCall, when_event_name
 

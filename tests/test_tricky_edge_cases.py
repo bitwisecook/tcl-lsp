@@ -625,7 +625,7 @@ class TestCatchBodySetInCondition:
                 }
             }
         """)
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         result = analyse(source)

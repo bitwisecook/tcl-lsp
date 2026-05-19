@@ -1,7 +1,7 @@
 """``f5 query`` — jq-flavoured DSL for inspecting and rewriting BIG-IP configs.
 
 The grammar, value model, and builtin library all live in
-:mod:`core.bigip.query`; this module is the argparse plumbing and the
+:mod:`dialects.f5.query`; this module is the argparse plumbing and the
 custom help actions that surface the DSL reference, builtin catalogue,
 and worked-example cookbook on the terminal.
 
@@ -10,12 +10,12 @@ Help layers:
 - ``--help`` (the default) — verb summary, flag table, and pointers to
   the deeper help.  ``RawDescriptionHelpFormatter`` keeps the example
   block readable.
-- ``--help-dsl`` — prints :func:`core.bigip.query.format_grammar`, the
+- ``--help-dsl`` — prints :func:`dialects.f5.query.format_grammar`, the
   same grammar reference that lives in ``docs/references/f5_query/dsl.md``.
 - ``--help-builtins [NAME]`` — full builtin catalogue, or just one
   function when a name is given.  Generated from the same registry the
   evaluator dispatches against, so docs and code cannot drift.
-- ``--help-examples`` — :func:`core.bigip.query.format_examples` —
+- ``--help-examples`` — :func:`dialects.f5.query.format_examples` —
   a cookbook of common one-liners.  Every example is also exercised
   by ``tests/test_f5_query.py`` so a broken example fails CI before it
   ever ships.
@@ -29,14 +29,14 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.query import (
+from dialects.f5.query import (
     format_builtins,
     format_examples,
     format_grammar,
     run_query,
 )
-from core.bigip.query.errors import QueryError
-from core.bigip.query.output import render
+from dialects.f5.query.errors import QueryError
+from dialects.f5.query.output import render
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path
@@ -154,7 +154,7 @@ class _HelpInputFormatsAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
-        from core.bigip.query import list_input_formats
+        from dialects.f5.query import list_input_formats
 
         specs = list_input_formats()
         if not specs:
@@ -183,7 +183,7 @@ class _HelpPluginsAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
-        from core.bigip.query import load_user_plugins, xdg_plugin_dir
+        from dialects.f5.query import load_user_plugins, xdg_plugin_dir
 
         directory = xdg_plugin_dir()
         sys.stdout.write(f"Plugin directory: {directory}\n")
@@ -211,7 +211,7 @@ class _HelpRenderersAction(argparse.Action):
     """
 
     def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
-        from core.bigip.query import list_renderers
+        from dialects.f5.query import list_renderers
 
         specs = list_renderers()
         if not specs:
@@ -778,7 +778,7 @@ def _run_query(args: argparse.Namespace) -> int:
     # into ``side_resolved_names`` for the ``$NAME`` lookup map.
     # URIs collide-check against positional inputs so a typo
     # doesn't silently overwrite a config.
-    from core.bigip.query._inputs import InputSpec as _InputSpec
+    from dialects.f5.query._inputs import InputSpec as _InputSpec
 
     input_specs: dict[str, _InputSpec] = {}
     side_resolved_names: dict[str, str] = {}
@@ -846,8 +846,8 @@ def _run_query(args: argparse.Namespace) -> int:
     # any future built-in formats without needing a dedicated flag.
     # Format validity is checked against the registered input formats
     # so a typo in KIND surfaces as a clear error before file IO.
-    from core.bigip.query.inputs import list_input_formats as _list_input_formats
-    from core.bigip.query.inputs import lookup as _lookup_input
+    from dialects.f5.query.inputs import list_input_formats as _list_input_formats
+    from dialects.f5.query.inputs import lookup as _lookup_input
 
     for kind, nm, custom_path in custom_input_bindings:
         if _lookup_input(kind) is None:
@@ -918,7 +918,7 @@ def _run_query(args: argparse.Namespace) -> int:
     # themselves on the ``PROBES_ENABLED`` contextvar.  Set it for
     # the duration of the run_query call so the default invocation
     # stays offline-safe.
-    from core.bigip.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
+    from dialects.f5.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
 
     _probe_token = PROBES_ENABLED.set(bool(args.enable_probes))
     _ca_bundle_token = TLS_CA_BUNDLE.set(args.ca_bundle)

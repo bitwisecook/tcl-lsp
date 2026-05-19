@@ -213,7 +213,7 @@ def _detect_dialect(source: str) -> str:
 
 def _configure_dialect(dialect: str | None = None) -> None:
     """Configure the registry for the given dialect."""
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect or _session_dialect)
 
@@ -710,8 +710,8 @@ def _tool_explain_flow(
 ) -> str:
     from pathlib import Path
 
-    from core.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     pcap = Path(pcap_path).resolve()
     if not pcap.is_file():
@@ -980,7 +980,7 @@ def _tool_rename(source: str, line: int, character: int, new_name: str, dialect:
 def _tool_event_info(event_name: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.commands.registry.info import lookup_event_info
+    from compiler.registry.info import lookup_event_info
 
     info = lookup_event_info(event_name, dialect="f5-irules")
 
@@ -1009,7 +1009,7 @@ def _tool_event_info(event_name: str) -> str:
 def _tool_command_info(command_name: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.commands.registry.info import lookup_command_info
+    from compiler.registry.info import lookup_command_info
 
     info = lookup_command_info(command_name, dialect="f5-irules")
     if not info.found:
@@ -1225,9 +1225,9 @@ def _tool_memory_aliases(source: str, dialect: str = "") -> str:
 def _tool_xc_translate(source: str, output_format: str = "both") -> str:
     _configure_dialect("f5-irules")
 
-    from core.xc.json_api import render_json
-    from core.xc.terraform import render_terraform
-    from core.xc.translator import translate_irule
+    from dialects.f5.xc.json_api import render_json
+    from dialects.f5.xc.terraform import render_terraform
+    from dialects.f5.xc.translator import translate_irule
 
     result = translate_irule(source)
 
@@ -1572,7 +1572,7 @@ def _tool_refactor(
     required=["source"],
 )
 def _tool_tk_layout(source: str) -> str:
-    from core.tk.extract import extract_tk_layout
+    from dialects.tk.dialect.extract import extract_tk_layout
 
     layout = extract_tk_layout(source)
     return json.dumps(layout)
@@ -1734,7 +1734,7 @@ def _tool_help(topic: str = "") -> str:
 def _tool_set_dialect(dialect: str) -> str:
     global _session_dialect
 
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     old = _session_dialect
     changed = configure_signatures(dialect=dialect)
@@ -2169,8 +2169,8 @@ def _tool_irule_with_context(
         context_bundle_to_dict,
         context_bundle_to_text,
     )
-    from core.bigip.lint import _merge_configs
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.lint import _merge_configs
+    from dialects.f5.bigip.parser import parse_bigip_conf
     from explorer.verbs.f5._paths import load_irule_inputs
 
     paths = list(config_paths or [])

@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-import f5q
-from f5q import ObjectRef, Query, QueryError, QueryRow, QueryRun, run_query
+import dialects.f5.query as f5q
+from dialects.f5.query import ObjectRef, Query, QueryError, QueryRow, QueryRun, run_query
 
 SAMPLE_LTM = Path(__file__).resolve().parents[1] / "samples" / "for_f5_query" / "ltm.conf"
 
@@ -29,8 +29,8 @@ def _ltm_text() -> str:
 
 
 def test_f5q_re_exports_public_symbols() -> None:
-    """The ``f5q`` shim mirrors :mod:`core.bigip.query` 1:1."""
-    import core.bigip.query as core_query
+    """The ``f5q`` shim mirrors :mod:`dialects.f5.query` 1:1."""
+    import dialects.f5.query as core_query
 
     # Every name we promise in __all__ resolves to the same object.
     for name in f5q.__all__:
@@ -50,7 +50,7 @@ def test_renderer_decorator_round_trips() -> None:
         assert any(s.name == "plugin-under-test" for s in f5q.list_renderers())
     finally:
         # Tidy up so the next test sees a clean registry.
-        from core.bigip.query.renderers import _REGISTRY
+        from dialects.f5.query.renderers import _REGISTRY
 
         _REGISTRY.pop("plugin-under-test", None)
 

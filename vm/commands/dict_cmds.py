@@ -536,6 +536,6 @@ def _dict_with(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register dict commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("dict", _cmd_dict)

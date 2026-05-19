@@ -2,7 +2,7 @@
 
 Unit-level coverage of :func:`stub_to_command_sig` and
 :func:`stub_signature_scope` from
-:mod:`core.commands.registry.runtime`, plus end-to-end coverage that
+:mod:`compiler.registry.runtime`, plus end-to-end coverage that
 walks all the way down to the call-graph and unused-proc analyser.
 """
 
@@ -14,14 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_graph import build_call_graph
-from core.analysis.semantic_model import (
-    Range,
-    SourcePosition,
-    StubArgDef,
-    StubCommandDef,
-)
-from core.commands.registry.runtime import (
+from compiler.registry.runtime import (
     SIGNATURES,
     arg_indices_for_role,
     body_arg_indices,
@@ -30,7 +23,14 @@ from core.commands.registry.runtime import (
     stub_signature_scope,
     stub_to_command_sig,
 )
-from core.commands.registry.signatures import ArgRole
+from compiler.registry.signatures import ArgRole
+from core.analysis.semantic_graph import build_call_graph
+from core.analysis.semantic_model import (
+    Range,
+    SourcePosition,
+    StubArgDef,
+    StubCommandDef,
+)
 
 _ZERO = Range(
     start=SourcePosition(line=0, character=0, offset=0),
@@ -97,7 +97,7 @@ class TestStubToCommandSig:
         assert sig.arity.max == 2
 
     def test_args_tail_is_variadic_with_zero_or_more_extras(self):
-        from core.commands.registry.signatures import Arity
+        from compiler.registry.signatures import Arity
 
         sig = stub_to_command_sig(
             _stub(
@@ -113,7 +113,7 @@ class TestStubToCommandSig:
         assert sig.arity.max == Arity.ANY
 
     def test_args_only_is_pure_variadic(self):
-        from core.commands.registry.signatures import Arity
+        from compiler.registry.signatures import Arity
 
         sig = stub_to_command_sig(_stub("anything", ("args", "value", False)))
         assert sig.arity.min == 0

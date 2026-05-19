@@ -190,7 +190,7 @@ here, in the escape pass, keeps the fixpoint logic in one place.
 - [ ] Compute the transitive part (all callees pure_leaf) in
   `_interprocedural.py` by including `pure_leaf` in the fixpoint.
 - [ ] Add a `CommandSpec.has_side_effect` accessor and ensure
-  every spec in `core/commands/registry/tcl/` has it set
+  every spec in `compiler/registry/tcl/` has it set
   correctly.
 - [ ] Document in
   `docs/design/compiler/var-escape-analysis.md`.
@@ -199,8 +199,8 @@ here, in the escape pass, keeps the fixpoint logic in one place.
 
 - Modify: `compiler/var_escape/_types.py`,
   `_propagation.py`, `_interprocedural.py`
-- Modify: `core/commands/registry/models.py` (add accessor)
-- Modify: every spec under `core/commands/registry/tcl/` that
+- Modify: `compiler/registry/models.py` (add accessor)
+- Modify: every spec under `compiler/registry/tcl/` that
   currently lacks `has_side_effect` (audit pass).
 - Modify: `docs/design/compiler/var-escape-analysis.md`
 

@@ -385,7 +385,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_no_w210_tcl86(self):
         """``incr x`` on uninitialised var is safe in 8.5+ — no W210."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         try:
@@ -404,7 +404,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_warns_tcl84(self):
         """``incr x`` on uninitialised var errors in Tcl 8.4 — W210 fires."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.4")
         try:
@@ -423,7 +423,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_warns_irules(self):
         """iRules is based on Tcl 8.4.6 — ``incr`` on uninit var errors."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         try:
@@ -628,7 +628,7 @@ class TestForeachInCollectionW210:
 
     @staticmethod
     def _setup_dialect():
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="synopsys-eda-tcl")
 
@@ -699,7 +699,7 @@ class TestForeachInCollectionW210:
 
     def test_not_treated_as_loop_without_dialect(self):
         """Without EDA dialect, foreach_in_collection is not a loop command."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         source = textwrap.dedent("""\

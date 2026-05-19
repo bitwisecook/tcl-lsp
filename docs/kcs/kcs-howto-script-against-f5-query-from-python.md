@@ -27,7 +27,7 @@ without shelling out to the CLI and parsing stdout.
 
 The engine is exposed as the top-level **`f5q`** package.  Everything
 external scripts normally need lives at the top level — no reaching
-into `core.bigip.query` internals.
+into `dialects.f5.query` internals.
 
 ### 1. The one-liner — `f5q.q()`
 
@@ -116,7 +116,7 @@ run.rows()      # [QueryRow(uri, value), ...] keeping the source URI
 
 `ObjectRef`, `PathRef`, and `Stream` are re-exported from `f5q` so
 your script can pattern-match on them without importing anything from
-`core.bigip.query`.
+`dialects.f5.query`.
 
 ### 5. Get plain JSON-compatible Python — `.out()`
 
@@ -276,17 +276,17 @@ is the generic flag the engine routes through any registered
 format — the typed `--input-json` / `--input-jsonl` / `--input-csv`
 / `--input-f5log` shorthands are kept for compatibility.
 
-### 12. Auto-load plugins from `~/.config/f5q/plugins/`
+### 12. Auto-load plugins from `~/.config/dialects/f5/query/plugins/`
 
-The engine scans `$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
-`~/.config/f5q/plugins/*.py`) on the first registry access.  Drop a
+The engine scans `$XDG_CONFIG_HOME/dialects/f5/query/plugins/*.py` (default
+`~/.config/dialects/f5/query/plugins/*.py`) on the first registry access.  Drop a
 file in that directory and it loads transparently the next time
 `f5 q` runs or any script imports a registry helper — no
 `import my_plugin` ceremony, no PYTHONPATH dance:
 
 ```sh
-mkdir -p ~/.config/f5q/plugins
-cat > ~/.config/f5q/plugins/my_extensions.py <<'PY'
+mkdir -p ~/.config/dialects/f5/query/plugins
+cat > ~/.config/dialects/f5/query/plugins/my_extensions.py <<'PY'
 from f5q import builtin, renderer, input_format
 
 @builtin("uppercase", summary="upper", min_args=1, max_args=1)
@@ -329,7 +329,7 @@ The same loader runs from Python:
 
 ```python
 import f5q
-f5q.load_user_plugins()        # idempotent — call once at startup
+dialects.f5.query.load_user_plugins()        # idempotent — call once at startup
 print(f5q.xdg_plugin_dir())    # diagnostic: where the loader looks
 print(f5q.list_renderers())    # everything available after loading
 ```

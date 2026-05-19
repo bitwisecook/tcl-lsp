@@ -86,7 +86,7 @@ def test_run_rename_partition_safely_quotes_query_arguments():
     rejected by ``rename_partition``'s name validation."""
     import pytest
 
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
     from lsp.features._bigip_code_actions import run_rename_partition
 
     source = "auth partition Tenant_A { description default }\nltm pool /Tenant_A/web_pool { }\n"
@@ -108,7 +108,7 @@ def test_run_rename_partition_refuses_common_renames():
     a user-visible error notification."""
     import pytest
 
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
     from lsp.features._bigip_code_actions import run_rename_partition
 
     source = "auth partition Common { description default }\n"

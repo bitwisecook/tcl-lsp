@@ -18,14 +18,14 @@ from dataclasses import dataclass, field
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
+from compiler.registry.signatures import ArgRole, Arity
 from core.analysis.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
     merge_traits,
 )
 from core.analysis.semantic_model import ProcArgTrait
-from core.commands.registry.runtime import arg_indices_for_role, resolve_arg_role_map
-from core.commands.registry.signatures import ArgRole, Arity
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )

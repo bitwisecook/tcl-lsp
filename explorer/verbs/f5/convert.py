@@ -7,8 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.convert import scf_to_as3
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.convert import scf_to_as3
+from dialects.f5.bigip.parser import parse_bigip_conf
 from explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
 from ._paths import read_path

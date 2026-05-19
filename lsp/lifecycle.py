@@ -11,7 +11,7 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.diagnostics_pipeline as _dp
 import lsp.state as _state
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from shared.dialect import active_dialect
 
 from .features.workspace_file_ops import compute_batch_rename_edits

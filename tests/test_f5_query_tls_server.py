@@ -26,8 +26,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
-from core.bigip.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
+from dialects.f5.query import run_query
+from dialects.f5.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
 
 pytestmark = pytest.mark.slow
 

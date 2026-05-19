@@ -5,7 +5,7 @@ ships **without** a `list_operators` entry — and classifies what each
 case means for `tmsh modify` emission.
 
 The classification drives the curated override layer in
-`core/bigip/registry/specs/_base.py::_FORCE_REPLACE_ALL_WITH`,
+`dialects/f5/bigip/registry/specs/_base.py::_FORCE_REPLACE_ALL_WITH`,
 which re-applies the right operators after every spec regeneration.
 
 ## Why this matters
@@ -99,7 +99,7 @@ Run:
 
 ```python
 python3 -c "
-from core.bigip.registry.data import PROPERTY_SPECS_BY_TYPE
+from dialects.f5.bigip.registry.data import PROPERTY_SPECS_BY_TYPE
 for (m, o), props in sorted(PROPERTY_SPECS_BY_TYPE.items()):
     for n, p in props.items():
         if p.value_type == 'list' and not p.list_operators:
@@ -109,7 +109,7 @@ for (m, o), props in sorted(PROPERTY_SPECS_BY_TYPE.items()):
 
 Any new entry that lands in the `tmsh_list` bucket needs to be
 added to `_FORCE_REPLACE_ALL_WITH` in
-`core/bigip/registry/specs/_base.py`.  A test
+`dialects/f5/bigip/registry/specs/_base.py`.  A test
 (`test_force_replace_all_with_pins_known_list_properties`) walks
 the allowlist and asserts every entry resolves to an actual
 property in the catalogue, so stale entries trip CI.

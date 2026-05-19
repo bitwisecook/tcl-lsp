@@ -2,7 +2,7 @@
 
 The implementation is a thin shell over the ``f5 query`` engine: the
 verb constructs a ``rename(OLD, NEW)`` expression and runs it through
-:func:`core.bigip.query.run_query`.  Routing both verbs through the
+:func:`dialects.f5.query.run_query`.  Routing both verbs through the
 same engine keeps the rename logic in one place — improvements to
 ``rename_object``, the iRule body walk, and the diff renderer are
 inherited automatically.
@@ -15,8 +15,8 @@ import difflib
 import sys
 from pathlib import Path
 
-from core.bigip.query import run_query
-from core.bigip.query.errors import QueryError
+from dialects.f5.query import run_query
+from dialects.f5.query.errors import QueryError
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path

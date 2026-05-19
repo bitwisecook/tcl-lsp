@@ -228,7 +228,7 @@ Three ways to obtain one, in order of preference:
    PMS/TLS-1.3 keys to that file.  No BIG-IP-side change required.
 2. **From BIG-IP** (TMOS 16+).  Enable the F5 TLS keylogger so the
    master secrets ride along inside the F5 Ethernet trailer (DPT
-   provider 4 — already understood by `core.bigip.f5_trailer`):
+   provider 4 — already understood by `dialects.f5.bigip.f5_trailer`):
    ```
    tmsh modify sys db tmm.tls.keylogger.enabled value true
    ```

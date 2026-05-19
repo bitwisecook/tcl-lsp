@@ -11,7 +11,7 @@ from enum import Enum
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import REGISTRY
+from compiler.registry import REGISTRY
 
 from .cfg import CFGFunction
 from .ir import IRAssignValue

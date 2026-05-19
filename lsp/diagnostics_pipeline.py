@@ -328,8 +328,8 @@ async def _publish_diagnostics_inner(
     if did_analyse:
         is_fresh = state.analysis is None or force_reanalyse
         if is_fresh:
+            from compiler.registry.runtime import _dialect_var, _extra_commands_var
             from core.analysis.checks._style import _non_ascii_mode_var
-            from core.commands.registry.runtime import _dialect_var, _extra_commands_var
             from lsp.workspace.document_state import _analyse_document_fresh
 
             try:
@@ -679,11 +679,11 @@ def _publish_bigip_diagnostics(
     source: str,
     version: int | None = None,
 ) -> None:
-    from core.bigip.diagnostics import (
+    from dialects.f5.bigip.diagnostics import (
         get_bigip_diagnostics,
         get_bigip_lint_diagnostics,
     )
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     try:
         config = parse_bigip_conf(source)
@@ -769,7 +769,7 @@ def _publish_apl_diagnostics(
     version: int | None = None,
 ) -> None:
     from core.analysis.semantic_model import Severity
-    from core.bigip.iapp_diagnostics import validate_iapp_presentation
+    from dialects.f5.bigip.iapp_diagnostics import validate_iapp_presentation
     from shared.lsp import to_lsp_range
 
     base_dir = _uri_to_dir(uri)
@@ -817,7 +817,7 @@ def _publish_apl_diagnostics(
 def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
     import os
 
-    from core.bigip.iapp_vars import extract_iapp_var_refs
+    from dialects.f5.bigip.iapp_vars import extract_iapp_var_refs
 
     impl_uri = _state.background_scanner.find_sibling_impl_source(uri)
     if impl_uri is not None:

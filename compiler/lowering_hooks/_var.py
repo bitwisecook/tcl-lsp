@@ -158,7 +158,7 @@ def lower_incr(lowerer: _LowererLike, cmd: _Command) -> object | None:
 
 def _check_safe_on_uninit(command: str, subcommand: str | None = None) -> bool:
     """Query the registry for the ``safe_on_uninit`` trait."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
     from shared.dialect import active_dialect
 
     return REGISTRY.is_safe_on_uninit(command, subcommand, active_dialect())
@@ -254,7 +254,7 @@ def lower_upvar(lowerer: _LowererLike, cmd: _Command) -> object | None:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_lowering("set", lower_set)
     REGISTRY.register_lowering("incr", lower_incr)

@@ -12,7 +12,7 @@ shapes during the migration.
 
 from __future__ import annotations
 
-from core.bigip.registry import (
+from dialects.f5.bigip.registry import (
     AddressSpec,
     BoolSpec,
     DestinationSpec,
@@ -31,7 +31,7 @@ from core.bigip.registry import (
     RenderContext,
     StringSpec,
 )
-from core.bigip.types import BigipList, ListItem
+from dialects.f5.bigip.types import BigipList, ListItem
 
 # ---------------------------------------------------------------------------
 # StringSpec / IntSpec / BoolSpec / EnumSpec — scalar fundamentals
@@ -146,7 +146,7 @@ def test_bigip_list_behaves_like_mutable_python_list():
 
 
 def test_destination_spec_parses_ip_port_destination():
-    from core.bigip.types import Destination
+    from dialects.f5.bigip.types import Destination
 
     spec = DestinationSpec(require_port=True, allow_partition=False)
     parsed = spec.parse("/Common/10.0.0.10:80", ParseContext())
@@ -168,7 +168,7 @@ def test_network_spec_keeps_original_spelling_and_default_keyword():
 
 
 def test_address_spec_parses_ip_and_fqdn():
-    from core.bigip.types import FQDN, IPAddress
+    from dialects.f5.bigip.types import FQDN, IPAddress
 
     spec = AddressSpec()
     ip = spec.parse("10.0.0.1", ParseContext())
@@ -272,7 +272,7 @@ def test_pilot_table_seeds_ltm_virtual_destination():
     exercise.  Behaviour is identical to the legacy ``typed=True``
     branch (canonical-string projection); the dispatch path is what
     Phase 2 actually exercises."""
-    from core.bigip.registry.pilot import pilot_property_spec_for
+    from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 
     spec = pilot_property_spec_for("ltm", "virtual", "destination")
     assert spec is not None
@@ -285,7 +285,7 @@ def test_projection_routes_destination_through_pilot_spec():
     :class:`DestinationSpec` path.  The end-user surface is
     unchanged — the destination still projects as a canonical
     string — so every existing query continues to work."""
-    from core.bigip.query import run_query
+    from dialects.f5.query import run_query
 
     src = "ltm virtual /Common/v { destination /Common/10.0.0.10:80 }\n"
     result = run_query('.ltm.virtual["/Common/v"].destination', {"m": src})
@@ -298,7 +298,7 @@ def test_destination_spec_projects_none_as_empty_string():
     into ``""`` so falsey-truthiness matched empty strings.  The
     Phase 2 dispatch preserves that — Destination's ``project()``
     explicitly handles ``None`` to keep the contract."""
-    from core.bigip.registry import DestinationSpec, ProjectionContext
+    from dialects.f5.bigip.registry import DestinationSpec, ProjectionContext
 
     spec = DestinationSpec()
     assert spec.project(None, ProjectionContext()) == ""
@@ -319,7 +319,7 @@ def test_destination_write_through_spec_renders_canonical_form():
     :class:`DestinationSpec`'s ``parse`` + ``render`` round trip so
     the spec validates and re-emits the value rather than the
     generic SCF encoder splicing the raw string."""
-    from core.bigip.query import run_query
+    from dialects.f5.query import run_query
 
     result = run_query(
         '.ltm.virtual["/Common/v"].destination = "/Common/192.168.1.1:443"',
@@ -336,8 +336,8 @@ def test_destination_write_rejects_unparseable_input():
     actual problem."""
     import pytest
 
-    from core.bigip.query import run_query
-    from core.bigip.query.errors import EditError, QueryError
+    from dialects.f5.query import run_query
+    from dialects.f5.query.errors import EditError, QueryError
 
     with pytest.raises((EditError, QueryError)) as exc:
         run_query(
@@ -360,8 +360,8 @@ def test_destination_parse_routes_through_spec():
     :class:`DestinationSpec` for ``destination``.  End-to-end test:
     parsing a virtual produces the same typed Destination value the
     legacy hand-rolled path produced."""
-    from core.bigip.parser import parse_bigip_conf
-    from core.bigip.types import Destination
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.types import Destination
 
     src = "ltm virtual /Common/v {\n    destination /Common/10.0.0.10:80\n}\n"
     cfg = parse_bigip_conf(src)
@@ -376,7 +376,7 @@ def test_phase4_dispatch_helper_returns_none_for_empty_raw():
     to special-case it.  This is the same shape every legacy
     typed-field block (``if raw_text else None``) was using before
     the migration."""
-    from core.bigip.parser._parsers import _parse_typed_field
+    from dialects.f5.bigip.parser._parsers import _parse_typed_field
 
     out = _parse_typed_field(
         module="ltm",
@@ -397,7 +397,7 @@ def test_references_via_spec_returns_none_for_unmigrated_property():
     """The dispatch helper returns ``None`` when the property
     hasn't been migrated — the caller falls back to the legacy
     grep-based path so untouched properties continue to work."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     out = references_via_spec(
         module="ltm",
@@ -415,7 +415,7 @@ def test_iter_object_references_yields_from_migrated_specs_only():
     returning real edges; today the destination spec doesn't carry
     references (it's a value, not a ref) so the iteration is empty
     even though the property is migrated."""
-    from core.bigip.registry import iter_object_references
+    from dialects.f5.bigip.registry import iter_object_references
 
     refs = list(
         iter_object_references(
@@ -440,8 +440,8 @@ def test_iter_object_references_yields_from_migrated_specs_only():
 
 
 def test_monitor_expression_parses_default_keyword():
-    from core.bigip.registry import MonitorExpressionSpec
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.types import MonitorExpression
 
     spec = MonitorExpressionSpec()
     parsed = spec.parse("default", ParseContext())
@@ -452,8 +452,8 @@ def test_monitor_expression_parses_default_keyword():
 
 
 def test_monitor_expression_parses_single_monitor():
-    from core.bigip.registry import MonitorExpressionSpec
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.types import MonitorExpression
 
     spec = MonitorExpressionSpec()
     parsed = spec.parse("/Common/http", ParseContext())
@@ -464,8 +464,8 @@ def test_monitor_expression_parses_single_monitor():
 
 
 def test_monitor_expression_parses_and_chain():
-    from core.bigip.registry import MonitorExpressionSpec
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.types import MonitorExpression
 
     spec = MonitorExpressionSpec()
     parsed = spec.parse("/Common/http and /Common/tcp", ParseContext())
@@ -477,8 +477,8 @@ def test_monitor_expression_parses_and_chain():
 
 
 def test_monitor_expression_parses_min_of():
-    from core.bigip.registry import MonitorExpressionSpec
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.types import MonitorExpression
 
     spec = MonitorExpressionSpec()
     parsed = spec.parse(
@@ -500,8 +500,8 @@ def test_monitor_expression_spec_emits_references_for_graph():
     query graph / LSP layer can navigate to each one — this was the
     review's biggest "regex seed matching wouldn't be precise here"
     case.  Each parsed monitor becomes one :class:`Reference`."""
-    from core.bigip.registry import MonitorExpressionSpec, ReferenceContext
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.registry import MonitorExpressionSpec, ReferenceContext
+    from dialects.f5.bigip.types import MonitorExpression
 
     spec = MonitorExpressionSpec(ref_kind="ltm monitor")
     value = MonitorExpression(
@@ -517,7 +517,7 @@ def test_monitor_expression_spec_emits_references_for_graph():
 
 
 def test_monitor_expression_rejects_garbage():
-    from core.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
 
     spec = MonitorExpressionSpec()
     parsed = spec.parse("min hello of { /Common/http }", ParseContext())
@@ -531,8 +531,8 @@ def test_monitor_expression_rejects_garbage():
 
 
 def test_profile_attachment_parses_context_clientside():
-    from core.bigip.registry import ProfileAttachmentSpec, ReferenceContext
-    from core.bigip.types import ProfileAttachment
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec, ReferenceContext
+    from dialects.f5.bigip.types import ProfileAttachment
 
     spec = ProfileAttachmentSpec()
     parsed = spec.parse("/Common/clientssl { context clientside }", ParseContext())
@@ -554,7 +554,7 @@ def test_monitor_expression_str_invalidates_raw_on_field_mutation():
     future transforms stale" finding."""
     import dataclasses
 
-    from core.bigip.types import MonitorExpression
+    from dialects.f5.bigip.types import MonitorExpression
 
     expr = MonitorExpression.try_parse("min 2 of { /Common/http /Common/tcp /Common/https }")
     assert expr is not None
@@ -571,7 +571,7 @@ def test_profile_attachment_str_invalidates_raw_on_field_mutation():
     new value instead of returning the original raw text."""
     import dataclasses
 
-    from core.bigip.types import ProfileAttachment
+    from dialects.f5.bigip.types import ProfileAttachment
 
     p = ProfileAttachment.from_raw("/Common/clientssl", "context clientside")
     assert "context clientside" in str(p)
@@ -586,7 +586,7 @@ def test_persistence_attachment_str_invalidates_raw_on_field_mutation():
     structured value."""
     import dataclasses
 
-    from core.bigip.types import PersistenceAttachment
+    from dialects.f5.bigip.types import PersistenceAttachment
 
     pe = PersistenceAttachment.from_raw("/Common/cookie", "default yes")
     assert "default yes" in str(pe)
@@ -601,7 +601,7 @@ def test_profile_attachment_rejects_stray_context_token():
     leak into the structured field.  Regression for the review's
     "attachment parsing is too loose for structured semantics"
     finding."""
-    from core.bigip.types import ProfileAttachment
+    from dialects.f5.bigip.types import ProfileAttachment
 
     # Stray token without the ``context`` key — must not become
     # the structured context value.
@@ -618,15 +618,15 @@ def test_persistence_attachment_rejects_nested_default_token():
     ``default yes`` pair that's nested inside a sub-block.  Same
     "attachment parsing too loose" regression on the persistence
     side."""
-    from core.bigip.types import PersistenceAttachment
+    from dialects.f5.bigip.types import PersistenceAttachment
 
     nested = PersistenceAttachment.from_raw("/Common/p", "nested { default yes }")
     assert nested.default is False
 
 
 def test_profile_attachment_parses_empty_body():
-    from core.bigip.registry import ProfileAttachmentSpec
-    from core.bigip.types import ProfileAttachment
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec
+    from dialects.f5.bigip.types import ProfileAttachment
 
     spec = ProfileAttachmentSpec()
     parsed = spec.parse("/Common/http { }", ParseContext())
@@ -636,8 +636,8 @@ def test_profile_attachment_parses_empty_body():
 
 
 def test_persistence_attachment_parses_default_yes():
-    from core.bigip.registry import PersistenceAttachmentSpec
-    from core.bigip.types import PersistenceAttachment
+    from dialects.f5.bigip.registry import PersistenceAttachmentSpec
+    from dialects.f5.bigip.types import PersistenceAttachment
 
     spec = PersistenceAttachmentSpec()
     parsed = spec.parse("/Common/cookie { default yes }", ParseContext())
@@ -648,8 +648,8 @@ def test_persistence_attachment_parses_default_yes():
 
 
 def test_persistence_attachment_defaults_to_false():
-    from core.bigip.registry import PersistenceAttachmentSpec
-    from core.bigip.types import PersistenceAttachment
+    from dialects.f5.bigip.registry import PersistenceAttachmentSpec
+    from dialects.f5.bigip.types import PersistenceAttachment
 
     spec = PersistenceAttachmentSpec()
     parsed = spec.parse("/Common/source_addr { }", ParseContext())
@@ -658,8 +658,8 @@ def test_persistence_attachment_defaults_to_false():
 
 
 def test_snat_mode_parses_each_variant():
-    from core.bigip.registry import ReferenceContext, SnatModeSpec
-    from core.bigip.types import SnatMode
+    from dialects.f5.bigip.registry import ReferenceContext, SnatModeSpec
+    from dialects.f5.bigip.types import SnatMode
 
     spec = SnatModeSpec()
 
@@ -686,7 +686,7 @@ def test_snat_mode_parses_each_variant():
 
 
 def test_snat_mode_rejects_snat_without_pool():
-    from core.bigip.registry import SnatModeSpec
+    from dialects.f5.bigip.registry import SnatModeSpec
 
     spec = SnatModeSpec()
     parsed = spec.parse("{ type snat }", ParseContext())
@@ -700,8 +700,8 @@ def test_snat_mode_rejects_snat_without_pool():
 
 
 def test_data_group_record_parses_keyed_value():
-    from core.bigip.registry import DataGroupRecordSpec
-    from core.bigip.types import DataGroupRecord
+    from dialects.f5.bigip.registry import DataGroupRecordSpec
+    from dialects.f5.bigip.types import DataGroupRecord
 
     spec = DataGroupRecordSpec()
     parsed = spec.parse("host1.example.com { data 10.0.0.1 }", ParseContext())
@@ -711,8 +711,8 @@ def test_data_group_record_parses_keyed_value():
 
 
 def test_data_group_record_handles_bare_entry():
-    from core.bigip.registry import DataGroupRecordSpec
-    from core.bigip.types import DataGroupRecord
+    from dialects.f5.bigip.registry import DataGroupRecordSpec
+    from dialects.f5.bigip.types import DataGroupRecord
 
     spec = DataGroupRecordSpec()
     parsed = spec.parse("prod-allowed { }", ParseContext())
@@ -722,8 +722,8 @@ def test_data_group_record_handles_bare_entry():
 
 
 def test_gtm_region_member_parses_negation_and_kind():
-    from core.bigip.registry import GtmRegionMemberSpec
-    from core.bigip.types import GtmRegionMember
+    from dialects.f5.bigip.registry import GtmRegionMemberSpec
+    from dialects.f5.bigip.types import GtmRegionMember
 
     spec = GtmRegionMemberSpec()
     plain = spec.parse("subnet 10.10.1.0/24 { }", ParseContext())
@@ -740,8 +740,8 @@ def test_gtm_region_member_parses_negation_and_kind():
 
 
 def test_cert_key_chain_parses_full_entry_and_yields_refs():
-    from core.bigip.registry import CertKeyChainSpec, ReferenceContext
-    from core.bigip.types import CertKeyChain
+    from dialects.f5.bigip.registry import CertKeyChainSpec, ReferenceContext
+    from dialects.f5.bigip.types import CertKeyChain
 
     spec = CertKeyChainSpec()
     parsed = spec.parse(
@@ -768,8 +768,8 @@ def test_cert_key_chain_parses_full_entry_and_yields_refs():
 
 
 def test_policy_condition_parses_http_host_match():
-    from core.bigip.registry import LtmPolicyConditionSpec
-    from core.bigip.types import LtmPolicyCondition
+    from dialects.f5.bigip.registry import LtmPolicyConditionSpec
+    from dialects.f5.bigip.types import LtmPolicyCondition
 
     spec = LtmPolicyConditionSpec()
     parsed = spec.parse(
@@ -785,8 +785,8 @@ def test_policy_condition_parses_http_host_match():
 
 
 def test_policy_condition_parses_negation_and_operator():
-    from core.bigip.registry import LtmPolicyConditionSpec
-    from core.bigip.types import LtmPolicyCondition
+    from dialects.f5.bigip.registry import LtmPolicyConditionSpec
+    from dialects.f5.bigip.types import LtmPolicyCondition
 
     spec = LtmPolicyConditionSpec()
     parsed = spec.parse(
@@ -802,8 +802,8 @@ def test_policy_condition_parses_negation_and_operator():
 
 
 def test_policy_action_forward_pool_yields_pool_reference():
-    from core.bigip.registry import LtmPolicyActionSpec, ReferenceContext
-    from core.bigip.types import LtmPolicyAction
+    from dialects.f5.bigip.registry import LtmPolicyActionSpec, ReferenceContext
+    from dialects.f5.bigip.types import LtmPolicyAction
 
     spec = LtmPolicyActionSpec()
     parsed = spec.parse(
@@ -822,8 +822,8 @@ def test_policy_action_forward_pool_yields_pool_reference():
 
 
 def test_policy_action_redirect_captures_location_and_status():
-    from core.bigip.registry import LtmPolicyActionSpec
-    from core.bigip.types import LtmPolicyAction
+    from dialects.f5.bigip.registry import LtmPolicyActionSpec
+    from dialects.f5.bigip.types import LtmPolicyAction
 
     spec = LtmPolicyActionSpec()
     parsed = spec.parse(
@@ -842,8 +842,8 @@ def test_policy_action_redirect_captures_location_and_status():
 
 
 def test_firewall_rule_parses_inline_classifier():
-    from core.bigip.registry import FirewallRuleSpec, ReferenceContext
-    from core.bigip.types import FirewallRule
+    from dialects.f5.bigip.registry import FirewallRuleSpec, ReferenceContext
+    from dialects.f5.bigip.types import FirewallRule
 
     spec = FirewallRuleSpec()
     parsed = spec.parse(
@@ -890,8 +890,8 @@ def test_firewall_rule_captures_rule_list_reference():
     instead of defining the classifier inline.  The reference
     surfaces through the graph layer the same way every other
     list link does."""
-    from core.bigip.registry import FirewallRuleSpec, ReferenceContext
-    from core.bigip.types import FirewallRule
+    from dialects.f5.bigip.registry import FirewallRuleSpec, ReferenceContext
+    from dialects.f5.bigip.types import FirewallRule
 
     spec = FirewallRuleSpec()
     parsed = spec.parse(
@@ -910,7 +910,7 @@ def test_nat_rule_spec_is_alias_of_firewall_rule_spec():
     """NAT rules share the firewall rule grammar — modelling them
     twice would duplicate the parser.  The spec is a thin alias
     so registry consumers see the same dispatch contract."""
-    from core.bigip.registry import FirewallRuleSpec, NatRuleSpec
+    from dialects.f5.bigip.registry import FirewallRuleSpec, NatRuleSpec
 
     assert NatRuleSpec is FirewallRuleSpec
 
@@ -924,7 +924,7 @@ def test_pool_monitor_migration_enumerates_refs_via_spec():
     """``ltm pool.monitor`` is migrated to MonitorExpressionSpec; the
     reference dispatch parses the raw string through the spec and
     yields one Reference per monitor in the expression."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -942,7 +942,7 @@ def test_pool_monitor_migration_enumerates_refs_via_spec():
 
 
 def test_node_monitor_migration_handles_min_of():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -966,7 +966,7 @@ def test_gtm_monitor_references_emit_gtm_target_kind():
     layer fans out to ``ltm_monitor_*`` and never finds the
     GTM-side monitor object.  Regression for the re-review's
     high-severity finding."""
-    from core.bigip.registry import (
+    from dialects.f5.bigip.registry import (
         candidate_registry_kinds_for_display,
         references_via_spec,
     )
@@ -991,7 +991,7 @@ def test_ltm_monitor_references_still_emit_ltm_target_kind():
     """The split keeps LTM monitor refs on the LTM family — the
     LTM pool / node fan-out resolves to ``ltm_monitor_*`` kinds
     only."""
-    from core.bigip.registry import (
+    from dialects.f5.bigip.registry import (
         candidate_registry_kinds_for_display,
         references_via_spec,
     )
@@ -1013,7 +1013,7 @@ def test_virtual_source_address_translation_migration_yields_snat_pool_ref():
     """``ltm virtual.source-address-translation`` is migrated to
     SnatModeSpec; the reference dispatch parses the body and yields
     one Reference to the snat pool when the mode is ``snat``."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1031,7 +1031,7 @@ def test_virtual_source_address_translation_migration_yields_snat_pool_ref():
 def test_automap_snat_yields_no_refs():
     """Automap doesn't reference a SNAT pool, so the migration
     correctly yields zero refs."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1050,7 +1050,7 @@ def test_monitor_projection_stays_on_legacy_pathref_surface():
     legacy ``ref_kind="ltm monitor"`` PathRef projection.  Phase 6+
     can introduce a structured MonitorExpression container later;
     for now back-compat is the priority."""
-    from core.bigip.query import run_query
+    from dialects.f5.query import run_query
 
     src = "ltm pool /Common/web_pool {\n    monitor /Common/http\n}\n"
     result = run_query('.ltm.pool["/Common/web_pool"].monitor', {"m": src})
@@ -1068,7 +1068,7 @@ def test_virtual_profiles_migration_yields_per_element_refs():
     """``ltm virtual.profiles`` is migrated to a ListSpec; the
     reference dispatch unwinds the tuple and yields one Reference
     per profile attachment."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1087,7 +1087,7 @@ def test_virtual_profiles_migration_yields_per_element_refs():
 
 
 def test_virtual_persist_migration_yields_per_element_refs():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1105,7 +1105,7 @@ def test_virtual_persist_migration_yields_per_element_refs():
 
 
 def test_virtual_rules_migration_yields_per_element_refs():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1122,7 +1122,7 @@ def test_virtual_rules_migration_yields_per_element_refs():
 
 
 def test_virtual_policies_migration_yields_per_element_refs():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1138,7 +1138,7 @@ def test_virtual_policies_migration_yields_per_element_refs():
 
 
 def test_virtual_vlans_migration_yields_per_element_refs():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1158,7 +1158,7 @@ def test_virtual_profile_projection_exposes_structured_attachments():
     """``.profiles[]`` projects as the typed BigipList view so DSL
     queries can ask ``.context`` / ``.full_path`` on each item
     (the back-compat PathRef alias)."""
-    from core.bigip.query import run_query
+    from dialects.f5.query import run_query
 
     src = (
         "ltm virtual /Common/v {\n"
@@ -1184,7 +1184,7 @@ def test_data_group_records_migration_parses_each_entry():
     Records don't reference other objects so we get an empty edge list,
     but the dispatch confirms it found the migrated spec (returns
     ``()`` not ``None``)."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1198,7 +1198,7 @@ def test_data_group_records_migration_parses_each_entry():
 
 
 def test_gtm_region_members_migration_routes_through_spec():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="gtm",
@@ -1215,7 +1215,7 @@ def test_cert_key_chain_migration_surfaces_ssl_artifact_refs():
     """``cert-key-chain`` items carry cert + key + chain references —
     each yields a typed edge so the graph layer finds every SSL
     profile depending on a given cert / key / CA bundle."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="ltm",
@@ -1242,7 +1242,7 @@ def test_cert_key_chain_migration_surfaces_ssl_artifact_refs():
 def test_server_ssl_cert_key_chain_shares_one_spec():
     """Client-SSL and server-SSL cert-key-chain entries share the
     same spec — both kinds dispatch to ``CertKeyChainSpec``."""
-    from core.bigip.registry.pilot import pilot_property_spec_for
+    from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 
     client = pilot_property_spec_for("ltm", "profile client-ssl", "cert-key-chain")
     server = pilot_property_spec_for("ltm", "profile server-ssl", "cert-key-chain")
@@ -1259,7 +1259,7 @@ def test_firewall_policy_rule_lists_migration_yields_nested_refs():
     nested rule-list — the migration surfaces every edge so the
     graph layer can answer "which firewall policies use this
     rule-list?" exactly."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="security",
@@ -1276,7 +1276,7 @@ def test_firewall_policy_rule_lists_migration_yields_nested_refs():
 
 
 def test_firewall_address_list_nested_lists_migration_yields_refs():
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     refs = references_via_spec(
         module="security",
@@ -1317,7 +1317,7 @@ def test_no_spec_encodes_operators_in_enum_values():
     and ``none`` is only flagged when paired with another operator
     (the value ``none`` is legitimately an enum in many specs).
     """
-    from core.bigip.registry.specs import OBJECT_SPECS
+    from dialects.f5.bigip.registry.specs import OBJECT_SPECS
 
     OPERATOR_TOKENS = {"add", "delete", "modify", "replace-all-with"}
     offenders: list[str] = []
@@ -1349,8 +1349,8 @@ def test_every_pilot_property_has_a_known_value_spec():
     exports.  This audit prevents a typo / orphaned entry from
     landing — the dispatch contract requires that every registered
     property points at a callable spec."""
-    from core.bigip.registry import PropertySpec
-    from core.bigip.registry.pilot import PILOT_PROPERTY_SPECS
+    from dialects.f5.bigip.registry import PropertySpec
+    from dialects.f5.bigip.registry.pilot import PILOT_PROPERTY_SPECS
 
     for key, spec in PILOT_PROPERTY_SPECS.items():
         assert isinstance(spec, PropertySpec), f"{key}: not a PropertySpec"
@@ -1372,11 +1372,11 @@ def test_every_pilot_property_has_a_known_value_spec():
 def test_policy_action_spec_accepts_legacy_bigip_policy_action():
     """The reference dispatch tolerates either the new
     :class:`LtmPolicyAction` or the legacy
-    :class:`BigipPolicyAction` (from :mod:`core.bigip.model._ltm`)
+    :class:`BigipPolicyAction` (from :mod:`dialects.f5.bigip.model._ltm`)
     so the migration can land without rewriting the policy
     dataclasses."""
-    from core.bigip.model import BigipPolicyAction
-    from core.bigip.registry import LtmPolicyActionSpec, ReferenceContext
+    from dialects.f5.bigip.model import BigipPolicyAction
+    from dialects.f5.bigip.registry import LtmPolicyActionSpec, ReferenceContext
 
     spec = LtmPolicyActionSpec()
     legacy = BigipPolicyAction(index=0, target="request", verb="forward", pool="/Common/web_pool")
@@ -1391,8 +1391,8 @@ def test_policy_rule_spec_walks_nested_actions():
     every reference each action carries — the bridge that lets
     the registry surface pool refs from policy forward actions
     without a model rewrite."""
-    from core.bigip.model import BigipPolicyAction, BigipPolicyRule
-    from core.bigip.registry import LtmPolicyRuleSpec, ReferenceContext
+    from dialects.f5.bigip.model import BigipPolicyAction, BigipPolicyRule
+    from dialects.f5.bigip.registry import LtmPolicyRuleSpec, ReferenceContext
 
     spec = LtmPolicyRuleSpec()
     rule = BigipPolicyRule(
@@ -1414,8 +1414,8 @@ def test_policy_rules_migration_unwinds_nested_pool_refs():
     yields every pool ref forwarded to by any action of any rule —
     addressing the design doc's "find every policy forwarding to a
     pool" example query."""
-    from core.bigip.model import BigipPolicyAction, BigipPolicyRule
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.model import BigipPolicyAction, BigipPolicyRule
+    from dialects.f5.bigip.registry import references_via_spec
 
     rules = (
         BigipPolicyRule(
@@ -1453,8 +1453,8 @@ def test_firewall_rule_list_rule_objects_pilot_walks_typed_bodies():
     every port-list / address-list edge each rule references — so the
     graph layer answers ``references_to /Common/web_servers`` for
     rule-lists without re-parsing the nested source view."""
-    from core.bigip.registry import references_via_spec
-    from core.bigip.types import FirewallEndpoint, FirewallRule
+    from dialects.f5.bigip.registry import references_via_spec
+    from dialects.f5.bigip.types import FirewallEndpoint, FirewallRule
 
     rules = (
         FirewallRule(
@@ -1492,9 +1492,9 @@ def test_firewall_rule_list_parser_populates_rule_objects():
     rule-list`` stanza yields ``rule_objects`` carrying the typed
     bodies — the back-compat ``rules`` tuple of names is preserved
     in document order."""
-    from core.bigip.parser._helpers import _Block
-    from core.bigip.parser._parsers import _parse_security_firewall_rule_list
-    from core.bigip.types import FirewallRule
+    from dialects.f5.bigip.parser._helpers import _Block
+    from dialects.f5.bigip.parser._parsers import _parse_security_firewall_rule_list
+    from dialects.f5.bigip.types import FirewallRule
     from shared.document_buffer import DocumentBuffer
 
     body = (
@@ -1542,7 +1542,7 @@ def test_candidate_registry_kinds_for_display_resolves_exact():
     address-list"``) map to the underscored registry keys so the
     graph resolver can look them up in ``OBJECT_KIND_SPECS``
     without each consumer rebuilding the mapping."""
-    from core.bigip.registry import candidate_registry_kinds_for_display
+    from dialects.f5.bigip.registry import candidate_registry_kinds_for_display
 
     assert candidate_registry_kinds_for_display("ltm pool") == ("ltm_pool",)
     assert candidate_registry_kinds_for_display("ltm rule") == ("ltm_rule",)
@@ -1559,7 +1559,7 @@ def test_candidate_registry_kinds_for_display_fans_out_monitor_family():
     monitor")`` without naming a specific monitor type — the
     graph resolver needs every ``ltm_monitor_*`` candidate to look
     up the path against."""
-    from core.bigip.registry import candidate_registry_kinds_for_display
+    from dialects.f5.bigip.registry import candidate_registry_kinds_for_display
 
     kinds = candidate_registry_kinds_for_display("ltm monitor")
     assert "ltm_monitor_http" in kinds
@@ -1573,7 +1573,7 @@ def test_monitor_expression_spec_rejects_zero_threshold():
     """``min 0 of { ... }`` is grammatically valid but BIG-IP refuses
     it at validation — the spec should emit a diagnostic so editors
     surface it before the user pushes the config."""
-    from core.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
 
     spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
     parsed = spec.parse("min 0 of { /Common/http }", ParseContext())
@@ -1585,7 +1585,7 @@ def test_monitor_expression_spec_rejects_threshold_above_listed_count():
     """``min 99 of { /Common/http }`` parses but is unsatisfiable —
     BIG-IP needs the threshold to be ≤ the number of listed
     monitors.  The spec emits a diagnostic so the editor flags it."""
-    from core.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
 
     spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
     parsed = spec.parse("min 99 of { /Common/http }", ParseContext())
@@ -1595,7 +1595,7 @@ def test_monitor_expression_spec_rejects_threshold_above_listed_count():
 
 def test_monitor_expression_spec_accepts_valid_threshold_silently():
     """A well-formed ``min 2 of { a b c }`` produces no diagnostics."""
-    from core.bigip.registry import MonitorExpressionSpec
+    from dialects.f5.bigip.registry import MonitorExpressionSpec
 
     spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
     parsed = spec.parse("min 2 of { /Common/http /Common/tcp /Common/https }", ParseContext())
@@ -1606,7 +1606,7 @@ def test_monitor_expression_spec_accepts_valid_threshold_silently():
 def test_candidate_registry_kinds_for_display_empty_for_unknown():
     """Unrecognised display strings return an empty tuple so callers
     fall through to the legacy grep path without a special case."""
-    from core.bigip.registry import candidate_registry_kinds_for_display
+    from dialects.f5.bigip.registry import candidate_registry_kinds_for_display
 
     assert candidate_registry_kinds_for_display("") == ()
     assert candidate_registry_kinds_for_display("bogus xyzzy") == ()
@@ -1620,7 +1620,7 @@ def test_candidate_registry_kinds_for_display_empty_for_unknown():
 def test_list_spec_parse_braced_space_separated_returns_bigip_list():
     """A flat ``{ /Common/a /Common/b }`` parses into a BigipList of
     typed item values (here ObjectRef refs)."""
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.types import BigipList
 
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"))
     parsed = spec.parse("{ /Common/r1 /Common/r2 }", ParseContext())
@@ -1636,8 +1636,8 @@ def test_list_spec_parse_keyed_block_returns_typed_items():
     clientside } }``) parses into BigipList items whose ``value`` is
     the inner spec's typed value and whose ``key`` / ``body`` carry
     the lexical halves."""
-    from core.bigip.registry import ProfileAttachmentSpec
-    from core.bigip.types import BigipList, ProfileAttachment
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec
+    from dialects.f5.bigip.types import BigipList, ProfileAttachment
 
     spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
     parsed = spec.parse(
@@ -1657,7 +1657,7 @@ def test_list_spec_parse_keyed_block_returns_typed_items():
 def test_list_spec_render_roundtrips_keyed_block():
     """Render a BigipList back to TMSH text — keyed-block syntax
     keeps the per-item brace bodies."""
-    from core.bigip.registry import ProfileAttachmentSpec
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec
 
     spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
     parsed = spec.parse(
@@ -1674,7 +1674,7 @@ def test_list_spec_references_walks_each_item():
     """The list spec's ``references`` enumerates one Reference per
     item by delegating to the inner item spec — no caller code has
     to know that ``profiles`` is a list."""
-    from core.bigip.registry import ProfileAttachmentSpec
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec
 
     spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
     parsed = spec.parse(
@@ -1693,7 +1693,7 @@ def test_list_spec_parses_operator_prefixed_replace_all_with():
     property body — parses into a :class:`BigipList` whose
     ``operator`` carries the verb and whose items are the inner
     paths."""
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.types import BigipList
 
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
     parsed = spec.parse("{ replace-all-with { /Common/r1 /Common/r2 } }", ParseContext())
@@ -1705,7 +1705,7 @@ def test_list_spec_parses_operator_prefixed_replace_all_with():
 def test_list_spec_parses_operator_prefixed_add_and_delete_forms():
     """The ``add`` / ``delete`` / ``modify`` / ``none`` verbs are
     recognised the same way ``replace-all-with`` is."""
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.types import BigipList
 
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
     for op in ("add", "delete", "modify", "none"):
@@ -1731,7 +1731,7 @@ def test_list_spec_operator_prefixed_falls_back_to_bare_list_when_no_verb():
     (``{ /Common/a /Common/b }``) — no leading verb — falls
     through to the flat-list parse so the caller still gets a
     usable :class:`BigipList`, just with ``operator=None``."""
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.types import BigipList
 
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
     parsed = spec.parse("{ /Common/r1 /Common/r2 }", ParseContext())
@@ -1744,8 +1744,8 @@ def test_list_spec_populates_per_item_ranges():
     """``ListSpec.parse`` records per-item source spans so LSP
     features (document links, rename, semantic tokens) get exact
     byte coordinates without re-scanning the source."""
-    from core.bigip.registry import ProfileAttachmentSpec
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.registry import ProfileAttachmentSpec
+    from dialects.f5.bigip.types import BigipList
 
     spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
     raw = "{ /Common/clientssl { context clientside } /Common/http { } }"
@@ -1767,7 +1767,7 @@ def test_references_via_spec_propagates_ranges():
     """End-to-end: a list-shaped property exposes per-reference
     source ranges through ``references_via_spec`` so the link
     extractor / LSP have byte-accurate edges out of the box."""
-    from core.bigip.registry import references_via_spec
+    from dialects.f5.bigip.registry import references_via_spec
 
     src = (
         "ltm virtual /Common/v {\n"
@@ -1801,7 +1801,7 @@ def test_references_via_spec_propagates_ranges():
 def test_list_spec_empty_input_returns_empty_list():
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"))
     parsed = spec.parse("", ParseContext())
-    from core.bigip.types import BigipList
+    from dialects.f5.bigip.types import BigipList
 
     assert isinstance(parsed.value, BigipList)
     assert len(parsed.value) == 0
@@ -1820,7 +1820,7 @@ def test_hand_maintained_kinds_are_explicit_allowlist():
     it (device emits the header under a different module, hand-
     written stub for a deprecated alias, etc.).
     """
-    from core.bigip.registry.data import OBJECT_KIND_SPECS
+    from dialects.f5.bigip.registry.data import OBJECT_KIND_SPECS
 
     hand_maintained_allowlist = frozenset(
         {
@@ -1838,7 +1838,7 @@ def test_hand_maintained_kinds_are_explicit_allowlist():
 
 def test_force_replace_all_with_pins_known_list_properties():
     """The curated override layer in
-    :data:`core.bigip.registry.specs._base._FORCE_REPLACE_ALL_WITH`
+    :data:`dialects.f5.bigip.registry.specs._base._FORCE_REPLACE_ALL_WITH`
     pins ``list_operators`` onto every list property whose
     full-body ``tmsh modify`` would otherwise emit a bare
     ``<prop> { ... }`` body (rejected by the device).
@@ -1846,8 +1846,8 @@ def test_force_replace_all_with_pins_known_list_properties():
     Every entry in the allowlist must resolve to an actual property
     in the registry — stale entries trip CI rather than silently
     failing to apply on a regenerated spec set."""
-    from core.bigip.registry import list_operator_for, property_spec_for
-    from core.bigip.registry.specs._base import _FORCE_REPLACE_ALL_WITH
+    from dialects.f5.bigip.registry import list_operator_for, property_spec_for
+    from dialects.f5.bigip.registry.specs._base import _FORCE_REPLACE_ALL_WITH
 
     for module, object_type, prop_name in _FORCE_REPLACE_ALL_WITH:
         spec = property_spec_for(module, object_type, prop_name)

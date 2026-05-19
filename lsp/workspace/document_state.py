@@ -34,9 +34,9 @@ from compiler.parsing.command_segmenter import (
 )
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import is_irules_dialect
 from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import is_irules_dialect
 from shared.codes import default_disabled_diagnostics
 from shared.dialect import detect_dialect_from_source, dialect_scope
 from shared.document_buffer import DocumentBuffer
@@ -220,7 +220,7 @@ def _analyse_document_fresh(
     """
     # Ensure diagnostic codes are registered in the subprocess.
     import shared.codes_all  # noqa: F401
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect, extra_commands=list(extra_commands))
     if non_ascii_mode is not None:
@@ -248,7 +248,7 @@ def _analyse_document_fresh(
 
     file_profiles: frozenset[str] = frozenset()
     try:
-        from core.commands.registry.runtime import is_irules_dialect
+        from compiler.registry.runtime import is_irules_dialect
 
         if is_irules_dialect():
             file_profiles = EVENT_REGISTRY.compute_file_profiles(source)
@@ -256,7 +256,7 @@ def _analyse_document_fresh(
         pass
 
     # Conf-wrapped iRules: analyse each rule body independently.
-    from core.bigip.rule_extract import is_conf_wrapped_irules
+    from dialects.f5.bigip.rule_extract import is_conf_wrapped_irules
 
     if is_irules_dialect() and is_conf_wrapped_irules(source):
         from core.analysis.conf_wrapped import analyse_conf_wrapped
@@ -1380,7 +1380,7 @@ class DocumentState:
         # independently, then merge.  Skips compilation and chunk caching
         # since the outer structure is not Tcl.
         if is_irules_dialect():
-            from core.bigip.rule_extract import is_conf_wrapped_irules
+            from dialects.f5.bigip.rule_extract import is_conf_wrapped_irules
 
             if is_conf_wrapped_irules(source):
                 self._update_full_conf_wrapped(

@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.registry.runtime import configure_signatures
 from core.analysis import analyse
 from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
 from lsp.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
@@ -528,7 +528,7 @@ class TestCallRename:
 class TestCallSpec:
     def test_call_available_in_all_events(self):
         """call should not be restricted to RULE_INIT."""
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         configure_signatures(dialect="f5-irules")
         spec = REGISTRY.get("call", "f5-irules")
@@ -538,15 +538,15 @@ class TestCallSpec:
 
     def test_call_has_role_hints(self):
         """call should have arg_roles marking arg[0] as NAME."""
-        from core.commands.registry.irules.call import CallCommand
-        from core.commands.registry.signatures import ArgRole
+        from compiler.registry.signatures import ArgRole
+        from dialects.f5.irules.call import CallCommand
 
         spec = CallCommand.spec()
         assert ArgRole.NAME in spec.arg_roles.get(0, frozenset())
 
     def test_call_minimum_arity(self):
         """call requires at least 1 argument (the proc name)."""
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         configure_signatures(dialect="f5-irules")
         spec = REGISTRY.get("call", "f5-irules")

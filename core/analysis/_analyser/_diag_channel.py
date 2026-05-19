@@ -8,9 +8,9 @@ else:
     _Base = object
 
 from compiler.core_analyses import FunctionAnalysis
+from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from compiler.ssa import SSAFunction
 
-from ...commands.registry.runtime import ArgRole, arg_indices_for_role
 from ..semantic_model import Diagnostic, Severity
 
 

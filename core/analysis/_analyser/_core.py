@@ -17,10 +17,10 @@ from compiler.parsing.expr_lexer import (
 )
 from compiler.parsing.recovery import segment_with_recovery
 from compiler.parsing.tokens import Token, TokenType
+from compiler.registry import REGISTRY
 from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token
 
-from ...commands.registry import REGISTRY
 from ..semantic_model import (
     _FILE_SUPPRESS_KEY,
     _NOQA_ALL,
@@ -260,7 +260,7 @@ class _AnalyserBase:
         # from a restored snapshot.  Wrapping the chunk loop matches
         # the full ``analyse()`` path so editor diagnostics on
         # incremental edits also see stub roles.
-        from core.commands.registry.runtime import stub_signature_scope
+        from compiler.registry.runtime import stub_signature_scope
 
         snapshots: list[AnalyserSnapshot] = []
         with stub_signature_scope(self.result.stub_commands):
@@ -310,7 +310,7 @@ class _AnalyserBase:
         # incremental analysis path see the file's declared stubs.  The
         # snapshot we restored from carries any earlier stubs along
         # with it in ``self.result.stub_commands``.
-        from core.commands.registry.runtime import stub_signature_scope
+        from compiler.registry.runtime import stub_signature_scope
 
         with stub_signature_scope(self.result.stub_commands):
             self._analyse_commands_inner(commands, self._current_scope, source)
@@ -440,7 +440,7 @@ class _AnalyserBase:
         # lookups (``arg_indices_for_role``, ``resolve_arg_role_map``, …)
         # for the duration of this analysis pass, so callers that walk
         # the stubbed command's BODY argument see it as a script.
-        from core.commands.registry.runtime import stub_signature_scope
+        from compiler.registry.runtime import stub_signature_scope
 
         with stub_signature_scope(cmd_stubs):
             self._analyse_body(source, self._current_scope)

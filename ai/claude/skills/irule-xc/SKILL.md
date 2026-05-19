@@ -16,11 +16,11 @@ Translate an iRule to F5 XC routes, service policies, origin pools, WAF exclusio
    ```bash
    uv run --no-dev python -c "
    import json
-   from core.commands.registry.runtime import configure_signatures
+   from compiler.registry.runtime import configure_signatures
    configure_signatures(dialect='f5-irules')
-   from core.xc.translator import translate_irule
-   from core.xc.terraform import render_terraform
-   from core.xc.json_api import render_json
+   from dialects.f5.xc.translator import translate_irule
+   from dialects.f5.xc.terraform import render_terraform
+   from dialects.f5.xc.json_api import render_json
 
    source = open('$FILE').read()
    result = translate_irule(source)

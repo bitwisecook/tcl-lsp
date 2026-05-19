@@ -11,7 +11,7 @@ order.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _smart_quote_arg(a: str) -> str:

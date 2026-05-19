@@ -8,7 +8,7 @@ extended, and stubbed independently of codegen changes.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, WasmRuntimeImport
+from compiler.registry import REGISTRY, WasmRuntimeImport
 
 from ._ir import ValType
 

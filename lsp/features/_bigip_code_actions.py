@@ -33,7 +33,7 @@ import json
 
 from lsprotocol import types
 
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def get_bigip_code_actions(
@@ -141,12 +141,12 @@ def run_rename_partition(
     On success, returns a single-file :class:`WorkspaceEdit`
     rewriting the full text so the editor previews the diff
     normally.  Partition-visibility refusal raises
-    :class:`core.bigip.query.errors.BuiltinError`, which the
+    :class:`dialects.f5.query.errors.BuiltinError`, which the
     caller (LSP command handler) can surface as a user-visible
     error notification rather than a silent no-op.
     """
-    from core.bigip.query.errors import BuiltinError
-    from core.bigip.query.runner import run_query
+    from dialects.f5.query.errors import BuiltinError
+    from dialects.f5.query.runner import run_query
 
     if old_partition == new_partition:
         return None

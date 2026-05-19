@@ -78,7 +78,7 @@ def codegen_unset(emitter: _Emitter, args: tuple[str, ...]) -> bool:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("subst", codegen_subst)
     REGISTRY.register_codegen("unset", codegen_unset)

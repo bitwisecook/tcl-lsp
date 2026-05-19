@@ -9,11 +9,11 @@ else:
     _Base = object
 
 from compiler.parsing.tokens import Token, TokenType
+from compiler.registry import REGISTRY
 from shared.alias import detect_interp_alias, resolve_alias
 from shared.dialect import active_dialect
 from shared.ranges import range_from_token
 
-from ...commands.registry import REGISTRY
 from ..semantic_model import (
     Scope,
 )

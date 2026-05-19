@@ -372,6 +372,6 @@ def _string_map(s: str, pairs: list[tuple[str, str]], nocase: bool) -> str:
 
 def register() -> None:
     """Register string commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("string", _cmd_string)

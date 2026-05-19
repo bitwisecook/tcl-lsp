@@ -30,7 +30,7 @@ The dialect controls which commands are available in completions and hover, whic
 
 ## File-path anchors
 
-- `core/commands/registry/runtime.py`
+- `compiler/registry/runtime.py`
 - `editors/vscode/src/extension.ts`
 
 ## Failure modes

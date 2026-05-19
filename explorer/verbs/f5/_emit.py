@@ -10,7 +10,7 @@ piping into ``tmsh``.
 
 The two forms are interchangeable as input on the receiving side:
 ``f5 diff`` and (transitively) every consumer that walks back through
-:mod:`core.bigip.tmsh_parse` will accept either.
+:mod:`dialects.f5.bigip.tmsh_parse` will accept either.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ import argparse
 import sys
 from typing import Literal
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.tmsh_emit import emit_tmsh, emit_tmsh_delta
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.tmsh_emit import emit_tmsh, emit_tmsh_delta
 
 ConfigFormat = Literal["scf", "tmsh", "tmsh-delta"]
 TmshVerb = Literal["create", "modify"]

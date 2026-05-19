@@ -313,7 +313,7 @@ def _cmd_scan(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register format commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("format", _cmd_format)
     REGISTRY.register_handler("scan", _cmd_scan)

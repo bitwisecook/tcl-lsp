@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.bigip.diagnostics import get_bigip_lint_diagnostics
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.diagnostics import get_bigip_lint_diagnostics
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def test_lint_surfaces_irule_missing_pool_diagnostic():

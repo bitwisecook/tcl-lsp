@@ -42,6 +42,6 @@ def _cmd_encoding(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register encoding command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("encoding", _cmd_encoding)

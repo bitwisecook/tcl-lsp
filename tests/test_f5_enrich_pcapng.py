@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.pcap_enrich import (
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.pcap_enrich import (
     NameIndex,
     _extract_gtm_pools,
     _extract_gtm_servers,
@@ -26,7 +26,7 @@ from core.bigip.pcap_enrich import (
     enrich_capture_file,
     enrich_pcapng,
 )
-from core.bigip.pcapng import (
+from dialects.f5.bigip.pcapng import (
     BLOCK_TYPE_DSB,
     BLOCK_TYPE_EPB,
     BLOCK_TYPE_IDB,

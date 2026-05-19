@@ -1053,7 +1053,7 @@ def _cmd_cd(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register info commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("info", _cmd_info)
     REGISTRY.register_handler("pid", _cmd_pid)

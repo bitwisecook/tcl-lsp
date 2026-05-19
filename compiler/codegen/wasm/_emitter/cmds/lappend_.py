@@ -8,7 +8,7 @@ keeps the updated value on the stack for implicit return.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 from ..._ownership import Ownership
 from ..._parsing import _parse_array_ref

@@ -10,8 +10,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.bigip.model import BigipConfig, BigipRule
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.model import BigipConfig, BigipRule
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 _IRULE_SUFFIXES = frozenset({".tcl", ".irul", ".irule"})
 _BIGIP_SUFFIXES = frozenset({".conf", ".scf"})

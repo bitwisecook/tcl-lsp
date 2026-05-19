@@ -8,7 +8,7 @@
 A decorator-registered plugin system that lets users extend `f5 query`
 (alias `f5 q`) along three axes — output renderers, DSL builtin
 functions, and side-input parsers — by dropping a Python file into
-`$XDG_CONFIG_HOME/f5q/plugins/`.
+`$XDG_CONFIG_HOME/dialects/f5/query/plugins/`.
 
 ## Applies to
 
@@ -71,7 +71,7 @@ data = f5q.q(".ltm.virtual[]", "bigip.conf").out()
 
 Custom plugins use the `@renderer` / `@builtin` / `@input_format`
 decorators and are picked up by the CLI once the registering module
-is imported (drop a file in `$XDG_CONFIG_HOME/f5q/plugins/` and the
+is imported (drop a file in `$XDG_CONFIG_HOME/dialects/f5/query/plugins/` and the
 loader picks it up automatically):
 
 ```python
@@ -155,7 +155,7 @@ Three decorators cover the surface; each ships from the public
 `f5q` package and registers via import-time side-effect:
 
 ```python
-# ~/.config/f5q/plugins/my_extensions.py
+# ~/.config/dialects/f5/query/plugins/my_extensions.py
 from f5q import builtin, renderer, input_format
 
 @builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
@@ -171,7 +171,7 @@ def _l(source, *, uri, options=()):
     return [line for line in source.splitlines() if line.strip()]
 ```
 
-Drop the file into `~/.config/f5q/plugins/` (or wherever
+Drop the file into `~/.config/dialects/f5/query/plugins/` (or wherever
 `XDG_CONFIG_HOME` points) and it loads automatically on the next
 `f5 q` invocation:
 

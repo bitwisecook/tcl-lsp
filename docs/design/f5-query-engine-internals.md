@@ -12,7 +12,7 @@ is grep-able against the codebase.
 ## Module layout
 
 ```
-core/bigip/query/
+dialects/f5/query/
 ├── __init__.py           # Public re-exports: run_query, format_*, list_builtins
 ├── lexer.py              # Tokeniser — single pass, no lookahead beyond one char
 ├── parser.py             # Recursive-descent parser → ast.* nodes
@@ -972,10 +972,10 @@ For network builtins, also:
 
 To add a new projection field on an existing kind:
 
-1. Add the field to the dataclass in `core/bigip/model/`.
-2. Populate it in `core/bigip/parser/_parsers.py`.
+1. Add the field to the dataclass in `dialects/f5/bigip/model/`.
+2. Populate it in `dialects/f5/bigip/parser/_parsers.py`.
 3. Add a `FieldSpec` entry in the per-kind map in
-   `core/bigip/query/projection/_data.py`.
+   `dialects/f5/query/projection/_data.py`.
 4. Add a regression test that projects the new field.
 
 To add a new value-spec (typed property handling): see

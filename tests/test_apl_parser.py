@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.apl_parser import AplTokenKind, tokenise_apl
+from dialects.f5.bigip.apl_parser import AplTokenKind, tokenise_apl
 
 
 class TestAplTokeniser:

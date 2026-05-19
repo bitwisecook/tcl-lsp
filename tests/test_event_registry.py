@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_data import (
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_data import (
     EVENT_PROPS,
     PROFILE_SPECS,
     PROTOCOL_NAMESPACE_SPECS,
 )
-from core.commands.registry.namespace_models import EventRequires
-from core.commands.registry.namespace_registry import (
+from compiler.registry.namespace_models import EventRequires
+from compiler.registry.namespace_registry import (
     NAMESPACE_REGISTRY as EVENT_REGISTRY,
 )
-from core.commands.registry.namespace_registry import (
+from compiler.registry.namespace_registry import (
     NamespaceRegistry as EventRegistry,
 )
 

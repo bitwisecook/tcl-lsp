@@ -33,7 +33,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
+from dialects.f5.query import run_query
 
 # ---------------------------------------------------------------------------
 # Rich fixture
@@ -839,7 +839,7 @@ def test_supernet_of_finds_minimum_enclosing_cidr():
 def test_supernet_of_rejects_mixed_ipv4_ipv6_inputs():
     """v4 and v6 are never in the same supernet — the builtin
     raises rather than silently picking one family."""
-    from core.bigip.query.errors import QueryError
+    from dialects.f5.query.errors import QueryError
 
     mixed = """\
 ltm node /Common/v4 { address 10.0.0.1 }

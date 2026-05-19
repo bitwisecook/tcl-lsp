@@ -21,7 +21,7 @@ import directly skips the round-trip and preserves substitution.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _emit_puts(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:

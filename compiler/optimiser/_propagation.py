@@ -6,8 +6,8 @@ import re
 
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (

@@ -28,7 +28,7 @@ This repository is split into a reusable language core and an LSP runtime:
 - `compiler/parsing/`
 - `compiler/`
 - `core/analysis/`
-- `core/commands/registry/`
+- `compiler/registry/`
 - `core/packages/`
 - `lsp/server.py`
 - `lsp/features/`

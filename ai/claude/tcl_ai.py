@@ -268,7 +268,7 @@ def cmd_event_order(source: str, file_path: str) -> None:
 
 
 def cmd_event_info(event_name: str) -> None:
-    from core.commands.registry.info import lookup_event_info
+    from compiler.registry.info import lookup_event_info
 
     info = lookup_event_info(event_name, dialect="f5-irules")
 
@@ -296,7 +296,7 @@ def cmd_event_info(event_name: str) -> None:
 
 
 def cmd_command_info(command_name: str) -> None:
-    from core.commands.registry.info import lookup_command_info
+    from compiler.registry.info import lookup_command_info
 
     info = lookup_command_info(command_name, dialect="f5-irules")
 
@@ -492,7 +492,7 @@ def cmd_context(source: str, file_path: str) -> None:
         print()
         print(f"=== Event Metadata ({len(evt_list)} events) ===")
         try:
-            from core.commands.registry.info import lookup_event_info
+            from compiler.registry.info import lookup_event_info
 
             for evt in evt_list[:8]:
                 info = lookup_event_info(evt.name, dialect="f5-irules")
@@ -1977,8 +1977,8 @@ def cmd_bigip_cleanup(
     """Generate ``tmsh delete`` commands for unreferenced BIG-IP objects."""
     from pathlib import Path
 
-    from core.bigip.cleanup import compute_cleanup, report_to_dict
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
+    from dialects.f5.bigip.parser import parse_bigip_conf
 
     sources: dict[str, str] = {}
     configs = {}
@@ -2019,7 +2019,7 @@ def cmd_bigip_cleanup(
 
 def _configure_dialect_from_path(file_path: str) -> None:
     """Configure the command registry dialect based on file extension."""
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     ext = os.path.splitext(file_path)[1].lower()
     dialect = "f5-irules" if ext in (".irul", ".irule") else "tcl8.6"
@@ -2234,7 +2234,7 @@ examples:
         case "memory-aliases":
             cmd_memory_aliases(source, file_path)
         case "tk-layout":
-            from core.tk.extract import extract_tk_layout
+            from dialects.tk.dialect.extract import extract_tk_layout
 
             layout = extract_tk_layout(source)
             print(json.dumps(layout, indent=2))

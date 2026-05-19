@@ -920,8 +920,8 @@ class _WasmEmitterExprMixin(_Base):
         # hooks rather than the bare runtime helper (which would treat
         # the variable name as a value and silently lose the mutation).
         # Mirrors the same dispatch in ``_emit_command_subst_value``.
-        from core.commands.registry import REGISTRY as _REGISTRY
-        from core.commands.registry import EmitContext as _EmitContext
+        from compiler.registry import REGISTRY as _REGISTRY
+        from compiler.registry import EmitContext as _EmitContext
 
         prev_tokens = getattr(self, "_current_call_tokens", None)
         self._current_call_tokens = None

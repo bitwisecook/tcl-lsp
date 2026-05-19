@@ -1280,7 +1280,7 @@ class TestO119MultiSetPacking:
                 assert "a" not in parts[1:] or parts[0] != "lassign"
 
     def test_tcl9_skips_packing(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl9.0")
         try:
@@ -1823,12 +1823,12 @@ class TestEdgeCases:
 
 class TestPatternMatchSimplification:
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 
@@ -2123,12 +2123,12 @@ class TestO124UnusedIruleProcs:
     """O124: comment out unused procs in iRules."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 

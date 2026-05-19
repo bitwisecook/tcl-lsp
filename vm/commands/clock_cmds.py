@@ -52,6 +52,6 @@ def _cmd_clock(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register clock command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("clock", _cmd_clock)

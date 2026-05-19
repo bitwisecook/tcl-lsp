@@ -13,12 +13,12 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.state as _state
 from compiler.optimiser import optimise_source
+from compiler.registry import REGISTRY
+from compiler.registry.info import effective_event_requires
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import configure_signatures
 from core.analysis import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
-from core.commands.registry import REGISTRY
-from core.commands.registry.info import effective_event_requires
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import configure_signatures
 from core.minifier import minify_tcl
 from shared.document_buffer import DocumentBuffer
 from shared.optimisation_profiles import (
@@ -578,7 +578,7 @@ def on_tk_preview(source: str) -> dict | None:
     if not source or not source.strip():
         return None
     try:
-        from core.tk.extract import extract_tk_layout
+        from dialects.tk.dialect.extract import extract_tk_layout
 
         return extract_tk_layout(source)
     except Exception as exc:
@@ -606,9 +606,9 @@ def on_xc_translate(source: str, output_format: str = "both") -> dict | None:
     if not source or not source.strip():
         return None
     try:
-        from core.xc.json_api import render_json
-        from core.xc.terraform import render_terraform
-        from core.xc.translator import translate_irule
+        from dialects.f5.xc.json_api import render_json
+        from dialects.f5.xc.terraform import render_terraform
+        from dialects.f5.xc.translator import translate_irule
 
         configure_signatures(dialect="f5-irules")
         result = translate_irule(source)
@@ -644,7 +644,7 @@ def on_xc_translate(source: str, output_format: str = "both") -> dict | None:
 
 def on_extract_rule(uri: str, offset: int) -> dict | None:
     """Find the ``ltm rule`` / ``gtm rule`` containing *offset* and return it."""
-    from core.bigip.rule_extract import find_rule_at_offset
+    from dialects.f5.bigip.rule_extract import find_rule_at_offset
 
     try:
         doc = _server.workspace.get_text_document(uri)  # type: ignore[union-attr]
@@ -665,7 +665,7 @@ def on_extract_rule(uri: str, offset: int) -> dict | None:
 
 def on_list_rules(uri: str) -> list[dict] | None:
     """Return all ``ltm rule`` / ``gtm rule`` blocks in the given document."""
-    from core.bigip.rule_extract import find_embedded_rules
+    from dialects.f5.bigip.rule_extract import find_embedded_rules
 
     try:
         doc = _server.workspace.get_text_document(uri)  # type: ignore[union-attr]
@@ -694,7 +694,7 @@ def on_extract_linked_objects(
     extra_offsets: list | None = None,
 ) -> dict | None:
     """Return a transitive BIG-IP object subgraph around one or more cursors."""
-    from core.bigip.link_extract import extract_linked_bigip_objects
+    from dialects.f5.bigip.link_extract import extract_linked_bigip_objects
 
     seed_positions: list[tuple[str, int]] = [(uri, offset)]
     if extra_offsets:
@@ -760,13 +760,13 @@ def on_bigip_cleanup(
     *uris* selects which workspace BIG-IP configurations to analyse.  When
     empty / ``None`` every BIG-IP config the workspace scanner has parsed
     is included.  Returns a JSON-serialisable report (see
-    :func:`core.bigip.cleanup.report_to_dict`) or ``None`` if no BIG-IP
+    :func:`dialects.f5.bigip.cleanup.report_to_dict`) or ``None`` if no BIG-IP
     config is loaded.
 
     All parameters are positional because ``workspace/executeCommand``
     unpacks the JSON ``arguments`` array positionally.
     """
-    from core.bigip.cleanup import compute_cleanup, report_to_dict
+    from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
 
     configs = _state.background_scanner.bigip_configs
     if not configs:
@@ -822,7 +822,7 @@ def on_bigip_cleanup(
 
 def on_rename_partition(uri: str, old_partition: str, new_partition: str) -> dict[str, Any]:
     """Return the query-backed WorkspaceEdit for a BIG-IP partition rename."""
-    from core.bigip.query.errors import BuiltinError
+    from dialects.f5.query.errors import BuiltinError
     from lsp.features._bigip_code_actions import run_rename_partition
 
     try:
@@ -1016,7 +1016,7 @@ def on_export_config() -> dict:
 
 def _switch_dialect(dialect: str) -> dict:
     """Switch the active dialect and re-publish diagnostics."""
-    from core.commands.registry.dialects import KNOWN_DIALECTS
+    from compiler.registry.dialects import KNOWN_DIALECTS
     from shared.dialect import active_dialect
 
     if dialect and dialect not in KNOWN_DIALECTS:

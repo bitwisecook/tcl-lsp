@@ -7,8 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.cleanup import compute_cleanup, report_to_dict
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 from ._registry import verb
 

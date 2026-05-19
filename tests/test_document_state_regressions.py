@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.commands.registry.runtime import active_signature_profile, configure_signatures
+from compiler.registry.runtime import active_signature_profile, configure_signatures
 from lsp.workspace.document_state import DocumentState
 
 

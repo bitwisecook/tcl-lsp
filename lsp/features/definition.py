@@ -9,24 +9,24 @@ from lsprotocol import types
 from core.analysis import analyse
 from core.analysis.proc_lookup import find_proc_by_reference
 from core.analysis.semantic_model import AnalysisResult
-from core.bigip.model import BigipConfig
-from core.bigip.object_registry import (
+from dialects.f5.bigip.model import BigipConfig
+from dialects.f5.bigip.object_registry import (
     candidate_kinds_for_key,
     candidate_kinds_for_section_item,
     kind_for_header,
     resolve_kind_in_configs,
 )
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.parser._helpers import (
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser._helpers import (
     _extract_blocks,
     _parse_generic_header,
     _parse_properties_with_spans,
 )
-from core.bigip.registry import (
+from dialects.f5.bigip.registry import (
     candidate_registry_kinds_for_display,
     references_via_spec,
 )
-from core.bigip.registry.pilot import pilot_property_spec_for
+from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 from shared.alias import lookup_alias_for_word
 from shared.document_buffer import DocumentBuffer
 from shared.lsp import find_var_in_scopes, to_lsp_location
@@ -505,7 +505,7 @@ def _resolve_irule_body_definition(
     here automatically.  Resolution falls through to the same
     :func:`resolve_kind_in_configs` the legacy path used.
     """
-    from core.bigip.irules_refs import extract_irules_object_references
+    from dialects.f5.bigip.irules_refs import extract_irules_object_references
 
     # Find the rule whose body contains this cursor position.
     rule = None

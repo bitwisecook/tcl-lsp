@@ -11,9 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.bigip.emit import emit_merged, emit_split_by_partition, partition_of
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.rewrite import redact_secrets, rename_object
+from dialects.f5.bigip.emit import emit_merged, emit_split_by_partition, partition_of
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.rewrite import redact_secrets, rename_object
 from explorer.f5_cli import main
 from explorer.f5_remote.ucs import make_test_ucs
 
@@ -236,7 +236,7 @@ def test_redact_preserves_cidr_relationships():
 
 def test_redact_round_trip_via_map():
     """redact -> apply_map(reverse=True) must recover the original IPs."""
-    from core.bigip.redact_map import apply_map
+    from dialects.f5.bigip.redact_map import apply_map
 
     body = "ltm node /Common/n1 { address 8.8.8.8 }\nltm virtual /Common/v { destination 1.1.1.1:443 }\n"
     report = redact_secrets(body, remap_ips=True)
@@ -248,7 +248,7 @@ def test_redact_round_trip_via_map():
 
 
 def test_redact_shuffle_round_trip():
-    from core.bigip.redact_map import apply_map
+    from dialects.f5.bigip.redact_map import apply_map
 
     body = "host 8.8.8.4 host 8.8.8.5 host 8.8.8.6\n"
     report = redact_secrets(body, remap_ips=True, mode="shuffle", seed="test-seed")
@@ -324,7 +324,7 @@ def test_redact_no_overlap_between_source_and_target():
 def test_redact_target_pool_exhaustion_raises():
     """If the target pool is fully covered by forbidden source CIDRs,
     allocation must raise rather than silently produce a bad map."""
-    from core.bigip.redact_map import TargetCollisionError, build_map
+    from dialects.f5.bigip.redact_map import TargetCollisionError, build_map
 
     # Source: 10.0.0.5 -> /24 of 10.0.0.0/24.
     # Pool: 10.0.0.0/24 — exactly the source CIDR, nothing else available.

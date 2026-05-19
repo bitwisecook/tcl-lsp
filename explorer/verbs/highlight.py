@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 
 from ._registry import verb
 from ._utils import (

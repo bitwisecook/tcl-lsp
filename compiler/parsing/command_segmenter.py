@@ -23,7 +23,7 @@ from shared.ranges import range_from_tokens
 from .known_commands import known_command_names
 
 if TYPE_CHECKING:
-    from core.commands.registry.command_registry import CommandRegistry
+    from compiler.registry.command_registry import CommandRegistry
 from .lexer import TclLexer
 from .tokens import SourcePosition, Token, TokenType
 

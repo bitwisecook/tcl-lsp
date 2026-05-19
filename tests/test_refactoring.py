@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from lsprotocol import types
 
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from core.refactoring import RefactoringResult
 from core.refactoring._brace_expr import brace_expr
 from core.refactoring._extract_datagroup import (

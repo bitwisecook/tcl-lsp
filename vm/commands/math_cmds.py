@@ -354,7 +354,7 @@ _MATH_FUNCS: dict[str, tuple[object, int, int]] = {
 
 def register() -> None:
     """Register math commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("incr", _cmd_incr)
     for name, (fn, lo, hi) in _MATH_FUNCS.items():

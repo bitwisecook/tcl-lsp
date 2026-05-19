@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.commands.registry.runtime import configure_signatures
-from core.xc.translator import translate_irule
-from core.xc.xc_model import TranslateStatus
+from compiler.registry.runtime import configure_signatures
+from dialects.f5.xc.translator import translate_irule
+from dialects.f5.xc.xc_model import TranslateStatus
 
 
 def _setup():
@@ -305,7 +305,7 @@ when HTTP_RESPONSE {
 class TestTerraformRendering:
     def test_renders_provider_block(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -315,7 +315,7 @@ class TestTerraformRendering:
 
     def test_renders_origin_pool(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -324,7 +324,7 @@ class TestTerraformRendering:
 
     def test_renders_load_balancer(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -333,7 +333,7 @@ class TestTerraformRendering:
 
     def test_renders_service_policy(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = "when HTTP_REQUEST {\n    HTTP::respond 403\n}"
         result = translate_irule(src)
@@ -343,7 +343,7 @@ class TestTerraformRendering:
 
     def test_renders_redirect_route(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = 'when HTTP_REQUEST {\n    HTTP::redirect "https://example.com/"\n}'
         result = translate_irule(src)
@@ -353,7 +353,7 @@ class TestTerraformRendering:
 
     def test_renders_coverage_summary(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -367,7 +367,7 @@ class TestTerraformRendering:
 class TestJsonRendering:
     def test_renders_origin_pools(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -377,7 +377,7 @@ class TestJsonRendering:
 
     def test_renders_load_balancer(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -387,7 +387,7 @@ class TestJsonRendering:
 
     def test_renders_service_policy(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = "when HTTP_REQUEST {\n    HTTP::respond 403\n}"
         result = translate_irule(src)
@@ -396,7 +396,7 @@ class TestJsonRendering:
 
     def test_renders_summary(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         result = translate_irule(src)
@@ -407,7 +407,7 @@ class TestJsonRendering:
     def test_json_serialisable(self):
         """Ensure the output is JSON-serialisable."""
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     switch -glob [HTTP::path] {
@@ -430,7 +430,7 @@ class TestJsonRendering:
 class TestXcDiagnostics:
     def test_diagnostics_for_translatable(self):
         _setup()
-        from core.xc.diagnostics import get_xc_diagnostics
+        from dialects.f5.xc.diagnostics import get_xc_diagnostics
 
         src = "when HTTP_REQUEST {\n    pool my_pool\n}"
         diags = get_xc_diagnostics(src)
@@ -439,7 +439,7 @@ class TestXcDiagnostics:
 
     def test_diagnostics_for_untranslatable(self):
         _setup()
-        from core.xc.diagnostics import get_xc_diagnostics
+        from dialects.f5.xc.diagnostics import get_xc_diagnostics
 
         src = "when CLIENT_ACCEPTED {\n    set debug 0\n}"
         diags = get_xc_diagnostics(src)
@@ -447,7 +447,7 @@ class TestXcDiagnostics:
 
     def test_diagnostics_for_barrier(self):
         _setup()
-        from core.xc.diagnostics import get_xc_diagnostics
+        from dialects.f5.xc.diagnostics import get_xc_diagnostics
 
         src = "when HTTP_REQUEST {\n    eval $code\n}"
         diags = get_xc_diagnostics(src)
@@ -550,7 +550,7 @@ class TestCompoundConditions:
 class TestWafExclusionRendering:
     def test_json_renders_waf_exclusion(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {[HTTP::uri] starts_with "/scan" && [class match [IP::client_addr] equals ScannerIPs]} {
@@ -570,7 +570,7 @@ class TestWafExclusionRendering:
 
     def test_terraform_renders_waf_exclusion(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = """when HTTP_REQUEST {
     if {[HTTP::uri] starts_with "/scan"} {
@@ -867,7 +867,7 @@ class TestCombinedConditions:
 class TestNewMatchTypeRendering:
     def test_json_renders_header_match_on_route(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {[HTTP::header value "X-Forwarded-Proto"] eq "http"} {
@@ -885,7 +885,7 @@ class TestNewMatchTypeRendering:
 
     def test_json_renders_cookie_match_on_route(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {[HTTP::cookie "tier"] eq "gold"} {
@@ -903,7 +903,7 @@ class TestNewMatchTypeRendering:
 
     def test_json_renders_query_match_on_route(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {[HTTP::query] eq "format=xml"} {
@@ -918,7 +918,7 @@ class TestNewMatchTypeRendering:
 
     def test_json_renders_inverted_path(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {!([HTTP::path] starts_with "/health")} {
@@ -933,7 +933,7 @@ class TestNewMatchTypeRendering:
 
     def test_json_renders_ip_prefix_list_on_policy(self):
         _setup()
-        from core.xc.json_api import render_json
+        from dialects.f5.xc.json_api import render_json
 
         src = """when HTTP_REQUEST {
     if {[IP::client_addr] eq "10.0.0.1"} {
@@ -949,7 +949,7 @@ class TestNewMatchTypeRendering:
 
     def test_terraform_renders_suffix_path(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = """when HTTP_REQUEST {
     if {[HTTP::uri] ends_with ".css"} {
@@ -963,7 +963,7 @@ class TestNewMatchTypeRendering:
 
     def test_terraform_renders_header_match(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = """when HTTP_REQUEST {
     if {[HTTP::header value "X-Test"] eq "yes"} {
@@ -977,7 +977,7 @@ class TestNewMatchTypeRendering:
 
     def test_terraform_renders_cookie_match(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = """when HTTP_REQUEST {
     if {[HTTP::cookie "mode"] eq "debug"} {
@@ -991,7 +991,7 @@ class TestNewMatchTypeRendering:
 
     def test_terraform_renders_inverted_path(self):
         _setup()
-        from core.xc.terraform import render_terraform
+        from dialects.f5.xc.terraform import render_terraform
 
         src = """when HTTP_REQUEST {
     if {!([HTTP::path] starts_with "/health")} {

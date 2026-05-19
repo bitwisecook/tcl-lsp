@@ -81,7 +81,7 @@ contract can never silently drift away from upstream.
    | `W0-stub-trap` | `runtime/zig/dispatch/tcl_stub_fallback.zig` + a real handler in `runtime/zig/cmds/` |
    | `W0-runtime-error` | the named handler in `runtime/zig/cmds/*.zig` |
    | `W0-arity` | `runtime/zig/dispatch/tcl_cmd_registry.zig` arity bounds vs. the Python `CommandSpec` |
-   | `W8-missing-command` | `core/commands/registry/tcl/` + a Zig handler / stub |
+   | `W8-missing-command` | `compiler/registry/tcl/` + a Zig handler / stub |
    | `W0-timeout` | the runtime path the bundle is spinning in (bisect by test ID) |
 
    Mirror every contract you fix with a focused pytest under

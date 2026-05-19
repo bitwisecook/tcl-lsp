@@ -1,7 +1,7 @@
 """Generate _event_data.tcl from the authoritative Python event registry.
 
 This script reads MASTER_ORDER, ONCE_PER_CONNECTION, PER_REQUEST, and
-FLOW_CHAINS from ``core.commands.registry.namespace_data`` and emits
+FLOW_CHAINS from ``compiler.registry.namespace_data`` and emits
 a Tcl file that ``orchestrator.tcl`` sources.  This ensures there is a
 single source of truth for event ordering and flow chain definitions.
 
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.commands.registry.namespace_data import (
+from compiler.registry.namespace_data import (
     FLOW_CHAINS,
     MASTER_ORDER,
     ONCE_PER_CONNECTION,

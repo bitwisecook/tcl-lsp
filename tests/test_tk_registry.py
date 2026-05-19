@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.commands.registry.command_registry import CommandRegistry
-from core.commands.registry.tk import tk_command_specs
+from compiler.registry.command_registry import CommandRegistry
+from dialects.tk.specs import tk_command_specs
 
 
 class TestTkRegistry:

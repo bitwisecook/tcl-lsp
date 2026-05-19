@@ -5,18 +5,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from compiler.parsing.tokens import Token, TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.models import DialectStatus, FormKind
+from compiler.registry.runtime import (
+    ArgRole,
+    arg_indices_for_role,
+    normalized_flag_commands,
+)
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name
 from shared.ranges import range_from_token
 
-from ...commands.registry import REGISTRY
-from ...commands.registry.models import DialectStatus, FormKind
-from ...commands.registry.runtime import (
-    ArgRole,
-    arg_indices_for_role,
-    normalized_flag_commands,
-)
 from ..semantic_model import Diagnostic, Severity
 from ._helpers import (
     _first_token_is_braced,
@@ -211,8 +211,7 @@ def _find_dialect_invalid_ops(node, dialect: str):
         ExprTernary,
         ExprUnary,
     )
-
-    from ...commands.registry.operators import operator_supports_dialect
+    from compiler.registry.operators import operator_supports_dialect
 
     found: list[tuple[BinOp, str]] = []
     # Operators with version-dependent dialect availability.  ``in`` / ``ni``
@@ -452,7 +451,7 @@ def check_unknown_irules_event(
     if tok.type in (TokenType.VAR, TokenType.CMD):
         return []
 
-    from ...commands.registry.namespace_data import EVENT_PROPS
+    from compiler.registry.namespace_data import EVENT_PROPS
 
     if event_name in EVENT_PROPS:
         return []

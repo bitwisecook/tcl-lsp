@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from core.analysis import analyse
-from core.tk.common import is_widget_path, parent_widget_path
-from core.tk.diagnostics import check_tk_diagnostics
-from core.tk.extract import extract_tk_layout
+from dialects.tk.dialect.common import is_widget_path, parent_widget_path
+from dialects.tk.dialect.diagnostics import check_tk_diagnostics
+from dialects.tk.dialect.extract import extract_tk_layout
 
 
 def test_widget_path_validation_and_parent_derivation() -> None:

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.commands.registry import REGISTRY
+from compiler.registry import REGISTRY
 
 from ..expr_ast import ExprBinary, ExprNode
 from ..ir import IRCall, IRStatement

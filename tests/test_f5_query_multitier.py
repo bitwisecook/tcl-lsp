@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
+from dialects.f5.query import run_query
 
 SAMPLE_DIR = Path(__file__).resolve().parent.parent / "samples" / "for_f5_query" / "multitier"
 T2_COUNT = 12

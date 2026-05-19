@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.commands.registry.command_registry import REGISTRY
-from core.commands.registry.operators import IRULES_OPERATOR_HOVER
+from compiler.registry.command_registry import REGISTRY
+from compiler.registry.operators import IRULES_OPERATOR_HOVER
 
 _OUTPUT = Path(__file__).parent / "tcl" / "_registry_data.tcl"
 
@@ -87,7 +87,7 @@ def _generate() -> str:
 
     lines.append("namespace eval ::tmm::expr_ops {\n")
     lines.append("    # TMM custom infix expression operators for expr rewriting.")
-    lines.append("    # Derived from: core.commands.registry.operators.IRULES_OPERATOR_HOVER\n")
+    lines.append("    # Derived from: compiler.registry.operators.IRULES_OPERATOR_HOVER\n")
     lines.append("    variable _gen_operators {")
     for op in infix_ops:
         lines.append(f"        {op}")

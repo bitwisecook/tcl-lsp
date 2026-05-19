@@ -13,7 +13,7 @@ from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
 import lsp.state as _state
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from core.formatting import FormatterConfig
 from shared.user_config import (
     get_all_settings,

@@ -14,7 +14,7 @@ from lsprotocol import types
 
 import lsp.state as _state
 import shared.codes_all  # noqa: F401  # trigger all code registrations
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from core.formatting import FormatterConfig
 from shared.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from shared.optimisation_profiles import (
@@ -375,7 +375,7 @@ def _apply_feature_settings(
     # over a single process-wide setting.
     folder_dialect = tcl_settings.get("dialect")
     if isinstance(folder_dialect, str) and folder_dialect:
-        from core.commands.registry.runtime import _canonical_dialect
+        from compiler.registry.runtime import _canonical_dialect
 
         canonical = _canonical_dialect(folder_dialect)
         # VS Code's ``workspace/configuration`` returns the package.json

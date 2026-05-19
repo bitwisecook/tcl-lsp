@@ -20,7 +20,7 @@ quick-start lives in
 ## Module map
 
 ```
-core/bigip/query/
+dialects/f5/query/
   __init__.py        # public API: run_query, parse_query, format_*
   errors.py          # QueryError hierarchy (lex / parse / eval / edit / builtin)
   values.py          # ObjectRef, PathRef, Stream, Root, FieldSlot
@@ -29,7 +29,7 @@ core/bigip/query/
   ast.py             # frozen-dataclass AST node types
   parser.py          # recursive-descent parser
   projection.py      # BigipConfig → navigable Container tree
-  graph.py           # refs / referenced_by — forwards to core.bigip.grep
+  graph.py           # refs / referenced_by — forwards to dialects.f5.bigip.grep
   builtins.py        # @_register'd function library
   evaluator.py       # walks the AST, collects edits, returns values
   edit_plan.py       # routes identity writes through rename_object,
@@ -414,7 +414,7 @@ From highest to lowest:
 ### Identity-field writes
 
 Assigning to `.name` or `."full-path"` auto-routes through
-`core.bigip.rewrite.rename_object`, which rewrites the object's header
+`dialects.f5.bigip.rewrite.rename_object`, which rewrites the object's header
 and every reference to it (configuration properties, iRule body
 command arguments, pool-member addresses).  A line of the form
 
@@ -496,7 +496,7 @@ text and dispatch table both pick it up automatically.
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
-- **graph** — `refs`, `referenced_by` (forwards to `core.bigip.grep`)
+- **graph** — `refs`, `referenced_by` (forwards to `dialects.f5.bigip.grep`)
 
 ### Rename verb integration
 
@@ -566,7 +566,7 @@ RD-aware operations means dispatching that tuple and re-joining via
 - `.body` — the raw Tcl source.
 - `.refs.pools[]` / `.refs.persists[]` / `.refs.data-groups[]` — the
   list of object references extracted by
-  `core.bigip.irules_refs.extract_irules_object_references`.  These
+  `dialects.f5.bigip.irules_refs.extract_irules_object_references`.  These
   are the same edges `f5 grep` walks, so the two verbs always agree on
   what an iRule "uses".
 

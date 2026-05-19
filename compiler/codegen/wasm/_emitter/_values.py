@@ -12,8 +12,8 @@ else:
 from collections.abc import Callable
 
 from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
-from core.commands.registry import REGISTRY as _REGISTRY
-from core.commands.registry import EmitContext as _EmitContext
+from compiler.registry import REGISTRY as _REGISTRY
+from compiler.registry import EmitContext as _EmitContext
 
 from .._encoding import (
     _tcl_list_quote,

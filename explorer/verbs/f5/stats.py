@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.stats import compute_stats, report_to_dict
+from dialects.f5.bigip.stats import compute_stats, report_to_dict
 
 from ._paths import load_paths
 from ._registry import verb

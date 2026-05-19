@@ -165,7 +165,7 @@ def _reset_signature_profile() -> Generator[None, None, None]:
     or escaped ``dialect_scope`` mutations from one test don't leak into
     the next.
     """
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(
         dialect="tcl8.6",

@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
-from core.bigip.query._inputs import (
+from dialects.f5.query import run_query
+from dialects.f5.query._inputs import (
     InputSpec,
     parse_csv,
     parse_f5log,
@@ -44,7 +44,7 @@ class TestJSONL:
 
     def test_parse_quotes_line_number_on_error(self):
         text = '{"a": 1}\nnot-json\n{"a": 2}\n'
-        from core.bigip.query._inputs import InputError
+        from dialects.f5.query._inputs import InputError
 
         with pytest.raises(InputError, match="line 2"):
             parse_jsonl(text)
@@ -146,7 +146,7 @@ class TestCSV:
         ]
 
     def test_csv_load_supplied_headers_must_be_strings(self, tmp_path: Path):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         p = tmp_path / "x.csv"
         p.write_text("a,b\n")

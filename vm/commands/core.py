@@ -360,7 +360,7 @@ def _cmd_const(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register core commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("set", _cmd_set)
     REGISTRY.register_handler("unset", _cmd_unset)

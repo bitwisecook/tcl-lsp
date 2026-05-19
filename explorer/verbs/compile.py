@@ -9,7 +9,7 @@ from compiler.cfg import build_cfg
 from compiler.codegen import format_module_asm
 from compiler.codegen.wasm import wasm_codegen_module
 from compiler.lowering import lower_to_ir
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from vm.compiler import compile_script
 
 from ._registry import verb

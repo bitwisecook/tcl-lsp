@@ -488,7 +488,7 @@ class TclInterp:
         sentinel is stored so that ``lookup_command`` won't fall through
         to the global handler (e.g. after ``rename expr old_expr``).
         """
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         if REGISTRY.lookup_handler(name) is not None:
             self._runtime_commands[name] = None  # type: ignore[assignment]
@@ -499,13 +499,13 @@ class TclInterp:
         """Look up a command handler — runtime table first, then REGISTRY."""
         if name in self._runtime_commands:
             return self._runtime_commands[name]  # may be None (shadowed)
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         return REGISTRY.lookup_handler(name)
 
     def command_names(self) -> list[str]:
         """Return sorted list of all available command names."""
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         names: set[str] = set()
         for n, h in self._runtime_commands.items():

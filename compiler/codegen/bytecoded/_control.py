@@ -206,7 +206,7 @@ def codegen_global(emitter: _Emitter, args: tuple[str, ...]) -> bool:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("return", codegen_return)
     REGISTRY.register_codegen("tailcall", codegen_tailcall)

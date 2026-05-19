@@ -527,7 +527,7 @@ def _scope_from_varname(name: str) -> tuple[StorageScope, str | None]:
 
 def _storage_type_for_command(command: str, args: tuple[str, ...]) -> StorageType:
     """Infer storage type from command name via registry metadata."""
-    from core.commands.registry.runtime import storage_type_commands
+    from compiler.registry.runtime import storage_type_commands
 
     st = storage_type_commands().get(command)
     if st is not None:
@@ -542,7 +542,7 @@ def _extract_protocol_namespace(command: str) -> str | None:
     prefix = command.split("::", 1)[0]
     if not prefix:
         return None
-    from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY
+    from compiler.registry.namespace_registry import NAMESPACE_REGISTRY
 
     spec = NAMESPACE_REGISTRY.get_protocol_namespace(prefix)
     return prefix if spec is not None else None
@@ -724,7 +724,7 @@ def _classify_side_effects_impl(
         )
 
     # Lazy import to avoid circular dependencies at module level.
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     lookup_dialect = "f5-irules" if dialect == "irules" else dialect
     spec = REGISTRY.get(command, lookup_dialect) or REGISTRY.get_any(command)
@@ -925,7 +925,7 @@ def _classify_protocol_ns_command(
     Subcommand mutator flags can upgrade ``is_write`` but never downgrade
     hint values.
     """
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     if hint:
         target = hint.target
@@ -942,7 +942,7 @@ def _classify_protocol_ns_command(
     # Subcommand mutator flags can upgrade writes.
     # Commands with a ``-normalized`` option treat "-normalized" as getter
     # mode even though they also have 1-arg setter forms.
-    from core.commands.registry.runtime import normalized_flag_commands
+    from compiler.registry.runtime import normalized_flag_commands
 
     if command in normalized_flag_commands() and args == ("-normalized",):
         is_read = True

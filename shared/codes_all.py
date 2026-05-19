@@ -28,9 +28,9 @@ import core.analysis.checks._security  # noqa: F401
 import core.analysis.checks._style  # noqa: F401
 import core.analysis.checks._syntax  # noqa: F401
 import core.analysis.irules_checks  # noqa: F401
-import core.bigip.iapp_diagnostics  # noqa: F401
-import core.bigip.validator  # noqa: F401
+import dialects.f5.bigip.iapp_diagnostics  # noqa: F401
+import dialects.f5.bigip.validator  # noqa: F401
+import dialects.f5.xc.translator  # noqa: F401
 
 # extensions
-import core.tk.diagnostics  # noqa: F401
-import core.xc.translator  # noqa: F401
+import dialects.tk.dialect.diagnostics  # noqa: F401

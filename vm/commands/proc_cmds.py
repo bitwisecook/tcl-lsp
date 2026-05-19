@@ -385,7 +385,7 @@ def _cmd_tailcall(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register procedure commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("proc", _cmd_proc)
     REGISTRY.register_handler("return", _cmd_return)

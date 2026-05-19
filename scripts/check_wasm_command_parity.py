@@ -316,8 +316,8 @@ def collect_registry_commands() -> dict[str, dict]:
     # on the affected specs.  Without this the registry knows nothing
     # about the WASM hooks and every command looks unimplemented.
     import compiler.codegen.wasm._emitter.cmds  # noqa: F401, PLC0415
-    from core.commands.registry import REGISTRY  # noqa: PLC0415
-    from core.commands.registry.tcl._base import _REGISTRY as TCL_DEFS  # noqa: PLC0415
+    from compiler.registry import REGISTRY  # noqa: PLC0415
+    from dialects.tcl._base import _REGISTRY as TCL_DEFS  # noqa: PLC0415
 
     # Commands keyed by name, with their source-module short name (e.g.
     # ``mathop``, ``oo``, ``set_``).  Used by the classifier to bucket
@@ -402,7 +402,7 @@ def collect_imports_tables() -> dict[str, object]:
     # (populated by phase B.7c).  ``cmd_runtime_nontrapping`` is derived
     # from the same source.
     from compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
-    from core.commands.registry import REGISTRY  # noqa: PLC0415
+    from compiler.registry import REGISTRY  # noqa: PLC0415
 
     cmd_runtime: dict[str, dict[str, object]] = {}
     cmd_runtime_nontrapping: list[str] = []

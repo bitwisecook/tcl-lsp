@@ -19,9 +19,9 @@ from compiler.ir import (
     IRIncr,
 )
 from compiler.parsing.known_commands import known_command_names
+from compiler.registry import REGISTRY
 from shared.dialect import active_dialect, active_extra_commands
 
-from ...commands.registry import REGISTRY
 from ..semantic_model import (
     CodeFix,
     Diagnostic,

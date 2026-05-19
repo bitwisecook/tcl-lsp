@@ -1,0 +1,50 @@
+# Enriched from F5 iRules reference documentation.
+"""PROFILE::avr -- Returns the value of a avr profile setting."""
+
+from __future__ import annotations
+
+from compiler.registry._base import CommandDef
+from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from compiler.registry.namespace_models import EventRequires
+from compiler.registry.signatures import Arity
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+
+from ._base import _IRULES_ONLY, register
+
+_SOURCE = "https://clouddocs.f5.com/api/irules/PROFILE__avr.html"
+
+
+@register
+class ProfileAvrCommand(CommandDef):
+    name = "PROFILE::avr"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="PROFILE::avr",
+            dialects=_IRULES_ONLY,
+            hover=HoverSnippet(
+                summary="Returns the value of a avr profile setting.",
+                synopsis=("PROFILE::avr ATTR",),
+                snippet="Returns the current value of the specified setting in the assigned avr profile.",
+                source=_SOURCE,
+                return_value="Returns the current value of the specified setting in the assigned avr profile.",
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="PROFILE::avr ATTR",
+                ),
+            ),
+            validation=ValidationSpec(
+                arity=Arity(),
+            ),
+            event_requires=EventRequires(),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.BIGIP_CONFIG,
+                    reads=True,
+                    connection_side=ConnectionSide.GLOBAL,
+                ),
+            ),
+        )

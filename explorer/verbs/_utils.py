@@ -17,8 +17,8 @@ from typing import Any
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
+from compiler.registry import REGISTRY
 from core.analysis.semantic_model import Diagnostic
-from core.commands.registry import REGISTRY
 from core.formatting.config import FormatterConfig
 from core.packages import PackageResolver
 

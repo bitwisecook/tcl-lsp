@@ -20,9 +20,9 @@ import logging
 from dataclasses import dataclass
 
 from compiler.parsing.tokens import SourcePosition
+from compiler.registry.runtime import TYPE_HINTS
+from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from core.analysis.semantic_model import Range
-from core.commands.registry.runtime import TYPE_HINTS
-from core.commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.codes import diag
 from shared.naming import normalise_var_name as _normalise_var_name
 

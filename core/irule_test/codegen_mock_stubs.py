@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from core.commands.registry.command_registry import REGISTRY
+from compiler.registry.command_registry import REGISTRY
 
 _OUTPUT = Path(__file__).parent / "tcl" / "_mock_stubs.tcl"
 _COMMAND_MOCKS = Path(__file__).parent / "tcl" / "command_mocks.tcl"

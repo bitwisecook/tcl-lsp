@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.analysis.semantic_model import AnalysisResult, PackageRequire, Range
-from core.tk.detection import has_tk_require
+from dialects.tk.dialect.detection import has_tk_require
 
 
 def _make_analysis(package_names: list[str]) -> AnalysisResult:

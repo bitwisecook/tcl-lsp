@@ -397,6 +397,6 @@ def reset_interp_state() -> None:
 
 def register() -> None:
     """Register interp command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("interp", _cmd_interp)

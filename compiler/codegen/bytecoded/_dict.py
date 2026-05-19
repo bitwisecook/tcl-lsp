@@ -184,6 +184,6 @@ def codegen_dict(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C90
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("dict", codegen_dict)

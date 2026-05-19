@@ -52,12 +52,12 @@ class _AnalyserDiagVarCommandMixin(_Base):
         from compiler.core_analyses import (
             _to_set as _lattice_to_set,
         )
+        from compiler.registry import REGISTRY
+        from compiler.registry.models import DialectStatus
         from compiler.types import TclType, TypeKind
         from shared.dialect import active_dialect
         from shared.naming import normalise_qualified_name
 
-        from ...commands.registry import REGISTRY
-        from ...commands.registry.models import DialectStatus
         from ..class_hierarchy import build_class_hierarchy
 
         _w002_enabled = "W002" not in self._disabled_diagnostics

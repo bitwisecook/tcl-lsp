@@ -1,4 +1,4 @@
-"""Tests for :mod:`core.bigip.tmsh_parse` — tmsh→SCF normalisation."""
+"""Tests for :mod:`dialects.f5.bigip.tmsh_parse` — tmsh→SCF normalisation."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.tmsh_parse import looks_like_tmsh_output, normalise_tmsh_to_scf
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.tmsh_parse import looks_like_tmsh_output, normalise_tmsh_to_scf
 
 
 def test_looks_like_tmsh_output_true_for_create():

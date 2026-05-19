@@ -308,8 +308,8 @@ SideEffect(
 ## File-path anchors
 
 - `compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `_compose_with_traces()`, `EffectRegion` bridge
-- `core/commands/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
-- `core/commands/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
+- `compiler/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
+- `compiler/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
 - `compiler/ir.py` — `CommandTrace`, `IRModule.command_traces`, `IRModule.traced_commands()`, `IRModule.has_dynamic_trace()`
 - `compiler/lowering.py` — `trace add/remove execution` capture (search "Capture ``trace add execution``")
 - `compiler/gvn.py` — GVN consumer (threads `traced_commands` from `IRModule`)

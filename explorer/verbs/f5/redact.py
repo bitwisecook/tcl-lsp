@@ -6,8 +6,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.redact_map import DEFAULT_TARGET_CIDRS_V4, DEFAULT_TARGET_CIDRS_V6, RedactionMap
-from core.bigip.rewrite import redact_secrets
+from dialects.f5.bigip.redact_map import (
+    DEFAULT_TARGET_CIDRS_V4,
+    DEFAULT_TARGET_CIDRS_V6,
+    RedactionMap,
+)
+from dialects.f5.bigip.rewrite import redact_secrets
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path

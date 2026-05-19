@@ -12,6 +12,7 @@ from compiler.gvn import RedundantComputation, find_redundant_computations
 from compiler.irules_flow import IrulesFlowWarning, find_irules_flow_warnings
 from compiler.optimiser import Optimisation, find_optimisations
 from compiler.parsing.tokens import SourcePosition
+from compiler.registry import REGISTRY
 from compiler.shimmer import ShimmerWarning, ThunkingWarning, find_shimmer_warnings
 from compiler.taint import (
     TaintWarning,
@@ -28,8 +29,7 @@ from core.analysis.semantic_model import (
     Severity,
     WorkspaceDiagnosticContext,
 )
-from core.commands.registry import REGISTRY
-from core.tk.detection import has_tk_require
+from dialects.tk.dialect.detection import has_tk_require
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.lsp import to_lsp_range
@@ -821,7 +821,7 @@ def _run_deep_diagnostics(
     is the source string and config flags.
     """
     import shared.codes_all  # noqa: F401
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect)
     return get_deep_diagnostics(
@@ -984,7 +984,7 @@ def get_deep_diagnostics(
     # XC translatability diagnostics (opt-in)
     if xc_diagnostics_enabled:
         try:
-            from core.xc.diagnostics import get_xc_diagnostics
+            from dialects.f5.xc.diagnostics import get_xc_diagnostics
 
             for xc_diag in get_xc_diagnostics(source):
                 if disabled_diagnostics and xc_diag.code in disabled_diagnostics:
@@ -1002,7 +1002,7 @@ def get_deep_diagnostics(
         analysis = analyse(source, cu=cu)
     if has_tk_require(analysis):
         try:
-            from core.tk.diagnostics import check_tk_diagnostics
+            from dialects.tk.dialect.diagnostics import check_tk_diagnostics
 
             for tk_diag in check_tk_diagnostics(source, analysis):
                 if disabled_diagnostics and tk_diag.code in disabled_diagnostics:

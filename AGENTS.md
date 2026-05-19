@@ -124,7 +124,7 @@ The project uses GNU Make. Key targets:
 
 ## WASM command parity
 
-The Python command registry (`core/commands/registry/tcl/`) is the
+The Python command registry (`compiler/registry/tcl/`) is the
 **source of truth** for which Tcl 8.4-9.0 commands exist.  The Zig
 WASM runtime must be bit-for-bit aligned with it — same commands,
 same sub-commands, same arity bounds — and this alignment is enforced
@@ -185,7 +185,7 @@ Zig entry — or vice versa — is a merge-blocking regression.
 
 `scripts/check_wasm_command_parity.py` walks five locations:
 
-1. Python registry under `core/commands/registry/tcl/`
+1. Python registry under `compiler/registry/tcl/`
 2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)
 3. Zig fallback stubs (`dispatch/tcl_stub_fallback.zig`)
 4. Per-command `SubEntry` slices (`cmds/*.zig`)
@@ -715,9 +715,9 @@ See `docs/kcs/kcs-core-lsp-shared-utility-contracts.md` for the full contract.
 
 ## Command registry
 
-Command metadata lives on `CommandSpec` in `core/commands/registry/models.py`,
+Command metadata lives on `CommandSpec` in `compiler/registry/models.py`,
 **not** in hardcoded sets scattered across consumer modules. Each command is
-defined in its own file under `core/commands/registry/{irules,tcl,iapps}/`.
+defined in its own file under `compiler/registry/{irules,tcl,iapps}/`.
 
 When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a boolean field to `CommandSpec`, a

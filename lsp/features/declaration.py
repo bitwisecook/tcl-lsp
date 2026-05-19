@@ -22,6 +22,7 @@ from lsprotocol import types
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.tokens import Token
+from compiler.registry.runtime import iter_body_arguments
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range, Scope
 from core.analysis.var_scoping import (
@@ -29,7 +30,6 @@ from core.analysis.var_scoping import (
     upvar_local_declaration_indices,
     variable_declaration_indices,
 )
-from core.commands.registry.runtime import iter_body_arguments
 from shared.lsp import to_lsp_location
 
 from .definition import get_definition
@@ -105,7 +105,7 @@ def _collect_declaration_ranges(
 
     Recursion into body arguments (proc bodies, namespace eval blocks,
     class bodies, etc.) is driven by
-    :func:`core.commands.registry.runtime.iter_body_arguments`.
+    :func:`compiler.registry.runtime.iter_body_arguments`.
     """
     target = _stripped(var_name)
     ranges: list[Range] = []

@@ -6,8 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.tmsh_emit import emit_tmsh
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.tmsh_emit import emit_tmsh
 
 from ._paths import read_path
 from ._registry import verb

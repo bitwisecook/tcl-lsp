@@ -30,7 +30,7 @@ produced at every stage, with field-level detail.
 | **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by [`build_ssa()`](../../compiler/ssa.py) (`ssa.py:359`). |
 | **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias [`SSAValueKey`](../../compiler/ssa.py) (`ssa.py:50`). |
 | **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses [`TaintLattice`](../../compiler/taint/_lattice.py) (`taint/_lattice.py:44`). |
-| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in [`TaintColour`](../../core/commands/registry/taint_hints.py) (`taint_hints.py:17`). |
+| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in [`TaintColour`](../../compiler/registry/taint_hints.py) (`taint_hints.py:17`). |
 | **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:60`). |
 | **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by [`_classify_sink()`](../../compiler/taint/_sinks.py) (`taint/_sinks.py:99`). |
 | **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See [`gvn.py`](../../compiler/gvn.py). |
@@ -38,9 +38,9 @@ produced at every stage, with field-level detail.
 | **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See [`_code_sinking.py`](../../compiler/optimiser/_code_sinking.py). |
 | **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See [`_elimination.py`](../../compiler/optimiser/_elimination.py). |
 | **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See [`_expr_simplify.py`](../../compiler/optimiser/_expr_simplify.py). |
-| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See [`models.py:462`](../../core/commands/registry/models.py). |
-| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See [`models.py:319`](../../core/commands/registry/models.py). |
-| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See [`models.py:249`](../../core/commands/registry/models.py). |
+| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See [`models.py:462`](../../compiler/registry/models.py). |
+| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See [`models.py:319`](../../compiler/registry/models.py). |
+| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See [`models.py:249`](../../compiler/registry/models.py). |
 
 ---
 

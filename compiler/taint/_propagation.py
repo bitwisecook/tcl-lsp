@@ -6,13 +6,13 @@ from collections.abc import Callable
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import (
     canonical_list_commands,
     taint_double_encode_map,
     taint_transform_map,
 )
-from core.commands.registry.taint_hints import TaintColour
+from compiler.registry.taint_hints import TaintColour
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from ..cfg import CFGBranch, CFGFunction, CFGGoto

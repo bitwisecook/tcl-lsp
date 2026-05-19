@@ -21,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.explain_flow import (
+from dialects.f5.bigip.explain_flow import (
     compute_explain_flow,
     report_to_dict,
     tshark_available,

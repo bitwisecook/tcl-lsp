@@ -35,7 +35,7 @@ from typing import Any
 from lsprotocol import types
 
 from core.analysis.semantic_model import Range
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def get_bigip_document_symbols(source: str) -> list[types.DocumentSymbol]:
@@ -155,7 +155,7 @@ def _module_kind_by_attr() -> dict[str, tuple[str, str]]:
     """Reverse the projection's ``MODULE_KINDS`` so we can look up by
     BigipConfig attribute name.
     """
-    from core.bigip.query.projection import MODULE_KINDS
+    from dialects.f5.query.projection import MODULE_KINDS
 
     mapping: dict[str, tuple[str, str]] = {}
     for module, kind_table in MODULE_KINDS.items():

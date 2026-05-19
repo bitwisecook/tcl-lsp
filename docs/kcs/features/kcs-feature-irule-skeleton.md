@@ -29,7 +29,7 @@ The skeleton generator uses the event registry to know which events exist, their
 ## File-path anchors
 
 - `editors/vscode/src/iruleSkeleton.ts`
-- `core/commands/registry/`
+- `compiler/registry/`
 
 ## Failure modes
 

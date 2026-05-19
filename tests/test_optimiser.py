@@ -16,9 +16,9 @@ from compiler.optimiser import (
 )
 from compiler.optimiser._helpers import _full_command_range
 from compiler.parsing.tokens import SourcePosition
+from compiler.registry.runtime import configure_signatures
 from core.analysis import analyse
 from core.analysis.semantic_model import Range
-from core.commands.registry.runtime import configure_signatures
 
 
 class TestOptimiser:
@@ -970,7 +970,7 @@ class TestPatternMatchSimplification:
     """O110: simplify matches_regex / matches_glob to simpler string ops."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
@@ -1355,7 +1355,7 @@ class TestMultiSetPacking:
 
     def test_tcl9_skips_packing(self):
         """In Tcl 9.0 individual set is faster — O119 must not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl9.0")
         try:
@@ -2102,12 +2102,12 @@ class TestUnusedIruleProcs:
     """O124: comment out unused procs in iRules."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 

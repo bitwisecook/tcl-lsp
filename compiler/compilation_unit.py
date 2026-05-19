@@ -29,7 +29,7 @@ _oo_metaclass_cache: frozenset[str] | None = None
 def _oo_metaclasses() -> frozenset[str]:
     global _oo_metaclass_cache
     if _oo_metaclass_cache is None:
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         _oo_metaclass_cache = REGISTRY.check_trait_commands("is_oo_metaclass")
     return _oo_metaclass_cache
@@ -155,8 +155,8 @@ def compute_stub_fingerprint(source: str) -> int:
     source declares no stubs — the empty-overlay case stays compatible
     with callers that omit the fingerprint argument.
     """
+    from compiler.registry.runtime import signatures_from_stubs
     from core.analysis.stub_comments import scan_source_for_stubs
-    from core.commands.registry.runtime import signatures_from_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
     if not cmd_stubs:
@@ -192,8 +192,8 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
+    from compiler.registry.runtime import stub_signature_scope
     from core.analysis.stub_comments import scan_source_for_stubs
-    from core.commands.registry.runtime import stub_signature_scope
 
     cmd_stubs, _ = scan_source_for_stubs(source)
     # Fingerprint the stub overlay so cached proc / interproc summaries

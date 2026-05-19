@@ -17,10 +17,10 @@ iRules, iApps, EDA, Expect) are loaded lazily on first access for that
 dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
 side-effects, diagnostics, and code completion.
 
-Source: [`core/commands/registry/models.py`](../../../core/commands/registry/models.py),
-[`core/commands/registry/_base.py`](../../../core/commands/registry/_base.py),
-[`core/commands/registry/signatures.py`](../../../core/commands/registry/signatures.py),
-[`core/commands/registry/taint_hints.py`](../../../core/commands/registry/taint_hints.py)
+Source: [`compiler/registry/models.py`](../../../compiler/registry/models.py),
+[`compiler/registry/_base.py`](../../../compiler/registry/_base.py),
+[`compiler/registry/signatures.py`](../../../compiler/registry/signatures.py),
+[`compiler/registry/taint_hints.py`](../../../compiler/registry/taint_hints.py)
 
 ## Content
 
@@ -337,7 +337,7 @@ dialect strings:
 | `frozenset({"tcl8.5", "tcl8.6", ...})` | Safe only in listed dialects |
 
 For version-dependent behaviour, use `dialects_since()` from
-`core/commands/registry/dialects.py`:
+`compiler/registry/dialects.py`:
 
 ```python
 from ..dialects import dialects_since

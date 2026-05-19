@@ -6,7 +6,7 @@ verbatim from ``bitwisecook/visidata-f5log`` (MIT) so we have a
 known-good corpus against which we can compare:
 
 - our deterministic tokeniser-based parser
-  (``core.bigip.query._inputs.parse_f5log``); against
+  (``dialects.f5.query._inputs.parse_f5log``); against
 - a faithful in-line re-implementation of the plugin's main regex
   (``re_f5log``), used here as the reference.
 
@@ -28,7 +28,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query._inputs import parse_f5log  # noqa: E402
+from dialects.f5.query._inputs import parse_f5log  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "f5log" / "visidata_gtm.log"
 
@@ -245,7 +245,7 @@ def test_rfc3339_with_offset_is_recognised():
 
 @pytest.fixture
 def fixture_query_runner():
-    from core.bigip.query import run_query
+    from dialects.f5.query import run_query
 
     return run_query
 

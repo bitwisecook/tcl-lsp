@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.wireshark_profile import (
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.wireshark_profile import (
     _BIGIP_CONTROL_SERVICES,
     ColorRule,
     WiresharkProfile,
@@ -266,7 +266,7 @@ def test_proxy_side_color_rules_handle_empty_index():
         if hasattr(_build_proxy_side_color_rules, "__wrapped__")
         else _build_proxy_side_color_rules
     )
-    from core.bigip.pcap_enrich import NameIndex
+    from dialects.f5.bigip.pcap_enrich import NameIndex
 
     assert rules(NameIndex()) == []
     assert _build_proxy_side_dfilters(NameIndex()) == []

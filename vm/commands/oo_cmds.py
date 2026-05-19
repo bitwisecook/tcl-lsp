@@ -1940,7 +1940,7 @@ def _cmd_oo_singleton(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register OO commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("oo::class", _cmd_oo_class)
     REGISTRY.register_handler("oo::define", _cmd_oo_define)

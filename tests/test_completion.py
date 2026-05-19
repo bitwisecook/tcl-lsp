@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol.types import TextEdit
 
-from core.commands.registry.runtime import configure_signatures
+from compiler.registry.runtime import configure_signatures
 from lsp.features.completion import get_completions
 
 

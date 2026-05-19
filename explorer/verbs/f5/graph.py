@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.graph_export import FORMATS, export_graph
+from dialects.f5.bigip.graph_export import FORMATS, export_graph
 
 from ._paths import load_paths
 from ._registry import verb

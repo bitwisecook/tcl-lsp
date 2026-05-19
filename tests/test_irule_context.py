@@ -13,7 +13,7 @@ from ai.shared.irule_context import (
     context_bundle_to_dict,
     context_bundle_to_text,
 )
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 _SAMPLE_CONF = """\
 ltm pool /Common/web_pool {

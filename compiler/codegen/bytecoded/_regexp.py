@@ -82,6 +82,6 @@ def codegen_regexp(emitter: _Emitter, args: tuple[str, ...]) -> bool:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_codegen("regexp", codegen_regexp)

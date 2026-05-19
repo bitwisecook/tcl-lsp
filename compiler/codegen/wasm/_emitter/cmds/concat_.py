@@ -9,7 +9,7 @@ at compile time; mixed literals + runtime refs chain per-argument
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _emit_concat(

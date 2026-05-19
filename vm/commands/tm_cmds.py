@@ -88,6 +88,6 @@ def _cmd_tm_unknown_handler(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register tm command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("tm", _cmd_tm)

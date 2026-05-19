@@ -59,7 +59,7 @@ python tcl.pyz venv delete .venv
 - Make target: `make zipapp-tcl`
 - KCS DB prerequisite for packaging: `make kcs-db`
 - Shared metadata lookups for `event-info` / `command-info` are provided by
-  `core/commands/registry/info.py` and reused by CLI and AI consumers.
+  `compiler/registry/info.py` and reused by CLI and AI consumers.
 - Invocation name contract: when invoked as `irule` (symlink/rename), the CLI
   uses `irule` for usage/version text and defaults dialect to `f5-irules`.
 
@@ -106,7 +106,7 @@ python tcl.pyz venv delete .venv
 
 - `explorer/tcl_cli.py`
 - `core/analysis/semantic_graph.py`
-- `core/commands/registry/info.py`
+- `compiler/registry/info.py`
 - `tests/test_core_lift_consumers.py`
 - `scripts/zipapp_tcl_main.py`
 - `scripts/build_zipapp.py`

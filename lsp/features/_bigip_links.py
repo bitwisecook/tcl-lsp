@@ -15,7 +15,7 @@ Driven by two engines:
 - :func:`extract_irules_object_references` — the iRule scanner
   ``f5 grep`` and the cleanup linter share — covers Tcl-body
   references inside an ``ltm rule``.
-- :func:`core.bigip.registry.references_via_spec` — the registry's
+- :func:`dialects.f5.bigip.registry.references_via_spec` — the registry's
   value-spec dispatch — covers property-value references on every
   migrated property, with byte-accurate :class:`SourceRange`
   spans so each link points at the exact reference token (not the
@@ -27,20 +27,20 @@ from __future__ import annotations
 from lsprotocol import types
 
 from core.analysis.semantic_model import Range, SourcePosition
-from core.bigip.irules_refs import extract_irules_object_references
-from core.bigip.model import BigipConfig
-from core.bigip.object_registry import resolve_kind_in_configs
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.parser._helpers import (
+from dialects.f5.bigip.irules_refs import extract_irules_object_references
+from dialects.f5.bigip.model import BigipConfig
+from dialects.f5.bigip.object_registry import resolve_kind_in_configs
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser._helpers import (
     _extract_blocks,
     _parse_generic_header,
     _parse_properties_with_spans,
 )
-from core.bigip.registry import (
+from dialects.f5.bigip.registry import (
     candidate_registry_kinds_for_display,
     references_via_spec,
 )
-from core.bigip.registry.pilot import pilot_property_spec_for
+from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 from shared.document_buffer import DocumentBuffer
 from shared.lsp import to_lsp_range
 

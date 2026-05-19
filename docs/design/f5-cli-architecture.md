@@ -13,16 +13,16 @@ layers:
    function with `@verb(name, aliases=..., help=...)`; new verbs are
    wired in by importing them from `explorer/verbs/f5/__init__.py:load_verbs()`.
 
-2. **Core analysis** (`core/bigip/`) — a parser
-   (`core/bigip/parser.py`), a typed object model (`core/bigip/model.py`),
-   a reference graph (`core/bigip/link_extract.py`), a lint registry
-   (`core/bigip/lint/`), emitters (`core/bigip/emit.py`,
-   `core/bigip/tmsh_emit.py`, `core/bigip/convert/as3.py`,
-   `core/bigip/redact_map.py`, `core/bigip/pcap_remap.py`,
-   `core/bigip/diff.py`, `core/bigip/explain.py`,
-   `core/bigip/graph_export.py`, `core/bigip/stats.py`,
-   `core/bigip/rewrite.py`), and a query DSL
-   (`core/bigip/query/`, see
+2. **Core analysis** (`dialects/f5/bigip/`) — a parser
+   (`dialects/f5/bigip/parser.py`), a typed object model (`dialects/f5/bigip/model.py`),
+   a reference graph (`dialects/f5/bigip/link_extract.py`), a lint registry
+   (`dialects/f5/bigip/lint/`), emitters (`dialects/f5/bigip/emit.py`,
+   `dialects/f5/bigip/tmsh_emit.py`, `dialects/f5/bigip/convert/as3.py`,
+   `dialects/f5/bigip/redact_map.py`, `dialects/f5/bigip/pcap_remap.py`,
+   `dialects/f5/bigip/diff.py`, `dialects/f5/bigip/explain.py`,
+   `dialects/f5/bigip/graph_export.py`, `dialects/f5/bigip/stats.py`,
+   `dialects/f5/bigip/rewrite.py`), and a query DSL
+   (`dialects/f5/query/`, see
    [`f5-query-dsl.md`](../references/f5_query/dsl.md) for grammar, value model,
    edit pipeline, and jq-compatibility notes, and
    [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) for the
@@ -68,7 +68,7 @@ for the registration pattern; new sub-groups follow the same shape.
 
 ## Query DSL
 
-`core/bigip/query/` is the largest single core-analysis module.  It
+`dialects/f5/query/` is the largest single core-analysis module.  It
 exposes a small jq-flavoured language that surfaces the parsed
 `BigipConfig` as a navigable tree (`.ltm.virtual[]`,
 `.ltm.pool["/Common/x"]`, …), supports stream / list / scalar
@@ -109,19 +109,19 @@ Internal layering:
 ## Reference graph
 
 Every verb that walks references uses one builder:
-[`build_bigip_object_graph`](../../core/bigip/link_extract.py).
+[`build_bigip_object_graph`](../../dialects/f5/bigip/link_extract.py).
 It returns `(nodes_by_uri, edges)` covering both
 configuration-property references (a virtual's `pool`, a pool member's
 `monitor`, etc.) and iRule body references (`pool`,
 `class match … <data-group>`, `persist`, `snatpool`, `virtual`,
 `node`, `LSN::pool`, `STATS::*`, `ifile`, etc.).  `f5 cleanup`,
 `f5 grep`, `f5 graph`, `f5 explain`, and `f5 stats` all consume the
-same graph.  Lint rules in `core/bigip/lint/` see a *merged*
+same graph.  Lint rules in `dialects/f5/bigip/lint/` see a *merged*
 `BigipConfig` so cross-file refs aren't reported as orphans.
 
 ## IP-redaction model
 
-`core/bigip/redact_map.py` defines a stable, reversible IP map:
+`dialects/f5/bigip/redact_map.py` defines a stable, reversible IP map:
 
 - Source CIDRs are inferred from the data: every public IPv4 literal
   is grouped by its enclosing `/24` (or `/64` for IPv6).  Operators
@@ -152,12 +152,12 @@ same graph.  Lint rules in `core/bigip/lint/` see a *merged*
 
 ## tmsh emission
 
-`core/bigip/tmsh_emit.py` walks `BigipConfig` in dependency order
+`dialects/f5/bigip/tmsh_emit.py` walks `BigipConfig` in dependency order
 (partitions → nodes → monitors → data-groups → profiles → snat-pools /
 persistence → pools → iRules → virtuals) and renders each object as a
 single `tmsh create` (or `--modify`) command.  Properties not modelled
 by `BigipConfig` are recovered from the original SCF stanza text via
-the block slicer in [`core/bigip/emit.py`](../../core/bigip/emit.py),
+the block slicer in [`dialects/f5/bigip/emit.py`](../../dialects/f5/bigip/emit.py),
 so iRule bodies, monitor send/recv strings, and similar arbitrary
 content survive the round-trip verbatim.
 
@@ -178,7 +178,7 @@ explorer/
     ├── cleanup.py grep.py …      ← one module per verb
     └── irule.py                  ← sub-parser group
 
-core/bigip/
+dialects/f5/bigip/
 ├── parser.py                     ← SCF tokeniser + block extractor
 ├── model.py                      ← BigipConfig dataclass family
 ├── link_extract.py               ← reference graph
@@ -200,7 +200,7 @@ core/bigip/
    `_configure(p, *, prog_name, default_dialect)` function that calls
    `p.set_defaults(handler=_run_<name>)`.
 2. Add the import to `explorer/verbs/f5/__init__.py:load_verbs()`.
-3. Put any non-trivial logic in `core/bigip/<name>.py` so it can be
+3. Put any non-trivial logic in `dialects/f5/bigip/<name>.py` so it can be
    tested independently of argparse.
 4. Add a CLI integration test in `tests/test_f5_<name>.py` and (for
    logic) a unit test in the same module.

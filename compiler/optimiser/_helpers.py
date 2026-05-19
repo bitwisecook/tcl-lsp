@@ -9,8 +9,8 @@ from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.registry import REGISTRY
 from core.analysis.semantic_model import Range
-from core.commands.registry import REGISTRY
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )

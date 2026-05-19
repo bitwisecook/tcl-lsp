@@ -93,7 +93,7 @@ more runtime args) from a literal `*${list}` word.
 
 The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
 `configure_signatures()` in
-[`core/commands/registry/runtime.py`](../../../core/commands/registry/runtime.py)
+[`compiler/registry/runtime.py`](../../../compiler/registry/runtime.py)
 sets the flag based on the active dialect:
 
 - **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl

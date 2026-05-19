@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.wireshark_profile import build_wireshark_profile
+from dialects.f5.bigip.wireshark_profile import build_wireshark_profile
 
 from ._registry import verb
 from .enrich_pcapng import _load_configs

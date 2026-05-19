@@ -88,7 +88,7 @@ def lower_return(lowerer: _LowererLike, cmd: _Command) -> object | None:
 
 
 def register() -> None:
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_lowering("expr", lower_expr)
     REGISTRY.register_lowering("return", lower_return)

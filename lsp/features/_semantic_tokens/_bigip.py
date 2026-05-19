@@ -5,17 +5,17 @@ import re
 from bisect import bisect_right
 
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
-from core.bigip.apl_parser import AplTokenKind, tokenise_apl
-from core.bigip.iapp_extract import find_embedded_iapp_sections
-from core.bigip.irules_refs import extract_irules_object_references
-from core.bigip.parser._helpers import (
+from dialects.f5.bigip.apl_parser import AplTokenKind, tokenise_apl
+from dialects.f5.bigip.iapp_extract import find_embedded_iapp_sections
+from dialects.f5.bigip.irules_refs import extract_irules_object_references
+from dialects.f5.bigip.parser._helpers import (
     _extract_blocks,
     _parse_generic_header,
     _parse_properties_with_spans,
 )
-from core.bigip.registry import references_via_spec
-from core.bigip.registry.pilot import pilot_property_spec_for
-from core.bigip.rule_extract import find_embedded_rules
+from dialects.f5.bigip.registry import references_via_spec
+from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
+from dialects.f5.bigip.rule_extract import find_embedded_rules
 from shared.document_buffer import DocumentBuffer
 
 from ._collect import _collect_tokens

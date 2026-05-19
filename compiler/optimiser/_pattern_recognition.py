@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 from compiler.parsing.tokens import Token, TokenType
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import variable_writing_commands
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import variable_writing_commands
 from shared.codes import opt
 from shared.dialect import active_dialect
 from shared.naming import (

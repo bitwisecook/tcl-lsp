@@ -10,7 +10,7 @@ import argparse
 import json
 import sys
 
-from core.commands.registry.info import lookup_command_info
+from compiler.registry.info import lookup_command_info
 
 from ..pipeline import AVAILABLE_DIALECTS
 from ._registry import verb

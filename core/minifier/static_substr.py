@@ -52,7 +52,7 @@ log = logging.getLogger(__name__)
 _SAFE_TAINT_COLOURS: int = 0  # populated at import time below
 
 try:
-    from core.commands.registry.taint_hints import TaintColour
+    from compiler.registry.taint_hints import TaintColour
 
     _SAFE_TAINT_COLOURS = (
         TaintColour.IP_ADDRESS

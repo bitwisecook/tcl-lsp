@@ -1,6 +1,6 @@
 """Generate ``docs/references/f5_query/builtins.md`` from the builtin registry.
 
-The :mod:`core.bigip.query.builtins` registry is the single source of
+The :mod:`dialects.f5.query.builtins` registry is the single source of
 truth for every builtin's signature, summary, details, and examples.
 This script renders that registry as a markdown reference so the
 canonical per-function documentation can't drift from what the
@@ -25,7 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.bigip.query.builtins import (  # noqa: E402
+from dialects.f5.query.builtins import (  # noqa: E402
     _CATEGORY_ORDER,
     BuiltinSpec,
     list_builtins,

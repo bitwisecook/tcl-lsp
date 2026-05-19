@@ -13,12 +13,12 @@ from compiler.optimiser import demorgan_transform, invert_expression
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import is_irules_dialect, taint_double_encode_map
 from compiler.taint import find_taint_warnings
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, CodeFix, ProcDef
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import is_irules_dialect, taint_double_encode_map
 from core.refactoring import RefactoringResult
 from core.refactoring._brace_expr import brace_expr
 from core.refactoring._extract_datagroup import extract_to_datagroup
@@ -1257,7 +1257,7 @@ def _compute_required_profiles(source: str, analysis: AnalysisResult) -> list[st
     # virtual server: transport (TCP, UDP, SCTP, FASTL4) and TLS helpers
     # (PERSIST, SSL_PERSISTENCE) are implied by the stack, not selected
     # independently by the operator.
-    from core.commands.registry.namespace_models import _PROFILE_LAYERS
+    from compiler.registry.namespace_models import _PROFILE_LAYERS
 
     _INFRA_LAYERS = {"transport", "tls_shared"}
     profiles -= {p for p in profiles if _PROFILE_LAYERS.get(p) in _INFRA_LAYERS}

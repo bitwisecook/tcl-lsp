@@ -39,9 +39,9 @@ from dataclasses import dataclass
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.analysis.semantic_model import CodeFix, Range
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.ranges import position_from_relative, range_from_token

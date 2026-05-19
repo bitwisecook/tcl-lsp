@@ -12,7 +12,7 @@ zero-value forms fall through to the dedicated
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _emit_lreplace(

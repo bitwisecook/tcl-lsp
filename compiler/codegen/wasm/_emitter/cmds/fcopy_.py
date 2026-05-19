@@ -17,7 +17,7 @@ since registering this hook removes the generic auto-registration.
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY, EmitContext
+from compiler.registry import REGISTRY, EmitContext
 
 
 def _emit_fcopy(

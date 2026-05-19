@@ -822,6 +822,6 @@ def _ns_origin(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register namespace commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("namespace", _cmd_namespace)

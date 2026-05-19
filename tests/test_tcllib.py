@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import SIGNATURES, configure_signatures
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import SIGNATURES, configure_signatures
 from lsp.features.completion import get_completions
 from lsp.features.diagnostics import get_diagnostics
 from lsp.features.hover import get_hover

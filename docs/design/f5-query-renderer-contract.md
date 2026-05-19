@@ -3,7 +3,7 @@
 The query engine ships with **three decorator-registered registries**
 — one each for output renderers, DSL builtin functions, and
 side-input parsers — plus a **shared user-plugin loader** that
-auto-imports Python files from `$XDG_CONFIG_HOME/f5q/plugins/` on
+auto-imports Python files from `$XDG_CONFIG_HOME/dialects/f5/query/plugins/` on
 first registry access.  External users can extend any of the three
 surfaces without forking the project; the CLI and the Python API
 both consult the same registries so plugins are visible from both.
@@ -16,21 +16,21 @@ propagate.
 
 | File | Role |
 |---|---|
-| `core/bigip/query/renderers/__init__.py` | `RendererSpec`, `@renderer` decorator, `lookup`, `list_renderers`, `render`, `bind_render_sources`. |
-| `core/bigip/query/renderers/gantt.py` | `@renderer("gantt")` — ASCII Gantt timeline. |
-| `core/bigip/query/renderers/ascii_blocks.py` | `@renderer("ascii-blocks")` — Unicode line-art tree. |
-| `core/bigip/query/renderers/mermaid.py` | `@renderer("mermaid")` — Mermaid diagram. |
-| `core/bigip/query/inputs.py` | `InputFormatSpec`, `@input_format` decorator, `lookup`, `list_input_formats`. |
-| `core/bigip/query/_builtin_inputs.py` | Registers the four built-in formats (json / jsonl / csv / f5log) by wrapping the parsers in `_inputs.py`. |
-| `core/bigip/query/builtins.py` | Public `@builtin` decorator wrapping the private `_register` used by in-tree builtins. |
-| `core/bigip/query/plugins.py` | `xdg_plugin_dir`, `load_user_plugins`, `iter_plugin_files`. |
-| `core/bigip/query/output.py` | `render(values, *, mode, **opts)` — falls through to the renderer registry on an unknown built-in mode. |
-| `core/bigip/query/api.py` | `QueryRun.render(name, **opts)` — wraps `render` with `bind_render_sources` so renderers can reach the originating source text. |
+| `dialects/f5/query/renderers/__init__.py` | `RendererSpec`, `@renderer` decorator, `lookup`, `list_renderers`, `render`, `bind_render_sources`. |
+| `dialects/f5/query/renderers/gantt.py` | `@renderer("gantt")` — ASCII Gantt timeline. |
+| `dialects/f5/query/renderers/ascii_blocks.py` | `@renderer("ascii-blocks")` — Unicode line-art tree. |
+| `dialects/f5/query/renderers/mermaid.py` | `@renderer("mermaid")` — Mermaid diagram. |
+| `dialects/f5/query/inputs.py` | `InputFormatSpec`, `@input_format` decorator, `lookup`, `list_input_formats`. |
+| `dialects/f5/query/_builtin_inputs.py` | Registers the four built-in formats (json / jsonl / csv / f5log) by wrapping the parsers in `_inputs.py`. |
+| `dialects/f5/query/builtins.py` | Public `@builtin` decorator wrapping the private `_register` used by in-tree builtins. |
+| `dialects/f5/query/plugins.py` | `xdg_plugin_dir`, `load_user_plugins`, `iter_plugin_files`. |
+| `dialects/f5/query/output.py` | `render(values, *, mode, **opts)` — falls through to the renderer registry on an unknown built-in mode. |
+| `dialects/f5/query/api.py` | `QueryRun.render(name, **opts)` — wraps `render` with `bind_render_sources` so renderers can reach the originating source text. |
 
 The pattern mirrors two existing in-repo registries:
 
 - `@verb` in `explorer/verbs/f5/_registry.py` (CLI subcommands)
-- `@_register` in `core/bigip/query/builtins.py` (DSL builtins)
+- `@_register` in `dialects/f5/query/builtins.py` (DSL builtins)
 - `@tool` in `ai/mcp/tcl_mcp_server.py` (MCP tools)
 
 — same decorator-then-spec shape, same duplicate-registration guard,
@@ -80,7 +80,7 @@ with the following contract:
 - **Tolerant of unknown shapes** — when *values* doesn't match
   `accepts`, the renderer SHOULD fall back to a reasonable default
   ("emit the values as a chain"); only raise
-  `~core.bigip.query.errors.RendererError` for inputs that genuinely
+  `~dialects.f5.query.errors.RendererError` for inputs that genuinely
   cannot be rendered (e.g. a dict missing a required key the
   renderer documented as mandatory).  This matches the way built-in
   `output` modes coerce mixed-shape input to JSON rather than
@@ -115,7 +115,7 @@ renderer bug surfaces as a bug, not as a CLI error message.
 Built-in renderer modules are imported **lazily**: the first call to
 `lookup`, `list_renderers`, or `render` triggers
 `_ensure_builtins_loaded()`, which imports the three sibling modules
-once.  This keeps `import core.bigip.query` cheap for callers that
+once.  This keeps `import dialects.f5.query` cheap for callers that
 never ask for a renderer (the LSP server, the bytecode compiler,
 unit tests) while still ensuring the CLI's `--help-renderers` action
 sees them without an explicit import.
@@ -192,7 +192,7 @@ flags route through the same helper.
 
 ## Python API integration
 
-`core/bigip/query/api.py` exposes the public surface external
+`dialects/f5/query/api.py` exposes the public surface external
 scripts use:
 
 | Symbol | Role |
@@ -316,11 +316,11 @@ surface cleanly.
 
 ## Plugin loader (XDG auto-discovery)
 
-`core/bigip/query/plugins.py`:
+`dialects/f5/query/plugins.py`:
 
 ```python
 def xdg_plugin_dir() -> Path:
-    """$XDG_CONFIG_HOME/f5q/plugins/, falling back to ~/.config/f5q/plugins/."""
+    """$XDG_CONFIG_HOME/dialects/f5/query/plugins/, falling back to ~/.config/dialects/f5/query/plugins/."""
 
 def load_user_plugins(*, force: bool = False) -> list[Path]:
     """Auto-import *.py under xdg_plugin_dir().  Idempotent."""

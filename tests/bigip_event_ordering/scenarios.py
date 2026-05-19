@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.commands.registry.namespace_data import FLOW_CHAINS, chain_event_names
+from compiler.registry.namespace_data import FLOW_CHAINS, chain_event_names
 
 
 @dataclass(frozen=True)

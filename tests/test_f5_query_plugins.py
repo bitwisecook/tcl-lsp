@@ -18,11 +18,11 @@ from pathlib import Path
 
 import pytest
 
-import f5q
-from core.bigip.query.builtins import _REGISTRY as _BUILTIN_REGISTRY
-from core.bigip.query.inputs import _REGISTRY as _INPUT_REGISTRY
-from core.bigip.query.plugins import _reset_for_tests, iter_plugin_files, xdg_plugin_dir
-from core.bigip.query.renderers import _REGISTRY as _RENDERER_REGISTRY
+import dialects.f5.query as f5q
+from dialects.f5.query.builtins import _REGISTRY as _BUILTIN_REGISTRY
+from dialects.f5.query.inputs import _REGISTRY as _INPUT_REGISTRY
+from dialects.f5.query.plugins import _reset_for_tests, iter_plugin_files, xdg_plugin_dir
+from dialects.f5.query.renderers import _REGISTRY as _RENDERER_REGISTRY
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ def test_loader_returns_empty_when_dir_missing(monkeypatch, tmp_path) -> None:
 
 def test_loader_imports_python_files(xdg: Path) -> None:
     (xdg / "ping.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('ping-test', summary='ping test', accepts='any')\n"
         "def _(values, **opts): return 'pong\\n'\n"
     )
@@ -97,7 +97,7 @@ def test_loader_warns_on_broken_file_without_crashing(
 ) -> None:
     (xdg / "broken.py").write_text("this is not valid python !!!\n")
     (xdg / "good.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('warn-test', summary='warn test', accepts='any')\n"
         "def _(values, **opts): return ''\n"
     )
@@ -114,7 +114,7 @@ def test_loader_warns_on_broken_file_without_crashing(
 
 def test_loader_is_idempotent(xdg: Path) -> None:
     (xdg / "once.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('once-test', summary='once', accepts='any')\n"
         "def _(values, **opts): return ''\n"
     )
@@ -142,7 +142,7 @@ def test_force_reload_skips_already_loaded_files(xdg: Path, capsys: pytest.Captu
     surface just the new file and stay quiet about the rest.
     """
     (xdg / "first.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('force-test-first', summary='x', accepts='any')\n"
         "def _(values, **opts): return ''\n"
     )
@@ -155,7 +155,7 @@ def test_force_reload_skips_already_loaded_files(xdg: Path, capsys: pytest.Captu
     # should appear in the return value, and stderr should stay
     # clean.
     (xdg / "second.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('force-test-second', summary='y', accepts='any')\n"
         "def _(values, **opts): return ''\n"
     )
@@ -179,7 +179,7 @@ def test_force_reload_retries_previously_broken_files(xdg: Path) -> None:
     f5q.load_user_plugins(force=True)
     # Now "fix" the file and re-scan.
     plugin.write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('retry-test', summary='ok', accepts='any')\n"
         "def _(values, **opts): return ''\n"
     )
@@ -218,7 +218,7 @@ def test_iter_plugin_files_supports_multifile_imports(xdg: Path, tmp_path: Path)
     (xdg / "helper.py").write_text("MARK = 'imported-from-sibling'\n")
     (xdg / "main.py").write_text(
         "import helper\n"
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         f"@renderer('multifile-test', summary={'helper.MARK'.upper()!r}, accepts='any')\n"
         "def _(values, **opts): return helper.MARK + '\\n'\n"
     )
@@ -310,7 +310,7 @@ def test_input_format_decorator_rejects_duplicates() -> None:
 
 def test_plugin_builtin_is_callable_from_query(xdg: Path, tmp_path: Path) -> None:
     (xdg / "uppercase_plugin.py").write_text(
-        "from f5q import builtin\n"
+        "from dialects.f5.query import builtin\n"
         "@builtin('e2e-upper', summary='upper', min_args=1, max_args=1)\n"
         "def _u(s): return str(s).upper()\n"
     )
@@ -326,7 +326,7 @@ def test_plugin_builtin_is_callable_from_query(xdg: Path, tmp_path: Path) -> Non
 
 def test_plugin_input_format_is_dispatchable(xdg: Path, tmp_path: Path) -> None:
     (xdg / "list_input.py").write_text(
-        "from f5q import input_format\n"
+        "from dialects.f5.query import input_format\n"
         "@input_format('e2e-list', summary='newline list')\n"
         "def _p(source, *, uri, options=()):\n"
         "    return [line for line in source.splitlines() if line.strip()]\n"
@@ -353,7 +353,7 @@ def test_plugin_input_format_is_dispatchable(xdg: Path, tmp_path: Path) -> None:
 
 def test_plugin_renderer_is_dispatchable(xdg: Path, tmp_path: Path) -> None:
     (xdg / "tag_render.py").write_text(
-        "from f5q import renderer\n"
+        "from dialects.f5.query import renderer\n"
         "@renderer('e2e-tag', summary='count tag', accepts='any')\n"
         "def _r(values, **opts):\n"
         "    tag = opts.get('tag', 'x')\n"

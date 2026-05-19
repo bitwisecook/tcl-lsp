@@ -675,6 +675,6 @@ def _to_int(s: str) -> int:
 
 def register() -> None:
     """Register binary command."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("binary", _cmd_binary)

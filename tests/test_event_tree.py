@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.commands.registry.namespace_data import (
+from compiler.registry.namespace_data import (
     EVENT_PROPS,
     compute_file_profiles,
     event_satisfies,
@@ -16,7 +16,7 @@ from core.commands.registry.namespace_data import (
     profile_stack_satisfies,
     scan_file_events,
 )
-from core.commands.registry.namespace_models import EventRequires
+from compiler.registry.namespace_models import EventRequires
 
 # EVENT_PROPS table coverage
 

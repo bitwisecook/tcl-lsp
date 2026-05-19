@@ -12,10 +12,10 @@ from compiler.compilation_unit import compile_source
 from compiler.gvn import find_redundant_computations
 from compiler.irules_flow import find_irules_flow_warnings
 from compiler.optimiser import find_optimisations
+from compiler.registry.runtime import configure_signatures
 from compiler.shimmer import find_shimmer_warnings
 from compiler.taint import find_taint_warnings
 from core.analysis import analyse
-from core.commands.registry.runtime import configure_signatures
 from lsp.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics
 
 

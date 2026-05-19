@@ -6,7 +6,7 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 
 ## Operational context
 
-`core/commands/registry/` is the central contract layer for command signatures, dialect roles, event validation/flow metadata, and type/taint hints consumed across analysis and LSP features.
+`compiler/registry/` is the central contract layer for command signatures, dialect roles, event validation/flow metadata, and type/taint hints consumed across analysis and LSP features.
 
 ## Decision rules / contracts
 
@@ -22,15 +22,15 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 
 ## File-path anchors
 
-- `core/commands/registry/models.py`
-- `core/commands/registry/command_registry.py`
-- `core/commands/registry/runtime.py`
-- `core/commands/registry/signatures.py`
-- `core/commands/registry/namespace_registry.py`
-- `core/commands/registry/namespace_data.py`
-- `core/commands/registry/namespace_models.py`
-- `core/commands/registry/taint_hints.py`
-- `core/commands/registry/type_hints.py`
+- `compiler/registry/models.py`
+- `compiler/registry/command_registry.py`
+- `compiler/registry/runtime.py`
+- `compiler/registry/signatures.py`
+- `compiler/registry/namespace_registry.py`
+- `compiler/registry/namespace_data.py`
+- `compiler/registry/namespace_models.py`
+- `compiler/registry/taint_hints.py`
+- `compiler/registry/type_hints.py`
 - `compiler/parsing/known_commands.py`
 
 ## Failure modes

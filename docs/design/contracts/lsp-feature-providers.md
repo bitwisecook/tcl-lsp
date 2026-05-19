@@ -14,8 +14,8 @@ LSP features are implemented as focused providers under `lsp/features/`, each co
 2. Provider responses must be deterministic for unchanged document + workspace state.
 3. Cross-feature behaviour changes should be validated across at least one navigation + one edit feature.
 4. BIG-IP config (`bigip*.conf`) feature overlays must remain context-aware:
-   semantic tokens should add BIG-IP value categories without regressing Tcl tokenisation, and definition should resolve cross-object references via the shared BIG-IP object registry (`core/bigip/object_registry.py`) rather than hardcoded per-provider maps.
-5. BIG-IP object and reference mappings are maintained in the in-repo registry catalogue (`core/bigip/registry/`) and consumed through the registry facade (`core/bigip/object_registry.py`).
+   semantic tokens should add BIG-IP value categories without regressing Tcl tokenisation, and definition should resolve cross-object references via the shared BIG-IP object registry (`dialects/f5/bigip/object_registry.py`) rather than hardcoded per-provider maps.
+5. BIG-IP object and reference mappings are maintained in the in-repo registry catalogue (`dialects/f5/bigip/registry/`) and consumed through the registry facade (`dialects/f5/bigip/object_registry.py`).
 5. Proc-oriented features must use shared proc-reference matching (`core/analysis/proc_lookup.py`) so definition/references/rename/call hierarchy/signature help stay precedence-consistent.
 6. Package suggestions and iRules event-context inference must use shared helpers (`package_suggestions.py`, `irules_context.py`) to avoid action/command drift and insertion-line regressions.
 
@@ -40,9 +40,9 @@ LSP features are implemented as focused providers under `lsp/features/`, each co
 - `lsp/features/package_suggestions.py`
 - `lsp/features/irules_context.py`
 - `core/analysis/proc_lookup.py`
-- `core/bigip/object_registry.py`
-- `core/bigip/registry/data.py`
-- `core/bigip/registry/objects/`
+- `dialects/f5/bigip/object_registry.py`
+- `dialects/f5/bigip/registry/data.py`
+- `dialects/f5/bigip/registry/objects/`
 
 ## Failure modes
 

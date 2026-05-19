@@ -18,11 +18,9 @@ from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import Token, TokenType
-from core.analysis.checks import run_all_checks
-from core.analysis.semantic_model import Diagnostic, Range, Severity
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import (
     SIGNATURES,
     ArgRole,
     Arity,
@@ -31,6 +29,8 @@ from core.commands.registry.runtime import (
     arg_indices_for_role,
     iter_body_arguments,
 )
+from core.analysis.checks import run_all_checks
+from core.analysis.semantic_model import Diagnostic, Range, Severity
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_qualified_name

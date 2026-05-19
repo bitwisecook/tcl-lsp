@@ -350,6 +350,6 @@ def _version_satisfies(version: str, requirement: str) -> bool:
 
 def register() -> None:
     """Register package commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("package", _cmd_package)

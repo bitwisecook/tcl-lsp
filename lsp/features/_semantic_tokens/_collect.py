@@ -8,8 +8,8 @@ from compiler.parsing.lexer import TclLexer
 from compiler.parsing.recovery import compute_virtual_insertions
 from compiler.parsing.token_positions import token_content_base, token_content_shift
 from compiler.parsing.tokens import SourcePosition, Token, TokenType
-from core.commands.registry.command_registry import REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry.command_registry import REGISTRY
+from compiler.registry.runtime import (
     ArgRole,
     arg_indices_for_roles,
     iter_switch_case_list,

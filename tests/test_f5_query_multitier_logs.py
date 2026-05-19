@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
+from dialects.f5.query import run_query
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MULTITIER = REPO_ROOT / "samples" / "for_f5_query" / "multitier"
@@ -257,7 +257,7 @@ def test_whole_fleet_severity_rollup_via_runner_specs():
     structured-input plumbing scales to many simultaneous side
     inputs.
     """
-    from core.bigip.query._inputs import InputSpec
+    from dialects.f5.query._inputs import InputSpec
 
     log_files = sorted(LOGS_DIR.glob("*.log"))
     sources: dict[str, str] = {"mem://x": ""}

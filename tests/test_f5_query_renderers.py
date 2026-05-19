@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from core.bigip.query.errors import RendererError
-from core.bigip.query.renderers import RendererSpec, list_renderers, lookup, render, renderer
-from core.bigip.query.renderers.ascii_blocks import render_ascii_blocks
-from core.bigip.query.renderers.gantt import render_gantt
-from f5q import Query
+from dialects.f5.query import Query
+from dialects.f5.query.errors import RendererError
+from dialects.f5.query.renderers import RendererSpec, list_renderers, lookup, render, renderer
+from dialects.f5.query.renderers.ascii_blocks import render_ascii_blocks
+from dialects.f5.query.renderers.gantt import render_gantt
 
 SAMPLES = Path(__file__).resolve().parents[1] / "samples" / "for_f5_query"
 

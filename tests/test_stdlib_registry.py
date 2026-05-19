@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
+from compiler.registry import REGISTRY
 from core.analysis import analyse
-from core.commands.registry import REGISTRY
 from lsp.features.completion import get_completions
 from lsp.features.hover import get_hover
 

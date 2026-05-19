@@ -7,9 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from compiler.registry.runtime import configure_signatures
 from core.analysis import analyse
 from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
 from lsp.features.diagnostics import get_diagnostics
 
 

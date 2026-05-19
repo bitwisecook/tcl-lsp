@@ -8,15 +8,15 @@ from functools import lru_cache
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.tokens import TokenType
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import (
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import (
     TAINT_HINTS,
     regex_pattern_commands,
     regexp_pattern_index,
     taint_double_encode_map,
     taint_sink_safe_colours,
 )
-from core.commands.registry.taint_hints import TaintColour
+from compiler.registry.taint_hints import TaintColour
 from shared.codes import diag
 from shared.dialect import active_dialect
 from shared.naming import normalise_var_name as _normalise_var_name
@@ -539,7 +539,7 @@ _destructive_file_subs_cache: frozenset[str] | None = None
 def _destructive_file_subs() -> frozenset[str]:
     global _destructive_file_subs_cache
     if _destructive_file_subs_cache is None:
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         spec = REGISTRY.get_any("file")
         if spec is not None:
@@ -693,7 +693,7 @@ _non_returning_cache: frozenset[str] | None = None
 def _non_returning_commands() -> frozenset[str]:
     global _non_returning_cache
     if _non_returning_cache is None:
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         _non_returning_cache = REGISTRY.check_trait_commands("terminates_block")
     return _non_returning_cache

@@ -449,7 +449,7 @@ def _cmd_split(interp: TclInterp, args: list[str]) -> TclResult:
 
 def register() -> None:
     """Register list commands."""
-    from core.commands.registry import REGISTRY
+    from compiler.registry import REGISTRY
 
     REGISTRY.register_handler("list", _cmd_list)
     REGISTRY.register_handler("lindex", _cmd_lindex)

@@ -25,10 +25,10 @@ from __future__ import annotations
 import re
 
 from compiler.parsing.lexer import TclParseError
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
+from compiler.registry.signatures import ArgRole
 
-from ..commands.registry import REGISTRY
-from ..commands.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
-from ..commands.registry.signatures import ArgRole
 from .semantic_model import ProcArgTrait
 
 # Simple $varName reference pattern.
@@ -43,7 +43,7 @@ _var_write_cache: dict[str, int] | None = None
 def _var_write_commands() -> dict[str, int]:
     global _var_write_cache
     if _var_write_cache is None:
-        from core.commands.registry.runtime import variable_writing_commands
+        from compiler.registry.runtime import variable_writing_commands
 
         _var_write_cache = variable_writing_commands()
     return _var_write_cache
@@ -256,7 +256,7 @@ def _scan_deep(
     if depth > _MAX_DEPTH:
         return
 
-    from ..commands.registry.runtime import body_arg_indices
+    from compiler.registry.runtime import body_arg_indices
 
     commands = _extract_commands(source)
     _scan_commands(commands, param_set, traits, upvar_aliases)
