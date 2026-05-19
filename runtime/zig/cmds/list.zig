@@ -116,29 +116,31 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
     var current: i32 = words[1];
     if (words.len == 3) {
         // Single index argument — may be a flat ``5`` or a list
-        // ``{2 1}`` per Tcl 9 semantics.  Walk the elements so the
-        // list-form behaves like the explicit multi-arg form.
+        // ``{2 1}`` (or even a single-element list like ``{2}`` or
+        // ``"2"``) per Tcl 9 semantics.  Treat the argument as an
+        // index list and walk each element so list-form and
+        // scalar-form behave the same: ``lindex L {2}`` and
+        // ``lindex L 2`` both pick index 2; ``lindex L b`` raises
+        // ``bad index`` after extracting and validating the single
+        // element ``b``.
+        //
+        // A malformed-list index (``lindex L \{``) is NOT a valid
+        // index list — reference Tcl reports ``bad index "{": ...``
+        // for the original string, not the empty content of the
+        // unterminated brace.  So a syntactic list check on the arg
+        // gates the walk: on failure, the whole arg is the offending
+        // index (lindex-10.4).
         const idx_arg = words[2];
         const is_s = obj_ensure_string(idx_arg);
         // ``lindex L {}`` — empty index list returns the list
         // verbatim (lindex-10.1: ``$x = ""`` should not error).
         if (is_s.len == 0) return result_mod.from_globals(current);
+        if (list_parse.validate_list_braces(is_s.ptr, is_s.len) == false) {
+            list_mod.raise_bad_list_index(idx_arg);
+            return result_mod.from_globals(0);
+        }
         const idx_count = rt.list_count_elements(is_s.ptr, is_s.len);
         if (idx_count == 0) return result_mod.from_globals(current);
-        if (idx_count == 1) {
-            // Single-element index list: if the arg was already a
-            // bare scalar (no whitespace), validate its shape and
-            // raise ``bad index`` on garbage like ``b`` or ``0a2``.
-            // A scalar that happens to contain whitespace (e.g. the
-            // wrapping-list form ``{2 1}``) routes through the
-            // walk below and individual elements get validated
-            // there.
-            if (!has_list_whitespace(is_s.ptr, is_s.len) and !list_mod.is_valid_list_index(idx_arg)) {
-                list_mod.raise_bad_list_index(idx_arg);
-                return result_mod.from_globals(0);
-            }
-            return result_mod.from_globals(rt.tcl_cmd_list_index(current, idx_arg));
-        }
         var k: i64 = 0;
         while (k < idx_count) : (k += 1) {
             const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
@@ -159,19 +161,6 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
         current = rt.tcl_cmd_list_index(current, words[ai]);
     }
     return result_mod.from_globals(current);
-}
-
-/// Cheap check for whitespace inside *idx*; used to disambiguate a
-/// scalar index from a single-element list-form index.
-fn has_list_whitespace(ptr: u32, len: u32) bool {
-    if (ptr == 0 or len == 0) return false;
-    const sp: [*]const u8 = @ptrFromInt(ptr);
-    var i: u32 = 0;
-    while (i < len) : (i += 1) {
-        const c = sp[i];
-        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == 0x0B or c == 0x0C) return true;
-    }
-    return false;
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
@@ -1061,29 +1050,42 @@ fn ls_bisect_target(
     outer_idx: i64,
     index_arg: i32,
     skip_first_path: bool,
-) struct { ep: u32, elen: u32 } {
+) struct { ep: u32, elen: u32, scratch_buf: u32, scratch_cap: u32 } {
     const outer_elem = rt.list_element_at(ls_ptr, ls_len, outer_idx);
     var outer_ptr: u32 = ls_ptr + outer_elem.start;
     var outer_len: u32 = outer_elem.len;
+    // ``scratch_buf`` is the caller-owned decode buffer.  The caller
+    // frees it after consuming ``ep`` / ``elen`` — without this the
+    // alloc would leak on every bisect step over an unbraced
+    // element.
+    var scratch_buf: u32 = 0;
+    var scratch_cap: u32 = 0;
     if (!outer_elem.braced and outer_len > 0) {
-        const buf = alloc(outer_len + 4);
+        const cap = outer_len + 4;
+        const buf = alloc(cap);
         if (buf != 0) {
             const n = rt.copy_unbraced_elem(buf, outer_ptr, outer_len);
             outer_ptr = buf;
             outer_len = n;
+            scratch_buf = buf;
+            scratch_cap = cap;
         }
     }
     if (index_arg == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len };
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
     const ps = obj_ensure_string(index_arg);
     if (ps.len == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len };
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
     const path_count = rt.list_count_elements(ps.ptr, ps.len);
     if (path_count == 0) {
-        return .{ .ep = outer_ptr, .elen = outer_len };
+        return .{ .ep = outer_ptr, .elen = outer_len, .scratch_buf = scratch_buf, .scratch_cap = scratch_cap };
     }
+    // Drilling into the element produces a fresh TclObj whose bytes
+    // live independently of ``scratch_buf``; free the scratch right
+    // away and let the caller use the final TclObj's string rep
+    // directly.
     var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
     var p: i64 = if (skip_first_path) 1 else 0;
     while (p < path_count) : (p += 1) {
@@ -1091,7 +1093,8 @@ fn ls_bisect_target(
         current = rt.tcl_cmd_list_index(current, idx_obj);
     }
     const final_s = obj_ensure_string(current);
-    return .{ .ep = final_s.ptr, .elen = final_s.len };
+    if (scratch_buf != 0) obj_mod.free_sized(scratch_buf, scratch_cap);
+    return .{ .ep = final_s.ptr, .elen = final_s.len, .scratch_buf = 0, .scratch_cap = 0 };
 }
 
 // Build a list of sub-indices for ``lsearch -subindices`` output.
@@ -1130,12 +1133,21 @@ fn ls_subindex_path(ls_ptr: u32, ls_len: u32, outer: i64, path_obj: i32, stride:
     const elem = rt.list_element_at(ls_ptr, ls_len, first_outer);
     var current_ptr: u32 = ls_ptr + elem.start;
     var current_len: u32 = elem.len;
+    // Decode any unbraced backslash escapes into a scratch buffer.
+    // Track the alloc size so the scratch can be freed once we're
+    // done drilling — without this the buffer would leak on every
+    // ``-subindices`` call that hits an unbraced element.
+    var scratch_buf: u32 = 0;
+    var scratch_cap: u32 = 0;
     if (!elem.braced and current_len > 0) {
-        const buf = alloc(current_len + 4);
-        if (buf != 0) {
-            const decoded = rt.copy_unbraced_elem(buf, current_ptr, current_len);
-            current_ptr = buf;
+        scratch_cap = current_len + 4;
+        scratch_buf = alloc(scratch_cap);
+        if (scratch_buf != 0) {
+            const decoded = rt.copy_unbraced_elem(scratch_buf, current_ptr, current_len);
+            current_ptr = scratch_buf;
             current_len = decoded;
+        } else {
+            scratch_cap = 0;
         }
     }
     var current_obj: i32 = obj_new_string(@bitCast(current_ptr), @bitCast(current_len));
@@ -1149,6 +1161,7 @@ fn ls_subindex_path(ls_ptr: u32, ls_len: u32, outer: i64, path_obj: i32, stride:
         result = rt.tcl_list(result, obj_new_int(resolved));
         current_obj = rt.tcl_cmd_list_index(current_obj, idx_obj);
     }
+    if (scratch_buf != 0) obj_mod.free_sized(scratch_buf, scratch_cap);
     return result;
 }
 
@@ -1280,6 +1293,13 @@ fn do_lsearch_bisect(
             if (pc > 0) skip_first_path = true;
         }
     }
+    // Track the outer (full-list) index alongside the group start so
+    // ``-inline`` can drill back into the SAME element the matcher
+    // compared.  Without ``best_outer`` the inline return would
+    // re-apply the ``path[0]`` offset on top of ``best`` (group
+    // start), shifting it past the matched element when stride > 1
+    // and an ``-index`` path is in play.
+    var best_outer: i64 = -1;
     var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
     while (idx < n) : (idx += stride) {
         var outer_idx: i64 = idx;
@@ -1291,9 +1311,11 @@ fn do_lsearch_bisect(
         }
         const t = ls_bisect_target(ls_ptr, ls_len, outer_idx, index_arg, skip_first_path);
         const c = bisect_compare(t.ep, t.elen, pv_ptr, pv_len, cmp_kind);
+        if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
         const ok = if (do_decreasing) c >= 0 else c <= 0;
         if (ok) {
             best = idx;
+            best_outer = outer_idx;
         } else {
             break;
         }
@@ -1303,8 +1325,13 @@ fn do_lsearch_bisect(
         return obj_new_int(-1);
     }
     if (do_inline) {
-        const t = ls_bisect_target(ls_ptr, ls_len, best, index_arg, skip_first_path);
-        return obj_new_string(@bitCast(t.ep), @bitCast(t.elen));
+        // Re-drill the matched element using the FULL outer index
+        // (``best_outer``) — passing ``best`` here would re-add the
+        // group offset and miss the matched value on stride > 1.
+        const t = ls_bisect_target(ls_ptr, ls_len, best_outer, index_arg, skip_first_path);
+        const result = obj_mod.obj_new_string_copy(t.ep, t.elen);
+        if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
+        return result;
     }
     if (do_subindices) {
         return ls_subindex_path(ls_ptr, ls_len, best, index_arg, stride);
