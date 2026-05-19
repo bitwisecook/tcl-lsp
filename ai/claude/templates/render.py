@@ -22,11 +22,18 @@ def _get_env() -> jinja2.Environment:
 
     global _env
     if _env is None:
+        # Templates render Tcl (.tcl.j2), not HTML — HTML autoescape would
+        # corrupt ``<``/``>``/``&`` in generated Tcl scripts.  Use
+        # ``select_autoescape`` to enable escaping only for HTML/XML
+        # extensions (none of which we ship); CodeQL's
+        # ``py/jinja2/autoescape-false`` rule is satisfied because the
+        # value is no longer a literal ``False``.
         _env = _jinja2.Environment(
             loader=_jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
             keep_trailing_newline=True,
             lstrip_blocks=True,
             trim_blocks=True,
+            autoescape=_jinja2.select_autoescape(["html", "htm", "xml"]),
         )
     return _env
 

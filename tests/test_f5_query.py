@@ -7761,7 +7761,11 @@ def test_merge_mode_yields_objects_from_every_source():
     # The gtm side yields wideips when iterated.
     result2 = run_query(".gtm.wideip[].name", sources, merge=True)
     all_values2 = [v for vals in result2.values_per_file.values() for v in vals]
-    assert "app.example.com" in all_values2
+    # Explicit element-equality so CodeQL doesn't flag this as a
+    # substring URL-sanitization check (``all_values2`` is a list, so
+    # ``in`` is already element membership — the rewrite makes that
+    # explicit).
+    assert any(v == "app.example.com" for v in all_values2)
 
 
 def test_merge_mode_collision_hard_errors():
