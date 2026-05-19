@@ -87,9 +87,12 @@ def _tcl9_library_root() -> Path | None:
     bundles can resolve ``[info library]`` + ``file exists`` checks
     against the real upstream library (safe-stock.test's opt /
     cookiejar discovery, ``source [file join $tcl_library X]`` in
-    other tests).  Read-only from the bundle's point of view —
-    capability-bound through wasmtime's preopen so writes outside
-    ``preopen_tmpdir`` are denied.
+    other tests).  ``WasiConfig.preopen_dir`` grants the bundle
+    capability-scoped access to this directory; we rely on the
+    bundles not writing into it rather than on the host preopen
+    enforcing read-only perms — the test corpus is read-only by
+    construction, and any accidental write would land in the
+    checked-out source tree.
     """
     tests_dir = ensure_tcl_source("9.0")
     p = tests_dir.parent / "library"
@@ -730,8 +733,11 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
         # Preopen the C Tcl ``library/`` tree at guest ``/library`` so
         # ``[info library]`` lookups and ``file exists`` probes hit
         # real upstream files (see :func:`_tcl9_library_root`).  No
-        # copy — the tree is shared read-only via wasmtime's
-        # capability-bound preopen.
+        # copy — the tree is shared via wasmtime's capability-bound
+        # preopen.  ``preopen_dir`` grants normal read/write access
+        # to the host directory; we rely on the bundles being well-
+        # behaved (they don't write to ``$tcl_library``) rather than
+        # on the host preopen enforcing read-only perms.
         extra_preopens: list[tuple[str, str]] = []
         lib_root = _tcl9_library_root()
         if lib_root is not None:

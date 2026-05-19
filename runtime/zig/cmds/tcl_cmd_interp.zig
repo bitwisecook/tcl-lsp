@@ -372,8 +372,10 @@ fn raise_alias_loop_error(new_name_ptr: u32, new_name_len: u32) void {
 /// chain through whatever interps the aliases route across,
 /// stopping when we either bottom out at a non-alias command or
 /// hit the (interp, simple_name) pair of the new alias.  Capped
-/// at ``MAX_LOOP_HOPS`` so the walk terminates on bizarre
-/// hand-built mutual chains.
+/// at ``MAX_LOOP_HOPS`` so the walk terminates on hand-built
+/// mutual chains.  Exhausting the cap is treated as a loop so a
+/// pathologically deep chain can't slip past detection here and
+/// then recurse at dispatch (Copilot review on PR #451).
 fn alias_loop_would_form(
     child_interp: u32,
     new_name_ptr: u32,
@@ -387,7 +389,7 @@ fn alias_loop_would_form(
     var cur_interp = target_interp;
     var cur_name_ptr: u32 = target_name_ptr;
     var cur_name_len: u32 = target_name_len;
-    const MAX_LOOP_HOPS: u32 = 16;
+    const MAX_LOOP_HOPS: u32 = 64;
     var hops: u32 = 0;
     while (hops < MAX_LOOP_HOPS) : (hops += 1) {
         if (cur_interp == 0) return false;
@@ -424,7 +426,10 @@ fn alias_loop_would_form(
         cur_name_ptr = rec.target_name_ptr;
         cur_name_len = rec.target_name_len;
     }
-    return false;
+    // Hop cap exhausted without bottoming out at a non-alias —
+    // treat as a loop so a deep chain can't escape detection
+    // here and recurse at dispatch (Copilot review).
+    return true;
 }
 
 /// Return the simple (un-qualified) name span of *name*.  Strips
@@ -1797,12 +1802,21 @@ pub fn eval_interp_marktrusted(words: []const i32) i32 {
     return obj_new_string(0, 0);
 }
 
-/// Parse a decimal-integer Tcl word into u32.  Mirrors Tcl 9's
-/// ``Tcl_GetIntFromObj`` / ``TclGetWideIntFromObj`` for the narrow
-/// range we accept here (i32 max).  Returns:
+/// Parse an integer Tcl word into i64.  Accepts the decimal form
+/// the runtime's ``try_parse_int`` handles.  Note: this does NOT
+/// (yet) accept the full Tcl ``Tcl_GetIntFromObj`` surface — hex
+/// (``0x10``), octal (``0o12``), and binary (``0b1010``) literals
+/// fall into the ``.not_int`` branch and the caller emits the
+/// ``expected integer but got "X"`` diagnostic.  Tracked as a
+/// follow-up under the broader ``try_parse_int`` extension
+/// (Copilot review on PR #451 — extending this requires touching
+/// every other ``try_parse_int`` consumer and is out of scope for
+/// the per-interp recursionlimit work).
+///
+/// Returns:
 ///
 ///   ``.ok``         — parsed successfully, ``value`` populated.
-///   ``.not_int``    — input wasn't an integer literal.
+///   ``.not_int``    — input wasn't a decimal-integer literal.
 ///   ``.too_large``  — magnitude overflows i64 (matches Tcl's
 ///                     ``integer value too large to represent`` path).
 const ParseIntResult = struct {

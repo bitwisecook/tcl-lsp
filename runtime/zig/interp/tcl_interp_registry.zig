@@ -560,9 +560,9 @@ fn find_alias_cmd_in_subtree(ns: u32, target_rec: u32) AliasCmdAndNs {
                 // ``OFF_PARAMS_OBJ``.  Builtin forwards and alias
                 // redirects sometimes hold sentinel handles outside
                 // the heap range; reading through them would trap.
-                if (@as(u64, cmd) + 16 > mem_bytes) continue;
-                // Use offset 12 for PARAMS_OBJ via the procs constants.
-                const params: u32 = @bitCast(read_i32(cmd + 12));
+                const procs_mod = @import("tcl_procs.zig");
+                if (@as(u64, cmd) + procs_mod.OFF_PARAMS_OBJ + 4 > mem_bytes) continue;
+                const params: u32 = @bitCast(read_i32(cmd + procs_mod.OFF_PARAMS_OBJ));
                 if (params == target_rec) return .{ .cmd = cmd, .ns = ns };
             }
         }

@@ -143,7 +143,17 @@ fn alias_rename_would_loop(rec: *const @import("tcl_alias.zig").AliasRec, new_na
     var cur_interp: u32 = if (rec.parent_interp == 0) child_interp else rec.parent_interp;
     var cur_name_ptr: u32 = rec.target_name_ptr;
     var cur_name_len: u32 = rec.target_name_len;
-    const MAX_HOPS: u32 = 16;
+    // Safety cap on the alias-chain walk.  Reference Tcl's
+    // ``Tcl_RenameCommand`` doesn't bound the walk because the alias
+    // table is in-memory and ``Tcl_GetCommandFromObj`` is cycle-free
+    // by construction.  We don't have a visited-set here, so we
+    // pessimistically treat exhaustion of the hop cap as a loop —
+    // chains longer than this are extremely unlikely in real
+    // scripts, and a false positive (rejecting a deep-but-acyclic
+    // chain) is a kinder failure mode than letting an actual cycle
+    // through to recurse at dispatch time (Copilot review on PR
+    // #451).
+    const MAX_HOPS: u32 = 64;
     var hops: u32 = 0;
     while (hops < MAX_HOPS) : (hops += 1) {
         if (cur_interp == 0) return false;
@@ -171,7 +181,10 @@ fn alias_rename_would_loop(rec: *const @import("tcl_alias.zig").AliasRec, new_na
         cur_name_ptr = next_rec.target_name_ptr;
         cur_name_len = next_rec.target_name_len;
     }
-    return false;
+    // Hop cap exhausted without resolving to a non-alias target —
+    // treat as a loop so a runaway chain doesn't slip past
+    // detection here only to recurse at dispatch (Copilot review).
+    return true;
 }
 
 fn simple_name_of(name_ptr: u32, name_len: u32) struct { ptr: u32, len: u32 } {
