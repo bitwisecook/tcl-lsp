@@ -447,11 +447,25 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position.position;
+        // Fetch the cached per-dialect registry on the async
+        // path before spawning so the worker can read built-in
+        // command names alongside the user-defined procs the
+        // analyser surfaces.  Threads through as
+        // `S-completion-rich`: minimal completion only knows
+        // user procs / vars; rich completion adds the registry's
+        // command set.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         // Pure-CPU work; spawn_blocking off the LSP event loop.
         let items = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_completion::completions(&doc.text, pos.line, pos.character, &analysis)
+            core_completion::completions(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
