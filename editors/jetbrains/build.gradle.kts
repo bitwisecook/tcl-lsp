@@ -92,6 +92,21 @@ tasks {
     buildPlugin {
         archiveBaseName.set("tcl-lsp-jetbrains")
     }
+
+    // Drop the bundled LSP server pyz at the plugin root (next to ``lib/``)
+    // in the distribution so Python can execute it directly from the install
+    // directory.  Putting it inside ``src/main/resources/`` would bundle it
+    // into the plugin jar, where Python can't reach it via a
+    // ``jar:file:...!/...`` URL and we'd be forced to extract to
+    // ``${tmpdir}`` at runtime (with a cache-invalidation dance on plugin
+    // upgrades — see ``TclLspServerDescriptor.findBundledPyz``).  Same
+    // pattern JetBrains' own Prisma ORM plugin uses to ship its
+    // ``prisma-language-server.js``.
+    prepareSandbox {
+        from(layout.projectDirectory.file("server/tcl-lsp-server.pyz")) {
+            into(pluginName)
+        }
+    }
 }
 
 // Minimal markdown → HTML for the change-notes block. JetBrains

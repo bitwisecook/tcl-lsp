@@ -10,7 +10,8 @@ import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.eclipse.lsp4j.ConfigurationItem
 import java.io.File
-import java.nio.file.Path
+import java.net.JarURLConnection
+import java.nio.file.Paths
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.TclLspServerDescriptor")
 
@@ -77,69 +78,45 @@ class TclLspServerDescriptor(project: Project) :
     }
 
     private fun findBundledPyz(): String? {
-        // Look for the .pyz in the plugin's resources / lib directory
-        val pluginClassLoader = this::class.java.classLoader
-        val resourceUrl = pluginClassLoader.getResource("tcl-lsp-server.pyz")
-        if (resourceUrl != null) {
-            // If running from a jar, the resource is inside the jar.
-            // We need to extract it to a temp location.
-            val protocol = resourceUrl.protocol
-            if (protocol == "file") {
-                val path = Path.of(resourceUrl.toURI()).toString()
-                if (File(path).exists()) return path
-            }
-            // For jar:// protocol, extract to temp
-            try {
-                val tempDir = System.getProperty("java.io.tmpdir")
-                val tempPyz = File(tempDir, "tcl-lsp-server.pyz")
-                if (!tempPyz.exists() || tempPyz.length() == 0L) {
-                    pluginClassLoader.getResourceAsStream("tcl-lsp-server.pyz")?.use { input ->
-                        tempPyz.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                }
-                if (tempPyz.exists() && tempPyz.length() > 0) {
-                    return tempPyz.absolutePath
-                }
-            } catch (e: Exception) {
-                LOG.warn("Failed to extract bundled pyz", e)
-            }
-        }
-
-        // Also check in the plugin's installation directory
-        val pluginDir = findPluginInstallDir()
-        if (pluginDir != null) {
-            val pyz = File(pluginDir, "tcl-lsp-server.pyz")
-            if (pyz.exists()) return pyz.absolutePath
-
-            // Also check lib/ subdirectory
-            val libPyz = File(pluginDir, "lib/tcl-lsp-server.pyz")
-            if (libPyz.exists()) return libPyz.absolutePath
-        }
-
+        // ``build.gradle.kts``'s ``prepareSandbox`` task copies the bundled
+        // LSP server to ``tcl-lsp-server.pyz`` at the plugin install root
+        // (next to ``lib/``), so Python can execute it directly from the
+        // install directory.  We deliberately avoid putting it inside the
+        // plugin jar (``src/main/resources/``) because Python can't run a
+        // zipapp from a ``jar:file:...!/...`` URL and we'd have to extract
+        // on first use, then re-extract on every plugin upgrade (the bug
+        // fixed in PR #448).  Pattern matches JetBrains' own Prisma ORM
+        // plugin which ships ``prisma-language-server.js`` the same way.
+        val pluginDir = findPluginInstallDir() ?: return null
+        val pyz = File(pluginDir, "tcl-lsp-server.pyz")
+        if (pyz.exists()) return pyz.absolutePath
+        // Defensive: tolerate an install layout that drops the pyz inside
+        // ``lib/``.  Shouldn't happen with the current build but keeps a
+        // user's working install working if anyone changes ``prepareSandbox``.
+        val libPyz = File(pluginDir, "lib/tcl-lsp-server.pyz")
+        if (libPyz.exists()) return libPyz.absolutePath
         return null
     }
 
     private fun findPluginInstallDir(): File? {
-        // Try to determine the plugin installation directory from the classloader
+        // Locate the jar containing this class, then walk up to the plugin
+        // root (parent of ``lib/``).  Go through ``JarURLConnection`` →
+        // ``URI`` → ``Path`` rather than parsing ``classResource.path``
+        // directly — URLs are percent-encoded, so on macOS the raw path
+        // string contains ``Application%20Support`` and ``Tcl%20Language%20Support``
+        // and ``File(path)`` resolves to a non-existent directory, leaving
+        // the user with a "bundled server not found" error.  ``Paths.get(URI)``
+        // handles the decoding correctly (Codex review on PR #448).
         val classResource = this::class.java.getResource("/${this::class.java.name.replace('.', '/')}.class")
             ?: return null
-        val path = classResource.path
-        // jar:file:/path/to/plugin/lib/plugin.jar!/com/...
-        val jarPrefix = "file:"
-        val jarSuffix = "!"
-        val jarIdx = path.indexOf(jarSuffix)
-        if (jarIdx > 0) {
-            val jarPath = path.substring(
-                if (path.startsWith(jarPrefix)) jarPrefix.length else 0,
-                jarIdx
-            )
-            val jarFile = File(jarPath)
-            // Plugin dir is typically parent of lib/
-            return jarFile.parentFile?.parentFile
+        return try {
+            val conn = classResource.openConnection() as? JarURLConnection ?: return null
+            val jarFile = Paths.get(conn.jarFileURL.toURI()).toFile()
+            jarFile.parentFile?.parentFile
+        } catch (e: Exception) {
+            LOG.warn("Failed to locate plugin install directory", e)
+            null
         }
-        return null
     }
 
     private fun notifyError(message: String) {
