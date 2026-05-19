@@ -271,6 +271,16 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         bufsize += as.len + 64;
     }
     const buf_addr: u32 = alloc(bufsize);
+    if (buf_addr == 0) return obj_new_string(0, 0);
+    // Cascade-leak fix: every early-return path through the format
+    // loop (``"not enough arguments"``, ``"format string ended"``,
+    // checked_int / checked_float failures, the positional /
+    // sequential-mix diagnostic, etc.) previously abandoned
+    // ``buf_addr`` on the heap.  Schedule a free that fires on
+    // every exit, then clear the flag on the success path so the
+    // buffer's ownership transfers to the returned TclObj instead.
+    var success: bool = false;
+    defer if (!success) obj.free_sized(buf_addr, bufsize);
     const out: [*]u8 = @ptrFromInt(buf_addr);
     var off: u32 = 0;
 
@@ -471,6 +481,7 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
     // The older borrowing form leaked one buf per ``format`` call;
     // tcltest's progress / diagnostic output exercises this path
     // heavily.
+    success = true; // ownership transferred to the TclObj below
     return obj.obj_new_string_take(buf_addr, off, bufsize);
 }
 

@@ -280,6 +280,10 @@ pub fn Table(comptime bucket_size: u32) type {
                         // Bulk-copy all bucket bytes (header + value)
                         // word-by-word.  ``bucket_size`` is comptime
                         // so this loop is fully unrolled in release.
+                        // The ``name_ptr`` byte buffer is transferred
+                        // verbatim — both old and new bucket share
+                        // the same heap allocation, so we MUST NOT
+                        // free it here (the new bucket still uses it).
                         var k: u32 = 0;
                         while (k < bucket_size) : (k += 4) {
                             write_i32(nb + k, read_i32(base + k));
@@ -290,6 +294,11 @@ pub fn Table(comptime bucket_size: u32) type {
                     idx = (idx + 1) & mask;
                 }
             }
+            // Free the old bucket array backbone — the per-entry
+            // name buffers were transferred to the new buffer above,
+            // so only the table itself needs reclaiming.  Without
+            // this every grow leaked ``old_cap * bucket_size`` bytes.
+            obj.free_sized(old_buf, old_cap * bucket_size);
         }
 
         /// Iterate every populated bucket base in capacity order
@@ -321,12 +330,18 @@ pub fn Table(comptime bucket_size: u32) type {
         pub fn delete_at(self: *Self, base: u32) void {
             const ep: u32 = @bitCast(read_i32(base));
             if (ep == 0 or ep == TOMBSTONE) return;
+            // Free the name buffer that ``try_insert_header`` minted
+            // — the tombstone marker overwrites the pointer, so the
+            // slab would otherwise leak.  Capture the length before
+            // we zero the field below.
+            const el: u32 = @bitCast(read_i32(base + 4));
             write_i32(base, @bitCast(TOMBSTONE));
             // Optional: zero name_len + hash so a stale read sees
             // self-consistent zero rather than partial old data.
             write_i32(base + 4, 0);
             write_i32(base + 8, 0);
             if (self.count > 0) self.count -= 1;
+            if (el > 0) obj.free_sized(ep, el);
         }
     };
 }

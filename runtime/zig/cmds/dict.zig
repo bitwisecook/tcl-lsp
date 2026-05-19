@@ -68,7 +68,16 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         // a two-level chain).  Walk the chain from words[2] (the
         // dict) through words[3..] (the keys).  Missing keys raise
         // ``key "K" not known in dictionary``.
+        //
+        // Ownership: ``cur`` starts borrowed (``words[2]``).  Each
+        // ``dict_get`` call returns +1 owned, so on the second and
+        // later iterations the prior +1 must be released before
+        // overwriting ``cur`` — otherwise nested ``dict get`` chains
+        // (and the missing-key error path that bails mid-walk) leak
+        // one obj per drill level past the first.  Mirrors the
+        // ``owns_cur`` pattern in the ``dict getd`` arm below.
         var cur: i32 = words[2];
+        var owns_cur: bool = false;
         var ki: u32 = 3;
         while (ki < words.len) : (ki += 1) {
             if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
@@ -81,6 +90,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
                 const total: u32 = @intCast(prefix.len + ks.len + middle.len);
                 const buf = obj_mod_dict.alloc(total);
                 if (buf == 0) {
+                    if (owns_cur) obj_mod_dict.tcl_obj_release(cur);
                     stubs_mod.raise("dict get: key not found");
                     return result_mod.from_globals(0);
                 }
@@ -96,9 +106,13 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
                 const msg = obj_mod_dict.obj_new_string_take(buf, total, total);
                 const catch_mod_dict = @import("../interp/tcl_catch.zig");
                 catch_mod_dict.tcl_cmd_error(msg);
+                if (owns_cur) obj_mod_dict.tcl_obj_release(cur);
                 return result_mod.from_globals(0);
             }
-            cur = rt.dict_get(cur, words[ki]);
+            const next = rt.dict_get(cur, words[ki]);
+            if (owns_cur) obj.tcl_obj_release(cur);
+            cur = next;
+            owns_cur = true;
         }
         return result_mod.from_globals(cur);
     }
@@ -807,7 +821,13 @@ fn eval_dict_update(words: []const i32) i32 {
         const cur = frames.var_resolve(dict_var);
         if (cur == 0) continue;
         if (rt.obj_get_int(rt.dict_exists(cur, words[key_idx])) != 0) {
-            _ = frames.var_set(words[var_idx], rt.dict_get(cur, words[key_idx]));
+            // ``dict_get`` returns +1 owned; ``var_set`` retains for
+            // the slot.  Release the local +1 share after the store
+            // — without this every ``dict update`` pre-bind leaked
+            // one TclObj header per key.
+            const val = rt.dict_get(cur, words[key_idx]);
+            _ = frames.var_set(words[var_idx], val);
+            obj.tcl_obj_release(val);
         }
     }
 
@@ -827,18 +847,34 @@ fn eval_dict_update(words: []const i32) i32 {
 
     // 3. Post-script: reflect each VAR back into the dict (or
     //    remove the key if VAR was unset).
+    //
+    // Ownership: ``cur`` is borrowed from the var slot; we own
+    // ``dict_now`` only when we minted it via ``rt.dict_create``
+    // (the empty-slot path).  ``dict_set`` / ``dict_unset`` either
+    // mutate in place (returning the same handle) or rebuild
+    // (fresh +1 owned).  ``var_set`` retains for the slot — we
+    // must release our local +1 to ``updated`` after the store, AND
+    // release the minted ``dict_now`` on the rebuild path so the
+    // empty-dict seed isn't orphaned.
     pi = 0;
     while (pi < n_pairs) : (pi += 1) {
         const key_idx = 3 + pi * 2;
         const var_idx = 4 + pi * 2;
         const cur = frames.var_resolve(dict_var);
         const dict_now = if (cur == 0) rt.dict_create() else cur;
+        const owns_dict_now = (cur == 0);
         const var_val = frames.var_resolve(words[var_idx]);
         const updated = if (var_val == 0)
             rt.dict_unset(dict_now, words[key_idx])
         else
             rt.dict_set(dict_now, words[key_idx], var_val);
         _ = frames.var_set(dict_var, updated);
+        if (owns_dict_now and updated != dict_now) {
+            obj.tcl_obj_release(dict_now);
+        }
+        if (updated != cur and updated != dict_now) {
+            obj.tcl_obj_release(updated);
+        }
     }
 
     // Re-raise the captured flow-control signal so the enclosing

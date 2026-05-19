@@ -591,6 +591,14 @@ pub fn interp_alias_create(
     // ``interp aliases`` will report for the new alias.
     var token_ptr: u32 = new_name_ptr;
     var token_len: u32 = new_name_len;
+    // ``owns_token`` flips to true the first time we mint a fresh
+    // ``::``-prefixed buffer.  Subsequent loop iterations release
+    // the previous buffer before reassigning so a chain of N
+    // collisions reclaims N-1 intermediate slabs instead of leaking
+    // them — and the post-loop ``alias_alloc_with_token`` (which
+    // copies the bytes into its own buffer) cleans up the final
+    // ``token_ptr`` allocation too.
+    var owns_token: bool = false;
     while (interp_reg.alias_chain_find_token(child_interp, .child, token_ptr, token_len) != 0) {
         const prefix_len: u32 = 2;
         const new_len: u32 = prefix_len + token_len;
@@ -599,9 +607,12 @@ pub fn interp_alias_create(
         dst[0] = ':';
         dst[1] = ':';
         if (token_len > 0) memcpy(new_buf + prefix_len, token_ptr, token_len);
+        if (owns_token) obj_mod.free_sized(token_ptr, token_len);
         token_ptr = new_buf;
         token_len = new_len;
+        owns_token = true;
     }
+    defer if (owns_token) obj_mod.free_sized(token_ptr, token_len);
 
     //
     // The parent interp is stashed directly on the ``AliasRec``

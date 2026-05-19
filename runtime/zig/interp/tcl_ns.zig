@@ -1885,6 +1885,10 @@ fn raise_expected_integer(o: i32) void {
     else
         @intCast(prefix.len + open_quote.len + s.len + close_quote.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM building the diagnostic — bail without raising further.
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {
@@ -1913,7 +1917,13 @@ fn raise_expected_integer(o: i32) void {
             off += 1;
         }
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    // ``obj_new_string_take`` (not the borrow-form ``obj_new_string``)
+    // transfers ownership of ``buf_addr`` to the resulting TclObj so
+    // the slab is reclaimed when the error message is released.  The
+    // old borrow form left ``OBJ_STR_CAP = 0`` and the buffer slab
+    // leaked permanently — one ``total``-byte slab per
+    // ``expected integer`` diagnostic.
+    const msg = obj.obj_new_string_take(buf_addr, @intCast(off), total);
     const tcl_catch = @import("tcl_catch.zig");
     tcl_catch.tcl_cmd_error(msg);
     // Tcl 9 adds a ``(reading increment)`` frame between the
