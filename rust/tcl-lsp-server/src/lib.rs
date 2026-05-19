@@ -33,6 +33,7 @@ use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
+use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -1145,15 +1146,48 @@ impl LanguageServer for Backend {
 
     async fn linked_editing_range(
         &self,
-        _params: LinkedEditingRangeParams,
+        params: LinkedEditingRangeParams,
     ) -> jsonrpc::Result<Option<LinkedEditingRanges>> {
-        // S-linked-editing-range-rich: the Python provider
-        // links matched-pair tokens (proc declaration ↔
-        // call sites) so renaming one updates the other.
-        // Our minimal port returns no linked edits (the
-        // editor falls back to pairing brackets / quotes
-        // itself).
-        Ok(None)
+        // `S-linked-editing-range-rich`: when the cursor sits
+        // on a proc declaration's name or inside the proc's
+        // body, return every range that should be edited in
+        // lock-step (the declaration plus any self-call sites
+        // inside the body).  Editors then paint these as
+        // linked-edit chips so renaming one updates the others
+        // as the user types.
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let pos = params.text_document_position_params.position;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let result = tokio::task::spawn_blocking(move || {
+            core_linked_editing_range::linked_editing_ranges(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("linked_editing_range worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let Some(linked) = result else {
+            return Ok(None);
+        };
+        Ok(Some(LinkedEditingRanges {
+            ranges: linked.ranges.into_iter().map(lift_lsp_range).collect(),
+            word_pattern: Some(linked.word_pattern),
+        }))
     }
 
     async fn semantic_tokens_full(
