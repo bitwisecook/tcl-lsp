@@ -28,8 +28,11 @@
 //! * Argument-value completion (registry-driven when arg index
 //!   has known values; subcommand-scoped values for things like
 //!   `string is <class>`).
-//! * iRules `call proc_name` first-arg context, `when EVENT`
-//!   value enumeration, and other dialect-specific arg rules.
+//! * iRules `call proc_name` first-arg context and other
+//!   dialect-specific arg rules.  (`when EVENT` enumeration
+//!   has landed: any command carrying
+//!   `Traits::IS_EVENT_HANDLER` triggers event-name completion
+//!   from the shared `EventRegistry` at word-index 1.)
 //! * Workspace-wide proc / RULE_INIT-var enumeration, usage-bucket
 //!   sort-text computation, and the `_proc_signature_str` rendering
 //!   for proc-completion details.
@@ -118,11 +121,11 @@ pub fn completions(
     }
     let partial = word_partial_at_position(source, line, character);
 
-    // Context-aware completions — switch + subcommand.  Both
-    // require the caller-provided registry to look up the
-    // surrounding command's spec.  Without a registry we
-    // can't tell which switches / subcommands are valid, so
-    // fall through to plain command + proc completion.
+    // Context-aware completions — switch + subcommand + event-name.
+    // All three require the caller-provided registry to look up
+    // the surrounding command's spec.  Without a registry we
+    // can't tell which switches / subcommands / events are valid,
+    // so fall through to plain command + proc completion.
     if let Some(registry) = registry {
         if let Some((cmd, word_idx)) = command_context_on_line(source, line, character) {
             if let Some(spec) = registry.get(&cmd) {
@@ -137,6 +140,13 @@ pub fn completions(
                     if !spec.options.is_empty() {
                         return switch_completions(spec, &switch_partial);
                     }
+                }
+                // iRules `when EVENT { body }`: when the cursor is
+                // typing the first argument of an event-handler
+                // command, enumerate the known event names from the
+                // shared event registry.
+                if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
+                    return event_name_completions(&partial);
                 }
                 if word_idx == 1 && !spec.subcommands.is_empty() {
                     return subcommand_completions(spec, &partial);
@@ -327,6 +337,38 @@ fn switch_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<Co
             insert_text: name.to_owned(),
             kind: CompletionKind::Function,
             detail: None,
+            sort_text: None,
+        })
+        .collect()
+}
+
+/// Compute iRules event-name completions for `when EVENT { body }`.
+/// Returns one [`CompletionItem`] per event registered in the
+/// shared [`tcl_registry::events::EventRegistry`] whose name starts
+/// with `partial` (case-sensitive — event names are all-uppercase
+/// snake-case by convention).
+///
+/// The registry is built once per call.  `EventRegistry::build`
+/// materialises a small static table at runtime; for completion
+/// (one call per user keystroke at a `when ` site) that's
+/// negligible.  Threading a cached registry through the public
+/// `completions()` signature would force every caller to plumb it
+/// even when iRules isn't in scope, so we keep it local instead.
+fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
+    let reg = tcl_registry::events::EventRegistry::build();
+    let mut names: Vec<&str> = reg
+        .all_event_names()
+        .into_iter()
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| CompletionItem {
+            label: name.to_owned(),
+            insert_text: name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: Some("F5 iRules event".to_string()),
             sort_text: None,
         })
         .collect()
@@ -882,5 +924,82 @@ mod tests {
         let mut sorted = labels.clone();
         sorted.sort_unstable();
         assert_eq!(labels, sorted);
+    }
+
+    // -- S-completion-rich: iRules event-name completion -------------
+    //
+    // When the cursor sits at word-index 1 of an event-handler
+    // command (the `when` iRules keyword carries
+    // `Traits::IS_EVENT_HANDLER`), the completion surface lists
+    // event names from the shared `EventRegistry`.
+
+    fn irules_registry() -> CommandRegistry {
+        let mut r = CommandRegistry::build_default();
+        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r
+    }
+
+    #[test]
+    fn event_completion_surfaces_when_handler_first_arg() {
+        // `when HT` inside iRules — should list every event
+        // starting with `HT` (HTTP_REQUEST, HTTP_RESPONSE, …).
+        let src = "when HT\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"HTTP_REQUEST"),
+            "expected `HTTP_REQUEST`; got {labels:?}",
+        );
+        assert!(
+            labels.iter().all(|l| l.starts_with("HT")),
+            "all results should start with `HT`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_marks_detail_as_irules_event() {
+        let src = "when CL\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        assert!(
+            items
+                .iter()
+                .all(|i| i.detail.as_deref() == Some("F5 iRules event")),
+            "every event completion should be labelled as an iRules event; got {items:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_does_not_fire_in_plain_tcl_dialect() {
+        // The default registry doesn't carry the `when` spec —
+        // completion should fall through to plain command + proc
+        // completion (which won't surface `HTTP_REQUEST`).
+        let src = "when HT\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"HTTP_REQUEST"),
+            "event completion should not fire outside iRules; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_skipped_at_word_index_other_than_1() {
+        // `when HTTP_REQUEST f` — word-index 2 (after the event
+        // name).  Event completion must not fire.
+        let src = "when HTTP_REQUEST f\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 19, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
+            "event completion should not fire at word-index 2; got {labels:?}",
+        );
     }
 }
