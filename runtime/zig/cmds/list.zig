@@ -1263,8 +1263,17 @@ fn ls_get_match_target(
 /// / ``-index`` interact the same way they do for the linear-search
 /// path: ``-inline`` returns the value, ``-stride > 1`` walks one
 /// group per step and the first ``-index`` element offsets within the
-/// group.  Mirrors reference Tcl 9 ``Tcl_LsearchObjCmd`` for the
-/// lsearch-22.* family.
+/// group.
+///
+/// Mirrors the binary-search branch in reference Tcl 9
+/// ``Tcl_LsearchObjCmd`` (``tclCmdIL.c``, ``mode == SORTED`` /
+/// ``-bisect``): ``lower = start - groupSize``, ``upper = listc``,
+/// loop while ``lower + groupSize != upper``, midpoint aligned to
+/// the group boundary.  On exact match the bisect variant keeps
+/// raising ``lower`` to find the LAST equal element; when no exact
+/// match exists, the final ``lower`` is the highest index whose
+/// element compares ``<=`` (ascending) or ``>=`` (decreasing) the
+/// pattern.  O(log N) per call.
 fn do_lsearch_bisect(
     ls_ptr: u32,
     ls_len: u32,
@@ -1279,55 +1288,79 @@ fn do_lsearch_bisect(
     do_inline: bool,
     do_subindices: bool,
 ) i32 {
-    var best: i64 = -1;
-    // Walk the (sub-)list linearly — ``-bisect`` semantically expects
-    // a sorted input, but we don't enforce it.  The linear walk
-    // produces the same answer as a true binary search when the list
-    // is sorted, at O(N) cost.  Large bisect workloads can swap to a
-    // binary-search variant later without changing the return shape.
     var skip_first_path: bool = false;
+    var group_offset: i64 = 0;
     if (stride > 1 and index_arg != 0) {
         const ps = obj_ensure_string(index_arg);
         if (ps.len > 0) {
             const pc = rt.list_count_elements(ps.ptr, ps.len);
-            if (pc > 0) skip_first_path = true;
+            if (pc > 0) {
+                const first_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(0));
+                group_offset = list_mod.resolve_list_index(first_obj, stride);
+                skip_first_path = true;
+            }
         }
     }
-    // Track the outer (full-list) index alongside the group start so
-    // ``-inline`` can drill back into the SAME element the matcher
-    // compared.  Without ``best_outer`` the inline return would
-    // re-apply the ``path[0]`` offset on top of ``best`` (group
-    // start), shifting it past the matched element when stride > 1
-    // and an ``-index`` path is in play.
+
+    // ``best`` is the group start of an exact match (if any); ``-1``
+    // means no exact match was seen.  ``best_outer`` is the matching
+    // element's full position (``best + group_offset`` for stride > 1).
+    var best: i64 = -1;
     var best_outer: i64 = -1;
-    var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
-    while (idx < n) : (idx += stride) {
-        var outer_idx: i64 = idx;
-        if (stride > 1 and index_arg != 0 and skip_first_path) {
-            const first_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(0));
-            const offset = list_mod.resolve_list_index(first_obj, stride);
-            outer_idx = idx + offset;
-            if (outer_idx >= n) break;
+    // C Tcl: ``lower = start - groupSize``, ``upper = listc``.  The
+    // loop maintains the invariant that the answer (if any) is in
+    // ``(lower, upper)``.  Starting ``lower`` one group below the
+    // search-start lets a match at ``start`` itself remain reachable
+    // through the midpoint pivot.
+    var lower: i64 = start - stride;
+    var upper: i64 = n;
+    while (lower + stride != upper) {
+        // Midpoint, aligned to a group boundary.  ``@divTrunc``
+        // matches C integer division; the modulo subtraction lines
+        // up with ``i -= i % groupSize`` in tclCmdIL.c.
+        var i: i64 = @divTrunc(lower + upper, 2);
+        const rem = @mod(i, stride);
+        i -= rem;
+        // Group offset (``path[0]``) shifts the target inside the
+        // group.  For lsearch-26.* / 27.* the matcher compares
+        // against ``listv[i + groupOffset]``, NOT ``listv[i]``.
+        const outer_idx: i64 = i + group_offset;
+        if (outer_idx < 0 or outer_idx >= n) {
+            // Path[0] resolved outside the group's coverage — treat
+            // as no-match in the ascending direction.
+            if (!do_decreasing) upper = i else lower = i;
+            continue;
         }
         const t = ls_bisect_target(ls_ptr, ls_len, outer_idx, index_arg, skip_first_path);
-        const c = bisect_compare(t.ep, t.elen, pv_ptr, pv_len, cmp_kind);
+        // C convention: ``match = compare(pattern, target)`` returns
+        // positive when pattern > target.  Our ``bisect_compare`` has
+        // the same shape — first arg is the "a" side.
+        const match = bisect_compare(pv_ptr, pv_len, t.ep, t.elen, cmp_kind);
         if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
-        const ok = if (do_decreasing) c >= 0 else c <= 0;
-        if (ok) {
-            best = idx;
+        if (match == 0) {
+            best = i;
             best_outer = outer_idx;
+            // Bisect keeps searching higher to find the LAST equal.
+            lower = i;
+        } else if (match > 0) {
+            // pattern > target
+            if (!do_decreasing) lower = i else upper = i;
         } else {
-            break;
+            // pattern < target
+            if (!do_decreasing) upper = i else lower = i;
         }
     }
+    // No exact match — ``lower`` is the highest index whose element
+    // compares ``<=`` (ascending) or ``>=`` (decreasing) the pattern.
     if (best < 0) {
-        if (do_inline) return obj_new_string(0, 0);
-        return obj_new_int(-1);
+        if (lower < 0) {
+            if (do_inline) return obj_new_string(0, 0);
+            return obj_new_int(-1);
+        }
+        best = lower;
+        best_outer = lower + group_offset;
     }
     if (do_inline) {
-        // Re-drill the matched element using the FULL outer index
-        // (``best_outer``) — passing ``best`` here would re-add the
-        // group offset and miss the matched value on stride > 1.
         const t = ls_bisect_target(ls_ptr, ls_len, best_outer, index_arg, skip_first_path);
         const result = obj_mod.obj_new_string_copy(t.ep, t.elen);
         if (t.scratch_buf != 0) obj_mod.free_sized(t.scratch_buf, t.scratch_cap);
