@@ -1303,6 +1303,8 @@ impl LanguageServer for Backend {
                     kind: match s.kind {
                         CoreWorkspaceSymbolKind::Function => SymbolKind::FUNCTION,
                         CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+                        CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
+                        CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
                     },
                     tags: None,
                     deprecated: None,
