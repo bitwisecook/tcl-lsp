@@ -61,6 +61,74 @@ jobs:
 
       - name: Type-check with ty
         run: uv run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tests scripts/tcl_test_client.py
+
+  # Rust: workspace lint + test + dep audit + doc-link check + doctests.
+  # Mirrors `make rust-lint rust-test rust-doctest rust-deny` so the
+  # local fast-path and CI share one ground truth.
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Lint (fmt + clippy + doc-link check)
+        run: make rust-lint
+
+      - name: Test (cargo test --workspace)
+        run: make rust-test
+
+      - name: Doctests
+        run: make rust-doctest
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Audit dependencies (advisories + licenses + sources)
+        run: make rust-deny
+
+  # Coverage: Rust workspace coverage with cargo-llvm-cov.  Runs on
+  # main branch pushes and on PRs touching Rust code; result is an
+  # uploaded HTML report artefact for review.
+  rust-coverage:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || contains(github.event.pull_request.changed_files, 'rust/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run coverage
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path tmp/coverage/rust.lcov
+          cargo llvm-cov --workspace --summary-only
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage-lcov
+          path: tmp/coverage/rust.lcov
+          if-no-files-found: error
+
   # Test: Python test suite
   test-py:
     runs-on: ubuntu-latest
