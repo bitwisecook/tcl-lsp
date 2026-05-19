@@ -1268,10 +1268,17 @@ impl LanguageServer for Backend {
         // `S-hover-sync11` follow-up once `S-diagnostics`
         // establishes the cached-analysis surface this Backend
         // currently lacks.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_hover::hover(&doc.text, pos.line, pos.character, &analysis)
+            core_hover::hover(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {

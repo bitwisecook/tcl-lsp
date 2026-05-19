@@ -34,6 +34,7 @@
 //! computation, no I/O, no async.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, Scope, VarDef};
+use tcl_registry::CommandRegistry;
 
 /// LSP markup-content kind for a hover body.
 ///
@@ -100,7 +101,13 @@ fn is_var_continuation(c: char) -> bool {
 /// (rare in Tcl source).  A fully spec-correct UTF-16 mapping is
 /// a follow-up.
 #[must_use]
-pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult) -> Option<Hover> {
+pub fn hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+) -> Option<Hover> {
     // Variable hover takes precedence — `$var` resolution sits
     // at a position where `find_word_span_at_position` would
     // also match the unqualified name, but a `$`-led ref should
@@ -146,11 +153,95 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
         return Some(Hover::markdown(class_hover_text(class_def)));
     }
 
+    // Registry-driven hovers — built-in command name, plus
+    // `cmd subcommand` lookups when the cursor sits on the
+    // subcommand word.  Mirrors `lsp/features/hover.py`'s
+    // `SIGNATURES` lookup at the tail of `get_hover`.
+    if let Some(registry) = registry {
+        if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
+            return Some(Hover::markdown(text));
+        }
+        if let Some(text) = builtin_command_hover_text(registry, &word) {
+            return Some(Hover::markdown(text));
+        }
+    }
+
     if let Some(text) = ip_address_hover_text(&word) {
         return Some(Hover::markdown(text));
     }
 
     None
+}
+
+/// Render a hover snippet for a built-in command name.
+/// Looks up `name` in the registry, uses the matched spec's
+/// `hover.summary` / `synopsis` to produce a markdown block.
+fn builtin_command_hover_text(registry: &CommandRegistry, name: &str) -> Option<String> {
+    use std::fmt::Write;
+    let spec = registry.get(name)?;
+    let hover = spec.hover.as_ref()?;
+    let mut out = format!("**`{name}`** — built-in command\n");
+    if !hover.summary.is_empty() {
+        let _ = write!(out, "\n{}\n", hover.summary);
+    }
+    if let Some(synopsis) = hover.synopsis.first() {
+        let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
+    }
+    if !spec.subcommands.is_empty() {
+        let mut names: Vec<&str> = spec.subcommands.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        let joined = names.join(", ");
+        let _ = write!(out, "\nSubcommands: {joined}\n");
+    }
+    Some(out)
+}
+
+/// Render a hover snippet for a `cmd subcommand` pair when
+/// the cursor sits on the subcommand word.  Detects the
+/// surrounding command segment via single-line tokenisation
+/// (mirrors the `command_context_on_line` helper used by
+/// completion / signature-help).
+fn subcommand_hover_text(
+    source: &str,
+    line: u32,
+    character: u32,
+    registry: &CommandRegistry,
+    cursor_word: &str,
+) -> Option<String> {
+    use std::fmt::Write;
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let prefix: String = chars[..col].iter().collect();
+    let tokens: Vec<&str> = prefix.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let cmd_name = tokens[0];
+    // The cursor word IS the subcommand — use it directly as
+    // the lookup key.  The prefix-tokenised second token might
+    // be a partial (if cursor is mid-word).
+    let sub_name = cursor_word;
+    if cmd_name == sub_name {
+        // Cursor sits on the command word itself, not on a
+        // subcommand.  Fall through to the built-in-command
+        // hover instead.
+        return None;
+    }
+    let spec = registry.get(cmd_name)?;
+    let sub = spec.subcommand(sub_name)?;
+    let mut out = format!("**`{cmd_name} {sub_name}`** — subcommand\n");
+    if let Some(hover) = sub.hover.as_ref() {
+        if !hover.summary.is_empty() {
+            let _ = write!(out, "\n{}\n", hover.summary);
+        }
+        if let Some(synopsis) = hover.synopsis.first() {
+            let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
+        }
+    } else {
+        let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
+    }
+    Some(out)
 }
 
 /// Strftime specifier descriptions for clock-format hover.
@@ -1369,7 +1460,7 @@ mod tests {
     fn hover_on_proc_name_returns_signature() {
         let src = "proc greet {name} { puts $name }\n";
         let analysis = analyse(src);
-        let h = hover(src, 0, 6, &analysis).expect("expected hover for proc name");
+        let h = hover(src, 0, 6, &analysis, None).expect("expected hover for proc name");
         assert_eq!(h.kind, HoverKind::Markdown);
         assert!(h.value.contains("proc ::greet"), "{}", h.value);
         assert!(h.value.contains("name"), "{}", h.value);
@@ -1380,7 +1471,7 @@ mod tests {
         let src = "namespace eval ::ns { proc helper {} { return } }\n";
         let analysis = analyse(src);
         // Cursor on `helper` token at column ~28
-        let h = hover(src, 0, 28, &analysis);
+        let h = hover(src, 0, 28, &analysis, None);
         // Either matches via simple name or qualified name; the
         // contract is that hover surfaces the proc when present.
         if let Some(h) = h {
@@ -1394,14 +1485,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on "hello" — not a proc / class / var, so None.
         // (`puts` is a builtin and isn't in `all_procs` either.)
-        assert!(hover(src, 0, 6, &analysis).is_none());
+        assert!(hover(src, 0, 6, &analysis, None).is_none());
     }
 
     #[test]
     fn hover_on_class_name_returns_metaclass_signature() {
         let src = "oo::class create Greeter {}\n";
         let analysis = analyse(src);
-        let h = hover(src, 0, 18, &analysis);
+        let h = hover(src, 0, 18, &analysis, None);
         if let Some(h) = h {
             assert!(h.value.contains("Greeter"), "{}", h.value);
             assert!(
@@ -1417,7 +1508,7 @@ mod tests {
         // Variable defined at top level, referenced via `$x`.
         let src = "set x 1\nset y $x\n";
         let analysis = analyse(src);
-        let h = hover(src, 1, 7, &analysis);
+        let h = hover(src, 1, 7, &analysis, None);
         if let Some(h) = h {
             assert!(h.value.contains("Variable"), "{}", h.value);
             assert!(h.value.contains("`x`"), "{}", h.value);
@@ -1428,7 +1519,7 @@ mod tests {
     fn hover_returns_none_for_out_of_range_line() {
         let src = "proc foo {} {}\n";
         let analysis = analyse(src);
-        assert!(hover(src, 99, 0, &analysis).is_none());
+        assert!(hover(src, 99, 0, &analysis, None).is_none());
     }
 
     #[test]
@@ -1547,7 +1638,7 @@ mod tests {
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Cursor inside the format literal.
-        let h = hover(src, 0, 22, &analysis).expect("hover");
+        let h = hover(src, 0, 22, &analysis, None).expect("hover");
         assert!(
             h.value.contains("Clock format string"),
             "expected clock hover, got: {value}",
@@ -1621,7 +1712,7 @@ mod tests {
         let src = "format {%d items} $count\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
-        let h = hover(src, 0, 10, &analysis).expect("hover");
+        let h = hover(src, 0, 10, &analysis, None).expect("hover");
         assert!(
             h.value.contains("Format string"),
             "expected sprintf hover, got: {value}",
@@ -1669,7 +1760,7 @@ mod tests {
         let src = "binary format {a4 i} val\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
-        let h = hover(src, 0, 17, &analysis).expect("hover");
+        let h = hover(src, 0, 17, &analysis, None).expect("hover");
         assert!(h.value.contains("Binary format spec"), "{}", h.value);
     }
 
@@ -1707,7 +1798,7 @@ mod tests {
         let src = "regsub foo bar {\\1-baz} out\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
-        let h = hover(src, 0, 18, &analysis).expect("hover");
+        let h = hover(src, 0, 18, &analysis, None).expect("hover");
         assert!(h.value.contains("Substitution spec"), "{}", h.value);
     }
 
@@ -1753,7 +1844,7 @@ mod tests {
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Cursor inside the braced pattern.
-        let h = hover(src, 0, 8, &analysis).expect("hover");
+        let h = hover(src, 0, 8, &analysis, None).expect("hover");
         assert!(h.value.contains("Glob pattern"), "{}", h.value);
     }
 
@@ -1805,7 +1896,7 @@ mod tests {
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Cursor inside the pattern literal.
-        let h = hover(src, 0, 10, &analysis).expect("hover");
+        let h = hover(src, 0, 10, &analysis, None).expect("hover");
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
     }
 
@@ -1862,7 +1953,67 @@ mod tests {
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Cursor on `10.0.0.1`.
-        let h = hover(src, 0, 11, &analysis).expect("hover");
+        let h = hover(src, 0, 11, &analysis, None).expect("hover");
         assert!(h.value.contains("IPv4 address"), "{}", h.value);
+    }
+
+    // -- S-hover-rich: registry-driven hovers -----------------------
+
+    #[test]
+    fn builtin_command_hover_surfaces_summary_from_registry() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let t = builtin_command_hover_text(&registry, "puts").expect("hover");
+        assert!(t.contains("built-in command"), "{t}");
+        assert!(t.contains("`puts`"), "{t}");
+    }
+
+    #[test]
+    fn builtin_command_hover_lists_subcommands() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let t = builtin_command_hover_text(&registry, "string").expect("hover");
+        assert!(t.contains("Subcommands:"), "{t}");
+        assert!(t.contains("length"), "{t}");
+    }
+
+    #[test]
+    fn builtin_command_hover_returns_none_for_unknown() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert!(builtin_command_hover_text(&registry, "totallyMadeUpCommand").is_none());
+    }
+
+    #[test]
+    fn subcommand_hover_surfaces_for_string_length() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "string length $name\n";
+        let t = subcommand_hover_text(src, 0, 10, &registry, "length").expect("subcommand hover");
+        assert!(t.contains("`string length`"), "{t}");
+        assert!(t.contains("subcommand"), "{t}");
+    }
+
+    #[test]
+    fn subcommand_hover_skips_unknown_subcommand() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "string bogusSubcommand\n";
+        assert!(subcommand_hover_text(src, 0, 12, &registry, "bogusSubcommand").is_none());
+    }
+
+    #[test]
+    fn hover_fires_for_builtin_command_with_registry() {
+        let src = "puts hello\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 2, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("built-in command"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_fires_for_subcommand_with_registry() {
+        let src = "string length $name\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 10, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("subcommand"), "{}", h.value);
     }
 }
