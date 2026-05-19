@@ -318,18 +318,37 @@ pub fn is_valid_list_index(idx: i32) bool {
     const s = obj_ensure_string(idx);
     if (s.len == 0) return false;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    // ``end`` / ``end[+-]N`` (with optional ``[+-]N`` arithmetic tail).
+    // ``end`` / ``end[+-]N``.  After ``end[+-]`` only a single
+    // signed integer literal is allowed — no further arithmetic
+    // chain.  Reference Tcl 9 ``GetEndOffsetFromObj`` calls
+    // ``TclParseNumber`` once on the substring, so multi-operator
+    // forms like ``end-1+2`` would silently truncate to ``end-1``
+    // at the resolver and disagree with the validator.
     if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
         if (s.len == 3) return true;
         if (sp[3] != '+' and sp[3] != '-') return false;
-        return is_int_arith_tail(sp, s.len, 4);
+        return is_signed_int_literal(sp, s.len, 4);
     }
     // Pure integer arithmetic — optional sign, integer literal,
-    // optional ``[+-]N`` continuation.
+    // optional single ``[+-]N`` continuation (also with optional
+    // RHS sign).  Multi-op chains like ``1+2-3`` are rejected to
+    // match what :func:`resolve_list_index` actually evaluates.
     var i: u32 = 0;
     if (sp[0] == '+' or sp[0] == '-') i += 1;
     if (i >= s.len) return false;
     return is_int_arith_tail(sp, s.len, i);
+}
+
+/// Accept an optional sign + integer literal, with NO trailing
+/// characters.  Used by the ``end[+-]N`` validator where ``N`` must
+/// be a single signed integer (no arithmetic chain), matching C
+/// Tcl's per-call ``TclParseNumber``.
+fn is_signed_int_literal(sp: [*]const u8, len: u32, start: u32) bool {
+    var i: u32 = start;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    const after = consume_integer_literal(sp, len, i);
+    if (after == i) return false;
+    return after == len;
 }
 
 /// Raise the canonical Tcl 9 ``bad index "<X>": must be
@@ -401,24 +420,26 @@ fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
 }
 
 fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
-    // The integer may itself carry a leading sign — C Tcl's
-    // ``TclParseNumber`` accepts ``end--1`` as ``end - (-1)`` = end
-    // + 1 (lindex-12.2).  This sign-tolerant entry also covers ``5+-1``
-    // / ``5++1`` style arithmetic chains the user pieces together.
+    // Match what :func:`resolve_list_index` actually evaluates —
+    // a single ``int ([+-] [+-]? int)?`` chain.  C Tcl's
+    // ``TclParseNumber`` accepts ``end--1`` as ``end - (-1)`` (=
+    // ``end + 1``, lindex-12.2), so the trailing integer may carry
+    // its own sign, but multi-operator chains like ``1+2-3`` are
+    // NOT accepted: the resolver only does one ``[+-]`` operation
+    // and a looser validator would silently resolve such inputs
+    // to 0 via the ``obj_get_int`` fallback.
     var i: u32 = start;
     if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
     const after_first = consume_integer_literal(sp, len, i);
     if (after_first == i) return false;
     i = after_first;
-    while (i < len) {
-        if (sp[i] != '+' and sp[i] != '-') return false;
-        i += 1;
-        if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
-        const after = consume_integer_literal(sp, len, i);
-        if (after == i) return false;
-        i = after;
-    }
-    return true;
+    if (i >= len) return true;
+    if (sp[i] != '+' and sp[i] != '-') return false;
+    i += 1;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    const after_second = consume_integer_literal(sp, len, i);
+    if (after_second == i) return false;
+    return after_second == len;
 }
 
 // Parse an index that may be "end", "end-N", "end+N", "M[+-]N"
@@ -436,11 +457,29 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
         if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
             if (sv.len == 3) return n - 1; // "end"
             if (sv.len >= 5 and (sp[3] == '-' or sp[3] == '+')) {
-                // ``end[+-]N`` where N is a signed integer literal —
-                // ``end--1`` means ``end - (-1)`` = ``end + 1``
-                // (lindex-12.2).  Parse the offset's leading sign then
-                // the digits.
+                // ``end[+-]N`` where N is an integer literal — possibly
+                // signed, possibly base-prefixed (``end-0x1``).  Parse
+                // through :func:`tcl_bignum.parse_i128` so the offset
+                // path matches what :func:`is_valid_list_index`
+                // accepts (i.e. ``consume_integer_literal``'s base-prefix
+                // logic).  Lenient on overflow — saturate to i64
+                // bounds, matching reference Tcl's ``GetEndOffsetFromObj``.
                 const op_neg = sp[3] == '-';
+                const bignum = @import("tcl_bignum.zig");
+                const off_ptr = sv.ptr + 4;
+                const off_len = sv.len - 4;
+                if (bignum.parse_i128(off_ptr, off_len)) |parsed| {
+                    var v: i128 = parsed;
+                    if (op_neg) v = -v;
+                    if (v > std.math.maxInt(i64)) return std.math.maxInt(i64);
+                    if (v < std.math.minInt(i64)) return std.math.minInt(i64);
+                    return n - 1 + @as(i64, @intCast(v));
+                }
+                // Fall through to the legacy decimal parser on bignum
+                // parse failure (preserves the historic ``end-junk`` →
+                // ``end + 0`` recovery — callers that want a hard
+                // error should validate via :func:`is_valid_list_index`
+                // first).
                 var i: u32 = 4;
                 var sign: i64 = 1;
                 if (i < sv.len and (sp[i] == '+' or sp[i] == '-')) {
@@ -536,9 +575,15 @@ pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
     if (f > l or f >= total) return obj_new_string(0, 0);
     // Worst-case sizing: each element may double in length (escape
     // sequences) plus a brace pair, plus n-1 single-space separators.
+    // Compute in u64 so the cap math doesn't wrap (ReleaseFast) or
+    // trap (Debug) for inputs near the u32 boundary.  Bail to empty
+    // rather than allocate an undersized slab on overflow.
     const n_picked: u32 = @intCast(l - f + 1);
-    const cap: u32 = s.len * 2 + n_picked * 3 + 4;
+    const cap64: u64 = @as(u64, s.len) * 2 + @as(u64, n_picked) * 3 + 4;
+    if (cap64 > std.math.maxInt(u32)) return obj_new_string(0, 0);
+    const cap: u32 = @intCast(cap64);
     const result_buf: u32 = alloc(cap);
+    if (result_buf == 0) return obj_new_string(0, 0);
     var result_len: u32 = 0;
     var idx: i64 = f;
     while (idx <= l) : (idx += 1) {

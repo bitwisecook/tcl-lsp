@@ -1,26 +1,32 @@
 """WASM emit hook for ``linsert`` — multi-value list insert.
 
 ``linsert list index v1 ?v2 ...?`` with multiple values — the Zig
-``tcl_cmd_list_insert`` export is single-value, so we chain per-value
-inserts at the same index when the chain is provably safe.  Iteration
-order depends on how the index resolves against the growing list:
+``tcl_cmd_list_insert`` export is single-value.  This hook decides
+between two paths:
 
-* ``end`` / ``end-N`` indices re-resolve after every insert (``end``
-  moves as the list grows).  Here *forward* value order is correct
-  because each iteration's index lands at ``end-N + (i-1)`` — right
-  after the previously inserted value.
-* Numeric indices STRICTLY within the original list's bounds (i.e.
-  ``index < len``) stay pinned, so inserting in *reverse* value
-  order produces the correct forward layout.  But because we don't
-  know ``len`` at compile time, only literals small enough to be
-  safe for any non-empty list (``0`` for prepend, indices the
-  programmer wrote knowing the data shape) get this fast path.
-* Anything else — numeric out-of-range, ``$var`` indices, computed
-  expressions — routes through the runtime dispatcher (``tcl_eval``
-  → ``eval_linsert``) which resolves the index ONCE against the
-  original list and inserts all values in forward order with the
-  position incrementing.  Slower but correct (linsert-1.10:
-  ``linsert {} 2 a b c`` must produce ``a b c`` not ``c b a``).
+* ``end`` / ``end-N`` indices use the chained single-value fast
+  path.  Each subsequent insert re-resolves ``end-N`` against the
+  now-longer list, so iterating values in forward order produces
+  the correct ``end-N+(i-1)`` layout.
+* Every other index shape — bare numeric literal, ``$var``, or a
+  computed expression — routes through the eval fallback
+  (``tcl_eval`` → ``eval_linsert``).  The runtime helper resolves
+  the index ONCE against the original list and then inserts every
+  value in forward order with the position incrementing, so
+  ``linsert {} 2 a b c`` lands ``a b c`` instead of ``c b a``
+  (linsert-1.10).
+* The no-value form ``linsert list index`` always routes through
+  the eval fallback so the runtime canonicalises the input list
+  (TIP 323 — ``linsert "a\\nb\\nc" 0`` → ``a b c``).  The
+  single-value runtime fast path would otherwise insert an empty
+  element and produce ``{} a b c`` (linsert-2.5 / 2.6).
+
+A numeric-index fast path is intentionally NOT implemented even
+for "looks small" literal indices: we can't tell at compile time
+whether the literal exceeds the runtime list length, and the
+reverse-order chained-insert trick only works when the index is
+strictly within bounds.  The eval-fallback cost is acceptable
+because multi-value linsert is uncommon on the WASM hot path.
 """
 
 from __future__ import annotations
