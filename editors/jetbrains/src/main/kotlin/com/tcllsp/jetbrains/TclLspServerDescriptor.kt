@@ -1,18 +1,15 @@
 package com.tcllsp.jetbrains
 
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.eclipse.lsp4j.ConfigurationItem
 import java.io.File
-import java.nio.file.Path
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.TclLspServerDescriptor")
 
@@ -79,84 +76,24 @@ class TclLspServerDescriptor(project: Project) :
     }
 
     private fun findBundledPyz(): String? {
-        // Look for the .pyz in the plugin's resources / lib directory
-        val pluginClassLoader = this::class.java.classLoader
-        val resourceUrl = pluginClassLoader.getResource("tcl-lsp-server.pyz")
-        if (resourceUrl != null) {
-            // If running from a jar, the resource is inside the jar.
-            // We need to extract it to a temp location.
-            val protocol = resourceUrl.protocol
-            if (protocol == "file") {
-                val path = Path.of(resourceUrl.toURI()).toString()
-                if (File(path).exists()) return path
-            }
-            // For jar:// protocol, extract to temp.  Include the plugin
-            // version in the filename so plugin upgrades pick up the new
-            // bundled pyz instead of reusing the previous version's cached
-            // extract — the size-only existence check ran the previous
-            // version's server even after the user upgraded (reported
-            // 2026-05-19: W105 quick-fix still produced ``{script}`` from
-            // ``$script`` in v1.10.6 because the v1.10.5 pyz was reused).
-            try {
-                val tempDir = System.getProperty("java.io.tmpdir")
-                val pluginVersion = currentPluginVersion()
-                val tempPyz = File(tempDir, "tcl-lsp-server-$pluginVersion.pyz")
-                if (!tempPyz.exists() || tempPyz.length() == 0L) {
-                    pluginClassLoader.getResourceAsStream("tcl-lsp-server.pyz")?.use { input ->
-                        tempPyz.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    cleanStaleExtractedPyzs(File(tempDir), tempPyz)
-                }
-                if (tempPyz.exists() && tempPyz.length() > 0) {
-                    return tempPyz.absolutePath
-                }
-            } catch (e: Exception) {
-                LOG.warn("Failed to extract bundled pyz", e)
-            }
-        }
-
-        // Also check in the plugin's installation directory
-        val pluginDir = findPluginInstallDir()
-        if (pluginDir != null) {
-            val pyz = File(pluginDir, "tcl-lsp-server.pyz")
-            if (pyz.exists()) return pyz.absolutePath
-
-            // Also check lib/ subdirectory
-            val libPyz = File(pluginDir, "lib/tcl-lsp-server.pyz")
-            if (libPyz.exists()) return libPyz.absolutePath
-        }
-
+        // ``build.gradle.kts``'s ``prepareSandbox`` task copies the bundled
+        // LSP server to ``<plugin>/tcl-lsp-server.pyz`` — at the plugin
+        // root, next to ``lib/`` — so Python can execute it directly from
+        // the install directory.  We deliberately avoid putting it inside
+        // the plugin jar (``src/main/resources/``) because Python can't
+        // run a zipapp from a ``jar:file:...!/...`` URL and we'd have to
+        // extract on first use, then re-extract on every plugin upgrade
+        // (the bug fixed 2026-05).  Pattern matches JetBrains' own Prisma
+        // ORM plugin which ships ``prisma-language-server.js`` the same way.
+        val pluginDir = findPluginInstallDir() ?: return null
+        val pyz = File(pluginDir, "tcl-lsp-server.pyz")
+        if (pyz.exists()) return pyz.absolutePath
+        // Defensive: tolerate an install layout that drops the pyz inside
+        // ``lib/``.  Shouldn't happen with the current build but keeps a
+        // user's working install working if anyone changes ``prepareSandbox``.
+        val libPyz = File(pluginDir, "lib/tcl-lsp-server.pyz")
+        if (libPyz.exists()) return libPyz.absolutePath
         return null
-    }
-
-    private fun currentPluginVersion(): String {
-        val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.tcllsp.jetbrains"))
-        val raw = descriptor?.version
-        // Sanitise so the version can safely live in a filename on any OS.
-        // Replace anything that isn't a letter, digit, ``.``, ``-``, or ``_``.
-        return raw?.replace(Regex("[^A-Za-z0-9._-]"), "_")?.takeIf { it.isNotEmpty() } ?: "unknown"
-    }
-
-    private fun cleanStaleExtractedPyzs(tempDir: File, keep: File) {
-        // Remove ``tcl-lsp-server-*.pyz`` files left over from previous plugin
-        // versions so /tmp doesn't accumulate stale extracts.  Best-effort:
-        // failures are silently ignored (locked file, permission denied).
-        try {
-            val matches = tempDir.listFiles { f ->
-                val name = f.name
-                f.isFile &&
-                    name.startsWith("tcl-lsp-server-") &&
-                    name.endsWith(".pyz") &&
-                    name != keep.name
-            } ?: return
-            for (f in matches) {
-                runCatching { f.delete() }
-            }
-        } catch (e: Exception) {
-            LOG.debug("Failed to clean stale pyz extracts", e)
-        }
     }
 
     private fun findPluginInstallDir(): File? {

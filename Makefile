@@ -1142,10 +1142,18 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@# Copy shared resources into plugin resources
 	mkdir -p $(JB_DIR)/src/main/resources/syntaxes
 	cp $(EXT_DIR)/syntaxes/tcl.tmLanguage.json $(JB_DIR)/src/main/resources/syntaxes/
-	@# Build LSP server zipapp into plugin resources
+	@# Build LSP server zipapp into a staging dir outside ``src/main/resources/``.
+	@# Files under ``src/main/resources/`` are bundled into the plugin jar by
+	@# Gradle's default Java conventions; placing the pyz there would force a
+	@# runtime extract from a ``jar:file:...!/...`` URL since Python can't
+	@# execute a zipapp from inside a jar.  ``build.gradle.kts`` registers a
+	@# ``prepareSandbox`` copy that picks the pyz up from here and drops it at
+	@# the plugin root in the distribution — same layout JetBrains' own
+	@# Prisma ORM plugin uses to ship its bundled language server.
+	mkdir -p $(JB_DIR)/server
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
 		--version $(VERSION) \
-		--output $(JB_DIR)/src/main/resources/tcl-lsp-server.pyz
+		--output $(JB_DIR)/server/tcl-lsp-server.pyz
 	@# Extract compiler explorer HTML from VS Code extension
 	cd $(EXT_DIR) && node -e " \
 		const {getWebviewHtml} = require('./out/compilerExplorerHtml'); \

@@ -57,7 +57,7 @@ docs/screenshots/.ai-success
 # JetBrains plugin build artifacts
 editors/jetbrains/build/
 editors/jetbrains/.gradle/
-editors/jetbrains/src/main/resources/tcl-lsp-server.pyz
+editors/jetbrains/server/
 editors/jetbrains/src/main/resources/compilerExplorer.html
 
 
