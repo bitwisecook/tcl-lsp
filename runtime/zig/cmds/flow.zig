@@ -988,13 +988,14 @@ fn eval_time(words: []const i32) result_mod.InterpResult {
     const suffix = " microseconds per iteration";
     const total: u32 = @intCast(pi_s.len + suffix.len);
     const buf = rt.alloc(total);
+    if (buf == 0) return result_mod.from_globals(rt.obj_new_string(0, 0));
     rt.memcpy(buf, pi_s.ptr, pi_s.len);
     var k: u32 = 0;
     while (k < suffix.len) : (k += 1) {
         const d: [*]u8 = @ptrFromInt(buf + pi_s.len + k);
         d[0] = suffix[k];
     }
-    return result_mod.from_globals(rt.obj_new_string(@bitCast(buf), @bitCast(total)));
+    return result_mod.from_globals(rt.obj_new_string_take(buf, total, total));
 }
 
 pub const registrations = [_]reg.CmdEntry{
