@@ -758,13 +758,19 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower `proc name params body`.
-    #[allow(clippy::too_many_lines)] // sequential, comment-heavy
+    ///
+    /// Sequential phases:
+    ///   1. Empty-simple-name barrier (`proc ::ns:: {…} {…}`).
+    ///   2. Dynamic name resolution (`proc $x …` / `proc [cmd] …`).
+    ///   3. Dynamic body / params check, with const-map body
+    ///      materialisation when possible.
+    ///   4. IR registration + emit the runtime `proc` call.
     fn lower_proc(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
 
-        // Empty-simple-name procs (`proc ::ns:: {args} {body}`): Tcl
-        // 9 lets a trailing `::` register a command named `""` inside
+        // Phase 1: empty-simple-name procs (`proc ::ns:: {args} {body}`).
+        // Tcl 9 lets a trailing `::` register a command named `""` inside
         // the target namespace (`TclGetNamespaceForQualName` returns
         // `simpleName=""` rather than NULL for trailing colons on
         // cmd/var lookups — tclNamesp.c:2493).  Our static
@@ -787,124 +793,29 @@ impl<'r> Lowerer<'r> {
             };
         }
 
-        // Dynamic proc names: a bare ``$var`` whose value is in the
-        // const-map can be resolved at lowering time (C36b — main
-        // commit `2ad4efc9`). Multi-token names (``foo_$x``) and
-        // command-substitution names (``$name[suffix]``) stay on
-        // the runtime path.
-        let proc_name_owned: String;
-        let mut args_owned: Vec<String>;
-        let name_was_substituted: bool;
-        if proc_name_initial.contains('$') || proc_name_initial.contains('[') {
-            let arg_tokens = seg.arg_tokens();
-            let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
-            let resolved = if !proc_name_initial.contains('[')
-                && single_token_proc_name
-                && arg_tokens
-                    .first()
-                    .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
-            {
-                self.const_map_lookup(proc_name_initial)
-            } else {
-                None
+        // Phase 2: dynamic proc name resolution.
+        let (proc_name_owned, args_owned, name_was_substituted) =
+            match self.resolve_dynamic_proc_name(seg, args_borrow) {
+                Ok(triple) => triple,
+                Err(barrier) => return *barrier,
             };
-            let Some(literal) = resolved else {
-                return Statement::Barrier {
-                    span: seg.span,
-                    reason: "dynamic proc name".into(),
-                    command: "proc".into(),
-                    canonical_command: None,
-                    args: args_borrow.to_vec(),
-                    tokens: Some(Self::cmd_tokens(seg)),
-                };
-            };
-            proc_name_owned = literal;
-            args_owned = args_borrow.to_vec();
-            args_owned[0].clone_from(&proc_name_owned);
-            name_was_substituted = true;
-        } else {
-            proc_name_owned = proc_name_initial.clone();
-            args_owned = args_borrow.to_vec();
-            name_was_substituted = false;
-        }
-        // Re-bind ``args`` and ``proc_name`` to the (possibly
-        // substituted) owned values.
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
 
-        // Dynamic body / params materialisation (PR #393, 0fc2d6a9).
-        //
-        // A body that is a single ``$var`` / ``[cmd]`` token (and not
-        // a multi-token word like ``"foo$bar"``) can be materialised:
-        //   * ``[subst -nocommands {…}]`` evaluates when every
-        //     ``$var`` inside is const-tracked.
-        //   * Bare ``$var`` looks up the const-map.
-        // A multi-token body (single-token-word == false) is always
-        // dynamic — the source text contains runtime substitutions we
-        // can't compile.  Dynamic params have no static arg-list, so
-        // any dynamic-params shape bails to a runtime barrier.
-        //
-        // When the body is dynamic and we can't materialise it BUT
-        // the proc name resolved via the const-map, we still register
-        // the IRProcedure (with an empty body) so static analysis
-        // sees the proc; the IRCall below carries the correct dynamic
-        // body bytes to the runtime ``proc`` command.
-        let arg_tokens = seg.arg_tokens();
-        let params_tok = arg_tokens[1];
-        let body_tok = arg_tokens[2];
-        // `single_token_word[0]` covers the command itself; args[0..]
-        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
-        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
-        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
-        let body_is_dynamic = matches!(
-            body_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) || !body_is_single;
-        let params_is_dynamic = matches!(
-            params_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) || !params_is_single;
-        let materialised_body: Option<String> =
-            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
-                // `args[2]` is the `word_piece`-reconstructed source — for
-                // a Cmd token that's `[subst -nocommands {…}]` (with the
-                // brackets re-added).  `eval_subst_nocommands_body`
-                // segments its input as a top-level Tcl command stream
-                // and expects the inner content, so strip the outer
-                // `[…]` before handing it over.  Mirrors Python's
-                // `body_tok.text`, which the lexer already stores without
-                // brackets.
-                args[2]
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
-            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
-                self.const_map_lookup(&args[2])
-            } else {
-                None
+        // Phase 3: dynamic body / params check, plus body
+        // materialisation via the const-map (PR #393 / `0fc2d6a9`).
+        let (materialised_body, body_is_dynamic, body_offset) =
+            match self.check_proc_body_dynamic(seg, args, name_was_substituted) {
+                Ok(triple) => triple,
+                Err(barrier) => return *barrier,
             };
-        if params_is_dynamic
-            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
-        {
-            return Statement::Barrier {
-                span: seg.span,
-                reason: if params_is_dynamic {
-                    "dynamic proc params"
-                } else {
-                    "dynamic proc body"
-                }
-                .into(),
-                command: "proc".into(),
-                canonical_command: None,
-                args: args_borrow.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
-            };
-        }
 
+        // Phase 4: lower the body (materialised, static, or empty
+        // for dynamic-with-resolved-name), register the IRProcedure,
+        // and emit the runtime `proc` Call.
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
         let body_text = &args[2];
-        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // C37b: fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
@@ -916,7 +827,6 @@ impl<'r> Lowerer<'r> {
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
-            // Lower the materialised text as a fresh script.
             self.lower_script(&text, namespace)
         } else if body_is_dynamic {
             // Dynamic body, no materialisation possible — but the
@@ -962,6 +872,131 @@ impl<'r> Lowerer<'r> {
             tokens: Some(Self::cmd_tokens(seg)),
             foreach_groups: None,
         }
+    }
+
+    /// Resolve a proc name that may be a `$var` / `[cmd]` substitution.
+    ///
+    /// Returns the resolved name, the (possibly rewritten) args
+    /// vector, and a `name_was_substituted` flag.  A literal name
+    /// short-circuits to `Ok` with the original args.  A dynamic
+    /// name that can't be resolved via the const-map returns `Err`
+    /// with a "dynamic proc name" barrier — the caller propagates
+    /// it as the statement.
+    ///
+    /// C36b — main commit `2ad4efc9`.  Multi-token names
+    /// (`foo_$x`) and command-substitution names (`$name[suffix]`)
+    /// stay on the runtime path.
+    fn resolve_dynamic_proc_name(
+        &mut self,
+        seg: &SegmentedCommand,
+        args_borrow: &[String],
+    ) -> Result<(String, Vec<String>, bool), Box<Statement>> {
+        let proc_name_initial = &args_borrow[0];
+        if !proc_name_initial.contains('$') && !proc_name_initial.contains('[') {
+            return Ok((proc_name_initial.clone(), args_borrow.to_vec(), false));
+        }
+
+        let arg_tokens = seg.arg_tokens();
+        let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
+        let resolved = if !proc_name_initial.contains('[')
+            && single_token_proc_name
+            && arg_tokens
+                .first()
+                .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
+        {
+            self.const_map_lookup(proc_name_initial)
+        } else {
+            None
+        };
+
+        let Some(literal) = resolved else {
+            return Err(Box::new(Statement::Barrier {
+                span: seg.span,
+                reason: "dynamic proc name".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: args_borrow.to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            }));
+        };
+
+        let mut args_owned = args_borrow.to_vec();
+        args_owned[0].clone_from(&literal);
+        Ok((literal, args_owned, true))
+    }
+
+    /// Check whether the proc body and/or params are dynamic, and
+    /// attempt to materialise the body from the const-map (PR #393 /
+    /// `0fc2d6a9`).
+    ///
+    /// Returns:
+    ///   * `Ok((Some(text), _, body_offset))` — body materialised
+    ///     successfully; caller should lower `text` as a fresh
+    ///     script.
+    ///   * `Ok((None, body_is_dynamic, body_offset))` — body is
+    ///     static (lower from source) or dynamic-with-name-resolved
+    ///     (lower as empty Script).
+    ///   * `Err(barrier)` — params dynamic, or body dynamic without
+    ///     name substitution.  Caller propagates the barrier.
+    fn check_proc_body_dynamic(
+        &mut self,
+        seg: &SegmentedCommand,
+        args: &[String],
+        name_was_substituted: bool,
+    ) -> Result<(Option<String>, bool, u32), Box<Statement>> {
+        let arg_tokens = seg.arg_tokens();
+        let params_tok = arg_tokens[1];
+        let body_tok = arg_tokens[2];
+        // `single_token_word[0]` covers the command itself; args[0..]
+        // live at indices `[1..]`.  See `SegmentedCommand::arg_single_token`.
+        let body_is_single = seg.single_token_word.get(3).copied().unwrap_or(false);
+        let params_is_single = seg.single_token_word.get(2).copied().unwrap_or(false);
+        let body_is_dynamic = matches!(
+            body_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !body_is_single;
+        let params_is_dynamic = matches!(
+            params_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) || !params_is_single;
+        let materialised_body: Option<String> =
+            if body_is_single && body_tok.kind == tcl_lexer::TokenType::Cmd {
+                // `args[2]` is the `word_piece`-reconstructed source
+                // — for a Cmd token that's `[subst -nocommands {…}]`
+                // (with the brackets re-added).
+                // `eval_subst_nocommands_body` segments its input as
+                // a top-level Tcl command stream and expects the
+                // inner content, so strip the outer `[…]` before
+                // handing it over.  Mirrors Python's `body_tok.text`,
+                // which the lexer already stores without brackets.
+                args[2]
+                    .strip_prefix('[')
+                    .and_then(|s| s.strip_suffix(']'))
+                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
+            } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
+                self.const_map_lookup(&args[2])
+            } else {
+                None
+            };
+        if params_is_dynamic
+            || (body_is_dynamic && materialised_body.is_none() && !name_was_substituted)
+        {
+            return Err(Box::new(Statement::Barrier {
+                span: seg.span,
+                reason: if params_is_dynamic {
+                    "dynamic proc params"
+                } else {
+                    "dynamic proc body"
+                }
+                .into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: seg.args().to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            }));
+        }
+        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
     /// Lower `when EVENT ?priority N? body`.
