@@ -1,12 +1,18 @@
 package com.tcllsp.jetbrains.settings
 
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.ProjectManager
+import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import javax.swing.*
+
+private val LOG = Logger.getInstance("com.tcllsp.jetbrains.settings.TclLspSettingsPanel")
 
 class TclLspSettingsPanel {
 
@@ -663,6 +669,12 @@ class TclLspSettingsPanel {
 
     fun apply() {
         val s = TclLspSettings.getInstance()
+        // Capture the pre-apply launch settings so we can detect whether
+        // the LSP server needs to be restarted to pick up a new command
+        // line. Other settings flow through workspace/configuration on
+        // the next request and don't require a restart.
+        val oldPythonPath = s.pythonPath
+        val oldServerPath = s.serverPath
         s.pythonPath = pythonPathField.text
         s.serverPath = serverPathField.text
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
@@ -868,6 +880,31 @@ class TclLspSettingsPanel {
         s.aiEnabled = aiEnabled.isSelected
         s.aiExtraPrompts = aiExtraPrompts.text
         s.diagnosticsGenericVariablePatterns = genericPatternsField.text
+
+        if (s.pythonPath != oldPythonPath || s.serverPath != oldServerPath) {
+            restartLspServers()
+        }
+    }
+
+    /**
+     * Restart the Tcl LSP server in every open project. Called after
+     * launch-affecting settings change (Python path, server path) so
+     * the user picks up the new command line without restarting the
+     * IDE. Non-launch settings (features, formatting, diagnostics, …)
+     * are sent to the running server via workspace/configuration and
+     * don't need a restart.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun restartLspServers() {
+        for (project in ProjectManager.getInstance().openProjects) {
+            if (project.isDisposed) continue
+            try {
+                LspServerManager.getInstance(project)
+                    .stopAndRestartIfNeeded(TclLspServerSupportProvider::class.java)
+            } catch (e: Exception) {
+                LOG.warn("Failed to restart Tcl LSP server for project ${project.name}", e)
+            }
+        }
     }
 
     fun reset() {

@@ -28,7 +28,9 @@ fun discoverPython(configured: String = "auto"): PythonInfo? {
     if (configured.isNotBlank() && configured != "auto") {
         val info = probePython(configured, source = "configured")
         if (info != null) {
-            LOG.info("Python: using configured interpreter: ${info.path} (${info.version})")
+            LOG.info(
+                "Python: using configured interpreter: ${describePath(info.path)} (${info.version})"
+            )
             return info
         }
         LOG.warn("Python: configured interpreter '$configured' not found or below 3.10")
@@ -131,8 +133,52 @@ fun discoverPython(configured: String = "auto"): PythonInfo? {
     }
 
     val best = results.first()
-    LOG.info("Python: discovered ${results.size} interpreters, using ${best.path} (${best.version}, ${best.source})")
+    LOG.info(
+        "Python: discovered ${results.size} interpreters, using " +
+        "${describePath(best.path)} (${best.version}, ${best.source})"
+    )
     return best
+}
+
+/**
+ * Format an interpreter path for log messages. For bare PATH names
+ * (e.g. ``python3.14``) the actual executable is resolved by
+ * ProcessBuilder at spawn time, but for diagnostics it's useful to
+ * show which file on disk the name would resolve to. Returns
+ * ``"<command> (-> <resolved>)"`` when resolution succeeds, otherwise
+ * just the command itself.
+ */
+internal fun describeInterpreter(command: String): String = describePath(command)
+
+private fun describePath(command: String): String {
+    if (command.contains(File.separator)) return command
+    val resolved = resolveOnPath(command) ?: return command
+    return "$command (-> $resolved)"
+}
+
+private fun resolveOnPath(command: String): String? {
+    val pathEnv = System.getenv("PATH") ?: return null
+    val pathSep = System.getProperty("path.separator") ?: ":"
+    val isWindows = System.getProperty("os.name").lowercase().contains("win")
+    val pathExts = if (isWindows) {
+        (System.getenv("PATHEXT") ?: ".EXE;.BAT;.CMD;.COM").split(";")
+    } else {
+        listOf("")
+    }
+    for (dir in pathEnv.split(pathSep)) {
+        if (dir.isBlank()) continue
+        for (ext in pathExts) {
+            val candidate = File(dir, command + ext)
+            if (candidate.isFile && candidate.canExecute()) {
+                return try {
+                    candidate.canonicalPath
+                } catch (_: Exception) {
+                    candidate.absolutePath
+                }
+            }
+        }
+    }
+    return null
 }
 
 private val VERSION_REGEX = Regex("""Python\s+(\d+)\.(\d+)\.(\d+)""")
