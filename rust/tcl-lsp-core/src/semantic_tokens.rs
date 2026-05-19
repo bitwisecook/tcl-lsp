@@ -140,6 +140,32 @@ fn classify_command_head(name: &str) -> TokenKind {
 /// Compute semantic tokens for the entire document.
 #[must_use]
 pub fn full(source: &str) -> SemanticTokens {
+    let entries = collect_entries(source);
+    encode_entries(&entries)
+}
+
+/// Compute semantic tokens for `range` within the document.
+/// Tokens whose start position falls outside the range are
+/// dropped.  Delta encoding starts from the first surviving
+/// token rather than the document origin, matching the LSP
+/// spec for `semanticTokens/range`.
+#[must_use]
+pub fn range(source: &str, range: crate::definition::LspRange) -> SemanticTokens {
+    let mut entries = collect_entries(source);
+    entries.retain(|(line, col, _, _)| {
+        let starts_after_or_at_range_start = (*line, *col)
+            >= (range.start_line, range.start_character);
+        let starts_before_range_end = (*line, *col)
+            <= (range.end_line, range.end_character);
+        starts_after_or_at_range_start && starts_before_range_end
+    });
+    encode_entries(&entries)
+}
+
+/// Walk the segmenter + comment scan and return raw
+/// `(line, col, length, kind)` tuples sorted by position.
+/// Shared by `full` and `range`.
+fn collect_entries(source: &str) -> Vec<(u32, u32, u32, TokenKind)> {
     let mut entries: Vec<(u32, u32, u32, TokenKind)> = Vec::new();
     let line_index = LineIndex::new(source);
 
@@ -175,7 +201,7 @@ pub fn full(source: &str) -> SemanticTokens {
 
     // Sort by (line, column) so the delta encoding works.
     entries.sort_by_key(|(line, col, _, _)| (*line, *col));
-    encode_entries(&entries)
+    entries
 }
 
 /// Classify a non-head token by its lexer-assigned kind.
@@ -413,5 +439,46 @@ mod tests {
         assert_eq!(classify_command_head("::myns::greet"), TokenKind::Namespace,);
         assert_eq!(classify_command_head("greet"), TokenKind::Function);
         assert_eq!(classify_command_head("if"), TokenKind::Keyword);
+    }
+
+    // -- S-semantic-tokens-rich: range variant -----------------------
+
+    #[test]
+    fn range_filters_tokens_outside_window() {
+        // Three commands on three lines.  Range covers only
+        // line 1 — the line-0 and line-2 tokens should drop.
+        let src = "set a 1\nset b 2\nset c 3\n";
+        let full_data = full(src);
+        let line1_only = range(
+            src,
+            crate::definition::LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 1,
+                end_character: 10,
+            },
+        );
+        // Each tcl line emits at least one classified token.
+        // The range result must be strictly smaller than the
+        // full result.
+        assert!(line1_only.data.len() < full_data.data.len());
+        assert!(line1_only.data.len() % 5 == 0);
+        assert!(!line1_only.data.is_empty(), "{:?}", line1_only.data);
+    }
+
+    #[test]
+    fn range_keeps_entire_document_when_range_covers_it() {
+        let src = "proc foo {} { puts hi }\n";
+        let full_data = full(src);
+        let wide = range(
+            src,
+            crate::definition::LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 99,
+                end_character: 0,
+            },
+        );
+        assert_eq!(wide.data, full_data.data);
     }
 }

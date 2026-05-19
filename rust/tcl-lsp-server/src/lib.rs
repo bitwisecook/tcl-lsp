@@ -77,8 +77,9 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
     SemanticTokens as LspSemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
     Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
@@ -631,7 +632,7 @@ impl LanguageServer for Backend {
                                     .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
                                     .collect(),
                             },
-                            range: Some(false),
+                            range: Some(true),
                             full: Some(SemanticTokensFullOptions::Bool(true)),
                         },
                     ),
@@ -1203,20 +1204,32 @@ impl LanguageServer for Backend {
         // Translate from the core's `u32` stream to
         // `tower_lsp`'s `SemanticToken` records.
         let core_data = core_semantic_tokens::full(&doc.text).data;
-        let mut tokens: Vec<tower_lsp::lsp_types::SemanticToken> =
-            Vec::with_capacity(core_data.len() / 5);
-        for chunk in core_data.chunks_exact(5) {
-            tokens.push(tower_lsp::lsp_types::SemanticToken {
-                delta_line: chunk[0],
-                delta_start: chunk[1],
-                length: chunk[2],
-                token_type: chunk[3],
-                token_modifiers_bitset: chunk[4],
-            });
-        }
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
             result_id: None,
-            data: tokens,
+            data: lift_semantic_token_data(&core_data),
+        })))
+    }
+
+    async fn semantic_tokens_range(
+        &self,
+        params: SemanticTokensRangeParams,
+    ) -> jsonrpc::Result<Option<SemanticTokensRangeResult>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        // `S-semantic-tokens-rich`: filter tokens to those that
+        // start inside the requested range.  Editors call this
+        // when only the visible viewport needs colouring.
+        let core_range = CoreLspRange {
+            start_line: params.range.start.line,
+            start_character: params.range.start.character,
+            end_line: params.range.end.line,
+            end_character: params.range.end.character,
+        };
+        let core_data = core_semantic_tokens::range(&doc.text, core_range).data;
+        Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
+            result_id: None,
+            data: lift_semantic_token_data(&core_data),
         })))
     }
 
@@ -1762,6 +1775,23 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
             character: r.end_character,
         },
     }
+}
+
+/// Convert the core's `Vec<u32>` packed semantic-tokens
+/// stream (`[deltaLine, deltaCol, length, type, modifiers]`
+/// per token) into a `Vec<SemanticToken>` for the wire layer.
+fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp::lsp_types::SemanticToken> {
+    let mut tokens: Vec<tower_lsp::lsp_types::SemanticToken> = Vec::with_capacity(data.len() / 5);
+    for chunk in data.chunks_exact(5) {
+        tokens.push(tower_lsp::lsp_types::SemanticToken {
+            delta_line: chunk[0],
+            delta_start: chunk[1],
+            length: chunk[2],
+            token_type: chunk[3],
+            token_modifiers_bitset: chunk[4],
+        });
+    }
+    tokens
 }
 
 fn lift_parameter_information(p: CoreParameterInformation) -> ParameterInformation {
