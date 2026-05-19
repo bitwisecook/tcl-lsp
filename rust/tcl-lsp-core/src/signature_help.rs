@@ -102,19 +102,33 @@ pub fn signature_help(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<SignatureHelp> {
-    let (command, active_param) = command_context_on_line(source, line, character)?;
+    let (command, args, active_param) = command_context_with_args(source, line, character)?;
     if let Some(proc_def) = lookup_proc(analysis, &command) {
         return Some(proc_signature_help(proc_def, active_param));
     }
     let registry = registry?;
     let spec = registry.get(&command)?;
+    // `S-signature-help-rich` subcommand-scoped signatures:
+    // when the spec has subcommands and the first argument
+    // matches one, prefer the subcommand's signature over the
+    // command-level one.  Adjusts `active_param` to be
+    // relative to the subcommand's parameters (the subcommand
+    // name itself is consumed before the user-typed args).
+    if !spec.subcommands.is_empty() {
+        if let Some(first_arg) = args.first() {
+            if let Some(sub) = spec.subcommands.iter().find(|s| s.name == first_arg.as_str()) {
+                let sub_param = active_param.saturating_sub(1);
+                return subcommand_signature_help(&command, sub, sub_param);
+            }
+        }
+    }
     builtin_signature_help(spec, active_param)
 }
 
 /// Lexer-driven command-context detection.
 ///
-/// Returns `(command_name, active_parameter_index)` for the
-/// active command segment at `(line, character)`.  The
+/// Returns `(command_name, args, active_parameter_index)` for
+/// the active command segment at `(line, character)`.  The
 /// "active segment" is the run of words from the most recent
 /// command boundary (start of source, `\n`, `;`, or
 /// `{ … }`-body opener) up to the cursor.
@@ -126,7 +140,15 @@ pub fn signature_help(
 /// * `;` resets the segment so multiple commands on one line
 ///   each have their own context.
 /// * Comments are skipped.
-fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, u32)> {
+///
+/// `args` is the list of already-typed argument tokens
+/// (everything after the command head) — used by
+/// subcommand-aware signature help to dispatch on `args[0]`.
+fn command_context_with_args(
+    source: &str,
+    line: u32,
+    character: u32,
+) -> Option<(String, Vec<String>, u32)> {
     use tcl_lexer::{Lexer, LineIndex, TokenType};
 
     let cursor_offset = {
@@ -195,6 +217,7 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
         return None;
     }
     let command = current_segment[0].clone();
+    let args: Vec<String> = current_segment.iter().skip(1).cloned().collect();
     let arg_token_count = current_segment.len().saturating_sub(1);
     let active_param = if at_new_word {
         u32::try_from(arg_token_count).ok()?
@@ -206,7 +229,61 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
         // signature yet.
         return None;
     }
-    Some((command, active_param))
+    Some((command, args, active_param))
+}
+
+/// Render signature help for a `command subcommand` form.
+///
+/// Uses the subcommand's `synopsis` as the signature label and
+/// `detail` as the documentation.  Parameters are the
+/// whitespace-separated tokens of the synopsis after the
+/// leading command + subcommand pair.
+fn subcommand_signature_help(
+    command: &str,
+    sub: &tcl_registry::SubCommand,
+    active_param: u32,
+) -> Option<SignatureHelp> {
+    // The synopsis typically reads like `"string length string"`
+    // — first token is the command, second is the subcommand
+    // name, remaining tokens are parameters.
+    let synopsis = sub.synopsis;
+    let mut tokens = synopsis.split_whitespace();
+    tokens.next()?; // command word
+    tokens.next()?; // subcommand word
+    let parameters: Vec<ParameterInformation> = tokens
+        .map(|t| ParameterInformation {
+            label: t.to_owned(),
+        })
+        .collect();
+
+    let active_parameter = if parameters.is_empty() {
+        0
+    } else {
+        let max_idx = u32::try_from(parameters.len() - 1).unwrap_or(0);
+        active_param.min(max_idx)
+    };
+
+    let documentation = if sub.detail.is_empty() {
+        None
+    } else {
+        Some(sub.detail.to_owned())
+    };
+
+    let label = if synopsis.is_empty() {
+        format!("{command} {}", sub.name)
+    } else {
+        synopsis.to_owned()
+    };
+
+    Some(SignatureHelp {
+        signatures: vec![SignatureInformation {
+            label,
+            parameters,
+            documentation,
+        }],
+        active_signature: 0,
+        active_parameter,
+    })
 }
 
 fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
@@ -615,6 +692,42 @@ mod tests {
                 .any(|p| p.label == "name"),
             "expected `name` parameter from greet; got {:?}",
             h.signatures[0].parameters,
+        );
+    }
+
+    #[test]
+    fn subcommand_signature_resolves_for_string_length() {
+        // `string length $name` should surface the
+        // `string length string` subcommand signature, not the
+        // generic `string` synopsis.
+        let src = "string length \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 0, 14, &analysis, Some(&registry))
+            .expect("expected subcommand signature");
+        // The synopsis label should contain `string length`.
+        assert!(
+            h.signatures[0].label.contains("string length"),
+            "got label {label}",
+            label = h.signatures[0].label,
+        );
+    }
+
+    #[test]
+    fn subcommand_signature_falls_back_for_unknown_subcommand() {
+        // `string nonsense $arg` — `nonsense` isn't a string
+        // subcommand, so the provider should fall back to the
+        // command-level signature.
+        let src = "string nonsense \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let h = signature_help(src, 0, 16, &analysis, Some(&registry))
+            .expect("expected fallback signature");
+        // Falls back to the command-level synopsis.
+        assert!(
+            h.signatures[0].label.starts_with("string"),
+            "got label {label}",
+            label = h.signatures[0].label,
         );
     }
 
