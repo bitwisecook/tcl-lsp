@@ -524,6 +524,12 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     const sub_len: u32 = sub_s.len;
     const max_result: u32 = str_s.len * (sub_len + 2) + 256;
     const result_buf = alloc(max_result);
+    if (result_buf == 0) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(str_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return rt.obj_new_string(0, 0);
+    }
     var result_off: u32 = 0;
 
     const nmatch: usize = 10; // whole match + up to 9 capture groups
@@ -637,7 +643,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     result_off += tail_len;
 
     if (n_subs_out) |p| p.* = n_subs;
-    return rt.obj_new_string(@bitCast(result_buf), @bitCast(result_off));
+    return rt.obj_new_string_take(result_buf, result_off, max_result);
 }
 
 /// Interpreter-side ``regexp`` command handler.  Called from
@@ -1554,6 +1560,10 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     }
     const max_out: u32 = @intCast(max_out_usize);
     const out_addr = alloc(max_out);
+    if (out_addr == 0) {
+        regfree_safe(re_ptr);
+        return obj_new_int(0);
+    }
     const out: [*]u8 = @ptrFromInt(out_addr);
     var out_len: usize = 0;
 
@@ -1635,7 +1645,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
 
     regfree_safe(re_ptr);
 
-    const result = obj_new_string(@bitCast(out_addr), @bitCast(out_len));
+    const result = rt.obj_new_string_take(out_addr, @intCast(out_len), max_out);
 
     if (has_var) {
         _ = frames.var_set(varname, result);
