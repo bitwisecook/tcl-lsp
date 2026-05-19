@@ -811,11 +811,72 @@ class _WasmEmitterCtrlMixin(_Base):
             keep_on_stack=keep_on_stack,
         )
 
-    def _emit_try(self, body: IRScript, handlers, finally_body) -> None:
-        """Emit a try block (simplified — just run the body + finally)."""
-        self._emit_script(body)
-        if finally_body:
-            self._emit_script(finally_body)
+    def _emit_try(
+        self,
+        body: IRScript,
+        handlers,
+        finally_body,
+        *,
+        raw_args: tuple[str, ...] = (),
+    ) -> None:
+        """Emit a try block by reconstructing the source and routing
+        through the runtime ``eval_try`` handler.
+
+        Inlining ``try`` here (run body + finally with no handler
+        dispatch and no ``-during`` chaining) drops the handler
+        clauses entirely and breaks Tcl 9 semantics on ``try ...
+        finally`` exception propagation (error-16.21 / -18.7..10).
+        The IRTry node's ``raw_args`` holds the original arg-word
+        texts; rebuild ``try { ... } ?on/trap PAT VARS HANDLER?... ?finally
+        { ... }?`` from them and ``tcl_eval`` it so the Zig
+        ``cmds/flow.zig::eval_try`` does the full work.
+        """
+        eval_idx = self._shared_imports.get("tcl_eval")
+        if eval_idx is None or not raw_args:
+            # Defensive fallback when tcl_eval isn't imported or the
+            # IR didn't preserve raw_args.  Preserves the prior
+            # body+finally inline expansion so we still produce
+            # *something* — handlers / -during still missing.
+            self._emit_script(body)
+            if finally_body:
+                self._emit_script(finally_body)
+            return
+        # Rebuild the ``try`` script.  ``raw_args`` is laid out as
+        # ``BODY ?KIND PATTERN VARS HANDLER?... ?finally FB?``;
+        # body / handler / finally substrings still carry their
+        # original text (whitespace, newlines, embedded ``{`` etc.).
+        # Wrap each script-shaped arg in braces; keep keyword /
+        # pattern / varlist words bare (they're single words).
+        parts: list[str] = ["try"]
+        i = 0
+        n = len(raw_args)
+        # Body is the first arg, always a script.
+        if i < n:
+            parts.append("{" + raw_args[i] + "}")
+            i += 1
+        while i < n:
+            kw = raw_args[i]
+            if kw == "finally" and i + 1 < n:
+                parts.append("finally")
+                parts.append("{" + raw_args[i + 1] + "}")
+                i += 2
+                continue
+            if kw in ("on", "trap") and i + 3 < n:
+                parts.append(kw)
+                parts.append(raw_args[i + 1])  # code / pattern
+                parts.append("{" + raw_args[i + 2] + "}")  # varlist
+                parts.append("{" + raw_args[i + 3] + "}")  # handler body
+                i += 4
+                continue
+            # Unknown keyword (shouldn't happen with well-formed IR);
+            # pass through verbatim so the runtime parser produces the
+            # canonical Tcl error.
+            parts.append(kw)
+            i += 1
+        script = " ".join(parts)
+        self._emit_obj_literal(script)
+        self._emit_call(eval_idx)
+        self._emit(WasmOp.DROP)
 
     def _emit_script(self, script: IRScript) -> None:
         """Emit all statements in a script."""

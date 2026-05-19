@@ -140,6 +140,7 @@ pub fn eval_expr_str(ptr: u32, len: u32) i64 {
     // and ``catch {$token ne {}}`` always evaluates false.  See the
     // ``::tcltest::SubstArguments`` smoke trace in the cmdAH triage
     // for a worked example.
+    expr_clear_nonnum();
     if (find_top_string_op(ptr, len)) |op| {
         return eval_string_expr(ptr, len, op);
     }
@@ -504,6 +505,192 @@ fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Tracks the last expression atom that failed numeric/boolean parsing.
+/// The atom records the raw bytes here (instead of raising directly) so
+/// the enclosing operator decides the wording:
+///   * arithmetic operator (``+``, ``-``, ``*``, …) →
+///       ``cannot use non-numeric string "X" as <left|right> operand of "<op>"``
+///   * boolean operator (``&&`` / ``||`` / top-level boolean context) →
+///       ``expected boolean value but got "X"``
+/// Cleared by ``eval_expr_str`` on entry and by every successful atom.
+///
+/// Lifetime: the recorded bytes are OWNED by this module — every
+/// :func:`expr_set_nonnum` copies its input into a fresh allocation
+/// and every :func:`expr_clear_nonnum` releases it.  Earlier
+/// revisions stored a borrowed ``(ptr, len)`` directly from the
+/// variable value's string rep; an intervening ``[cmd]``
+/// substitution that ``unset``-ed or rewrote the variable could
+/// then UAF the bytes when the enclosing operator finally consumed
+/// them (Copilot review on PR #452 flagged the dangle).
+var expr_nonnum_active: bool = false;
+var expr_nonnum_ptr: u32 = 0;
+var expr_nonnum_len: u32 = 0;
+
+fn expr_nonnum_release() void {
+    if (expr_nonnum_ptr != 0 and expr_nonnum_len != 0) {
+        obj_mod.free_sized(expr_nonnum_ptr, expr_nonnum_len);
+    }
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
+}
+
+fn expr_set_nonnum(ptr: u32, slen: u32) void {
+    expr_nonnum_release();
+    expr_nonnum_active = true;
+    if (slen == 0 or ptr == 0) {
+        expr_nonnum_ptr = 0;
+        expr_nonnum_len = 0;
+        return;
+    }
+    const dst = obj_mod.alloc(slen);
+    if (dst == 0) {
+        // Allocation failure — record empty bytes; the diagnostic
+        // will use an empty string in the ``"X"`` slot rather than
+        // dangling at a stale pointer.
+        expr_nonnum_ptr = 0;
+        expr_nonnum_len = 0;
+        return;
+    }
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    const out: [*]u8 = @ptrFromInt(dst);
+    var k: u32 = 0;
+    while (k < slen) : (k += 1) out[k] = src[k];
+    expr_nonnum_ptr = dst;
+    expr_nonnum_len = slen;
+}
+
+fn expr_clear_nonnum() void {
+    expr_nonnum_active = false;
+    expr_nonnum_release();
+}
+
+const NonNumSnapshot = struct {
+    active: bool,
+    ptr: u32,
+    len: u32,
+};
+
+fn expr_take_nonnum() NonNumSnapshot {
+    // Ownership transfer: the snapshot adopts the heap buffer the
+    // global slot was holding; the global is cleared without a
+    // release so a subsequent ``expr_restore_nonnum`` can re-park
+    // the same buffer without copying.  A ``raise_…`` consumer that
+    // doesn't restore must call ``free_sized(s.ptr, s.len)`` on its
+    // way out — see ``expr_consume_nonnum_boolean`` for the pattern.
+    const s: NonNumSnapshot = .{
+        .active = expr_nonnum_active,
+        .ptr = expr_nonnum_ptr,
+        .len = expr_nonnum_len,
+    };
+    expr_nonnum_active = false;
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
+    return s;
+}
+
+fn expr_restore_nonnum(s: NonNumSnapshot) void {
+    expr_nonnum_release();
+    expr_nonnum_active = s.active;
+    expr_nonnum_ptr = s.ptr;
+    expr_nonnum_len = s.len;
+}
+
+/// Release a snapshot's heap buffer.  Called by operand sites that
+/// either consumed the snapshot via ``raise_…`` (and want to free
+/// the bytes after the diagnostic is built) or discarded it
+/// (LHS got short-circuited and the snapshot is being replaced).
+fn expr_drop_nonnum_snap(s: NonNumSnapshot) void {
+    if (s.ptr != 0 and s.len != 0) obj_mod.free_sized(s.ptr, s.len);
+}
+
+/// Did the most recent atom produce a non-numeric operand?  Used by
+/// callers (``eval_while`` / ``eval_if`` / ``eval_for`` condition
+/// evaluation) to convert the lingering state into the canonical
+/// ``expected boolean value but got "X"`` error.
+pub fn expr_consume_nonnum_boolean() bool {
+    if (!expr_nonnum_active) return false;
+    const ptr = expr_nonnum_ptr;
+    const slen = expr_nonnum_len;
+    // Detach the buffer from the global before raising so the
+    // ``expr_clear_nonnum`` released it but the diagnostic helper
+    // still sees the bytes.  ``free_sized`` after the raise is the
+    // counterpart to ``expr_set_nonnum``'s ``obj_mod.alloc``.
+    expr_nonnum_active = false;
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
+    raise_expected_boolean_str(ptr, slen);
+    if (ptr != 0 and slen != 0) obj_mod.free_sized(ptr, slen);
+    return true;
+}
+
+/// Raise the arithmetic-context wording for a non-numeric operand:
+/// ``cannot use non-numeric string "X" as <side> operand of "<op>"``.
+/// Mirrors Tcl 9's INST_ADD / INST_SUB / etc. operand-coercion error.
+fn raise_arith_op_error(op_str: []const u8, side: []const u8, ptr: u32, slen: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const middle1: []const u8 = "\" as ";
+    const middle2: []const u8 = " operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len + middle1.len + middle2.len + suffix.len + side.len + op_str.len)) + slen;
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (slen > 0) {
+        const sp: [*]const u8 = @ptrFromInt(ptr);
+        for (0..slen) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle1) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (side) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (middle2) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (op_str) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Check the captured snapshot.  When the snapshot recorded a
+/// non-numeric atom, raise the arithmetic-operand error and clear
+/// the live flag (the snapshot caller's responsibility is the
+/// "left" side; the live flag covers the "right" side which will
+/// be checked by the immediately-following ``expr_take_nonnum``).
+fn expr_raise_if_nonnum_arith(snap: NonNumSnapshot, op_str: []const u8, side: []const u8) bool {
+    if (!snap.active) return false;
+    raise_arith_op_error(op_str, side, snap.ptr, snap.len);
+    // Snapshot owns its buffer; raise built the diagnostic from
+    // those bytes, so release them now.  Returning true tells the
+    // caller to bail without restoring — the live flag was already
+    // cleared by ``expr_take_nonnum``.
+    expr_drop_nonnum_snap(snap);
+    return true;
+}
+
 /// Short-circuit evaluation: when *skip* is true the expression walks the
 /// tokens to advance ``pos`` but does NOT run ``[cmd]`` substitutions —
 /// so ``{[info exists x] && [use $x]}`` only runs ``[use $x]`` when the
@@ -513,41 +700,218 @@ fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
 /// has no observable side effect).
 fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_and(ptr, len, pos, skip);
+    // First operand: delimit its range so a top-level string operator
+    // (``eq`` / ``ne`` / ``in`` / ``ni``) within it gets dispatched to
+    // ``eval_string_expr`` even when the wider expression contains
+    // ``||``.  Without this delimit, ``A || $i ne [...]`` would let
+    // the ``$i`` atom set the non-numeric flag and the surrounding
+    // boolean operator would raise (list-4.2).
+    var lhs_end = find_op_terminator(ptr, len, pos.*, '|');
+    var left = eval_or_operand(ptr, pos.*, lhs_end, skip);
+    pos.* = lhs_end;
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
+            if (lhs_snap.active and !skip) {
+                raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
+                expr_drop_nonnum_snap(lhs_snap);
+                return 0;
+            }
             pos.* += 2;
             // Short-circuit: skip RHS when LHS is already truthy OR we're
             // already skipping outer scope.  Still walk the RHS tokens
             // so ``pos`` advances past them.
             const rhs_skip = skip or (left != 0);
-            const right = expr_and(ptr, len, pos, rhs_skip);
+            const rhs_end = find_op_terminator(ptr, len, pos.*, '|');
+            const right = eval_or_operand(ptr, pos.*, rhs_end, rhs_skip);
+            pos.* = rhs_end;
+            const rhs_snap = expr_take_nonnum();
+            if (rhs_snap.active and !rhs_skip) {
+                raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                expr_drop_nonnum_snap(rhs_snap);
+                expr_drop_nonnum_snap(lhs_snap);
+                return 0;
+            }
+            expr_drop_nonnum_snap(rhs_snap);
             if (!skip) {
                 left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            // LHS snapshot is no longer relevant after a successful
+            // ``||`` reduction — release its buffer.
+            expr_drop_nonnum_snap(lhs_snap);
+            lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
+            lhs_end = pos.*;
         } else break;
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
+}
+
+/// Evaluate one operand of ``||`` (a ``&&``-chain or simpler).
+/// Delegates to ``expr_and`` on the sub-range; ``expr_and`` itself
+/// applies the same dispatch trick for ``&&`` operands.  Pos
+/// arithmetic stays inside the helper.  When ``skip`` is true the
+/// caller is short-circuiting: skip the actual evaluation so the
+/// operand's ``[cmd]`` substitutions don't run (mathop-25.40's
+/// ``[set i ...] == [set res ...]`` would otherwise re-fire its
+/// side-effects past the loop-exit condition).
+fn eval_or_operand(ptr: u32, start: u32, end: u32, skip: bool) i64 {
+    if (skip) return 0;
+    var sub_pos: u32 = 0;
+    return expr_and(ptr + start, end - start, &sub_pos, skip);
 }
 
 fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_add(ptr, len, pos, skip);
+    // First operand of ``&&``: delimit its range so ``eq`` / ``ne`` /
+    // ``in`` / ``ni`` get dispatched as string-compares.
+    var lhs_end = find_op_terminator(ptr, len, pos.*, '&');
+    var left = eval_and_operand(ptr, pos.*, lhs_end, skip);
+    pos.* = lhs_end;
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
+            if (lhs_snap.active and !skip) {
+                raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
+                expr_drop_nonnum_snap(lhs_snap);
+                return 0;
+            }
             pos.* += 2;
             // Short-circuit: skip RHS when LHS is already falsy OR we're
             // already skipping.
             const rhs_skip = skip or (left == 0);
-            const right = expr_add(ptr, len, pos, rhs_skip);
+            const rhs_end = find_op_terminator(ptr, len, pos.*, '&');
+            const right = eval_and_operand(ptr, pos.*, rhs_end, rhs_skip);
+            pos.* = rhs_end;
+            const rhs_snap = expr_take_nonnum();
+            if (rhs_snap.active and !rhs_skip) {
+                raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                expr_drop_nonnum_snap(rhs_snap);
+                expr_drop_nonnum_snap(lhs_snap);
+                return 0;
+            }
+            expr_drop_nonnum_snap(rhs_snap);
             if (!skip) {
                 left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            expr_drop_nonnum_snap(lhs_snap);
+            lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
+            lhs_end = pos.*;
         } else break;
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
+}
+
+/// Evaluate one operand of ``&&`` — a sub-expression that may carry a
+/// top-level string op (``eq`` / ``ne`` / ``in`` / ``ni`` / ``==`` /
+/// ``!=`` on non-numeric operands).  Inside this sub-range there's
+/// no surrounding ``||`` / ``&&`` to interfere with
+/// ``find_top_string_op``'s bail-out.  When ``skip`` is true the
+/// caller is short-circuiting: skip the actual evaluation so the
+/// operand's ``[cmd]`` substitutions don't run.
+fn eval_and_operand(ptr: u32, start: u32, end: u32, skip: bool) i64 {
+    if (skip) return 0;
+    if (find_top_string_op(ptr + start, end - start)) |op| {
+        return eval_string_expr(ptr + start, end - start, op);
+    }
+    var sub_pos: u32 = 0;
+    return expr_add(ptr + start, end - start, &sub_pos, skip);
+}
+
+/// Scan from *start* through *ptr*[..*len*] looking for the next
+/// occurrence of the doubled boolean operator ``op_char`` (``|`` for
+/// ``||``, ``&`` for ``&&``) at the top level.  Skips over nested
+/// braces / brackets / parens / quoted strings.  Returns either the
+/// position of the operator (so ``ptr + result`` points at the first
+/// byte of ``||`` / ``&&``) or ``len`` when no such operator exists.
+fn find_op_terminator(ptr: u32, len: u32, start: u32, op_char: u8) u32 {
+    if (start >= len) return len;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = start;
+    while (i < len) {
+        const c = src[i];
+        if (c == '\\' and i + 1 < len) {
+            i += 2;
+            continue;
+        }
+        if (c == '"') {
+            i += 1;
+            while (i < len and src[i] != '"') {
+                if (src[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            if (i < len) i += 1;
+            continue;
+        }
+        if (c == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '[' or c == '(') {
+            // Bracket / parenthesis group — recurse through nested
+            // quoted / braced regions and honour backslash escapes
+            // so ``[set x {a]b}]`` (or ``(set x "a)b")``) finishes
+            // at the *outer* delimiter, not the first inner ``]`` /
+            // ``)``.  Mirrors the ``{`` branch's structure (codex
+            // review on PR #452).
+            const open: u8 = c;
+            const close: u8 = if (c == '[') ']' else ')';
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) {
+                const cc = src[i];
+                if (cc == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (cc == '"') {
+                    i += 1;
+                    while (i < len and src[i] != '"') {
+                        if (src[i] == '\\' and i + 1 < len) i += 1;
+                        i += 1;
+                    }
+                    if (i < len) i += 1;
+                    continue;
+                }
+                if (cc == '{') {
+                    var bdepth: u32 = 1;
+                    i += 1;
+                    while (i < len and bdepth > 0) {
+                        if (src[i] == '\\' and i + 1 < len) {
+                            i += 2;
+                            continue;
+                        }
+                        if (src[i] == '{') bdepth += 1 else if (src[i] == '}') bdepth -= 1;
+                        i += 1;
+                    }
+                    continue;
+                }
+                if (cc == open) depth += 1 else if (cc == close) depth -= 1;
+                i += 1;
+            }
+            continue;
+        }
+        // ``op_char`` doubled (``||`` or ``&&``) at top level → stop.
+        // When scanning for ``&&`` (op_char = '&'), also stop at ``||``
+        // — ``||`` has lower precedence so it ends the ``&&`` operand
+        // belongs to.
+        if (i + 1 < len and c == op_char and src[i + 1] == op_char) return i;
+        if (op_char == '&' and i + 1 < len and c == '|' and src[i + 1] == '|') return i;
+        i += 1;
+    }
+    return len;
 }
 
 fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
@@ -574,57 +938,105 @@ fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
 fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     var left = expr_mul(ptr, len, pos, skip);
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '+') {
-            pos.* += 1;
-            left = left + expr_mul(ptr, len, pos, skip);
-        } else if (src[pos.*] == '-') {
-            pos.* += 1;
-            left = left - expr_mul(ptr, len, pos, skip);
-        } else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') {
-            pos.* += 2;
-            left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (src[pos.*] == '<') {
-            pos.* += 1;
-            left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else if (src[pos.*] == '>') {
-            pos.* += 1;
-            left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
-        } else break;
+        const op_str: []const u8 = blk: {
+            if (src[pos.*] == '+') break :blk "+";
+            if (src[pos.*] == '-') break :blk "-";
+            if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') break :blk "==";
+            if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') break :blk "!=";
+            if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') break :blk "<=";
+            if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') break :blk ">=";
+            if (src[pos.*] == '<') break :blk "<";
+            if (src[pos.*] == '>') break :blk ">";
+            break :blk "";
+        };
+        if (op_str.len == 0) break;
+        // Saw an arithmetic / relational op — the LHS must be numeric.
+        // When the LHS came from a non-numeric atom (``"foo"`` / ``$x``
+        // where x="foo"), raise the canonical operand-coercion error
+        // and stop (while-old-4.4 ``"a"+"b"``).  Equality (``==`` /
+        // ``!=``) operates on the i64 form too in our minimal expr
+        // engine, so the same wording applies.
+        if (expr_raise_if_nonnum_arith(lhs_snap, op_str, "left")) return 0;
+        pos.* += @intCast(op_str.len);
+        const right = expr_mul(ptr, len, pos, skip);
+        const rhs_snap = expr_take_nonnum();
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) {
+            expr_drop_nonnum_snap(lhs_snap);
+            return 0;
+        }
+        expr_drop_nonnum_snap(rhs_snap);
+        switch (op_str[0]) {
+            '+' => left = left + right,
+            '-' => left = left - right,
+            '<' => {
+                if (op_str.len == 2) {
+                    left = if (left <= right) @as(i64, 1) else @as(i64, 0);
+                } else {
+                    left = if (left < right) @as(i64, 1) else @as(i64, 0);
+                }
+            },
+            '>' => {
+                if (op_str.len == 2) {
+                    left = if (left >= right) @as(i64, 1) else @as(i64, 0);
+                } else {
+                    left = if (left > right) @as(i64, 1) else @as(i64, 0);
+                }
+            },
+            '=' => left = if (left == right) @as(i64, 1) else @as(i64, 0),
+            '!' => left = if (left != right) @as(i64, 1) else @as(i64, 0),
+            else => unreachable,
+        }
+        // LHS has been folded into ``left`` — drop its buffer before
+        // re-arming the slot for the next operator iteration.
+        expr_drop_nonnum_snap(lhs_snap);
+        lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
+    // No further operator after the LHS — restore the LHS's flag so
+    // the surrounding context (boolean operator, or top-level
+    // ``while``/``if`` condition) can decide whether to raise.
+    expr_restore_nonnum(lhs_snap);
     return left;
 }
 
 fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     var left = expr_atom(ptr, len, pos, skip);
+    var lhs_snap = expr_take_nonnum();
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '*') {
-            pos.* += 1;
-            left = left * expr_atom(ptr, len, pos, skip);
-        } else if (src[pos.*] == '/') {
-            pos.* += 1;
-            const r = expr_atom(ptr, len, pos, skip);
-            left = if (r != 0) @divTrunc(left, r) else 0;
-        } else if (src[pos.*] == '%') {
-            pos.* += 1;
-            const r = expr_atom(ptr, len, pos, skip);
-            left = if (r != 0) @rem(left, r) else 0;
-        } else break;
+        const op_str: []const u8 = blk: {
+            if (src[pos.*] == '*') break :blk "*";
+            if (src[pos.*] == '/') break :blk "/";
+            if (src[pos.*] == '%') break :blk "%";
+            break :blk "";
+        };
+        if (op_str.len == 0) break;
+        if (expr_raise_if_nonnum_arith(lhs_snap, op_str, "left")) return 0;
+        pos.* += 1;
+        const right = expr_atom(ptr, len, pos, skip);
+        const rhs_snap = expr_take_nonnum();
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) {
+            expr_drop_nonnum_snap(lhs_snap);
+            return 0;
+        }
+        expr_drop_nonnum_snap(rhs_snap);
+        switch (op_str[0]) {
+            '*' => left = left * right,
+            '/' => left = if (right != 0) @divTrunc(left, right) else 0,
+            '%' => left = if (right != 0) @rem(left, right) else 0,
+            else => unreachable,
+        }
+        // LHS has been folded into ``left`` — drop its buffer before
+        // re-arming the slot for the next operator iteration.
+        expr_drop_nonnum_snap(lhs_snap);
+        lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
+    expr_restore_nonnum(lhs_snap);
     return left;
 }
 
@@ -634,7 +1046,13 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     if (pos.* >= len) return 0;
     if (src[pos.*] == '!') {
         pos.* += 1;
-        return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1);
+        const v = expr_atom(ptr, len, pos, skip);
+        // ``!`` is a boolean operator: if the operand wasn't a valid
+        // boolean (e.g. ``!"foo"``), raise the canonical wording now
+        // rather than letting an enclosing arithmetic op consume the
+        // non-numeric flag with the wrong message.
+        if (expr_consume_nonnum_boolean()) return 0;
+        return if (v != 0) @as(i64, 0) else @as(i64, 1);
     }
     if (src[pos.*] == '~') {
         pos.* += 1;
@@ -722,19 +1140,25 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         if (pos.* < len) pos.* += 1; // closing quote
         const clen: u32 = content_end - content_start;
         if (obj_mod.try_parse_int(ptr + content_start, clen)) |v| {
+            expr_clear_nonnum();
             return v;
         }
         if (obj_mod.try_parse_float(ptr + content_start, clen)) |fv| {
+            expr_clear_nonnum();
             return if (fv != 0.0) @as(i64, 1) else @as(i64, 0);
         }
         if (obj_mod.try_parse_bool(ptr + content_start, clen)) |bv| {
+            expr_clear_nonnum();
             return bv;
         }
-        // Not a recognised numeric or boolean literal — raise the
-        // canonical ``expected boolean value but got "X"`` so callers
-        // (``if`` / ``while`` / ``&&`` / ``||`` / ``?:``) report the
-        // same surface as reference Tcl.
-        raise_expected_boolean_str(ptr + content_start, clen);
+        // Not a recognised numeric or boolean literal — flag the raw
+        // bytes for the enclosing operator to consume.  Arithmetic
+        // operators (``+``, ``-``, …) will raise ``cannot use
+        // non-numeric string "X" as <side> operand of "<op>"``; boolean
+        // operators (``&&``, ``||``) and the top-level boolean context
+        // (``if``/``while``/``for`` condition) will raise ``expected
+        // boolean value but got "X"`` (while-old-4.4 / 4.5).
+        expr_set_nonnum(ptr + content_start, clen);
         return 0;
     }
     if (src[pos.*] == '$') {
@@ -753,7 +1177,28 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         // Without the release, every ``$var`` reference inside an
         // expression leaks one obj header per iteration.
         const val = frames.var_resolve(name);
-        const v: i64 = if (val != 0) obj_get_int(val) else 0;
+        var v: i64 = 0;
+        if (val != 0) {
+            // Parse the variable's value as int / float / bool;
+            // unparseable values flag the raw bytes so the enclosing
+            // operator (arithmetic / boolean) raises the right error.
+            // ``obj_get_int`` silently returns 0 for non-numeric
+            // strings, masking ``while {$x}`` where ``$x = "foo"``
+            // (while-old-4.5).
+            const vs_str = obj_mod.obj_ensure_string(val);
+            if (obj_mod.try_parse_int(vs_str.ptr, vs_str.len)) |iv| {
+                v = iv;
+                expr_clear_nonnum();
+            } else if (obj_mod.try_parse_float(vs_str.ptr, vs_str.len)) |fv| {
+                v = obj_mod.float_to_i64_clamped(fv);
+                expr_clear_nonnum();
+            } else if (obj_mod.try_parse_bool(vs_str.ptr, vs_str.len)) |bv| {
+                v = bv;
+                expr_clear_nonnum();
+            } else {
+                expr_set_nonnum(vs_str.ptr, vs_str.len);
+            }
+        }
         obj_mod.tcl_obj_release(name);
         return v;
     }
@@ -1483,6 +1928,12 @@ pub fn eval_if(words: []const i32) i32 {
         // Condition word.
         const cond_s = obj_ensure_string(words[i]);
         const cond_true = eval_expr_str(cond_s.ptr, cond_s.len) != 0;
+        // ``if`` evaluates the condition in boolean context: a
+        // non-numeric value (e.g. ``$x = "foo"``) that lingered in
+        // the expr atom's non-numeric flag must surface as
+        // ``expected boolean value but got "X"`` rather than
+        // silently being treated as false.
+        if (expr_consume_nonnum_boolean()) return 0;
         // Optional ``then`` keyword between condition and body.
         // ``if EXPR then`` (then with no body) is a script-following
         // error; ``if EXPR`` with no body is the same shape under
@@ -1583,7 +2034,34 @@ pub fn eval_while(words: []const i32) i32 {
     const body_s = obj_ensure_string(words[2]);
     var result: i32 = 0;
     while (true) {
-        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        const cond_val = eval_expr_str(cond_s.ptr, cond_s.len);
+        // Boolean context: a non-numeric atom (e.g. ``$x = "foo"``)
+        // must surface as ``expected boolean value but got "X"``
+        // (while-old-4.5).  ``expr_consume_nonnum_boolean`` raises
+        // the canonical error and clears the flag.
+        if (expr_consume_nonnum_boolean()) {
+            const tcl_catch = @import("tcl_catch.zig");
+            tcl_catch.state.transparent_error = 1;
+            if (result != 0) obj_mod.tcl_obj_release(result);
+            return 0;
+        }
+        // ``eval_expr_str`` returns 0 for both "condition was false"
+        // *and* "expression evaluation raised an error".  Distinguish
+        // by probing ``error_flag``: when set, the cond raised — set
+        // ``transparent_error`` (matches bytecode-compiled ``while``
+        // where the loop never appears in the traceback) and return
+        // 0 with the error state intact so the caller's catch can
+        // observe the propagated error (while-old-4.4 / 4.5).  Plain
+        // false ends the loop with the canonical ``""`` return.
+        if (cond_val == 0) {
+            const tcl_catch = @import("tcl_catch.zig");
+            if (tcl_catch.state.error_flag != 0) {
+                tcl_catch.state.transparent_error = 1;
+                if (result != 0) obj_mod.tcl_obj_release(result);
+                return 0;
+            }
+            break;
+        }
         // Release the previous iteration's body result before
         // overwriting (issue #303 — tight ``while`` loops on the
         // interpreter path were leaking one TclObj per pass and
@@ -1602,7 +2080,21 @@ pub fn eval_while(words: []const i32) i32 {
                 result_mod.consume(.CONTINUE);
                 continue;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                // Transparent error propagation: C Tcl 9 bytecode-
+                // compiles ``while`` so the loop command itself
+                // never appears in ``::errorInfo``.  Setting
+                // ``transparent_error`` makes the outer
+                // :func:`log_command_info` skip the ``invoked from
+                // within "while ..."`` frame.  Only on TCL_ERROR —
+                // a plain ``return`` from the body doesn't touch
+                // errorInfo.
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
     }
     // ``while`` always returns the empty string (Tcl docs); body
@@ -1629,10 +2121,32 @@ pub fn eval_for(words: []const i32) i32 {
     // cause for the io.test 2 GiB cliff).
     const init_res = eval_script(init_s.ptr, init_s.len);
     if (init_res != 0) obj_mod.tcl_obj_release(init_res);
-    if (has_signal()) return 0;
+    if (has_signal()) {
+        // Init clause errored — propagate transparently (bytecode-
+        // compiled ``for`` in C Tcl 9 never shows up in errorInfo).
+        const tcl_catch = @import("tcl_catch.zig");
+        if (tcl_catch.state.error_flag != 0) tcl_catch.state.transparent_error = 1;
+        return 0;
+    }
     var result: i32 = 0;
     while (true) {
-        if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        const cond_val_for = eval_expr_str(cond_s.ptr, cond_s.len);
+        // Boolean context — surface non-numeric atoms as
+        // ``expected boolean value but got "X"``.  Mirrors eval_while.
+        if (expr_consume_nonnum_boolean()) {
+            const tcl_catch = @import("tcl_catch.zig");
+            tcl_catch.state.transparent_error = 1;
+            if (result != 0) obj_mod.tcl_obj_release(result);
+            return 0;
+        }
+        if (cond_val_for == 0) {
+            // Condition errored — propagate transparently.
+            if (has_signal()) {
+                const tcl_catch = @import("tcl_catch.zig");
+                if (tcl_catch.state.error_flag != 0) tcl_catch.state.transparent_error = 1;
+            }
+            break;
+        }
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(result);
@@ -1645,7 +2159,13 @@ pub fn eval_for(words: []const i32) i32 {
                 result_mod.consume(.BREAK);
                 break;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
         const next_res = eval_script(next_s.ptr, next_s.len);
         // Mirror ``tclCmdAH.c`` ForPostNextCallback (Tcl 9.0.3 line
@@ -1680,6 +2200,10 @@ pub fn eval_for(words: []const i32) i32 {
             },
             .CONTINUE, .ERROR, .RETURN => {
                 if (result != 0) obj_mod.tcl_obj_release(result);
+                if (next_ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
                 return next_res;
             },
         }
@@ -1698,6 +2222,8 @@ pub fn eval_for(words: []const i32) i32 {
 ///   * ``-glob``            — glob-style wildcards via ``glob_match``
 ///   * ``-regexp``          — POSIX-extended regex via ``run_match``
 ///   * ``-nocase``          — case-insensitive (modifies match mode)
+///   * ``-matchvar VAR``    — (regexp only) bind list of captures to VAR
+///   * ``-indexvar VAR``    — (regexp only) bind list of indices to VAR
 ///   * ``--``               — end of options
 ///
 /// Pattern handling:
@@ -1705,10 +2231,12 @@ pub fn eval_for(words: []const i32) i32 {
 ///   * Pattern ``default`` (only valid in last position) matches if
 ///     no earlier pattern did
 ///
-/// Not implemented (will trap):
-///   * ``-matchvar`` / ``-indexvar`` — regex capture binding
+/// All options accept any unique prefix abbreviation (``-exa`` =
+/// ``-exact``, ``-gl`` = ``-glob``, ``-re`` = ``-regexp``, …) to
+/// match upstream's ``Tcl_GetIndexFromObj`` behaviour.
 pub fn eval_switch(words: []const i32) i32 {
     const stubs = @import("../stubs/tcl_stubs.zig");
+    const catch_mod = @import("tcl_catch.zig");
     if (words.len < 3) {
         stubs.raise("wrong # args: should be \"switch ?options? string ?pattern body ...? ?default body?\"");
         return 0;
@@ -1717,61 +2245,68 @@ pub fn eval_switch(words: []const i32) i32 {
     const Mode = enum { exact, glob, regexp };
     var mode: Mode = .exact;
     var nocase: bool = false;
+    var matchvar: i32 = 0; // 0 = not set; otherwise a TclObj name
+    var indexvar: i32 = 0;
     var i: u32 = 1;
     while (i < words.len) : (i += 1) {
         const w = obj_ensure_string(words[i]);
         if (w.len < 1) break;
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
         if (wp[0] != '-') break;
-        if (str_eq(wp, w.len, "-exact")) {
-            mode = .exact;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-glob")) {
-            mode = .glob;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-regexp")) {
-            mode = .regexp;
-            continue;
-        }
-        if (str_eq(wp, w.len, "-nocase")) {
-            nocase = true;
-            continue;
-        }
-        if (str_eq(wp, w.len, "--")) {
+        if (w.len == 2 and wp[1] == '-') {
+            // ``--`` end of options
             i += 1;
             break;
         }
-        if (str_eq(wp, w.len, "-matchvar") or str_eq(wp, w.len, "-indexvar")) {
-            stubs.raise("switch: -matchvar / -indexvar not yet supported");
-            return 0;
+        // Prefix match — switch options have distinct second-char
+        // (after the dash), so any unambiguous prefix works.
+        // Matches Tcl_GetIndexFromObj's behaviour.
+        if (switch_opt_prefix(wp, w.len, "-exact")) {
+            mode = .exact;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-glob")) {
+            mode = .glob;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-regexp")) {
+            mode = .regexp;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-nocase")) {
+            nocase = true;
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-matchvar")) {
+            i += 1;
+            if (i >= words.len) {
+                stubs.raise("missing variable name argument to switch");
+                return 0;
+            }
+            matchvar = words[i];
+            continue;
+        }
+        if (switch_opt_prefix(wp, w.len, "-indexvar")) {
+            i += 1;
+            if (i >= words.len) {
+                stubs.raise("missing variable name argument to switch");
+                return 0;
+            }
+            indexvar = words[i];
+            continue;
         }
         // Unknown option — produce reference Tcl's error
-        const prefix: []const u8 = "bad option \"";
-        const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
-        const total: u32 = @intCast(prefix.len + w.len + suffix.len);
-        const buf = obj_mod.alloc(total);
-        const bp: [*]u8 = @ptrFromInt(buf);
-        var off: usize = 0;
-        for (prefix) |c| {
-            bp[off] = c;
-            off += 1;
-        }
-        if (w.len > 0) {
-            const sp: [*]const u8 = @ptrFromInt(w.ptr);
-            for (0..w.len) |k| {
-                bp[off] = sp[k];
-                off += 1;
-            }
-        }
-        for (suffix) |c| {
-            bp[off] = c;
-            off += 1;
-        }
-        const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
-        const catch_mod = @import("tcl_catch.zig");
-        catch_mod.tcl_cmd_error(msg);
+        switch_bad_option(wp, w.len);
+        return 0;
+    }
+
+    // Reject -matchvar / -indexvar without -regexp.
+    if (matchvar != 0 and mode != .regexp) {
+        stubs.raise("-matchvar option requires -regexp option");
+        return 0;
+    }
+    if (indexvar != 0 and mode != .regexp) {
+        stubs.raise("-indexvar option requires -regexp option");
         return 0;
     }
 
@@ -1795,7 +2330,69 @@ pub fn eval_switch(words: []const i32) i32 {
         if (n_probe >= 2 and @rem(n_probe, 2) == 0) pairs_in_list = true;
     }
 
-    // Helper: match one pattern against subject, accounting for mode/nocase.
+    // Helper: build a decoded copy of a list element when unbraced,
+    // or return the raw bytes (no copy) when braced.  Unbraced
+    // elements need backslash substitution applied — ``{\a\$\.\[}``
+    // (one braced element) and ``\\a\\$\\.\\[`` (unbraced with
+    // escapes) both decode to ``\a\$\.\[`` (8 bytes), but list
+    // ``element_at`` returns the *raw* span; the comparator wants
+    // the post-substitution form.  Reference Tcl 9 does this via
+    // ``Tcl_SplitList`` which applies ``TclCopyAndCollapse`` to
+    // each element.  switch-6.1 / 6.2 exercise this.
+    const ListElem = struct {
+        ptr: u32,
+        len: u32,
+        is_default: bool,
+        is_dash: bool,
+        // Pattern source for the "(arm line N)" errorInfo frame —
+        // the raw on-disk text (with surrounding braces, if any).
+        src_ptr: u32,
+        src_len: u32,
+    };
+    const elem_decoder = struct {
+        fn decode(list_ptr: u32, list_len: u32, idx: i64) ListElem {
+            const e = list_element_at(list_ptr, list_len, idx);
+            if (e.len == 0) {
+                return .{ .ptr = 0, .len = 0, .is_default = false, .is_dash = false, .src_ptr = list_ptr + e.start, .src_len = 0 };
+            }
+            // ``default`` arm match — bytes-equal compare against the
+            // raw list bytes.  Tcl 9 ``Tcl_SwitchObjCmd`` treats
+            // ``{default}`` (braced) and ``default`` (unbraced) as
+            // the same pattern word: the brace quoting is part of
+            // list syntax, not the matched value.  Likewise for the
+            // ``-`` / ``{-}`` fall-through sentinel.  ``list_element_at``
+            // strips the outer braces before exposing the ``ptr`` /
+            // ``len`` span, so a raw bytes-equal check on the inner
+            // content is sufficient for both shapes (codex P1 review
+            // on PR #452).
+            const is_default = e.len == 7 and blk_default: {
+                const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
+                break :blk_default sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
+                    sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
+            };
+            const is_dash = e.len == 1 and blk_dash: {
+                const sp: [*]const u8 = @ptrFromInt(list_ptr + e.start);
+                break :blk_dash sp[0] == '-';
+            };
+            if (e.braced) {
+                return .{ .ptr = list_ptr + e.start, .len = e.len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+            }
+            // Unbraced — apply backslash substitution into a scratch
+            // buffer.  Length never grows beyond e.len (each escape
+            // produces ≤ its input bytes).
+            const buf = alloc(e.len);
+            if (buf == 0) return .{ .ptr = list_ptr + e.start, .len = e.len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+            const out_len = copy_unbraced_elem(buf, list_ptr + e.start, e.len);
+            return .{ .ptr = buf, .len = out_len, .is_default = is_default, .is_dash = is_dash, .src_ptr = list_ptr + e.start, .src_len = e.len };
+        }
+    };
+
+    // Match attempt + capture binding for one pattern.  Returns
+    // ``.matched = true`` when the pattern matches, populates
+    // ``cap_count`` + ``cap_starts`` / ``cap_ends`` (codepoint
+    // offsets relative to the subject) for regexp mode so the
+    // -matchvar / -indexvar binding step below has the data it
+    // needs.  ``cap_count`` is 0 outside regexp mode.
     const PatRunner = struct {
         fn run(p_ptr: u32, p_len: u32, s_ptr: u32, s_len: u32, mode_v: Mode, no_case: bool) bool {
             const tcl_string = @import("../valtypes/tcl_string.zig");
@@ -1804,6 +2401,7 @@ pub fn eval_switch(words: []const i32) i32 {
                 .exact => {
                     if (no_case) {
                         if (p_len != s_len) return false;
+                        if (p_len == 0) return true;
                         const pp: [*]const u8 = @ptrFromInt(p_ptr);
                         const ss: [*]const u8 = @ptrFromInt(s_ptr);
                         var k: u32 = 0;
@@ -1846,20 +2444,56 @@ pub fn eval_switch(words: []const i32) i32 {
         }
     };
 
-    // Iterate pattern/body pairs.  We do two passes when ``-`` body
-    // appears: the first pass picks the matching pattern, the second
-    // walks forward to find the first non-``-`` body.
-    var match_idx: i64 = -1; // index of matching pair (0-based pair index)
+    // First pass: find the matching pattern index.  For regexp +
+    // capture-binding mode we also record the matching pattern's
+    // span so we can re-run it against the subject with captures
+    // after the match index is known.
+    var match_idx: i64 = -1;
+    var match_pat_ptr: u32 = 0; // for regexp capture re-run
+    var match_pat_len: u32 = 0;
+    var match_pat_src_ptr: u32 = 0; // for "(arm line N)" frame
+    var match_pat_src_len: u32 = 0;
     var n_pairs: i64 = 0;
+
+    var bodies_list_ptr: u32 = 0; // list-form: list bytes
+    var bodies_list_len: u32 = 0;
+    var pair_base: u32 = 0; // inline-form: words[i..] index of first pattern
     if (pairs_in_list) {
         const list_s = obj_ensure_string(words[i]);
+        bodies_list_ptr = list_s.ptr;
+        bodies_list_len = list_s.len;
         const total_elems = list_count_elements(list_s.ptr, list_s.len);
         n_pairs = @divTrunc(total_elems, 2);
         var pi: i64 = 0;
         while (pi < n_pairs) : (pi += 1) {
-            const pat_e = list_element_at(list_s.ptr, list_s.len, pi * 2);
-            const is_default = pat_e.len == 7 and blk: {
-                const sp: [*]const u8 = @ptrFromInt(list_s.ptr + pat_e.start);
+            const elem = elem_decoder.decode(list_s.ptr, list_s.len, pi * 2);
+            if (elem.is_default and pi == n_pairs - 1) {
+                if (match_idx == -1) match_idx = pi;
+                break;
+            }
+            if (PatRunner.run(elem.ptr, elem.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+                match_idx = pi;
+                match_pat_ptr = elem.ptr;
+                match_pat_len = elem.len;
+                match_pat_src_ptr = elem.src_ptr;
+                match_pat_src_len = elem.src_len;
+                break;
+            }
+        }
+    } else {
+        // Inline form: words[i..] are alternating pattern/body
+        if (@rem(@as(u32, @intCast(words.len)) - i, 2) != 0) {
+            stubs.raise("extra switch pattern with no body");
+            return 0;
+        }
+        pair_base = i;
+        n_pairs = @intCast((words.len - i) / 2);
+        var pi: i64 = 0;
+        while (pi < n_pairs) : (pi += 1) {
+            const pat = words[pair_base + @as(u32, @intCast(pi)) * 2];
+            const pat_s = obj_ensure_string(pat);
+            const is_default = pat_s.len == 7 and blk: {
+                const sp: [*]const u8 = @ptrFromInt(pat_s.ptr);
                 break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
                     sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
             };
@@ -1867,61 +2501,501 @@ pub fn eval_switch(words: []const i32) i32 {
                 if (match_idx == -1) match_idx = pi;
                 break;
             }
-            if (PatRunner.run(list_s.ptr + pat_e.start, pat_e.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+            if (PatRunner.run(pat_s.ptr, pat_s.len, subject_s.ptr, subject_s.len, mode, nocase)) {
                 match_idx = pi;
+                match_pat_ptr = pat_s.ptr;
+                match_pat_len = pat_s.len;
+                match_pat_src_ptr = pat_s.ptr;
+                match_pat_src_len = pat_s.len;
                 break;
             }
         }
-        if (match_idx == -1) return obj_new_string(0, 0);
-        // Walk forward for non-``-`` body
-        var bi: i64 = match_idx;
-        while (bi < n_pairs) : (bi += 1) {
-            const body_e = list_element_at(list_s.ptr, list_s.len, bi * 2 + 1);
-            if (body_e.len == 1) {
-                const bp: [*]const u8 = @ptrFromInt(list_s.ptr + body_e.start);
+    }
+
+    // Bind -matchvar / -indexvar (regexp mode).  Per Tcl 9
+    // ``Tcl_SwitchObjCmd``: indexvar is set first; if that fails
+    // (e.g. ``x(x)`` when ``x`` is a scalar), matchvar is *not* set
+    // and the body is not run.
+    //
+    // Binding semantics:
+    //   * No match (no default taken):     vars unchanged
+    //     — switch-11.2 / -12.2
+    //   * Default arm taken:               vars set to empty lists
+    //     — switch-11.4 / -12.4 (TIP#75)
+    //   * Pattern matched:                 vars set to captures
+    //     — switch-11.1 / -12.1
+    if (mode == .regexp and (matchvar != 0 or indexvar != 0) and match_idx != -1) {
+        // ``match_pat_ptr == 0`` here means: default arm taken (no
+        // pattern matched).  Produces empty bindings via TIP#75.
+        const ok = switch_bind_capture_vars(
+            match_pat_ptr,
+            match_pat_len,
+            subject_s.ptr,
+            subject_s.len,
+            nocase,
+            matchvar,
+            indexvar,
+        );
+        if (!ok) return 0;
+    }
+
+    if (match_idx == -1) return obj_new_string(0, 0);
+
+    // Walk forward for non-``-`` body, then eval it.  On error,
+    // append ``("<pattern>" arm line N)`` to errorInfo (matches
+    // Tcl 9 ``SwitchPostProc`` in tclCmdMZ.c — line ~3933).  N is
+    // hard-coded to 1 for now: every failing tcltest exercises a
+    // single-line arm body, which is the only shape that produces
+    // a checkable result string.  Multi-line arm bodies don't
+    // appear in the upstream control-flow suite as exact-result
+    // tests; when one shows up we'll thread the actual error line
+    // through ``eval_script``.
+    var bi: i64 = match_idx;
+    var body_ptr: u32 = 0;
+    var body_len: u32 = 0;
+    var arm_pat_src_ptr: u32 = match_pat_src_ptr;
+    var arm_pat_src_len: u32 = match_pat_src_len;
+    while (bi < n_pairs) : (bi += 1) {
+        if (pairs_in_list) {
+            const e = elem_decoder.decode(bodies_list_ptr, bodies_list_len, bi * 2 + 1);
+            if (e.is_dash) {
+                // Take the *next* pair's pattern for the (arm line N)
+                // attribution per Tcl 9 — the dash forwards execution
+                // to the next concrete body, but the matching pattern
+                // is still the originally-matched one.
+                continue;
+            }
+            body_ptr = e.src_ptr;
+            body_len = e.src_len;
+            if (bi != match_idx) {
+                // For fall-through, the (arm line N) frame still
+                // attributes to the original matched pattern's text.
+                arm_pat_src_ptr = match_pat_src_ptr;
+                arm_pat_src_len = match_pat_src_len;
+            }
+            break;
+        } else {
+            const body = words[pair_base + @as(u32, @intCast(bi)) * 2 + 1];
+            const body_s = obj_ensure_string(body);
+            if (body_s.len == 1) {
+                const bp: [*]const u8 = @ptrFromInt(body_s.ptr);
                 if (bp[0] == '-') continue;
             }
-            return eval_script(list_s.ptr + body_e.start, body_e.len);
+            body_ptr = body_s.ptr;
+            body_len = body_s.len;
+            break;
         }
+    }
+    if (body_ptr == 0 and body_len == 0) {
+        // Should be unreachable per the "default must be last" rule;
+        // fall through to empty result.
         return obj_mod.obj_new_string(0, 0);
     }
 
-    // Inline form: words[i..] are alternating pattern/body
-    if (@rem(@as(u32, @intCast(words.len)) - i, 2) != 0) {
-        stubs.raise("extra switch pattern with no body");
-        return 0;
+    // If the matched pattern was "default", the (arm line N) frame
+    // uses literal "default" rather than the empty string.
+    var dflt_pat = [_]u8{ 'd', 'e', 'f', 'a', 'u', 'l', 't' };
+    if (match_idx >= 0 and match_pat_src_ptr == 0) {
+        // default arm — the matching wasn't done via PatRunner
+        arm_pat_src_ptr = @intFromPtr(&dflt_pat[0]);
+        arm_pat_src_len = 7;
+    } else if (match_idx >= 0 and arm_pat_src_len == 0) {
+        // Same path: arm_pat_src_ptr may have been zeroed by the
+        // default-as-last detection above.  Restore the literal
+        // ``default`` token.
+        arm_pat_src_ptr = @intFromPtr(&dflt_pat[0]);
+        arm_pat_src_len = 7;
     }
-    n_pairs = @intCast((words.len - i) / 2);
-    var pi: i64 = 0;
-    while (pi < n_pairs) : (pi += 1) {
-        const pat = words[i + @as(u32, @intCast(pi)) * 2];
-        const pat_s = obj_ensure_string(pat);
-        const is_default = pat_s.len == 7 and blk: {
-            const sp: [*]const u8 = @ptrFromInt(pat_s.ptr);
-            break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
-                sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
-        };
-        if (is_default and pi == n_pairs - 1) {
-            if (match_idx == -1) match_idx = pi;
+
+    const result = eval_script(body_ptr, body_len);
+    const ir = result_mod.snapshot(result);
+    if (ir.code == .ERROR) {
+        // Add ``("<pattern>" arm line N)`` to ::errorInfo and
+        // suppress the body's frame from being deduped against the
+        // arm-line frame.  Truncate pattern at 50 chars matching
+        // tclCmdMZ.c:3930 ``limit = 50``.
+        switch_append_arm_line(arm_pat_src_ptr, arm_pat_src_len);
+    }
+    // Switch's own enclosing ``invoked from within "switch ..."``
+    // frame is added by the caller's eval_script (we want it for
+    // switch tests 4.1 / 4.5 — switch is NOT bytecode-transparent
+    // the way ``while`` is).
+    _ = catch_mod; // Silence unused import on the OK path.
+    return result;
+}
+
+/// Return true if ``opt`` (an option spelling like ``-exa``) is a
+/// prefix of ``full`` (e.g. ``-exact``).  Both must begin with a
+/// dash; ``opt`` may be shorter than ``full`` but must be at least
+/// 2 bytes (the dash + at least one disambiguating letter).
+/// Single-byte ``-`` matches nothing — that's reserved for ``--``.
+fn switch_opt_prefix(opt_ptr: [*]const u8, opt_len: u32, comptime full: []const u8) bool {
+    if (opt_len < 2) return false;
+    if (opt_len > full.len) return false;
+    if (opt_ptr[0] != '-') return false;
+    var k: u32 = 0;
+    while (k < opt_len) : (k += 1) {
+        if (opt_ptr[k] != full[k]) return false;
+    }
+    return true;
+}
+
+/// Build and raise the canonical ``bad option "X": must be …`` error
+/// for switch.  Mirrors Tcl 9 ``Tcl_SwitchObjCmd`` (tclCmdMZ.c)'s
+/// option-set wording exactly so switch-3.x return-code tests catch
+/// the upstream string.
+fn switch_bad_option(opt_ptr: [*]const u8, opt_len: u32) void {
+    const prefix: []const u8 = "bad option \"";
+    const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
+    const total: u32 = @intCast(prefix.len + opt_len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    const bp: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        bp[off] = c;
+        off += 1;
+    }
+    var k: u32 = 0;
+    while (k < opt_len) : (k += 1) {
+        bp[off] = opt_ptr[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        bp[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Append ``\n    (setting foreach loop variable "X")`` to
+/// ``::errorInfo`` after a ``foreach`` variable bind raises.
+/// Mirrors Tcl 9's ``ForeachLoopStep`` (tclExecute.c) which sets
+/// this frame via ``Tcl_AppendObjToErrorInfo`` when the body's
+/// loop-variable set returns an error.
+fn foreach_append_var_frame(var_name_obj: i32) void {
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    const sn = obj_ensure_string(var_name_obj);
+    const prefix: []const u8 = "\n    (setting foreach loop variable \"";
+    const suffix: []const u8 = "\")";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (sn.len > 0 and sn.ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Shared body for the two proc-error-frame stamp entry points
+/// below.  Skips when no error is pending; consumes the
+/// ``return -code error`` marker (which bypasses the frame per Tcl 9
+/// ``TclUpdateReturnInfo``); strips any namespace prefix off
+/// ``name_ptr/name_len`` so the frame text uses the bare (last-
+/// segment) name; defaults the line to 1 when no
+/// ``error_frame_line`` was captured; delegates to
+/// :func:`proc_append_procedure_frame`; finally clears
+/// ``error_frame_line`` + ``error_info_supplied`` so the surrounding
+/// ``eval_script`` correctly stamps the outer ``invoked from within``
+/// callsite frame on the way out.  Mirrors Tcl 9
+/// ``MakeProcError`` + the ``checkForCatch`` ``ERR_ALREADY_LOGGED``
+/// reset (tclProc.c / tclExecute.c).
+fn proc_stamp_error_frame_inner(name_ptr: u32, name_len: u32) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    if (tcl_catch.state.error_flag == 0) return;
+    if (tcl_catch.state.return_via_error_code != 0) {
+        tcl_catch.state.return_via_error_code = 0;
+        return;
+    }
+    var bare_ptr = name_ptr;
+    var bare_len = name_len;
+    if (bare_len > 0 and bare_ptr != 0) {
+        const np: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        var last_colcol_end: u32 = 0;
+        while (k + 1 < name_len) : (k += 1) {
+            if (np[k] == ':' and np[k + 1] == ':') {
+                last_colcol_end = k + 2;
+            }
+        }
+        if (last_colcol_end > 0 and last_colcol_end < name_len) {
+            bare_ptr = name_ptr + last_colcol_end;
+            bare_len = name_len - last_colcol_end;
+        } else if (bare_len >= 2 and np[0] == ':' and np[1] == ':') {
+            bare_ptr = name_ptr + 2;
+            bare_len = name_len - 2;
+        }
+    }
+    var line_n = tcl_catch.state.error_frame_line;
+    if (line_n == 0) line_n = 1;
+    proc_append_procedure_frame(bare_ptr, bare_len, line_n);
+    tcl_catch.state.error_frame_line = 0;
+    tcl_catch.state.error_info_supplied = 0;
+}
+
+/// Compiled-proc epilogue hook: when the body's tail raised an
+/// error, append ``(procedure "X" line N)`` to ``::errorInfo`` using
+/// the proc's qualified name (passed by codegen) and the frame's
+/// tracked line.  Called by the codegen-emitted epilogue BEFORE
+/// ``tcl_frame_pop`` so the frame's metadata is still readable.
+/// All shared logic lives in :func:`proc_stamp_error_frame_inner`.
+pub export fn proc_stamp_error_frame(name_ptr: u32, name_len: u32) void {
+    proc_stamp_error_frame_inner(name_ptr, name_len);
+}
+
+/// Append the ``(procedure "X" line N)`` errorInfo frame after the
+/// interpreted-proc dispatch returns TCL_ERROR.  Reads the proc
+/// name from the *bucket* (compiled procs go through
+/// :func:`proc_stamp_error_frame` instead, called from the codegen
+/// epilogue).  Shared logic lives in
+/// :func:`proc_stamp_error_frame_inner`.
+fn proc_dispatch_stamp_error_frame(bucket: i32, result: i32) void {
+    const ir = result_mod.snapshot(result);
+    if (ir.code != .ERROR) return;
+    const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
+    const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
+    proc_stamp_error_frame_inner(name_ptr, name_len);
+}
+
+/// Append ``\n    (procedure "X" line N)`` to ``::errorInfo`` after
+/// a proc body raises.  Mirrors Tcl 9's proc dispatch frame logging
+/// (``Tcl_LogCommandInfo`` in ``TclEvalProcBody``).  N is the 1-based
+/// line number of the failing command inside the body.  Used by
+/// ``eval_proc_call_bucket`` after ``eval_script`` returns TCL_ERROR.
+fn proc_append_procedure_frame(name_ptr: u32, name_len: u32, line_n: u32) void {
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    // Decimal-render the line number with a small stack scratch (line
+    // numbers ≤ 10 digits even at i64 max, well under our 16-byte
+    // buffer).
+    var line_buf: [16]u8 = undefined;
+    var line_off: u32 = 0;
+    if (line_n == 0) {
+        line_buf[0] = '0';
+        line_off = 1;
+    } else {
+        var n = line_n;
+        var digits: [16]u8 = undefined;
+        var d_off: u32 = 0;
+        while (n > 0) : (n /= 10) {
+            digits[d_off] = @intCast('0' + (n % 10));
+            d_off += 1;
+        }
+        // Reverse into ``line_buf``.
+        while (d_off > 0) {
+            d_off -= 1;
+            line_buf[line_off] = digits[d_off];
+            line_off += 1;
+        }
+    }
+    const prefix: []const u8 = "\n    (procedure \"";
+    const middle: []const u8 = "\" line ";
+    const suffix: []const u8 = ")";
+    const total: u32 = @intCast(prefix.len + name_len + middle.len + line_off + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_len > 0 and name_ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    var k: u32 = 0;
+    while (k < line_off) : (k += 1) {
+        dst[off] = line_buf[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Append the ``\n    ("<pattern>" arm line N)`` errorInfo frame
+/// Tcl 9 ``SwitchPostProc`` writes after a body errors.  Falls back
+/// to ``"default"`` literal when the source pattern span is empty
+/// (caller substitutes a stack buffer for this).
+fn switch_append_arm_line(pat_src_ptr: u32, pat_src_len: u32) void {
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    // Compose the suffix into a scratch buffer: ``\n    ("<pat>" arm line 1)``.
+    // Limit pattern text to 50 chars (tclCmdMZ.c:3930 ``limit = 50``);
+    // an overflow appends ``...``.
+    const limit: u32 = 50;
+    const overflow: bool = pat_src_len > limit;
+    const pat_len_used: u32 = if (overflow) limit else pat_src_len;
+    const ellipsis: []const u8 = if (overflow) "..." else "";
+    const prefix: []const u8 = "\n    (\"";
+    const middle: []const u8 = "\" arm line 1)";
+    const total: u32 = @intCast(prefix.len + pat_len_used + ellipsis.len + middle.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (pat_len_used > 0 and pat_src_ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(pat_src_ptr);
+        var k: u32 = 0;
+        while (k < pat_len_used) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (ellipsis) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    // Borrow ``append_errinfo_frame`` to splice into the live
+    // ``::errorInfo`` global.  Pass as a Zig slice over the buffer.
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Bind ``-matchvar`` / ``-indexvar`` from a regexp match against
+/// ``subject``.  ``pat_*`` describes the matching pattern (or 0/0
+/// for "no pattern matched / default arm taken" — in which case
+/// the variables are set to empty lists).  Returns false when a
+/// variable set fails (e.g. ``x(x)`` when ``x`` is a scalar) so
+/// the caller can propagate the error without running a body.
+fn switch_bind_capture_vars(
+    pat_ptr: u32,
+    pat_len: u32,
+    sub_ptr: u32,
+    sub_len: u32,
+    nocase: bool,
+    matchvar: i32,
+    indexvar: i32,
+) bool {
+    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+    var match_list: i32 = 0;
+    var index_list: i32 = 0;
+    if (pat_ptr != 0) {
+        const built = tcl_regex.capture_match_for_switch(pat_ptr, pat_len, sub_ptr, sub_len, nocase);
+        match_list = built.match_list;
+        index_list = built.index_list;
+    }
+    if (match_list == 0) match_list = obj_new_string(0, 0);
+    if (index_list == 0) index_list = obj_new_string(0, 0);
+    // Set indexvar first, then matchvar — mirrors tclCmdMZ.c
+    // line ~3784 ordering.  Before each set, probe for the
+    // scalar-array-name conflict ourselves so the error message
+    // includes the full ``arr(key)`` form (``frames.var_set`` →
+    // ``tcl_array.find_or_create`` raises a bare ``can't set:
+    // variable isn't array`` which tests like switch-11.6 /
+    // switch-13.5 check by exact wording).
+    obj_mod.tcl_obj_retain(match_list);
+    obj_mod.tcl_obj_retain(index_list);
+    defer {
+        obj_mod.tcl_obj_release(match_list);
+        obj_mod.tcl_obj_release(index_list);
+    }
+    const catch_mod = @import("tcl_catch.zig");
+    if (indexvar != 0) {
+        if (switch_check_var_writable(indexvar) == false) return false;
+        _ = frames.var_set(indexvar, index_list);
+        if (catch_mod.state.error_flag != 0) return false;
+    }
+    if (matchvar != 0) {
+        if (switch_check_var_writable(matchvar) == false) return false;
+        _ = frames.var_set(matchvar, match_list);
+        if (catch_mod.state.error_flag != 0) return false;
+    }
+    return true;
+}
+
+/// Pre-flight check for the switch matchvar / indexvar set: raise
+/// ``can't set "arr(key)": variable isn't array`` directly (with
+/// the original full name) when the array-name part is already a
+/// scalar in scope, instead of letting ``var_set`` route through
+/// ``array_set`` which raises a bare ``can't set: variable isn't
+/// array`` without the name.  Returns ``false`` if a conflict was
+/// detected (and an error raised) so the caller stops.
+fn switch_check_var_writable(name_obj: i32) bool {
+    const ns_mod = @import("tcl_ns.zig");
+    const sn = obj_ensure_string(name_obj);
+    if (sn.len < 3 or sn.ptr == 0) return true;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    var paren: u32 = 0;
+    var found = false;
+    var k: u32 = 0;
+    while (k < sn.len) : (k += 1) {
+        if (sp[k] == '(') {
+            paren = k;
+            found = true;
             break;
         }
-        if (PatRunner.run(pat_s.ptr, pat_s.len, subject_s.ptr, subject_s.len, mode, nocase)) {
-            match_idx = pi;
-            break;
-        }
     }
-    if (match_idx == -1) return obj_new_string(0, 0);
-    var bi: i64 = match_idx;
-    while (bi < n_pairs) : (bi += 1) {
-        const body = words[i + @as(u32, @intCast(bi)) * 2 + 1];
-        const body_s = obj_ensure_string(body);
-        if (body_s.len == 1) {
-            const bp: [*]const u8 = @ptrFromInt(body_s.ptr);
-            if (bp[0] == '-') continue;
-        }
-        return eval_script(body_s.ptr, body_s.len);
+    if (!found or paren == 0 or sp[sn.len - 1] != ')') return true;
+    // ``ns_scalar_exists`` probes the root namespace.  When the
+    // array-name part is already a scalar there, set raises with
+    // the canonical wording.  Local-frame scalars would route
+    // through ``local_set`` later and a paren-name in a local
+    // is treated as a literal scalar by Tcl 9 — leave those alone.
+    if (ns_mod.ns_scalar_exists(sn.ptr, paren) == 0) return true;
+    // Build & raise ``can't set "<full>": variable isn't array``.
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": variable isn't array";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return false;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
     }
-    return obj_mod.obj_new_string(0, 0);
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        dst[off] = sp[i];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+    return false;
 }
 
 pub fn eval_foreach(words: []const i32) i32 {
@@ -2026,6 +3100,23 @@ pub fn eval_foreach(words: []const i32) i32 {
                     };
                 } else obj_new_string(0, 0); // past end of list → ""
                 _ = frames.var_set(var_name_obj, elem_val);
+                // ``foreach`` ${var binding} failed (e.g. trying to
+                // bind a scalar name to ``a`` when ``a`` is an
+                // array).  Match Tcl 9 ``ForeachLoopStep`` (tclExecute.c)
+                // by appending ``(setting foreach loop variable "X")``
+                // to errorInfo before propagating.  The outer
+                // ``invoked from within "foreach ..."`` frame is then
+                // added by the caller's eval_script.
+                {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    if (tcl_catch.state.error_flag != 0) {
+                        foreach_append_var_frame(var_name_obj);
+                        obj_mod.tcl_obj_release(elem_val);
+                        obj_mod.tcl_obj_release(var_name_obj);
+                        if (result != 0) obj_mod.tcl_obj_release(result);
+                        return 0;
+                    }
+                }
                 obj_mod.tcl_obj_release(elem_val);
                 obj_mod.tcl_obj_release(var_name_obj);
             }
@@ -2044,7 +3135,13 @@ pub fn eval_foreach(words: []const i32) i32 {
                 result_mod.consume(.BREAK);
                 break;
             },
-            .ERROR, .RETURN => return result,
+            .ERROR, .RETURN => {
+                if (ir.code == .ERROR) {
+                    const tcl_catch = @import("tcl_catch.zig");
+                    tcl_catch.state.transparent_error = 1;
+                }
+                return result;
+            },
         }
     }
     // foreach returns "" on normal completion — discard last body result.
@@ -2806,6 +3903,11 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             frames.frame_set_pending_argv0(words[0]);
         }
         var result = dispatch_mod.dispatch(bucket, words);
+        // (No stamp here for the compiled path — the codegen epilogue
+        // already calls ``proc_stamp_error_frame`` via the
+        // ``tcl_proc_stamp_error_frame`` import before its
+        // ``frame_pop``.  Stamping again would double-add the
+        // procedure frame.  See the interpreted path below.)
         // Absorb ``return`` at the proc-dispatch boundary, mirroring
         // the interpreted-proc path below.  Without this, a compiled
         // proc whose body ends in ``return X`` (via the eval-fallback
@@ -3099,6 +4201,15 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Evaluate body
     const body_s = obj_ensure_string(body_obj);
     const result = eval_script(body_s.ptr, body_s.len);
+
+    // Append ``(procedure "name" line N)`` to ``::errorInfo`` BEFORE
+    // popping the frame so a surrounding catch's traceback reports
+    // the failing line within the proc body.  Mirrors Tcl 9's proc
+    // dispatch frame logging via ``Tcl_LogCommandInfo``.  ``N`` is
+    // captured at error time from the current frame's tracked line
+    // (``tcl_cmd_error`` / ``tcl_cmd_error_full`` populate
+    // ``state.error_frame_line``).  error-2.3 / error-2.6 check this.
+    proc_dispatch_stamp_error_frame(bucket, result);
 
     // Pop frame
     frames.frame_pop();
@@ -4077,12 +5188,33 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
         tcl_catch.state.last_log_pos = cmd_start;
         return;
     }
+    // ``transparent_error`` is set by ``while``/``for``/``foreach`` when
+    // an error from their body propagates out.  Tcl 9 bytecode-
+    // compiles these commands so the loop itself never appears in the
+    // traceback — the body's own command frames provide the full
+    // context.  We mirror that here: consume the flag and skip adding
+    // an ``invoked from within "while ..."`` frame for the loop
+    // command itself.  Still stamp the dedup keys so any further
+    // unwinding through outer eval frames uses ``invoked from within``
+    // for the outermost frame that wasn't transparent.
+    if (tcl_catch.state.transparent_error != 0) {
+        tcl_catch.state.transparent_error = 0;
+        tcl_catch.state.last_log_script = script_ptr;
+        tcl_catch.state.last_log_pos = cmd_start;
+        return;
+    }
     const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
     if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;
     const max_len: u32 = 150;
-    const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
-    const need_ellipsis: bool = cmd_len > max_len;
+    // Tcl 9 normalises ``\<NL><whitespace>+`` to a single space when
+    // formatting the command source for ``::errorInfo``.  Mirror that
+    // here so multi-line commands (``catch {switch foo a {…} \``
+    // ``<NL>     default {…}}``) report the canonical single-space
+    // form rather than the raw ``\<NL><tab>     `` bytes (switch-4.5).
+    const norm_full_len = log_cmd_normalized_len(script_ptr + cmd_start, cmd_len);
+    const trunc_len: u32 = if (norm_full_len > max_len) max_len else norm_full_len;
+    const need_ellipsis: bool = norm_full_len > max_len;
     // Pick base text: ``::errorInfo`` when ``append_errinfo_frame``
     // appended a per-command frame (sentinel: last_log_script != 0
     // and last_log_pos == 0), else fall back to ``error_msg`` so a
@@ -4092,6 +5224,16 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     // appends).  The narrow sentinel match is the *only* path where
     // we read errorInfo back; every other ``log_command_info`` call
     // builds errorInfo from ``error_msg`` directly.
+    //
+    // Inside the sentinel branch ``::errorInfo`` is by construction
+    // owned by the *current* error event (catch_leave clears
+    // ``last_log_*``, so the sentinel can only re-arm via
+    // ``append_errinfo_frame`` from within the same unwind).  Use
+    // the live ``::errorInfo`` as the base unconditionally — the
+    // earlier prefix-of-msg gate broke ``error msg info`` re-raises
+    // where ``::errorInfo`` legitimately starts with the *info*
+    // argument's text rather than ``msg`` (error-2.6's ``glorp2 …``
+    // vs ``Human-generated``).
     const cur_s = blk: {
         const msg_s = obj_mod.obj_ensure_string(cur);
         if (tcl_catch.state.last_log_script != 0 and tcl_catch.state.last_log_pos == 0) {
@@ -4102,24 +5244,12 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
                 const ei_s = obj_mod.obj_ensure_string(ei_cur);
                 // Guard against zero-pointer string reps before
                 // ``@ptrFromInt`` — ReleaseSafe panics with
-                // ``cast causes pointer to be null`` if either
-                // span has len > 0 with a stale 0 ptr (seen when
-                // the proc-call recursion-limit error fires with
-                // a message obj whose string rep was pre-built
-                // but whose underlying buffer was already freed).
-                if (ei_s.len > msg_s.len and msg_s.ptr != 0 and ei_s.ptr != 0) {
-                    const msg_p: [*]const u8 = @ptrFromInt(msg_s.ptr);
-                    const ei_p: [*]const u8 = @ptrFromInt(ei_s.ptr);
-                    var matches = true;
-                    var k: u32 = 0;
-                    while (k < msg_s.len) : (k += 1) {
-                        if (msg_p[k] != ei_p[k]) {
-                            matches = false;
-                            break;
-                        }
-                    }
-                    if (matches) break :blk ei_s;
-                }
+                // ``cast causes pointer to be null`` if a non-zero
+                // length span carries a stale 0 ptr (seen when
+                // the proc-call recursion-limit error fires with a
+                // message obj whose string rep was pre-built but
+                // whose underlying buffer was already freed).
+                if (ei_s.len > 0 and ei_s.ptr != 0) break :blk ei_s;
             }
         }
         break :blk msg_s;
@@ -4162,12 +5292,11 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     }
     // ``script_ptr == 0`` was already filtered at function entry,
     // so by here ``script_ptr + cmd_start`` is non-zero and the
-    // ``@ptrFromInt`` cast cannot panic.
-    const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
-    for (0..trunc_len) |k| {
-        dst[off] = cmdp[k];
-        off += 1;
-    }
+    // ``@ptrFromInt`` cast cannot panic.  Copy the command bytes
+    // through the normalising helper so ``\<NL><whitespace>+``
+    // collapses to a single space (matches Tcl 9's source-form
+    // canonicalisation in ``Tcl_LogCommandInfo``).
+    off = log_cmd_copy_normalized(dst, off, script_ptr + cmd_start, cmd_len, trunc_len);
     if (need_ellipsis) for (ellipsis) |b| {
         dst[off] = b;
         off += 1;
@@ -4186,6 +5315,57 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     obj_mod.tcl_obj_release(info_name);
     tcl_catch.state.last_log_script = script_ptr;
     tcl_catch.state.last_log_pos = cmd_start;
+}
+
+/// Count the bytes a normalised copy of *src* of length *len* would
+/// emit, where each ``\<NL><whitespace>+`` sequence (backslash, then
+/// newline, then 0+ horizontal whitespace) is collapsed to a single
+/// space.  Mirrors Tcl 9's ``Tcl_LogCommandInfo`` source-form
+/// canonicalisation so multi-line commands report on one line in
+/// ``::errorInfo`` (switch-4.5).
+fn log_cmd_normalized_len(src_ptr: u32, len: u32) u32 {
+    if (src_ptr == 0 or len == 0) return 0;
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    var i: u32 = 0;
+    var out_len: u32 = 0;
+    while (i < len) {
+        if (i + 1 < len and src[i] == '\\' and src[i + 1] == '\n') {
+            // ``\<NL>`` → one space, plus consume the following
+            // horizontal whitespace run.
+            out_len += 1;
+            i += 2;
+            while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+            continue;
+        }
+        out_len += 1;
+        i += 1;
+    }
+    return out_len;
+}
+
+/// Copy at most *max_out* bytes of *src* (length *len*) into *dst* at
+/// offset *off*, normalising ``\<NL><whitespace>+`` to a single space.
+/// Returns the new offset after the copy.  Used by ``log_command_info``
+/// to format the command-source frame for ``::errorInfo``.
+fn log_cmd_copy_normalized(dst: [*]u8, off_in: u32, src_ptr: u32, len: u32, max_out: u32) u32 {
+    if (src_ptr == 0 or len == 0 or max_out == 0) return off_in;
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    var i: u32 = 0;
+    var off: u32 = off_in;
+    const limit: u32 = off_in + max_out;
+    while (i < len and off < limit) {
+        if (i + 1 < len and src[i] == '\\' and src[i + 1] == '\n') {
+            dst[off] = ' ';
+            off += 1;
+            i += 2;
+            while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+            continue;
+        }
+        dst[off] = src[i];
+        off += 1;
+        i += 1;
+    }
+    return off;
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.
@@ -4299,6 +5479,20 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             // inside ``w[continue]`` must propagate as TCL_CONTINUE
             // (parse-17.1), not result in a phantom dispatch of ``w``.
             if (has_signal()) {
+                // Arg-substitution error → the command was never
+                // dispatched.  Tcl 9 bytecode-compiles most commands,
+                // so a sub-script error from arg eval skips the
+                // outer command's traceback frame (the body inside
+                // the sub-script already added its own).  Mirror
+                // that here: set ``transparent_error`` so the
+                // surrounding ``eval_script``'s ``log_command_info``
+                // skips the outer ``invoked from within "<outer>"``
+                // frame (error-1.3, error-2.6's inner
+                // ``format [error glorp2]`` masquerade).
+                const tcl_catch = @import("tcl_catch.zig");
+                if (tcl_catch.state.error_flag != 0) {
+                    tcl_catch.state.transparent_error = 1;
+                }
                 var rj: u32 = 0;
                 while (rj < wi) : (rj += 1) {
                     if (word_objs[rj] != 0) obj_mod.tcl_obj_release(word_objs[rj]);

@@ -114,6 +114,7 @@ class _WasmEmitterBase:
         shared_string_offset: list[int] | None = None,
         proc_qname: str | None = None,
         proc_body_source: str | None = None,
+        proc_first_line: int = 0,
         diag_map: DiagMap | None = None,
         escape_summary: "ProcEscapeSummary | None" = None,
         proc_imports: dict[str, dict[str, str]] | None = None,
@@ -141,6 +142,14 @@ class _WasmEmitterBase:
         # ``when`` handlers) — the prologue skips the stamp in that
         # case.
         self._proc_body_source = proc_body_source
+        # 0-based file line where the proc's ``proc NAME {…} {`` token
+        # begins.  Used by :func:`_emit_frame_set_line` to convert each
+        # statement's file-relative ``range.start.line`` into the
+        # body-relative line ``frame.line`` should carry — Tcl 9's
+        # ``(procedure "X" line N)`` and ``info frame -line`` both
+        # report body-relative lines, not file-relative.  Defaults to
+        # 0 for top-level scripts.
+        self._proc_first_line = proc_first_line
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
@@ -1443,6 +1452,37 @@ class _WasmEmitterBase:
                 WasmInstruction(op=WasmOp.LOCAL_GET, operands=_leb128_unsigned(save_local))
             )
         if wants_frame:
+            # Before popping the frame, stamp ``(procedure "X" line
+            # N)`` onto ``::errorInfo`` if an error is propagating
+            # out — Tcl 9 ``Tcl_LogCommandInfo`` does this for every
+            # proc on the stack as the error unwinds.  The runtime
+            # helper is a no-op when no error is pending.  ``X`` =
+            # the proc's qualified name (the runtime strips it to
+            # the bare last segment); ``N`` = ``error_frame_line``
+            # captured at ``tcl_cmd_error`` time.
+            stamp_idx = self._shared_imports.get("tcl_proc_stamp_error_frame")
+            if stamp_idx is not None and self._proc_qname is not None:
+                qname_encoded = self._proc_qname.encode("utf-8", errors="surrogatepass")
+                if qname_encoded:
+                    qname_offset = self._intern_string(self._proc_qname)
+                    cleanup_instrs.append(
+                        WasmInstruction(
+                            op=WasmOp.I32_CONST,
+                            operands=_leb128_signed(qname_offset + 4),
+                        )
+                    )
+                    cleanup_instrs.append(
+                        WasmInstruction(
+                            op=WasmOp.I32_CONST,
+                            operands=_leb128_signed(len(qname_encoded)),
+                        )
+                    )
+                    cleanup_instrs.append(
+                        WasmInstruction(
+                            op=WasmOp.CALL,
+                            operands=_leb128_unsigned(stamp_idx),
+                        )
+                    )
             pop_idx = self._shared_imports.get("tcl_frame_pop")
             if pop_idx is not None:
                 cleanup_instrs.append(

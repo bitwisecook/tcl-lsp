@@ -707,6 +707,7 @@ def wasm_codegen_module(
         # in that case.
         ir_proc_for_body = ir_module.procedures.get(qname)
         proc_body_source = ir_proc_for_body.body_source if ir_proc_for_body is not None else None
+        proc_first_line = ir_proc_for_body.range.start.line if ir_proc_for_body is not None else 0
         callable_emitter = _WasmEmitter(
             cfg_func,
             params=params,
@@ -721,6 +722,7 @@ def wasm_codegen_module(
             shared_string_offset=shared_string_offset,
             proc_qname=qname,
             proc_body_source=proc_body_source,
+            proc_first_line=proc_first_line,
             diag_map=diag_map,
             escape_summary=proc_escape,
             proc_imports=proc_imports,

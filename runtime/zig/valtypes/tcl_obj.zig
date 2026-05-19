@@ -773,7 +773,7 @@ fn float_to_i128_clamped(fval: f64) i128 {
 /// that surface a float operand to a caller expecting an i64; debug
 /// builds previously panicked on ``int(1.0e30)`` because the
 /// unchecked ``@intFromFloat`` was outside the i64 range.
-fn float_to_i64_clamped(fval: f64) i64 {
+pub fn float_to_i64_clamped(fval: f64) i64 {
     if (std.math.isNan(fval)) return 0;
     const i64_max_f: f64 = @floatFromInt(std.math.maxInt(i64));
     const i64_min_f: f64 = @floatFromInt(std.math.minInt(i64));

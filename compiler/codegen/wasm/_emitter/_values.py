@@ -1004,6 +1004,13 @@ class _WasmEmitterValuesMixin(_Base):
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = cmd_args[1:]
+                # ``dict get DICT KEY ?KEY...?`` — multi-key chain
+                # descent into nested dicts.  The 2-param fast path
+                # only sees the first key; route extra keys through
+                # eval so the runtime walks the chain (error-18.10).
+                if subcmd == "get" and len(sub_args) > 2:
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                    return
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
@@ -1220,6 +1227,16 @@ class _WasmEmitterValuesMixin(_Base):
         finally:
             self._current_call_tokens = prev_tokens
 
+        # ``[error MSG]`` in value context — route through
+        # eval-fallback so the surrounding eval_script's
+        # ``log_command_info`` adds the ``\n    while executing\n
+        # "error MSG"`` frame to ``::errorInfo``.  The direct
+        # ``tcl_cmd_error`` call below bypasses this frame entirely
+        # because the WASM-level call site has no equivalent of
+        # ``TclLogCommandInfo`` (error-2.6 + error-1.3 check this).
+        if cmd_name == "error":
+            self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+            return
         # Runtime command in value context (llength, lindex, etc.)
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:
