@@ -2112,6 +2112,43 @@ pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
 
 // -- Local variable operations on current frame --
 
+/// Raise the canonical ``can't set "<name>": variable is array`` Tcl
+/// error for an attempt to write a scalar slot that's already shaped
+/// as an array.  Used by :func:`local_set` to mirror C Tcl's variable
+/// model when ``set a 1`` collides with an existing ``set a(k) v``
+/// (lmap-4.15 / set-7.* / array.test 11.* ish family).
+fn raise_variable_is_array(name_ptr: u32, name_len: u32) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": variable is array";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        tcl_catch.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_ptr != 0) {
+        const np: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: usize = 0;
+        while (k < name_len) : (k += 1) {
+            dst[off + k] = np[k];
+        }
+        off += name_len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    tcl_catch.tcl_cmd_error(msg);
+}
+
 /// Set a local variable in the current frame.
 /// If no frame is active, falls through to global_set.
 /// Follows ALIAS_GLOBAL and ALIAS_EXT on write.
@@ -2119,6 +2156,26 @@ pub export fn local_set(name: i32, value: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
+        // Block scalar writes that collide with an existing local
+        // array — Tcl raises ``can't set "X": variable is array``
+        // (lmap-4.15: ``set a(0) 44; lmap a {1 2 3} {}`` must fail
+        // on the lmap's first iteration set).  Check the array
+        // directory under the proc-local qualifier when no scalar
+        // slot exists yet; an existing scalar shadows / replaces
+        // the array slot via the normal write below.
+        if (sn.len > 0 and frame_find(base, sn.ptr, sn.len, hash) == null) {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const resolved = frame_resolve_array_name(name);
+            if (resolved != name) {
+                const ar_s = obj_ensure_string(resolved);
+                if (tcl_array.array_exists_raw(ar_s.ptr, ar_s.len)) {
+                    raise_variable_is_array(sn.ptr, sn.len);
+                    obj.tcl_obj_release(resolved);
+                    return 0;
+                }
+                obj.tcl_obj_release(resolved);
+            }
+        }
         // Promote borrowed (parser-produced) string TclObjs to
         // owning copies before the slot retains them.  Matches the
         // var_set_scalar guard — see that function's docstring for

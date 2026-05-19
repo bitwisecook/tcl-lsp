@@ -126,20 +126,52 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
         const idx_count = rt.list_count_elements(is_s.ptr, is_s.len);
         if (idx_count == 0) return result_mod.from_globals(current);
         if (idx_count == 1) {
+            // Single-element index list: if the arg was already a
+            // bare scalar (no whitespace), validate its shape and
+            // raise ``bad index`` on garbage like ``b`` or ``0a2``.
+            // A scalar that happens to contain whitespace (e.g. the
+            // wrapping-list form ``{2 1}``) routes through the
+            // walk below and individual elements get validated
+            // there.
+            if (!has_list_whitespace(is_s.ptr, is_s.len) and !list_mod.is_valid_list_index(idx_arg)) {
+                list_mod.raise_bad_list_index(idx_arg);
+                return result_mod.from_globals(0);
+            }
             return result_mod.from_globals(rt.tcl_cmd_list_index(current, idx_arg));
         }
         var k: i64 = 0;
         while (k < idx_count) : (k += 1) {
             const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
+            if (!list_mod.is_valid_list_index(ei)) {
+                list_mod.raise_bad_list_index(ei);
+                return result_mod.from_globals(0);
+            }
             current = rt.tcl_cmd_list_index(current, ei);
         }
         return result_mod.from_globals(current);
     }
     var ai: u32 = 2;
     while (ai < words.len) : (ai += 1) {
+        if (!list_mod.is_valid_list_index(words[ai])) {
+            list_mod.raise_bad_list_index(words[ai]);
+            return result_mod.from_globals(0);
+        }
         current = rt.tcl_cmd_list_index(current, words[ai]);
     }
     return result_mod.from_globals(current);
+}
+
+/// Cheap check for whitespace inside *idx*; used to disambiguate a
+/// scalar index from a single-element list-form index.
+fn has_list_whitespace(ptr: u32, len: u32) bool {
+    if (ptr == 0 or len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const c = sp[i];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == 0x0B or c == 0x0C) return true;
+    }
+    return false;
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
@@ -173,37 +205,115 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"linsert list index ?element ...?\"");
         return result_mod.from_globals(0);
     }
-    if (words.len >= 4) {
-        const list_arg = words[1];
-        const idx_arg = words[2];
-        const idx_s = obj_ensure_string(idx_arg);
-        var forward = false;
-        if (idx_s.len >= 3) {
-            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
-            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
-        }
-        var result: i32 = list_arg;
-        if (forward) {
-            var wi: u32 = 3;
-            while (wi < words.len) : (wi += 1) {
-                result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi]);
-            }
-        } else {
-            var wi: u32 = words.len;
-            while (wi > 3) {
-                wi -= 1;
-                result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi]);
-            }
-        }
-        return result_mod.from_globals(result);
+    const list_arg = words[1];
+    const idx_arg = words[2];
+    // Validate list syntax — ``linsert \{ 12 2`` must raise
+    // ``unmatched open brace in list`` rather than silently producing
+    // garbage (linsert-2.4).
+    const ls = obj_ensure_string(list_arg);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // Validate index — ``linsert a b`` must raise ``bad index "b"``
+    // rather than treating ``b`` as 0 (linsert-2.2/2.3).
+    if (!list_mod.is_valid_list_index(idx_arg)) {
+        list_mod.raise_bad_list_index(idx_arg);
+        return result_mod.from_globals(0);
     }
-    // linsert LIST INDEX with no values is a degenerate no-op
-    // returning LIST.
-    return result_mod.from_globals(words[1]);
+    // ``linsert LIST INDEX`` with no values still canonicalises the
+    // input list — ``linsert "a\nb\nc" 0`` → ``a b c`` (linsert-2.5/
+    // 2.6, TIP 323).  Round-trip through ``list_count_elements`` +
+    // ``list_element_at`` so each element comes back canonically
+    // quoted regardless of the input's whitespace flavour.
+    if (words.len < 4) {
+        return result_mod.from_globals(canonicalise_list(list_arg));
+    }
+    // Resolve the insertion position ONCE from the original list
+    // length.  ``end`` semantically denotes the slot AFTER the last
+    // element, so resolve as if the list had n+1 positions (matching
+    // ``tcl_cmd_list_insert`` / reference ``Tcl_LinsertObjCmd``).
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    var resolved_idx: i64 = list_mod.resolve_list_index(idx_arg, n_i64 + 1);
+    if (resolved_idx < 0) resolved_idx = 0;
+    if (resolved_idx > n_i64) resolved_idx = n_i64;
+    // Insert in FORWARD order with the position incrementing — each
+    // value lands AFTER the previous one.  This unifies the two
+    // earlier reverse-iteration branches whose clamping interacted
+    // badly when the index exceeded the original length (linsert-1.10:
+    // ``linsert {} 2 a b c`` was returning ``c b a``).
+    var result: i32 = list_arg;
+    var pos: i64 = resolved_idx;
+    var wi: u32 = 3;
+    while (wi < words.len) : (wi += 1) {
+        result = rt.tcl_cmd_list_insert(result, obj_new_int(pos), words[wi]);
+        pos += 1;
+    }
+    return result_mod.from_globals(result);
+}
+
+/// Build the canonical Tcl list representation of *list_arg*.  Used by
+/// ``linsert LIST INDEX`` with no values (TIP 323) — the resulting
+/// string round-trips every element through ``list_elem_quote`` so
+/// whitespace-only sources (``"a\nb\nc"``) come back as ``a b c``.
+fn canonicalise_list(list_arg: i32) i32 {
+    const ls = obj_ensure_string(list_arg);
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    if (n_i64 == 0) return obj_new_string(0, 0);
+    const n: u32 = @intCast(n_i64);
+    // Worst case: every element doubles in length plus brace pair,
+    // plus n-1 separators.
+    const buf = alloc(ls.len * 2 + n * 3 + 4);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const elem = rt.list_element_at(ls.ptr, ls.len, @intCast(i));
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        if (elem.braced) {
+            // Braced elements are already literal — re-quote with
+            // ``list_elem_quote`` so the result follows canonical
+            // form (a brace-pair becomes ``{...}`` again if any
+            // special chars are present).
+            off = list_mod.append_list_element(buf, off, ls.ptr, elem, off == 0);
+        } else {
+            // Unbraced: decode any backslash escapes, then re-quote.
+            const scratch = alloc(elem.len);
+            if (scratch == 0) {
+                const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &obj_mod.list_elem_quote else &obj_mod.list_elem_quote_nth;
+                off = quoter(buf, off, ls.ptr + elem.start, elem.len);
+            } else {
+                const dec_len = rt.copy_unbraced_elem(scratch, ls.ptr + elem.start, elem.len);
+                const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &obj_mod.list_elem_quote else &obj_mod.list_elem_quote_nth;
+                off = quoter(buf, off, scratch, dec_len);
+                obj_mod.free_sized(scratch, elem.len);
+            }
+        }
+    }
+    return obj_mod.obj_new_string_take(buf, off, ls.len * 2 + n * 3 + 4);
 }
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
-    if (words.len < 4) return result_mod.from_globals(0);
+    if (words.len < 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lreplace list first last ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
+    // Validate list syntax — ``lreplace`` raises ``unmatched open
+    // brace in list`` for malformed input before parsing indices,
+    // matching reference Tcl (listobj-7.2/7.3).
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    if (!list_mod.is_valid_list_index(words[2])) {
+        list_mod.raise_bad_list_index(words[2]);
+        return result_mod.from_globals(0);
+    }
+    if (!list_mod.is_valid_list_index(words[3])) {
+        list_mod.raise_bad_list_index(words[3]);
+        return result_mod.from_globals(0);
+    }
     return result_mod.from_globals(do_lreplace(words[1], words[2], words[3], words, 4));
 }
 
@@ -809,38 +919,103 @@ fn ls_subindex_pair(outer: i64, inner: i64) i32 {
     return rt.tcl_list(rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer)), obj_new_int(inner));
 }
 
-// Build a list of sub-indices ``{outer i1 i2 ...}`` from the outer
-// element position plus an -index PATH so the lsearch -subindices
-// return value reflects the full traversal depth, not just the first
-// drill level.  Used when *index_arg* is a multi-element list.
-fn ls_subindex_path(outer: i64, path_obj: i32) i32 {
+// Build a list of sub-indices for ``lsearch -subindices`` output.
+//
+// With ``-stride 1`` (the default): output is ``{outer p0 p1 ...}`` —
+// the outer index followed by every level of the ``-index`` path.
+//
+// With ``-stride > 1``: the FIRST path element selects the element
+// inside the group (relative to ``outer``), so the result is
+// ``{outer+p0 p1 p2 ...}`` — only ``p1...`` survive as sub-indices.
+// Tracks reference Tcl 9 ``Tcl_LsearchObjCmd`` in ``tclCmdIL.c``
+// (lsearch-26.* / 27.* expect the merged-first-index form).
+//
+// Each path level is resolved against the actual element at that
+// level (rather than emitted verbatim), so ``-index end`` reports
+// the numeric tail index — lsearch-19.7 expects ``{0 1}``, not
+// ``{0 end}``.
+fn ls_subindex_path(ls_ptr: u32, ls_len: u32, outer: i64, path_obj: i32, stride: i64) i32 {
     if (path_obj == 0) return obj_new_int(outer);
     const ps = obj_ensure_string(path_obj);
     if (ps.len == 0) return obj_new_int(outer);
     const path_count = rt.list_count_elements(ps.ptr, ps.len);
     if (path_count == 0) return obj_new_int(outer);
-    var result: i32 = rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer));
-    var i: i64 = 0;
+    var start_index: i64 = 0;
+    var first_outer: i64 = outer;
+    if (stride > 1) {
+        const first_obj = rt.tcl_cmd_list_index(path_obj, obj_new_int(0));
+        const offset = list_mod.resolve_list_index(first_obj, stride);
+        first_outer = outer + offset;
+        start_index = 1;
+    }
+    // Walk the same drilling path the matcher took so each ``end`` /
+    // ``end-N`` / arithmetic index reports the absolute number it
+    // resolved to.  ``current`` starts at the outer element (or, for
+    // stride > 1, the within-group target).
+    const elem = rt.list_element_at(ls_ptr, ls_len, first_outer);
+    var current_ptr: u32 = ls_ptr + elem.start;
+    var current_len: u32 = elem.len;
+    if (!elem.braced and current_len > 0) {
+        const buf = alloc(current_len + 4);
+        if (buf != 0) {
+            const decoded = rt.copy_unbraced_elem(buf, current_ptr, current_len);
+            current_ptr = buf;
+            current_len = decoded;
+        }
+    }
+    var current_obj: i32 = obj_new_string(@bitCast(current_ptr), @bitCast(current_len));
+    var result: i32 = rt.tcl_list(obj_new_string(0, 0), obj_new_int(first_outer));
+    var i: i64 = start_index;
     while (i < path_count) : (i += 1) {
         const idx_obj = rt.tcl_cmd_list_index(path_obj, obj_new_int(i));
-        result = rt.tcl_list(result, idx_obj);
+        const cs = obj_ensure_string(current_obj);
+        const n_cur = rt.list_count_elements(cs.ptr, cs.len);
+        const resolved = list_mod.resolve_list_index(idx_obj, n_cur);
+        result = rt.tcl_list(result, obj_new_int(resolved));
+        current_obj = rt.tcl_cmd_list_index(current_obj, idx_obj);
     }
     return result;
 }
 
-// Get the matchable bytes for element at `idx`, optionally drilling
-// into a sub-element via `index_arg` (a TclObj whose string is either
-// a single index or a list of indices forming an -index PATH).
-// Returns (ep, elen, sub_idx) — sub_idx is the FIRST level's index
-// for the legacy ls_subindex_pair caller; multi-level subindices use
-// ls_subindex_path instead.
+// Get the matchable bytes for the search target at *idx*, optionally
+// drilling via an ``-index`` *path*.  ``stride`` distinguishes the two
+// shapes of the path:
+//
+//   * ``stride == 1``: ``idx`` selects the outer element; the FULL
+//     path drills into it.
+//   * ``stride > 1``: ``idx`` is the group start, ``path[0]``
+//     selects the element WITHIN the group (full position
+//     ``idx + path[0]``) and the rest of the path drills into that
+//     element.
+//
+// Returns (ep, elen, sub_idx) — sub_idx is the FIRST drill level's
+// index, retained for the legacy ``ls_subindex_pair`` caller.  Multi-
+// level subindices use :func:`ls_subindex_path` instead.
 fn ls_get_match_target(
     ls_ptr: u32,
     ls_len: u32,
     idx: i64,
     index_arg: i32,
+    stride: i64,
 ) struct { ep: u32, elen: u32, sub_idx: i64 } {
-    const outer_elem = rt.list_element_at(ls_ptr, ls_len, idx);
+    // Compute the outer position the search target belongs to.  With
+    // stride > 1 and a path, ``path[0]`` shifts the group-relative
+    // offset.
+    var outer_idx: i64 = idx;
+    var skip_first: bool = false;
+    if (stride > 1 and index_arg != 0) {
+        const ps_check = obj_ensure_string(index_arg);
+        if (ps_check.len > 0) {
+            const pc_check = rt.list_count_elements(ps_check.ptr, ps_check.len);
+            if (pc_check > 0) {
+                const first_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(0));
+                const offset = list_mod.resolve_list_index(first_obj, stride);
+                outer_idx = idx + offset;
+                skip_first = true;
+            }
+        }
+    }
+    const outer_elem = rt.list_element_at(ls_ptr, ls_len, outer_idx);
     var outer_ptr: u32 = ls_ptr + outer_elem.start;
     var outer_len: u32 = outer_elem.len;
     if (!outer_elem.braced and outer_len > 0) {
@@ -871,13 +1046,17 @@ fn ls_get_match_target(
     // caller keeps it alive for the duration of the search.
     var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
     var first_sub: i64 = 0;
-    var p: i64 = 0;
+    var p: i64 = if (skip_first) 1 else 0;
+    var first_recorded = false;
     while (p < path_count) : (p += 1) {
         const idx_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(p));
         const cs = obj_ensure_string(current);
         const n_cur = rt.list_count_elements(cs.ptr, cs.len);
         const resolved = list_mod.resolve_list_index(idx_obj, n_cur);
-        if (p == 0) first_sub = resolved;
+        if (!first_recorded) {
+            first_sub = resolved;
+            first_recorded = true;
+        }
         current = rt.tcl_cmd_list_index(current, idx_obj);
     }
     const final_s = obj_ensure_string(current);
@@ -895,6 +1074,7 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     var nocase = false;
     var do_inline = false;
     var start: i64 = 0;
+    var start_obj: i32 = 0; // -start argument TclObj (0 = not given)
     var stride: i64 = 1;
     var index_arg: i32 = 0; // -index argument TclObj (0 = not given)
     var do_subindices = false;
@@ -927,7 +1107,9 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             do_subindices = true;
         } else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
             ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
+            ls_opt_eq(sv.ptr, sv.len, "-increasing") or
             ls_opt_eq(sv.ptr, sv.len, "-bisect") or
+            ls_opt_eq(sv.ptr, sv.len, "-ascii") or
             ls_opt_eq(sv.ptr, sv.len, "-integer") or
             ls_opt_eq(sv.ptr, sv.len, "-real") or
             ls_opt_eq(sv.ptr, sv.len, "-dictionary"))
@@ -936,8 +1118,10 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
         } else if (ls_opt_eq(sv.ptr, sv.len, "-start")) {
             wi += 1;
             if (wi + 1 >= words.len) break;
-            const v = obj_mod.obj_get_int(words[wi]);
-            start = if (v < 0) 0 else v;
+            // Resolve against the list length below, after we know
+            // ``n``.  ``-start end-N`` (lsearch-10.3) and ``-start
+            // 0xFF`` both need the list context.
+            start_obj = words[wi];
         } else if (ls_opt_eq(sv.ptr, sv.len, "-stride")) {
             wi += 1;
             if (wi + 1 >= words.len) break;
@@ -994,6 +1178,14 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     const pv = obj_ensure_string(pat_obj);
     const n = rt.list_count_elements(ls.ptr, ls.len);
 
+    // Resolve ``-start`` now that ``n`` is known.  Reference Tcl
+    // accepts ``end[-+]N`` and integer arithmetic here (lsearch-10.3
+    // / 10.4 / 10.5).  Negative resolutions clamp to 0.
+    if (start_obj != 0) {
+        const v = list_mod.resolve_list_index(start_obj, n);
+        start = if (v < 0) 0 else v;
+    }
+
     // Align idx to the first stride group that covers [start, n).
     var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
 
@@ -1048,7 +1240,7 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     } else {
         // -index path: random-access (lists using -index are typically small).
         while (idx < n) : (idx += stride) {
-            const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg);
+            const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg, stride);
             const raw: bool = switch (mode) {
                 'e' => ls_match_exact(nocase, pv.ptr, pv.len, t.ep, t.elen),
                 'r' => blk: {
@@ -1064,13 +1256,13 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             if (!matched) continue;
             if (!find_all) {
                 if (do_inline) return result_mod.from_globals(obj_new_string(@bitCast(t.ep), @bitCast(t.elen)));
-                if (do_subindices) return result_mod.from_globals(ls_subindex_path(idx, index_arg));
+                if (do_subindices) return result_mod.from_globals(ls_subindex_path(ls.ptr, ls.len, idx, index_arg, stride));
                 return result_mod.from_globals(obj_new_int(idx));
             }
             const entry: i32 = if (do_inline)
                 obj_new_string(@bitCast(t.ep), @bitCast(t.elen))
             else if (do_subindices)
-                ls_subindex_path(idx, index_arg)
+                ls_subindex_path(ls.ptr, ls.len, idx, index_arg, stride)
             else
                 obj_new_int(idx);
             acc = list_mod.tcl_cmd_lappend(acc, entry);
@@ -1083,8 +1275,31 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lrange(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 4) return result_mod.from_globals(rt.tcl_cmd_list_range(words[1], words[2], words[3]));
-    return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len != 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lrange list first last\"");
+        return result_mod.from_globals(0);
+    }
+    // Validate list syntax — raises ``unmatched open brace in list``
+    // / ``list element in quotes followed by ... instead of space`` /
+    // ``list element in braces followed by ... instead of space``
+    // when *list* is malformed.  Reference Tcl: ``Tcl_LrangeObjCmd``
+    // calls ``TclListObjGetElements`` which fails before any index
+    // resolution.
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // Validate index syntax — ``lrange L b 6`` must raise ``bad
+    // index "b"`` rather than silently treating ``b`` as 0.
+    if (!list_mod.is_valid_list_index(words[2])) {
+        list_mod.raise_bad_list_index(words[2]);
+        return result_mod.from_globals(0);
+    }
+    if (!list_mod.is_valid_list_index(words[3])) {
+        list_mod.raise_bad_list_index(words[3]);
+        return result_mod.from_globals(0);
+    }
+    return result_mod.from_globals(rt.tcl_cmd_list_range(words[1], words[2], words[3]));
 }
 
 fn eval_concat(words: []const i32) result_mod.InterpResult {

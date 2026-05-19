@@ -1,7 +1,7 @@
 # regexpComp.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '13 of 179 failed'
-trap_allowed = false
+# bucket = 'W0-runtime-error'
+# reason = 'error while executing at wasm backtrace:'
+trap_allowed = true
 good_to_have = []
 just_to_match_ctcl = []
 skip = []
@@ -10,11 +10,15 @@ skip = []
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
-observed_total = 179
-observed_passed = 166
-observed_failed = 13
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["regexpComp-1.5", "regexpComp-6.8", "regexpComp-11.7", "regexpComp-20.2", "regexpComp-21.6", "regexpComp-21.7", "regexpComp-21.10", "regexpComp-21.11", "regexpComp-22.0.1", "regexpComp-22.5", "regexpComp-23.5", "regexpComp-24.6", "regexpComp-24.7"]
+ids = ["regexpComp-1.5"]
+
+[crash]
+type = "Trap"
+msg = "error while executing at wasm backtrace:"

@@ -1,6 +1,6 @@
 # lrange.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '11 of 1766 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 1766
-observed_passed = 1755
-observed_failed = 11
+observed_passed = 1766
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["lrange-1.10", "lrange-1.16", "lrange-2.1", "lrange-2.2", "lrange-2.3", "lrange-2.4", "lrange-2.5", "lrange-2.6", "lrange-3.3", "lrange-3.5", "lrange-3.6"]

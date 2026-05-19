@@ -1,6 +1,6 @@
 # string.test — auto-generated WASM baseline.
 # bucket = 'clean'
-# reason = '0 of 705 failed'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -14,7 +14,3 @@ observed_total = 705
 observed_passed = 698
 observed_failed = 0
 observed_skipped = 7
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = []
