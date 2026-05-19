@@ -77,6 +77,7 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
     PrepareRenameResponse, RenameOptions, SemanticTokens as LspSemanticTokens,
+    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
     SemanticTokensFullOptions,
     SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
     SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
@@ -156,6 +157,25 @@ pub struct Backend {
     /// `None` entries record "no hover here" so repeated
     /// requests for the same empty position are also fast.
     hover_cache: Mutex<HoverCache>,
+    /// Per-URI semantic-tokens delta cache.  Records the last
+    /// `result_id` and packed token stream we returned for
+    /// each document so `semanticTokens/full/delta` can short-
+    /// circuit when nothing changed.  Invalidated on
+    /// `did_change` / `did_close`.
+    semantic_tokens_cache: Mutex<HashMap<Url, SemanticTokensEntry>>,
+}
+
+/// Cached semantic-tokens result keyed on the URI.
+#[derive(Debug, Clone)]
+struct SemanticTokensEntry {
+    /// `result_id` returned to the client; bumped on every
+    /// recompute so clients can request deltas against the
+    /// stored snapshot.
+    result_id: String,
+    /// Packed `(deltaLine, deltaCol, length, type, modifiers)`
+    /// stream — same shape `tcl_lsp_core::semantic_tokens`
+    /// emits.
+    data: Vec<u32>,
 }
 
 /// Result of a `HoverCache::get` lookup.
@@ -263,6 +283,7 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
+            semantic_tokens_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -638,7 +659,14 @@ impl LanguageServer for Backend {
                                     .collect(),
                             },
                             range: Some(true),
-                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            // Advertise delta support — the
+                            // handler implements the minimal
+                            // valid shape (returns full tokens
+                            // when previousResultId doesn't
+                            // match, otherwise empty edits).
+                            full: Some(SemanticTokensFullOptions::Delta {
+                                delta: Some(true),
+                            }),
                         },
                     ),
                 ),
@@ -714,6 +742,11 @@ impl LanguageServer for Backend {
         // against the freshly-edited source rather than stale
         // pre-edit results.
         self.hover_cache.lock().await.invalidate_uri(&uri);
+        // `S-semantic-tokens-rich` delta: drop the cached
+        // token snapshot so the next `semanticTokens/full/delta`
+        // returns a fresh full result instead of an empty edit
+        // list against an outdated baseline.
+        self.semantic_tokens_cache.lock().await.remove(&uri);
         self.publish_analyser_diagnostics(uri, text, dialect).await;
     }
 
@@ -741,6 +774,7 @@ impl LanguageServer for Backend {
         self.documents.lock().await.remove(uri);
         self.analyses.lock().await.remove(uri);
         self.hover_cache.lock().await.invalidate_uri(uri);
+        self.semantic_tokens_cache.lock().await.remove(uri);
         // Clear any previously-published diagnostics so the
         // editor's problem panel doesn't keep showing them
         // for a closed file.
@@ -1200,19 +1234,72 @@ impl LanguageServer for Backend {
         &self,
         params: SemanticTokensParams,
     ) -> jsonrpc::Result<Option<SemanticTokensResult>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: real classification.  The
         // packed integer stream is 5 ints per token
         // `[deltaLine, deltaCol, length, type, modifiers]`.
-        // Translate from the core's `u32` stream to
-        // `tower_lsp`'s `SemanticToken` records.
         let core_data = core_semantic_tokens::full(&doc.text).data;
+        let result_id = next_semantic_tokens_id();
+        self.semantic_tokens_cache.lock().await.insert(
+            uri,
+            SemanticTokensEntry {
+                result_id: result_id.clone(),
+                data: core_data.clone(),
+            },
+        );
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
-            result_id: None,
+            result_id: Some(result_id),
             data: lift_semantic_token_data(&core_data),
         })))
+    }
+
+    async fn semantic_tokens_full_delta(
+        &self,
+        params: SemanticTokensDeltaParams,
+    ) -> jsonrpc::Result<Option<SemanticTokensFullDeltaResult>> {
+        let uri = params.text_document.uri.clone();
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let previous_result_id = params.previous_result_id;
+        let new_data = core_semantic_tokens::full(&doc.text).data;
+        let new_result_id = next_semantic_tokens_id();
+
+        // Compare against the cached snapshot.  When the
+        // previous_result_id matches the cached one *and* the
+        // packed data is unchanged, return an empty edit list.
+        // Otherwise return a fresh full token set — the LSP
+        // spec accepts this as a valid response.  Computing a
+        // minimal edit diff is a further follow-up.
+        let mut cache = self.semantic_tokens_cache.lock().await;
+        let prev = cache.get(&uri);
+        let return_empty_delta = prev
+            .is_some_and(|entry| entry.result_id == previous_result_id && entry.data == new_data);
+        cache.insert(
+            uri,
+            SemanticTokensEntry {
+                result_id: new_result_id.clone(),
+                data: new_data.clone(),
+            },
+        );
+        drop(cache);
+        if return_empty_delta {
+            return Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
+                SemanticTokensDelta {
+                    result_id: Some(new_result_id),
+                    edits: Vec::new(),
+                },
+            )));
+        }
+        Ok(Some(SemanticTokensFullDeltaResult::Tokens(
+            LspSemanticTokens {
+                result_id: Some(new_result_id),
+                data: lift_semantic_token_data(&new_data),
+            },
+        )))
     }
 
     async fn semantic_tokens_range(
@@ -1812,6 +1899,18 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
     }
 }
 
+/// Return a fresh `result_id` for a semantic-tokens response.
+/// Monotonically increasing via an atomic counter so each
+/// snapshot we hand out is uniquely identifiable, letting
+/// clients consult our cache via
+/// `semanticTokens/full/delta { previousResultId }`.
+fn next_semantic_tokens_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("st-{id}")
+}
+
 /// Convert the core's `Vec<u32>` packed semantic-tokens
 /// stream (`[deltaLine, deltaCol, length, type, modifiers]`
 /// per token) into a `Vec<SemanticToken>` for the wire layer.
@@ -2132,6 +2231,7 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
+            semantic_tokens_cache: Mutex::new(HashMap::new()),
         }
     }
 
