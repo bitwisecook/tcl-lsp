@@ -27,15 +27,70 @@ use crate::naming::normalise_qualified_name;
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
+/// Dialects whose base Tcl version supports `tailcall` (Tcl 8.6+,
+/// TIP 327).  Mirrors Python's `dialects_since("tcl8.6")` — every
+/// dialect whose `DIALECT_BASE_VERSION` entry is `tcl8.6` or later.
+/// `f5-irules` (tcl8.4-based), `f5-iapps` / `f5-tmsh` /
+/// `xilinx-eda-tcl` / `intel-quartus-eda-tcl` / `mentor-eda-tcl`
+/// (tcl8.5-based) are deliberately excluded.
+///
+/// O122's `lassign`-based loop conversion needs a separate 8.5+
+/// gate (lassign is TIP 57, Tcl 8.5+), but a single-param body emits
+/// a bare `set` and is dialect-agnostic.
+const TAILCALL_DIALECTS: &[&str] = &[
+    "tcl8.6",
+    "tcl9.0",
+    "synopsys-eda-tcl",
+    "cadence-eda-tcl",
+    "expect",
+];
+
+/// Dialects whose base Tcl version supports `lassign` (Tcl 8.5+,
+/// TIP 57).  Used by `emit_loop_conversion` to decide whether a
+/// multi-param body can be rewritten using `lassign`.  Tcl 8.4 /
+/// f5-irules fall back to a sequence of single `set` statements.
+const LASSIGN_DIALECTS: &[&str] = &[
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "f5-iapps",
+    "f5-tmsh",
+    "synopsys-eda-tcl",
+    "cadence-eda-tcl",
+    "xilinx-eda-tcl",
+    "intel-quartus-eda-tcl",
+    "mentor-eda-tcl",
+    "expect",
+];
+
+/// Whether `tailcall` is available in `dialect`.  `None` (no dialect
+/// info on the context — only set by the public-API entry points
+/// that don't carry one) defaults to **enabled** to preserve
+/// pre-#433 behaviour for callers that haven't been updated.
+fn tailcall_supported(dialect: Option<&str>) -> bool {
+    dialect.map_or(true, |d| TAILCALL_DIALECTS.contains(&d))
+}
+
+/// Whether `lassign` is available in `dialect`.  Same `None`-means-
+/// enabled fallback as [`tailcall_supported`].
+fn lassign_supported(dialect: Option<&str>) -> bool {
+    dialect.map_or(true, |d| LASSIGN_DIALECTS.contains(&d))
+}
+
 /// Run the tail-call detection pass. Emits `O121` for every
 /// self-call in tail position (bare-call + return-subst variants),
 /// plus the hint-only `O122` loop-conversion and `O123`
 /// accumulator-candidate diagnostics described in the module docs.
+///
+/// O121 is gated on `tailcall`-supporting dialects (Tcl 8.6+ per TIP
+/// 327).  Pre-8.6 dialects keep the O122 recursion-to-loop hint but
+/// not the O121 `tailcall` suggestion.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    let emit_o121 = tailcall_supported(ctx.dialect);
     for (qname, proc) in &cu.ir_module.procedures {
         let self_names = self_name_variants(qname);
         let mut sites: Vec<TailSite> = Vec::new();
-        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites);
+        collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121);
 
         let total_self_calls = count_self_calls_in_script(&proc.body, &self_names);
         if !sites.is_empty() && sites.len() == total_self_calls {
@@ -43,8 +98,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             // real source rewrite — restructure the proc body as
             // a `while {1}` loop, replacing each tail call with
             // a parameter reassignment (`set p v` for single
-            // param, `lassign` for multiple).
-            emit_loop_conversion(ctx, proc, &sites);
+            // param, `lassign` for multiple).  Multi-param
+            // bodies need `lassign` (Tcl 8.5+).
+            if proc.params.len() <= 1 || lassign_supported(ctx.dialect) {
+                emit_loop_conversion(ctx, proc, &sites);
+            }
         }
 
         // O123: any non-tail self-call embedded in an expression
@@ -411,12 +469,18 @@ fn self_name_variants(qname: &str) -> HashSet<String> {
 /// Recursively walk `script` collecting self-calls in tail
 /// position. Only the last statement of each script (and the
 /// tail position of each `if` / `switch` branch) is considered.
+///
+/// When `emit_o121` is false (pre-8.6 dialect), tail sites are
+/// still collected (so O122 loop conversion can still fire if every
+/// self-call is in tail position) but the O121 `tailcall`
+/// rewrite suggestion is suppressed.
 fn collect_tail_sites(
     ctx: &mut PassContext<'_>,
     script: &Script,
     self_names: &HashSet<String>,
     proc: &Procedure,
     sites: &mut Vec<TailSite>,
+    emit_o121: bool,
 ) {
     let Some(last) = script.statements.last() else {
         return;
@@ -429,12 +493,14 @@ fn collect_tail_sites(
             ..
         } if self_names.contains(command) => {
             let rewrite_span = full_rewrite_span(ctx.source, *span);
-            ctx.report(Optimisation::new(
-                "O121",
-                format!("Use tailcall for self-recursion in proc '{}'", proc.name),
-                rewrite_span,
-                format!("tailcall {command}"),
-            ));
+            if emit_o121 {
+                ctx.report(Optimisation::new(
+                    "O121",
+                    format!("Use tailcall for self-recursion in proc '{}'", proc.name),
+                    rewrite_span,
+                    format!("tailcall {command}"),
+                ));
+            }
             sites.push(TailSite {
                 span: rewrite_span,
                 args: args.clone(),
@@ -456,18 +522,20 @@ fn collect_tail_sites(
             }
             if let Some((call_head, call_args)) = parse_return_subst(v) {
                 if self_names.contains(&call_head) {
-                    let replacement = if call_args.is_empty() {
-                        format!("tailcall {call_head}")
-                    } else {
-                        format!("tailcall {call_head} {call_args}")
-                    };
                     let rewrite_span = full_rewrite_span(ctx.source, *span);
-                    ctx.report(Optimisation::new(
-                        "O121",
-                        format!("Use tailcall for self-recursion in proc '{}'", proc.name),
-                        rewrite_span,
-                        replacement,
-                    ));
+                    if emit_o121 {
+                        let replacement = if call_args.is_empty() {
+                            format!("tailcall {call_head}")
+                        } else {
+                            format!("tailcall {call_head} {call_args}")
+                        };
+                        ctx.report(Optimisation::new(
+                            "O121",
+                            format!("Use tailcall for self-recursion in proc '{}'", proc.name),
+                            rewrite_span,
+                            replacement,
+                        ));
+                    }
                     let split_args: Vec<String> = if call_args.is_empty() {
                         Vec::new()
                     } else {
@@ -484,10 +552,10 @@ fn collect_tail_sites(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                collect_tail_sites(ctx, &c.body, self_names, proc, sites);
+                collect_tail_sites(ctx, &c.body, self_names, proc, sites, emit_o121);
             }
             if let Some(eb) = else_body {
-                collect_tail_sites(ctx, eb, self_names, proc, sites);
+                collect_tail_sites(ctx, eb, self_names, proc, sites, emit_o121);
             }
         }
         Statement::Switch {
@@ -495,11 +563,11 @@ fn collect_tail_sites(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    collect_tail_sites(ctx, b, self_names, proc, sites);
+                    collect_tail_sites(ctx, b, self_names, proc, sites, emit_o121);
                 }
             }
             if let Some(db) = default_body {
-                collect_tail_sites(ctx, db, self_names, proc, sites);
+                collect_tail_sites(ctx, db, self_names, proc, sites, emit_o121);
             }
         }
         _ => {}
@@ -543,6 +611,17 @@ mod tests {
         ctx.optimisations
     }
 
+    fn run_pass_with_dialect(source: &str, dialect: &str) -> Vec<Optimisation> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let mut ctx = PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            Some(dialect),
+        );
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
     #[test]
     fn self_name_variants_cover_short_absolute_bare() {
         let v = self_name_variants("::ns::foo");
@@ -559,6 +638,72 @@ mod tests {
             opts.iter()
                 .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
             "expected O121, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o121_suppressed_on_pre_8_6_dialects() {
+        // `tailcall` is TIP 327 (Tcl 8.6+); pre-8.6 dialects must NOT
+        // emit O121.  The body is a single-recursive self-call —
+        // O121 would normally fire — but on tcl8.4 / tcl8.5 / f5-irules
+        // the suggestion is incorrect (the dialect can't run
+        // `tailcall`).
+        let src =
+            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        for dialect in ["tcl8.4", "tcl8.5", "f5-irules", "f5-iapps"] {
+            let opts = run_pass_with_dialect(src, dialect);
+            assert!(
+                opts.iter().all(|o| o.code != "O121"),
+                "O121 must not fire on {dialect}, got {opts:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn o121_fires_on_8_6_plus_dialects() {
+        let src =
+            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        for dialect in [
+            "tcl8.6",
+            "tcl9.0",
+            "synopsys-eda-tcl",
+            "cadence-eda-tcl",
+            "expect",
+        ] {
+            let opts = run_pass_with_dialect(src, dialect);
+            assert!(
+                opts.iter()
+                    .any(|o| o.code == "O121" && o.replacement.contains("tailcall")),
+                "O121 expected on {dialect}, got {opts:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn o122_loop_conversion_still_fires_pre_8_6_for_single_param() {
+        // O122 is dialect-agnostic for single-param bodies (it emits
+        // a bare `set`, no `lassign`).  A pre-8.6 dialect should
+        // still see the loop-conversion suggestion.
+        let src =
+            "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
+        let opts = run_pass_with_dialect(src, "tcl8.4");
+        assert!(
+            opts.iter().any(|o| o.code == "O122"),
+            "O122 expected on tcl8.4 single-param body, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o122_loop_conversion_suppressed_on_tcl8_4_multi_param() {
+        // tcl8.4 doesn't have `lassign` (TIP 57, 8.5+); a multi-param
+        // body's O122 rewrite would need `lassign` so it must be
+        // suppressed on tcl8.4.
+        let src =
+            "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
+        let opts = run_pass_with_dialect(src, "tcl8.4");
+        assert!(
+            opts.iter().all(|o| o.code != "O122"),
+            "O122 must not fire on tcl8.4 multi-param body, got {opts:?}",
         );
     }
 
