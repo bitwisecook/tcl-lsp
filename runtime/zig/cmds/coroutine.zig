@@ -33,6 +33,7 @@ fn build_invocation_script(ws: []const i32) i32 {
         if (i > 0) total += 1; // separator space
     }
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     var off: u32 = 0;
     i = 0;
     while (i < ws.len) : (i += 1) {
@@ -48,7 +49,7 @@ fn build_invocation_script(ws: []const i32) i32 {
             off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj.obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 /// Build the dispatch ``Command`` struct.  ``fqn_ptr`` / ``fqn_len``
