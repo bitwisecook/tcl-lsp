@@ -1010,10 +1010,21 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
+        // Per-dialect cached registry for `S-rename-rich`
+        // safety gating — proc renames refuse to overwrite
+        // built-in command names.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let edits = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            core_rename::rename(&doc.text, pos.line, pos.character, &new_name, &analysis)
+            core_rename::rename(
+                &doc.text,
+                pos.line,
+                pos.character,
+                &new_name,
+                &analysis,
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
