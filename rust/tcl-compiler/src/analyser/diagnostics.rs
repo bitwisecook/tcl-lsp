@@ -4072,7 +4072,7 @@ mod tests {
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
         let mut a = Analyser::new();
-        a.dialect = "irules".to_string();
+        a.dialect = "f5-irules".to_string();
         // ``HTTP_REQUEST`` writes ``v``, ``HTTP_RESPONSE``
         // reads ``v`` — ``v`` is a cross-event def.  The
         // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
@@ -4101,7 +4101,7 @@ mod tests {
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
         let mut a = Analyser::new();
-        a.dialect = "irules".to_string();
+        a.dialect = "f5-irules".to_string();
         // ``local`` is only used inside HTTP_REQUEST — not a
         // cross-event var, so W220 should still fire on the
         // overwritten first assignment.

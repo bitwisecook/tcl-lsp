@@ -680,15 +680,18 @@ impl<'r> Lowerer<'r> {
     ///   preconditions handled inside the match arm; falling
     ///   the precondition returns `None` so `lower_command`'s
     ///   `_ => lower_default(...)` arm catches it).
-    ///
-    /// `when` and `foreachLine` remain on the string-pattern
-    /// match: they're registered only when the iRules / tcllib
-    /// dialect loaders run, which `build_default()` doesn't
-    /// invoke.  Routing them through `resolve_call` would
-    /// silently fall through to `lower_default` when those
-    /// dialects aren't loaded, regressing the test-harness
-    /// path.  Migration is gated on unifying the registry-load
-    /// path across test and production callers.
+    /// * Sub-strip 4 — `when` (iRules dialect; production
+    ///   callers load the dialect, tests that need it call
+    ///   `load_irules()` explicitly), and `foreachLine` (Tcl
+    ///   9.0+, always registered in `build_default()` via the
+    ///   `tcl::foreachline` spec; the bare-name registration
+    ///   now carries the dedicated `LoweringHookId::ForeachLine`
+    ///   stamp so the registry resolves it without the string
+    ///   match).  With sub-strip 4 in, `lower_command` no
+    ///   longer has any per-name fallback — every structured
+    ///   form routes through `resolve_call().lowering_hook`,
+    ///   and unmatched commands flow straight to
+    ///   `lower_default`.
     ///
     /// The migrated forms pick up two benefits over the string
     /// match:
@@ -797,13 +800,65 @@ impl<'r> Lowerer<'r> {
                 }
             }
 
-            // Other structured hooks not yet migrated — fall
-            // through to the string-pattern match in
-            // `lower_command`.  `When` and `Foreach` for
-            // `fileutil::foreachLine` stay here because the
-            // dialect loaders that register them aren't always
-            // active under `build_default()`.
-            _ => None,
+            // C43 sub-strip 4: the last two structured forms.
+            //
+            // `when EVENT ?priority N? body` — iRules event
+            // handler.  The hook stamp lives on the `when` spec
+            // in `tcl-registry/src/commands/irules/when.rs`,
+            // which `load_dialect(DialectSet::IRULES)` brings
+            // into the registry.  Production callers (LSP
+            // server / Python bindings) load the active dialect
+            // before lowering; tests that lower iRule code call
+            // `registry.load_irules()` explicitly (see
+            // `irules_checks::tests::registry`).  Callers that
+            // lower iRule code against a vanilla `build_default()`
+            // registry now silently flow through to
+            // `lower_default` — that path was always a
+            // misconfiguration; the dialect needs to match the
+            // source.
+            LoweringHookId::When => {
+                if args.len() >= 2 && seg.arg_tokens().len() >= 2 {
+                    Some(self.lower_when(seg, namespace))
+                } else {
+                    None
+                }
+            }
+            // `foreachLine varName filename body` — Tcl 9.0
+            // (TIP 670).  Always registered in `build_default()`
+            // via `tcl::foreachline::spec`, so no dialect-load
+            // dance is needed.  The `lower_foreach_line`
+            // emitter handles its own shape errors and
+            // dynamic-body fallback, but we keep the original
+            // `args.len() == 3` guard to mirror the previous
+            // string-pattern arm's contract — an under- or
+            // over-argued `foreachLine` flows to
+            // `lower_default` instead of triggering a barrier
+            // inside the dedicated emitter.
+            LoweringHookId::ForeachLine => {
+                if args.len() == 3 {
+                    Some(self.lower_foreach_line(seg, namespace))
+                } else {
+                    None
+                }
+            }
+
+            // Non-structured hooks (`Expr` / `Return` / `Set` /
+            // `Incr` / `AppendOrLappend` / `Unset` / `Global` /
+            // `Variable` / `Upvar`) are handled by
+            // [`try_lower_hook`] before [`lower_command`] reaches
+            // this dispatcher.  They can still reach here when
+            // their static dispatcher returned `None` for the
+            // input shape (e.g. `try_lower_expr` rejects
+            // multi-arg `expr`); fall through to `lower_default`.
+            LoweringHookId::Expr
+            | LoweringHookId::Return
+            | LoweringHookId::Set
+            | LoweringHookId::Incr
+            | LoweringHookId::AppendOrLappend
+            | LoweringHookId::Unset
+            | LoweringHookId::Global
+            | LoweringHookId::Variable
+            | LoweringHookId::Upvar => None,
         }
     }
 
@@ -842,36 +897,21 @@ impl<'r> Lowerer<'r> {
             return Some(barrier);
         }
 
-        // C43: registry-driven hook-ID dispatch for structured
-        // command forms that have migrated off the string-pattern
-        // match below.  Now covers 12 of the 14 structured hooks:
-        // `eval`, `uplevel`, `if`, `switch`, `for`, `while`,
-        // `catch`, `try`, `proc`, `namespace eval`, `foreach`,
-        // `lmap`, `dict`.  Only `when` and `foreachLine` still
-        // resolve via the `match cmd_name` block below — their
-        // registry-driven migration is gated on unifying the
-        // dialect-load path (iRules / tcllib loaders aren't
-        // invoked under `build_default()`).
+        // C43: registry-driven hook-ID dispatch covers all 15
+        // structured command forms — every typed
+        // `LoweringHookId` (Proc, When, NamespaceEval, If,
+        // Switch, For, While, Foreach, Lmap, ForeachLine, Catch,
+        // Try, Dict, Eval, Uplevel) now flows through
+        // [`try_dispatch_structured_hook`].  Commands that
+        // aren't in the registry, or whose hook is `None`, fall
+        // through to [`lower_default`] below.  The string-
+        // pattern `match cmd_name` block that used to handle
+        // these forms is gone.
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
             return Some(stmt);
         }
 
-        // C43 residual: the two structured forms whose
-        // registry-driven migration is gated on dialect-load-
-        // path unification stay here.  `when` (iRules) and
-        // `foreachLine` (tcllib `fileutil::foreachLine`) are
-        // only registered when their loaders run, and
-        // `build_default()` doesn't invoke either, so routing
-        // them through `resolve_call` would silently regress to
-        // `lower_default`.
-        match cmd_name {
-            "when" if args.len() >= 2 && seg.arg_tokens().len() >= 2 => {
-                Some(self.lower_when(seg, namespace))
-            }
-            "foreachLine" if args.len() == 3 => Some(self.lower_foreach_line(seg, namespace)),
-
-            _ => Some(self.lower_default(seg, namespace)),
-        }
+        Some(self.lower_default(seg, namespace))
     }
 
     /// Lower `proc name params body`.
@@ -2503,28 +2543,21 @@ mod tests {
     }
 
     #[test]
-    fn registry_dispatch_unmigrated_form_falls_through_to_string_match() {
-        // `when` is registered only when the iRules dialect
-        // loader runs, and `build_default()` (which `reg()`
-        // uses) doesn't load it.  Routing `when` through
-        // `resolve_call` would therefore silently fall through
-        // to `lower_default`, so its migration is gated on
-        // unifying the dialect-load path — the bare `"when"`
-        // arm in `lower_command`'s residual string match still
-        // catches it.  This test pins that backward-
-        // compatibility contract: the registry-driven
-        // dispatcher returning `None` for unresolved hooks
-        // lets the string match handle them, so `when ...`
-        // still produces a `Statement::Call { command:
-        // "when", ... }` (the `lower_when` shape).
-        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &reg());
+    fn registry_dispatch_unknown_command_falls_through_to_default() {
+        // After C43 sub-strip 4, `lower_command` has no per-
+        // name fallback — commands that aren't in the registry
+        // (or whose `lowering_hook` is `None`) route directly
+        // to [`Lowerer::lower_default`], which emits a generic
+        // `Statement::Call`.  Pin that contract with a clearly
+        // unknown command name.
+        let m = lower_to_ir("totallyMadeUpCommand arg1 arg2", &reg());
         let stmt = m.top_level.statements.first().expect("at least one stmt");
         match stmt {
             Statement::Call { command, .. } => assert_eq!(
-                command, "when",
-                "expected `when` call via string-pattern fallback, got command={command}",
+                command, "totallyMadeUpCommand",
+                "expected generic Call via lower_default, got command={command}",
             ),
-            other => panic!("expected Call via string-pattern fallback, got {other:?}"),
+            other => panic!("expected Call via lower_default, got {other:?}"),
         }
     }
 
@@ -2713,5 +2746,95 @@ mod tests {
             matches!(stmt, Statement::Call { .. }),
             "expected Call via lower_default fallback, got {stmt:?}",
         );
+    }
+
+    // C43 sub-strip 4: `when` and `foreachLine` migrate to
+    // registry-driven hook-ID dispatch — the last two structured
+    // forms.  `when` is dialect-gated (iRules), so its test
+    // registry loads the dialect explicitly.  `foreachLine` is
+    // a Tcl 9.0+ command always registered in `build_default()`.
+
+    #[test]
+    fn registry_dispatch_when_lowers_via_lower_when_with_irules_loaded() {
+        // The iRules `when` spec carries `LoweringHookId::When`
+        // and only enters the registry after
+        // `load_dialect(IRULES)`.  Production callers (LSP
+        // server, Python bindings) always pair `build_default()`
+        // with the active dialect; this test mirrors that.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &registry);
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "when",
+                "expected `when` call via registry hook, got command={command}",
+            ),
+            other => panic!("expected Call via registry hook, got {other:?}"),
+        }
+        assert!(
+            m.procedures.contains_key("::when::HTTP_REQUEST"),
+            "expected ::when::HTTP_REQUEST procedure to be registered, got keys={:?}",
+            m.procedures.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_when_without_irules_loaded_falls_through() {
+        // Without `load_irules()`, the registry has no `when`
+        // spec, so `resolve_call` returns `None` and
+        // `try_dispatch_structured_hook` falls through to
+        // `lower_default`.  This is a misconfiguration on the
+        // caller's side (the source uses iRules but the
+        // registry doesn't know about it); the lowerer emits a
+        // generic `Call` rather than silently treating it as
+        // an event handler.  Pinning this behaviour catches
+        // future drift if `build_default()` ever folds in
+        // iRules.
+        let m = lower_to_ir("when HTTP_REQUEST { set q 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "when",
+                "expected generic Call via lower_default, got command={command}",
+            ),
+            other => panic!("expected Call via lower_default, got {other:?}"),
+        }
+        assert!(
+            !m.procedures.keys().any(|k| k.starts_with("::when::")),
+            "expected NO ::when::* procedure registered without iRules loaded",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_line_lowers_via_lower_foreach_line() {
+        // `foreachLine` is a Tcl 9.0+ command (TIP 670) and
+        // `build_default()` registers it via the
+        // `tcl::foreachline` spec.  No dialect-load dance is
+        // needed.  The body is a brace-string literal here, so
+        // the dedicated lowerer relaxes to a typed `Foreach`
+        // (not a barrier).
+        let m = lower_to_ir("foreachLine line readme.txt { set q $line }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Foreach { .. }),
+            "expected Foreach via registry hook, got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn registry_dispatch_foreach_line_wrong_arity_falls_through_to_default() {
+        // `foreachLine` with two args — fails the
+        // `args.len() == 3` precondition, falls through to
+        // `lower_default`.
+        let m = lower_to_ir("foreachLine onlytwo args", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        match stmt {
+            Statement::Call { command, .. } => assert_eq!(
+                command, "foreachLine",
+                "expected generic Call via lower_default, got command={command}",
+            ),
+            other => panic!("expected Call via lower_default, got {other:?}"),
+        }
     }
 }

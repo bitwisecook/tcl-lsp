@@ -133,6 +133,7 @@ pub fn dispatch_lowering_hook(
         | LoweringHookId::While
         | LoweringHookId::Foreach
         | LoweringHookId::Lmap
+        | LoweringHookId::ForeachLine
         | LoweringHookId::Catch
         | LoweringHookId::Try
         | LoweringHookId::Dict

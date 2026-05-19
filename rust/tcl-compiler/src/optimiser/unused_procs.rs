@@ -260,8 +260,29 @@ mod tests {
         dialect: Option<&str>,
         ip: InterproceduralAnalysis,
     ) -> Vec<Optimisation> {
+        use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let mut registry = CommandRegistry::build_default();
+        // C43 sub-strip 4 fallout: `when` (and any other dialect-
+        // gated structured command) is registry-resolved now, so
+        // the test registry must carry the dialect's command set
+        // before lowering iRule code.  Mirrors the production
+        // path in `tcl-lsp-server` / `tcl-lsp-py::registry`,
+        // which always pair `build_default()` with the active
+        // dialect.  Both `"irules"` and `"f5-irules"` resolve to
+        // `DialectSet::IRULES` here (the optimiser passes
+        // recognise both aliases via `is_irules_dialect`, so the
+        // registry has to as well).
+        let parsed = dialect.and_then(|d| {
+            if d == "irules" {
+                Some(DialectSet::IRULES)
+            } else {
+                DialectSet::parse(d)
+            }
+        });
+        if let Some(d) = parsed {
+            registry.load_dialect(d);
+        }
         let cu = CompilationUnit::build_for(source, &registry, false);
         let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
         run(&mut ctx, &cu);

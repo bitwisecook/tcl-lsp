@@ -62,6 +62,12 @@ pub enum LoweringHookId {
     /// `lmap varList listExpr body` — like `foreach` but collects
     /// each iteration's body result into a list.
     Lmap,
+    /// `foreachLine varName filename body` — Tcl 9.0 file-iteration
+    /// loop (TIP 670).  Distinct from `Foreach` because the body
+    /// runs against file lines, not a literal list — the lowerer
+    /// uses a dedicated emitter (`lower_foreach_line`) that
+    /// requires `&mut self` for proc-depth / const-map state.
+    ForeachLine,
     /// `catch body ?resultVarName? ?optionsVarName?` — typed
     /// exception barrier.
     Catch,

@@ -82,7 +82,15 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        // C43 sub-strip 4: `when` is now registry-resolved (no
+        // string-pattern fallback in `lower_command`), so any
+        // test that lowers iRule code through `optimise_*` must
+        // carry the iRules dialect.  Loading it here keeps the
+        // helper a one-call site; tests that only lower plain
+        // Tcl don't notice the extra commands.
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
     }
 
     #[test]
