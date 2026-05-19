@@ -74,10 +74,16 @@ pub fn definition(
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
 
-    // 1. Variable reference — walk the global scope only for
-    //    the minimal port.
+    // 1. Variable reference — walk the scope chain inward
+    //    from the global scope toward the innermost scope
+    //    whose body span contains the cursor's byte offset,
+    //    then walk back outward looking for the var.  Mirrors
+    //    Python's `find_scope_at_line` + scope-chain ascent.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(var_def) = analysis.global_scope.variables.get(&var_name) {
+        let cursor_offset = byte_offset_at(source, line, character);
+        if let Some(var_def) =
+            lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
+        {
             return vec![span_to_range(&line_index, var_def.definition_span)];
         }
         return Vec::new();
@@ -133,6 +139,83 @@ fn lookup_alias<'a>(
         .command_aliases
         .get(&qualified)
         .or_else(|| analysis.command_aliases.get(name))
+}
+
+/// Compute the byte offset of a 0-based `(line, character)`
+/// pair in `source`.  Character indices count chars (matching
+/// Python's behaviour); supplementary-plane code points may
+/// drift by one column under strict UTF-16 semantics —
+/// acceptable for the minimal port.
+pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
+    let mut current_line: u32 = 0;
+    let mut current_char_in_line: u32 = 0;
+    let mut byte_offset: u32 = 0;
+    for c in source.chars() {
+        if current_line == line && current_char_in_line == character {
+            return byte_offset;
+        }
+        let len = u32::try_from(c.len_utf8()).unwrap_or(1);
+        if c == '\n' {
+            if current_line == line {
+                return byte_offset;
+            }
+            current_line += 1;
+            current_char_in_line = 0;
+        } else {
+            current_char_in_line += 1;
+        }
+        byte_offset += len;
+    }
+    byte_offset
+}
+
+/// Walk the scope tree to find the variable definition that
+/// the cursor's `byte_offset` would see — the innermost
+/// scope whose body span contains the offset takes precedence
+/// over any enclosing scope.
+///
+/// Mirrors Python's `find_scope_at_line` (descend into the
+/// innermost matching child) followed by a scope-chain walk
+/// outward for the var lookup.
+pub(crate) fn lookup_var_in_scope_chain<'a>(
+    scope: &'a tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+    name: &str,
+) -> Option<&'a tcl_compiler::analyser::VarDef> {
+    // First, find the innermost scope containing the cursor.
+    let chain = scope_chain_at(scope, byte_offset);
+    // Walk outward (innermost-first) looking for the var.
+    for sc in chain.iter().rev() {
+        if let Some(v) = sc.variables.get(name) {
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// Return the chain of scopes from `root` down to the
+/// innermost child whose `body_span` contains `byte_offset`.
+/// The chain is ordered outermost (`root`) to innermost.
+fn scope_chain_at(
+    root: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Vec<&tcl_compiler::analyser::Scope> {
+    let mut chain = vec![root];
+    let mut cursor = root;
+    loop {
+        let next = cursor.children.iter().find(|c| {
+            c.body_span
+                .is_some_and(|s| s.start() <= byte_offset && byte_offset <= s.end())
+        });
+        match next {
+            Some(child) => {
+                chain.push(child);
+                cursor = child;
+            }
+            None => break,
+        }
+    }
+    chain
 }
 
 fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -238,6 +321,32 @@ mod tests {
         if !locs.is_empty() {
             assert_eq!(locs[0].start_line, 0);
         }
+    }
+
+    // -- S-definition-rich: scope-chain $var descent ---------------
+
+    #[test]
+    fn proc_local_var_jumps_to_proc_scope_definition() {
+        // `local` is defined inside `proc f`.  Cursor on
+        // `$local` inside `f`'s body must jump to the
+        // proc-local definition, not the global scope
+        // (which has none).
+        let src = "proc f {} {\n    set local 1\n    puts $local\n}\n";
+        let analysis = analyse(src);
+        // Cursor inside `$local` on line 2.
+        let locs = definition(src, 2, 12, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The proc-local `set local 1` is on line 1.
+        assert_eq!(locs[0].start_line, 1, "{:?}", locs[0]);
+    }
+
+    #[test]
+    fn byte_offset_at_handles_newlines() {
+        let src = "abc\ndef\nghi\n";
+        assert_eq!(byte_offset_at(src, 0, 0), 0);
+        assert_eq!(byte_offset_at(src, 0, 3), 3);
+        assert_eq!(byte_offset_at(src, 1, 0), 4);
+        assert_eq!(byte_offset_at(src, 2, 2), 10);
     }
 
     #[test]

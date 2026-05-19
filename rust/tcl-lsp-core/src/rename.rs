@@ -122,7 +122,12 @@ pub fn rename(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let Some(var_def) = analysis.global_scope.variables.get(&var_name) else {
+        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            byte_offset,
+            &var_name,
+        ) else {
             return Vec::new();
         };
         let mut edits = Vec::with_capacity(1 + var_def.references.len());
