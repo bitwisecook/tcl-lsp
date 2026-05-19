@@ -12,6 +12,7 @@ const result_mod = @import("../interp/tcl_result.zig");
 const tcl_str = @import("../valtypes/tcl_string.zig");
 const tcl_chars = @import("../valtypes/tcl_chars.zig");
 const list_parse = @import("../valtypes/tcl_list_parse.zig");
+const parse = @import("../parse/tcl_parse.zig");
 const std = @import("std");
 
 const alloc = rt.alloc;
@@ -1235,7 +1236,11 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
     const n_pairs = pair_words / 2;
-    const MAX_PAIRS = 63; // (MAX_WORDS-2)/2, mirrors eval_foreach
+    // Mirrors ``eval_foreach`` in ``tcl_interp.zig`` — derived from
+    // ``parse.MAX_WORDS`` so the cap tracks the parser's word limit
+    // and doesn't go stale when the parser cap moves (Copilot review
+    // on PR #443).
+    const MAX_PAIRS = (parse.MAX_WORDS - 2) / 2;
     if (n_pairs > MAX_PAIRS) return result_mod.from_globals(obj_new_string(0, 0));
     const body_s = obj_ensure_string(words[words.len - 1]);
 

@@ -507,11 +507,11 @@
       "total": 18
     },
     "string": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 158,
-      "passed_min": 540,
+      "failed_max": 0,
+      "passed_min": 698,
       "skipped": 7,
       "total": 705
     },
