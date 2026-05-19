@@ -27,8 +27,8 @@ Hard rules
   carried over from when tcltest first booted under WASM; they are
   not a pattern to extend.  Fix the runtime instead.
 * Fix root causes in ``runtime/zig/``,
-  ``core/compiler/codegen/wasm/``, ``core/parsing/``, or
-  ``core/commands/registry/tcl/``.  Mirror new contracts with focused
+  ``compiler/codegen/wasm/``, ``compiler/parsing/``, or
+  ``compiler/registry/tcl/``.  Mirror new contracts with focused
   pytest under ``tests/test_wasm_*.py``.
 
 Architecture
@@ -673,7 +673,7 @@ def write_dossier(results: list[StemResult]) -> None:
     lines.append(f"Generated: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
     lines.append("")
     lines.append(
-        "**Scope: Zig WASM runtime (`runtime/zig/` + `core/compiler/codegen/wasm/`).**  "
+        "**Scope: Zig WASM runtime (`runtime/zig/` + `compiler/codegen/wasm/`).**  "
         "Unlike the Python-VM-side sibling, this *is* the production "
         "ship-target signal.  Crashes here represent real WASM-runtime "
         "gaps that block production correctness against upstream Tcl 9.\n"
@@ -773,7 +773,7 @@ def write_dossier(results: list[StemResult]) -> None:
         "|----|---------|----------|\n"
         "| `W0-bootstrap` | Bundle harness / setup error before WASM "
         "ever ran (test file missing, bundle pre-flight failure). | very high |\n"
-        "| `W0-codegen-bug` | `core/compiler/codegen/wasm/` raised "
+        "| `W0-codegen-bug` | `compiler/codegen/wasm/` raised "
         "during lowering / IR build / codegen. | very high |\n"
         "| `W0-stub-trap` | wasmtime trap with `unsupported command: X` "
         "on stderr — `runtime/zig/dispatch/tcl_stub_fallback.zig` was hit. | very high |\n"
@@ -817,7 +817,7 @@ def write_dossier(results: list[StemResult]) -> None:
         by_cause.setdefault(r.crash_type, []).append(r)
 
     if "CompileFail" in by_cause:
-        lines.append("### Tier 1 — `CompileFail` (`core/compiler/codegen/wasm/` raised)")
+        lines.append("### Tier 1 — `CompileFail` (`compiler/codegen/wasm/` raised)")
         lines.append("")
         lines.append(
             "**Why first**: codegen-side failures block the bundle from "
@@ -915,8 +915,8 @@ def write_dossier(results: list[StemResult]) -> None:
         "`_patch_tcltest_source` rewrites are existing technical debt; "
         "do not extend them.  If `tcltest.tcl` needs framework support "
         "that isn't there, add it to the runtime, not the framework.\n"
-        "- **Fix root causes in `runtime/zig/`, `core/compiler/codegen/"
-        "wasm/`, `core/parsing/`, or `core/commands/registry/tcl/`.**  "
+        "- **Fix root causes in `runtime/zig/`, `compiler/codegen/"
+        "wasm/`, `compiler/parsing/`, or `compiler/registry/tcl/`.**  "
         "Mirror new contracts with focused pytest under "
         "`tests/test_wasm_*.py`.\n"
         "- This baseline must **not** treat existing parity-gate "

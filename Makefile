@@ -1,50 +1,15 @@
 # tcl-lsp — build, test, and package
 #
-# Targets:
-#   make ci-fast       Fast CI gate (lint + typecheck + LSP e2e); mirrors GitHub PR job
-#   make check-all     Pre-push gate: full lint + typecheck across all languages; writes tmp/check-all.stamp
-#   make test-slow     Pre-PR gate: comprehensive (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp
-#   make install-hooks Install pre-push hook that enforces the check-all stamp
-#   make prep-pr       Fast pre-PR gate (format + codegen + lint + typecheck + fast tests)
-#   make vsix          Build the .vsix file (runs tests first)
-#   make install       Build and install the .vsix into VS Code
-#   make publish-vsix  Publish the .vsix to the VS Code Marketplace
-#   make test          Run all tests (Python + VS Code extension)
-#   make test-py       Run the Python test suite only (excludes VM tcltest tests)
-#   make test-opt      Run optimiser coverage tests (not part of standard CI)
-#   make test-fuzz     Run differential fuzz tests (pytest, FUZZ_ITERATIONS=N)
-#   make fuzz          Run standalone fuzz campaign (N=iterations, SEED=base_seed)
-#   make test-ext      Run VS Code extension integration tests
-#   make test-emacs    Run headless eglot regression suite (Emacs 29+)
-#   make lint-py       Lint Python code with Ruff
-#   make format-py     Format and auto-fix Python code with Ruff
-#   make format-ts     Format TypeScript extension code with Prettier
-#   make typecheck-py-full Type-check all Python code with ty (broader coverage)
-#   make typecheck-ts  Type-check TypeScript extension code with tsc
-#   make npm-env       Install/update npm dependencies
-#   make compile       Compile the TypeScript extension
-#   make zipapp-tcl    Build the unified Tcl tools zipapp
-#   make zipapp-cli    Build the CLI compiler explorer zipapp
-#   make zipapp-f5     Build the F5 BIG-IP CLI zipapp
-#   make zipapp-gui    Build the standalone GUI zipapp (bundles Pyodide)
-#   make zipapp-gui-cdn Build the CDN GUI zipapp (loads Pyodide from CDN)
-#   make zipapp-lsp    Build the LSP server zipapp
-#   make zipapp-wasm   Build the WASM compiler zipapp
-#   make zipapp-ai     Build the AI analysis zipapp (for Claude Code skills)
-#   make claude-skills Build the Claude Code skills release zip
-#   make zipapps       Build all zipapps (Tcl, CLI, GUI, GUI-CDN, LSP, AI, MCP, WASM)
-#   make jetbrains     Build the JetBrains plugin (.zip)
-#   make sublime       Build the Sublime Text package (.sublime-package)
-#   make zed           Build the Zed extension archive (.tar.gz)
-#   make screenshots   Capture extension screenshots and build demo GIF (macOS)
-#   make release             Build all release artifacts (parity with tagged CI release jobs)
-#   make release-tag         Create + push the annotated release tag (V=x.y.z)
-#   make release-codeql-gate Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
-#   make coverage      Generate all coverage reports (Python + VS Code)
-#   make coverage-py   Run Python tests with coverage (HTML + XML in tmp/coverage/python/)
-#   make coverage-ext  Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
-#   make clean         Remove build artifacts
-#   make distclean     Remove build artifacts and node_modules
+# Quick reference (see `make help` for the full list, all docstrings are
+# the source of truth):
+#
+#   make ci-fast       Fast CI gate — mirrors GitHub PR job.
+#   make check-all     Pre-push gate — full lint+typecheck across all languages.
+#   make test-slow     Pre-PR gate — comprehensive (everything).
+#   make prep-pr       Fast pre-PR gate — format + codegen + lint + test-py.
+#   make vsix          Build the VS Code .vsix (runs tests first).
+#   make zipapps       Build every zipapp.
+#   make release       Build every release artefact.
 #
 # Prerequisites:
 #   - Python 3.10+ with uv (https://docs.astral.sh/uv/)
@@ -54,16 +19,21 @@
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
 
+# ---------------------------------------------------------------------------
 # Directories
+# ---------------------------------------------------------------------------
+
 ROOT     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-EXT_DIR  := $(ROOT)editors/vscode
-LSP_DIR  := $(ROOT)lsp
-PYCORE_DIR := $(ROOT)core
-VM_DIR   := $(ROOT)vm
-TEST_DIR := $(ROOT)tests
-OUT_DIR  := $(EXT_DIR)/out
-EXPLORER_DIR    := $(ROOT)explorer
-EXPLORER_STATIC := $(EXPLORER_DIR)/static
+
+# Seven Python concern packages — see AGENTS.md "Repository layout" and
+# `.importlinter`.  Used to drive PY_SRCS for dependency tracking.
+PY_PKGS  := shared compiler dialects analyser server tooling ai
+
+EXT_DIR         := $(ROOT)editors/vscode
+TEST_DIR        := $(ROOT)tests
+OUT_DIR         := $(EXT_DIR)/out
+EXPLORER_STATIC := $(ROOT)tooling/explorer/static
+TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
@@ -113,7 +83,8 @@ VSCE_PUBLISHER := bitwisecook
 BUILD_INFO      := $(ROOT)shared/_build_info.py
 BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 
-# Zipapps
+# Zipapps — name → output filename mapping.  The pattern rule below
+# drives every zipapp from this list.
 ZIPAPP_TCL     := $(BUILD_DIR)/tcl-$(VERSION).pyz
 ZIPAPP_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
 ZIPAPP_F5      := $(BUILD_DIR)/f5-$(VERSION).pyz
@@ -128,19 +99,58 @@ CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
 # Parallelism
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
-# Find all Python source files for dependency tracking
-PY_SRCS  := $(shell find $(LSP_DIR) $(PYCORE_DIR) $(EXPLORER_DIR) -name '*.py' -not -path '*__pycache__*' -not -name '_build_info.py')
-VM_SRCS  := $(shell find $(VM_DIR) -name '*.py' -not -path '*__pycache__*')
+# Source-file lists for dependency tracking.  PY_SRCS walks every concern
+# package; build_zipapp.py picks the right subset per zipapp profile.
+PY_SRCS  := $(shell find $(addprefix $(ROOT),$(PY_PKGS)) -name '*.py' -not -path '*__pycache__*' -not -name '_build_info.py')
 PY_TESTS := $(shell find $(TEST_DIR) -name '*.py' -not -path '*__pycache__*')
 TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
-# Main targets
+# ---------------------------------------------------------------------------
+# Phony targets — declared once at the top, organised by section.  File-
+# producing rules (VSIX, zipapps, KCS db, generated catalogs, etc.) are
+# NOT phony — they live further down with real file deps.
+# ---------------------------------------------------------------------------
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: help
+# Top-level gates
+.PHONY: ci-fast check-all test-slow prep-pr install-hooks
+# Tests
+.PHONY: test test-py test-ext test-emacs test-zig test-rust test-vm test-opt test-fuzz fuzz fuzz-cov
+.PHONY: test-tclpkg test-tclpkg-tcl
+.PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
+.PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
+.PHONY: check-wasm-parity snapshot-wasm-parity capture-bytecode-refs
+# Lint / format / typecheck
+.PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust
+# Coverage
+.PHONY: coverage coverage-py coverage-ext
+# Compile + codegen + generated assets
+.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env
+# Compiler explorer (WASM GUI)
+.PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
+# Zipapps + smoke tests
+.PHONY: zipapps zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
+.PHONY: smoke-zipapps smoke-vsix
+# Packaging + publish + release
+.PHONY: vsix verify-vsix install package-vsix publish-vsix
+.PHONY: jetbrains publish-jetbrains sublime publish-sublime zed publish-zed publish-all publish-verify
+.PHONY: release release-tag release-codeql-gate release-sums
+# Zig runtime + leak check
+.PHONY: build-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
+# Sphinx docs
+.PHONY: docs docs-html docs-clean docs-linkcheck
+# Screenshots
+.PHONY: screenshot screenshots clean-screenshots
+# Cleanup
+.PHONY: clean distclean
+# Dep-installer helpers
+.PHONY: ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
+# Always-run sentinel for rules that need to re-evaluate every invocation.
+.PHONY: .FORCE
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
 vsix: lint test compile verify-vsix ## Build the .vsix (tests must pass first)
 install: package-vsix ## Build and install the .vsix into VS Code
@@ -229,7 +239,7 @@ test-tclpkg: $(UV_STAMP) ensure-tcl-deps ## Run tclpkg package manager tests onl
 
 test-tclpkg-tcl: ensure-tcl-deps ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
 	@echo "==> Running pure-Tcl tclpkg tests"
-	cd $(ROOT)/tclpkg-tcl && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
+	cd $(TCLPKG_TCL_DIR) && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
 
 test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM); skip with SKIP_TEST_VM=1
 	@set -eu; \
@@ -772,71 +782,86 @@ test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (FUZZ_ITERATIONS=N to cont
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m fuzzing -n $(or $(N),1000) $(if $(SEED),--seed $(SEED)) -v
+	cd $(ROOT) && $(UV) run --extra dev python -m tooling.fuzzing -n $(or $(N),1000) $(if $(SEED),--seed $(SEED)) -v
 
 fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running coverage-guided fuzz campaign ($(or $(N),500) iterations)"
-	cd $(ROOT) && $(UV) run --extra dev python -m fuzzing -n $(or $(N),500) $(if $(SEED),--seed $(SEED)) --coverage-guided -v
+	cd $(ROOT) && $(UV) run --extra dev python -m tooling.fuzzing -n $(or $(N),500) $(if $(SEED),--seed $(SEED)) --coverage-guided -v
 
+# ---------------------------------------------------------------------------
+# Zipapp smoke tests
+#
+# Each `_smoke-zipapp-<profile>` builds a fresh zipapp into build/ and
+# runs the bundled CLI against a sanity-check command sequence, then
+# deletes the throwaway artefacts.  Aggregated by `make smoke-zipapps`.
+#
+# Three profiles (mcp, lsp, cli) only need `--help`; the other three
+# (ai, tcl, f5) exercise representative subcommands.
+# ---------------------------------------------------------------------------
+
+# define smoke_help — build a zipapp and run `--help` only.
+#   $(1) = profile name (cli, lsp, mcp, …)
+define smoke_help
+_smoke-zipapp-$(1): $$(BUILD_INFO)
+	@echo "==> Smoke-testing $(1) zipapp"
+	$$(PYTHON) $$(ROOT)scripts/build_zipapp.py $(1) --version $$(VERSION) --output $$(BUILD_DIR)/smoke-$(1).pyz
+	$$(PYTHON) $$(BUILD_DIR)/smoke-$(1).pyz --help > /dev/null
+	@rm -f $$(BUILD_DIR)/smoke-$(1).pyz
+.PHONY: _smoke-zipapp-$(1)
+endef
+
+$(eval $(call smoke_help,mcp))
+$(eval $(call smoke_help,lsp))
+$(eval $(call smoke_help,cli))
+
+# AI smoke: build and run the `context` verb against the sample iRule.
 _smoke-zipapp-ai: $(BUILD_INFO)
-	@echo "==> Smoke-testing AI zipapp"
+	@echo "==> Smoke-testing ai zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py ai --version $(VERSION) --output $(BUILD_DIR)/smoke-ai.pyz
 	$(PYTHON) $(BUILD_DIR)/smoke-ai.pyz context samples/for_screenshots/ai-scene.irul > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-ai.pyz
+.PHONY: _smoke-zipapp-ai
 
-_smoke-zipapp-mcp: $(BUILD_INFO)
-	@echo "==> Smoke-testing MCP zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp --version $(VERSION) --output $(BUILD_DIR)/smoke-mcp.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-mcp.pyz --help > /dev/null
-	@rm -f $(BUILD_DIR)/smoke-mcp.pyz
-
-_smoke-zipapp-lsp: $(BUILD_INFO)
-	@echo "==> Smoke-testing LSP zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp --version $(VERSION) --output $(BUILD_DIR)/smoke-lsp.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-lsp.pyz --help > /dev/null
-	@rm -f $(BUILD_DIR)/smoke-lsp.pyz
-
+# TCL + F5 smokes: build, run representative subcommands + completion
+# generators, then clean up everything.  TCL needs KCS_DB so `tcl help`
+# can resolve.
 _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
-	@echo "==> Smoke-testing unified Tcl zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl --version $(VERSION) --output $(BUILD_DIR)/smoke-tcl.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz --help > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz format samples/for_screenshots/ai-scene.irul > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz lint --source "set x 1" > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz find-legacy samples/for_screenshots/ai-scene.irul --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
-	# Completion scripts are bundled and printable from inside the zipapp.
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion bash > $(BUILD_DIR)/smoke-tcl.bash
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion fish > $(BUILD_DIR)/smoke-tcl.fish
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion zsh  > $(BUILD_DIR)/smoke-tcl.zsh
-	bash -n $(BUILD_DIR)/smoke-tcl.bash
-	@rm -f $(BUILD_DIR)/smoke-tcl.pyz $(BUILD_DIR)/smoke-tcl.bash $(BUILD_DIR)/smoke-tcl.fish $(BUILD_DIR)/smoke-tcl.zsh
-
-_smoke-zipapp-cli: $(BUILD_INFO)
-	@echo "==> Smoke-testing CLI zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py cli --version $(VERSION) --output $(BUILD_DIR)/smoke-cli.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-cli.pyz --help > /dev/null
-	@rm -f $(BUILD_DIR)/smoke-cli.pyz
+	@echo "==> Smoke-testing tcl zipapp"
+	@SAMPLE=samples/for_screenshots/ai-scene.irul; \
+	PYZ=$(BUILD_DIR)/smoke-tcl.pyz; \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl --version $(VERSION) --output $$PYZ; \
+	$(PYTHON) $$PYZ --help > /dev/null; \
+	$(PYTHON) $$PYZ format $$SAMPLE > /dev/null; \
+	$(PYTHON) $$PYZ lint --source "set x 1" > /dev/null; \
+	$(PYTHON) $$PYZ symbols $$SAMPLE --json > /dev/null; \
+	$(PYTHON) $$PYZ callgraph $$SAMPLE --json > /dev/null; \
+	$(PYTHON) $$PYZ command-info HTTP::uri --dialect f5-irules --json > /dev/null; \
+	$(PYTHON) $$PYZ find-legacy $$SAMPLE --json > /dev/null; \
+	$(PYTHON) $$PYZ highlight $$SAMPLE --no-colour > /dev/null; \
+	$(PYTHON) $$PYZ diff $$SAMPLE $$SAMPLE --show ast --json > /dev/null; \
+	$(PYTHON) $$PYZ help taint --dialect f5-irules > /dev/null; \
+	for sh in bash fish zsh; do \
+		$(PYTHON) $$PYZ completion $$sh > $(BUILD_DIR)/smoke-tcl.$$sh; \
+	done; \
+	bash -n $(BUILD_DIR)/smoke-tcl.bash; \
+	rm -f $$PYZ $(BUILD_DIR)/smoke-tcl.bash $(BUILD_DIR)/smoke-tcl.fish $(BUILD_DIR)/smoke-tcl.zsh
+.PHONY: _smoke-zipapp-tcl
 
 _smoke-zipapp-f5: $(BUILD_INFO)
-	@echo "==> Smoke-testing F5 BIG-IP zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 --version $(VERSION) --output $(BUILD_DIR)/smoke-f5.pyz
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz --help > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup samples/bigip/bigip.conf > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup --json samples/bigip/bigip.conf > /dev/null
-	# `f5 irule` sub-verbs (event-order, event-info).
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz irule event-info HTTP_REQUEST --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz irule event-order --source 'when HTTP_REQUEST { return }' --json > /dev/null
-	# Completion scripts are bundled and printable from inside the zipapp.
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion bash > $(BUILD_DIR)/smoke-f5.bash
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion fish > $(BUILD_DIR)/smoke-f5.fish
-	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion zsh  > $(BUILD_DIR)/smoke-f5.zsh
-	bash -n $(BUILD_DIR)/smoke-f5.bash
-	@rm -f $(BUILD_DIR)/smoke-f5.pyz $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
+	@echo "==> Smoke-testing f5 zipapp"
+	@PYZ=$(BUILD_DIR)/smoke-f5.pyz; \
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 --version $(VERSION) --output $$PYZ; \
+	$(PYTHON) $$PYZ --help > /dev/null; \
+	$(PYTHON) $$PYZ cleanup samples/bigip/bigip.conf > /dev/null; \
+	$(PYTHON) $$PYZ cleanup --json samples/bigip/bigip.conf > /dev/null; \
+	$(PYTHON) $$PYZ irule event-info HTTP_REQUEST --json > /dev/null; \
+	$(PYTHON) $$PYZ irule event-order --source 'when HTTP_REQUEST { return }' --json > /dev/null; \
+	for sh in bash fish zsh; do \
+		$(PYTHON) $$PYZ completion $$sh > $(BUILD_DIR)/smoke-f5.$$sh; \
+	done; \
+	bash -n $(BUILD_DIR)/smoke-f5.bash; \
+	rm -f $$PYZ $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
+.PHONY: _smoke-zipapp-f5
 
 smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli _smoke-zipapp-f5 ## Build and smoke-test all zipapps
 	@echo "All zipapp smoke tests passed."
@@ -924,8 +949,8 @@ $(BUILD_INFO_JSON): .FORCE
 
 # Generated editor catalogs
 #
-# Depends on: the generator script + command registry specs.
-REGISTRY_SRCS := $(shell find $(PYCORE_DIR)/commands/registry -name '*.py' -not -path '*__pycache__*')
+# Depends on: the generator script + command registry runtime + dialect spec packs.
+REGISTRY_SRCS := $(shell find $(ROOT)compiler/registry $(ROOT)dialects -name '*.py' -not -path '*__pycache__*')
 _CATALOG_DEPS := $(UV_STAMP) scripts/generate_catalogs.py $(REGISTRY_SRCS)
 
 editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
@@ -955,17 +980,17 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 #
 # Depends on: the generator script + diagnostic/optimisation code
 # definitions + formatter config + Jinja2 templates.
-CODES_SRCS    := $(shell find $(PYCORE_DIR)/common -name 'codes*.py' -not -path '*__pycache__*')
-OPTIMISER_SRCS := $(shell find $(PYCORE_DIR)/compiler/optimiser -name '*.py' -not -path '*__pycache__*')
-CHECKS_SRCS   := $(shell find $(PYCORE_DIR)/analysis/checks -name '*.py' -not -path '*__pycache__*')
-ANALYSER_SRCS := $(shell find $(PYCORE_DIR)/analysis/_analyser -name '*.py' -not -path '*__pycache__*')
-SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) $(ANALYSER_SRCS) \
-	$(PYCORE_DIR)/formatting/config.py \
-	$(PYCORE_DIR)/common/optimisation_profiles.py \
-	$(PYCORE_DIR)/analysis/irules_checks.py \
-	$(PYCORE_DIR)/compiler/compiler_checks.py \
-	$(PYCORE_DIR)/compiler/gvn.py \
-	$(PYCORE_DIR)/compiler/shimmer.py
+SETTINGS_SRCS := \
+	$(wildcard $(ROOT)shared/codes*.py) \
+	$(shell find $(ROOT)compiler/optimiser -name '*.py' -not -path '*__pycache__*') \
+	$(shell find $(ROOT)analyser/checks -name '*.py' -not -path '*__pycache__*') \
+	$(shell find $(ROOT)analyser/_analyser -name '*.py' -not -path '*__pycache__*') \
+	$(ROOT)tooling/formatter/config.py \
+	$(ROOT)shared/optimisation_profiles.py \
+	$(ROOT)analyser/irules_checks.py \
+	$(ROOT)analyser/compiler_checks.py \
+	$(ROOT)compiler/gvn.py \
+	$(ROOT)compiler/shimmer.py
 SETTINGS_J2   := $(wildcard docs/generated/*.j2 editors/vscode/src/generated/*.j2 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/*.j2 ai/prompts/*.j2 ai/claude/skills/*/*.j2)
 _SETTINGS_DEPS := $(UV_STAMP) scripts/generate_editor_settings.py $(SETTINGS_SRCS) $(SETTINGS_J2)
 
@@ -1041,38 +1066,64 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 	@echo "CDN explorer built in $(EXPLORER_CDN_DIR)"
 	@ls -lh $(EXPLORER_CDN_DIR)/
 
+# ---------------------------------------------------------------------------
 # Zipapp targets
+#
+# Every zipapp boils down to:
+#
+#   scripts/build_zipapp.py <profile> --version <V> --output <OUT>
+#
+# The seven "plain" zipapps (tcl / cli / f5 / lsp / ai / mcp / wasm) share
+# the same dependency set: PY_SRCS + BUILD_INFO (plus KCS_DB for the
+# unified `tcl` zipapp because it bundles help pages).  The two GUI
+# zipapps need the static explorer bundle first.
+#
+# Use `$(call zipapp_rule,profile,output-var,extra-deps,description)` to
+# add a new one — it generates the friendly `zipapp-<profile>` phony,
+# the recipe, and a `## help` line for `make help`.
+# ---------------------------------------------------------------------------
 
-zipapps: zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build all zipapps
+zipapps: zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build every zipapp
 
-zipapp-tcl: $(ZIPAPP_TCL) ## Build the unified Tcl tools zipapp
+# Friendly aliases — kept as plain rules so `make help` sees the
+# docstring.  The actual build recipes are macro-generated below.
+zipapp-tcl:  $(ZIPAPP_TCL)  ## Build the unified Tcl tools zipapp
+zipapp-cli:  $(ZIPAPP_CLI)  ## Build the CLI compiler explorer zipapp
+zipapp-f5:   $(ZIPAPP_F5)   ## Build the F5 BIG-IP CLI zipapp
+zipapp-lsp:  $(ZIPAPP_LSP)  ## Build the LSP server zipapp
+zipapp-ai:   $(ZIPAPP_AI)   ## Build the AI analysis zipapp
+zipapp-mcp:  $(ZIPAPP_MCP)  ## Build the MCP server zipapp
+zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
 
-$(ZIPAPP_TCL): $(PY_SRCS) $(VM_SRCS) $(BUILD_INFO) $(KCS_DB)
-	@echo "==> Building unified Tcl zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py tcl \
-		--version $(VERSION) \
-		--output $@
+# define plain_zipapp_recipe — generate the file-producing recipe for
+# one of the seven plain zipapps (tcl / cli / f5 / lsp / ai / mcp / wasm).
+#
+#   $(1) = profile passed to build_zipapp.py
+#   $(2) = name of the variable holding the output path (e.g. ZIPAPP_TCL)
+#   $(3) = extra dependencies (whitespace-separated)
+define plain_zipapp_recipe
+$$($(2)): $$(PY_SRCS) $$(BUILD_INFO) $(3)
+	@echo "==> Building $(1) zipapp"
+	$$(PYTHON) $$(ROOT)scripts/build_zipapp.py $(1) \
+		--version $$(VERSION) \
+		--output $$@
+endef
 
-zipapp-cli: $(ZIPAPP_CLI) ## Build the CLI compiler explorer zipapp
+$(eval $(call plain_zipapp_recipe,tcl,ZIPAPP_TCL,$(KCS_DB)))
+$(eval $(call plain_zipapp_recipe,cli,ZIPAPP_CLI,))
+$(eval $(call plain_zipapp_recipe,f5,ZIPAPP_F5,))
+$(eval $(call plain_zipapp_recipe,lsp,ZIPAPP_LSP,))
+$(eval $(call plain_zipapp_recipe,ai,ZIPAPP_AI,))
+$(eval $(call plain_zipapp_recipe,mcp,ZIPAPP_MCP,))
+$(eval $(call plain_zipapp_recipe,wasm,ZIPAPP_WASM,))
 
-$(ZIPAPP_CLI): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building CLI zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py cli \
-		--version $(VERSION) \
-		--output $@
-
-zipapp-f5: $(ZIPAPP_F5) ## Build the F5 BIG-IP CLI zipapp
-
-$(ZIPAPP_F5): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building F5 BIG-IP CLI zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 \
-		--version $(VERSION) \
-		--output $@
+# GUI zipapps need the static explorer bundle, so they don't fit the
+# plain-zipapp pattern.
 
 zipapp-gui: $(ZIPAPP_GUI) ## Build the standalone GUI zipapp (bundles Pyodide)
 
 $(ZIPAPP_GUI): explorer-build $(BUILD_INFO_JSON)
-	@echo "==> Building standalone GUI zipapp"
+	@echo "==> Building gui zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui \
 		--version $(VERSION) \
 		--output $@ \
@@ -1081,43 +1132,11 @@ $(ZIPAPP_GUI): explorer-build $(BUILD_INFO_JSON)
 zipapp-gui-cdn: $(ZIPAPP_GUI_CDN) ## Build the CDN GUI zipapp (loads Pyodide from CDN)
 
 $(ZIPAPP_GUI_CDN): explorer-build-cdn
-	@echo "==> Building CDN GUI zipapp"
+	@echo "==> Building gui-cdn zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py gui-cdn \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_CDN_DIR)
-
-zipapp-lsp: $(ZIPAPP_LSP) ## Build the LSP server zipapp
-
-$(ZIPAPP_LSP): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building LSP server zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
-		--version $(VERSION) \
-		--output $@
-
-zipapp-ai: $(ZIPAPP_AI) ## Build the AI analysis zipapp
-
-$(ZIPAPP_AI): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building AI analysis zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py ai \
-		--version $(VERSION) \
-		--output $@
-
-zipapp-mcp: $(ZIPAPP_MCP) ## Build the MCP server zipapp
-
-$(ZIPAPP_MCP): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building MCP server zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py mcp \
-		--version $(VERSION) \
-		--output $@
-
-zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
-
-$(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO)
-	@echo "==> Building WASM compiler zipapp"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py wasm \
-		--version $(VERSION) \
-		--output $@
 
 claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
@@ -1254,7 +1273,6 @@ release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp 
 # SHA256SUMS itself and its signature bundle); this target mirrors that
 # selection so developers can compare locally-built SUMS against the
 # published file.
-.PHONY: release-sums
 release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
@@ -1347,15 +1365,11 @@ distclean: clean ## Remove build artifacts and node_modules
 # below provide a scriptable entry-point and the leak-check variant
 # used by S0.2.
 
-.PHONY: build-runtime build-runtime-leakcheck
-
 build-runtime: ## Build runtime/zig (default debug build) → tcl_runtime.wasm
 	cd runtime/zig && zig build
 
 build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
 	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true
-
-.PHONY: leakcheck leakcheck-diff snapshot-leak-baseline
 
 leakcheck: build-runtime-leakcheck ## Run the in-scope tcltest suite under the leak-check runtime; emit per-file alloc / double-free counts.
 	uv run --with pytest --with wasmtime python scripts/dev/leak_sweep.py
@@ -1367,12 +1381,10 @@ snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to th
 	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
 
 # ---------------------------------------------------------------------------
-# Sphinx — f5q Python API reference
+# Sphinx — dialects.f5.query Python API reference
 # ---------------------------------------------------------------------------
 
-.PHONY: docs docs-html docs-clean docs-linkcheck
-
-docs: docs-html  ## Build the f5q Sphinx HTML docs (alias for docs-html)
+docs: docs-html  ## Build the Sphinx HTML docs (alias for docs-html)
 
 docs-html: $(UV_STAMP)  ## Build the f5q Sphinx API reference (docs/sphinx/_build/html)
 	uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html

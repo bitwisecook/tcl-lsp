@@ -40,7 +40,7 @@ _HEADER = """# F5 query DSL — builtin function reference
 > **Type:** Reference
 
 **This page is generated from the builtin registry in
-`core/bigip/query/builtins.py`.  Edit that registry, not this file.**
+`dialects/f5/query/builtins.py`.  Edit that registry, not this file.**
 The generator lives at `scripts/dev/gen_query_builtins_doc.py`;
 a CI check asserts the on-disk file is up to date.
 

@@ -6,7 +6,7 @@ writes a SQLite database with FTS5 full-text search, a normalised tag
 table derived from each note's ``## Applies to`` line, and screenshot
 BLOBs.
 
-Output: ``core/help/kcs_help.db``
+Output: ``shared/help/kcs_help.db``
 
 Usage::
 

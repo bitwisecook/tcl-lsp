@@ -1,4 +1,4 @@
-"""Generated from ``core/bigip/data/scf_port_names.csv`` — do not edit by hand.
+"""Generated from ``dialects/f5/bigip/data/scf_port_names.csv`` — do not edit by hand.
 
 Regenerate with ``make generate`` (which runs ``scripts/generate_port_names.py``).
 The dict literal below is the canonical mcpd service-name → port-number

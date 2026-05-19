@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate ``core/bigip/_port_names_table.py`` from the SCF port-name CSV.
+"""Generate ``dialects/f5/bigip/_port_names_table.py`` from the SCF port-name CSV.
 
-mcpd's port-name table is checked in as ``core/bigip/data/scf_port_names.csv``
+mcpd's port-name table is checked in as ``dialects/f5/bigip/data/scf_port_names.csv``
 for human inspection and diffs.  Shipping the CSV in a wheel/zipapp would
 force every cold start to crack open the archive and run a csv reader, so
 we precompute a ``dict`` literal into a Python module instead — that gets
@@ -21,11 +21,11 @@ import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_CSV = _REPO_ROOT / "core" / "bigip" / "data" / "scf_port_names.csv"
-_DEFAULT_OUT = _REPO_ROOT / "core" / "bigip" / "_port_names_table.py"
+_DEFAULT_CSV = _REPO_ROOT / "dialects" / "f5" / "bigip" / "data" / "scf_port_names.csv"
+_DEFAULT_OUT = _REPO_ROOT / "dialects" / "f5" / "bigip" / "_port_names_table.py"
 
 _HEADER = '''\
-"""Generated from ``core/bigip/data/scf_port_names.csv`` — do not edit by hand.
+"""Generated from ``dialects/f5/bigip/data/scf_port_names.csv`` — do not edit by hand.
 
 Regenerate with ``make generate`` (which runs ``scripts/generate_port_names.py``).
 The dict literal below is the canonical mcpd service-name → port-number

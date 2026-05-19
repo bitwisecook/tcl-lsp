@@ -53,7 +53,7 @@ def _ts_description_field(value: str, *, indent: int = 4) -> str:
 
 # Import registry (triggers all code registrations)
 
-# Ensure core/ is importable
+# Ensure repo root is on sys.path so the concern packages are importable
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -88,7 +88,7 @@ def _snake_to_camel(name: str) -> str:
 def _build_vscode_formatter_sections() -> list[dict]:
     """Build VS Code configuration sections for formatter settings.
 
-    Reads ``FORMATTER_SETTINGS_CATALOGUE`` from ``core.formatting.config``
+    Reads ``FORMATTER_SETTINGS_CATALOGUE`` from ``tooling.formatter.config``
     (the single source of truth) and builds VS Code schema entries with
     defaults pulled directly from ``FormatterConfig``.
     """

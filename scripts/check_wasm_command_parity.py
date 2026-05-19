@@ -6,7 +6,7 @@ command is named and writes a JSON snapshot to ``tmp/wasm_command_inventory.json
 
 Locations covered:
 
-- Python command registry under ``core/commands/registry/tcl/`` (filtered to
+- Python command registry under ``compiler/registry/tcl/`` (filtered to
   the Tcl 8.4-9.0 dialect set)
 - Zig builtins assembled in ``runtime/zig/tcl_cmd_table.zig`` from
   ``runtime/zig/cmds/*.zig``
@@ -304,7 +304,7 @@ def collect_registry_commands() -> dict[str, dict]:
     """Return ``{name: {dialects, has_wasm_codegen, subcommands_with_wasm_codegen}}``.
 
     The set is restricted to **Tcl core** commands — those declared under
-    ``core/commands/registry/tcl/`` — and further filtered to specs that
+    ``compiler/registry/tcl/`` — and further filtered to specs that
     apply to at least one of Tcl 8.4, 8.5, 8.6, or 9.0.  Tk, Tcllib, EDA,
     iRules, and other dialect packs are intentionally excluded: they have
     no business in the WASM runtime.
