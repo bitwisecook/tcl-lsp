@@ -29,53 +29,7 @@ jobs:
   pr-gate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # `make build-info` (a dep of ci-fast) shells out to `git describe
-          # --tags`.  That needs tags but NOT full history — `fetch-depth: 1`
-          # + `fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}` is meaningfully faster than `fetch-depth: 0`
-          # on a repo with many commits and gives the describe call exactly
-          # what it needs.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Log commit info
-        # `github.head_ref` is the PR source branch and is attacker-controlled
-        # on forked-PR runs — interpolating it directly into `run:` is the
-        # classic GitHub Actions expression-injection vector.  Pipe every
-        # workflow-context value through `env:` so the shell sees a plain
-        # variable, not template-expanded source.
-        env:
-          GH_SHA: ${{ github.sha }}
-          GH_EVENT: ${{ github.event_name }}
-          GH_REF: ${{ github.ref }}
-          GH_HEAD_REF: ${{ github.head_ref }}
-          GH_RUN_ID: ${{ github.run_id }}
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha        = $GH_SHA"
-          echo "github.event_name = $GH_EVENT"
-          echo "github.ref        = $GH_REF"
-          echo "github.head_ref   = $GH_HEAD_REF"
-          echo "github.run_id     = $GH_RUN_ID"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo "::endgroup::"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          # v6's cache keys on uv.lock by default and works correctly
-          # (the v4 lockfile-glob bug is fixed).  Trims a few seconds off
-          # the gate on warm runs.
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       # Note: no wasmtime CLI setup here — the Python tests in ci-fast
       # use the `wasmtime` Python package (already a uv dep) for any
@@ -97,36 +51,7 @@ jobs:
         python-version: ["3.10"]
       fail-fast: false
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Log commit info
-        # See pr-gate for why these go through `env:` rather than direct
-        # `${{ github.* }}` interpolation in the run script.
-        env:
-          GH_SHA: ${{ github.sha }}
-          GH_EVENT: ${{ github.event_name }}
-          GH_REF: ${{ github.ref }}
-          GH_HEAD_REF: ${{ github.head_ref }}
-          GH_RUN_ID: ${{ github.run_id }}
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha        = $GH_SHA"
-          echo "github.event_name = $GH_EVENT"
-          echo "github.ref        = $GH_REF"
-          echo "github.head_ref   = $GH_HEAD_REF"
-          echo "github.run_id     = $GH_RUN_ID"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
-          echo "::endgroup::"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: ./.github/actions/setup-build
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -142,9 +67,6 @@ jobs:
 
       - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
         run: bash scripts/fetch_tcl_regex.sh
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
 
       - name: Run Python tests
         run: >-
@@ -164,41 +86,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Log commit info
-        # See pr-gate for why these go through `env:` rather than direct
-        # `${{ github.* }}` interpolation in the run script.
-        env:
-          GH_SHA: ${{ github.sha }}
-          GH_EVENT: ${{ github.event_name }}
-          GH_REF: ${{ github.ref }}
-          GH_HEAD_REF: ${{ github.head_ref }}
-          GH_RUN_ID: ${{ github.run_id }}
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha        = $GH_SHA"
-          echo "github.event_name = $GH_EVENT"
-          echo "github.ref        = $GH_REF"
-          echo "github.head_ref   = $GH_HEAD_REF"
-          echo "github.run_id     = $GH_RUN_ID"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
-          echo "::endgroup::"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -319,23 +207,7 @@ jobs:
       id-token: write        # OIDC for sigstore-backed attestations
       attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -355,70 +227,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
       - name: Install npm dependencies
         run: cd editors/vscode && npm install
 
       - name: Build and verify VSIX
         run: make package-vsix
 
-      # SLSA build provenance: binds every artefact to the workflow run
-      # and source commit that produced it.  Verifiable post-hoc with
-      # `gh attestation verify --owner bitwisecook <file>`.  Complements
-      # the cosign-signed SHA256SUMS (which proves the *set* of files is
-      # what we published) with per-file proof of build provenance.
-      - name: Attest VSIX build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      - uses: ./.github/actions/sign-and-upload
         with:
-          subject-path: "build/*.vsix"
+          artefact-glob: "build/*.vsix"
+          artefact-name: vsix
 
-      # SBOM: syft introspects the .vsix (which is a zip) and lists every
-      # package contained within.  Attestation binds the SBOM to the
-      # artefact's sha256 via Sigstore.  `gh attestation verify` returns
-      # both the build-provenance AND the SBOM attestation in one query.
-      - name: Resolve VSIX artefact path
-        id: sbom_vsix
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/*.vsix | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate VSIX SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_vsix.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_vsix.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest VSIX SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_vsix.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_vsix.outputs.sbom }}
-
-      - name: Upload VSIX
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: vsix
-          path: "build/*.vsix"
-          retention-days: 7
-
-      - name: Upload VSIX to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_vsix.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/*.vsix "$SBOM_PATH" --clobber
-
-  # Build: CLI zipapp
-  build-zipapp-cli:
+  # ---------------------------------------------------------------------
+  # build-zipapp — one matrix job that replaces what used to be eight
+  # nearly-identical build-zipapp-<profile> jobs.
+  #
+  # Each matrix entry declares the profile name (which `make zipapp-<name>`
+  # to invoke), the glob that resolves to the produced artefact, and an
+  # optional `smoke` block that runs after the build.  The shared setup
+  # (checkout + uv + python) and the shared release tail
+  # (attest + SBOM + cosign sign + upload + gh release upload) live in
+  # two composite actions under `.github/actions/`.
+  #
+  # Adding a new zipapp profile is one matrix entry here + one `Profile(...)`
+  # registration in `scripts/build/zipapps.py` + one `zipapp_rule` line in
+  # the Makefile.
+  # ---------------------------------------------------------------------
+  build-zipapp:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
     runs-on: ubuntu-24.04
@@ -426,468 +261,104 @@ jobs:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
       attestations: write    # actions/attest-build-provenance writes here
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: cli
+            artefact_glob: "build/tcl-lsp-explorer-cli-*.pyz"
+            smoke: "python3 build/tcl-lsp-explorer-cli-*.pyz --help"
+
+          - profile: f5
+            artefact_glob: "build/f5-*.pyz"
+            smoke: |
+              python3 build/f5-*.pyz --help
+              python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
+              python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
+              python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
+              # event-info / event-order are iRules-only verbs; they moved from
+              # `tcl` to `f5 irule` in PR #387 when the irule binary alias was
+              # dropped.
+              python3 build/f5-*.pyz irule event-info HTTP_REQUEST --json
+              # Bundled shell-completion scripts must round-trip through the zipapp
+              # and parse cleanly under the corresponding shell where available.
+              python3 build/f5-*.pyz completion bash > /tmp/f5.bash
+              python3 build/f5-*.pyz completion fish > /tmp/f5.fish
+              python3 build/f5-*.pyz completion zsh  > /tmp/_f5
+              bash -n /tmp/f5.bash
+              # zsh and fish aren't installed in CI; rely on the bash syntax
+              # check plus the static unit tests for those scripts.
+
+          - profile: tcl
+            artefact_glob: "build/tcl-*.pyz"
+            smoke: |
+              python3 build/tcl-*.pyz --help
+              python3 build/tcl-*.pyz format samples/for_screenshots/ai-scene.irul
+              python3 build/tcl-*.pyz lint --source "set x 1"
+              python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
+              python3 build/tcl-*.pyz find-legacy samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
+              python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
+              python3 build/tcl-*.pyz help taint --dialect f5-irules
+
+          - profile: lsp
+            artefact_glob: "build/tcl-lsp-server-*.pyz"
+            smoke: "python3 build/tcl-lsp-server-*.pyz --help"
+
+          - profile: mcp
+            artefact_glob: "build/tcl-lsp-mcp-server-*.pyz"
+            smoke: "python3 build/tcl-lsp-mcp-server-*.pyz --help"
+
+          - profile: wasm
+            artefact_glob: "build/tcl-wasm-compiler-*.pyz"
+            smoke: "python3 build/tcl-wasm-compiler-*.pyz --help"
+
+          - profile: gui-cdn
+            artefact_glob: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
+            smoke: |
+              python3 -c "
+              import zipfile, glob
+              path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
+              zf = zipfile.ZipFile(path)
+              names = zf.namelist()
+              assert 'static/index.html' in names, 'missing index.html'
+              assert 'static/worker.js' in names, 'missing worker.js'
+              assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
+              print(f'OK: {len(names)} entries (CDN variant)')
+              "
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-build
+
+      - name: Build ${{ matrix.profile }} zipapp
+        run: make zipapp-${{ matrix.profile }}
+
+      - name: Smoke-test ${{ matrix.profile }} zipapp
+        if: matrix.smoke != ''
+        run: ${{ matrix.smoke }}
+
+      - uses: ./.github/actions/sign-and-upload
         with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          artefact-glob: ${{ matrix.artefact_glob }}
+          artefact-name: zipapp-${{ matrix.profile }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build CLI zipapp
-        run: make zipapp-cli
-
-      - name: Smoke-test CLI zipapp
-        run: python3 build/tcl-lsp-explorer-cli-*.pyz --help
-
-      - name: Attest CLI zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-lsp-explorer-cli-*.pyz"
-
-      - name: Resolve CLI zipapp path
-        id: sbom_cli
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-explorer-cli-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate CLI SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_cli.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_cli.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest CLI SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_cli.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_cli.outputs.sbom }}
-
-      - name: Upload CLI zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-cli
-          path: "build/tcl-lsp-explorer-cli-*.pyz"
-          retention-days: 7
-
-      - name: Upload CLI zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_cli.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-explorer-cli-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: F5 BIG-IP CLI zipapp
-  build-zipapp-f5:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build F5 BIG-IP zipapp
-        run: make zipapp-f5
-
-      - name: Smoke-test F5 BIG-IP zipapp
-        run: |
-          python3 build/f5-*.pyz --help
-          python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
-          python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
-          python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
-          # event-info / event-order are iRules-only verbs; they moved from
-          # `tcl` to `f5 irule` in PR #387 when the irule binary alias was
-          # dropped.
-          python3 build/f5-*.pyz irule event-info HTTP_REQUEST --json
-          # Bundled shell-completion scripts must round-trip through the zipapp
-          # and parse cleanly under the corresponding shell where available.
-          python3 build/f5-*.pyz completion bash > /tmp/f5.bash
-          python3 build/f5-*.pyz completion fish > /tmp/f5.fish
-          python3 build/f5-*.pyz completion zsh  > /tmp/_f5
-          bash -n /tmp/f5.bash
-          # zsh and fish aren't installed in CI; rely on the bash syntax
-          # check plus the static unit tests for those scripts.
-
-      - name: Attest F5 zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/f5-*.pyz"
-
-      - name: Resolve F5 zipapp path
-        id: sbom_f5
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/f5-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate F5 SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_f5.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_f5.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest F5 SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_f5.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_f5.outputs.sbom }}
-
-      - name: Upload F5 zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-f5
-          path: "build/f5-*.pyz"
-          retention-days: 7
-
-      - name: Upload F5 zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_f5.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/f5-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: unified Tcl tools zipapp
-  build-zipapp-tcl:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build unified Tcl zipapp
-        run: make zipapp-tcl
-
-      - name: Smoke-test unified Tcl zipapp
-        run: |
-          python3 build/tcl-*.pyz --help
-          python3 build/tcl-*.pyz format samples/for_screenshots/ai-scene.irul
-          python3 build/tcl-*.pyz lint --source "set x 1"
-          python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
-          python3 build/tcl-*.pyz find-legacy samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
-          python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
-          python3 build/tcl-*.pyz help taint --dialect f5-irules
-
-      - name: Attest unified Tcl zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-*.pyz"
-
-      - name: Resolve unified Tcl zipapp path
-        id: sbom_tcl
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate unified Tcl SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_tcl.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_tcl.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest unified Tcl SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_tcl.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_tcl.outputs.sbom }}
-
-      - name: Upload unified Tcl zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-tcl
-          path: "build/tcl-*.pyz"
-          retention-days: 7
-
-      - name: Upload unified Tcl zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_tcl.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: GUI zipapp — CDN variant (tagged releases only)
-  build-zipapp-gui:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build CDN GUI zipapp
-        run: make zipapp-gui-cdn
-
-      - name: Smoke-test CDN GUI zipapp
-        run: |
-          python3 -c "
-          import zipfile, glob
-          path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
-          zf = zipfile.ZipFile(path)
-          names = zf.namelist()
-          assert 'static/index.html' in names, 'missing index.html'
-          assert 'static/worker.js' in names, 'missing worker.js'
-          assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
-          print(f'OK: {len(names)} entries (CDN variant)')
-          "
-
-      - name: Attest CDN GUI zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
-
-      - name: Resolve CDN GUI zipapp path
-        id: sbom_gui
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-explorer-gui-cdn-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate CDN GUI SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_gui.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_gui.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest CDN GUI SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_gui.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_gui.outputs.sbom }}
-
-      - name: Upload CDN GUI zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-gui-cdn
-          path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
-          retention-days: 7
-
-      - name: Upload CDN GUI zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_gui.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-explorer-gui-cdn-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: LSP server zipapp
-  build-zipapp-lsp:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build LSP zipapp
-        run: make zipapp-lsp
-
-      - name: Smoke-test LSP zipapp
-        run: python3 build/tcl-lsp-server-*.pyz --help
-
-      - name: Attest LSP zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-lsp-server-*.pyz"
-
-      - name: Resolve LSP zipapp path
-        id: sbom_lsp
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-server-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate LSP SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_lsp.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_lsp.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest LSP SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_lsp.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_lsp.outputs.sbom }}
-
-      - name: Upload LSP zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-lsp
-          path: "build/tcl-lsp-server-*.pyz"
-          retention-days: 7
-
-      - name: Upload LSP zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_lsp.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-server-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: AI analysis zipapp + Claude Code skills zip
+  # ---------------------------------------------------------------------
+  # build-claude-skills builds the AI zipapp first (since `make
+  # claude-skills` bundles the AI zipapp into the skills release zip),
+  # smokes both, then attests and uploads the skills zip + the AI zipapp.
+  # Stays standalone because it produces TWO artefacts in one go.
+  # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
     runs-on: ubuntu-24.04
     permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
+      contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Build AI zipapp
         run: make zipapp-ai
@@ -895,216 +366,19 @@ jobs:
       - name: Smoke-test AI zipapp
         run: python3 build/tcl-lsp-ai-*.pyz context samples/for_screenshots/ai-scene.irul
 
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-ai-*.pyz"
+          artefact-name: zipapp-ai
+
       - name: Build Claude skills zip
         run: make claude-skills
 
-      - name: Attest Claude skills zip build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      - uses: ./.github/actions/sign-and-upload
         with:
-          subject-path: "build/tcl-lsp-claude-skills-*.zip"
+          artefact-glob: "build/tcl-lsp-claude-skills-*.zip"
+          artefact-name: claude-skills
 
-      - name: Resolve Claude skills zip path
-        id: sbom_skills
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-claude-skills-*.zip | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate Claude skills SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_skills.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_skills.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest Claude skills SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_skills.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_skills.outputs.sbom }}
-
-      - name: Upload Claude skills zip
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: claude-skills
-          path: "build/tcl-lsp-claude-skills-*.zip"
-          retention-days: 7
-
-      - name: Upload Claude skills zip to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_skills.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-claude-skills-*.zip "$SBOM_PATH" --clobber
-
-  # Build: MCP server zipapp
-  build-zipapp-mcp:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build MCP zipapp
-        run: make zipapp-mcp
-
-      - name: Smoke-test MCP zipapp
-        run: python3 build/tcl-lsp-mcp-server-*.pyz --help
-
-      - name: Attest MCP zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-lsp-mcp-server-*.pyz"
-
-      - name: Resolve MCP zipapp path
-        id: sbom_mcp
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-mcp-server-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate MCP SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_mcp.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_mcp.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest MCP SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_mcp.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_mcp.outputs.sbom }}
-
-      - name: Upload MCP zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-mcp
-          path: "build/tcl-lsp-mcp-server-*.pyz"
-          retention-days: 7
-
-      - name: Upload MCP zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_mcp.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-mcp-server-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: WASM compiler zipapp
-  build-zipapp-wasm:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write        # gh release upload
-      id-token: write        # OIDC for sigstore-backed attestations
-      attestations: write    # actions/attest-build-provenance writes here
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build WASM zipapp
-        run: make zipapp-wasm
-
-      - name: Smoke-test WASM zipapp
-        run: python3 build/tcl-wasm-compiler-*.pyz --help
-
-      - name: Attest WASM zipapp build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: "build/tcl-wasm-compiler-*.pyz"
-
-      - name: Resolve WASM zipapp path
-        id: sbom_wasm
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-wasm-compiler-*.pyz | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate WASM SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_wasm.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_wasm.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest WASM SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_wasm.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_wasm.outputs.sbom }}
-
-      - name: Upload WASM zipapp
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zipapp-wasm
-          path: "build/tcl-wasm-compiler-*.pyz"
-          retention-days: 7
-
-      - name: Upload WASM zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_wasm.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-wasm-compiler-*.pyz "$SBOM_PATH" --clobber
-
-  # Build: JetBrains plugin
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
@@ -1114,23 +388,7 @@ jobs:
       id-token: write        # OIDC for sigstore-backed attestations
       attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Java 17
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -1142,57 +400,15 @@ jobs:
             editors/jetbrains/*.gradle*
             editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
       - name: Build JetBrains plugin
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
         run: make jetbrains
 
-      - name: Attest JetBrains plugin build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      - uses: ./.github/actions/sign-and-upload
         with:
-          subject-path: "build/tcl-lsp-jetbrains-*.zip"
-
-      - name: Resolve JetBrains plugin path
-        id: sbom_jetbrains
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-jetbrains-*.zip | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate JetBrains SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_jetbrains.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_jetbrains.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest JetBrains SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_jetbrains.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_jetbrains.outputs.sbom }}
-
-      - name: Upload JetBrains plugin
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: jetbrains-plugin
-          path: "build/tcl-lsp-jetbrains-*.zip"
-          retention-days: 7
-
-      - name: Upload JetBrains plugin to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_jetbrains.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-jetbrains-*.zip "$SBOM_PATH" --clobber
+          artefact-glob: "build/tcl-lsp-jetbrains-*.zip"
+          artefact-name: jetbrains-plugin
 
   # Build: Sublime Text package
   build-sublime:
@@ -1204,26 +420,7 @@ jobs:
       id-token: write        # OIDC for sigstore-backed attestations
       attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Build Sublime Text package
         run: make sublime
@@ -1243,49 +440,10 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
-      - name: Attest Sublime package build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      - uses: ./.github/actions/sign-and-upload
         with:
-          subject-path: "build/tcl-lsp-sublime-*.sublime-package"
-
-      - name: Resolve Sublime package path
-        id: sbom_sublime
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-sublime-*.sublime-package | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate Sublime SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_sublime.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_sublime.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest Sublime SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_sublime.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_sublime.outputs.sbom }}
-
-      - name: Upload Sublime package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sublime-package
-          path: "build/tcl-lsp-sublime-*.sublime-package"
-          retention-days: 7
-
-      - name: Upload Sublime package to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_sublime.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-sublime-*.sublime-package "$SBOM_PATH" --clobber
+          artefact-glob: "build/tcl-lsp-sublime-*.sublime-package"
+          artefact-name: sublime-package
 
   # Build: Zed extension
   build-zed:
@@ -1297,26 +455,7 @@ jobs:
       id-token: write        # OIDC for sigstore-backed attestations
       attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # See pr-gate for why this is depth-1 + tags rather than full
-          # history: `git describe --tags` is the only consumer of the
-          # checkout and only needs tags reachable from HEAD.
-          fetch-depth: 1
-          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Rust
         # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
@@ -1345,56 +484,17 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
-      - name: Attest Zed extension build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      - uses: ./.github/actions/sign-and-upload
         with:
-          subject-path: "build/tcl-lsp-zed-*.zip"
-
-      - name: Resolve Zed extension path
-        id: sbom_zed
-        run: |
-          set -euo pipefail
-          artefact=$(ls build/tcl-lsp-zed-*.zip | head -1)
-          [ -n "$artefact" ]
-          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
-          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
-
-      - name: Generate Zed SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          file: ${{ steps.sbom_zed.outputs.artefact }}
-          format: spdx-json
-          output-file: ${{ steps.sbom_zed.outputs.sbom }}
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Attest Zed SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: ${{ steps.sbom_zed.outputs.artefact }}
-          sbom-path: ${{ steps.sbom_zed.outputs.sbom }}
-
-      - name: Upload Zed extension
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: zed-extension
-          path: "build/tcl-lsp-zed-*.zip"
-          retention-days: 7
-
-      - name: Upload Zed extension to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SBOM_PATH: ${{ steps.sbom_zed.outputs.sbom }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-zed-*.zip "$SBOM_PATH" --clobber
+          artefact-glob: "build/tcl-lsp-zed-*.zip"
+          artefact-name: zed-extension
 
   # Publish: aggregate SHA256SUMS over every artefact attached to the
   # release, plus an optional cosign keyless signature. The installer
   # verifies downloaded artefacts against this file.
   publish-checksums:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [create-release, build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed]
     runs-on: ubuntu-24.04
     permissions:
       contents: write   # gh release upload
@@ -1462,7 +562,7 @@ jobs:
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
+    needs: [build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-checksums]
     runs-on: ubuntu-24.04
     permissions:
       actions: write
@@ -1513,7 +613,7 @@ jobs:
   # Cleanup: delete all non-release artifacts (runs only during releases)
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
+    needs: [build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-checksums]
     runs-on: ubuntu-24.04
     permissions:
       actions: write

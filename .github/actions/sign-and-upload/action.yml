@@ -1,0 +1,83 @@
+name: "Sign and upload a release artefact"
+description: |
+  Attest, SBOM, and upload a build artefact for the current tag release.
+  The job that uses this action must:
+
+    * have already produced the artefact at `inputs.artefact-glob`
+    * have `permissions: { contents: write, id-token: write, attestations: write }`
+    * be gated by `if: startsWith(github.ref, 'refs/tags/v')`
+
+  No marketplace tokens are involved.  The action only uses GitHub's
+  built-in OIDC + `github.token` to attach signed assets to the GitHub
+  Release the matching tag created — marketplace publishing remains a
+  local-only operation per the no-tokens-in-CI invariant.
+
+inputs:
+  artefact-glob:
+    description: |
+      Glob (relative to the workspace root) pointing at the artefact to
+      sign + upload.  Must match exactly one file; if your zipapp embeds
+      a version string the glob can use `*`, e.g. `build/f5-*.pyz`.
+    required: true
+  artefact-name:
+    description: |
+      Name for `actions/upload-artifact`.  Defaults to a slug derived
+      from the glob; pass an explicit value if you have two artefacts
+      with identical filenames in different directories.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Attest build provenance
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+      with:
+        subject-path: ${{ inputs.artefact-glob }}
+
+    - name: Resolve artefact path
+      id: artefact_path
+      shell: bash
+      run: |
+        set -euo pipefail
+        artefact=$(ls ${{ inputs.artefact-glob }} | head -1)
+        [ -n "$artefact" ]
+        echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
+        echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
+        # Default upload-artifact name = basename minus version suffix
+        # so concurrent matrix entries don't clash on a single name.
+        default_name=$(basename "$artefact" | sed -E 's/-[0-9].*$//')
+        echo "name=${default_name}" >> "$GITHUB_OUTPUT"
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      with:
+        file: ${{ steps.artefact_path.outputs.artefact }}
+        format: spdx-json
+        output-file: ${{ steps.artefact_path.outputs.sbom }}
+        upload-artifact: false
+        upload-release-assets: false
+
+    - name: Attest SBOM
+      uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+      with:
+        subject-path: ${{ steps.artefact_path.outputs.artefact }}
+        sbom-path: ${{ steps.artefact_path.outputs.sbom }}
+
+    - name: Upload artefact to workflow run
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artefact-name != '' && inputs.artefact-name || steps.artefact_path.outputs.name }}
+        path: ${{ inputs.artefact-glob }}
+        retention-days: 7
+
+    - name: Upload to GitHub Release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ARTEFACT_GLOB: ${{ inputs.artefact-glob }}
+        SBOM_PATH: ${{ steps.artefact_path.outputs.sbom }}
+      run: |
+        set -euo pipefail
+        tag="${GITHUB_REF#refs/tags/}"
+        gh release upload "$tag" $ARTEFACT_GLOB "$SBOM_PATH" --clobber

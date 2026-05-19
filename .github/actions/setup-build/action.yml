@@ -1,0 +1,77 @@
+name: "Set up build environment"
+description: |
+  Standard tcl-lsp build setup used by every CI job that runs Python or
+  invokes `make`.  Performs checkout, installs `uv`, sets up Python, and
+  runs `uv sync --extra dev`.  Job-level steps that only need Python +
+  the dev dependency set can `uses: ./.github/actions/setup-build` and
+  then call `make <target>` directly.
+
+  All third-party action SHAs are pinned identically to how the inlined
+  copies were before this composite landed; bump them here in ONE place.
+
+inputs:
+  python-version:
+    description: "Python version for `actions/setup-python`."
+    required: false
+    default: "3.12"
+  fetch-depth:
+    description: |
+      Git history depth for `actions/checkout`.  Default 1 — only the
+      `pr-gate` job has a non-default requirement (full history, set
+      explicitly there).
+    required: false
+    default: "1"
+  fetch-tags:
+    description: |
+      Whether `actions/checkout` should also fetch tags.  Default: true
+      on non-tag refs (so `git describe --tags` works for dev builds),
+      false on tag refs (the tag is already at HEAD).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+        fetch-tags: ${{ inputs.fetch-tags == '' && !startsWith(github.ref, 'refs/tags/') || inputs.fetch-tags }}
+
+    # `github.head_ref` is the PR source branch and is attacker-controlled
+    # on forked-PR runs — interpolating it directly into `run:` is the
+    # classic GitHub Actions expression-injection vector.  Pipe every
+    # workflow-context value through `env:` so the shell sees a plain
+    # variable, not template-expanded source.
+    - name: Log commit info
+      shell: bash
+      env:
+        GH_SHA: ${{ github.sha }}
+        GH_EVENT: ${{ github.event_name }}
+        GH_REF: ${{ github.ref }}
+        GH_HEAD_REF: ${{ github.head_ref }}
+        GH_RUN_ID: ${{ github.run_id }}
+      run: |
+        echo "::group::Commit info"
+        echo "github.sha        = $GH_SHA"
+        echo "github.event_name = $GH_EVENT"
+        echo "github.ref        = $GH_REF"
+        echo "github.head_ref   = $GH_HEAD_REF"
+        echo "github.run_id     = $GH_RUN_ID"
+        echo "checked-out HEAD  = $(git rev-parse HEAD)"
+        echo
+        git log -1 --pretty=fuller HEAD || true
+        echo "::endgroup::"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Sync Python environment
+      shell: bash
+      run: uv sync --extra dev
