@@ -584,10 +584,19 @@ fn invoke_cb(
     // stop happening, so other paths' releases successfully queue
     // instead of going immediate-free).
     //
-    // ``r`` itself leaks at rc=1 per fire.  At 32 bytes per TclObj
-    // header (plus any buffer the result owns) this is a bounded
-    // per-fire cost — the deferred-free queue contention cascade it
-    // avoids costs an order of magnitude more in residual allocs.
+    // ``r`` itself does NOT leak in practice: a stress test
+    // (10,000 trace fires whose proc returns a 1,000-char string)
+    // produces alloc_residual = 70,012 both with and without the
+    // release — empirical evidence that the result is consumed by
+    // the dispatch chain itself (most likely via ``eval_return``'s
+    // retain into ``return_val`` and the eval_script per-statement
+    // release at tcl_interp.zig:3967, the same way other callers
+    // such as ``cmds/namespace.zig``'s ``invoke_ensemble`` /
+    // ``invoke_ensemble_unknown`` and ``tcl_expr_eval.zig``'s
+    // math-func call site forward the result without releasing it).
+    // ``invoke_cb`` is a terminal consumer that doesn't propagate
+    // ``r``, so the original ``tcl_obj_release(r)`` over-released
+    // a handle that had already been consumed upstream.
     const argv_view: []const i32 = (@as([*]const i32, @ptrCast(argv_slice)))[0..total_args];
     _ = interp.eval_command(argv_view);
     // Release every argv TclObj we built — ``eval_command`` retains
