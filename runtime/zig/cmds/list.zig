@@ -1934,9 +1934,11 @@ fn eval_lassign(words: []const i32) result_mod.InterpResult {
             if (elem.braced) {
                 break :blk rt.obj_new_string_copy(list_s.ptr + elem.start, elem.len);
             } else {
-                const buf = alloc(elem.len + 4);
+                const buf_size: u32 = elem.len + 4;
+                const buf = alloc(buf_size);
+                if (buf == 0) break :blk obj_new_string(0, 0);
                 const out_len = rt.copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-                break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+                break :blk obj_mod.obj_new_string_take(buf, out_len, buf_size);
             }
         } else obj_new_string(0, 0);
         _ = frames.var_set(words[pi], val);
@@ -2045,7 +2047,17 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
         const item = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(item);
         switch (ir.code) {
-            .OK => result = rt.tcl_list(result, item),
+            .OK => {
+                // ``tcl_list`` always returns a fresh +1 owned obj.
+                // Release the prior accumulator AND the per-iter
+                // item once the new accumulator absorbs their bytes
+                // — without this the loop leaks one obj per item
+                // appended plus the empty seed.
+                const next_result = rt.tcl_list(result, item);
+                obj_mod.tcl_obj_release(result);
+                if (item != 0) obj_mod.tcl_obj_release(item);
+                result = next_result;
+            },
             .BREAK => {
                 result_mod.consume(.BREAK);
                 if (item != 0) obj_mod.tcl_obj_release(item);
@@ -2056,7 +2068,12 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
                 if (item != 0) obj_mod.tcl_obj_release(item);
                 continue;
             },
-            .ERROR, .RETURN => return result_mod.from_globals(item),
+            .ERROR, .RETURN => {
+                // Forward ``item`` as the result and drop the
+                // accumulator we've been building.
+                obj_mod.tcl_obj_release(result);
+                return result_mod.from_globals(item);
+            },
         }
     }
     return result_mod.from_globals(result);
