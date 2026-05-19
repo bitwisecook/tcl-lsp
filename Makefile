@@ -133,7 +133,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: smoke-zipapps smoke-vsix
 # Packaging + publish + release
 .PHONY: vsix verify-vsix install package-vsix publish-vsix
-.PHONY: jetbrains publish-jetbrains sublime publish-sublime zed publish-zed publish-all publish-verify
+.PHONY: jetbrains publish-jetbrains sublime publish-sublime zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-codeql-gate release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
@@ -1298,6 +1298,22 @@ publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publi
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
+
+publish-flow: ## Print the release + marketplace publish cheat-sheet
+	@echo "Release + publish flow — no marketplace tokens go into CI."
+	@echo ""
+	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
+	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag"
+	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
+	@echo "     # (sigstore OIDC, no marketplace tokens; see docs/design/contracts/release-and-publish.md)"
+	@echo "  3. wait for ci.yml to finish on the tag"
+	@echo "  4. make publish-all                # local; pushes each artefact to its marketplace"
+	@echo ""
+	@echo "  Individual marketplaces (each runs from your laptop, never from CI):"
+	@echo "    make publish-vsix         # VS Code Marketplace      (needs VSCE_PAT)"
+	@echo "    make publish-jetbrains    # JetBrains Marketplace    (needs JETBRAINS_TOKEN)"
+	@echo "    make publish-sublime      # Package Control (Sublime) (uses git push credentials)"
+	@echo "    make publish-zed          # zed-industries/extensions (preps a local PR for review)"
 
 # KCS help database
 

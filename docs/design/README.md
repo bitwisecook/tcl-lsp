@@ -171,6 +171,9 @@ are its rules, and what are the failure modes". One contract per file.
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
   and dependency direction.
+- [release-and-publish.md](contracts/release-and-publish.md) —
+  the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
+  invariant, and the release flow.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) —
   non-diagnostics LSP provider contracts and failure modes.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace

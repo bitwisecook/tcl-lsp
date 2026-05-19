@@ -167,6 +167,27 @@ The project uses GNU Make. Key targets:
 | `make vsix`        | Build the .vsix VS Code extension        |
 | `make check-wasm-parity` | Verify WASM command parity (registry vs Zig runtime) against baseline |
 | `make snapshot-wasm-parity` | Refresh the WASM parity baseline after intentional registry/runtime changes |
+| `make publish-flow` | Print the release + marketplace publish cheat-sheet |
+
+The build is organised into **four layers** with a clear separation
+between them — see
+[`docs/design/contracts/release-and-publish.md`](docs/design/contracts/release-and-publish.md)
+for the full contract:
+
+1. **Entry points** — `Makefile` + `[project.scripts]` console scripts.
+2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,zipapp-main,dev}/*`.
+3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
+   artefact build → sign → attach to GitHub Release).
+4. **Publishing** — `make publish-*` from the maintainer's laptop,
+   never from CI.
+
+**Invariant: no marketplace tokens go into CI.**  Every push to VS Code
+Marketplace / JetBrains Marketplace / Package Control / zed-industries
+extensions runs from the maintainer's laptop using credentials in
+local environment variables or the macOS Keychain.  CI uses only
+GitHub's built-in `github.token` + sigstore OIDC for attestations.
+Adding `secrets.VSCE_PAT` (or similar) to any workflow violates the
+contract.
 
 ## WASM command parity
 
