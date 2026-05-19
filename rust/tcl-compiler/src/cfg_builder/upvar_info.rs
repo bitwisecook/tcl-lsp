@@ -24,26 +24,24 @@
 //!
 //! ## Status
 //!
-//! Both halves of the chunk have landed:
+//! All three halves of the chunk have landed:
 //!
 //! * The **port** half — `UpvarInfo` data structure, the
 //!   `collect_upvar_targets` pass, and unit tests covering each
 //!   shape — landed via PR #389.
-//! * The **wiring** half — call-site `defs` pre-population at the
-//!   proc-summary integration point — lands here via
-//!   [`UpvarInfo::caller_side_defs`] plus the
+//! * The **direct-call wiring** half — call-site `defs` pre-population
+//!   via [`UpvarInfo::caller_side_defs`] plus the
 //!   [`super::CfgBuilder::apply_upvar_invalidation`] pass invoked
 //!   from `lower_script`.  Mirrors Python's `_resolve_upvar_defs` /
-//!   `_apply_upvar_invalidation` at `cfg.py:441` / `:529` / `:549` /
-//!   `:560` / `:587` / `:1124` / `:1146`.
-//!
-//! The direct-call form of `_apply_upvar_invalidation` is implemented;
-//! the embedded-substitution form (lifting `[upvar_proc ...]` out of
-//! `AssignValue`'s value text or `Call`'s arguments) is a follow-up.
-//! In Python, the embedded-substitution branch synthesises a free-
-//! standing `IRCall` with the extra defs before the host statement;
-//! the dominant pattern in practice is the direct call, so the
-//! follow-up is a refinement rather than a correctness gap.
+//!   `_apply_upvar_invalidation` at `cfg.py:529` / `:549` / `:560`.
+//! * The **embedded-substitution** half — scanning `AssignValue.value`
+//!   text and `Call.args` for `[upvar_proc arg]` substitutions via
+//!   [`super::CfgBuilder::upvar_defs_from_text`] and either merging
+//!   the resolved defs into the host Call or prepending a synthetic
+//!   `<upvar-invalidate>` Call before a non-Call host.  Mirrors
+//!   Python's `_upvar_defs_from_text` at `cfg.py:465-527` and the
+//!   embedded-substitution branch of `_apply_upvar_invalidation` at
+//!   `cfg.py:576-611`.
 
 use std::collections::BTreeMap;
 

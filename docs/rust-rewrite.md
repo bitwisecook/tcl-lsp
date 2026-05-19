@@ -973,17 +973,19 @@ In-scope after the 2026-05-19 reconciliation against
 (SYNC1–SYNC10), SYNC-JUN-FRAME356-population, the core half
 of SYNC-JUN-CFG-upvar-info, the full nine-code C44-irules-flow
 emitter set, and C43-partial (`_barrier_gate` + structured-
-hook-ID stamping) all landed via PR #389.  The
-`SYNC-JUN-CFG-uplevel-literal-set` direct-call wiring landed
-in a follow-up commit on top of the upvar-info core module
-(`UpvarInfo::caller_side_defs` + `CfgBuilder::apply_upvar_invalidation`).
-The remaining outstanding rows below carry the work that is
-**still open** or the embedded-substitution refinement on the
-upvar wiring.
+hook-ID stamping) all landed via PR #389.  Both halves of
+`SYNC-JUN-CFG-uplevel-literal-set` (direct-call + embedded-
+substitution) landed in follow-up commits on top of the upvar-
+info core module: `UpvarInfo::caller_side_defs` +
+`CfgBuilder::apply_upvar_invalidation` + the embedded-form
+text scan via `upvar_defs_from_text` / `words_from_text` +
+the synthetic `<upvar-invalidate>` Call prepended before
+`AssignValue` hosts.  The remaining outstanding rows below
+carry the open `SYNC-MAY19-*` work blocking on `S*` plus the
+deferred bytecode-codegen flag.
 
 | Status | Source on `main` | Scope summary | Rust mirror to update | Suggested chunk handle |
 |---|---|---|---|---|
-| open (embedded-substitution refinement) | `d5ac467c` | CFG: detect literal-target `uplevel 1 set x ...` writes so they materialise as defs in the caller's frame instead of opaque barriers.  **The direct-call form landed** via the SYNC-JUN-CFG-uplevel-literal-set wiring commit: `UpvarInfo::caller_side_defs` resolves literal / param / args-tail upvar targets against a call site, and `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` for every direct call to a known upvar proc.  **Remaining refinement:** the embedded-substitution form — lifting `[upvar_proc arg]` out of `AssignValue` text or `Call` args and synthesising a free-standing `Statement::Call` with the extra defs before the host statement (Python `_apply_upvar_invalidation` lines 576-602 / `_upvar_defs_from_text` lines 465-527).  The direct-call form is the dominant pattern in practice, so this refinement is lower priority. | `rust/tcl-compiler/src/cfg_builder/mod.rs::CfgBuilder::apply_upvar_invalidation` — extend to scan `AssignValue.value` and `Call.args` for `[…]` command substitutions whose head is a known upvar proc, then emit a synthetic preceding `Statement::Call` with the resolved caller-side defs. | `SYNC-JUN-CFG-uplevel-literal-set-embedded` |
 | open (`S*` LSP server work) | `7a9f9b36` (#407+#408) | **Per-folder dialect ContextVar for lexer.** Python `core/parsing/lexer.py` replaced the class-level `expand_syntax` / iRules-brace flags with per-request resolution: `_expand_syntax_active()` reads `_dialect_var` (a registry `ContextVar`) and intersects it with `dialects_since("tcl8.5")`; `_irules_brace_separator_active()` reads it too; `expand_syntax_disabled_scope()` is a thread-local override the VM's `subst` machinery uses to disable `{*}` expansion regardless of dialect.  `core/analysis/checks/_style.py` does the same for `_non_ascii_mode` (W108) via `non_ascii_mode_scope`.  **Rust mirror gap:** `rust/tcl-lexer/src/lexer.rs` still uses static `LexerConfig { expand_syntax: bool, irules_brace_separator: bool, ... }` set at construction.  This is fine for the analyser (per-document) but the `S*` LSP server port needs to thread the active workspace folder's dialect into the lexer config per document open / change.  W108's `non_ascii_mode` has no Rust mirror at all (the W108 check itself is not yet ported). | `rust/tcl-lexer/src/lexer.rs` — keep the config approach but add a `LexerConfig::for_dialect(&str)` constructor; `rust/tcl-lsp-server/` (S*) — call it from the document-state builder using the resolved per-folder dialect.  W108: closes with the `_style.py` port (no separate row needed). | `SYNC-MAY19-dialect-contextvar` |
 | open (sub-strips a+c) | `7578a480` (#410) | **Stub signature overlay + deep param-trait inference.** Two of the three sub-strips from PR #410 remain open after sub-strip (b) (`scan_expr_for_calls` ExprBinary/ExprString + BODY recursion) landed.  (a) `core/commands/registry/runtime.py` adds `_stub_signatures_var` ContextVar, `stub_signature_scope()` context manager, `stub_to_command_sig()` converter, and `compute_stub_fingerprint()` — wraps `compile_source` / `analyse()` so per-document `# tcl-lsp: stub` declarations populate `arg_indices_for_role` / `resolve_arg_role_map` / trait inference / call-graph edges.  Includes subcommand stubs and optional-arg dynamic `arg_role_resolver`s (e.g. `db eval $sql ?rowvar? body`).  (c) `deep_param_traits=True` is wired through `compile_source` and flipped on at `build_call_graph` / `build_symbol_graph` / `build_dataflow_graph` / `build_semantic_graph_bundle`.  **Rust mirror gap:** `grep stub_signature_scope rust/` returns nothing; `rust/tcl-compiler/src/analyser/param_traits.rs` explicitly documents that the deep variant stays Python-only ("callers who need deep traits still go through the Python supplement merge").  All consumers route through Python today, so the gap is latent — but `S*` cannot replace the call-graph builder without porting this. | (a) new `rust/tcl-registry/src/stub_overlay.rs` mirroring `_stub_signatures_var` / `stub_signature_scope` / `stub_to_command_sig`; thread an overlay through `Analyser::new` and the interproc compilation-unit cache key.  (c) `rust/tcl-compiler/src/analyser/param_traits.rs` — port `infer_param_traits_deep` and add a `deep` flag plumbed through the analyser entry points.  Closes with `S*`. | `SYNC-MAY19-stub-overlay-a` / `SYNC-MAY19-stub-overlay-c` |
 | open (deferred) | `0fc2d6a9` (#393) | **Switch fallthrough → STR_EQ chain for bytecode `jumpTable`.** `core/compiler/cfg.py::_CFGBuilder` adds an `expand_fallthrough_switch` constructor flag.  When true, `-exact` switches whose arms include fallthrough (`a - b - c {body}`) are lowered to a real STR_EQ dispatch chain so the bytecode codegen can fold it into a `jumpTable` instruction; WASM keeps the IRSwitch statement form because the multi-predecessor shared-body topology can't be expressed in WASM structured control flow.  **Rust mirror gap:** `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` carry no `expand_fallthrough_switch` flag.  **Defer until a Rust bytecode codegen exists** — the Rust path doesn't emit Tcl bytecode today (only WASM via codegen + the in-process IR), so the flag has no consumer.  The companion `lowering.rs` Var-token const-map extension landed under `SYNC-MAY19-proc-body-const-map` (committed 2026-05-19). | `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` — add the `expand_fallthrough_switch` flag once a Rust bytecode codegen is added. | `SYNC-MAY19-switch-fallthrough-cfg` |
@@ -1044,7 +1046,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-surrogate-pair` | Landed 2026-05-19 — `scan_unicode_escape` in `rust/tcl-lexer/src/substitution.rs` combines `\uHHHH \uLLLL` pairs into supplementary-plane codepoints. |
 | 7 | `SYNC-MAY19-switch-fallthrough-cfg` | Add `expand_fallthrough_switch` to `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/`.  **Deferred** — the Rust path doesn't emit Tcl bytecode today, so this flag has no consumer.  Listed for tracking only. |
 | — | `SYNC-JUN-FRAME356-population` | Landed via PR #389 — `EscapeState` and `CfgState` carry `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` populated by `record_barrier` / `escape_with_reason` calls at the informative handler sites; `analyse_script` copies both into `ProcEscapeSummary`. |
-| — | `SYNC-JUN-CFG-uplevel-literal-set` (direct-call wiring) and `SYNC-JUN-CFG-upvar-info` wiring | **Landed.** `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail).  `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`.  `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  19 new tests cover the wiring + the `caller_side_defs` resolver.  The embedded-substitution form (lifting `[upvar_proc ...]` out of `AssignValue`/`Call` text) is tracked as a separate refinement row in **Outstanding**. |
+| — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
 | — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
 | — | `S*` (LSP server) | Per-feature ports.  ARCH8 landed the `tcl-lsp-server` bootstrap with folding; subsequent providers (document symbols, hover, completion, semantic tokens, diagnostics, …) extend it one at a time, smallest first. |
@@ -1090,15 +1092,14 @@ the priority queue:
   trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11
   closes with `S-hover-sync11` (depends on `S-diagnostics`).
 * **`SYNC-JUN-FRAME356-population`** — landed via PR #389.
-* **`SYNC-JUN-CFG-uplevel-literal-set`** (direct-call form) +
-  **`SYNC-JUN-CFG-upvar-info`** wiring — landed in the
-  SYNC-JUN-CFG-uplevel-literal-set wiring commit.
-  `CfgBuilder::apply_upvar_invalidation` augments
-  `Statement::Call::defs` for every direct call to a known
-  upvar proc, consuming the `caller_side_defs` resolver on
-  `UpvarInfo`.  The embedded-substitution refinement
-  (`[upvar_proc …]` in `AssignValue` text / `Call` args) is
-  tracked as a separate Outstanding row.
+* **`SYNC-JUN-CFG-uplevel-literal-set`** +
+  **`SYNC-JUN-CFG-upvar-info`** wiring + embedded-substitution
+  form — all landed.  `CfgBuilder::apply_upvar_invalidation`
+  augments `Statement::Call::defs` for every direct call to a
+  known upvar proc, scans `AssignValue.value` and `Call.args`
+  text for `[upvar_proc arg]` substitutions, and either merges
+  the resolved caller-side defs into the host Call or prepends
+  a synthetic `<upvar-invalidate>` Call before a non-Call host.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
