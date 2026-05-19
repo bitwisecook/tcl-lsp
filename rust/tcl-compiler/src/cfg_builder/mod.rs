@@ -68,22 +68,34 @@ impl CfgBuilder {
         }
     }
 
-    /// Augment a `Statement::Call`'s `defs` with caller-side
-    /// variable names that the callee proc will modify via `upvar`.
-    /// Returns the statement unchanged for non-`Call` shapes, or when
-    /// the command is not a registered upvar proc.
+    /// Augment a statement's effective `defs` with caller-side
+    /// variable names that any callee proc will modify via `upvar`.
+    /// Returns a list of statements — the original (possibly with
+    /// merged `defs` for the direct-call form) plus an optional
+    /// synthetic `<upvar-invalidate>` `Statement::Call` prepended
+    /// when the embedded-substitution form contributes defs that
+    /// can't be merged into the host statement (e.g. an
+    /// `AssignValue` whose `value` text contains `[upvar_proc arg]`).
     ///
-    /// Mirrors the direct-call branch of Python's
-    /// `_apply_upvar_invalidation` in `core/compiler/cfg.py`.  The
-    /// embedded-substitution branch (lifting `[upvar_proc ...]` out
-    /// of `AssignValue`'s text or `Call`'s args) is a follow-up — the
-    /// direct-call form is the dominant pattern and lands first.
-    fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Statement {
+    /// Direct-call form: looks up `Statement::Call::command` in
+    /// `upvar_procs`; if found, merges
+    /// `UpvarInfo::caller_side_defs(args, params)` into the call's
+    /// own `defs`.
+    ///
+    /// Embedded-substitution form: scans the call's args / the
+    /// `AssignValue`'s value text for `[command_substitution]`
+    /// tokens whose head is a known upvar proc; merges those defs
+    /// into the host Call when possible, or emits a synthetic
+    /// `<upvar-invalidate>` Call before a non-Call host (mirrors
+    /// Python `_apply_upvar_invalidation` lines 602-611 in
+    /// `core/compiler/cfg.py`).
+    fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
         if self.upvar_procs.is_empty() {
-            return stmt;
+            return vec![stmt];
         }
-        // First borrow immutably to compute the extra defs.
-        let extra: Vec<String> = match &stmt {
+
+        // 1. Direct-call extras: command is a known upvar proc.
+        let direct_extras: Vec<String> = match &stmt {
             Statement::Call { command, args, .. } => self
                 .upvar_procs
                 .get(command.as_str())
@@ -97,18 +109,113 @@ impl CfgBuilder {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        if extra.is_empty() {
-            return stmt;
+
+        // 2. Embedded-substitution extras: walk text for
+        //    `[upvar_proc arg]` substitutions.
+        let texts: Vec<&str> = match &stmt {
+            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
+            Statement::Call { args, .. } => args
+                .iter()
+                .filter(|a| a.contains('['))
+                .map(String::as_str)
+                .collect(),
+            _ => Vec::new(),
+        };
+        let mut embedded_extras: Vec<String> = Vec::new();
+        for text in texts {
+            for d in self.upvar_defs_from_text(text) {
+                if !embedded_extras.contains(&d) {
+                    embedded_extras.push(d);
+                }
+            }
         }
-        // Then merge mutably.
+
+        if direct_extras.is_empty() && embedded_extras.is_empty() {
+            return vec![stmt];
+        }
+
+        // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, .. } = &mut stmt {
-            for d in extra {
+            for d in direct_extras {
+                if !defs.contains(&d) {
+                    defs.push(d);
+                }
+            }
+            for d in embedded_extras {
+                if !defs.contains(&d) {
+                    defs.push(d);
+                }
+            }
+            return vec![stmt];
+        }
+
+        // 4. Non-Call host (e.g. AssignValue) with embedded extras —
+        //    emit a synthetic `<upvar-invalidate>` Call before the
+        //    host so the affected vars are invalidated in
+        //    program order.
+        if !embedded_extras.is_empty() {
+            let synthetic = Statement::Call {
+                span: stmt.span(),
+                command: "<upvar-invalidate>".to_string(),
+                canonical_command: None,
+                args: Vec::new(),
+                defs: embedded_extras,
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            };
+            return vec![synthetic, stmt];
+        }
+
+        vec![stmt]
+    }
+
+    /// Scan *text* for `[command_substitution]` tokens and
+    /// accumulate caller-side defs from any embedded calls to
+    /// known upvar procs.  Mirrors Python
+    /// `_CFGBuilder._upvar_defs_from_text` in
+    /// `core/compiler/cfg.py`.
+    fn upvar_defs_from_text(&self, text: &str) -> Vec<String> {
+        use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+        if self.upvar_procs.is_empty() || !text.contains('[') {
+            return Vec::new();
+        }
+
+        let sm = SourceMap::new(text);
+        let lexer = Lexer::new(text);
+        let Ok(tokens) = lexer.tokenise_all() else {
+            return Vec::new();
+        };
+
+        let mut defs: Vec<String> = Vec::new();
+        for tok in &tokens {
+            if tok.kind != TokenType::Cmd {
+                continue;
+            }
+            // Inner text of `[...]`, re-lexed for word extraction.
+            let inner = sm.token_text(*tok);
+            let words = words_from_text(inner);
+            let Some(cmd) = words.first() else {
+                continue;
+            };
+            let Some(info) = self.upvar_procs.get(cmd.as_str()) else {
+                continue;
+            };
+            let params: &[String] = self
+                .proc_params
+                .get(cmd.as_str())
+                .map_or(&[][..], Vec::as_slice);
+            let raw_args: Vec<String> = words.iter().skip(1).cloned().collect();
+            for d in info.caller_side_defs(&raw_args, params) {
                 if !defs.contains(&d) {
                     defs.push(d);
                 }
             }
         }
-        stmt
+        defs
     }
 
     /// Allocate a new empty block with a unique name.
@@ -292,10 +399,13 @@ impl CfgBuilder {
                 // expr-evals) go straight into the current block —
                 // after the upvar-invalidation pass augments
                 // `Statement::Call`'s `defs` for calls to procs that
-                // use `upvar`.
+                // use `upvar`.  The pass may also prepend a synthetic
+                // `<upvar-invalidate>` `Statement::Call` when an
+                // `AssignValue` contains `[upvar_proc arg]`.
                 other => {
-                    let augmented = self.apply_upvar_invalidation(other.clone());
-                    self.block_mut(&current).statements.push(augmented);
+                    for s in self.apply_upvar_invalidation(other.clone()) {
+                        self.block_mut(&current).statements.push(s);
+                    }
                 }
             }
         }
@@ -547,6 +657,61 @@ pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Fu
 fn dedup_preserve_order(v: &mut Vec<String>) {
     let mut seen = std::collections::HashSet::new();
     v.retain(|item| seen.insert(item.clone()));
+}
+
+/// Lex *text* into Tcl words, accumulating contiguous tokens between
+/// `Sep` / `Eol` separators into single-string words.  `Var` tokens
+/// are re-prefixed with `$` so the caller can normalise them via
+/// [`crate::naming::normalise_var_name`] in the same way Python's
+/// `_upvar_defs_from_text` does.
+///
+/// Returns an empty list when the text fails to lex.
+fn words_from_text(text: &str) -> Vec<String> {
+    use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+    let sm = SourceMap::new(text);
+    let lexer = Lexer::new(text);
+    let Ok(tokens) = lexer.tokenise_all() else {
+        return Vec::new();
+    };
+
+    let mut words: Vec<String> = Vec::new();
+    let mut current: String = String::new();
+    let mut prev_sep = true;
+
+    for tok in &tokens {
+        match tok.kind {
+            TokenType::Sep | TokenType::Eol | TokenType::Comment | TokenType::Eof => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                prev_sep = true;
+            }
+            _ => {
+                let t = sm.token_text(*tok);
+                // Re-prepend `$` for `Var` tokens (the lexer strips
+                // it on read).  Python `_upvar_defs_from_text` does
+                // the same so the param-target resolver sees the
+                // original `$arg` shape and `normalise_var_name`
+                // strips it cleanly.
+                let sigil = if matches!(tok.kind, TokenType::Var) {
+                    "$"
+                } else {
+                    ""
+                };
+                if prev_sep {
+                    current.clear();
+                }
+                current.push_str(sigil);
+                current.push_str(t);
+                prev_sep = false;
+            }
+        }
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    words
 }
 
 #[cfg(test)]
@@ -933,6 +1098,173 @@ mod tests {
         assert!(
             defs.is_empty(),
             "build_cfg_function without context should leave defs empty, got {defs:?}",
+        );
+    }
+
+    // SYNC-JUN-CFG-uplevel-literal-set-embedded — embedded-substitution
+    // form: `[upvar_proc arg]` inside `AssignValue.value` or `Call.args`.
+
+    /// Walk every block looking for a Call whose `defs` contain
+    /// *def*.  Returns the command name when found.
+    fn find_call_with_def<'a>(func: &'a Function, def: &str) -> Option<&'a str> {
+        for block in func.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call { command, defs, .. } = stmt {
+                    if defs.iter().any(|d| d == def) {
+                        return Some(command);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn words_from_text_extracts_word_list() {
+        let words = words_from_text("step 1 two");
+        assert_eq!(
+            words,
+            vec!["step".to_string(), "1".to_string(), "two".to_string()],
+        );
+    }
+
+    #[test]
+    fn words_from_text_prefixes_dollar_for_vars() {
+        let words = words_from_text("step $varname");
+        assert_eq!(words, vec!["step".to_string(), "$varname".to_string()]);
+    }
+
+    #[test]
+    fn words_from_text_handles_empty() {
+        assert!(words_from_text("").is_empty());
+    }
+
+    #[test]
+    fn embedded_subst_in_assign_value_emits_synthetic_invalidate() {
+        // `set foo [setter]` where setter upvars caller_x.  The
+        // resulting CFG should have a synthetic `<upvar-invalidate>`
+        // Call with `caller_x` in its defs, emitted BEFORE the
+        // `set foo ...` AssignValue.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; return $x }\n\
+             set foo [setter]",
+        );
+        let cfg = build_cfg(&module, false);
+        let cmd = find_call_with_def(&cfg.top_level, "caller_x")
+            .expect("expected a Call carrying caller_x in defs");
+        assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    #[test]
+    fn embedded_subst_in_call_arg_merges_into_call_defs() {
+        // `puts [setter]` — Call host with embedded substitution.
+        // The defs should merge into the existing Call's defs (no
+        // synthetic invalidate needed since the host is a Call).
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; return $x }\n\
+             puts [setter]",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs =
+            find_call_defs(&cfg.top_level, "puts").expect("puts call should be in top-level CFG");
+        assert!(
+            defs.contains(&"caller_x".to_string()),
+            "expected caller_x merged into puts's defs, got {defs:?}",
+        );
+        // No synthetic invalidate should appear (the Call branch
+        // merged in place).
+        let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
+        assert_eq!(
+            synthetic,
+            Some("puts"),
+            "embedded extras should merge into the Call host, not a synthetic",
+        );
+    }
+
+    #[test]
+    fn embedded_subst_param_form_resolves_call_site_arg() {
+        // setter takes a parameter `name`; its upvar source is `$name`.
+        // `set foo [setter myvar]` — the embedded call passes "myvar",
+        // which becomes the caller-side def.
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name x; set x 1 }\n\
+             set foo [setter myvar]",
+        );
+        let cfg = build_cfg(&module, false);
+        let cmd = find_call_with_def(&cfg.top_level, "myvar")
+            .expect("expected synthetic invalidate carrying myvar");
+        assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    #[test]
+    fn embedded_subst_unknown_command_ignored() {
+        // `[not_upvar]` — unknown command, should produce no
+        // synthetic invalidate.
+        let module = lower_module("proc setter {} { set x 1 }\nset foo [setter]");
+        let cfg = build_cfg(&module, false);
+        // setter has no upvar, so neither direct nor embedded form
+        // contributes — the only Call in the CFG should be
+        // for the literal `setter` lookup (none here) or nothing.
+        for block in cfg.top_level.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call { command, .. } = stmt {
+                    assert_ne!(
+                        command, "<upvar-invalidate>",
+                        "no synthetic invalidate should appear for non-upvar embedded calls",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn embedded_subst_no_bracket_in_text_short_circuits() {
+        // `set foo "plain string"` — value has no `[`, so the
+        // embedded-substitution scan should short-circuit on the
+        // `text.contains('[')` guard and produce no extras.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x }\n\
+             set foo plain",
+        );
+        let cfg = build_cfg(&module, false);
+        let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
+        assert!(
+            synthetic.is_none(),
+            "no synthetic invalidate expected when text has no `[`, got {synthetic:?}",
+        );
+    }
+
+    #[test]
+    fn embedded_subst_synthetic_appears_before_host_assign() {
+        // The synthetic invalidate must land BEFORE the host
+        // AssignValue in program order, so SSA / dataflow correctly
+        // see the invalidation before any later use of the variable.
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x }\n\
+             set foo [setter]",
+        );
+        let cfg = build_cfg(&module, false);
+        let entry = &cfg.top_level.blocks[&cfg.top_level.entry];
+        // Find the synthetic invalidate's index and the AssignValue's
+        // index; assert ordering.
+        let mut synthetic_idx = None;
+        let mut assign_idx = None;
+        for (i, stmt) in entry.statements.iter().enumerate() {
+            match stmt {
+                Statement::Call { command, .. } if command == "<upvar-invalidate>" => {
+                    synthetic_idx = Some(i);
+                }
+                Statement::AssignValue { name, .. } if name == "foo" => {
+                    assign_idx = Some(i);
+                }
+                _ => {}
+            }
+        }
+        let s = synthetic_idx.expect("synthetic <upvar-invalidate> should be in entry block");
+        let a = assign_idx.expect("set foo AssignValue should be in entry block");
+        assert!(
+            s < a,
+            "synthetic invalidate at {s} should precede assign at {a}",
         );
     }
 }
