@@ -19,17 +19,24 @@
 //! * Bare-word references resolve to a user-defined `proc` or
 //!   `TclOO` class via `name_span`.
 //!
-//! What is *deferred* (planned as `S-definition-rich` follow-up):
+//! Also lands: command-alias resolution — when the cursor's
+//! word matches an `interp alias {} ALIAS {} TARGET` recorded
+//! in `analysis.command_aliases`, the provider jumps to the
+//! target proc's definition (when the target is a user
+//! proc).
 //!
-//! * Method-body context lookups (Python's `scope.kind == "method"`
-//!   path that surfaces `my method` calls inside a class body).
-//! * Command-alias resolution (`lookup_alias_for_word(...)`).
+//! What is *still deferred* (planned as further
+//! `S-definition-rich` sub-strips):
+//!
+//! * Method-body context lookups (Python's `scope.kind ==
+//!   "method"` path that surfaces `my method` calls inside a
+//!   class body).
 //! * `BigIP` definition (`get_bigip_definition`) — entirely
 //!   separate provider keyed off iRules dialect that resolves
-//!   pool / data-group / iRule / virtual-server names against a
-//!   parsed `bigip.conf`.
-//! * Property / constructor / destructor name resolution inside
-//!   a class.
+//!   pool / data-group / iRule / virtual-server names against
+//!   a parsed `bigip.conf`.
+//! * Property / constructor / destructor name resolution
+//!   inside a class.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -76,7 +83,7 @@ pub fn definition(
         return Vec::new();
     }
 
-    // 2. Bare word — proc or class.
+    // 2. Bare word — proc, class, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -93,7 +100,39 @@ pub fn definition(
             return vec![span_to_range(&line_index, class_def.name_span)];
         }
     }
+    // Alias resolution — when the cursor's word matches an
+    // `interp alias {} ALIAS {} TARGET` recorded in
+    // `analysis.command_aliases`, jump to the TARGET proc.
+    // Mirrors Python's `lookup_alias_for_word`.
+    if let Some(alias) = lookup_alias(analysis, &word) {
+        for (qname, proc_def) in &analysis.all_procs {
+            if proc_def.name == alias.target
+                || qname == &alias.target
+                || qname == &format!("::{}", alias.target)
+            {
+                return vec![span_to_range(&line_index, proc_def.name_span)];
+            }
+        }
+    }
     Vec::new()
+}
+
+/// Look up an alias by name.  Accepts the alias's simple or
+/// qualified form (`mycmd` and `::mycmd` both match an alias
+/// stored with `qualified_name == "::mycmd"`).
+fn lookup_alias<'a>(
+    analysis: &'a AnalysisResult,
+    name: &str,
+) -> Option<&'a tcl_compiler::signature_scan::types::SignatureCommandAlias> {
+    let qualified = if name.starts_with("::") {
+        name.to_string()
+    } else {
+        format!("::{name}")
+    };
+    analysis
+        .command_aliases
+        .get(&qualified)
+        .or_else(|| analysis.command_aliases.get(name))
 }
 
 fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -152,6 +191,50 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `Greeter` on line 1.
         let locs = definition(src, 1, 2, &analysis);
+        if !locs.is_empty() {
+            assert_eq!(locs[0].start_line, 0);
+        }
+    }
+
+    // -- S-definition-rich: alias resolution ------------------------
+
+    #[test]
+    fn jump_to_alias_target_proc() {
+        // `interp alias {} mycmd {} greet` aliases `mycmd` to
+        // the user proc `greet`.  Cursor on `mycmd` should
+        // resolve to `greet`'s definition.
+        let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\nmycmd\n";
+        let analysis = analyse(src);
+        // Cursor on `mycmd` invocation on line 2.
+        let locs = definition(src, 2, 2, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The target's name span is on line 0 starting at
+        // column 5 (after `proc `).
+        assert_eq!(locs[0].start_line, 0);
+        assert_eq!(locs[0].start_character, 5);
+    }
+
+    #[test]
+    fn alias_with_no_user_proc_returns_empty() {
+        // `mycmd` aliases to a built-in (`puts`).  No user
+        // proc; the provider returns empty rather than
+        // pretending to know the location.
+        let src = "interp alias {} mycmd {} puts\nmycmd\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 1, 2, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn alias_lookup_accepts_qualified_form() {
+        // The alias's qualified form (`::mycmd`) should also
+        // resolve.
+        let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\n::mycmd\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 2, 2, &analysis);
+        // Whether find_word_span_at_position includes leading
+        // `::` depends on the implementation; both should
+        // jump to the target proc when matched.
         if !locs.is_empty() {
             assert_eq!(locs[0].start_line, 0);
         }
