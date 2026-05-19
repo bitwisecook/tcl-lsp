@@ -16,6 +16,7 @@ const parse = @import("../parse/tcl_parse.zig");
 const std = @import("std");
 
 const alloc = rt.alloc;
+const free_sized = obj_mod.free_sized;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
@@ -947,17 +948,29 @@ fn ls_match_exact(nocase: bool, pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) 
 
 fn ls_match_glob_nc(pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) bool {
     // Case-insensitive glob: lowercase copies then call glob_match.
-    const bp = alloc(pat_len + 1);
+    // Both buffers must reclaim via ``free_sized`` after ``glob_match``
+    // returns — the earlier revision (Copilot review on PR #453)
+    // allocated them but never freed either, leaking ~``pat_len +
+    // elen + 2`` bytes per ``lsearch -nocase`` probe.  The
+    // ``be == 0`` failure path also previously orphaned ``bp``.
+    const bp_size = pat_len + 1;
+    const bp = alloc(bp_size);
     if (bp == 0) return false;
-    const be = alloc(elen + 1);
-    if (be == 0) return false;
-    if (pat_len > 0 and bp != 0) {
+    const be_size = elen + 1;
+    const be = alloc(be_size);
+    if (be == 0) {
+        free_sized(bp, bp_size);
+        return false;
+    }
+    defer free_sized(bp, bp_size);
+    defer free_sized(be, be_size);
+    if (pat_len > 0) {
         const src: [*]const u8 = @ptrFromInt(pat_ptr);
         const dst: [*]u8 = @ptrFromInt(bp);
         var k: u32 = 0;
         while (k < pat_len) : (k += 1) dst[k] = ls_tolower(src[k]);
     }
-    if (elen > 0 and be != 0) {
+    if (elen > 0) {
         const src: [*]const u8 = @ptrFromInt(ep);
         const dst: [*]u8 = @ptrFromInt(be);
         var k: u32 = 0;
@@ -1853,11 +1866,18 @@ fn eval_join(words: []const i32) result_mod.InterpResult {
     if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
         return result_mod.from_globals(0);
     if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
-    const sp = alloc(1);
-    if (sp == 0) return result_mod.from_globals(0);
-    const d: [*]u8 = @ptrFromInt(sp);
-    d[0] = ' ';
-    return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
+    // Default separator: a single space.  ``obj_new_string_copy``
+    // mints an OWNED 1-byte buffer so the separator TclObj cleans
+    // up via release.  The earlier ``alloc(1)`` + ``obj_new_string``
+    // pattern leaked both the slab (cap=0 borrow obj couldn't
+    // reclaim it on release) and the obj header itself (no caller
+    // released the temporary, Copilot review on PR #453).
+    const sep_byte: u8 = ' ';
+    const sep_obj = rt.obj_new_string_copy(@intFromPtr(&sep_byte), 1);
+    if (sep_obj == 0) return result_mod.from_globals(0);
+    const result = rt.tcl_cmd_join(words[1], sep_obj);
+    obj_mod.tcl_obj_release(sep_obj);
+    return result_mod.from_globals(result);
 }
 
 fn eval_split(words: []const i32) result_mod.InterpResult {
