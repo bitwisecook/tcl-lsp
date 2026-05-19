@@ -25,18 +25,26 @@
 //! target proc's definition (when the target is a user
 //! proc).
 //!
+//! Class-member lookup also lands: when the cursor sits on a
+//! word inside a class body span, the provider walks that
+//! class's `methods` / `class_methods` / `properties` /
+//! `constructors` / `destructor` looking for a name match
+//! and jumps to the member's `name_span`.  Catches `my
+//! method` calls inside the body and bare references to the
+//! class's own members.
+//!
 //! What is *still deferred* (planned as further
 //! `S-definition-rich` sub-strips):
 //!
-//! * Method-body context lookups (Python's `scope.kind ==
-//!   "method"` path that surfaces `my method` calls inside a
-//!   class body).
+//! * Method-call dispatch resolution at `$obj method` /
+//!   `[$obj method]` call sites outside the class body —
+//!   needs the analyser to track the variable's class type
+//!   (gated on the `var type/taint annotations` analyser-
+//!   side surface).
 //! * `BigIP` definition (`get_bigip_definition`) — entirely
 //!   separate provider keyed off iRules dialect that resolves
 //!   pool / data-group / iRule / virtual-server names against
 //!   a parsed `bigip.conf`.
-//! * Property / constructor / destructor name resolution
-//!   inside a class.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -89,7 +97,7 @@ pub fn definition(
         return Vec::new();
     }
 
-    // 2. Bare word — proc, class, or alias.
+    // 2. Bare word — proc, class, class-member, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
@@ -106,6 +114,15 @@ pub fn definition(
             return vec![span_to_range(&line_index, class_def.name_span)];
         }
     }
+    // Class-member lookup — when the cursor sits inside a
+    // class body, walk that class's methods / properties /
+    // constructors / destructor for a name match.  Covers
+    // `my method` calls inside the body plus bare member
+    // references.
+    let cursor_offset = byte_offset_at(source, line, character);
+    if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
+        return vec![span_to_range(&line_index, span)];
+    }
     // Alias resolution — when the cursor's word matches an
     // `interp alias {} ALIAS {} TARGET` recorded in
     // `analysis.command_aliases`, jump to the TARGET proc.
@@ -121,6 +138,58 @@ pub fn definition(
         }
     }
     Vec::new()
+}
+
+/// Walk every class whose `body_span` contains the cursor
+/// offset and look up `word` in that class's methods,
+/// class-methods, properties, constructors, or destructor.
+/// Returns the matched member's `name_span` when found.
+///
+/// `"constructor"` matches any defined constructor;
+/// `"destructor"` matches the destructor.  Other words match
+/// against the member's `name`.
+fn lookup_class_member(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<tcl_lexer::Span> {
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        if let Some(m) = class_def.methods.get(word) {
+            return Some(m.name_span);
+        }
+        if let Some(m) = class_def.class_methods.get(word) {
+            return Some(m.name_span);
+        }
+        if let Some(p) = class_def.properties.get(word) {
+            return Some(p.name_span);
+        }
+        if word == "constructor" {
+            if let Some(c) = class_def.constructors.first() {
+                if !c.name_span.is_empty() {
+                    return Some(c.name_span);
+                }
+                // Analyser doesn't store a name span for the
+                // constructor keyword (it has no name token).
+                // Fall back to the body span's start so the
+                // editor at least lands on the constructor's
+                // body opener.
+                return Some(c.body_span);
+            }
+        }
+        if word == "destructor" {
+            if let Some(d) = &class_def.destructor {
+                if !d.name_span.is_empty() {
+                    return Some(d.name_span);
+                }
+                return Some(d.body_span);
+            }
+        }
+    }
+    None
 }
 
 /// Look up an alias by name.  Accepts the alias's simple or
@@ -363,5 +432,66 @@ mod tests {
         assert_eq!(range.start_character, 0);
         assert_eq!(range.end_line, 1);
         assert_eq!(range.end_character, 3);
+    }
+
+    // -- S-definition-rich: class-member lookup ---------------------
+
+    #[test]
+    fn definition_jumps_to_method_inside_class_body() {
+        // Inside an OO class body, `greet` refers to the
+        // class's own method.  Cursor on `greet` should jump
+        // to the `method greet` declaration.
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first `greet` in the `twice` body.
+        // Line 2: `    method twice {} { greet ; greet }`
+        // Col 22 lands on the `g` of the first `greet`.
+        let locs = definition(src, 2, 22, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The method declaration is on line 1.
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_jumps_to_classmethod() {
+        let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
+        let analysis = analyse(src);
+        // Line 2: `    method use {} { factory }`
+        // Cursor on `factory` (col 20).
+        let locs = definition(src, 2, 20, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_jumps_to_constructor_keyword() {
+        // Bare `constructor` inside a class body jumps to the
+        // constructor's declaration.
+        let src = "oo::class create C {\n    constructor {arg} {}\n    method touch_ctor {} { constructor }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `constructor` in the `touch_ctor` body
+        // (line 2 col 27).
+        let locs = definition(src, 2, 27, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // The analyser today doesn't populate ``name_span`` for
+        // ``constructor`` (it's a keyword, not a method name),
+        // so the provider falls back to the body span — the
+        // editor lands at the opening brace of the constructor
+        // body.  The constructor is declared on line 1; its
+        // body opener is also on line 1.
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_member_lookup_skipped_outside_class_body() {
+        // Same word outside the class body must not surface
+        // the method definition.
+        let src = "oo::class create C {\n    method greet {} {}\n}\ngreet\n";
+        let analysis = analyse(src);
+        // Cursor on the bare `greet` on line 3.
+        let locs = definition(src, 3, 2, &analysis);
+        // No proc / class / member named `greet` is in scope
+        // here — the class-member lookup must not leak.
+        assert!(locs.is_empty(), "{locs:?}");
     }
 }
