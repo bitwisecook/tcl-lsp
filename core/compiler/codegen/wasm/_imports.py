@@ -522,6 +522,17 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # Frame stack (local variable scoping).
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    # Procedure-error frame stamp — called from the compiled-proc
+    # epilogue before ``tcl_frame_pop``.  Adds ``(procedure "X" line
+    # N)`` to ``::errorInfo`` when an error is pending.  Args:
+    # ``(name_ptr, name_len)`` — the proc's fully-qualified name in
+    # the WASM data section.
+    "tcl_proc_stamp_error_frame": (
+        "tcl",
+        "proc_stamp_error_frame",
+        [ValType.I32, ValType.I32],
+        [],
+    ),
     # Frame-side aliases — emitted by the compiled-proc prologue when
     # the body declares a ``variable X`` / ``global X`` so any
     # interpreter-side fallback (eval-script, dynamic ``while``,

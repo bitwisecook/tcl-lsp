@@ -76,6 +76,15 @@ pub const State = struct {
     /// traceback.  Consumed (cleared) by the first
     /// :func:`log_command_info` call after the handler returns.
     transparent_error: u32 = 0,
+    /// The 1-based line number of the most recent command to raise
+    /// an error, captured at error time (before the proc body unwinds
+    /// or the frame pops).  Used by ``eval_proc_call_bucket`` to
+    /// stamp the ``(procedure "X" line N)`` errorInfo frame after a
+    /// proc body raises.  Set by :func:`tcl_cmd_error` /
+    /// :func:`tcl_cmd_error_full` from the current frame's tracked
+    /// line.  Cleared on every ``catch_leave`` so a subsequent error
+    /// doesn't reuse the previous error's line.
+    error_frame_line: u32 = 0,
     /// Pending arbitrary ``-OPT VALUE`` pairs supplied to ``return``
     /// (cmdMZ-return-2.1: ``return -bar soom``).  Encoded as a
     /// pre-built dict TclObj.  Snapshotted into
@@ -495,6 +504,16 @@ pub export fn catch_leave() i32 {
     state.last_log_script = 0;
     state.last_log_pos = 0;
     state.error_info_supplied = 0;
+    // ``error_frame_line`` is NOT reset here — reference Tcl's
+    // ``Tcl_ResetResult`` (called from ``INST_END_CATCH``) clears
+    // ``errorInfo`` and the ``ERR_ALREADY_LOGGED`` flag, but leaves
+    // ``iPtr->errorLine`` intact.  A subsequent ``error msg info``
+    // (whose options carry no ``-errorline``) then propagates with
+    // the preserved line, so the procedure frame's ``line N`` matches
+    // the *original* inner error rather than the rethrow's own line
+    // (error-2.6).  Fresh errors via ``tcl_cmd_error`` /
+    // ``tcl_cmd_error_full`` (without info) overwrite the field
+    // themselves.
     state.return_flag = 0;
     state.break_flag = 0;
     state.continue_flag = 0;
@@ -798,6 +817,15 @@ pub export fn tcl_cmd_error(msg: i32) void {
     state.last_log_script = 0;
     state.last_log_pos = 0;
     state.error_info_supplied = 0;
+    // Capture the current frame's tracked line so a surrounding proc
+    // can stamp ``(procedure "X" line N)`` on its errorInfo frame
+    // (error-2.3 / error-2.6).  Codegen emits ``frame_set_line`` per
+    // statement; the interpreter does the same at eval-time, so the
+    // freshest line is always available here.
+    {
+        const frames_mod = @import("tcl_frames.zig");
+        state.error_frame_line = frames_mod.frame_get_line(0);
+    }
     stamp_error_globals(msg, 0, detect_error_code(msg));
     if (state.catch_depth > 0) {
         state.error_flag = 1;
@@ -837,6 +865,19 @@ pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
         if (is.len > 0) suppress = 1;
     }
     state.error_info_supplied = suppress;
+    // Capture the current frame's tracked line — see ``tcl_cmd_error``
+    // for the rationale.  When *info* IS supplied (suppress=1) the
+    // user is re-raising a previous error's text; reference Tcl's
+    // ``Tcl_ErrorObjCmd`` builds ``options`` WITHOUT a ``-errorline``
+    // key, so ``TclProcessReturn`` leaves ``iPtr->errorLine`` at
+    // whatever the prior error set it to.  Preserve that semantics
+    // here so error-2.6's surrounding proc frame reports the original
+    // inner ``error glorp2`` line (body line 3) rather than the
+    // re-raise's own line (body line 4).
+    if (suppress == 0) {
+        const frames_mod = @import("tcl_frames.zig");
+        state.error_frame_line = frames_mod.frame_get_line(0);
+    }
     stamp_error_globals(msg, info, code);
     if (state.catch_depth > 0) {
         state.error_flag = 1;

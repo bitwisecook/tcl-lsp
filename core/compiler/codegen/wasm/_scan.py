@@ -1471,6 +1471,10 @@ def _scan_needed_imports(
         needed.add("tcl_proc_set_params_source_raw")
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
+        # Proc-error frame stamp — the epilogue calls this just before
+        # ``tcl_frame_pop`` so any error-propagation path through this
+        # proc adds ``(procedure "X" line N)`` to ``::errorInfo``.
+        needed.add("tcl_proc_stamp_error_frame")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
         # Phase 8: stamp ``info frame`` metadata on the new frame
