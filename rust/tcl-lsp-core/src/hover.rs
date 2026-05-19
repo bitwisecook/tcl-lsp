@@ -112,6 +112,15 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
         }
     }
 
+    // Format-string hover (`S-hover-rich`): when the cursor
+    // sits on the format-string argument of a known
+    // format-bearing command, surface a markdown table of the
+    // specifiers it contains.  Currently covers `clock format`
+    // / `clock scan`.
+    if let Some(text) = clock_format_string_at_position(source, line, character) {
+        return Some(Hover::markdown(clock_format_hover_text(&text)));
+    }
+
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
     if let Some(proc_def) = lookup_proc(analysis, &word) {
@@ -122,6 +131,166 @@ pub fn hover(source: &str, line: u32, character: u32, analysis: &AnalysisResult)
         return Some(Hover::markdown(class_hover_text(class_def)));
     }
 
+    None
+}
+
+/// Strftime specifier descriptions for clock-format hover.
+/// Mirrors `_CLOCK_SPEC_DESC` in `lsp/features/hover.py:255-293`.
+const CLOCK_SPEC_DESC: &[(char, &str)] = &[
+    ('a', "Abbreviated weekday name"),
+    ('A', "Full weekday name"),
+    ('b', "Abbreviated month name"),
+    ('B', "Full month name"),
+    ('c', "Locale date and time"),
+    ('C', "Century (00–99)"),
+    ('d', "Day of month (01–31)"),
+    ('D', "Date as %m/%d/%Y"),
+    ('e', "Day of month (1–31, no leading zero)"),
+    ('g', "ISO 8601 2-digit year"),
+    ('G', "ISO 8601 4-digit year"),
+    ('h', "Abbreviated month name (same as %b)"),
+    ('H', "Hour (00–23)"),
+    ('I', "Hour (01–12)"),
+    ('j', "Day of year (001–366)"),
+    ('J', "Julian day number"),
+    ('k', "Hour (0–23, no leading zero)"),
+    ('l', "Hour (1–12, no leading zero)"),
+    ('m', "Month (01–12)"),
+    ('M', "Minute (00–59)"),
+    ('N', "Month number (1–12, no leading zero)"),
+    ('p', "AM/PM indicator (uppercase)"),
+    ('P', "AM/PM indicator (lowercase)"),
+    ('s', "Seconds since Unix epoch"),
+    ('S', "Second (00–59)"),
+    ('u', "Day of week (1=Monday–7=Sunday)"),
+    ('U', "Week number (Sunday start, 00–53)"),
+    ('V', "ISO 8601 week number (01–53)"),
+    ('w', "Day of week (0=Sunday–6=Saturday)"),
+    ('W', "Week number (Monday start, 00–53)"),
+    ('x', "Locale date representation"),
+    ('X', "Locale time representation"),
+    ('y', "2-digit year (00–99)"),
+    ('Y', "4-digit year"),
+    ('z', "Timezone offset (+hhmm)"),
+    ('Z', "Timezone abbreviation"),
+    ('%', "Literal percent sign"),
+];
+
+/// Look up a clock-format specifier letter's description.
+fn clock_spec_desc(letter: char) -> Option<&'static str> {
+    CLOCK_SPEC_DESC
+        .iter()
+        .find(|(c, _)| *c == letter)
+        .map(|(_, d)| *d)
+}
+
+/// Find every clock-format specifier in `text` —
+/// `%[EO]?[a-zA-Z%]`.  Returns each specifier as its source
+/// text (including any `%E` / `%O` locale prefix).
+fn scan_clock_specifiers(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '%' {
+            i += 1;
+            continue;
+        }
+        // `%`...
+        let start = i;
+        i += 1;
+        if i < chars.len() && (chars[i] == 'E' || chars[i] == 'O') {
+            i += 1;
+        }
+        if i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '%') {
+            i += 1;
+            out.push(chars[start..i].iter().collect());
+        }
+    }
+    out
+}
+
+/// Render a markdown table of clock-format specifiers found
+/// in `text`.  Mirrors `_clock_hover` in
+/// `lsp/features/hover.py:745-761`.
+fn clock_format_hover_text(text: &str) -> String {
+    let mut parts: Vec<String> = vec!["**Clock format string** (strftime-style)\n".to_string()];
+    let specs = scan_clock_specifiers(text);
+    if specs.is_empty() {
+        parts.push("No specifiers found.".to_string());
+    } else {
+        parts.push("| Specifier | Meaning |".to_string());
+        parts.push("|-----------|---------|".to_string());
+        for spec in specs {
+            let last = spec.chars().last().unwrap_or(' ');
+            let desc = clock_spec_desc(last).unwrap_or("Unknown");
+            let display = if spec.chars().count() == 3 {
+                format!("{desc} (locale-modified)")
+            } else {
+                desc.to_string()
+            };
+            parts.push(format!("| `{spec}` | {display} |"));
+        }
+    }
+    parts.join("\n")
+}
+
+/// Detect when the cursor sits on a `clock format` /
+/// `clock scan` format-string argument and return the
+/// literal text.  Single-line only — multi-line literals
+/// are deferred.
+fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    // Tokenise the line on whitespace — the first two tokens
+    // must be `clock format` or `clock scan` for the hover to
+    // fire.  This is the same single-line context detection
+    // used by `signature_help` / `completion`; multi-line
+    // command segments lift later (gated on the same
+    // multi-line-aware machinery `S-signature-help-rich`
+    // defers).
+    let tokens: Vec<&str> = line_text.split_whitespace().collect();
+    if tokens.len() < 3 {
+        return None;
+    }
+    if tokens[0] != "clock" || (tokens[1] != "format" && tokens[1] != "scan") {
+        return None;
+    }
+    // The format string is the LAST string-literal argument
+    // for `clock format` (`clock format $time -format "%Y..."`)
+    // or the SECOND-LAST for `clock scan` style.  Python uses
+    // a registry-driven arg-role lookup; the minimal version
+    // here picks the first literal that contains `%` and
+    // overlaps the cursor.
+    // Walk the line again with chars to compute column spans.
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    // Find the literal span containing the cursor.  Recognise
+    // `"..."` and `{...}` literal delimiters.
+    let mut i = 0;
+    while i < chars.len() {
+        let opener = chars[i];
+        let closer = match opener {
+            '"' => '"',
+            '{' => '}',
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        let start = i + 1;
+        let mut end = start;
+        while end < chars.len() && chars[end] != closer {
+            end += 1;
+        }
+        if start <= col && col <= end {
+            let literal: String = chars[start..end].iter().collect();
+            if literal.contains('%') {
+                return Some(literal);
+            }
+            return None;
+        }
+        i = end + 1;
+    }
     None
 }
 
@@ -514,5 +683,83 @@ mod tests {
         let text = var_hover_text(var_def);
         assert!(text.contains("**Variable** `x`"), "{}", text);
         assert!(text.contains("reference"), "{}", text);
+    }
+
+    // -- S-hover-rich: clock format hover ----------------------------
+
+    #[test]
+    fn scan_clock_specifiers_finds_each_specifier() {
+        let s = scan_clock_specifiers("%Y-%m-%d %H:%M:%S");
+        assert_eq!(s, vec!["%Y", "%m", "%d", "%H", "%M", "%S"]);
+    }
+
+    #[test]
+    fn scan_clock_specifiers_handles_locale_prefix() {
+        let s = scan_clock_specifiers("%EY-%Om");
+        assert_eq!(s, vec!["%EY", "%Om"]);
+    }
+
+    #[test]
+    fn scan_clock_specifiers_handles_literal_percent() {
+        let s = scan_clock_specifiers("100%% complete");
+        assert_eq!(s, vec!["%%"]);
+    }
+
+    #[test]
+    fn clock_format_hover_renders_specifier_table() {
+        let text = clock_format_hover_text("%Y-%m-%d");
+        assert!(text.contains("**Clock format string**"), "{text}");
+        assert!(text.contains("| `%Y` | 4-digit year |"), "{text}");
+        assert!(text.contains("| `%m` | Month (01–12) |"), "{text}");
+        assert!(text.contains("| `%d` | Day of month (01–31) |"), "{text}");
+    }
+
+    #[test]
+    fn clock_format_hover_marks_locale_modified_specifiers() {
+        let text = clock_format_hover_text("%EY");
+        assert!(text.contains("(locale-modified)"), "{text}");
+    }
+
+    #[test]
+    fn clock_format_hover_handles_empty_format() {
+        let text = clock_format_hover_text("no specifiers here");
+        assert!(text.contains("No specifiers found"), "{text}");
+    }
+
+    #[test]
+    fn clock_format_string_at_position_detects_braced_literal() {
+        let src = "clock format $time {%Y-%m-%d}\n";
+        // Cursor inside the `{...}` literal.
+        let found = clock_format_string_at_position(src, 0, 22);
+        assert_eq!(found.as_deref(), Some("%Y-%m-%d"));
+    }
+
+    #[test]
+    fn clock_format_string_at_position_detects_quoted_literal() {
+        let src = "clock format $time \"%Y\"\n";
+        // Cursor inside the `"..."` literal.
+        let found = clock_format_string_at_position(src, 0, 22);
+        assert_eq!(found.as_deref(), Some("%Y"));
+    }
+
+    #[test]
+    fn clock_format_string_at_position_skips_non_clock_commands() {
+        let src = "puts \"%Y\"\n";
+        let found = clock_format_string_at_position(src, 0, 7);
+        assert!(found.is_none(), "{found:?}");
+    }
+
+    #[test]
+    fn hover_fires_for_clock_format_specifier() {
+        let src = "clock format $time {%Y-%m-%d}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // Cursor inside the format literal.
+        let h = hover(src, 0, 22, &analysis).expect("hover");
+        assert!(
+            h.value.contains("Clock format string"),
+            "expected clock hover, got: {value}",
+            value = h.value,
+        );
     }
 }
