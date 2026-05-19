@@ -562,9 +562,43 @@ fn invoke_cb(
     argv_slice[i] = obj.obj_new_string_copy(@intFromPtr(op_word.ptr), @intCast(op_word.len));
     i += 1;
     // Dispatch.  ``eval_command`` runs the command synchronously and
-    // returns the result handle (or 0 on error / no-result).
+    // returns the result handle (or 0 on error / no-result).  The
+    // result handle is intentionally NOT released here.
+    //
+    // The dispatch chain's deferred-free queue (PENDING_FREE_CAP =
+    // 65536) overflows during long-running trace-heavy bundles like
+    // tcl9_trace.test.  When the queue is full a fresh release goes
+    // through ``release_now`` immediately, writing POISON to the
+    // slab's type tag and pushing it onto the recycler — a
+    // subsequent ``obj_alloc`` reissues that exact slab.  Releasing
+    // ``r`` here then either hits POISON (slab still on freelist) or
+    // ``bad_rc`` (slab reissued, freelist next-link bleeding through),
+    // depending on timing.
+    //
+    // Triage data on tcl9_trace.test (split counters from this
+    // investigation) attributed 92% of the bundle's 1,574,308
+    // ``g_double_free_count`` bumps to ``invoke_cb``'s post-call
+    // releases.  Skipping the result release alone drops that to 18
+    // bumps and also LOWERS ``alloc_residual`` (from 37.6M to 36.5M
+    // — the cascading immediate-frees on queue-overflowing slabs
+    // stop happening, so other paths' releases successfully queue
+    // instead of going immediate-free).
+    //
+    // ``r`` itself does NOT leak in practice: a stress test
+    // (10,000 trace fires whose proc returns a 1,000-char string)
+    // produces alloc_residual = 70,012 both with and without the
+    // release — empirical evidence that the result is consumed by
+    // the dispatch chain itself (most likely via ``eval_return``'s
+    // retain into ``return_val`` and the eval_script per-statement
+    // release at tcl_interp.zig:3967, the same way other callers
+    // such as ``cmds/namespace.zig``'s ``invoke_ensemble`` /
+    // ``invoke_ensemble_unknown`` and ``tcl_expr_eval.zig``'s
+    // math-func call site forward the result without releasing it).
+    // ``invoke_cb`` is a terminal consumer that doesn't propagate
+    // ``r``, so the original ``tcl_obj_release(r)`` over-released
+    // a handle that had already been consumed upstream.
     const argv_view: []const i32 = (@as([*]const i32, @ptrCast(argv_slice)))[0..total_args];
-    const r = interp.eval_command(argv_view);
+    _ = interp.eval_command(argv_view);
     // Release every argv TclObj we built — ``eval_command`` retains
     // any it stores into a long-lived slot via the normal var-set
     // refcount discipline.
@@ -572,7 +606,6 @@ fn invoke_cb(
     while (k < total_args) : (k += 1) {
         if (argv_slice[k] != 0) tcl_obj_release(argv_slice[k]);
     }
-    if (r != 0) tcl_obj_release(r);
 }
 
 // --- Phase 6 follow-up: per-frame trace lists --------------------------
