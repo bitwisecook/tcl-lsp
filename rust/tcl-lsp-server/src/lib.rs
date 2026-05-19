@@ -617,17 +617,14 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let ranges = tokio::task::spawn_blocking(move || {
+        let entries = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
-            // Document highlight reuses the references finder
-            // (same algorithm: enumerate every span the symbol
-            // appears at within the document) but does not
-            // include the declaration as a separate kind in
-            // this minimal port — every match lands as
-            // `Text`. Read/Write distinction is recorded as a
-            // follow-up under `S-document-highlight-rich`.
-            core_references::references(&doc.text, pos.line, pos.character, &analysis, true)
+            // `S-document-highlight-rich`: the kinded entry
+            // point tags variable defining spans as `Write` and
+            // their reads as `Read`; command-invocation heads
+            // stay `Text`.
+            core_references::document_highlights(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -635,14 +632,18 @@ impl LanguageServer for Backend {
             message: format!("document_highlight worker panicked: {err}").into(),
             data: None,
         })?;
-        if ranges.is_empty() {
+        if entries.is_empty() {
             return Ok(None);
         }
-        let highlights = ranges
+        let highlights = entries
             .into_iter()
-            .map(|r| DocumentHighlight {
+            .map(|(r, kind)| DocumentHighlight {
                 range: lift_lsp_range(r),
-                kind: Some(DocumentHighlightKind::TEXT),
+                kind: Some(match kind {
+                    core_references::HighlightKind::Read => DocumentHighlightKind::READ,
+                    core_references::HighlightKind::Write => DocumentHighlightKind::WRITE,
+                    core_references::HighlightKind::Text => DocumentHighlightKind::TEXT,
+                }),
             })
             .collect();
         Ok(Some(highlights))
