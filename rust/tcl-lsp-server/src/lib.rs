@@ -120,6 +120,15 @@ pub struct Backend {
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
     dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
+    /// Workspace folder roots received from `initialize` /
+    /// `workspace/didChangeWorkspaceFolders`.  Stored as
+    /// `Url` (typically `file://...` directories).
+    /// `S-workspace-init` minimal port — the folder list
+    /// supports cross-document features (workspace symbols
+    /// already walks every cached document; future
+    /// `S-workspace-symbols-rich` extends this by scanning
+    /// folder contents on disk).
+    workspace_folders: Mutex<Vec<Url>>,
 }
 
 impl std::fmt::Debug for Backend {
@@ -147,7 +156,16 @@ impl Backend {
             documents: Mutex::new(HashMap::new()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
+            workspace_folders: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Return a snapshot of the current workspace folder
+    /// URLs.  Used by cross-document features (workspace
+    /// symbols, cross-doc references / rename / call-
+    /// hierarchy).
+    pub async fn workspace_folder_urls(&self) -> Vec<Url> {
+        self.workspace_folders.lock().await.clone()
     }
 
     /// Resolve the dialect string a freshly opened document should
@@ -344,7 +362,19 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
+        // `S-workspace-init`: capture the workspace folders
+        // the editor sent so cross-document features can
+        // resolve relative paths and (in the future) scan
+        // folder contents for a workspace index.  Both the
+        // newer `workspace_folders` field and the
+        // single-root `root_uri` fallback are supported.
+        if let Some(folders) = &params.workspace_folders {
+            let urls: Vec<Url> = folders.iter().map(|f| f.uri.clone()).collect();
+            *self.workspace_folders.lock().await = urls;
+        } else if let Some(root) = &params.root_uri {
+            *self.workspace_folders.lock().await = vec![root.clone()];
+        }
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
