@@ -153,6 +153,16 @@ pub fn hover(
         return Some(Hover::markdown(class_hover_text(class_def)));
     }
 
+    // Class-member hover — same dispatch as
+    // [`crate::definition::lookup_class_member`], rendered as
+    // a one-line method / property summary.  Fires when the
+    // cursor sits inside a class body and `word` matches one
+    // of that class's members.
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
+        return Some(Hover::markdown(text));
+    }
+
     // Registry-driven hovers — built-in command name, plus
     // `cmd subcommand` lookups when the cursor sits on the
     // subcommand word.  Mirrors `lsp/features/hover.py`'s
@@ -1923,6 +1933,54 @@ fn var_hover_text(var_def: &VarDef) -> String {
     )
 }
 
+/// Hover text for a class member at the cursor's byte
+/// offset.  Walks every class whose body span contains the
+/// cursor and looks `word` up against `methods`,
+/// `class_methods`, `properties`, plus the `constructor` /
+/// `destructor` keywords.  Returns a one-line markdown
+/// summary on hit, `None` otherwise.
+fn class_member_hover_text(
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<String> {
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        let qname = &class_def.qualified_name;
+        if let Some(m) = class_def.methods.get(word) {
+            return Some(format!(
+                "**method** `{qname}::{name}` ({nparam} param(s))",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
+        }
+        if let Some(m) = class_def.class_methods.get(word) {
+            return Some(format!(
+                "**classmethod** `{qname}::{name}` ({nparam} param(s))",
+                name = m.name,
+                nparam = m.params.len(),
+            ));
+        }
+        if let Some(p) = class_def.properties.get(word) {
+            return Some(format!("**property** `{qname}::{name}`", name = p.name));
+        }
+        if word == "constructor" && !class_def.constructors.is_empty() {
+            let nparam = class_def
+                .constructors
+                .first()
+                .map_or(0, |c| c.params.len());
+            return Some(format!("**constructor** of `{qname}` ({nparam} param(s))",));
+        }
+        if word == "destructor" && class_def.destructor.is_some() {
+            return Some(format!("**destructor** of `{qname}`"));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2703,5 +2761,47 @@ mod tests {
         );
         // No trailing em-dash since there's no description.
         assert!(!rendered.contains("**naked** \u{2014}"), "{rendered}");
+    }
+
+    // -- S-hover-rich: class-member hover ---------------------------
+
+    #[test]
+    fn class_member_hover_fires_for_method_inside_body() {
+        let src = "oo::class create C {\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the first `greet` invocation (line 2,
+        // col 22).
+        let h = hover(src, 2, 22, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("C::greet"), "{}", h.value);
+        assert!(h.value.contains("1 param"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_fires_for_classmethod() {
+        let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 2, 20, &analysis, None).expect("hover");
+        assert!(h.value.contains("**classmethod**"), "{}", h.value);
+        assert!(h.value.contains("C::factory"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_fires_for_constructor_keyword() {
+        let src = "oo::class create C {\n    constructor {arg} {}\n    method touch_ctor {} { constructor }\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 2, 27, &analysis, None).expect("hover");
+        assert!(h.value.contains("constructor"), "{}", h.value);
+        // Class qualified name is `::C`.
+        assert!(h.value.contains("::C"), "{}", h.value);
+    }
+
+    #[test]
+    fn class_member_hover_skipped_outside_class_body() {
+        let src = "oo::class create C {\n    method greet {} {}\n}\ngreet\n";
+        let analysis = analyse(src);
+        // Cursor on the bare `greet` outside the class body.
+        // No proc / class / method match — should return None.
+        assert!(hover(src, 3, 2, &analysis, None).is_none());
     }
 }
