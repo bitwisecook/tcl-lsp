@@ -445,6 +445,13 @@ fn eval_binary_scan(words: []const i32) i32 {
                         _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
                         vi += 1;
                         assigned += 1;
+                    } else {
+                        // No backing variable — caller is just probing
+                        // assigned count.  Free the staged list buffer
+                        // before continuing or the slab leaks for the
+                        // remainder of the runtime.
+                        const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                        obj_mod_scan.free_sized(list_buf, list_buf_size);
                     }
                 }
             },
@@ -458,10 +465,18 @@ fn eval_binary_scan(words: []const i32) i32 {
                         @as(*const u8, @ptrFromInt(src_base + end - 1)).* == 0)) end -= 1;
                 }
                 if (words.len > 3 + vi) {
+                    // ``obj_new_string`` borrows the bytes; ``var_set``
+                    // promotes via ``ensure_var_obj_owned`` (cap==0 ->
+                    // fresh copy).  The slot then holds the copy and
+                    // releases the borrow obj — net 0 leak.
                     _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(src_base + off), @bitCast(end - off)));
                     vi += 1;
                     assigned += 1;
                 }
+                // When no variable is supplied we don't mint the
+                // borrow obj at all (above ``if`` skipped) so there's
+                // nothing to release — the source-buffer pointer is
+                // borrowed from the data input.
                 off += take;
             },
             'h', 'H' => {
@@ -487,6 +502,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                     _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(hex_buf, cnt, hex_buf_size));
                     vi += 1;
                     assigned += 1;
+                } else {
+                    const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                    obj_mod_scan.free_sized(hex_buf, hex_buf_size);
                 }
                 off += take_bytes;
             },
@@ -512,6 +530,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                     _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(bit_buf, cnt, bit_buf_size));
                     vi += 1;
                     assigned += 1;
+                } else {
+                    const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                    obj_mod_scan.free_sized(bit_buf, bit_buf_size);
                 }
                 off += take_bytes;
             },

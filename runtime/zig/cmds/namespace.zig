@@ -162,6 +162,7 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     if (wi + 1 < words.len) total += 1;
                 }
                 const buf = alloc(total);
+                if (buf == 0) return result_mod.from_globals(0);
                 var off: u32 = 0;
                 wi = 3;
                 while (wi < words.len) : (wi += 1) {
@@ -174,7 +175,13 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         off += 1;
                     }
                 }
-                return result_mod.from_globals(interp.eval_script(buf, total));
+                const ns_result = interp.eval_script(buf, total);
+                // Free the synthesised script buffer.  ``eval_script``
+                // either copies bytes into owned TclObjs or borrows
+                // through retained var slots; either way the result's
+                // bytes don't reference this buffer once we return.
+                obj_mod.free_sized(buf, total);
+                return result_mod.from_globals(ns_result);
             }
         }
         if (sub.len == 6 and sub.ptr != 0) {
@@ -616,21 +623,37 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             }
             // Build a properly-quoted args list via tcl_list, then append to body.
             // This ensures args containing spaces/braces are re-tokenized correctly.
+            //
+            // Each ``tcl_list`` call returns a fresh +1 owned obj (or
+            // an in-place same-handle return on capacity).  Release
+            // the prior accumulator on swap, then release the final
+            // args_obj after the bytes are copied into ``buf`` — and
+            // free the synthesised script buffer once eval_script
+            // finishes, mirroring the ``namespace eval`` arm above.
             var args_obj: i32 = obj_new_string_copy(0, 0);
             var wi: u32 = 4;
             while (wi < words.len) : (wi += 1) {
-                args_obj = rt.tcl_list(args_obj, words[wi]);
+                const next = rt.tcl_list(args_obj, words[wi]);
+                if (next != args_obj) obj_mod.tcl_obj_release(args_obj);
+                args_obj = next;
             }
             const as = obj_ensure_string(args_obj);
             const total = bs.len + (if (as.len > 0) 1 + as.len else 0);
             const buf = alloc(total);
+            if (buf == 0) {
+                obj_mod.tcl_obj_release(args_obj);
+                return result_mod.from_globals(0);
+            }
             memcpy(buf, bs.ptr, bs.len);
             if (as.len > 0) {
                 const d: [*]u8 = @ptrFromInt(buf + bs.len);
                 d[0] = ' ';
                 memcpy(buf + bs.len + 1, as.ptr, as.len);
             }
-            return result_mod.from_globals(interp.eval_script(buf, total));
+            obj_mod.tcl_obj_release(args_obj);
+            const ns_result = interp.eval_script(buf, total);
+            obj_mod.free_sized(buf, total);
+            return result_mod.from_globals(ns_result);
         }
         // ``namespace code script`` — return a script that evaluates
         // *script* in the current namespace.  Reference Tcl

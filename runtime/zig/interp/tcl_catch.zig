@@ -242,7 +242,18 @@ pub export fn catch_enter() void {
     state.catch_depth += 1;
     state.error_flag = 0;
     state.error_msg = 0;
-    state.catch_ok_result = 0;
+    // Release the previous catch's body-result handle before
+    // zeroing the slot.  ``catch_set_ok_result`` transfers a +1
+    // share into ``state.catch_ok_result`` without retaining;
+    // without this release, every successful catch leaked one
+    // TclObj header per invocation (test suites that exercise
+    // catch heavily — e.g. tcltest's per-test ``::tcltest::test``
+    // body — accumulated thousands of orphaned handles).
+    if (state.catch_ok_result != 0) {
+        const old_ok = state.catch_ok_result;
+        state.catch_ok_result = 0;
+        obj.tcl_obj_release(old_ok);
+    }
     // Release any captured payload from a previous catch so a
     // drain between catches doesn't see a stale +1 hold.
     if (state.last_catch_value != 0) {

@@ -741,7 +741,12 @@ pub export fn tcl_test_hidden_exists(name_ptr: i32, name_len: i32) i32 {
 pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_commands(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_commands(pat);
+    const result = tcl_cmd_info.info_commands(pat);
+    // ``info_commands`` reads the pattern's bytes but doesn't take
+    // ownership — release the +1 here so this test export doesn't
+    // leak one TclObj per call.
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Run ``info procs pattern``.  Same shape as
@@ -749,7 +754,9 @@ pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
 pub export fn tcl_test_info_procs(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_procs(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_procs(pat);
+    const result = tcl_cmd_info.info_procs(pat);
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Probe ``namespace which -command name`` without routing through

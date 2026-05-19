@@ -111,7 +111,19 @@ fn eval_chan_names(words: []const i32) i32 {
             const ns = obj_ensure_string(name);
             if (!tcl_string.glob_match(pattern_ptr, pattern_len, ns.ptr, ns.len)) continue;
         }
-        result = rt.tcl_cmd_lappend(result, name);
+        // ``tcl_cmd_lappend`` may take the in-place fast path
+        // (returning the same handle) or the canonical-rebuild slow
+        // path (returning a fresh +1 owned obj).  The empty-string
+        // seed always misses the fast path (``cap == 0``), so the
+        // first hit returns a fresh handle — release the prior
+        // accumulator on swap so the seed (and any subsequent
+        // intermediate rebuild) doesn't outlive the call.
+        const next = rt.tcl_cmd_lappend(result, name);
+        if (next != result) {
+            const obj_mod_chan = @import("../valtypes/tcl_obj.zig");
+            obj_mod_chan.tcl_obj_release(result);
+        }
+        result = next;
     }
     return result;
 }
