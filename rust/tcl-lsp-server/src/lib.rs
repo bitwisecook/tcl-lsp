@@ -328,6 +328,59 @@ impl Backend {
         self.workspace_folders.lock().await.clone()
     }
 
+    /// `S-workspace-init`: copy the workspace folders the
+    /// editor sent into `self.workspace_folders` so cross-
+    /// document features can resolve relative paths and (in
+    /// the future) scan folder contents for a workspace index.
+    /// Both the newer `workspace_folders` field and the
+    /// single-root `root_uri` fallback are supported.
+    async fn apply_workspace_folders(&self, params: &InitializeParams) {
+        if let Some(folders) = &params.workspace_folders {
+            let urls: Vec<Url> = folders.iter().map(|f| f.uri.clone()).collect();
+            *self.workspace_folders.lock().await = urls;
+        } else if let Some(root) = &params.root_uri {
+            *self.workspace_folders.lock().await = vec![root.clone()];
+        }
+    }
+
+    /// `SYNC-MAY19-dialect-contextvar`: read per-folder dialect
+    /// overrides from `params.initialization_options`.
+    ///
+    /// Expected shape:
+    /// `{ "folderDialects": { "file:///path": "f5-irules",
+    ///                        "file:///other": "tcl9.0" } }`.
+    ///
+    /// Unknown dialect names and unparseable folder URLs are
+    /// dropped silently rather than failing the entire
+    /// initialise — the server keeps starting up with whatever
+    /// valid entries it could pull from the editor.
+    async fn apply_initialization_options(&self, params: &InitializeParams) {
+        let Some(opts) = &params.initialization_options else {
+            return;
+        };
+        let Some(entries) = opts
+            .as_object()
+            .and_then(|m| m.get("folderDialects"))
+            .and_then(serde_json::Value::as_object)
+        else {
+            return;
+        };
+        let mut parsed: Vec<(Url, String)> = Vec::new();
+        for (folder_url, dialect_val) in entries {
+            let Ok(url) = Url::parse(folder_url) else {
+                continue;
+            };
+            let Some(dialect) = dialect_val.as_str() else {
+                continue;
+            };
+            if DialectSet::parse(dialect).is_none() {
+                continue;
+            }
+            parsed.push((url, dialect.to_owned()));
+        }
+        *self.folder_dialects.lock().await = parsed;
+    }
+
     /// Resolve the dialect string a freshly opened document should
     /// be tagged with.
     ///
@@ -518,139 +571,11 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    #[allow(clippy::too_many_lines)]
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
-        // `S-workspace-init`: capture the workspace folders
-        // the editor sent so cross-document features can
-        // resolve relative paths and (in the future) scan
-        // folder contents for a workspace index.  Both the
-        // newer `workspace_folders` field and the
-        // single-root `root_uri` fallback are supported.
-        if let Some(folders) = &params.workspace_folders {
-            let urls: Vec<Url> = folders.iter().map(|f| f.uri.clone()).collect();
-            *self.workspace_folders.lock().await = urls;
-        } else if let Some(root) = &params.root_uri {
-            *self.workspace_folders.lock().await = vec![root.clone()];
-        }
-        // `SYNC-MAY19-dialect-contextvar`: parse the
-        // `folderDialects` object from `initializationOptions`
-        // (when present) so multi-folder workspaces can mix
-        // dialects.  Shape: `{ "folderDialects": { "file:///path":
-        // "f5-irules", "file:///other": "tcl9.0" } }`.  Unknown
-        // dialect names are dropped silently rather than
-        // failing the whole initialise.
-        if let Some(opts) = &params.initialization_options {
-            let folder_map = opts
-                .as_object()
-                .and_then(|m| m.get("folderDialects"))
-                .and_then(serde_json::Value::as_object);
-            if let Some(entries) = folder_map {
-                let mut parsed: Vec<(Url, String)> = Vec::new();
-                for (folder_url, dialect_val) in entries {
-                    let Ok(url) = Url::parse(folder_url) else {
-                        continue;
-                    };
-                    let Some(dialect) = dialect_val.as_str() else {
-                        continue;
-                    };
-                    if DialectSet::parse(dialect).is_none() {
-                        continue;
-                    }
-                    parsed.push((url, dialect.to_owned()));
-                }
-                *self.folder_dialects.lock().await = parsed;
-            }
-        }
+        self.apply_workspace_folders(&params).await;
+        self.apply_initialization_options(&params).await;
         Ok(InitializeResult {
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
-                )),
-                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
-                document_symbol_provider: Some(OneOf::Left(true)),
-                hover_provider: Some(HoverProviderCapability::Simple(true)),
-                completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec!["$".to_owned()]),
-                    ..CompletionOptions::default()
-                }),
-                signature_help_provider: Some(SignatureHelpOptions {
-                    trigger_characters: Some(vec![" ".to_owned()]),
-                    retrigger_characters: None,
-                    work_done_progress_options: WorkDoneProgressOptions::default(),
-                }),
-                definition_provider: Some(OneOf::Left(true)),
-                declaration_provider: Some(DeclarationCapability::Simple(true)),
-                type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
-                implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
-                references_provider: Some(OneOf::Left(true)),
-                document_highlight_provider: Some(OneOf::Left(true)),
-                rename_provider: Some(OneOf::Right(RenameOptions {
-                    prepare_provider: Some(true),
-                    work_done_progress_options: WorkDoneProgressOptions::default(),
-                })),
-                selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
-                document_formatting_provider: Some(OneOf::Left(true)),
-                document_range_formatting_provider: Some(OneOf::Left(true)),
-                document_link_provider: Some(DocumentLinkOptions {
-                    resolve_provider: Some(false),
-                    work_done_progress_options: WorkDoneProgressOptions::default(),
-                }),
-                inlay_hint_provider: Some(OneOf::Left(true)),
-                code_lens_provider: Some(CodeLensOptions {
-                    resolve_provider: Some(false),
-                }),
-                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
-                // Note: tower-lsp 0.20 does not expose
-                // `type_hierarchy_provider` on `ServerCapabilities`;
-                // the type-hierarchy core provider lives in
-                // `tcl-lsp-core::type_hierarchy` and will be wired
-                // once we upgrade tower-lsp (tracked under
-                // `S-type-hierarchy-rich`).
-                semantic_tokens_provider: Some(
-                    SemanticTokensServerCapabilities::SemanticTokensOptions(
-                        SemanticTokensOptions {
-                            work_done_progress_options: WorkDoneProgressOptions::default(),
-                            legend: SemanticTokensLegend {
-                                token_types: core_semantic_tokens::legend_token_types()
-                                    .into_iter()
-                                    .map(tower_lsp::lsp_types::SemanticTokenType::new)
-                                    .collect(),
-                                token_modifiers: core_semantic_tokens::legend_token_modifiers()
-                                    .into_iter()
-                                    .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
-                                    .collect(),
-                            },
-                            range: Some(true),
-                            // Advertise delta support — the
-                            // handler implements the minimal
-                            // valid shape (returns full tokens
-                            // when previousResultId doesn't
-                            // match, otherwise empty edits).
-                            full: Some(SemanticTokensFullOptions::Delta {
-                                delta: Some(true),
-                            }),
-                        },
-                    ),
-                ),
-                workspace_symbol_provider: Some(OneOf::Left(true)),
-                linked_editing_range_provider: Some(
-                    tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
-                ),
-                // `S-diagnostics-pipeline`: advertise pull-based
-                // diagnostics so editors that support it can
-                // request diagnostics on demand alongside the
-                // existing push-based `publish_diagnostics`.
-                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                    DiagnosticOptions {
-                        identifier: Some("tcl-lsp".to_string()),
-                        inter_file_dependencies: false,
-                        workspace_diagnostics: false,
-                        work_done_progress_options: WorkDoneProgressOptions::default(),
-                    },
-                )),
-                ..ServerCapabilities::default()
-            },
+            capabilities: build_server_capabilities(),
             server_info: Some(ServerInfo {
                 name: "tcl-lsp-server".to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
@@ -2011,6 +1936,102 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// snapshot we hand out is uniquely identifiable, letting
 /// clients consult our cache via
 /// `semanticTokens/full/delta { previousResultId }`.
+/// Build the `ServerCapabilities` advertised in the response
+/// to `initialize`.  Kept as a free function so the
+/// `LanguageServer::initialize` handler stays focused on
+/// state setup and result construction — the long capability
+/// literal lives here rather than inside the trait method.
+fn build_server_capabilities() -> ServerCapabilities {
+    ServerCapabilities {
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::FULL,
+        )),
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
+        completion_provider: Some(CompletionOptions {
+            trigger_characters: Some(vec!["$".to_owned()]),
+            ..CompletionOptions::default()
+        }),
+        signature_help_provider: Some(SignatureHelpOptions {
+            trigger_characters: Some(vec![" ".to_owned()]),
+            retrigger_characters: None,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        definition_provider: Some(OneOf::Left(true)),
+        declaration_provider: Some(DeclarationCapability::Simple(true)),
+        type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
+        references_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+        selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+        document_formatting_provider: Some(OneOf::Left(true)),
+        document_range_formatting_provider: Some(OneOf::Left(true)),
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        inlay_hint_provider: Some(OneOf::Left(true)),
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
+        // Note: tower-lsp 0.20 does not expose
+        // `type_hierarchy_provider` on `ServerCapabilities`;
+        // the type-hierarchy core provider lives in
+        // `tcl-lsp-core::type_hierarchy` and will be wired
+        // once we upgrade tower-lsp (tracked under
+        // `S-type-hierarchy-rich`).
+        semantic_tokens_provider: Some(semantic_tokens_capability()),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
+        linked_editing_range_provider: Some(
+            tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
+        ),
+        // `S-diagnostics-pipeline`: advertise pull-based
+        // diagnostics so editors that support it can request
+        // diagnostics on demand alongside the existing
+        // push-based `publish_diagnostics`.
+        diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+            identifier: Some("tcl-lsp".to_string()),
+            inter_file_dependencies: false,
+            workspace_diagnostics: false,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+        ..ServerCapabilities::default()
+    }
+}
+
+/// Build the semantic-tokens capability advertising the
+/// classifier's legend, range support, and delta support.
+fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
+    SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
+        work_done_progress_options: WorkDoneProgressOptions::default(),
+        legend: SemanticTokensLegend {
+            token_types: core_semantic_tokens::legend_token_types()
+                .into_iter()
+                .map(tower_lsp::lsp_types::SemanticTokenType::new)
+                .collect(),
+            token_modifiers: core_semantic_tokens::legend_token_modifiers()
+                .into_iter()
+                .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
+                .collect(),
+        },
+        range: Some(true),
+        // Delta support — the handler implements the minimal
+        // valid shape (returns full tokens when
+        // previousResultId doesn't match, otherwise empty
+        // edits).
+        full: Some(SemanticTokensFullOptions::Delta {
+            delta: Some(true),
+        }),
+    })
+}
+
 fn next_semantic_tokens_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(1);
