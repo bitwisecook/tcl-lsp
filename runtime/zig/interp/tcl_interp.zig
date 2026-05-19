@@ -513,20 +513,55 @@ fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
 ///   * boolean operator (``&&`` / ``||`` / top-level boolean context) →
 ///       ``expected boolean value but got "X"``
 /// Cleared by ``eval_expr_str`` on entry and by every successful atom.
+///
+/// Lifetime: the recorded bytes are OWNED by this module — every
+/// :func:`expr_set_nonnum` copies its input into a fresh allocation
+/// and every :func:`expr_clear_nonnum` releases it.  Earlier
+/// revisions stored a borrowed ``(ptr, len)`` directly from the
+/// variable value's string rep; an intervening ``[cmd]``
+/// substitution that ``unset``-ed or rewrote the variable could
+/// then UAF the bytes when the enclosing operator finally consumed
+/// them (Copilot review on PR #452 flagged the dangle).
 var expr_nonnum_active: bool = false;
 var expr_nonnum_ptr: u32 = 0;
 var expr_nonnum_len: u32 = 0;
 
+fn expr_nonnum_release() void {
+    if (expr_nonnum_ptr != 0 and expr_nonnum_len != 0) {
+        obj_mod.free_sized(expr_nonnum_ptr, expr_nonnum_len);
+    }
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
+}
+
 fn expr_set_nonnum(ptr: u32, slen: u32) void {
+    expr_nonnum_release();
     expr_nonnum_active = true;
-    expr_nonnum_ptr = ptr;
+    if (slen == 0 or ptr == 0) {
+        expr_nonnum_ptr = 0;
+        expr_nonnum_len = 0;
+        return;
+    }
+    const dst = obj_mod.alloc(slen);
+    if (dst == 0) {
+        // Allocation failure — record empty bytes; the diagnostic
+        // will use an empty string in the ``"X"`` slot rather than
+        // dangling at a stale pointer.
+        expr_nonnum_ptr = 0;
+        expr_nonnum_len = 0;
+        return;
+    }
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    const out: [*]u8 = @ptrFromInt(dst);
+    var k: u32 = 0;
+    while (k < slen) : (k += 1) out[k] = src[k];
+    expr_nonnum_ptr = dst;
     expr_nonnum_len = slen;
 }
 
 fn expr_clear_nonnum() void {
     expr_nonnum_active = false;
-    expr_nonnum_ptr = 0;
-    expr_nonnum_len = 0;
+    expr_nonnum_release();
 }
 
 const NonNumSnapshot = struct {
@@ -536,19 +571,36 @@ const NonNumSnapshot = struct {
 };
 
 fn expr_take_nonnum() NonNumSnapshot {
+    // Ownership transfer: the snapshot adopts the heap buffer the
+    // global slot was holding; the global is cleared without a
+    // release so a subsequent ``expr_restore_nonnum`` can re-park
+    // the same buffer without copying.  A ``raise_…`` consumer that
+    // doesn't restore must call ``free_sized(s.ptr, s.len)`` on its
+    // way out — see ``expr_consume_nonnum_boolean`` for the pattern.
     const s: NonNumSnapshot = .{
         .active = expr_nonnum_active,
         .ptr = expr_nonnum_ptr,
         .len = expr_nonnum_len,
     };
-    expr_clear_nonnum();
+    expr_nonnum_active = false;
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
     return s;
 }
 
 fn expr_restore_nonnum(s: NonNumSnapshot) void {
+    expr_nonnum_release();
     expr_nonnum_active = s.active;
     expr_nonnum_ptr = s.ptr;
     expr_nonnum_len = s.len;
+}
+
+/// Release a snapshot's heap buffer.  Called by operand sites that
+/// either consumed the snapshot via ``raise_…`` (and want to free
+/// the bytes after the diagnostic is built) or discarded it
+/// (LHS got short-circuited and the snapshot is being replaced).
+fn expr_drop_nonnum_snap(s: NonNumSnapshot) void {
+    if (s.ptr != 0 and s.len != 0) obj_mod.free_sized(s.ptr, s.len);
 }
 
 /// Did the most recent atom produce a non-numeric operand?  Used by
@@ -559,8 +611,15 @@ pub fn expr_consume_nonnum_boolean() bool {
     if (!expr_nonnum_active) return false;
     const ptr = expr_nonnum_ptr;
     const slen = expr_nonnum_len;
-    expr_clear_nonnum();
+    // Detach the buffer from the global before raising so the
+    // ``expr_clear_nonnum`` released it but the diagnostic helper
+    // still sees the bytes.  ``free_sized`` after the raise is the
+    // counterpart to ``expr_set_nonnum``'s ``obj_mod.alloc``.
+    expr_nonnum_active = false;
+    expr_nonnum_ptr = 0;
+    expr_nonnum_len = 0;
     raise_expected_boolean_str(ptr, slen);
+    if (ptr != 0 and slen != 0) obj_mod.free_sized(ptr, slen);
     return true;
 }
 
@@ -624,6 +683,11 @@ fn raise_arith_op_error(op_str: []const u8, side: []const u8, ptr: u32, slen: u3
 fn expr_raise_if_nonnum_arith(snap: NonNumSnapshot, op_str: []const u8, side: []const u8) bool {
     if (!snap.active) return false;
     raise_arith_op_error(op_str, side, snap.ptr, snap.len);
+    // Snapshot owns its buffer; raise built the diagnostic from
+    // those bytes, so release them now.  Returning true tells the
+    // caller to bail without restoring — the live flag was already
+    // cleared by ``expr_take_nonnum``.
+    expr_drop_nonnum_snap(snap);
     return true;
 }
 
@@ -651,7 +715,7 @@ fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
             if (lhs_snap.active and !skip) {
                 raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
-                expr_clear_nonnum();
+                expr_drop_nonnum_snap(lhs_snap);
                 return 0;
             }
             pos.* += 2;
@@ -665,11 +729,17 @@ fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             const rhs_snap = expr_take_nonnum();
             if (rhs_snap.active and !rhs_skip) {
                 raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                expr_drop_nonnum_snap(rhs_snap);
+                expr_drop_nonnum_snap(lhs_snap);
                 return 0;
             }
+            expr_drop_nonnum_snap(rhs_snap);
             if (!skip) {
                 left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            // LHS snapshot is no longer relevant after a successful
+            // ``||`` reduction — release its buffer.
+            expr_drop_nonnum_snap(lhs_snap);
             lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
             lhs_end = pos.*;
         } else break;
@@ -705,7 +775,7 @@ fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
             if (lhs_snap.active and !skip) {
                 raise_expected_boolean_str(lhs_snap.ptr, lhs_snap.len);
-                expr_clear_nonnum();
+                expr_drop_nonnum_snap(lhs_snap);
                 return 0;
             }
             pos.* += 2;
@@ -718,11 +788,15 @@ fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             const rhs_snap = expr_take_nonnum();
             if (rhs_snap.active and !rhs_skip) {
                 raise_expected_boolean_str(rhs_snap.ptr, rhs_snap.len);
+                expr_drop_nonnum_snap(rhs_snap);
+                expr_drop_nonnum_snap(lhs_snap);
                 return 0;
             }
+            expr_drop_nonnum_snap(rhs_snap);
             if (!skip) {
                 left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
             }
+            expr_drop_nonnum_snap(lhs_snap);
             lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
             lhs_end = pos.*;
         } else break;
@@ -890,7 +964,11 @@ fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         pos.* += @intCast(op_str.len);
         const right = expr_mul(ptr, len, pos, skip);
         const rhs_snap = expr_take_nonnum();
-        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) return 0;
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) {
+            expr_drop_nonnum_snap(lhs_snap);
+            return 0;
+        }
+        expr_drop_nonnum_snap(rhs_snap);
         switch (op_str[0]) {
             '+' => left = left + right,
             '-' => left = left - right,
@@ -912,6 +990,9 @@ fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             '!' => left = if (left != right) @as(i64, 1) else @as(i64, 0),
             else => unreachable,
         }
+        // LHS has been folded into ``left`` — drop its buffer before
+        // re-arming the slot for the next operator iteration.
+        expr_drop_nonnum_snap(lhs_snap);
         lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
     // No further operator after the LHS — restore the LHS's flag so
@@ -939,13 +1020,20 @@ fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         pos.* += 1;
         const right = expr_atom(ptr, len, pos, skip);
         const rhs_snap = expr_take_nonnum();
-        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) return 0;
+        if (expr_raise_if_nonnum_arith(rhs_snap, op_str, "right")) {
+            expr_drop_nonnum_snap(lhs_snap);
+            return 0;
+        }
+        expr_drop_nonnum_snap(rhs_snap);
         switch (op_str[0]) {
             '*' => left = left * right,
             '/' => left = if (right != 0) @divTrunc(left, right) else 0,
             '%' => left = if (right != 0) @rem(left, right) else 0,
             else => unreachable,
         }
+        // LHS has been folded into ``left`` — drop its buffer before
+        // re-arming the slot for the next operator iteration.
+        expr_drop_nonnum_snap(lhs_snap);
         lhs_snap = .{ .active = false, .ptr = 0, .len = 0 };
     }
     expr_restore_nonnum(lhs_snap);
