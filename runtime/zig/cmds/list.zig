@@ -1625,6 +1625,13 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
 
     const ls = obj_ensure_string(list_obj);
     const pv = obj_ensure_string(pat_obj);
+    // Validate the list arg before anything else.  Reference Tcl
+    // raises ``unmatched open brace in list`` / ``list element in
+    // braces followed by ...`` before searching; without the guard,
+    // ``lsearch "{" pat`` would silently scan the malformed string
+    // and return wrong results.
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
     const n = rt.list_count_elements(ls.ptr, ls.len);
 
     // Validate every element of the ``-index`` path up front so a

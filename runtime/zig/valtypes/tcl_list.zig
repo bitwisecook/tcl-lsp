@@ -269,17 +269,15 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
 pub fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_first: bool) u32 {
     var off = off_in;
     if (elem.braced) {
-        const d: [*]u8 = @ptrFromInt(buf + off);
-        d[0] = '{';
-        off += 1;
-        if (elem.len > 0) {
-            memcpy(buf + off, sd_ptr + elem.start, elem.len);
-            off += elem.len;
-        }
-        const d2: [*]u8 = @ptrFromInt(buf + off);
-        d2[0] = '}';
-        off += 1;
-        return off;
+        // Braced elements are already literal (no backslash decoding
+        // needed) but the source ``{value}`` form is NOT necessarily
+        // canonical — ``{abc}`` round-trips to ``abc`` and ``{}``
+        // stays ``{}``.  Run the literal bytes through the canonical
+        // quoter so the output is what the list-element formatter
+        // would produce for the same value, not just the source
+        // spelling.
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
+        return quoter(buf, off, sd_ptr + elem.start, elem.len);
     }
     if (elem.len == 0) {
         // Empty unbraced element → emit ``{}`` so it survives a
