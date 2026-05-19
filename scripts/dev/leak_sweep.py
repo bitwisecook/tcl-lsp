@@ -168,6 +168,15 @@ def _run_one_with_counters(
         reset = rt_inst.exports(store)["tcl_test_reset_counters"]
         alloc_count = rt_inst.exports(store)["tcl_test_alloc_count"]
         double_free = rt_inst.exports(store)["tcl_test_double_free_count"]
+        # Sub-bucket splits — see ``tcl_obj.zig`` comment at the
+        # ``g_double_free_poison_count`` declaration.  Triage tool
+        # for narrowing the source of double-free bumps.  Optional
+        # (older leak-check binaries may not have these exports);
+        # missing exports leave the sub-bucket out of the row.
+        exports = rt_inst.exports(store)
+        df_poison = exports.get("tcl_test_double_free_poison_count")
+        df_pending = exports.get("tcl_test_double_free_pending_count")
+        df_bad_rc = exports.get("tcl_test_double_free_bad_rc_count")
         retain_after_defer = rt_inst.exports(store)["tcl_test_retain_after_defer_count"]
         finalize = rt_inst.exports(store)["tcl_test_finalize"]
         _ = alloc_count  # readable mid-run if needed
@@ -225,6 +234,12 @@ def _run_one_with_counters(
             out["alloc_residual"] = int(finalize(store))
             out["double_free"] = int(double_free(store))
             out["retain_after_defer"] = int(retain_after_defer(store))
+            if df_poison is not None:
+                out["double_free_poison"] = int(df_poison(store))
+            if df_pending is not None:
+                out["double_free_pending"] = int(df_pending(store))
+            if df_bad_rc is not None:
+                out["double_free_bad_rc"] = int(df_bad_rc(store))
         except BaseException as exc:
             out["counter_read_error"] = str(exc)[-200:]
         if watchdog_fired[0] and not out["trapped"]:

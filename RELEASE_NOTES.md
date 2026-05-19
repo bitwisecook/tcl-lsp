@@ -1,69 +1,53 @@
-# v1.10.5
-
-## New Features
-
-- **Tcl 9.0 command coverage.** New registry entries and codegen support
-  for `lpop`, `foreachline`, `readfile`, `writefile`, `tcl::idna`,
-  `tcl::process`, and `fconfigure` option additions, with per-option
-  dialect gating so 8.5 / 8.6 / 9.0 / iRules / iApps each see only the
-  surface they actually support (#433).
-- **W003 / W004 diagnostics.** Two new analyser warnings surface
-  iRules-specific authoring issues, plumbed through the diagnostic
-  manifest and into the VS Code, JetBrains, Zed, and emacs catalogs.
-- **iApp diagnostics.** A new `iapp_diagnostics` pathway flags
-  iApp-template authoring problems that previously went unreported.
-- **Domain-aware analysis checks.** `analyser/checks/_domain.py`
-  hosts cross-cutting checks that depend on combined command +
-  dialect + side-effect context.
-- **Option-dialect auditing.** `scripts/audit_option_dialects.py`
-  reports option-coverage gaps across dialects so registry edits stay
-  in sync as Tcl 9 surface grows.
-
-## Improvements
-
-- **Tighter command-registry models** for `chan`, `clock`, `encoding`,
-  `exec`, `interp`, `lsearch`, `lsort`, `regsub`, `socket`, `source`,
-  `switch`, and `vwait`, plus updates to the tcllib `fileutil`,
-  `math::statistics`, `mime`, and `textutil` modules.
-- **cmdAH cascade and `info` introspection gaps closed (#430)** so
-  hover, completion, and go-to-definition now resolve commands that
-  previously fell through.
-- **Snippet templates** refreshed with new entries.
-- **Tail-call and DCE optimiser passes** updated alongside the
-  expanded command surface.
-- **Installer smoke test** factored out of the release skill into a
-  standalone `scripts/smoke_installer.sh`.
+# v1.10.7
 
 ## Bug Fixes
 
-- **`probePython` no longer canonicalises bare `PATH` names**, so
-  shimmed interpreters (pyenv, asdf, mise) resolve to the active
-  shim rather than the underlying real binary.
-- **`/etc/os-release` symlinks are followed** before the ownership
-  check, fixing distro detection on systems where the file is a
-  symlink into `/usr/lib` (NixOS, immutable distros).
-- **Dialect-detection extension tests** get a 15 s → 30 s
-  `waitForCompletions` budget, eliminating a flake on the Linux CI
-  runner where the dialect-change config notification could arrive
-  after the previous window expired (#435).
+- **JetBrains plugin: bundle LSP server outside the plugin jar.**
+  v1.10.6 shipped the source-level W105 quick-fix that preserves `$`
+  in variable references (`$script` → `{$script}` instead of
+  `{script}`), but users running the JetBrains plugin didn't see it on
+  upgrade: the plugin packed `tcl-lsp-server.pyz` into its jar and
+  extracted it to `${tmpdir}/tcl-lsp-server.pyz` at first launch, and
+  the existence check that gated re-extraction only fired when the
+  temp file was missing or empty.  Plugin upgrades therefore kept
+  reusing the previous version's extracted server, and v1.10.6's W105
+  fix never reached anyone who'd already launched v1.10.5.  The pyz
+  now lives at the plugin install root (next to `lib/`, matching
+  JetBrains' own Prisma ORM plugin layout), so Python executes it
+  directly from the install directory — no temp-dir cache, no
+  upgrade-time invalidation, and v1.10.6's source-side fix actually
+  takes effect on upgrade.
+
+# v1.10.6
+
+## Bug Fixes
+
+- **Quick-fix range widening for unbraced-expression diagnostics.** The
+  W100 (`expr` argument needs braces) and W101 (control-flow body needs
+  braces) auto-fixes previously stopped one character short of the
+  closing `"` / `}`, leaving a stray delimiter in the document after
+  the rewrite. They also rewrote arguments using the *post-substitution*
+  value, silently dropping `$var` / `[cmd]` references. Both now widen
+  the replacement range correctly and preserve the original
+  substitution syntax verbatim.
+- **`matchclass` → `class match` quick-fix preserves substitutions.**
+  IRULE2001's auto-rewrite was producing `class match url equals ::lib`
+  from source `matchclass $url ::lib` — silently turning a variable
+  reference into a literal. The rewrite now reads the raw token text
+  so `$url` round-trips intact, and the fix range covers the closing
+  delimiter.
+
+## Improvements
+
+- **JetBrains plugin: auto-restart on settings change** (#438). The
+  LSP server now restarts automatically when the resolved Python path
+  changes in settings, and the resolved interpreter is logged at
+  startup so discovery issues are easier to diagnose.
 
 ## Internal
 
-- **Tag-only release flow.** Every version literal in the tree now
-  derives from the latest annotated git tag (via `hatch-vcs` for the
-  Python wheel and via the Makefile + `git describe` for every editor
-  build). Cutting a release is `git tag -a vX.Y.Z … && git push
-  origin vX.Y.Z` — no source-file bumps, no commit on `main` (#436).
-- **JetBrains build** no longer mutates `gradle.properties`; the
-  version comes from the `RELEASE_VERSION` env var the Makefile sets
-  (#436).
-- `ty` pinned to `==0.0.37`; previously the range allowed a stale
-  `.venv` to disagree with CI about whether `# ty: ignore[...]`
-  directives were redundant (#435).
-- `@typescript-eslint/eslint-plugin` and `parser` bumped to `^8.59.4`,
-  the first release whose `typescript` peer accepts the `^6.0.3` we
-  now ship (#435).
-- Dependency refresh: TypeScript 6.0, Gradle, pinned GitHub Actions
-  versions (#434).
-- CI: corrected `ossf/scorecard-action` SHA pin and bumped
-  `actions/checkout` to v5 (#431).
+- **Release process now gates on CodeQL** (#440). A new
+  `release-codeql-gate` Makefile target watches the CodeQL run for
+  the tag candidate on `main` and blocks the release if any open
+  alert is high or critical severity. Overridable via
+  `CODEQL_GATE_MIN_SEVERITY=critical` for documented exceptions.

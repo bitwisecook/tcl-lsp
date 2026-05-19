@@ -106,8 +106,20 @@ def _emit_string(
                 if sub_args and _looks_like_option(sub_args[0]):
                     emitter._emit_eval_fallback("string", args)
                     return True
-                func_idx = emitter._shared_imports[sri.import_key]
+                # Over-arity calls — more sub-args than the fixed-param
+                # import accepts.  ``string totitle X 1 1`` / ``string
+                # toupper X 1 1`` / ``string tolower X 1 1`` carry
+                # codepoint range bounds that the 1-param ``string_to*``
+                # imports cannot see, so silently dropping them title-
+                # cases index 0 instead of the requested codepoint
+                # (string-17.9).  Route to the eval fallback so the
+                # ``cmds/string.zig`` dispatcher reaches the ``_range``
+                # variants.
                 param_count = len(sri.params)
+                if len(sub_args) > param_count:
+                    emitter._emit_eval_fallback("string", args)
+                    return True
+                func_idx = emitter._shared_imports[sri.import_key]
                 for i in range(min(param_count, len(sub_args))):
                     # ``i`` is into ``sub_args`` (= ``args[1:]``), so the
                     # original call-arg index is ``i + 1`` (the
@@ -208,8 +220,20 @@ def _emit_string(
             else:
                 emitter._emit(WasmOp.DROP)
             return True
-        func_idx = emitter._shared_imports[sri.import_key]
+        # Over-arity: route to eval-fallback so range-bearing forms
+        # (``string totitle X first last`` etc.) reach the runtime
+        # dispatcher's ``_range`` variant.  See the matching block in
+        # the value-context branch above.
         param_count = len(sri.params)
+        if len(sub_args) > param_count:
+            emitter._emit_eval_fallback("string", args)
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
+        func_idx = emitter._shared_imports[sri.import_key]
         for i in range(min(param_count, len(sub_args))):
             emitter._emit_value(sub_args[i], was_braced=_was_braced(emitter, i + 1))
         for _ in range(param_count - len(sub_args)):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 import struct
 import sys
 from pathlib import Path
@@ -858,7 +859,10 @@ def test_hud_annotations_capture_sni_for_route_decision(tmp_path):
     ]
     cmds = [c for c, _v in annotated]
     # Either SSL::extensions or SNI tokens should resolve to the SNI value.
-    assert any("api.example.com" in v for _c, v in annotated), annotated
+    # Word-boundary match so a substring inside a longer hostname /
+    # path wouldn't satisfy the assertion (CodeQL
+    # ``py/incomplete-url-substring-sanitization``).
+    assert any(re.search(r"\bapi\.example\.com\b", v) for _c, v in annotated), annotated
     assert any(c.startswith("SSL::") or c == "SNI" for c in cmds), cmds
 
 
@@ -893,7 +897,7 @@ def test_report_to_mcp_dict_drops_noise(tmp_path):
     # Compact shape: short summary, flow as ip:port strings, decisions
     # de-duped, no full per-flow Flow dicts visible.
     assert "summary" in sess
-    assert "blocked.example.com" in sess["summary"]
+    assert re.search(r"\bblocked\.example\.com\b", sess["summary"])
     assert sess["flow"]["client"] == "1.2.3.4:12345"
     assert sess["flow"]["vip"] == "5.6.7.8:80"
     assert any(

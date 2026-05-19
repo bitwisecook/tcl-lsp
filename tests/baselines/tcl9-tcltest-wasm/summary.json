@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-17T02:31:48Z",
+  "generated_at": "2026-05-19T14:39:24Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -15,8 +15,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 18,
-      "passed_min": 24,
+      "failed_max": 14,
+      "passed_min": 28,
       "skipped": 0,
       "total": 42
     },
@@ -24,26 +24,26 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 13,
-      "passed_min": 74,
-      "skipped": 59,
+      "failed_max": 11,
+      "passed_min": 75,
+      "skipped": 60,
       "total": 146
     },
     "cmdAH": {
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 21,
-      "passed_min": 3885,
+      "failed_max": 20,
+      "passed_min": 4966,
       "skipped": 147,
-      "total": 4053
+      "total": 5133
     },
     "cmdIL": {
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 41,
-      "passed_min": 125,
+      "failed_max": 11,
+      "passed_min": 155,
       "skipped": 2,
       "total": 168
     },
@@ -60,8 +60,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 22,
-      "passed_min": 75,
+      "failed_max": 21,
+      "passed_min": 76,
       "skipped": 0,
       "total": 97
     },
@@ -84,13 +84,13 @@
       "total": 184
     },
     "compile": {
-      "bucket": "W-mixed-fail",
-      "crash_type": "",
-      "crashed": false,
-      "failed_max": 11,
-      "passed_min": 145,
-      "skipped": 15,
-      "total": 171
+      "bucket": "W0-runtime-error",
+      "crash_type": "Trap",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
     },
     "concat": {
       "bucket": "clean",
@@ -105,8 +105,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 171,
-      "passed_min": 138,
+      "failed_max": 173,
+      "passed_min": 136,
       "skipped": 8,
       "total": 317
     },
@@ -132,8 +132,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 17,
-      "passed_min": 1101,
+      "failed_max": 19,
+      "passed_min": 1099,
       "skipped": 1050,
       "total": 2168
     },
@@ -177,8 +177,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 12,
-      "passed_min": 238,
+      "failed_max": 10,
+      "passed_min": 240,
       "skipped": 19,
       "total": 269
     },
@@ -192,11 +192,11 @@
       "total": 73
     },
     "if-old": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 32,
+      "failed_max": 0,
+      "passed_min": 33,
       "skipped": 0,
       "total": 33
     },
@@ -222,8 +222,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 67,
-      "passed_min": 219,
+      "failed_max": 58,
+      "passed_min": 228,
       "skipped": 1,
       "total": 287
     },
@@ -237,20 +237,20 @@
       "total": 10
     },
     "lindex": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 13,
-      "passed_min": 49,
+      "failed_max": 0,
+      "passed_min": 62,
       "skipped": 22,
       "total": 84
     },
     "linsert": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 5,
-      "passed_min": 23,
+      "failed_max": 0,
+      "passed_min": 28,
       "skipped": 0,
       "total": 28
     },
@@ -273,11 +273,11 @@
       "total": 6
     },
     "lmap": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 63,
+      "failed_max": 0,
+      "passed_min": 66,
       "skipped": 0,
       "total": 66
     },
@@ -291,11 +291,11 @@
       "total": 19
     },
     "lrange": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 11,
-      "passed_min": 1755,
+      "failed_max": 0,
+      "passed_min": 1766,
       "skipped": 0,
       "total": 1766
     },
@@ -318,11 +318,11 @@
       "total": 3579
     },
     "lsearch": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 51,
-      "passed_min": 114,
+      "failed_max": 0,
+      "passed_min": 165,
       "skipped": 0,
       "total": 165
     },
@@ -375,8 +375,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 93,
-      "passed_min": 220,
+      "failed_max": 28,
+      "passed_min": 285,
       "skipped": 1,
       "total": 314
     },
@@ -384,8 +384,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 54,
-      "passed_min": 72,
+      "failed_max": 19,
+      "passed_min": 107,
       "skipped": 0,
       "total": 126
     },
@@ -411,8 +411,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 10,
-      "passed_min": 148,
+      "failed_max": 9,
+      "passed_min": 149,
       "skipped": 0,
       "total": 158
     },
@@ -435,22 +435,22 @@
       "total": 74
     },
     "regexp": {
-      "bucket": "W-mixed-fail",
-      "crash_type": "",
-      "crashed": false,
-      "failed_max": 27,
-      "passed_min": 226,
-      "skipped": 4,
-      "total": 257
+      "bucket": "W0-runtime-error",
+      "crash_type": "Trap",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
     },
     "regexpComp": {
-      "bucket": "W-mixed-fail",
-      "crash_type": "",
-      "crashed": false,
-      "failed_max": 13,
-      "passed_min": 166,
+      "bucket": "W0-runtime-error",
+      "crash_type": "Trap",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
       "skipped": 0,
-      "total": 179
+      "total": 0
     },
     "rename": {
       "bucket": "W-mixed-fail",
@@ -462,11 +462,11 @@
       "total": 19
     },
     "result": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 6,
+      "failed_max": 0,
+      "passed_min": 7,
       "skipped": 19,
       "total": 26
     },
@@ -492,8 +492,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 91,
-      "passed_min": 62,
+      "failed_max": 12,
+      "passed_min": 141,
       "skipped": 0,
       "total": 153
     },
@@ -507,11 +507,11 @@
       "total": 18
     },
     "string": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 158,
-      "passed_min": 540,
+      "failed_max": 0,
+      "passed_min": 698,
       "skipped": 7,
       "total": 705
     },
@@ -573,8 +573,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 52,
-      "passed_min": 258,
+      "failed_max": 56,
+      "passed_min": 254,
       "skipped": 152,
       "total": 462
     },
@@ -582,8 +582,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 37,
-      "passed_min": 178,
+      "failed_max": 19,
+      "passed_min": 196,
       "skipped": 4,
       "total": 219
     },
@@ -600,8 +600,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 4,
-      "passed_min": 11,
+      "failed_max": 3,
+      "passed_min": 12,
       "skipped": 0,
       "total": 15
     },

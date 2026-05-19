@@ -183,7 +183,7 @@ def test_redact_replaces_password_field():
     assert "<REDACTED>" in report.new_source
     assert "realhashvalue" not in report.new_source
     assert "public" not in report.new_source.split("community")[1].split("\n")[0]
-    assert report.secrets_replaced >= 2
+    assert report.redactions_count >= 2
 
 
 def test_redact_replaces_pem_block():

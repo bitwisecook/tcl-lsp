@@ -907,7 +907,12 @@ class _WasmEmitterValuesMixin(_Base):
                 if not kv:
                     self._emit_obj_literal("")
                     return
-                if all(
+                # Odd arity → ``wrong # args``; fall through to the
+                # eval fallback so the runtime dispatcher raises the
+                # canonical message rather than the literal fast path
+                # silently dropping the trailing key (Copilot review on
+                # PR #443).
+                if len(kv) % 2 == 0 and all(
                     not a.startswith("$")
                     and not a.startswith("[")
                     and not self._has_embedded_subst(a)
@@ -915,7 +920,24 @@ class _WasmEmitterValuesMixin(_Base):
                     and a not in self._local_index
                     for a in kv
                 ):
-                    self._emit_obj_literal(" ".join(kv))
+                    # Canonicalise duplicate keys to match Tcl 9
+                    # ``Tcl_DictObjPut`` semantics (last-wins value,
+                    # preserved insertion position).  See
+                    # ``cmds/dict_.py::_emit_dict`` for the rationale —
+                    # string-10.20.1 expects ``string map [dict create
+                    # a X b Y a Z] aaa`` → ``ZZZ`` (via ``a Z b Y``),
+                    # not ``XXX`` (via the raw ``a X b Y a Z`` list).
+                    canon: list[str] = []
+                    key_pos: dict[str, int] = {}
+                    for wi in range(0, len(kv), 2):
+                        k, v = kv[wi], kv[wi + 1]
+                        if k in key_pos:
+                            canon[key_pos[k] + 1] = v
+                        else:
+                            key_pos[k] = len(canon)
+                            canon.append(k)
+                            canon.append(v)
+                    self._emit_obj_literal(" ".join(canon))
                     return
                 lappend_idx = self._shared_imports.get("tcl_lappend")
                 if lappend_idx is None:
@@ -990,8 +1012,17 @@ class _WasmEmitterValuesMixin(_Base):
                 if sub_args and _looks_like_string_option(sub_args[0]):
                     self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
                     return
-                func_idx = self._shared_imports[sri.import_key]
+                # Over-arity: ``string totitle X first last`` / ``string
+                # toupper X first last`` / ``string tolower X first last``
+                # carry codepoint range bounds that the 1-param runtime
+                # import cannot see.  Route to eval-fallback so the
+                # ``cmds/string.zig`` dispatcher reaches the ``_range``
+                # variant (string-17.9).
                 param_count = len(sri.params)
+                if len(sub_args) > param_count:
+                    self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
+                    return
+                func_idx = self._shared_imports[sri.import_key]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
@@ -1146,21 +1177,27 @@ class _WasmEmitterValuesMixin(_Base):
             if func_idx is not None:
                 param_count = len(rimp.params)
                 if cmd_name == "linsert" and len(cmd_args) > param_count:
-                    # Multi-value ``[linsert list idx v1 v2 …]`` — see
-                    # ``_emit_cmd_runtime`` for the index-ordering
-                    # rationale.  Value-context variant leaves the
-                    # final running-result on the stack.
-                    list_arg = cmd_args[0]
-                    index_arg = cmd_args[1]
-                    values = cmd_args[2:]
-                    self._emit_value(list_arg)
-                    iter_values = (
-                        values if _is_end_relative_index(index_arg) else tuple(reversed(values))
-                    )
-                    for v in iter_values:
-                        self._emit_value(index_arg)
-                        self._emit_value(v)
-                        self._emit_call(func_idx)
+                    if _is_end_relative_index(cmd_args[1]):
+                        # ``[linsert list end-N v1 v2 …]`` — chained
+                        # single-value inserts at ``end-N`` work
+                        # because each iteration re-resolves against
+                        # the now-longer list.
+                        list_arg = cmd_args[0]
+                        index_arg = cmd_args[1]
+                        values = cmd_args[2:]
+                        self._emit_value(list_arg)
+                        for v in values:
+                            self._emit_value(index_arg)
+                            self._emit_value(v)
+                            self._emit_call(func_idx)
+                        return
+                    # Numeric / variable indices — route through the
+                    # eval fallback so ``eval_linsert`` resolves the
+                    # index ONCE against the original list and inserts
+                    # all values with the position incrementing.
+                    # Otherwise ``[linsert {} 2 a b c]`` would land
+                    # ``c b a`` (linsert-1.10).
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                     return
                 if cmd_name == "lreplace" and len(cmd_args) > param_count:
                     # Multi-value ``[lreplace list first last v1 v2 …]``

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from lsprotocol import types
 
@@ -484,8 +486,12 @@ class TestExtractDatagroup:
         tcl = result.data_group_tcl()
         assert "ltm data-group internal hosts" in tcl
         assert "records" in tcl
-        assert "a.com" in tcl
-        assert "b.com" in tcl
+        # Word-boundary regex assertions — the value lives inside a
+        # generated Tcl ``ltm data-group`` block; substring ``in tcl``
+        # would also pass for ``"a.com.example"`` (CodeQL
+        # ``py/incomplete-url-substring-sanitization``).
+        assert re.search(r"\ba\.com\b", tcl)
+        assert re.search(r"\bb\.com\b", tcl)
 
     def test_if_rewrite_covers_entire_command(self):
         source = (

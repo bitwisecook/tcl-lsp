@@ -282,9 +282,9 @@ const MAX_CACHED_BODY_LEN: u32 = 4096;
 
 /// Token buffer size for the pre-count pass.  Must exceed the
 /// maximum tokens any single command can produce (2 * MAX_WORDS
-/// on the interpreter side = 2 * 128 = 256).  We bump modestly
+/// on the interpreter side = 2 * 512 = 1024).  We bump modestly
 /// above that so a generous command still parses cleanly.
-const SCAN_TOK_BUF: u32 = 384;
+const SCAN_TOK_BUF: u32 = 1200;
 
 /// Parse ``body`` twice — first to count commands + tokens,
 /// second to populate a cache slab — and insert the slab into

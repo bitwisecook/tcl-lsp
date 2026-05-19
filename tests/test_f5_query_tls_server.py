@@ -128,6 +128,7 @@ def https_server(tmp_path):
     cert_path, key_path = _make_self_signed(tmp_path, "localhost")
     server = HTTPServer(("127.0.0.1", 0), _Handler)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2  # CodeQL py/insecure-protocol
     ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
     server.socket = ctx.wrap_socket(server.socket, server_side=True)
     port = server.server_address[1]

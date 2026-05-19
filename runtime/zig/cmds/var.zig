@@ -61,7 +61,16 @@ fn eval_incr(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
     const amt_obj = if (words.len >= 3) words[2] else rt.obj_new_int(1);
-    const cur = frames.var_resolve(words[1]);
+    // Inside a proc frame, ``incr x`` must NOT see an outer ``x`` —
+    // unqualified names refer to local variables (the same scoping
+    // rule Tcl enforces for ``set``).  ``var_resolve`` would otherwise
+    // fall through to the namespace / global table, leaking outer
+    // state into the proc and tripping lmap-6.2 / 6.3 (where the
+    // earlier non-compiled lmap-3.* tests left a global ``x`` that
+    // an apply-wrapped lmap-6.* would inherit instead of auto-
+    // initialising fresh).
+    const in_proc = frames.frame_depth > 0;
+    const cur: i32 = if (in_proc) frames.local_get_silent(words[1]) else frames.var_resolve(words[1]);
     const result = rt.tcl_incr(cur, amt_obj);
     _ = frames.var_set(words[1], result);
     return result_mod.from_globals(result);

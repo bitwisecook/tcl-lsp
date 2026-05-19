@@ -1,6 +1,6 @@
 # string.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '158 of 705 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 705
-observed_passed = 540
-observed_failed = 158
+observed_passed = 698
+observed_failed = 0
 observed_skipped = 7
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["string-2.5.0", "string-2.15.2.0", "string-2.20.0", "string-2.37.0", "string-2.38a.0", "string-2.38b.0", "string-2.38c.0", "string-2.38d.0", "string-2.38e.0", "string-2.38f.0", "string-3.4.0", "string-3.13.0", "string-3.23.0", "string-3.28.0", "string-3.43.0", "string-3.45a.0", "string-3.45b.0", "string-3.45c.0", "string-3.45d.0", "string-3.45e.0", "string-3.45f.0", "string-4.2.0", "string-4.9.0", "string-4.22.0", "string-5.7.0", "string-5.10.0", "string-5.11.0", "string-5.14.0", "string-5.15.0", "string-6.4.0", "string-6.36.0", "string-6.39.0", "string-6.61.0", "string-6.76.0", "string-6.83.0", "string-6.84.0", "string-6.102.0", "string-7.2.0", "string-7.7.0", "string-7.12.0", "string-7.14.0", "string-7.15.0", "string-7.16.0", "string-9.5.0", "string-9.7.0", "string-10.1.0", "string-10.2.0", "string-10.3.0", "string-10.9.0", "string-10.10.0", "string-10.19.0", "string-10.20.1.0", "string-11.9.8.0", "string-11.9.9.0", "string-11.9.11.0", "string-11.14.0", "string-11.15.0", "string-11.17.0", "string-11.18.0", "string-11.19.0", "string-11.20.0", "string-11.29.0", "string-11.33.0", "string-11.35.0", "string-11.38.0", "string-11.41.0", "string-11.42.0", "string-11.50.0", "string-11.51.0", "string-12.12.0", "string-12.13.0", "string-12.17.0", "string-12.18.0", "string-12.19.0", "string-12.23.0", "string-13.7.0", "string-13.14.0", "string-14.5.0", "string-14.7.0", "string-14.8.0", "string-14.9.0", "string-14.10.0", "string-14.13.0", "string-14.14.0", "string-14.15.0", "string-14.16.0", "string-14.17.0", "string-14.19.0", "string-14.20.0", "string-14.21.0", "string-14.22.0", "stringComp-14.25.0", "stringComp-14.26.0", "string-15.1.0", "string-15.2.0", "string-15.3.0", "string-15.7.0", "string-15.8.0", "string-15.9.0", "string-15.10.0", "string-16.1.0", "string-16.2.0", "string-16.3.0", "string-16.7.0", "string-16.8.0", "string-16.9.0", "string-16.10.0", "string-17.1.0", "string-17.2.0", "string-17.6.0", "string-17.7.0", "string-17.9.0", "string-18.1.0", "string-18.2.0", "string-18.12.0", "string-19.1.0", "string-19.3.0", "string-20.1.0", "string-20.6.0", "string-21.18.0", "string-21.19.0", "string-21.20.0", "string-21.22.0", "string-21.23.0", "string-21.24.0", "string-21.25.0", "string-24.5.0", "string-24.6.0", "string-24.8.0", "string-24.10.0", "string-24.11.0", "string-24.13.0", "string-24.16.0", "string-24.17.0", "string-24.18.0", "string-24.19.0", "string-25.8.0", "string-26.5.0", "string-26.6.0", "string-27.4.0", "string-27.5.0", "string-27.6.0", "string-27.7.0", "string-27.8.0", "string-27.9.0", "string-27.10.0", "string-28.4.0", "string-28.5.0", "string-28.6.0", "string-28.7.0", "string-28.8.0", "string-28.9.0", "string-28.10.0", "string-28.11.0", "string-28.12.0", "string-28.13.0", "string-29.4.0", "string-32.8.0"]

@@ -7,7 +7,7 @@
  */
 
 import { execFile } from "child_process";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import * as path from "path";
 import { promisify } from "util";
@@ -55,9 +55,13 @@ export async function captureTkScreenshot(source: string): Promise<string | unde
     return undefined;
   }
 
-  const tmpDir = tmpdir();
-  const srcFile = path.join(tmpDir, `tk-preview-${process.pid}.tcl`);
-  const imgFile = path.join(tmpDir, `tk-preview-${process.pid}.ppm`);
+  // Allocate a per-call temp directory rather than reusing a PID-derived
+  // name in the shared OS temp dir — the previous shape was vulnerable to
+  // a same-user symlink attack and a same-process race when two preview
+  // requests overlapped (CodeQL ``js/insecure-temporary-file``).
+  const tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-tk-preview-"));
+  const srcFile = path.join(tmpDir, "preview.tcl");
+  const imgFile = path.join(tmpDir, "preview.ppm");
 
   // Append screenshot capture code to the source.
   // This waits for the window to render, captures the root window to an
@@ -91,14 +95,9 @@ after 500 {
     // Timeout or wish failure — degrade gracefully
     return undefined;
   } finally {
-    // Clean up temp files
+    // Remove the per-call temp directory (and its contents) in one shot.
     try {
-      unlinkSync(srcFile);
-    } catch {
-      // ignore
-    }
-    try {
-      unlinkSync(imgFile);
+      rmSync(tmpDir, { recursive: true, force: true });
     } catch {
       // ignore
     }

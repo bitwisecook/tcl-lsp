@@ -180,7 +180,7 @@ def _run_redact(args: argparse.Namespace) -> int:
         map_path.write_text(report.redaction_map.to_toml(), encoding="utf-8")
 
     print(
-        f"redacted: {report.secrets_replaced} secret(s), "
+        f"redacted: {report.redactions_count} secret(s), "
         f"{report.pem_blocks_replaced} PEM block(s), "
         f"{report.ips_remapped} IP(s) remapped" + (f"; map -> {map_path}" if map_path else ""),
         file=sys.stderr,

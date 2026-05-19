@@ -123,11 +123,17 @@ _FORMATTER_TITLES = frozenset(s.title for s in FORMATTER_SETTINGS_CATALOGUE)
 
 def _jinja_env(template_dir: Path) -> jinja2.Environment:
     """Create a Jinja2 environment rooted at *template_dir*."""
+    # Editor-settings templates render JSON / XML / Kotlin / TypeScript
+    # (no HTML), so HTML autoescape would corrupt string literals and
+    # quote characters in the generated code.  Limit autoescape to the
+    # HTML/XML extensions we don't actually emit — silences CodeQL's
+    # ``py/jinja2/autoescape-false`` without breaking real templates.
     return jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(template_dir)),
         keep_trailing_newline=True,
         trim_blocks=True,
         lstrip_blocks=True,
+        autoescape=jinja2.select_autoescape(["html", "htm", "xml"]),
     )
 
 

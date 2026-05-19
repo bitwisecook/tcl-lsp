@@ -16,14 +16,19 @@ from shared.tokens import SourcePosition
 
 from ._text_utils import offset_to_line_char
 
-# Match $::name__name or ${::name__name} or ${::name__name(index)}
+# Match $::name or ${::name} (with optional ``(index)``).  We match the
+# whole identifier in one greedy chunk and post-filter for the iApp
+# ``__`` separator; the previous form had nested
+# ``[a-zA-Z0-9_]+`` × ``(?:__...)+`` quantifiers which produced
+# catastrophic backtracking on inputs like ``${::A__0__0__0__...}``
+# (CodeQL ``py/redos``).
 _IAPP_VAR_RE = re.compile(
     r"\$\{::"  # ${:: braced form
-    r"([a-zA-Z_][a-zA-Z0-9_]*(?:__[a-zA-Z0-9_]+)+)"  # name with __ separator
+    r"([a-zA-Z_][a-zA-Z0-9_]*)"  # full identifier (post-filter for __)
     r"(?:\([^)]*\))?"  # optional (index)
     r"\}"  # closing }
     r"|\$::"  # $:: unbraced form
-    r"([a-zA-Z_][a-zA-Z0-9_]*(?:__[a-zA-Z0-9_]+)+)"  # name with __ separator
+    r"([a-zA-Z_][a-zA-Z0-9_]*)"  # full identifier
     r"(?:\([^)]*\))?"  # optional (index)
 )
 
@@ -46,6 +51,12 @@ def extract_iapp_var_refs(source: str) -> list[IappVarRef]:
     refs: list[IappVarRef] = []
     for m in _IAPP_VAR_RE.finditer(source):
         var_body = m.group(1) or m.group(2)  # group 1 = braced, group 2 = unbraced
+        # Post-filter: real iApp refs contain at least one ``__`` separator.
+        # The regex itself no longer enforces this (avoiding backtracking
+        # on long underscore-heavy identifiers); we drop plain ``$::var``
+        # references that don't follow the iApp naming convention.
+        if "__" not in var_body:
+            continue
         apl_name = var_body.replace("__", ".")
         tcl_name = "::" + var_body
 

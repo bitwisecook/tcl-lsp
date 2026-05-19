@@ -1,10 +1,10 @@
 [
   {
-    "alloc_residual": 209832,
+    "alloc_residual": 210042,
     "double_free": 117,
     "label": "tcl9_parse.test",
     "retain_after_defer": 1275,
-    "run_s": 2.23,
+    "run_s": 2.07,
     "stem": "parse",
     "subsystem": "parsing",
     "trap_message": null,
@@ -12,11 +12,11 @@
     "wasm_bytes": 420665
   },
   {
-    "alloc_residual": 231731,
+    "alloc_residual": 231772,
     "double_free": 158,
     "label": "tcl9_parseOld.test",
     "retain_after_defer": 1962,
-    "run_s": 2.24,
+    "run_s": 1.91,
     "stem": "parseOld",
     "subsystem": "parsing",
     "trap_message": null,
@@ -24,11 +24,11 @@
     "wasm_bytes": 381430
   },
   {
-    "alloc_residual": 301213,
+    "alloc_residual": 301400,
     "double_free": 427,
     "label": "tcl9_parseExpr.test",
     "retain_after_defer": 3198,
-    "run_s": 2.44,
+    "run_s": 2.1,
     "stem": "parseExpr",
     "subsystem": "parsing",
     "trap_message": null,
@@ -36,11 +36,11 @@
     "wasm_bytes": 440666
   },
   {
-    "alloc_residual": 107140,
+    "alloc_residual": 107182,
     "double_free": 95,
     "label": "tcl9_subst.test",
     "retain_after_defer": 823,
-    "run_s": 2.17,
+    "run_s": 1.89,
     "stem": "subst",
     "subsystem": "parsing",
     "trap_message": null,
@@ -48,11 +48,11 @@
     "wasm_bytes": 374190
   },
   {
-    "alloc_residual": 108936,
+    "alloc_residual": 108977,
     "double_free": 65,
     "label": "tcl9_word.test",
     "retain_after_defer": 670,
-    "run_s": 2.06,
+    "run_s": 1.69,
     "stem": "word",
     "subsystem": "parsing",
     "trap_message": null,
@@ -60,11 +60,11 @@
     "wasm_bytes": 369698
   },
   {
-    "alloc_residual": 117955,
+    "alloc_residual": 117996,
     "double_free": 78,
     "label": "tcl9_list.test",
     "retain_after_defer": 936,
-    "run_s": 2.14,
+    "run_s": 1.74,
     "stem": "list",
     "subsystem": "list",
     "trap_message": null,
@@ -72,11 +72,11 @@
     "wasm_bytes": 371912
   },
   {
-    "alloc_residual": 94635,
+    "alloc_residual": 94683,
     "double_free": 52,
     "label": "tcl9_listObj.test",
     "retain_after_defer": 664,
-    "run_s": 1.97,
+    "run_s": 1.75,
     "stem": "listObj",
     "subsystem": "list",
     "trap_message": null,
@@ -84,11 +84,11 @@
     "wasm_bytes": 376684
   },
   {
-    "alloc_residual": 413036,
+    "alloc_residual": 413078,
     "double_free": 231,
     "label": "tcl9_listRep.test",
     "retain_after_defer": 2772,
-    "run_s": 2.82,
+    "run_s": 2.44,
     "stem": "listRep",
     "subsystem": "list",
     "trap_message": null,
@@ -96,11 +96,11 @@
     "wasm_bytes": 479613
   },
   {
-    "alloc_residual": 22489,
+    "alloc_residual": 22530,
     "double_free": 6,
     "label": "tcl9_llength.test",
     "retain_after_defer": 72,
-    "run_s": 1.87,
+    "run_s": 1.72,
     "stem": "llength",
     "subsystem": "list",
     "trap_message": null,
@@ -108,11 +108,11 @@
     "wasm_bytes": 363207
   },
   {
-    "alloc_residual": 122948,
+    "alloc_residual": 123011,
     "double_free": 76,
     "label": "tcl9_lindex.test",
     "retain_after_defer": 1026,
-    "run_s": 2.03,
+    "run_s": 1.8,
     "stem": "lindex",
     "subsystem": "list",
     "trap_message": null,
@@ -120,11 +120,11 @@
     "wasm_bytes": 378160
   },
   {
-    "alloc_residual": 56350,
+    "alloc_residual": 56391,
     "double_free": 28,
     "label": "tcl9_linsert.test",
     "retain_after_defer": 376,
-    "run_s": 1.93,
+    "run_s": 1.7,
     "stem": "linsert",
     "subsystem": "list",
     "trap_message": null,
@@ -132,11 +132,11 @@
     "wasm_bytes": 366342
   },
   {
-    "alloc_residual": 3049581,
+    "alloc_residual": 3049622,
     "double_free": 42,
     "label": "tcl9_lrange.test",
     "retain_after_defer": 5820,
-    "run_s": 6.53,
+    "run_s": 5.56,
     "stem": "lrange",
     "subsystem": "list",
     "trap_message": null,
@@ -144,11 +144,11 @@
     "wasm_bytes": 373576
   },
   {
-    "alloc_residual": 6128118,
+    "alloc_residual": 6128159,
     "double_free": 137,
     "label": "tcl9_lreplace.test",
     "retain_after_defer": 11858,
-    "run_s": 12.24,
+    "run_s": 10.1,
     "stem": "lreplace",
     "subsystem": "list",
     "trap_message": null,
@@ -156,11 +156,11 @@
     "wasm_bytes": 382004
   },
   {
-    "alloc_residual": 273929,
+    "alloc_residual": 273970,
     "double_free": 213,
     "label": "tcl9_lsearch.test",
     "retain_after_defer": 2180,
-    "run_s": 2.34,
+    "run_s": 1.97,
     "stem": "lsearch",
     "subsystem": "list",
     "trap_message": null,
@@ -168,11 +168,11 @@
     "wasm_bytes": 395695
   },
   {
-    "alloc_residual": 44227,
+    "alloc_residual": 44356,
     "double_free": 1,
     "label": "tcl9_lset.test",
     "retain_after_defer": 12,
-    "run_s": 2.02,
+    "run_s": 1.74,
     "stem": "lset",
     "subsystem": "list",
     "trap_message": null,
@@ -180,11 +180,11 @@
     "wasm_bytes": 382629
   },
   {
-    "alloc_residual": 45086,
+    "alloc_residual": 45127,
     "double_free": 19,
     "label": "tcl9_lsetComp.test",
     "retain_after_defer": 260,
-    "run_s": 2.02,
+    "run_s": 1.72,
     "stem": "lsetComp",
     "subsystem": "list",
     "trap_message": null,
@@ -192,11 +192,11 @@
     "wasm_bytes": 379250
   },
   {
-    "alloc_residual": 114377,
+    "alloc_residual": 114418,
     "double_free": 96,
     "label": "tcl9_lmap.test",
     "retain_after_defer": 846,
-    "run_s": 2.02,
+    "run_s": 1.71,
     "stem": "lmap",
     "subsystem": "list",
     "trap_message": null,
@@ -204,11 +204,11 @@
     "wasm_bytes": 375852
   },
   {
-    "alloc_residual": 47242,
+    "alloc_residual": 47283,
     "double_free": 39,
     "label": "tcl9_lpop.test",
     "retain_after_defer": 292,
-    "run_s": 2.0,
+    "run_s": 1.66,
     "stem": "lpop",
     "subsystem": "list",
     "trap_message": null,
@@ -216,11 +216,11 @@
     "wasm_bytes": 366243
   },
   {
-    "alloc_residual": 249377,
+    "alloc_residual": 249429,
     "double_free": 171,
     "label": "tcl9_lseq.test",
     "retain_after_defer": 1863,
-    "run_s": 2.26,
+    "run_s": 2.01,
     "stem": "lseq",
     "subsystem": "list",
     "trap_message": null,
@@ -228,11 +228,11 @@
     "wasm_bytes": 408692
   },
   {
-    "alloc_residual": 34561,
+    "alloc_residual": 34602,
     "double_free": 12,
     "label": "tcl9_lrepeat.test",
     "retain_after_defer": 114,
-    "run_s": 1.97,
+    "run_s": 1.64,
     "stem": "lrepeat",
     "subsystem": "list",
     "trap_message": null,
@@ -240,11 +240,11 @@
     "wasm_bytes": 364450
   },
   {
-    "alloc_residual": 73480,
+    "alloc_residual": 73521,
     "double_free": 48,
     "label": "tcl9_foreach.test",
     "retain_after_defer": 524,
-    "run_s": 2.08,
+    "run_s": 1.85,
     "stem": "foreach",
     "subsystem": "list",
     "trap_message": null,
@@ -252,11 +252,11 @@
     "wasm_bytes": 370535
   },
   {
-    "alloc_residual": 81067,
+    "alloc_residual": 81192,
     "double_free": 37,
     "label": "tcl9_abstractlist.test",
     "retain_after_defer": 246,
-    "run_s": 2.14,
+    "run_s": 1.8,
     "stem": "abstractlist",
     "subsystem": "list",
     "trap_message": null,
@@ -264,11 +264,11 @@
     "wasm_bytes": 391861
   },
   {
-    "alloc_residual": 1004816,
-    "double_free": 610,
+    "alloc_residual": 1004860,
+    "double_free": 609,
     "label": "tcl9_dict.test",
-    "retain_after_defer": 5096,
-    "run_s": 4.52,
+    "retain_after_defer": 5095,
+    "run_s": 3.75,
     "stem": "dict",
     "subsystem": "dict",
     "trap_message": null,
@@ -276,11 +276,11 @@
     "wasm_bytes": 440947
   },
   {
-    "alloc_residual": 976605,
+    "alloc_residual": 976656,
     "double_free": 747,
     "label": "tcl9_string.test",
     "retain_after_defer": 8514,
-    "run_s": 3.53,
+    "run_s": 3.03,
     "stem": "string",
     "subsystem": "string",
     "trap_message": null,
@@ -288,11 +288,11 @@
     "wasm_bytes": 510279
   },
   {
-    "alloc_residual": 40435,
+    "alloc_residual": 40558,
     "double_free": 0,
     "label": "tcl9_stringObj.test",
     "retain_after_defer": 0,
-    "run_s": 2.05,
+    "run_s": 1.71,
     "stem": "stringObj",
     "subsystem": "string",
     "trap_message": null,
@@ -300,11 +300,11 @@
     "wasm_bytes": 385577
   },
   {
-    "alloc_residual": 368278,
+    "alloc_residual": 368338,
     "double_free": 258,
     "label": "tcl9_format.test",
     "retain_after_defer": 3148,
-    "run_s": 2.63,
+    "run_s": 2.23,
     "stem": "format",
     "subsystem": "string",
     "trap_message": null,
@@ -312,11 +312,11 @@
     "wasm_bytes": 390188
   },
   {
-    "alloc_residual": 350825,
+    "alloc_residual": 350866,
     "double_free": 259,
     "label": "tcl9_scan.test",
     "retain_after_defer": 2719,
-    "run_s": 2.41,
+    "run_s": 2.05,
     "stem": "scan",
     "subsystem": "string",
     "trap_message": null,
@@ -324,11 +324,11 @@
     "wasm_bytes": 403331
   },
   {
-    "alloc_residual": 69702,
+    "alloc_residual": 69746,
     "double_free": 40,
     "label": "tcl9_regexp.test",
     "retain_after_defer": 493,
-    "run_s": 6.04,
+    "run_s": 6.87,
     "stem": "regexp",
     "subsystem": "string",
     "trap_message": "averse\n   17:  0x49350 - tcl_runtime.wasm!duptraverse\n   18:  0x49350 - tcl_runtime.wasm!duptraverse\n   19:  0x49350 - tcl_runtime.wasm!duptraverse\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: call stack exhausted\n",
@@ -336,11 +336,11 @@
     "wasm_bytes": 431701
   },
   {
-    "alloc_residual": 61252,
+    "alloc_residual": 61293,
     "double_free": 34,
     "label": "tcl9_regexpComp.test",
     "retain_after_defer": 421,
-    "run_s": 6.0,
+    "run_s": 6.59,
     "stem": "regexpComp",
     "subsystem": "string",
     "trap_message": "averse\n   17:  0x49350 - tcl_runtime.wasm!duptraverse\n   18:  0x49350 - tcl_runtime.wasm!duptraverse\n   19:  0x49350 - tcl_runtime.wasm!duptraverse\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: call stack exhausted\n",
@@ -348,11 +348,11 @@
     "wasm_bytes": 395205
   },
   {
-    "alloc_residual": 2236569,
+    "alloc_residual": 2236622,
     "double_free": 6054,
     "label": "tcl9_reg.test",
     "retain_after_defer": 14143,
-    "run_s": 12.81,
+    "run_s": 11.16,
     "stem": "reg",
     "subsystem": "string",
     "trap_message": null,
@@ -360,11 +360,11 @@
     "wasm_bytes": 434383
   },
   {
-    "alloc_residual": 32186,
+    "alloc_residual": 32246,
     "double_free": 6,
     "label": "tcl9_get.test",
     "retain_after_defer": 94,
-    "run_s": 2.02,
+    "run_s": 1.75,
     "stem": "get",
     "subsystem": "string",
     "trap_message": null,
@@ -372,11 +372,11 @@
     "wasm_bytes": 382903
   },
   {
-    "alloc_residual": 39078,
+    "alloc_residual": 39119,
     "double_free": 18,
     "label": "tcl9_split.test",
     "retain_after_defer": 216,
-    "run_s": 1.9,
+    "run_s": 1.69,
     "stem": "split",
     "subsystem": "string",
     "trap_message": null,
@@ -384,11 +384,11 @@
     "wasm_bytes": 364888
   },
   {
-    "alloc_residual": 28735,
+    "alloc_residual": 28776,
     "double_free": 10,
     "label": "tcl9_join.test",
     "retain_after_defer": 128,
-    "run_s": 1.94,
+    "run_s": 1.63,
     "stem": "join",
     "subsystem": "string",
     "trap_message": null,
@@ -396,23 +396,23 @@
     "wasm_bytes": 363738
   },
   {
-    "alloc_residual": 2066524,
-    "double_free": 613,
+    "alloc_residual": 2091848,
+    "double_free": 639,
     "label": "tcl9_expr.test",
-    "retain_after_defer": 6464,
-    "run_s": 17.23,
+    "retain_after_defer": 6688,
+    "run_s": 17.01,
     "stem": "expr",
     "subsystem": "expr",
-    "trap_message": "tcl_expr_eval.parse_and\n   18: 0x27d288 - tcl_runtime.wasm!interp.tcl_expr_eval.parse_or\n   19:  0xae888 - tcl_runtime.wasm!interp.tcl_expr_eval.parse_ternary\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: interrupt\n",
+    "trap_message": ".tcl_expr_eval.parse_or\n   18:  0xae888 - tcl_runtime.wasm!interp.tcl_expr_eval.parse_ternary\n   19:  0xacb8e - tcl_runtime.wasm!interp.tcl_expr_eval.eval_top\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: interrupt\n",
     "trapped": true,
     "wasm_bytes": 795575
   },
   {
-    "alloc_residual": 624231,
+    "alloc_residual": 624299,
     "double_free": 544,
     "label": "tcl9_expr-old.test",
     "retain_after_defer": 6291,
-    "run_s": 124.86,
+    "run_s": 119.89,
     "stem": "expr-old",
     "subsystem": "expr",
     "trap_message": "watchdog interrupt",
@@ -420,11 +420,11 @@
     "wasm_bytes": 427019
   },
   {
-    "alloc_residual": 142160,
+    "alloc_residual": 142201,
     "double_free": 134,
     "label": "tcl9_compExpr.test",
     "retain_after_defer": 1432,
-    "run_s": 2.2,
+    "run_s": 1.86,
     "stem": "compExpr",
     "subsystem": "expr",
     "trap_message": null,
@@ -432,11 +432,11 @@
     "wasm_bytes": 383098
   },
   {
-    "alloc_residual": 1759730,
+    "alloc_residual": 1759774,
     "double_free": 317,
     "label": "tcl9_compExpr-old.test",
     "retain_after_defer": 3379,
-    "run_s": 4.95,
+    "run_s": 4.31,
     "stem": "compExpr-old",
     "subsystem": "expr",
     "trap_message": null,
@@ -444,11 +444,11 @@
     "wasm_bytes": 416982
   },
   {
-    "alloc_residual": 736640,
+    "alloc_residual": 736681,
     "double_free": 589,
     "label": "tcl9_mathop.test",
     "retain_after_defer": 5054,
-    "run_s": 3.35,
+    "run_s": 2.75,
     "stem": "mathop",
     "subsystem": "expr",
     "trap_message": null,
@@ -456,11 +456,11 @@
     "wasm_bytes": 436048
   },
   {
-    "alloc_residual": 140710,
+    "alloc_residual": 140751,
     "double_free": 126,
     "label": "tcl9_if.test",
     "retain_after_defer": 1127,
-    "run_s": 2.16,
+    "run_s": 1.95,
     "stem": "if",
     "subsystem": "control",
     "trap_message": null,
@@ -468,11 +468,11 @@
     "wasm_bytes": 393746
   },
   {
-    "alloc_residual": 58042,
+    "alloc_residual": 58083,
     "double_free": 33,
     "label": "tcl9_if-old.test",
     "retain_after_defer": 396,
-    "run_s": 2.0,
+    "run_s": 1.67,
     "stem": "if-old",
     "subsystem": "control",
     "trap_message": null,
@@ -480,11 +480,11 @@
     "wasm_bytes": 367555
   },
   {
-    "alloc_residual": 111391,
+    "alloc_residual": 111457,
     "double_free": 72,
     "label": "tcl9_for.test",
     "retain_after_defer": 958,
-    "run_s": 2.05,
+    "run_s": 1.84,
     "stem": "for",
     "subsystem": "control",
     "trap_message": null,
@@ -492,11 +492,11 @@
     "wasm_bytes": 419779
   },
   {
-    "alloc_residual": 26458,
+    "alloc_residual": 26499,
     "double_free": 9,
     "label": "tcl9_for-old.test",
     "retain_after_defer": 108,
-    "run_s": 2.13,
+    "run_s": 1.65,
     "stem": "for-old",
     "subsystem": "control",
     "trap_message": null,
@@ -504,11 +504,11 @@
     "wasm_bytes": 363838
   },
   {
-    "alloc_residual": 93407,
+    "alloc_residual": 93448,
     "double_free": 62,
     "label": "tcl9_while.test",
     "retain_after_defer": 656,
-    "run_s": 2.02,
+    "run_s": 1.71,
     "stem": "while",
     "subsystem": "control",
     "trap_message": null,
@@ -516,11 +516,11 @@
     "wasm_bytes": 378966
   },
   {
-    "alloc_residual": 37296,
+    "alloc_residual": 37337,
     "double_free": 15,
     "label": "tcl9_while-old.test",
     "retain_after_defer": 204,
-    "run_s": 1.92,
+    "run_s": 1.68,
     "stem": "while-old",
     "subsystem": "control",
     "trap_message": null,
@@ -528,11 +528,11 @@
     "wasm_bytes": 365542
   },
   {
-    "alloc_residual": 198428,
+    "alloc_residual": 198469,
     "double_free": 188,
     "label": "tcl9_switch.test",
     "retain_after_defer": 1596,
-    "run_s": 2.31,
+    "run_s": 1.91,
     "stem": "switch",
     "subsystem": "control",
     "trap_message": null,
@@ -540,11 +540,11 @@
     "wasm_bytes": 397805
   },
   {
-    "alloc_residual": 589953,
+    "alloc_residual": 590003,
     "double_free": 394,
     "label": "tcl9_error.test",
     "retain_after_defer": 5289,
-    "run_s": 2.79,
+    "run_s": 2.34,
     "stem": "error",
     "subsystem": "control",
     "trap_message": null,
@@ -552,11 +552,11 @@
     "wasm_bytes": 405662
   },
   {
-    "alloc_residual": 32822,
+    "alloc_residual": 32882,
     "double_free": 11,
     "label": "tcl9_result.test",
     "retain_after_defer": 132,
-    "run_s": 2.12,
+    "run_s": 1.83,
     "stem": "result",
     "subsystem": "control",
     "trap_message": null,
@@ -564,11 +564,11 @@
     "wasm_bytes": 367992
   },
   {
-    "alloc_residual": 106846,
+    "alloc_residual": 106887,
     "double_free": 69,
     "label": "tcl9_set.test",
     "retain_after_defer": 839,
-    "run_s": 2.08,
+    "run_s": 1.86,
     "stem": "set",
     "subsystem": "variable",
     "trap_message": null,
@@ -576,11 +576,11 @@
     "wasm_bytes": 381799
   },
   {
-    "alloc_residual": 228528,
+    "alloc_residual": 228569,
     "double_free": 153,
     "label": "tcl9_set-old.test",
     "retain_after_defer": 1930,
-    "run_s": 2.26,
+    "run_s": 1.98,
     "stem": "set-old",
     "subsystem": "variable",
     "trap_message": null,
@@ -588,11 +588,11 @@
     "wasm_bytes": 399062
   },
   {
-    "alloc_residual": 380878,
+    "alloc_residual": 380924,
     "double_free": 356,
     "label": "tcl9_var.test",
     "retain_after_defer": 3049,
-    "run_s": 2.44,
+    "run_s": 2.18,
     "stem": "var",
     "subsystem": "variable",
     "trap_message": null,
@@ -600,11 +600,11 @@
     "wasm_bytes": 435423
   },
   {
-    "alloc_residual": 116500,
+    "alloc_residual": 116550,
     "double_free": 103,
     "label": "tcl9_upvar.test",
     "retain_after_defer": 835,
-    "run_s": 2.15,
+    "run_s": 1.9,
     "stem": "upvar",
     "subsystem": "variable",
     "trap_message": null,
@@ -612,11 +612,11 @@
     "wasm_bytes": 381639
   },
   {
-    "alloc_residual": 103740,
+    "alloc_residual": 103781,
     "double_free": 109,
     "label": "tcl9_uplevel.test",
     "retain_after_defer": 750,
-    "run_s": 1.93,
+    "run_s": 1.81,
     "stem": "uplevel",
     "subsystem": "variable",
     "trap_message": null,
@@ -624,11 +624,11 @@
     "wasm_bytes": 375490
   },
   {
-    "alloc_residual": 512057,
+    "alloc_residual": 512177,
     "double_free": 392,
     "label": "tcl9_namespace.test",
     "retain_after_defer": 4281,
-    "run_s": 2.68,
+    "run_s": 2.46,
     "stem": "namespace",
     "subsystem": "variable",
     "trap_message": null,
@@ -636,11 +636,11 @@
     "wasm_bytes": 491657
   },
   {
-    "alloc_residual": 201185,
+    "alloc_residual": 201226,
     "double_free": 131,
     "label": "tcl9_namespace-old.test",
     "retain_after_defer": 1658,
-    "run_s": 2.39,
+    "run_s": 1.93,
     "stem": "namespace-old",
     "subsystem": "variable",
     "trap_message": null,
@@ -648,23 +648,23 @@
     "wasm_bytes": 408502
   },
   {
-    "alloc_residual": 37632679,
-    "double_free": 1574308,
+    "alloc_residual": 36476455,
+    "double_free": 18,
     "label": "tcl9_trace.test",
-    "retain_after_defer": 276,
-    "run_s": 211.28,
+    "retain_after_defer": 273,
+    "run_s": 155.2,
     "stem": "trace",
     "subsystem": "variable",
-    "trap_message": "global_get\n   18:  0xc6e4c - tcl_runtime.wasm!interp.tcl_frames.var_resolve\n   19: 0x244d64 - tcl_runtime.wasm!cmds.var.eval_set\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
+    "trap_message": "5b5 - tcl_runtime.wasm!interp.tcl_interp.execute_parsed_command\n   19:  0xbddee - tcl_runtime.wasm!interp.tcl_interp.eval_script\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
     "trapped": true,
     "wasm_bytes": 466729
   },
   {
-    "alloc_residual": 32062,
+    "alloc_residual": 32103,
     "double_free": 10,
     "label": "tcl9_resolver.test",
     "retain_after_defer": 120,
-    "run_s": 1.87,
+    "run_s": 1.56,
     "stem": "resolver",
     "subsystem": "variable",
     "trap_message": null,
@@ -672,11 +672,11 @@
     "wasm_bytes": 369744
   },
   {
-    "alloc_residual": 80101,
+    "alloc_residual": 80143,
     "double_free": 58,
     "label": "tcl9_proc.test",
     "retain_after_defer": 490,
-    "run_s": 2.07,
+    "run_s": 1.72,
     "stem": "proc",
     "subsystem": "proc",
     "trap_message": null,
@@ -684,11 +684,11 @@
     "wasm_bytes": 376980
   },
   {
-    "alloc_residual": 143646,
+    "alloc_residual": 143689,
     "double_free": 80,
     "label": "tcl9_proc-old.test",
     "retain_after_defer": 1184,
-    "run_s": 2.13,
+    "run_s": 1.81,
     "stem": "proc-old",
     "subsystem": "proc",
     "trap_message": null,
@@ -696,11 +696,11 @@
     "wasm_bytes": 379944
   },
   {
-    "alloc_residual": 89192,
+    "alloc_residual": 89233,
     "double_free": 66,
     "label": "tcl9_apply.test",
     "retain_after_defer": 626,
-    "run_s": 1.98,
+    "run_s": 1.66,
     "stem": "apply",
     "subsystem": "proc",
     "trap_message": null,
@@ -708,11 +708,11 @@
     "wasm_bytes": 373372
   },
   {
-    "alloc_residual": 523624,
+    "alloc_residual": 523671,
     "double_free": 410,
     "label": "tcl9_info.test",
     "retain_after_defer": 4286,
-    "run_s": 3.12,
+    "run_s": 2.49,
     "stem": "info",
     "subsystem": "proc",
     "trap_message": null,
@@ -720,11 +720,11 @@
     "wasm_bytes": 449067
   },
   {
-    "alloc_residual": 18761,
+    "alloc_residual": 18814,
     "double_free": 0,
     "label": "tcl9_cmdInfo.test",
     "retain_after_defer": 0,
-    "run_s": 1.88,
+    "run_s": 1.66,
     "stem": "cmdInfo",
     "subsystem": "proc",
     "trap_message": null,
@@ -732,11 +732,11 @@
     "wasm_bytes": 365953
   },
   {
-    "alloc_residual": 34328,
+    "alloc_residual": 34377,
     "double_free": 19,
     "label": "tcl9_rename.test",
     "retain_after_defer": 146,
-    "run_s": 1.85,
+    "run_s": 1.61,
     "stem": "rename",
     "subsystem": "proc",
     "trap_message": null,
@@ -744,11 +744,11 @@
     "wasm_bytes": 368619
   },
   {
-    "alloc_residual": 23821,
+    "alloc_residual": 23862,
     "double_free": 7,
     "label": "tcl9_unknown.test",
     "retain_after_defer": 84,
-    "run_s": 1.9,
+    "run_s": 1.61,
     "stem": "unknown",
     "subsystem": "proc",
     "trap_message": null,
@@ -756,11 +756,11 @@
     "wasm_bytes": 363953
   },
   {
-    "alloc_residual": 31383,
+    "alloc_residual": 31424,
     "double_free": 12,
     "label": "tcl9_eval.test",
     "retain_after_defer": 152,
-    "run_s": 1.92,
+    "run_s": 1.69,
     "stem": "eval",
     "subsystem": "eval",
     "trap_message": null,
@@ -768,23 +768,23 @@
     "wasm_bytes": 364370
   },
   {
-    "alloc_residual": 59662,
+    "alloc_residual": 59703,
     "double_free": 35,
     "label": "tcl9_compile.test",
     "retain_after_defer": 370,
-    "run_s": 2.07,
+    "run_s": 1.69,
     "stem": "compile",
     "subsystem": "eval",
-    "trap_message": "interp.eval_script\n   14: 0x1e9eba - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n   15:   0x4904 - <unknown>!<wasm function 125>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
+    "trap_message": "interp.eval_script\n   14: 0x1e9e9d - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n   15:   0x4904 - <unknown>!<wasm function 125>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
     "trapped": true,
     "wasm_bytes": 401383
   },
   {
-    "alloc_residual": 162334,
+    "alloc_residual": 162452,
     "double_free": 95,
     "label": "tcl9_execute.test",
     "retain_after_defer": 1061,
-    "run_s": 2.3,
+    "run_s": 1.73,
     "stem": "execute",
     "subsystem": "eval",
     "trap_message": null,
@@ -792,11 +792,11 @@
     "wasm_bytes": 402307
   },
   {
-    "alloc_residual": 175030,
+    "alloc_residual": 175131,
     "double_free": 128,
     "label": "tcl9_basic.test",
     "retain_after_defer": 1234,
-    "run_s": 2.41,
+    "run_s": 1.99,
     "stem": "basic",
     "subsystem": "eval",
     "trap_message": null,
@@ -804,11 +804,11 @@
     "wasm_bytes": 394514
   },
   {
-    "alloc_residual": 8900351,
-    "double_free": 6492,
+    "alloc_residual": 8900552,
+    "double_free": 6494,
     "label": "tcl9_cmdAH.test",
     "retain_after_defer": 67099,
-    "run_s": 26.85,
+    "run_s": 23.23,
     "stem": "cmdAH",
     "subsystem": "cmd-dispatch",
     "trap_message": "watchdog interrupt",
@@ -816,11 +816,11 @@
     "wasm_bytes": 498575
   },
   {
-    "alloc_residual": 280470,
+    "alloc_residual": 280513,
     "double_free": 252,
     "label": "tcl9_cmdIL.test",
     "retain_after_defer": 2166,
-    "run_s": 2.33,
+    "run_s": 2.07,
     "stem": "cmdIL",
     "subsystem": "cmd-dispatch",
     "trap_message": null,
@@ -828,11 +828,11 @@
     "wasm_bytes": 408786
   },
   {
-    "alloc_residual": 177807,
+    "alloc_residual": 177849,
     "double_free": 167,
     "label": "tcl9_cmdMZ.test",
     "retain_after_defer": 1774,
-    "run_s": 2.14,
+    "run_s": 1.81,
     "stem": "cmdMZ",
     "subsystem": "cmd-dispatch",
     "trap_message": null,
@@ -840,11 +840,11 @@
     "wasm_bytes": 387542
   },
   {
-    "alloc_residual": 700793,
+    "alloc_residual": 700837,
     "double_free": 552,
     "label": "tcl9_oo.test",
     "retain_after_defer": 5404,
-    "run_s": 3.03,
+    "run_s": 2.6,
     "stem": "oo",
     "subsystem": "object",
     "trap_message": null,
@@ -852,11 +852,11 @@
     "wasm_bytes": 544533
   },
   {
-    "alloc_residual": 133900,
+    "alloc_residual": 133942,
     "double_free": 94,
     "label": "tcl9_ooNext2.test",
     "retain_after_defer": 860,
-    "run_s": 2.13,
+    "run_s": 1.79,
     "stem": "ooNext2",
     "subsystem": "object",
     "trap_message": null,
@@ -864,11 +864,11 @@
     "wasm_bytes": 390469
   },
   {
-    "alloc_residual": 109761,
+    "alloc_residual": 109802,
     "double_free": 97,
     "label": "tcl9_ooProp.test",
     "retain_after_defer": 702,
-    "run_s": 2.12,
+    "run_s": 1.78,
     "stem": "ooProp",
     "subsystem": "object",
     "trap_message": null,
@@ -876,11 +876,11 @@
     "wasm_bytes": 394640
   },
   {
-    "alloc_residual": 72651,
+    "alloc_residual": 72692,
     "double_free": 44,
     "label": "tcl9_ooUtil.test",
     "retain_after_defer": 436,
-    "run_s": 1.91,
+    "run_s": 1.72,
     "stem": "ooUtil",
     "subsystem": "object",
     "trap_message": null,
@@ -888,11 +888,11 @@
     "wasm_bytes": 378174
   },
   {
-    "alloc_residual": 148237,
+    "alloc_residual": 148278,
     "double_free": 116,
     "label": "tcl9_coroutine.test",
     "retain_after_defer": 1005,
-    "run_s": 2.26,
+    "run_s": 1.71,
     "stem": "coroutine",
     "subsystem": "coroutine",
     "trap_message": null,
@@ -900,11 +900,11 @@
     "wasm_bytes": 393616
   },
   {
-    "alloc_residual": 63377,
+    "alloc_residual": 63420,
     "double_free": 28,
     "label": "tcl9_nre.test",
     "retain_after_defer": 336,
-    "run_s": 2.16,
+    "run_s": 1.63,
     "stem": "nre",
     "subsystem": "coroutine",
     "trap_message": null,
@@ -912,11 +912,11 @@
     "wasm_bytes": 374600
   },
   {
-    "alloc_residual": 81919,
+    "alloc_residual": 81962,
     "double_free": 58,
     "label": "tcl9_tailcall.test",
     "retain_after_defer": 561,
-    "run_s": 2.21,
+    "run_s": 1.6,
     "stem": "tailcall",
     "subsystem": "coroutine",
     "trap_message": null,
@@ -924,11 +924,11 @@
     "wasm_bytes": 380544
   },
   {
-    "alloc_residual": 620463,
+    "alloc_residual": 620512,
     "double_free": 474,
     "label": "tcl9_interp.test",
     "retain_after_defer": 5144,
-    "run_s": 3.84,
+    "run_s": 3.0,
     "stem": "interp",
     "subsystem": "interp",
     "trap_message": null,
@@ -936,11 +936,11 @@
     "wasm_bytes": 475436
   },
   {
-    "alloc_residual": 280501,
+    "alloc_residual": 280545,
     "double_free": 292,
     "label": "tcl9_safe.test",
     "retain_after_defer": 2862,
-    "run_s": 2.65,
+    "run_s": 2.16,
     "stem": "safe",
     "subsystem": "interp",
     "trap_message": null,
@@ -948,23 +948,23 @@
     "wasm_bytes": 524032
   },
   {
-    "alloc_residual": 13678,
+    "alloc_residual": 13719,
     "double_free": 0,
     "label": "tcl9_safe-stock.test",
     "retain_after_defer": 0,
-    "run_s": 2.41,
+    "run_s": 1.9,
     "stem": "safe-stock",
     "subsystem": "interp",
-    "trap_message": "interp.eval_script\n    5: 0x1e9eba - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n    6:   0x6a31 - <unknown>!<wasm function 131>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
+    "trap_message": "interp.eval_script\n    5: 0x1e9e9d - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n    6:   0x6a31 - <unknown>!<wasm function 131>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
     "trapped": true,
     "wasm_bytes": 467595
   },
   {
-    "alloc_residual": 14016,
+    "alloc_residual": 14057,
     "double_free": 0,
     "label": "tcl9_safe-stock86.test",
     "retain_after_defer": 0,
-    "run_s": 1.83,
+    "run_s": 1.8,
     "stem": "safe-stock86",
     "subsystem": "interp",
     "trap_message": null,
@@ -972,11 +972,11 @@
     "wasm_bytes": 362305
   },
   {
-    "alloc_residual": 54399,
+    "alloc_residual": 54440,
     "double_free": 40,
     "label": "tcl9_source.test",
     "retain_after_defer": 401,
-    "run_s": 2.0,
+    "run_s": 1.81,
     "stem": "source",
     "subsystem": "interp",
     "trap_message": null,
@@ -984,11 +984,11 @@
     "wasm_bytes": 372163
   },
   {
-    "alloc_residual": 95679,
+    "alloc_residual": 95720,
     "double_free": 78,
     "label": "tcl9_append.test",
     "retain_after_defer": 650,
-    "run_s": 2.14,
+    "run_s": 1.84,
     "stem": "append",
     "subsystem": "misc",
     "trap_message": null,
@@ -996,11 +996,11 @@
     "wasm_bytes": 373584
   },
   {
-    "alloc_residual": 88793,
+    "alloc_residual": 88834,
     "double_free": 70,
     "label": "tcl9_appendComp.test",
     "retain_after_defer": 598,
-    "run_s": 2.07,
+    "run_s": 1.84,
     "stem": "appendComp",
     "subsystem": "misc",
     "trap_message": null,
@@ -1008,11 +1008,11 @@
     "wasm_bytes": 374873
   },
   {
-    "alloc_residual": 26443,
+    "alloc_residual": 26484,
     "double_free": 9,
     "label": "tcl9_concat.test",
     "retain_after_defer": 108,
-    "run_s": 1.93,
+    "run_s": 1.55,
     "stem": "concat",
     "subsystem": "misc",
     "trap_message": null,
@@ -1020,11 +1020,11 @@
     "wasm_bytes": 363573
   },
   {
-    "alloc_residual": 118308,
+    "alloc_residual": 118349,
     "double_free": 97,
     "label": "tcl9_incr.test",
     "retain_after_defer": 996,
-    "run_s": 2.1,
+    "run_s": 1.86,
     "stem": "incr",
     "subsystem": "misc",
     "trap_message": null,
@@ -1032,11 +1032,11 @@
     "wasm_bytes": 384840
   },
   {
-    "alloc_residual": 34420,
+    "alloc_residual": 34461,
     "double_free": 15,
     "label": "tcl9_incr-old.test",
     "retain_after_defer": 199,
-    "run_s": 1.94,
+    "run_s": 1.62,
     "stem": "incr-old",
     "subsystem": "misc",
     "trap_message": null,
@@ -1044,11 +1044,11 @@
     "wasm_bytes": 364923
   },
   {
-    "alloc_residual": 41576,
+    "alloc_residual": 41683,
     "double_free": 12,
     "label": "tcl9_indexObj.test",
     "retain_after_defer": 56,
-    "run_s": 2.06,
+    "run_s": 1.56,
     "stem": "indexObj",
     "subsystem": "misc",
     "trap_message": null,
@@ -1056,11 +1056,11 @@
     "wasm_bytes": 374796
   },
   {
-    "alloc_residual": 94653,
+    "alloc_residual": 94696,
     "double_free": 46,
     "label": "tcl9_dstring.test",
     "retain_after_defer": 552,
-    "run_s": 2.17,
+    "run_s": 1.66,
     "stem": "dstring",
     "subsystem": "misc",
     "trap_message": null,
@@ -1068,11 +1068,11 @@
     "wasm_bytes": 380360
   },
   {
-    "alloc_residual": 22826,
+    "alloc_residual": 22875,
     "double_free": 3,
     "label": "tcl9_assocd.test",
     "retain_after_defer": 36,
-    "run_s": 1.93,
+    "run_s": 1.66,
     "stem": "assocd",
     "subsystem": "misc",
     "trap_message": null,
@@ -1080,11 +1080,11 @@
     "wasm_bytes": 364603
   },
   {
-    "alloc_residual": 94012,
+    "alloc_residual": 94053,
     "double_free": 93,
     "label": "tcl9_opt.test",
     "retain_after_defer": 384,
-    "run_s": 2.28,
+    "run_s": 2.04,
     "stem": "opt",
     "subsystem": "misc",
     "trap_message": null,
@@ -1092,11 +1092,11 @@
     "wasm_bytes": 464828
   },
   {
-    "alloc_residual": 19736,
+    "alloc_residual": 19777,
     "double_free": 3,
     "label": "tcl9_stack.test",
     "retain_after_defer": 36,
-    "run_s": 1.88,
+    "run_s": 1.65,
     "stem": "stack",
     "subsystem": "misc",
     "trap_message": null,
@@ -1104,11 +1104,11 @@
     "wasm_bytes": 363547
   },
   {
-    "alloc_residual": 113935,
+    "alloc_residual": 114275,
     "double_free": 2,
     "label": "tcl9_misc.test",
     "retain_after_defer": 40,
-    "run_s": 2.2,
+    "run_s": 2.04,
     "stem": "misc",
     "subsystem": "misc",
     "trap_message": null,
@@ -1116,11 +1116,11 @@
     "wasm_bytes": 364225
   },
   {
-    "alloc_residual": 123694,
+    "alloc_residual": 124059,
     "double_free": 331,
     "label": "tcl9_brodnik.test",
     "retain_after_defer": 74,
-    "run_s": 2.3,
+    "run_s": 1.93,
     "stem": "brodnik",
     "subsystem": "misc",
     "trap_message": null,
@@ -1128,11 +1128,11 @@
     "wasm_bytes": 365704
   },
   {
-    "alloc_residual": 14016,
+    "alloc_residual": 14057,
     "double_free": 0,
     "label": "tcl9_range.test",
     "retain_after_defer": 0,
-    "run_s": 1.89,
+    "run_s": 1.52,
     "stem": "range",
     "subsystem": "misc",
     "trap_message": null,
@@ -1140,11 +1140,11 @@
     "wasm_bytes": 362305
   },
   {
-    "alloc_residual": 18057,
+    "alloc_residual": 18098,
     "double_free": 2,
     "label": "tcl9_aaa_exit.test",
     "retain_after_defer": 24,
-    "run_s": 2.04,
+    "run_s": 1.71,
     "stem": "aaa_exit",
     "subsystem": "misc",
     "trap_message": null,
@@ -1152,11 +1152,11 @@
     "wasm_bytes": 363425
   },
   {
-    "alloc_residual": 87996,
+    "alloc_residual": 88039,
     "double_free": 103,
     "label": "tcl9_chan.test",
     "retain_after_defer": 587,
-    "run_s": 2.07,
+    "run_s": 1.82,
     "stem": "chan",
     "subsystem": "io",
     "trap_message": null,
@@ -1164,11 +1164,11 @@
     "wasm_bytes": 387299
   },
   {
-    "alloc_residual": 1336140,
+    "alloc_residual": 1336217,
     "double_free": 839,
     "label": "tcl9_chanio.test",
     "retain_after_defer": 9641,
-    "run_s": 5.4,
+    "run_s": 4.44,
     "stem": "chanio",
     "subsystem": "io",
     "trap_message": null,
@@ -1176,11 +1176,11 @@
     "wasm_bytes": 647020
   },
   {
-    "alloc_residual": 972381,
+    "alloc_residual": 972921,
     "double_free": 571,
     "label": "tcl9_io.test",
     "retain_after_defer": 7645,
-    "run_s": 5.81,
+    "run_s": 4.48,
     "stem": "io",
     "subsystem": "io",
     "trap_message": null,
@@ -1188,14 +1188,14 @@
     "wasm_bytes": 699420
   },
   {
-    "alloc_residual": 477767,
+    "alloc_residual": 477831,
     "double_free": 438,
     "label": "tcl9_ioCmd.test",
     "retain_after_defer": 6470,
-    "run_s": 2.9,
+    "run_s": 2.42,
     "stem": "ioCmd",
     "subsystem": "io",
-    "trap_message": "interp.eval_script\n    6: 0x1e9eba - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n    7:   0x69a8 - <unknown>!<wasm function 131>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
+    "trap_message": "interp.eval_script\n    6: 0x1e9e9d - tcl_runtime.wasm!interp.tcl_interp.tcl_eval\n    7:   0x69a8 - <unknown>!<wasm function 131>\nnote: using the `WASMTIME_BACKTRACE_DETAILS=1` environment variable may show more debugging information\n\nCaused by:\n    wasm trap: wasm `unreachable` instruction executed\n",
     "trapped": true,
     "wasm_bytes": 523521
   }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -58,7 +59,11 @@ class TestRegistryStructure:
         spec = REGISTRY.get("ACCESS::acl", "f5-irules")
         assert spec is not None
         assert spec.hover is not None
-        assert "clouddocs.f5.com" in spec.hover.source
+        # Compare the parsed hostname rather than substring-matching the
+        # raw URL — a substring check ("clouddocs.f5.com" in url) would
+        # also accept a hostile URL like ``https://evil.com/clouddocs.f5.com``
+        # (CodeQL ``py/incomplete-url-substring-sanitization``).
+        assert urlparse(spec.hover.source).hostname == "clouddocs.f5.com"
 
     def test_curated_irules_override_wins_over_generated_data(self):
         spec = REGISTRY.get("HTTP::header", "f5-irules")

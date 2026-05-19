@@ -163,20 +163,26 @@ def _backslash_end(template: str, start: int) -> int:
     c = template[start + 1]
     # Single-char escapes the shared helper knows about all consume
     # two characters.  The multi-char variants (``\\x``, ``\\u``,
-    # ``\\U``, octal, continuation line) need explicit scanning.
-    if c == "x":
+    # ``\\U``, octal, continuation line) need explicit scanning that
+    # mirrors Tcl 9's ``ParseHex`` cap (value > 0x10FFF → stop).
+    if c in "xuU":
+        max_digits = 2 if c == "x" else (4 if c == "u" else 8)
         j = start + 2
-        while j < n and j < start + 4 and template[j] in "0123456789abcdefABCDEF":
-            j += 1
-        return j if j > start + 2 else start + 2
-    if c == "u":
-        j = start + 2
-        while j < n and j < start + 6 and template[j] in "0123456789abcdefABCDEF":
-            j += 1
-        return j if j > start + 2 else start + 2
-    if c == "U":
-        j = start + 2
-        while j < n and j < start + 10 and template[j] in "0123456789abcdefABCDEF":
+        end = min(start + 2 + max_digits, n)
+        value = 0
+        while j < end:
+            ch = template[j]
+            if ch in "0123456789":
+                digit = ord(ch) - ord("0")
+            elif ch in "abcdef":
+                digit = 10 + ord(ch) - ord("a")
+            elif ch in "ABCDEF":
+                digit = 10 + ord(ch) - ord("A")
+            else:
+                break
+            if value > 0x10FFF:
+                break
+            value = (value << 4) | digit
             j += 1
         return j if j > start + 2 else start + 2
     if c in "01234567":
