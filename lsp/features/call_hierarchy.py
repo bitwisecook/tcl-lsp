@@ -20,6 +20,17 @@ def _find_proc_at_position(
     source: str,
 ) -> ProcDef | None:
     """Find the proc definition at the cursor position."""
+    # Prefer the proc whose definition-name range contains the cursor; this
+    # disambiguates same-named procs in different namespaces (a bare-name
+    # lookup would always return the first).
+    for proc_def in analysis.all_procs.values():
+        nr = proc_def.name_range
+        if nr.start.line == nr.end.line:
+            if nr.start.line == line and nr.start.character <= character <= nr.end.character + 1:
+                return proc_def
+        elif nr.start.line <= line <= nr.end.line:
+            return proc_def
+    # Fallback: the cursor is on a call site, not a definition.
     word = find_word_at_position(source, line, character)
     if not word:
         return None
@@ -28,6 +39,25 @@ def _find_proc_at_position(
         return None
     _qname, proc_def = proc_match
     return proc_def
+
+
+def _target_proc_for_item(
+    item: types.CallHierarchyItem, analysis: AnalysisResult
+) -> ProcDef | None:
+    """Resolve the exact proc an item refers to.
+
+    Prefers the item's ``detail`` (the proc's qualified name) so that
+    same-named procs in different namespaces are distinguished; falls back to
+    a bare-name match for items that carry no qualified detail.
+    """
+    if item.detail:
+        for proc_def in analysis.all_procs.values():
+            if proc_def.qualified_name == item.detail:
+                return proc_def
+    for proc_def in analysis.all_procs.values():
+        if proc_def.name == item.name:
+            return proc_def
+    return None
 
 
 def _proc_to_item(proc_def: ProcDef, uri: str) -> types.CallHierarchyItem:
@@ -130,13 +160,10 @@ def incoming_calls(
     if analysis is None:
         analysis = analyse(source)
 
-    # Find the target proc
-    target_name = item.name
-    target_proc: ProcDef | None = None
-    for qname, proc_def in analysis.all_procs.items():
-        if proc_def.name == target_name:
-            target_proc = proc_def
-            break
+    # Find the target proc.  Match the item's qualified name (carried in
+    # ``detail``) first so that same-named procs in sibling namespaces are
+    # disambiguated — matching by bare name would always pick the first.
+    target_proc = _target_proc_for_item(item, analysis)
     if target_proc is None:
         return []
 
@@ -199,13 +226,8 @@ def outgoing_calls(
     if analysis is None:
         analysis = analyse(source)
 
-    # Find the source proc
-    source_name = item.name
-    source_proc: ProcDef | None = None
-    for qname, proc_def in analysis.all_procs.items():
-        if proc_def.name == source_name:
-            source_proc = proc_def
-            break
+    # Find the source proc (disambiguated by qualified name — see incoming).
+    source_proc = _target_proc_for_item(item, analysis)
     if source_proc is None:
         return []
 
