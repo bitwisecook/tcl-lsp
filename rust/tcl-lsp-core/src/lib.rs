@@ -23,6 +23,7 @@ pub mod formatting;
 pub mod hover;
 pub mod inlay_hints;
 pub mod linked_editing_range;
+pub mod minify;
 pub mod references;
 pub mod rename;
 pub mod selection_range;
