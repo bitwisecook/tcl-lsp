@@ -20,11 +20,13 @@
 //! sibling method body in the class (the analyser doesn't
 //! walk into method bodies for `command_invocations`).
 //!
+//! Cross-document reference counts have landed: when the
+//! caller threads a [`crate::workspace_index::WorkspaceIndex`]
+//! and the document's URI, the proc / class lens count
+//! includes call sites in sibling documents.
+//!
 //! What is *deferred*:
 //!
-//! * Cross-document reference counts — workspace-wide
-//!   matching that includes call sites in other open
-//!   documents.  Lands alongside `S-workspace-symbols-rich`.
 //! * `[$obj methodName]` call sites *outside* the class body
 //!   — needs analyser-side variable-type tracking so the
 //!   provider knows which object's class to match against.
@@ -55,9 +57,16 @@ pub struct CodeLens {
 /// `analysis` is the analyser result for the document; when
 /// `None`, returns an empty vector (preserves the stub call
 /// shape for callers that haven't yet plumbed analysis
-/// through).
+/// through).  `workspace` / `current_uri`, when provided, add
+/// cross-document call sites to the proc / class reference
+/// counts so the lens reflects workspace-wide usage.
 #[must_use]
-pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeLens> {
+pub fn code_lenses(
+    source: &str,
+    analysis: Option<&AnalysisResult>,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+    current_uri: &str,
+) -> Vec<CodeLens> {
     let Some(analysis) = analysis else {
         return Vec::new();
     };
@@ -65,7 +74,12 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
     let mut lenses: Vec<CodeLens> = Vec::new();
 
     for (qname, proc_def) in &analysis.all_procs {
-        let count = count_references(qname, proc_def, analysis);
+        let mut count = count_references(qname, proc_def, analysis);
+        if let Some(index) = workspace {
+            count += index
+                .invocations_of(&proc_def.name, &proc_def.qualified_name, current_uri)
+                .len();
+        }
         let title = reference_count_title(count);
         let start = line_index.position_at(proc_def.name_span.start());
         let end = line_index.position_at(proc_def.name_span.end());
@@ -92,7 +106,12 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
     // inheritance chains (`oo::class create Sub { superclass
     // ClassName ... }`).
     for (qname, class_def) in &analysis.all_classes {
-        let count = count_class_references(qname, class_def, analysis);
+        let mut count = count_class_references(qname, class_def, analysis);
+        if let Some(index) = workspace {
+            count += index
+                .invocations_of(&class_def.name, &class_def.qualified_name, current_uri)
+                .len();
+        }
         let title = reference_count_title(count);
         let start = line_index.position_at(class_def.name_span.start());
         let end = line_index.position_at(class_def.name_span.end());
@@ -300,14 +319,14 @@ mod tests {
 
     #[test]
     fn empty_lenses_when_analysis_is_none() {
-        assert!(code_lenses("proc foo {} {}\n", None).is_empty());
+        assert!(code_lenses("proc foo {} {}\n", None, None, "").is_empty());
     }
 
     #[test]
     fn lens_per_user_proc() {
         let src = "proc foo {} {}\nproc bar {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 2, "{lenses:?}");
     }
 
@@ -315,7 +334,7 @@ mod tests {
     fn lens_shows_zero_references_for_unused_proc() {
         let src = "proc lonely {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         assert_eq!(lenses[0].command_title, "0 references");
     }
@@ -324,7 +343,7 @@ mod tests {
     fn lens_shows_singular_for_one_reference() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -336,7 +355,7 @@ mod tests {
     fn lens_counts_multiple_references() {
         let src = "proc tool {} {}\ntool\ntool\ntool\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let tool = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -348,7 +367,7 @@ mod tests {
     fn lens_anchors_at_proc_name_span() {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
@@ -366,7 +385,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let class_lenses: Vec<_> = lenses
             .iter()
             .filter(|l| l.command_title.contains("reference"))
@@ -388,7 +407,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let myclass_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -411,7 +430,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         // Find the lens anchored on line 1 (the `greet`
         // declaration's name span).
         let greet_lens = lenses
@@ -428,11 +447,47 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let orphan_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("orphan lens");
         assert_eq!(orphan_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    // -- workspace-index: cross-document reference counts -----------
+
+    #[test]
+    fn proc_lens_counts_cross_document_calls() {
+        use crate::workspace_index::WorkspaceIndex;
+        // lib.tcl defines `helper` with no local callers;
+        // consumer.tcl calls it twice.
+        let lib_src = "proc helper {} {}\n";
+        let lib = analyse(lib_src);
+        let consumer = analyse("helper\nhelper\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///lib.tcl", &lib),
+            ("file:///consumer.tcl", &consumer),
+        ]);
+        // The lens on lib.tcl's `helper` counts the two
+        // cross-document calls.
+        let lenses = code_lenses(lib_src, Some(&lib), Some(&index), "file:///lib.tcl");
+        let helper = lenses
+            .iter()
+            .find(|l| l.range.start_line == 0)
+            .expect("helper lens");
+        assert_eq!(helper.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn proc_lens_without_workspace_counts_local_only() {
+        let src = "proc helper {} {}\nhelper\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let helper = lenses
+            .iter()
+            .find(|l| l.range.start_line == 0)
+            .expect("helper lens");
+        assert_eq!(helper.command_title, "1 reference", "{lenses:?}");
     }
 }

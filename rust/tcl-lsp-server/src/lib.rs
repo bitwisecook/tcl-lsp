@@ -1609,10 +1609,13 @@ impl LanguageServer for Backend {
             .await;
         // S-code-lens-rich: surface per-proc reference counts
         // above each definition.  The provider walks
-        // `analysis.command_invocations` per proc, so the
-        // worker needs the full analysis result.
+        // `analysis.command_invocations` per proc, plus the
+        // workspace index for cross-document call sites, so the
+        // count reflects workspace-wide usage.
+        let workspace = self.workspace_index.lock().await.clone();
+        let uri_str = uri.to_string();
         let lenses = tokio::task::spawn_blocking(move || {
-            core_code_lens::code_lenses(&doc.text, Some(&analysis))
+            core_code_lens::code_lenses(&doc.text, Some(&analysis), Some(&workspace), &uri_str)
         })
         .await
         .map_err(|err| jsonrpc::Error {
