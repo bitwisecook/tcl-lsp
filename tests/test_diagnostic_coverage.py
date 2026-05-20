@@ -527,6 +527,13 @@ FIXTURES: dict[str, Case] = {
         "button",
         "package require Tk\nframe .frame\nbutton .frame.b\n",
     ),
+    "W003": Case(
+        "expr {2 in {1 2 3}}\n",
+        "2 in",
+        "expr {2 + 3}\n",
+        dialect="tcl8.4",
+        contains=True,
+    ),
     "W004": Case(
         "lsort -stride 2 $l\n",
         "-stride",
@@ -684,7 +691,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "T102",
         "T103",
         "T106",
-        "W003",
         "W108",
         "W116",
         "W117",
