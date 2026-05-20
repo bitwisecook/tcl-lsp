@@ -604,6 +604,19 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n  set ::cfg [HTTP::uri]\n}\n",
         dialect="f5-irules",
     ),
+    "T103": Case(
+        "when HTTP_REQUEST {\n  set pat [HTTP::uri]\n  regexp $pat $data\n}\n",
+        "$pat",
+        "when HTTP_REQUEST {\n  regexp {^/api} $data\n}\n",
+        dialect="f5-irules",
+    ),
+    "T106": Case(
+        "when HTTP_REQUEST {\n  set safe [HTML::encode [HTTP::uri]]\n  set double [HTML::encode $safe]\n}\n",
+        "HTML::encode $safe",
+        "when HTTP_REQUEST {\n  set out [HTML::encode [HTTP::uri]]\n}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
     "S100": Case(
         "set myList {a b c d}\nlindex $myList 1\nputs $myList\n",
         "lindex $myList 1",
@@ -785,6 +798,15 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "proc f {a} { set x $a\n puts $x }\n",
         "proc f {} { set x 42\n puts $x }\n",
     ),
+    # Racy static:: var written outside RULE_INIT and read in another event:
+    # range drops the trailing `]` of the write expression.
+    "IRULE4005": FiresCase(
+        "when HTTP_REQUEST priority 500 {\n    set static::token [HTTP::header Authorization]\n}\n"
+        "when HTTP_RESPONSE priority 500 {\n    log local0. $static::token\n}\n",
+        "when RULE_INIT {\n    set static::token 1\n}\n"
+        "when HTTP_RESPONSE {\n    log local0. $static::token\n}\n",
+        dialect="f5-irules",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -812,7 +834,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE3103",
         "IRULE4002",
         "IRULE4003",
-        "IRULE4005",
         "O101",
         "O106",
         "O108",
@@ -820,8 +841,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O123",
         "O125",
         "T102",
-        "T103",
-        "T106",
         "W120",
         "W122",
         "W130",
