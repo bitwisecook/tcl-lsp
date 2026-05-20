@@ -34,6 +34,8 @@ class Case:
     expected: str  # exact substring the range must cover
     clean: str  # a snippet on which the code must NOT fire
     dialect: str | None = None  # analyse under this dialect when set
+    xc: bool = False  # enable XC translatability diagnostics
+    contains: bool = False  # expected is a substring of a covering construct
 
 
 @dataclass(frozen=True)
@@ -56,13 +58,21 @@ def _covered(source: str, r: types.Range) -> str:
     )
 
 
-def _matches(source: str, code: str, dialect: str | None = None) -> list[types.Diagnostic]:
+def _run(source: str, dialect: str | None, xc: bool) -> list[types.Diagnostic]:
     if dialect is not None:
         with dialect_scope(dialect):
-            diags = get_diagnostics(source)
-    else:
-        diags = get_diagnostics(source)
-    return [d for d in diags if (d.code if isinstance(d.code, str) else str(d.code)) == code]
+            return get_diagnostics(source, xc_diagnostics_enabled=xc)
+    return get_diagnostics(source, xc_diagnostics_enabled=xc)
+
+
+def _matches(
+    source: str, code: str, dialect: str | None = None, xc: bool = False
+) -> list[types.Diagnostic]:
+    return [
+        d
+        for d in _run(source, dialect, xc)
+        if (d.code if isinstance(d.code, str) else str(d.code)) == code
+    ]
 
 
 # ── verified: exact narrow range + no false positive ──────────────────
@@ -154,6 +164,96 @@ FIXTURES: dict[str, Case] = {
         "$u",
         "when HTTP_REQUEST {\n  HTTP::header insert X static\n}\n",
         dialect="f5-irules",
+    ),
+    # XC translatability classifications (need the xc flag).  The range covers
+    # the classified construct, which is the context the user needs.
+    "XC100": Case(
+        "when HTTP_REQUEST { pool web_pool }\n",
+        "pool web_pool",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC101": Case(
+        "when HTTP_REQUEST { HTTP::redirect http://x }\n",
+        "HTTP::redirect http://x",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC102": Case(
+        'when HTTP_REQUEST { if {[HTTP::host] eq "x.com"} { pool p } }\n',
+        'if {[HTTP::host] eq "x.com"}',
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC103": Case(
+        "when HTTP_REQUEST { HTTP::header insert X 1 }\n",
+        "HTTP::header insert X 1",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC105": Case(
+        "when HTTP_REQUEST { class match [HTTP::uri] eq dg }\n",
+        "class match [HTTP::uri] eq dg",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC106": Case(
+        "when HTTP_REQUEST { ASM::disable }\n",
+        "ASM::disable",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC107": Case(
+        "when HTTP_REQUEST { ASM::enable }\n",
+        "ASM::enable",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC201": Case(
+        "when HTTP_REQUEST_DATA { HTTP::payload }\n",
+        "when HTTP_REQUEST_DATA",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC203": Case(
+        "when HTTP_REQUEST { if {$x} { pool p } }\n",
+        "if {$x}",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC250": Case(
+        "when CLIENTSSL_HANDSHAKE { log local0. hi }\n",
+        "when CLIENTSSL_HANDSHAKE",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC300": Case(
+        "when HTTP_REQUEST { eval $cmd }\n",
+        "eval $cmd",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC301": Case(
+        "when HTTP_REQUEST { TCP::collect }\n",
+        "TCP::collect",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
     ),
 }
 
@@ -291,19 +391,7 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W310",
         "W311",
         "W313",
-        "XC100",
-        "XC101",
-        "XC102",
-        "XC103",
-        "XC105",
-        "XC106",
-        "XC107",
         "XC200",
-        "XC201",
-        "XC203",
-        "XC250",
-        "XC300",
-        "XC301",
     }
 )
 
@@ -331,18 +419,23 @@ def test_every_code_is_classified_exactly_once():
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_fires_with_exact_range(code):
     case = FIXTURES[code]
-    matches = _matches(case.source, code, case.dialect)
+    matches = _matches(case.source, code, case.dialect, case.xc)
     assert matches, f"{code} did not fire on {case.source!r}"
     covered = {_covered(case.source, d.range) for d in matches}
-    assert case.expected in covered, (
-        f"{code} should cover {case.expected!r}; covered {sorted(covered)}"
-    )
+    if case.contains:
+        assert any(case.expected in c for c in covered), (
+            f"{code} should cover a span containing {case.expected!r}; covered {sorted(covered)}"
+        )
+    else:
+        assert case.expected in covered, (
+            f"{code} should cover {case.expected!r}; covered {sorted(covered)}"
+        )
 
 
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_no_false_positive(code):
     case = FIXTURES[code]
-    assert not _matches(case.clean, code, case.dialect), (
+    assert not _matches(case.clean, code, case.dialect, case.xc), (
         f"{code} should not fire on clean {case.clean!r}"
     )
 
