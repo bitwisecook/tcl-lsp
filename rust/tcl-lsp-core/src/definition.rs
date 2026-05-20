@@ -473,12 +473,11 @@ mod tests {
         // (line 2 col 27).
         let locs = definition(src, 2, 27, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
-        // The analyser today doesn't populate ``name_span`` for
-        // ``constructor`` (it's a keyword, not a method name),
-        // so the provider falls back to the body span — the
-        // editor lands at the opening brace of the constructor
-        // body.  The constructor is declared on line 1; its
-        // body opener is also on line 1.
+        // The analyser anchors the constructor's ``name_span``
+        // on the ``constructor`` keyword token (declared on
+        // line 1).  The provider keeps a body-span fallback
+        // for the empty-span case, but the keyword span is
+        // populated now, so the jump lands on line 1.
         assert_eq!(locs[0].start_line, 1);
     }
 
