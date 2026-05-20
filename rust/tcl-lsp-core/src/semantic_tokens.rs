@@ -4,12 +4,12 @@
 //! Produces an LSP-encoded semantic-tokens stream covering
 //! the common Tcl token categories:
 //!
-//! * **Keyword** — control-flow command heads (`if`, `while`,
-//!   `for`, `foreach`, `switch`, `return`, `break`,
-//!   `continue`, `try`, `catch`, `eval`, `uplevel`, `upvar`,
-//!   `expr`, `subst`, `proc`, `namespace`, `set`, `unset`,
-//!   `global`, `variable`, `lmap`, `lappend`, `incr`,
-//!   `append`).
+//! * **Keyword** — command heads carrying the registry's
+//!   `LANGUAGE_KEYWORD` trait (`if`, `while`, `for`, `foreach`,
+//!   `switch`, `return`, `break`, `continue`, `try`, `catch`,
+//!   `proc`, `namespace`, `when`, `oo::*`, …) plus the non-command
+//!   clause / `TclOO` sub-keywords (`else`, `elseif`, `method`,
+//!   `constructor`, …).
 //! * **Function** — every other command-head token (user
 //!   procs + built-in commands).
 //! * **Variable** — `$name` / `${name}` substitutions.
@@ -47,6 +47,7 @@
 
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_registry::CommandRegistry;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -95,46 +96,59 @@ pub fn legend_token_modifiers() -> Vec<&'static str> {
     Vec::new()
 }
 
-/// Tcl control-flow / structural keywords.  Mirrors Python's
-/// `_CONTROL_FLOW_KEYWORDS` in `_constants.py`.
-const KEYWORD_COMMANDS: &[&str] = &[
-    "if",
-    "elseif",
+/// Sub-keywords highlighted as `keyword` that are **not** standalone
+/// commands, so they have no `CommandSpec` to carry the
+/// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
+/// and `TclOO` definition-/method-context words.  Mirrors Python's
+/// `_LANGUAGE_KEYWORD_SUB_KEYWORDS` in
+/// `lsp/features/_semantic_tokens/_constants.py`.  The standalone
+/// commands (`if`, `while`, `proc`, `when`, `oo::*`, …) are sourced
+/// from the registry's `LANGUAGE_KEYWORD` trait instead of a
+/// hardcoded list.
+const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
+    // Clause keywords of if / try / switch — not standalone commands.
     "else",
-    "while",
-    "for",
-    "foreach",
-    "switch",
-    "return",
-    "break",
-    "continue",
-    "try",
-    "catch",
-    "eval",
-    "uplevel",
-    "upvar",
-    "expr",
-    "subst",
-    "proc",
-    "namespace",
-    "set",
-    "unset",
-    "global",
-    "variable",
-    "lmap",
-    "lappend",
-    "incr",
-    "append",
-    "default",
+    "elseif",
     "on",
     "trap",
     "finally",
+    // TclOO definition-context keywords without a standalone CommandSpec.
+    "method",
+    "constructor",
+    "destructor",
+    "forward",
+    "mixin",
+    "filter",
+    "superclass",
+    "renamemethod",
+    "deletemethod",
+    "export",
+    "unexport",
+    // TclOO definition-context keywords (9.0+).
+    "classmethod",
+    "definitionnamespace",
+    "initialise",
+    "initialize",
+    "private",
+    "property",
+    // TclOO method-body keywords without a standalone CommandSpec.
+    "callback",
+    "mymethod",
+    "link",
 ];
 
 /// Classify a command-head token name.  Mirrors Python's
-/// `_classify_command_head`.
-fn classify_command_head(name: &str) -> TokenKind {
-    if KEYWORD_COMMANDS.contains(&name) {
+/// `_classify_token` (command-name branch): a name is a `keyword`
+/// when it carries the registry's `LANGUAGE_KEYWORD` trait or is one
+/// of the non-command [`LANGUAGE_KEYWORD_SUB_KEYWORDS`]; a
+/// `::`-qualified name is a `namespace`; everything else is a
+/// `function`.
+fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
+    let is_keyword = registry.get(name).is_some_and(|s| {
+        s.traits
+            .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
+    }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&name);
+    if is_keyword {
         TokenKind::Keyword
     } else if name.contains("::") {
         TokenKind::Namespace
@@ -145,8 +159,8 @@ fn classify_command_head(name: &str) -> TokenKind {
 
 /// Compute semantic tokens for the entire document.
 #[must_use]
-pub fn full(source: &str) -> SemanticTokens {
-    let entries = collect_entries(source);
+pub fn full(source: &str, registry: &CommandRegistry) -> SemanticTokens {
+    let entries = collect_entries(source, registry);
     encode_entries(&entries)
 }
 
@@ -156,8 +170,12 @@ pub fn full(source: &str) -> SemanticTokens {
 /// token rather than the document origin, matching the LSP
 /// spec for `semanticTokens/range`.
 #[must_use]
-pub fn range(source: &str, range: crate::definition::LspRange) -> SemanticTokens {
-    let mut entries = collect_entries(source);
+pub fn range(
+    source: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
+    let mut entries = collect_entries(source, registry);
     entries.retain(|(line, col, _, _)| {
         // Half-open interval per LSP `Range` semantics (PR #454
         // Copilot review): start is inclusive, end is exclusive.
@@ -172,7 +190,7 @@ pub fn range(source: &str, range: crate::definition::LspRange) -> SemanticTokens
 /// Walk the segmenter + comment scan and return raw
 /// `(line, col, length, kind)` tuples sorted by position.
 /// Shared by `full` and `range`.
-fn collect_entries(source: &str) -> Vec<(u32, u32, u32, TokenKind)> {
+fn collect_entries(source: &str, registry: &CommandRegistry) -> Vec<(u32, u32, u32, TokenKind)> {
     let mut entries: Vec<(u32, u32, u32, TokenKind)> = Vec::new();
     let line_index = LineIndex::new(source);
 
@@ -184,7 +202,7 @@ fn collect_entries(source: &str) -> Vec<(u32, u32, u32, TokenKind)> {
         // Classify the command-head token.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        let head_kind = classify_command_head(head_text);
+        let head_kind = classify_command_head(head_text, registry);
         push_token(&line_index, source, head_tok, head_kind, &mut entries);
 
         // Walk the remaining tokens (arg-position tokens
@@ -461,9 +479,13 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 mod tests {
     use super::*;
 
+    fn reg() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
     #[test]
     fn full_returns_non_empty_data_for_simple_proc() {
-        let s = full("proc foo {} {}\n");
+        let s = full("proc foo {} {}\n", &reg());
         // Should have at least: `proc` (keyword), `foo`
         // (function), `{}` (string), `{}` (string).
         assert!(!s.data.is_empty(), "{:?}", s.data);
@@ -529,7 +551,7 @@ mod tests {
 
     #[test]
     fn keywords_classified_as_keyword() {
-        let s = full("if {1} { puts hi }\n");
+        let s = full("if {1} { puts hi }\n", &reg());
         // First token's type index should be 0 (Keyword) for `if`.
         // The encoded data: [deltaLine, deltaCol, length, type, modifiers].
         assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
@@ -537,14 +559,14 @@ mod tests {
 
     #[test]
     fn comments_classified_as_comment() {
-        let s = full("# this is a comment\nset x 1\n");
+        let s = full("# this is a comment\nset x 1\n", &reg());
         // The first token should be the comment.
         assert_eq!(s.data[3], TokenKind::Comment as u32, "{:?}", s.data);
     }
 
     #[test]
     fn variables_classified_as_variable() {
-        let s = full("set $x 1\n");
+        let s = full("set $x 1\n", &reg());
         // The `$x` token kind should be Variable.
         let kinds: Vec<u32> = s.data.chunks(5).map(|c| c[3]).collect();
         assert!(
@@ -567,14 +589,17 @@ mod tests {
 
     #[test]
     fn empty_source_returns_empty_data() {
-        assert!(full("").data.is_empty());
+        assert!(full("", &reg()).data.is_empty());
     }
 
     #[test]
     fn classify_command_head_picks_namespace_for_qualified() {
-        assert_eq!(classify_command_head("::myns::greet"), TokenKind::Namespace,);
-        assert_eq!(classify_command_head("greet"), TokenKind::Function);
-        assert_eq!(classify_command_head("if"), TokenKind::Keyword);
+        assert_eq!(
+            classify_command_head("::myns::greet", &reg()),
+            TokenKind::Namespace,
+        );
+        assert_eq!(classify_command_head("greet", &reg()), TokenKind::Function);
+        assert_eq!(classify_command_head("if", &reg()), TokenKind::Keyword);
     }
 
     // -- S-semantic-tokens-rich: range variant -----------------------
@@ -584,7 +609,7 @@ mod tests {
         // Three commands on three lines.  Range covers only
         // line 1 — the line-0 and line-2 tokens should drop.
         let src = "set a 1\nset b 2\nset c 3\n";
-        let full_data = full(src);
+        let full_data = full(src, &reg());
         let line1_only = range(
             src,
             crate::definition::LspRange {
@@ -593,6 +618,7 @@ mod tests {
                 end_line: 1,
                 end_character: 10,
             },
+            &reg(),
         );
         // Each tcl line emits at least one classified token.
         // The range result must be strictly smaller than the
@@ -605,7 +631,7 @@ mod tests {
     #[test]
     fn range_keeps_entire_document_when_range_covers_it() {
         let src = "proc foo {} { puts hi }\n";
-        let full_data = full(src);
+        let full_data = full(src, &reg());
         let wide = range(
             src,
             crate::definition::LspRange {
@@ -614,6 +640,7 @@ mod tests {
                 end_line: 99,
                 end_character: 0,
             },
+            &reg(),
         );
         assert_eq!(wide.data, full_data.data);
     }
@@ -635,12 +662,13 @@ mod tests {
                 end_line: 1,
                 end_character: 0,
             },
+            &reg(),
         );
         // The full document has at least one line-1 token at col
         // 0 (the `set` of `set b 2`).  The half-open range must
         // exclude it; the range data must therefore be strictly
         // shorter than the full data.
-        let full_data = full(src);
+        let full_data = full(src, &reg());
         assert!(
             r.data.len() < full_data.data.len(),
             "range data {} should drop the line-1 token; full data {}",

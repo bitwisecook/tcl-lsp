@@ -1826,7 +1826,8 @@ impl LanguageServer for Backend {
         // `S-semantic-tokens-rich`: real classification.  The
         // packed integer stream is 5 ints per token
         // `[deltaLine, deltaCol, length, type, modifiers]`.
-        let core_data = core_semantic_tokens::full(&doc.text).data;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let core_data = core_semantic_tokens::full(&doc.text, &registry).data;
         let result_id = next_semantic_tokens_id();
         self.semantic_tokens_cache.lock().await.insert(
             uri,
@@ -1850,7 +1851,8 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let previous_result_id = params.previous_result_id;
-        let new_data = core_semantic_tokens::full(&doc.text).data;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let new_data = core_semantic_tokens::full(&doc.text, &registry).data;
         let new_result_id = next_semantic_tokens_id();
 
         // Compare against the cached snapshot.  When the client's
@@ -1913,7 +1915,8 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let core_data = core_semantic_tokens::range(&doc.text, core_range).data;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let core_data = core_semantic_tokens::range(&doc.text, core_range, &registry).data;
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),

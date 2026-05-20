@@ -59,6 +59,18 @@ impl DialectSet {
         matches!(name, Some("f5-irules" | "irules"))
     }
 
+    /// Whether `name`'s ensemble commands are *fixed* — the dialect
+    /// ships a closed set of subcommands with no user-extensible
+    /// ensembles — so the minifier may safely shorten subcommands to
+    /// their unambiguous prefix.  True for the F5 dialect family
+    /// (`f5-irules` / `f5-iapps` / `f5-bigip`).  Single source of
+    /// truth for the minifier's former `_FIXED_ENSEMBLE_DIALECTS`
+    /// list.
+    #[must_use]
+    pub fn has_fixed_ensembles(name: Option<&str>) -> bool {
+        matches!(name, Some("f5-irules" | "f5-iapps" | "f5-bigip"))
+    }
+
     /// Parse a dialect name string to a single-bit set.
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
@@ -90,6 +102,19 @@ mod tests {
         assert_eq!(DialectSet::parse("tcl8.6"), Some(DialectSet::TCL86));
         assert_eq!(DialectSet::parse("f5-irules"), Some(DialectSet::IRULES));
         assert_eq!(DialectSet::parse("unknown"), None);
+    }
+
+    #[test]
+    fn fixed_ensembles_cover_the_f5_family_only() {
+        for d in ["f5-irules", "f5-iapps", "f5-bigip"] {
+            assert!(
+                DialectSet::has_fixed_ensembles(Some(d)),
+                "{d} should be fixed"
+            );
+        }
+        assert!(!DialectSet::has_fixed_ensembles(Some("tcl8.6")));
+        assert!(!DialectSet::has_fixed_ensembles(Some("irules")));
+        assert!(!DialectSet::has_fixed_ensembles(None));
     }
 
     #[test]

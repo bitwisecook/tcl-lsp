@@ -2060,14 +2060,10 @@ fn build_replacement(folded: &str) -> String {
     format!("\"{escaped}\"")
 }
 
-/// Dialects where ensemble commands are fixed (no user-added
-/// subcommands), so prefix abbreviation is safe.
-const FIXED_ENSEMBLE_DIALECTS: &[&str] = &["f5-irules", "f5-iapps", "f5-bigip"];
-
 /// Return the abbreviated subcommand text when safe for `dialect`.
 /// Mirrors `_abbreviated_subcommand`.
 fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &str) -> String {
-    if !FIXED_ENSEMBLE_DIALECTS.contains(&dialect) {
+    if !tcl_registry::prelude::DialectSet::has_fixed_ensembles(Some(dialect)) {
         return subcommand_name.to_owned();
     }
     subcommand_abbreviation(command_name, subcommand_name)
