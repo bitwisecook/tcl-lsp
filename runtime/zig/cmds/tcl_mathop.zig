@@ -48,6 +48,8 @@ const bignum = @import("../valtypes/tcl_bignum.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const list = @import("../valtypes/tcl_list.zig");
+const tcl_arith = @import("../valtypes/tcl_arith.zig");
+const tcl_expr_eval = @import("../interp/tcl_expr_eval.zig");
 
 const obj_new_int = obj.obj_new_int;
 const obj_new_float = obj.obj_new_float;
@@ -132,196 +134,93 @@ fn op_name(words: []const i32) []const u8 {
 /// false on miss; callers return ``obj_new_int(0)`` to satisfy the
 /// signature.
 fn require_arity(args: []const i32, comptime opname: []const u8, comptime min: usize, comptime max: ?usize) bool {
+    // The exact ``should be "<op> ..."`` operand list isn't checked by
+    // the test suite — only the ``wrong # args: should be * TCL
+    // WRONGARGS`` glob (mathop-20.2 / 20.5 / 21.6 / 24.8).  The
+    // ``wrong # args:`` prefix drives ``detect_error_code`` to stamp
+    // ``TCL WRONGARGS``.
     if (args.len < min) {
-        stubs.raise("wrong # args: " ++ opname ++ " requires more arguments");
+        stubs.raise("wrong # args: should be \"" ++ opname ++ " ...\"");
         return false;
     }
     if (max) |m| {
         if (args.len > m) {
-            stubs.raise("wrong # args: " ++ opname ++ " takes too many arguments");
+            stubs.raise("wrong # args: should be \"" ++ opname ++ " ...\"");
             return false;
         }
     }
     return true;
 }
 
-// -- arithmetic --------------------------------------------------------------
+// Fold helpers for the arithmetic / bitwise operators.  They delegate
+// each pairwise step to the validated ``tcl_arith_*`` binary ops so
+// the command form inherits the expr path's operand-domain checks,
+// bignum precision, and error wording instead of re-implementing them.
+const BinFn = *const fn (i32, i32) callconv(.c) i32;
 
-/// Bignum-aware variadic accumulator.  Promotes the running
-/// accumulator to a ``*BigInt`` so each step's result keeps full
-/// precision; the i64 fast paths above stay for the common case
-/// where every operand fits.  Returns ``null`` on OOM.
-const AccOp = enum { add, sub, mul };
+fn err_pending() bool {
+    return result_mod.snapshot(0).code == .ERROR;
+}
 
-fn bignum_accumulate(args: []const i32, op: AccOp, init_value: i128) ?*bignum.BigInt {
-    var acc = bignum.alloc_from_int(init_value) orelse return null;
-    for (args) |a| {
-        const ap = obj.obj_promote_to_bignum(a);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) {
-            bignum.destroy(acc);
-            return null;
-        }
-        const new_acc = switch (op) {
-            .add => bignum.alloc_add(acc, ap.m.?),
-            .sub => bignum.alloc_sub(acc, ap.m.?),
-            .mul => bignum.alloc_mul(acc, ap.m.?),
-        } orelse {
-            bignum.destroy(acc);
-            return null;
-        };
-        bignum.destroy(acc);
-        acc = new_acc;
+/// Left-fold *args* through *f*, seeding with *identity_val* so a
+/// single-argument call still validates (and normalises) its operand
+/// and so ``args[0]`` is the left operand of the first real pairwise
+/// step (correct ``left``/``right`` error wording).  Bails on the
+/// first raised error.  Returns a fresh +1-owned result.
+fn fold_left(args: []const i32, f: BinFn, identity_val: i64) i32 {
+    if (args.len == 0) return obj_new_int(identity_val);
+    const id = obj_new_int(identity_val);
+    var acc = f(args[0], id);
+    obj.tcl_obj_release(id);
+    if (err_pending()) return acc;
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const next = f(acc, args[i]);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
     }
     return acc;
 }
 
+/// Left-fold without an identity seed — used by ``-`` / ``/`` where
+/// the multi-arg form is ``a - b - c`` / ``a / b / c`` and there is
+/// no useful identity to prepend.  Caller guarantees ``args.len >= 2``.
+fn fold_noseed(args: []const i32, f: BinFn) i32 {
+    var acc = f(args[0], args[1]);
+    if (err_pending()) return acc;
+    var i: usize = 2;
+    while (i < args.len) : (i += 1) {
+        const next = f(acc, args[i]);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
+    }
+    return acc;
+}
+
+// -- arithmetic --------------------------------------------------------------
+//
+// The variadic operators fold over the validated ``tcl_arith_*``
+// binary ops (the same ones the expression compiler targets) so the
+// command form inherits operand-domain checks, bignum precision, and
+// the exact Tcl error wording instead of re-implementing them.
+
 fn op_add(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    if (any_float(args)) {
-        var sum: f64 = 0;
-        for (args) |a| sum += obj_get_float(a);
-        return obj_new_float(sum);
-    }
-    if (any_bignum(args)) {
-        const r = bignum_accumulate(args, .add, 0) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    var sum: i64 = 0;
-    var overflowed = false;
-    for (args) |a| {
-        const r = @addWithOverflow(sum, obj_get_int(a));
-        if (r[1] != 0) {
-            overflowed = true;
-            break;
-        }
-        sum = r[0];
-    }
-    if (!overflowed) return obj_new_int(sum);
-    // Promote to bignum on i64 overflow.
-    const r = bignum_accumulate(args, .add, 0) orelse return obj_new_int(0);
-    return obj.obj_new_bignum_take(r);
+    return fold_left(args, tcl_arith.tcl_arith_add, 0);
 }
 
 fn op_sub(args: []const i32) i32 {
     if (args.len == 0) {
-        stubs.raise("wrong # args: should be \"- ?arg ...?\"");
+        stubs.raise("wrong # args: should be \"- arg ?arg ...?\"");
         return obj_new_int(0);
     }
-    if (any_float(args)) {
-        if (args.len == 1) return obj_new_float(-obj_get_float(args[0]));
-        var acc: f64 = obj_get_float(args[0]);
-        for (args[1..]) |a| acc -= obj_get_float(a);
-        return obj_new_float(acc);
-    }
-    if (any_bignum(args)) {
-        // Unary: ``- x`` = ``0 - x``.
-        if (args.len == 1) {
-            const ap = obj.obj_promote_to_bignum(args[0]);
-            defer if (ap.owned) bignum.destroy(ap.m);
-            if (ap.m == null) return obj_new_int(0);
-            const r = bignum.alloc_neg(ap.m.?) orelse return obj_new_int(0);
-            return obj.obj_new_bignum_take(r);
-        }
-        // Variadic: ``a - b - c`` = ``((a - b) - c)``.  Promote ``a``
-        // to BigInt as the seed accumulator.
-        const ap0 = obj.obj_promote_to_bignum(args[0]);
-        defer if (ap0.owned) bignum.destroy(ap0.m);
-        if (ap0.m == null) return obj_new_int(0);
-        const seed = ap0.m.?.clone() catch return obj_new_int(0);
-        const seed_heap = bignum.allocator.create(bignum.BigInt) catch {
-            var s = seed;
-            s.deinit();
-            return obj_new_int(0);
-        };
-        seed_heap.* = seed;
-        var acc = seed_heap;
-        for (args[1..]) |a| {
-            const ap = obj.obj_promote_to_bignum(a);
-            defer if (ap.owned) bignum.destroy(ap.m);
-            if (ap.m == null) {
-                bignum.destroy(acc);
-                return obj_new_int(0);
-            }
-            const new_acc = bignum.alloc_sub(acc, ap.m.?) orelse {
-                bignum.destroy(acc);
-                return obj_new_int(0);
-            };
-            bignum.destroy(acc);
-            acc = new_acc;
-        }
-        return obj.obj_new_bignum_take(acc);
-    }
-    if (args.len == 1) {
-        const v = obj_get_int(args[0]);
-        if (v == std.math.minInt(i64)) {
-            return obj.obj_new_bignum(-@as(i128, v));
-        }
-        return obj_new_int(-v);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    var overflowed = false;
-    for (args[1..]) |a| {
-        const r = @subWithOverflow(acc, obj_get_int(a));
-        if (r[1] != 0) {
-            overflowed = true;
-            break;
-        }
-        acc = r[0];
-    }
-    if (!overflowed) return obj_new_int(acc);
-    const ap0 = obj.obj_promote_to_bignum(args[0]);
-    defer if (ap0.owned) bignum.destroy(ap0.m);
-    if (ap0.m == null) return obj_new_int(0);
-    const seed = ap0.m.?.clone() catch return obj_new_int(0);
-    const seed_heap = bignum.allocator.create(bignum.BigInt) catch {
-        var s = seed;
-        s.deinit();
-        return obj_new_int(0);
-    };
-    seed_heap.* = seed;
-    var bacc = seed_heap;
-    for (args[1..]) |a| {
-        const ap = obj.obj_promote_to_bignum(a);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) {
-            bignum.destroy(bacc);
-            return obj_new_int(0);
-        }
-        const new_acc = bignum.alloc_sub(bacc, ap.m.?) orelse {
-            bignum.destroy(bacc);
-            return obj_new_int(0);
-        };
-        bignum.destroy(bacc);
-        bacc = new_acc;
-    }
-    return obj.obj_new_bignum_take(bacc);
+    if (args.len == 1) return tcl_arith.tcl_arith_neg(args[0]);
+    return fold_noseed(args, tcl_arith.tcl_arith_sub);
 }
 
 fn op_mul(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(1);
-    if (any_float(args)) {
-        var prod: f64 = 1;
-        for (args) |a| prod *= obj_get_float(a);
-        return obj_new_float(prod);
-    }
-    if (any_bignum(args)) {
-        const r = bignum_accumulate(args, .mul, 1) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    var prod: i64 = 1;
-    var overflowed = false;
-    for (args) |a| {
-        const r = @mulWithOverflow(prod, obj_get_int(a));
-        if (r[1] != 0) {
-            overflowed = true;
-            break;
-        }
-        prod = r[0];
-    }
-    if (!overflowed) return obj_new_int(prod);
-    const r = bignum_accumulate(args, .mul, 1) orelse return obj_new_int(0);
-    return obj.obj_new_bignum_take(r);
+    return fold_left(args, tcl_arith.tcl_arith_mul, 1);
 }
 
 fn op_div(args: []const i32) i32 {
@@ -329,414 +228,84 @@ fn op_div(args: []const i32) i32 {
         stubs.raise("wrong # args: should be \"/ arg ?arg ...?\"");
         return obj_new_int(0);
     }
-    // Unary ``/`` is ALWAYS the floating reciprocal regardless of the
-    // operand's source type.  ``mathop.n``: "With one argument, the
-    // result is the reciprocal of that value (i.e. 1.0/x)."  An int
-    // input still produces a float — ``[/ 5]`` is ``0.2``, not ``0``.
+    // Unary ``/`` is the floating reciprocal ``1.0 / x`` regardless of
+    // the operand type (``[/ 5]`` is ``0.2``).  Routing through
+    // ``tcl_arith_div(1.0, x)`` reuses the operand validation so a
+    // non-numeric ``x`` reports ``... as right operand of "/"``.
     if (args.len == 1) {
-        const v = obj_get_float(args[0]);
-        if (v == 0.0) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        return obj_new_float(1.0 / v);
+        const one = obj_new_float(1.0);
+        const r = tcl_arith.tcl_arith_div(one, args[0]);
+        obj.tcl_obj_release(one);
+        return r;
     }
-    if (any_float(args)) {
-        var acc: f64 = obj_get_float(args[0]);
-        for (args[1..]) |a| {
-            const v = obj_get_float(a);
-            if (v == 0.0) {
-                stubs.raise("divide by zero");
-                return obj_new_int(0);
-            }
-            acc /= v;
-        }
-        return obj_new_float(acc);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| {
-        const v = obj_get_int(a);
-        if (v == 0) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        // ``@divTrunc`` (toward zero) matches ``tcl_arith_div`` and
-        // the rest of the runtime.  Earlier ``@divFloor`` produced
-        // ``-3`` for ``[/ 5 -2]`` instead of the Tcl-correct ``-2``
-        // (Copilot review).
-        // Guard the one overflow case: minInt(i64) / -1 = 2^63 exceeds i64.
-        if (acc == std.math.minInt(i64) and v == -1) {
-            return obj.obj_new_bignum(@divTrunc(@as(i128, acc), @as(i128, v)));
-        }
-        acc = @divTrunc(acc, v);
-    }
-    return obj_new_int(acc);
+    return fold_noseed(args, tcl_arith.tcl_arith_div);
 }
 
 fn op_mod(args: []const i32) i32 {
     if (!require_arity(args, "%", 2, 2)) return obj_new_int(0);
-    if (any_bignum(args)) {
-        const ap = obj.obj_promote_to_bignum(args[0]);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        const bp = obj.obj_promote_to_bignum(args[1]);
-        defer if (bp.owned) bignum.destroy(bp.m);
-        if (ap.m == null or bp.m == null) return obj_new_int(0);
-        if (bp.m.?.eqlZero()) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        const r = bignum.alloc_mod_floor(ap.m.?, bp.m.?) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    const b = obj_get_int(args[1]);
-    if (b == 0) {
-        stubs.raise("divide by zero");
-        return obj_new_int(0);
-    }
-    // Tcl-correct mod: result has divisor's sign.  Same fixup
-    // ``tcl_arith_mod`` does — earlier ``@rem``-only path returned
-    // ``-1`` for ``[% -1 (1<<63)]`` rather than the upstream-correct
-    // ``9223372036854775807``.
-    var r = @rem(obj_get_int(args[0]), b);
-    if (r != 0 and ((r < 0) != (b < 0))) r += b;
-    return obj_new_int(r);
-}
-
-fn ipow(base: i64, exp_in: i64) i64 {
-    // ``ipow`` is only called for non-negative exponents — the
-    // ``op_pow`` caller routes negative exponents to the float
-    // pathway since integer ``a**-n`` is ``1/(a**n)`` which is
-    // fractional and can't be represented in i64.
-    var result: i64 = 1;
-    var b: i64 = base;
-    var e: i64 = exp_in;
-    while (e > 0) : (e >>= 1) {
-        if ((e & 1) != 0) result *%= b;
-        b *%= b;
-    }
-    return result;
-}
-
-fn any_negative_int(args: []const i32) bool {
-    for (args) |a| {
-        if (!is_float(a) and obj_get_int(a) < 0) return true;
-    }
-    return false;
+    return tcl_arith.tcl_arith_mod(args[0], args[1]);
 }
 
 fn op_pow(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(1);
     if (args.len == 1) {
-        if (is_float(args[0])) return obj_new_float(obj_get_float(args[0]));
-        return obj_new_int(obj_get_int(args[0]));
+        // ``** x`` is ``x`` (validated numeric); ``tcl_arith_pow(x, 1)``
+        // returns the operand retained after the numeric check.
+        const one = obj_new_int(1);
+        const r = tcl_arith.tcl_arith_pow(args[0], one);
+        obj.tcl_obj_release(one);
+        return r;
     }
-    // Negative exponents force the float pathway — integer ``a ** -n``
-    // is fractional (``1 / a**n``) and the documented Tcl semantics
-    // promote to a float.  ``ipow`` is integer-only, so check the
-    // exponents (every arg past the leftmost) before dispatching
-    // (Copilot review).
-    const has_neg_exp = blk: {
-        for (args[1..]) |a| {
-            if (!is_float(a) and obj_get_int(a) < 0) break :blk true;
-        }
-        break :blk false;
-    };
-    if (any_float(args) or has_neg_exp) {
-        // Right-associative: a ** b ** c = a ** (b ** c).
-        var acc: f64 = obj_get_float(args[args.len - 1]);
-        var i: usize = args.len - 1;
-        while (i > 0) {
-            i -= 1;
-            acc = std.math.pow(f64, obj_get_float(args[i]), acc);
-        }
-        return obj_new_float(acc);
-    }
-    // Bignum-aware right-associative chain: a ** b ** c =
-    // a ** (b ** c).  Each step promotes through tcl_arith_pow's
-    // helper so e.g. ``[** 2 64]`` produces the full bignum.
-    if (any_bignum(args)) {
-        const tcl_arith = @import("../valtypes/tcl_arith.zig");
-        var acc = args[args.len - 1];
-        var i: usize = args.len - 1;
-        while (i > 0) {
-            i -= 1;
-            acc = tcl_arith.tcl_arith_pow(args[i], acc);
-        }
-        return acc;
-    }
-    // i64 fast path with overflow promotion: if any step overflows,
-    // recompute the whole chain in bignum.
-    var acc: i64 = obj_get_int(args[args.len - 1]);
+    // ``**`` is right-associative: ``a ** b ** c`` = ``a ** (b ** c)``.
+    // Each step delegates to ``tcl_arith_pow`` (integer / float /
+    // bignum / negative-exponent / domain-error semantics).
+    var acc = args[args.len - 1];
+    obj.tcl_obj_retain(acc);
     var i: usize = args.len - 1;
-    var overflowed = false;
-    while (i > 0 and !overflowed) {
+    while (i > 0) {
         i -= 1;
-        const base = obj_get_int(args[i]);
-        // Use ipow with overflow detection: walk the loop with
-        // @mulWithOverflow rather than ``*%``.
-        var result: i64 = 1;
-        var b: i64 = base;
-        var e: i64 = acc;
-        while (e > 0) : (e >>= 1) {
-            if ((e & 1) != 0) {
-                const m = @mulWithOverflow(result, b);
-                if (m[1] != 0) {
-                    overflowed = true;
-                    break;
-                }
-                result = m[0];
-            }
-            if (e > 1) {
-                const m = @mulWithOverflow(b, b);
-                if (m[1] != 0) {
-                    overflowed = true;
-                    break;
-                }
-                b = m[0];
-            }
-        }
-        if (overflowed) break;
-        acc = result;
-    }
-    if (!overflowed) return obj_new_int(acc);
-    // Re-run as bignum.
-    const tcl_arith = @import("../valtypes/tcl_arith.zig");
-    var bacc = args[args.len - 1];
-    var bi: usize = args.len - 1;
-    while (bi > 0) {
-        bi -= 1;
-        bacc = tcl_arith.tcl_arith_pow(args[bi], bacc);
-    }
-    return bacc;
-}
-
-// -- bitwise / shift ---------------------------------------------------------
-
-const BitOp = enum { band, bor, bxor };
-
-fn bignum_bitwise_chain(args: []const i32, op: BitOp, init_value: i128) ?*bignum.BigInt {
-    var acc = bignum.alloc_from_int(init_value) orelse return null;
-    for (args) |a| {
-        const ap = obj.obj_promote_to_bignum(a);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) {
-            bignum.destroy(acc);
-            return null;
-        }
-        const new_acc = bignum.alloc_zero() orelse {
-            bignum.destroy(acc);
-            return null;
-        };
-        const res = switch (op) {
-            .band => new_acc.bitAnd(acc, ap.m.?),
-            .bor => new_acc.bitOr(acc, ap.m.?),
-            .bxor => new_acc.bitXor(acc, ap.m.?),
-        };
-        res catch {
-            bignum.destroy(new_acc);
-            bignum.destroy(acc);
-            return null;
-        };
-        bignum.destroy(acc);
-        acc = new_acc;
+        const next = tcl_arith.tcl_arith_pow(args[i], acc);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
     }
     return acc;
 }
 
+// -- bitwise / shift ---------------------------------------------------------
+//
+// All four delegate to the validated ``tcl_arith_*`` helpers, which
+// enforce the integer-operand domain (rejecting floats / non-numeric
+// strings with the canonical wording), carry bignum precision, and
+// handle the large- / negative-shift edge cases.
+
 fn op_band(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(-1);
-    if (any_bignum(args)) {
-        // Identity for AND is all-ones; using -1 as i128 gives -1
-        // (all-ones in two's complement) which the bignum AND
-        // happily masks to the operand's full magnitude.
-        const seed = args[0];
-        const ap0 = obj.obj_promote_to_bignum(seed);
-        defer if (ap0.owned) bignum.destroy(ap0.m);
-        if (ap0.m == null) return obj_new_int(0);
-        const initial = ap0.m.?.clone() catch return obj_new_int(0);
-        const init_heap = bignum.allocator.create(bignum.BigInt) catch {
-            var s = initial;
-            s.deinit();
-            return obj_new_int(0);
-        };
-        init_heap.* = initial;
-        var acc = init_heap;
-        for (args[1..]) |a| {
-            const ap = obj.obj_promote_to_bignum(a);
-            defer if (ap.owned) bignum.destroy(ap.m);
-            if (ap.m == null) {
-                bignum.destroy(acc);
-                return obj_new_int(0);
-            }
-            const new_acc = bignum.alloc_zero() orelse {
-                bignum.destroy(acc);
-                return obj_new_int(0);
-            };
-            new_acc.bitAnd(acc, ap.m.?) catch {
-                bignum.destroy(new_acc);
-                bignum.destroy(acc);
-                return obj_new_int(0);
-            };
-            bignum.destroy(acc);
-            acc = new_acc;
-        }
-        return obj.obj_new_bignum_take(acc);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc &= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_band, -1);
 }
 
 fn op_bor(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    if (any_bignum(args)) {
-        const r = bignum_bitwise_chain(args, .bor, 0) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc |= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_bor, 0);
 }
 
 fn op_bxor(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    if (any_bignum(args)) {
-        const r = bignum_bitwise_chain(args, .bxor, 0) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc ^= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_bxor, 0);
 }
 
 fn op_bnot(args: []const i32) i32 {
     if (!require_arity(args, "~", 1, 1)) return obj_new_int(0);
-    if (is_bignum(args[0])) {
-        // ``~x`` = ``-x - 1`` in two's complement.  Same identity as
-        // ``tcl_arith.zig::tcl_arith_bnot``.
-        const ap = obj.obj_promote_to_bignum(args[0]);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) return obj_new_int(0);
-        const neg = bignum.alloc_neg(ap.m.?) orelse return obj_new_int(0);
-        defer bignum.destroy(neg);
-        const one = bignum.alloc_from_int(1) orelse return obj_new_int(0);
-        defer bignum.destroy(one);
-        const r = bignum.alloc_sub(neg, one) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    return obj_new_int(~obj_get_int(args[0]));
+    return tcl_arith.tcl_arith_bnot(args[0]);
 }
 
 fn op_lshift(args: []const i32) i32 {
     if (!require_arity(args, "<<", 2, 2)) return obj_new_int(0);
-    // ``<<`` shift count > INT_MAX (or any bignum-shaped count) is
-    // rejected with ``integer value too large to represent`` — matches
-    // ``tclExecute.c`` INST_LSHIFT (line ~8138).  We can't materialise
-    // a 2^31-bit bignum in finite time, so the check has to come
-    // before ``bignum.alloc_shl``.
-    if (is_bignum(args[1])) {
-        if (lshift_count_is_negative_bignum(args[1])) {
-            stubs.raise("negative shift argument");
-        } else {
-            stubs.raise("integer value too large to represent");
-        }
-        return obj_new_int(0);
-    }
-    const b = obj_get_int(args[1]);
-    if (b < 0) {
-        stubs.raise("negative shift argument");
-        return obj_new_int(0);
-    }
-    if (b > std.math.maxInt(i32)) {
-        stubs.raise("integer value too large to represent");
-        return obj_new_int(0);
-    }
-    if (is_bignum(args[0]) or b >= 63) {
-        const ap = obj.obj_promote_to_bignum(args[0]);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) return obj_new_int(0);
-        if (ap.m.?.eqlZero()) return obj_new_int(0);
-        const count: u64 = @bitCast(b);
-        const r = bignum.alloc_shl(ap.m.?, count) orelse return obj_new_int(0);
-        return obj.obj_new_bignum_take(r);
-    }
-    const a = obj_get_int(args[0]);
-    const sh: u6 = @intCast(b);
-    const widened = @as(i128, a) << sh;
-    if (widened >= std.math.minInt(i64) and widened <= std.math.maxInt(i64)) {
-        return obj_new_int(@intCast(widened));
-    }
-    return obj.obj_new_bignum(widened);
+    return tcl_arith.tcl_arith_lshift(args[0], args[1]);
 }
 
 fn op_rshift(args: []const i32) i32 {
     if (!require_arity(args, ">>", 2, 2)) return obj_new_int(0);
-    // ``>>`` mirrors INST_RSHIFT (tclExecute.c ~8169): a shift count
-    // larger than INT_MAX (or a bignum count) collapses to 0 / -1
-    // depending on the sign of the operand — never feed an absurd
-    // count to ``Managed.shiftRight``.
-    if (is_bignum(args[1])) {
-        if (lshift_count_is_negative_bignum(args[1])) {
-            stubs.raise("negative shift argument");
-            return obj_new_int(0);
-        }
-        return rshift_force_sign(args[0]);
-    }
-    const b = obj_get_int(args[1]);
-    if (b < 0) {
-        stubs.raise("negative shift argument");
-        return obj_new_int(0);
-    }
-    if (b > std.math.maxInt(i32)) {
-        return rshift_force_sign(args[0]);
-    }
-    if (is_bignum(args[0])) {
-        const ap = obj.obj_promote_to_bignum(args[0]);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) return obj_new_int(0);
-        const r = bignum.alloc_zero() orelse return obj_new_int(0);
-        const count: u64 = @bitCast(b);
-        // On wasm32, usize == u32; guard @intCast for large shift amounts —
-        // no bignum can have > 2^32 bits, so the result is trivially 0/-1.
-        if (count > std.math.maxInt(usize)) {
-            bignum.destroy(r);
-            return obj_new_int(if (ap.m.?.isPositive()) 0 else -1);
-        }
-        r.shiftRight(ap.m.?, @intCast(count)) catch {
-            bignum.destroy(r);
-            return obj_new_int(0);
-        };
-        return obj.obj_new_bignum_take(r);
-    }
-    const a = obj_get_int(args[0]);
-    if (b >= 64) return obj_new_int(if (a < 0) -1 else 0);
-    const sh: u6 = @intCast(b);
-    return obj_new_int(a >> sh);
+    return tcl_arith.tcl_arith_rshift(args[0], args[1]);
 }
 
-/// Returns true if *o* parses as a bignum whose value is negative.
-/// Used by the shift operators to distinguish ``negative shift
-/// argument`` from ``integer value too large to represent`` when the
-/// shift count is too large for an i64.
-fn lshift_count_is_negative_bignum(o: i32) bool {
-    const ap = obj.obj_promote_to_bignum(o);
-    defer if (ap.owned) bignum.destroy(ap.m);
-    if (ap.m == null) return false;
-    return !ap.m.?.isPositive() and !ap.m.?.eqlZero();
-}
-
-/// Right-shift by an amount that's beyond what ``mp_div_2d`` can
-/// represent: result is 0 for non-negative operand, -1 for negative.
-fn rshift_force_sign(o: i32) i32 {
-    if (is_bignum(o)) {
-        const ap = obj.obj_promote_to_bignum(o);
-        defer if (ap.owned) bignum.destroy(ap.m);
-        if (ap.m == null) return obj_new_int(0);
-        return obj_new_int(if (ap.m.?.isPositive()) 0 else -1);
-    }
-    const v = obj_get_int(o);
-    return obj_new_int(if (v < 0) -1 else 0);
-}
 
 // -- numeric comparison (chain) ----------------------------------------------
 
@@ -947,13 +516,31 @@ fn op_ne_str(args: []const i32) i32 {
 
 // -- list membership (in / ni) ----------------------------------------------
 
+/// Validate that *o* is a well-formed list before ``in`` / ``ni``
+/// membership testing.  An unbalanced brace raises ``unmatched open
+/// brace in list`` (errorCode ``TCL VALUE LIST BRACE`` via
+/// ``detect_error_code``) rather than silently treating the malformed
+/// string as an empty / partial list (mathop-24.3).
+fn validate_membership_list(o: i32) bool {
+    const lp = @import("../valtypes/tcl_list_parse.zig");
+    const s = obj_ensure_str(o);
+    if (s.ptr == 0 or s.len == 0) return true;
+    if (!lp.validate_list_braces(s.ptr, s.len)) {
+        stubs.raise("unmatched open brace in list");
+        return false;
+    }
+    return true;
+}
+
 fn op_in(args: []const i32) i32 {
     if (!require_arity(args, "in", 2, 2)) return obj_new_int(0);
+    if (!validate_membership_list(args[1])) return obj_new_int(0);
     return list.tcl_cmd_list_contains(args[1], args[0]);
 }
 
 fn op_ni(args: []const i32) i32 {
     if (!require_arity(args, "ni", 2, 2)) return obj_new_int(0);
+    if (!validate_membership_list(args[1])) return obj_new_int(0);
     return obj_new_int(if (obj_get_int(list.tcl_cmd_list_contains(args[1], args[0])) == 0) 1 else 0);
 }
 
@@ -979,7 +566,10 @@ fn truthy(o: i32) bool {
 
 fn op_not(args: []const i32) i32 {
     if (!require_arity(args, "!", 1, 1)) return obj_new_int(0);
-    return obj_new_int(if (truthy(args[0])) 0 else 1);
+    // Delegate to the expr logical-NOT so a non-numeric / non-boolean
+    // operand raises ``cannot use non-numeric string "x" as operand of
+    // "!"`` (mathop-21.5) instead of silently coercing to false.
+    return tcl_expr_eval.tcl_expr_lnot(args[0]);
 }
 
 fn op_and(args: []const i32) i32 {

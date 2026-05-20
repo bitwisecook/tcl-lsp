@@ -1897,6 +1897,21 @@ pub fn eval_uplevel(words: []const i32) i32 {
     return result;
 }
 
+/// Codegen helper for ``uplevel`` with a runtime-resolved level word.
+///
+/// The WASM codegen resolves the level word and body in the *compiled*
+/// frame (so ``$num`` reads the proc's local), then hands the two
+/// pre-substituted TclObjs here.  We reuse :func:`eval_uplevel`'s
+/// level parsing by presenting them as a synthetic ``uplevel LEVEL
+/// BODY`` word array — ``eval_uplevel`` decides whether ``level_obj``
+/// is a level (``#N`` / integer) or part of the body, matching the
+/// interpreter dispatch path exactly.  ``words[0]`` is never read by
+/// ``eval_uplevel`` so a 0 placeholder is safe.
+pub export fn tcl_uplevel_eval(level_obj: i32, body_obj: i32) i32 {
+    var words = [_]i32{ 0, level_obj, body_obj };
+    return eval_uplevel(&words);
+}
+
 // -- Control flow --
 
 pub fn eval_if(words: []const i32) i32 {

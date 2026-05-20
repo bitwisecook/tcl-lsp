@@ -2960,6 +2960,16 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                 if (kind == KIND_GLOBAL_NAMED) {
                     // Same-name global alias — let array ops use the
                     // global directory under the bare target name.
+                    // Every caller releases the result when it differs
+                    // from the input (it owns the other branches' fresh
+                    // allocations), so retain the borrowed descriptor
+                    // handle to balance that release — otherwise a
+                    // sequence of array writes through a ``variable``/
+                    // ``global`` alias (e.g. tcltest's ``testIEEE``
+                    // populating ``ieeeValues(...)``) over-releases the
+                    // target name, freeing it mid-run so later writes
+                    // land nowhere.
+                    obj.tcl_obj_retain(tgt);
                     return tgt;
                 }
                 if (kind == KIND_FRAME_VAR) {
