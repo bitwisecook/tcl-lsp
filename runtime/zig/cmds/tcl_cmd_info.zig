@@ -71,6 +71,7 @@ fn raise_not_a_procedure(name_ptr: u32, name_len: u32) void {
     const suffix = "\" isn't a procedure";
     const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     d[0] = '"';
     if (name_len > 0) {
@@ -78,7 +79,7 @@ fn raise_not_a_procedure(name_ptr: u32, name_len: u32) void {
         for (0..name_len) |k| d[prefix.len + k] = sp[k];
     }
     for (suffix, 0..) |b, k| d[prefix.len + name_len + k] = b;
-    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = obj.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -651,6 +652,7 @@ fn raise_bad_level(arg_s: anytype) i32 {
     const suffix = "\"";
     const total: u32 = @as(u32, @intCast(prefix.len)) + arg_s.len + @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     const d: [*]u8 = @ptrFromInt(buf);
     for (prefix, 0..) |b, k| d[k] = b;
     if (arg_s.len > 0) {
@@ -658,7 +660,7 @@ fn raise_bad_level(arg_s: anytype) i32 {
         for (0..arg_s.len) |k| d[prefix.len + k] = sp[k];
     }
     for (suffix, 0..) |b, k| d[prefix.len + arg_s.len + k] = b;
-    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = obj.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
     return obj_new_string(0, 0);
 }
@@ -1254,6 +1256,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
 
     // Pass 2: fill.
     ctx.buf = alloc(ctx.total);
+    if (ctx.buf == 0) return obj_new_string(0, 0);
     ctx.off = 0;
     ctx.count = 0;
     if (qualified_target != 0) {
@@ -1261,7 +1264,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
     } else {
         walk_unqualified_path(&ctx);
     }
-    return obj_new_string(@bitCast(ctx.buf), @bitCast(ctx.off));
+    return obj.obj_new_string_take(ctx.buf, ctx.off, ctx.total);
 }
 
 /// info commands ?pattern? — public entry.  ``pattern == 0`` means
@@ -1290,6 +1293,7 @@ fn raise_missing_argument(proc_ptr: u32, proc_len: u32, arg_ptr: u32, arg_len: u
         @as(u32, @intCast(middle.len)) + arg_len +
         @as(u32, @intCast(suffix.len));
     const buf = alloc(total);
+    if (buf == 0) return;
     const d: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     for (prefix, 0..) |b, k| d[k] = b;
@@ -1307,7 +1311,7 @@ fn raise_missing_argument(proc_ptr: u32, proc_len: u32, arg_ptr: u32, arg_len: u
     }
     off += arg_len;
     for (suffix, 0..) |b, k| d[off + k] = b;
-    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    const msg = obj.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -1846,6 +1850,7 @@ pub fn info_vars(pattern: i32) i32 {
         const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
         const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
         const merge_buf = alloc(merge_total);
+        if (merge_buf == 0) return obj_new_string(0, 0);
         var off: u32 = 0;
         if (arr_s.len > 0) {
             memcpy(merge_buf, arr_s.ptr, arr_s.len);
@@ -1879,7 +1884,7 @@ pub fn info_vars(pattern: i32) i32 {
                 written += 1;
             }
         }
-        return obj_new_string(@bitCast(merge_buf), @bitCast(off));
+        return obj.obj_new_string_take(merge_buf, off, merge_total);
     }
 
     // Unqualified pattern or no pattern.  Inside a proc frame, scan

@@ -833,6 +833,14 @@ pub export fn obj_get_float(obj: i32) f64 {
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
         if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        // Integer literal beyond i128 (e.g. ``8.4e40``-magnitude
+        // operands in ``** $big -1.0``) — convert through the full
+        // bignum so the float exponent path sees the true magnitude
+        // instead of collapsing to 0.0.
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     // S6.2 — inline string parses the inline payload through the
     // obj-internal pointer in OBJ_STR_PTR.
@@ -842,6 +850,10 @@ pub export fn obj_get_float(obj: i32) f64 {
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
         if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     return 0.0;
 }
@@ -1395,6 +1407,11 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     // ``release_now`` doesn't try to free a non-existent buffer.
     if (len <= MAX_INLINE_STR) {
         const obj = obj_alloc();
+        // OOM on the inline path: the non-inline branch (below)
+        // checks ``buf == 0`` but this branch used to write straight
+        // through ``@ptrFromInt(0)`` (offsets 4 / 8 / 12 / 16 / 20
+        // of low memory).  Debug panics, release silently corrupts.
+        if (obj == 0) return 0;
         write_i32(obj + OBJ_TYPE_TAG, TYPE_INLINE_STRING);
         memcpy(obj + OBJ_INT_CACHE, src, len);
         // Point str_ptr at the inline buffer so callers reading

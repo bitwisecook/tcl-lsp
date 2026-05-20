@@ -222,11 +222,12 @@ pub fn install(
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(local_interp, sn.ptr, sn.len, hash)) |bucket| {
         // Update existing entry — release old target name, retain
-        // the new one.
+        // the new one.  Gate the retain on inequality so a
+        // same-handle re-stamp doesn't leak +1.
         const th: u32 = @bitCast(read_i32(bucket + OFF_TARGET_HANDLE));
         const old_name = read_i32(th + T_OFF_NAME);
         write_i32(th + T_OFF_INTERP, @bitCast(target_interp));
-        if (target_name != 0) tcl_obj_retain(target_name);
+        if (target_name != 0 and target_name != old_name) tcl_obj_retain(target_name);
         write_i32(th + T_OFF_NAME, target_name);
         if (old_name != 0 and old_name != target_name) tcl_obj_release(old_name);
         return true;

@@ -242,7 +242,18 @@ pub export fn catch_enter() void {
     state.catch_depth += 1;
     state.error_flag = 0;
     state.error_msg = 0;
-    state.catch_ok_result = 0;
+    // Release the previous catch's body-result handle before
+    // zeroing the slot.  ``catch_set_ok_result`` transfers a +1
+    // share into ``state.catch_ok_result`` without retaining;
+    // without this release, every successful catch leaked one
+    // TclObj header per invocation (test suites that exercise
+    // catch heavily — e.g. tcltest's per-test ``::tcltest::test``
+    // body — accumulated thousands of orphaned handles).
+    if (state.catch_ok_result != 0) {
+        const old_ok = state.catch_ok_result;
+        state.catch_ok_result = 0;
+        obj.tcl_obj_release(old_ok);
+    }
     // Release any captured payload from a previous catch so a
     // drain between catches doesn't see a stale +1 hold.
     if (state.last_catch_value != 0) {
@@ -296,7 +307,11 @@ pub export fn tcl_return_set(value: i32) void {
     state.pending_return_level = 1;
     state.pending_return_armed = 1;
     const old = state.return_val;
-    if (value != 0) obj.tcl_obj_retain(value);
+    // Same-handle re-stamp must be a no-op on rc.  Earlier code
+    // retained unconditionally and only skipped the matching
+    // release when ``old == value``, so every duplicate stamp
+    // leaked +1.  Gate both sides on the inequality.
+    if (value != 0 and value != old) obj.tcl_obj_retain(value);
     state.return_val = value;
     if (old != 0 and old != value) obj.tcl_obj_release(old);
 }
@@ -766,6 +781,12 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
         code;
     _ = globals.global_set(code_name, code_val);
     obj.tcl_obj_release(code_name);
+    // Only release on the default branch — that "NONE" obj was
+    // minted here.  Caller-supplied ``code`` keeps its +1 ownership
+    // discipline (the explicit ``error msg info code`` form passes
+    // a borrowed ``words[3]``; the typed-error path's
+    // ``detect_error_code`` ownership is handled at the call site
+    // below).
     if (default_code) obj.tcl_obj_release(code_val);
 }
 
@@ -817,7 +838,47 @@ fn detect_error_code(msg: i32) i32 {
             "ARITH IOVERFLOW {integer value too large to represent}";
         return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
     }
+    // ``::tcl::mathop`` / expr operand-domain errors carry an
+    // ``ARITH DOMAIN {<detail>}`` code where the detail echoes the
+    // operand classification embedded in the message (mathop-21.5 /
+    // 22.4 / 24.3 grep for the exact code).  ``cannot use
+    // non-numeric floating-point value`` must be tested before
+    // ``cannot use floating-point value`` — it is the longer,
+    // more-specific prefix.
+    if (starts_with(sp, s.len, "cannot use non-numeric floating-point value")) {
+        const code_text: []const u8 = "ARITH DOMAIN {non-numeric floating-point value}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (starts_with(sp, s.len, "cannot use non-numeric string")) {
+        const code_text: []const u8 = "ARITH DOMAIN {non-numeric string}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (starts_with(sp, s.len, "cannot use floating-point value")) {
+        const code_text: []const u8 = "ARITH DOMAIN {floating-point value}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "exponentiation of zero by negative power")) {
+        const code_text: []const u8 =
+            "ARITH DOMAIN {exponentiation of zero by negative power}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "unmatched open brace in list")) {
+        const code_text: []const u8 = "TCL VALUE LIST BRACE";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
     return 0;
+}
+
+// When set, the next :func:`tcl_cmd_error` stamps ``::errorCode`` as
+// the default ``NONE`` and skips :func:`detect_error_code`.  Used by
+// the shift operators, whose ``integer value too large to represent``
+// surface carries NO ``ARITH`` code (mathop-24.5) — unlike the
+// string-to-integer conversion path (get.test) which DOES want
+// ``ARITH IOVERFLOW`` for the identical message.
+var force_error_code_none: bool = false;
+
+pub fn force_next_error_code_none() void {
+    force_error_code_none = true;
 }
 
 fn starts_with(sp: [*]const u8, slen: u32, prefix: []const u8) bool {
@@ -861,7 +922,17 @@ pub export fn tcl_cmd_error(msg: i32) void {
         const frames_mod = @import("tcl_frames.zig");
         state.error_frame_line = frames_mod.frame_get_line(0);
     }
-    stamp_error_globals(msg, 0, detect_error_code(msg));
+    // ``detect_error_code`` returns a fresh +1 owned obj when the
+    // msg matches a typed pattern (``wrong # args:``, divide-by-zero,
+    // overflow, …).  ``stamp_error_globals`` retains it via
+    // ``global_set`` so it's safe to release here once the stamp
+    // completes; without this every typed error leaked one TclObj.
+    const code = if (force_error_code_none) blk: {
+        force_error_code_none = false;
+        break :blk @as(i32, 0);
+    } else detect_error_code(msg);
+    stamp_error_globals(msg, 0, code);
+    if (code != 0) obj.tcl_obj_release(code);
     if (state.catch_depth > 0) {
         state.error_flag = 1;
         state.error_msg = msg;

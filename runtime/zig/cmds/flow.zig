@@ -516,7 +516,13 @@ fn eval_catch(words: []const i32) result_mod.InterpResult {
         // Mirrors the wasm-codegen path in
         // ``_emitter/_control_flow.py::_emit_catch``.
         if (words.len >= 4) {
-            _ = frames.var_set(words[3], catch_mod.catch_options());
+            // ``catch_options`` returns +1 owned; ``var_set`` retains
+            // for the slot.  Release the local +1 share after the
+            // store or every 4-arg catch leaks one dict per call.
+            const opt_obj = catch_mod.catch_options();
+            _ = frames.var_set(words[3], opt_obj);
+            const obj_mod_catch = @import("../valtypes/tcl_obj.zig");
+            obj_mod_catch.tcl_obj_release(opt_obj);
         }
         return result_mod.from_globals(code);
     }
@@ -782,13 +788,29 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
                         if (v0.len > 0) {
                             const vn = rt.obj_new_string_copy(vl_s.ptr + v0.start, v0.len);
                             _ = frames.var_set(vn, catch_val);
+                            // Release the freshly-allocated var-name
+                            // TclObj — ``var_set`` reads its bytes
+                            // without taking ownership, so the +1 share
+                            // returned by ``obj_new_string_copy`` would
+                            // otherwise leak per matched handler.
+                            const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+                            obj_mod_try.tcl_obj_release(vn);
                         }
                     }
                     if (vl_n >= 2) {
                         const v1 = rt.list_element_at(vl_s.ptr, vl_s.len, 1);
                         if (v1.len > 0) {
                             const vn = rt.obj_new_string_copy(vl_s.ptr + v1.start, v1.len);
-                            _ = frames.var_set(vn, catch_mod.catch_options());
+                            // ``catch_options`` returns +1 owned; ``var_set``
+                            // retains for the slot.  Release the local +1
+                            // and the freshly minted var-name obj or each
+                            // matched handler with an options-var arg leaks
+                            // one dict + one name TclObj per execution.
+                            const opt_obj = catch_mod.catch_options();
+                            _ = frames.var_set(vn, opt_obj);
+                            const obj_mod_try = @import("../valtypes/tcl_obj.zig");
+                            obj_mod_try.tcl_obj_release(opt_obj);
+                            obj_mod_try.tcl_obj_release(vn);
                         }
                     }
                 }
@@ -968,33 +990,50 @@ fn eval_time(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const interp = @import("../interp/tcl_interp.zig");
     const clock = @import("../io/tcl_clock.zig");
+    const obj_mod_time = @import("../valtypes/tcl_obj.zig");
 
     const count: i64 = if (words.len >= 3) rt.obj_get_int(words[2]) else 1;
     const body_s = obj_ensure_string(words[1]);
 
     const start_us = rt.obj_get_int(clock.clock_clicks());
     var i: i64 = 0;
-    var last: i32 = obj_new_string(0, 0);
+    var last: i32 = 0;
     while (i < count) : (i += 1) {
+        // Each iteration's eval_script returns +1 owned.  Release
+        // the previous iteration's result before overwriting so a
+        // ``time { ... } 1000`` body doesn't leak 999 result objs.
+        if (last != 0) obj_mod_time.tcl_obj_release(last);
         last = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(last);
         if (ir.code == .ERROR or ir.code == .RETURN) return result_mod.from_globals(last);
     }
+    // Loop completed normally — release the final body result
+    // (we don't propagate it; the summary string is built fresh).
+    if (last != 0) obj_mod_time.tcl_obj_release(last);
     const end_us = rt.obj_get_int(clock.clock_clicks());
     const per_iter = if (count > 0) @divTrunc(end_us - start_us, count) else 0;
 
-    // Build "<N> microseconds per iteration"
-    const pi_s = rt.obj_ensure_string(rt.obj_new_int(per_iter));
+    // Build "<N> microseconds per iteration".  ``obj_new_int`` mints
+    // a fresh +1 owned that we use only for its byte form; release
+    // immediately after the memcpy so the int obj doesn't outlive
+    // the function.
+    const pi_obj = rt.obj_new_int(per_iter);
+    const pi_s = rt.obj_ensure_string(pi_obj);
     const suffix = " microseconds per iteration";
     const total: u32 = @intCast(pi_s.len + suffix.len);
     const buf = rt.alloc(total);
+    if (buf == 0) {
+        obj_mod_time.tcl_obj_release(pi_obj);
+        return result_mod.from_globals(rt.obj_new_string(0, 0));
+    }
     rt.memcpy(buf, pi_s.ptr, pi_s.len);
     var k: u32 = 0;
     while (k < suffix.len) : (k += 1) {
         const d: [*]u8 = @ptrFromInt(buf + pi_s.len + k);
         d[0] = suffix[k];
     }
-    return result_mod.from_globals(rt.obj_new_string(@bitCast(buf), @bitCast(total)));
+    obj_mod_time.tcl_obj_release(pi_obj);
+    return result_mod.from_globals(rt.obj_new_string_take(buf, total, total));
 }
 
 pub const registrations = [_]reg.CmdEntry{

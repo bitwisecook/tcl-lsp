@@ -74,9 +74,10 @@ pub export fn tcl_cmd_package_cmd(sub: i32, arg: i32) i32 {
         }
         if (match) {
             const buf = obj.alloc(1);
+            if (buf == 0) return obj.obj_new_string(0, 0);
             const d: [*]u8 = @ptrFromInt(buf);
             d[0] = '1';
-            return obj.obj_new_string(@bitCast(buf), 1);
+            return obj.obj_new_string_take(buf, 1, 1);
         }
     }
     return obj.obj_new_string(0, 0);
@@ -94,6 +95,7 @@ pub export fn tcl_cmd_interp_cmd(sub: i32, arg: i32) i32 {
 
 pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
     const rt = @import("../tcl_runtime.zig");
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
     const interp = @import("../interp/tcl_interp.zig");
 
     // Unpack the args list into individual TclObj handles.
@@ -104,8 +106,14 @@ pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
         0;
 
     // Build words slice: words[0]=dummy, words[1]=lambda, words[2..]=args.
+    // Track every fresh TclObj we allocate so the function exit can
+    // release them — without this each ``apply`` call leaked one
+    // placeholder + N per-arg TclObjs plus the ``words_buf`` slab.
     const n_words: u32 = 2 + n_args;
-    const words_buf: u32 = rt.alloc(n_words * 4);
+    const words_buf_size: u32 = n_words * 4;
+    const words_buf: u32 = rt.alloc(words_buf_size);
+    if (words_buf == 0) return 0;
+    defer obj_mod.free_sized(words_buf, words_buf_size);
     const words_ptr: [*]i32 = @ptrFromInt(words_buf);
     words_ptr[0] = rt.obj_new_string(0, 0); // placeholder for "apply" name
     words_ptr[1] = lambda;
@@ -115,11 +123,23 @@ pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
         const elem_obj = if (elem.braced)
             rt.obj_new_string_copy(args_s.ptr + elem.start, elem.len)
         else blk: {
-            const buf = rt.alloc(elem.len + 4);
+            const buf_size: u32 = elem.len + 4;
+            const buf = rt.alloc(buf_size);
+            if (buf == 0) break :blk rt.obj_new_string(0, 0);
             const out_len = rt.copy_unbraced_elem(buf, args_s.ptr + elem.start, elem.len);
-            break :blk rt.obj_new_string(@bitCast(buf), @bitCast(out_len));
+            break :blk rt.obj_new_string_take(buf, out_len, buf_size);
         };
         words_ptr[2 + ai] = elem_obj;
     }
-    return interp.eval_apply(words_ptr[0..n_words]);
+    const result = interp.eval_apply(words_ptr[0..n_words]);
+    // Release the placeholder (slot 0) and every per-arg elem_obj
+    // we allocated (slots 2..).  ``eval_apply`` reads but does not
+    // consume the words, so the +1s are still on us.  Slot 1
+    // (``lambda``) is the caller's BORROWED handle — do not release.
+    obj_mod.tcl_obj_release(words_ptr[0]);
+    ai = 0;
+    while (ai < n_args) : (ai += 1) {
+        obj_mod.tcl_obj_release(words_ptr[2 + ai]);
+    }
+    return result;
 }

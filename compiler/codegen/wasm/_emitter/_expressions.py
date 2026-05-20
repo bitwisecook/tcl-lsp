@@ -35,6 +35,7 @@ from .._ir import (
     ValType,
     WasmOp,
 )
+from .._ownership import Ownership
 from ._ops import _BINOP_WASM
 
 
@@ -370,16 +371,24 @@ class _WasmEmitterExprMixin(_Base):
         r_local = self._add_extra_local("_cmp_rhs", ValType.I32)
         res_local = self._add_extra_local("_cmp_res", ValType.I32)
         val_local = self._add_extra_local("_cmp_val", ValType.I64)
-        # Emit left and stash.
-        self._emit_str_value(left)
+        # Emit left and stash.  Use the ownership tag returned by
+        # ``_emit_str_value`` rather than the static
+        # ``_expr_node_is_borrowed`` check: an ``ExprRaw`` wrapping a
+        # bare ``$var`` (the shape CFG switch lowering produces for the
+        # subject) reads through ``_emit_value`` to a borrowed handle,
+        # but ``_expr_node_is_borrowed`` only recognises ``ExprVar``,
+        # so the trailing release below would silently drop the
+        # subject's slot ref — N times per call where N = arms before
+        # the match.  See the cmd-binary pending double-free fix.
+        l_ownership = self._emit_str_value(left)
         self._emit_local_tee(l_local)
-        if self._expr_node_is_borrowed(left):
+        if l_ownership.is_borrowed:
             self._emit_call(retain_idx)
             self._emit_local_get(l_local)
         # Emit right and stash.
-        self._emit_str_value(right)
+        r_ownership = self._emit_str_value(right)
         self._emit_local_tee(r_local)
-        if self._expr_node_is_borrowed(right):
+        if r_ownership.is_borrowed:
             self._emit_call(retain_idx)
             self._emit_local_get(r_local)
         # Call cmp — TclObj result on stack.
@@ -1329,12 +1338,23 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit(WasmOp.I64_GE_S)
         self._emit(WasmOp.I64_EXTEND_I32_S)
 
-    def _emit_str_value(self, node: ExprNode) -> None:
+    def _emit_str_value(self, node: ExprNode) -> Ownership:
         """Emit an expression as an i32 TclObj pointer (for string ops).
 
         For ExprVar and ExprRaw, emits as a variable read.
         For ExprLiteral, creates a boxed string/int.
         For other nodes, evaluates as i64 and boxes.
+
+        Returns the :class:`Ownership` tag of the value left on the
+        stack so callers can manage the retain/release contract.  A
+        :data:`Ownership.BORROWED` value (typically a variable read)
+        shares its +1 with the source slot; callers that release the
+        value after consuming it must retain first or the source
+        slot's refcount goes negative.  This matters for any caller
+        that stashes the value in a local and releases it later
+        (e.g. :meth:`_emit_expr_obj_cmp_binary`).  Tagged immediates
+        are :data:`Ownership.BORROWED` too — release on an immediate
+        is a no-op so the retain/release pair is harmless.
         """
         from ....expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
 
@@ -1348,18 +1368,17 @@ class _WasmEmitterExprMixin(_Base):
                     if bare.startswith("{") and bare.endswith("}"):
                         bare = bare[1:-1]
                     self._emit_var_read_obj(bare)
-                    return
+                    return Ownership.BORROWED
                 var = self._resolve_var_name(text)
                 if var is not None:
                     self._emit_var_read_obj(var)
-                    return
+                    return Ownership.BORROWED
             case ExprCommand(text=text):
                 # Command substitution ``[cmd ...]`` — evaluate via
                 # _emit_value to get a TclObj string pointer directly.
                 # Going through the i64 fallback path loses the string
                 # representation (empty string → int 0 → "0").
-                self._emit_value(text)
-                return
+                return self._emit_value(text)
             case ExprRaw(text=text):
                 # ``ExprRaw`` carries the literal source text of a
                 # subject / operand that the expression parser
@@ -1400,12 +1419,11 @@ class _WasmEmitterExprMixin(_Base):
                         self._emit_i32_const(offset + 4)
                         self._emit_i32_const(len(encoded))
                         self._emit_call(eval_idx)
-                        return
-                self._emit_value(text)
-                return
+                        return Ownership.OWNED
+                return self._emit_value(text)
             case ExprLiteral(text=text):
                 self._emit_obj_literal(text)
-                return
+                return Ownership.OWNED
             case ExprString(text=text):
                 # Quoted string literal — strip outer quotes/braces and
                 # apply backslash substitution for double-quoted strings.
@@ -1418,7 +1436,7 @@ class _WasmEmitterExprMixin(_Base):
                     elif inner[0] == "{" and inner[-1] == "}":
                         inner = inner[1:-1]
                 self._emit_obj_literal(inner)
-                return
+                return Ownership.OWNED
         # Fallback: evaluate as TclObj (preserves TYPE_BIGNUM /
         # TYPE_FLOAT through nested arithmetic).  The previous path
         # routed through ``_emit_expr`` + ``_emit_box_int``, which
@@ -1428,6 +1446,7 @@ class _WasmEmitterExprMixin(_Base):
         # ``_emit_expr_obj`` keeps the TclObj intact so the receiving
         # ``tcl_expr_order_cmp`` (or string op) sees the bignum tag.
         self._emit_expr_obj(node)
+        return Ownership.OWNED
 
     def _emit_power(self, base: ExprNode, exp: ExprNode) -> None:
         """Emit integer exponentiation as a loop."""

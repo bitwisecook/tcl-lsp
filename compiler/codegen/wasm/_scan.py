@@ -608,6 +608,7 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
                 elif cmd == "set" and len(parts) >= 2:
                     # ``[set arr(key)]`` reads through ``tcl_array_get``
                     # via ``_emit_command_subst_value`` →
@@ -1157,6 +1158,7 @@ def _scan_needed_imports(
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
                     # Multi-word bodies concat with spaces; also each body
                     # part is run through _emit_value which may need
                     # tcl_append for interpolated strings.
@@ -1273,6 +1275,7 @@ def _scan_needed_imports(
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
                     # The body may contain ``$var``/``[cmd]`` references
                     # that have to be resolved BEFORE eval — scan for
                     # interpolation helpers.

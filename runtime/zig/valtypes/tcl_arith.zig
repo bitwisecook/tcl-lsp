@@ -164,12 +164,12 @@ pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
 pub export fn tcl_arith_div(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, "/")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b)) {
-        const bf = obj.obj_get_float(b);
-        if (bf == 0.0) {
-            stubs.raise("divide by zero");
-            return obj.obj_new_int(0);
-        }
-        return obj.obj_new_float(obj.obj_get_float(a) / bf);
+        // IEEE-754 floating-point division: ``x / 0.0`` yields
+        // ±Inf (or NaN for ``0.0 / 0.0``) rather than raising —
+        // matches Tcl 9 on an IEEE platform (compExpr-old-11.13a:
+        // ``expr {2.3/0.0}`` is ``Inf``).  Only *integer* division
+        // by zero is an error.
+        return obj.obj_new_float(obj.obj_get_float(a) / obj.obj_get_float(b));
     }
     if (is_bignum(a) or is_bignum(b)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
@@ -338,6 +338,11 @@ pub export fn tcl_math_double(a: i32) i32 {
             const total: u32 = @as(u32, @intCast(prefix.len)) + sa.len +
                 @as(u32, @intCast(suffix.len));
             const buf = obj.alloc(total);
+            // OOM: alloc raised ``oom_flag``.  Surface a 0.0 float
+            // without raising the descriptive diagnostic — the OOM
+            // itself is already on the interp's error path and the
+            // pending error wins.  Avoids ``@ptrFromInt(0)``.
+            if (buf == 0) return obj.obj_new_float(0.0);
             const d: [*]u8 = @ptrFromInt(buf);
             var off: u32 = 0;
             for (prefix) |b| {
@@ -453,6 +458,32 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
             return obj.obj_new_int(0);
         }
         return obj.obj_new_float(std.math.pow(f64, af, bf));
+    }
+    // Bignum exponent — ``obj_get_int(b)`` truncates a bignum to its
+    // low 64 bits, so the negative / parity / overflow corner cases
+    // have to be decided from the full-magnitude value first.  A base
+    // of magnitude >= 2 with an exponent that doesn't fit i64 can
+    // never be materialised, so it is "exponent too large"; the
+    // degenerate bases 0 / 1 / -1 collapse regardless of how big the
+    // exponent is.
+    if (is_bignum(b)) {
+        const b_neg = bignum_is_negative(b);
+        if (!is_bignum(a)) {
+            const ai = obj.obj_get_int(a);
+            if (ai == 0) {
+                if (b_neg) {
+                    stubs.raise("exponentiation of zero by negative power");
+                    return obj.obj_new_int(0);
+                }
+                return obj.obj_new_int(0);
+            }
+            if (ai == 1) return obj.obj_new_int(1);
+            if (ai == -1) return obj.obj_new_int(if (bignum_is_odd(b)) -1 else 1);
+        }
+        // |base| >= 2 (bignum base, or i64 base outside {-1,0,1}).
+        if (b_neg) return obj.obj_new_int(0);
+        stubs.raise("exponent too large");
+        return obj.obj_new_int(0);
     }
     // Integer base / integer exponent.  We need the exponent as an
     // i64 to detect the negative-exponent corner cases; even a
@@ -734,9 +765,101 @@ pub export fn tcl_math_fmod(x: i32, y: i32) i32 {
     return obj.obj_new_float(@rem(obj.obj_get_float(x), obj.obj_get_float(y)));
 }
 
+/// ``pow(x, y)`` math function — ALWAYS returns a double, unlike the
+/// ``**`` operator (which keeps integer / bignum precision).  C Tcl's
+/// ``pow`` is the libm ``pow`` and yields a double even for integer
+/// args (``pow(2, 3)`` is ``8.0``), so routing it through the integer
+/// ``tcl_arith_pow`` was wrong: ``pow(3, 1000001)`` built a ~477,000-
+/// digit bignum that hung formatting (the expr-old timeout).  As a
+/// double it overflows to ``Inf`` (expr-old-34.11b).
+pub export fn tcl_math_pow(x: i32, y: i32) i32 {
+    // Validate both operands are numeric before coercing — ``obj_get_float``
+    // returns 0.0 for a non-numeric string, so without this ``pow("abc", 2)``
+    // would silently compute with zero instead of raising.  ``check_float_arg``
+    // raises ``expected floating-point number but got <X>`` and returns false.
+    // Return an immediate 0 (not a heap float) on the validation
+    // error path: ``check_float_arg`` already raised, and the
+    // mathfunc command wrapper discards this value on ERROR — a
+    // heap ``obj_new_float`` would leak, an immediate cannot.
+    if (!check_float_arg(x)) return obj.obj_new_int(0);
+    if (!check_float_arg(y)) return obj.obj_new_int(0);
+    const xf = obj.obj_get_float(x);
+    const yf = obj.obj_get_float(y);
+    // ``pow(0, -n)`` is a pole — Tcl raises rather than returning Inf.
+    if (xf == 0.0 and yf < 0.0) {
+        stubs.raise("exponentiation of zero by negative power");
+        return obj.obj_new_int(0);
+    }
+    const r = std.math.pow(f64, xf, yf);
+    // Negative base raised to a non-integer power is a NaN from libm;
+    // Tcl reports it as a domain error rather than surfacing NaN.
+    if (std.math.isNan(r) and !std.math.isNan(xf) and !std.math.isNan(yf)) {
+        stubs.raise("domain error: argument not in valid range");
+        return obj.obj_new_int(0);
+    }
+    return obj.obj_new_float(r);
+}
+
+/// Validate a math-function argument is number-shaped.  On a
+/// non-numeric operand it raises ``expected floating-point number but
+/// got <X>`` and returns false; the caller then short-circuits.  ``X``
+/// is ``a list`` for a list-shaped operand (``"a b"``) and ``"<str>"``
+/// otherwise — matching reference Tcl's ``TclParseNumber`` wording
+/// (expr-old-34.3).
+fn check_float_arg(o: i32) bool {
+    if (obj_is_numeric(o)) return true;
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return false;
+    const s = obj.obj_ensure_string(o);
+    const list_shape = obj_is_list_shape(o);
+    const prefix: []const u8 = "expected floating-point number but got ";
+    const body: []const u8 = if (list_shape) "a list" else "";
+    const q: []const u8 = if (list_shape) "" else "\"";
+    const slen: u32 = if (list_shape) 0 else s.len;
+    const total: u32 = @intCast(prefix.len + q.len + body.len + slen + q.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        stubs.raise("expected floating-point number");
+        return false;
+    }
+    const d: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    for (q) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    for (body) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    if (!list_shape and s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |k| {
+            d[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (q) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+    return false;
+}
+
 /// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate
 /// overflow.
 pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
+    // Return an immediate 0 (not a heap float) on the validation
+    // error path: ``check_float_arg`` already raised, and the
+    // mathfunc command wrapper discards this value on ERROR — a
+    // heap ``obj_new_float`` would leak, an immediate cannot.
+    if (!check_float_arg(x)) return obj.obj_new_int(0);
+    if (!check_float_arg(y)) return obj.obj_new_int(0);
     return obj.obj_new_float(std.math.hypot(obj.obj_get_float(x), obj.obj_get_float(y)));
 }
 
@@ -746,15 +869,30 @@ pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
 // match Tcl's Park-Miller seed→sequence mapping (expr-old-32.50 /
 // 32.53 are categorised as ``just_to_match_ctcl``), but the
 // distribution and value range are correct.
-var g_prng: std.Random.DefaultPrng = std.Random.DefaultPrng.init(1);
-var g_prng_seeded: bool = false;
+// Tcl's ``rand()`` / ``srand()`` use the Park-Miller "minimal
+// standard" linear congruential generator (tclBasic.c
+// ``ExprRandFunc``): ``seed = (16807 * seed) mod (2^31 - 1)``, kept in
+// ``[1, 2^31 - 2]``.  Matching the exact recurrence — not just the
+// (0,1) range — is what makes ``srand(12345)`` reproduce the reference
+// sequence in expr-old-32.50.
+var g_rand_seed: i64 = 1;
+var g_rand_seeded: bool = false;
 
-fn prng() *std.Random.DefaultPrng {
-    if (!g_prng_seeded) {
-        g_prng = std.Random.DefaultPrng.init(1);
-        g_prng_seeded = true;
+fn rand_next_double() f64 {
+    if (!g_rand_seeded) {
+        // Auto-seed deterministically; tests that depend on a specific
+        // sequence call ``srand`` first.
+        g_rand_seed = 1;
+        g_rand_seeded = true;
     }
-    return &g_prng;
+    const RAND_IA: i64 = 16807;
+    const RAND_IM: i64 = 2147483647;
+    const RAND_IQ: i64 = 127773;
+    const RAND_IR: i64 = 2836;
+    const tmp = @divTrunc(g_rand_seed, RAND_IQ);
+    g_rand_seed = RAND_IA * (g_rand_seed - tmp * RAND_IQ) - RAND_IR * tmp;
+    if (g_rand_seed < 0) g_rand_seed += RAND_IM;
+    return @as(f64, @floatFromInt(g_rand_seed)) * (1.0 / 2147483647.0);
 }
 
 // IEEE-754 float classification helpers — TIP 519 / Tcl 9.0
@@ -885,8 +1023,7 @@ pub export fn tcl_math_fpclassify(a: i32) i32 {
 /// rand() — uniform random float in ``[0.0, 1.0)``.  The PRNG is
 /// auto-seeded on first call; explicit reseed is via :func:`tcl_math_srand`.
 pub export fn tcl_math_rand() i32 {
-    const r = prng().random();
-    return obj.obj_new_float(r.float(f64));
+    return obj.obj_new_float(rand_next_double());
 }
 
 /// srand(seed) — reseed the PRNG with the given integer seed and
@@ -900,11 +1037,15 @@ pub export fn tcl_math_srand(seed: i32) i32 {
         stubs.raise("can't use floating-point value as argument to srand");
         return obj.obj_new_int(0);
     }
+    // ``TclGetWideBitsFromObj`` then mask to 31 bits; 0 and 2^31-1 are
+    // forbidden seeds (they map the recurrence to a fixed point), so
+    // perturb them exactly as tclBasic.c does.  ``srand`` returns the
+    // first ``rand()`` draw from the fresh seed.
     const seed_val = obj.obj_get_int(seed);
-    g_prng = std.Random.DefaultPrng.init(@bitCast(seed_val));
-    g_prng_seeded = true;
-    const r = g_prng.random();
-    return obj.obj_new_float(r.float(f64));
+    g_rand_seed = seed_val & 0x7FFFFFFF;
+    if (g_rand_seed == 0 or g_rand_seed == 0x7FFFFFFF) g_rand_seed ^= 123459876;
+    g_rand_seeded = true;
+    return obj.obj_new_float(rand_next_double());
 }
 
 /// bool(x) — coerce ``x`` to a Tcl boolean (0 or 1).  Accepts any
@@ -1209,6 +1350,10 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    // OOM: alloc raised ``oom_flag``; skip the message build (the
+    // OOM is already on the interp's error path) rather than
+    // ``@ptrFromInt(0)`` on the next line.
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {
@@ -1264,6 +1409,11 @@ fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    // OOM: alloc raised ``oom_flag``; skip the message build (no
+    // diagnostic gets surfaced this call) so we don't
+    // ``@ptrFromInt(0)`` on the next line.  The pending OOM is
+    // already on the interp's error path.
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {
@@ -1630,7 +1780,10 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         if (bignum_is_negative(b)) {
             stubs.raise("negative shift argument");
         } else {
-            stubs.raise("integer value too large to represent");
+            // Shift overflow keeps the default ``NONE`` errorCode
+            // (mathop-24.5) — distinct from the conversion-path
+            // ``ARITH IOVERFLOW`` for the same message (get.test).
+            stubs.raise_none("integer value too large to represent");
         }
         return obj.obj_new_int(0);
     }
@@ -1640,7 +1793,7 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         return obj.obj_new_int(0);
     }
     if (bi > std.math.maxInt(i32)) {
-        stubs.raise("integer value too large to represent");
+        stubs.raise_none("integer value too large to represent");
         return obj.obj_new_int(0);
     }
     // Bignum operand or wide shift count → Managed (arbitrary-precision)
@@ -1728,6 +1881,18 @@ fn bignum_is_negative(o: i32) bool {
     const ap = promote_to_bignum(o) orelse return false;
     defer release_promoted(ap);
     return !ap.m.isPositive() and !ap.m.eqlZero();
+}
+
+/// True iff the operand reads as an odd integer.  Parity is a
+/// property of the magnitude, so the least-significant limb's low
+/// bit answers it regardless of sign.  Used by ``tcl_arith_pow`` to
+/// resolve ``(-1) ** bignum`` (``-1`` for odd exponents, ``1`` for
+/// even) without materialising the unrepresentable result.
+fn bignum_is_odd(o: i32) bool {
+    const ap = promote_to_bignum(o) orelse return false;
+    defer release_promoted(ap);
+    if (ap.m.limbs.len == 0) return false;
+    return (ap.m.limbs[0] & 1) == 1;
 }
 
 /// Right-shift collapse for shift counts beyond what ``mp_div_2d``

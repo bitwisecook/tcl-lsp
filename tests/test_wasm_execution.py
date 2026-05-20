@@ -760,6 +760,13 @@ class TestCommandDispatch:
             "obj_get_int",
             "tcl_arith_add",
             "tcl_cmd_error",
+            # Error-frame scaffolding for the proc body: ``expr`` can
+            # raise (e.g. non-numeric operand), so the prologue stamps
+            # the error frame and the body routes a raised error
+            # through the ``return -code error`` path.  Pulled in for
+            # any compiled proc whose body can error.
+            "proc_stamp_error_frame",
+            "tcl_cmd_error_via_return",
             "tcl_eval",
             "ns_set",
             "ns_restore",

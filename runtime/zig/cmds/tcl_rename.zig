@@ -290,9 +290,26 @@ pub fn rename_command(
                 if (d.real_cmd != 0) tcl_ns.unlink_import_ref(d.real_cmd, cmd);
                 d.real_cmd = 0;
             }
+        } else if ((flags & tcl_procs.CMD_ALIAS) != 0) {
+            // Alias deletion — release the prefix retains and free
+            // the AliasRec slab so the per-alias n_prefix TclObj
+            // retains don't leak.
+            const alias_mod = @import("tcl_alias.zig");
+            alias_mod.alias_clear(cmd);
         } else {
             // Source side: deactivate every redirect pointing at us.
+            // Also release the proc's retained ``params_obj`` and
+            // ``body_obj`` so every ``rename foo {}`` over a plain
+            // interpreted proc reclaims its source-text TclObjs
+            // rather than leaking them.
             deactivate_importers(cmd);
+            const obj_mod = @import("../valtypes/tcl_obj.zig");
+            const prev_params: i32 = read_i32(cmd + tcl_procs.OFF_PARAMS_OBJ);
+            const prev_body: i32 = read_i32(cmd + tcl_procs.OFF_BODY_OBJ);
+            if (prev_params != 0) obj_mod.tcl_obj_release(prev_params);
+            if (prev_body != 0) obj_mod.tcl_obj_release(prev_body);
+            obj_mod.write_i32(cmd + tcl_procs.OFF_PARAMS_OBJ, 0);
+            obj_mod.write_i32(cmd + tcl_procs.OFF_BODY_OBJ, 0);
         }
         // If the command is an alias, unhook the AliasRec from
         // the per-interp chains so ``interp aliases`` no longer

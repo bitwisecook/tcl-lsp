@@ -724,6 +724,7 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
 fn refill(c: *Channel) u32 {
     if (c.buf_addr == 0) {
         c.buf_addr = obj.alloc(READ_BUF_SIZE);
+        if (c.buf_addr == 0) return 0;
     }
     var carry: u32 = 0;
     if (c.buf_pos < c.buf_end) {
@@ -781,6 +782,7 @@ fn refill_decoded(c: *Channel) u32 {
         // recycler so the slab can be reused without realloc.
         c.dec_cap = 8;
         c.dec_addr = obj.alloc(c.dec_cap);
+        if (c.dec_addr == 0) return 0;
     }
     while (true) {
         if (c.buf_pos >= c.buf_end) {
@@ -856,9 +858,12 @@ const ByteBuf = struct {
 
 fn buf_init(initial: u32) ByteBuf {
     const cap = if (initial < 64) 64 else initial;
+    const addr = obj.alloc(cap);
+    // OOM: clamp cap to 0 so ``buf_push`` / ``buf_grow`` see a
+    // zero-capacity buffer and bail without writing to addr=0.
     return .{
-        .addr = obj.alloc(cap),
-        .cap = cap,
+        .addr = addr,
+        .cap = if (addr == 0) 0 else cap,
         .len = 0,
     };
 }
@@ -868,6 +873,13 @@ fn buf_grow(b: *ByteBuf, want: u32) void {
     var new_cap = b.cap * 2;
     while (new_cap < b.len + want) new_cap *= 2;
     const new_addr = obj.alloc(new_cap);
+    if (new_addr == 0) {
+        // OOM growing the buffer — leave the existing buf intact so
+        // ``buf_push`` (and downstream callers) can detect the
+        // capacity didn't grow and bail.  Without this the
+        // ``@ptrFromInt(0)`` write below corrupts low memory.
+        return;
+    }
     const dst: [*]u8 = @ptrFromInt(new_addr);
     const src: [*]const u8 = @ptrFromInt(b.addr);
     for (0..b.len) |i| dst[i] = src[i];
@@ -878,6 +890,9 @@ fn buf_grow(b: *ByteBuf, want: u32) void {
 
 fn buf_push(b: *ByteBuf, byte: u8) void {
     buf_grow(b, 1);
+    // ``buf_grow`` returns silently on OOM; recheck capacity
+    // before writing or we'd ``@ptrFromInt(0)`` into linear memory.
+    if (b.len >= b.cap) return;
     const dst: [*]u8 = @ptrFromInt(b.addr);
     dst[b.len] = byte;
     b.len += 1;
@@ -885,14 +900,15 @@ fn buf_push(b: *ByteBuf, byte: u8) void {
 
 fn buf_finish(b: ByteBuf) i32 {
     if (b.len == 0) {
-        obj.free_sized(b.addr, b.cap);
+        if (b.addr != 0) obj.free_sized(b.addr, b.cap);
         return obj_new_string(0, 0);
     }
-    const out = obj_new_string(@bitCast(b.addr), @bitCast(b.len));
-    if (out != 0) {
-        obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
-    }
-    return out;
+    // Route through ``obj_new_string_take`` so the cap stamp is
+    // size-class-rounded the same way ``alloc``/``free_sized``
+    // expect.  The inline pattern that wrote ``b.cap`` directly
+    // could land a doubled-then-not-rounded cap into the wrong
+    // free-list bucket on release.
+    return obj.obj_new_string_take(b.addr, b.len, b.cap);
 }
 
 // Translate one input byte: with auto/cr/crlf translation, fold
@@ -1228,6 +1244,7 @@ fn emit_byte(c: *Channel, byte: u8) bool {
     if (c.out_buf_addr == 0) {
         if (c.out_buf_size == 0) c.out_buf_size = WRITE_BUF_SIZE;
         c.out_buf_addr = obj.alloc(c.out_buf_size);
+        if (c.out_buf_addr == 0) return false;
         c.out_buf_pos = 0;
     }
     const dst: [*]u8 = @ptrFromInt(c.out_buf_addr);
@@ -1434,7 +1451,10 @@ fn set_obj_option(slot: *i32, src_p: [*]const u8, src_len: u32) void {
             // the old value).
             return;
         }
-        obj.tcl_obj_retain(new_obj);
+        // ``obj_new_string_copy`` already returned a fresh +1 — the
+        // slot inherits that ref directly.  A second ``tcl_obj_retain``
+        // bumped rc to 2 and only one release fires at channel close,
+        // permanently leaking every encoding/eofchar/profile value.
         slot.* = new_obj;
     }
     if (old != 0) obj.tcl_obj_release(old);
@@ -1774,6 +1794,7 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     // exits below.
     const work_cap: u32 = if (a.len == 0) 1 else a.len;
     const work_buf = obj.alloc(work_cap);
+    if (work_buf == 0) return 0;
     defer obj.free_sized(work_buf, work_cap);
 
     var elem_off: [MAX_FCONFIGURE_WORDS]u32 = undefined;

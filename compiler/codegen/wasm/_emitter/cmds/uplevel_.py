@@ -183,6 +183,27 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
     # bare integer N → relative N frames up; anything else means
     # no level, default 1, and args[0] is the first body word.
     level_spec = args[0]
+    # When the level word is a runtime substitution (``uplevel $lvl
+    # body`` / ``uplevel [getlevel] body``) the level-vs-body
+    # decision depends on the *substituted* value, which is only
+    # known at runtime: Tcl treats the first word as a level iff it
+    # parses as ``#N`` or an integer once substituted, otherwise it
+    # is part of the body.  The compile-time parser below can't make
+    # that call.  Resolve the level word and body in the *current*
+    # (compiled) frame — so ``$num`` reads the proc's local — then
+    # hand both pre-substituted objects to ``tcl_uplevel_eval``,
+    # which reuses the runtime ``eval_uplevel`` level parser.  An
+    # eval-fallback of the whole command can't be used here: the
+    # interpreter would re-substitute ``$num`` against the frame
+    # variable table, where a compiled proc's locals don't live.
+    # Only relevant when a body word follows — a lone substituted
+    # word is always the body (level defaults to 1).
+    uplevel_eval_idx = emitter._shared_imports.get("tcl_uplevel_eval")
+    if len(args) >= 2 and uplevel_eval_idx is not None and ("$" in level_spec or "[" in level_spec):
+        emitter._emit_value(level_spec)
+        emitter._emit_uplevel_body(list(args[1:]))
+        emitter._emit_call(uplevel_eval_idx)
+        return
     up: int
     body_start = 1
     use_abs = False

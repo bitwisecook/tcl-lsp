@@ -4285,9 +4285,11 @@ class TestExternalTcllibCounter:
             pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
         source = self._COUNTER_TCL.read_text()
         wasm_bytes = _compile_tcl(source)
-        # Should be a reasonable size
+        # Should be a reasonable size.  Upper bound is a rough sanity
+        # check, not a tight budget — every refcount-discipline tweak
+        # adds a handful of bytes per call site.
         assert len(wasm_bytes) > 5000
-        assert len(wasm_bytes) < 100000
+        assert len(wasm_bytes) < 110000
 
     def test_top_level_runs(self):
         """Running ::top should not trap (validates string table sharing)."""

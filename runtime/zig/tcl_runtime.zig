@@ -741,7 +741,12 @@ pub export fn tcl_test_hidden_exists(name_ptr: i32, name_len: i32) i32 {
 pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_commands(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_commands(pat);
+    const result = tcl_cmd_info.info_commands(pat);
+    // ``info_commands`` reads the pattern's bytes but doesn't take
+    // ownership — release the +1 here so this test export doesn't
+    // leak one TclObj per call.
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Run ``info procs pattern``.  Same shape as
@@ -749,7 +754,9 @@ pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
 pub export fn tcl_test_info_procs(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_procs(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_procs(pat);
+    const result = tcl_cmd_info.info_procs(pat);
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Probe ``namespace which -command name`` without routing through
@@ -862,7 +869,13 @@ pub export fn tcl_test_interp_eval_script(
     script_len: i32,
 ) i32 {
     const save = tcl_interp_registry.enter(@bitCast(target_interp));
-    const res = interp.tcl_eval(tcl_obj.obj_new_string(script_ptr, script_len));
+    // Capture the script TclObj so we can release it after tcl_eval
+    // returns — the prior single-expression form leaked one TclObj
+    // header per test invocation (every cross-interp ``eval`` test
+    // in the harness).
+    const script_obj = tcl_obj.obj_new_string(script_ptr, script_len);
+    const res = interp.tcl_eval(script_obj);
+    tcl_obj.tcl_obj_release(script_obj);
     tcl_interp_registry.leave(save);
     return res;
 }
