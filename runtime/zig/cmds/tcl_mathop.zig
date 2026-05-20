@@ -306,7 +306,6 @@ fn op_rshift(args: []const i32) i32 {
     return tcl_arith.tcl_arith_rshift(args[0], args[1]);
 }
 
-
 // -- numeric comparison (chain) ----------------------------------------------
 
 const CmpKind = enum { eq, ne, lt, le, gt, ge };
