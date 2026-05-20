@@ -32,7 +32,8 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "try",
-        traits: Traits::BYTE_COMPILED
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::NEVER_INLINE_BODY,

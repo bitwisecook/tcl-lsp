@@ -6,7 +6,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
-        traits: Traits::BYTE_COMPILED
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_BOOLEAN_COND

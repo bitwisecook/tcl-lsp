@@ -20,7 +20,7 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED,
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(set_arg_roles),
         assigns_variable_at: Some(0),

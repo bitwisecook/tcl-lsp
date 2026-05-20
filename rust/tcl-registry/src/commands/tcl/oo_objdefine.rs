@@ -6,7 +6,7 @@ use super::oo_define::oo_define_arg_roles;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::objdefine",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::NEVER_INLINE_BODY,
+        traits: Traits::NOT_PROC_FACTORY | Traits::LANGUAGE_KEYWORD | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(2),
         // `oo::objdefine` has the same body-shape rules as

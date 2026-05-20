@@ -3,7 +3,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lindex",
-        traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::PURE
+            | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         arg_types: &[(

@@ -6,7 +6,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::SOURCES_FILE,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::SOURCES_FILE,
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

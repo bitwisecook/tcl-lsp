@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "apply",
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         return_type: Some(TclType::String),

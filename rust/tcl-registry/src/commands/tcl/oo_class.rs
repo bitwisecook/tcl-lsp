@@ -22,7 +22,10 @@ fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::class",
-        traits: Traits::IS_OO_METACLASS | Traits::LANGUAGE_KEYWORD | Traits::DEFINES_PROCEDURE,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::IS_OO_METACLASS
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::DEFINES_PROCEDURE,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),

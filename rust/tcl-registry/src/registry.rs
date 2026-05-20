@@ -693,6 +693,53 @@ mod tests {
     }
 
     #[test]
+    fn not_proc_factory_covers_registered_skip_heads() {
+        let reg = CommandRegistry::build_default();
+        // Registered heads from the former `_FACTORY_SKIP_HEADS` list
+        // (the four non-command heads method / classmethod /
+        // itcl::class / ::itcl::class are handled by the scanner's
+        // residual set, not the registry).
+        let expected = [
+            "proc",
+            "namespace",
+            "if",
+            "switch",
+            "while",
+            "for",
+            "foreach",
+            "try",
+            "catch",
+            "eval",
+            "apply",
+            "expr",
+            "uplevel",
+            "upvar",
+            "variable",
+            "set",
+            "lappend",
+            "dict",
+            "array",
+            "string",
+            "list",
+            "lindex",
+            "package",
+            "source",
+            "interp",
+            "oo::class",
+            "oo::define",
+            "oo::objdefine",
+        ];
+        for name in expected {
+            assert!(
+                reg.is_not_proc_factory(name),
+                "{name} should carry Traits::NOT_PROC_FACTORY"
+            );
+        }
+        // A real factory-wrapper head must not be skipped.
+        assert!(!reg.is_not_proc_factory("my_factory"));
+    }
+
+    #[test]
     fn dialect_filter() {
         let reg = CommandRegistry::build_default();
         let spec = reg.get_for_dialect("dict", DialectSet::TCL86);

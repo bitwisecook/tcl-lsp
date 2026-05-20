@@ -159,7 +159,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "interp",
-        traits: Traits::BYTE_COMPILED | Traits::HAS_INTERP_EVAL | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::HAS_INTERP_EVAL
+            | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet::brief(

@@ -22,7 +22,7 @@
 //!   per-collection records) plus [`ParamDef`].
 //! - [`params`] — `parse_param_list` for the proc parameter-list arg.
 //! - `ctx` (private) — internal scan state ([`ScanCtx`],
-//!   `FactoryCandidate`, `ProcBodyInfo`, `FACTORY_SKIP_HEADS`).
+//!   `FactoryCandidate`, `ProcBodyInfo`, `FACTORY_SKIP_NONCOMMAND_HEADS`).
 //! - `handlers` (private) — per-command handlers
 //!   (`handle_proc`, `handle_namespace`, `handle_package`, …).
 //! - `walker` (private) — top-level `scan` plus the body-recursion
@@ -59,6 +59,20 @@ pub use types::SignatureScanResult;
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
     let mut ctx = ScanCtx::default();
+    // Heads that match the factory-wrapper token shape but are not
+    // factories: registry commands carrying `NOT_PROC_FACTORY` (using
+    // any-spec semantics so a dialect-shadowed core head still counts)
+    // plus the unregistered non-command heads.
+    ctx.skip_heads = known_commands
+        .iter()
+        .filter(|name| registry.is_not_proc_factory(name))
+        .map(|name| (*name).to_owned())
+        .chain(
+            ctx::FACTORY_SKIP_NONCOMMAND_HEADS
+                .iter()
+                .map(|h| (*h).to_owned()),
+        )
+        .collect();
     walker::scan(source, None, "", false, &known_commands, &mut ctx);
     factory::resolve_factory_defs(&mut ctx);
     ctx.result

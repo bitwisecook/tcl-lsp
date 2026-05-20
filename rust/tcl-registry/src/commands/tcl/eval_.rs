@@ -6,7 +6,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "eval",
-        traits: Traits::BYTE_COMPILED
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
             | Traits::TAINT_SINK,

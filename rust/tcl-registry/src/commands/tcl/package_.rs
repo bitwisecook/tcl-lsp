@@ -125,7 +125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

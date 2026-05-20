@@ -6,7 +6,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "catch",
-        traits: Traits::BYTE_COMPILED | Traits::CONTROL_FLOW | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
+            | Traits::LANGUAGE_KEYWORD,
         arity: Arity::new(1, 3),
         arg_roles: &[
             (0, ArgRole::Body),
