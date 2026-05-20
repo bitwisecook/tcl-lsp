@@ -260,7 +260,15 @@ class TestMinifyRealWorld:
             "    }\n"
             "}\n"
         )
-        result = minify_tcl(source)
+        # The ``when`` body is only recursively minified (so its comment is
+        # stripped) when the active dialect recognises ``when`` as an
+        # event-block command.  Body-role detection reads the active dialect
+        # (not the ``dialect=`` argument), so scope it explicitly rather than
+        # relying on leaked global state from an earlier test.
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = minify_tcl(source, dialect="f5-irules")
         assert "# Route" not in result  # comment stripped
         assert "pool api_pool" in result
         assert "pool web_pool" in result
