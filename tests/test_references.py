@@ -144,3 +144,26 @@ class TestVariableReferences:
         refs = get_references(source, TEST_URI, 4, 10)
         lines = {loc.range.start.line for loc in refs}
         assert lines == {3, 4}
+
+
+class TestClassSuperclassMixinReferences:
+    """A class's find-references spans its use in superclass/mixin declarations."""
+
+    def test_superclass_and_mixin_references(self):
+        source = textwrap.dedent("""\
+            oo::class create Animal {
+                method speak {} {return noise}
+            }
+            oo::class create Dog {
+                superclass Animal
+                method speak {} {return woof}
+            }
+            oo::define Cat {
+                mixin Animal
+            }
+        """)
+        refs = get_references(source, TEST_URI, 0, 17)  # cursor on Animal definition
+        starts = {(loc.range.start.line, loc.range.start.character) for loc in refs}
+        assert (0, 17) in starts  # definition
+        assert (4, 15) in starts  # superclass Animal
+        assert (8, 10) in starts  # mixin Animal
