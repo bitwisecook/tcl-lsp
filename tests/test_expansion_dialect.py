@@ -81,3 +81,37 @@ class TestExpansionAffectsArity:
                 for d in get_diagnostics("incr {*}$pair\n")
             }
         assert "E002" not in codes
+
+
+class TestExpansionListSemantics:
+    """List-consuming logic must understand {*} expansion where supported:
+    a literal ``{*}{a b c}`` contributes its elements (not one word) in 8.5+,
+    and constant-list folding must refuse a list containing an expansion."""
+
+    def _codes(self, source: str, dialect: str) -> set[str]:
+        from lsp.features.diagnostics import get_diagnostics
+
+        with dialect_scope(dialect):
+            return {
+                (d.code if isinstance(d.code, str) else str(d.code))
+                for d in get_diagnostics(source)
+            }
+
+    @pytest.mark.parametrize("dialect", _EXPANDS)
+    def test_literal_expansion_contributes_elements_to_arity(self, dialect):
+        # incr takes 1-2 args; {*}{a b c} expands to three -> too many.
+        assert "E003" in self._codes("incr {*}{a b c}\n", dialect)
+        # Two elements is within arity.
+        assert "E003" not in self._codes("incr {*}{a b}\n", dialect)
+
+    @pytest.mark.parametrize("dialect", _INERT)
+    def test_literal_brace_not_expanded_for_arity(self, dialect):
+        # In 8.4 / iRules ``{*}{a b c}`` is a single literal word, so incr
+        # sees one argument and there is no too-many-args error.
+        assert "E003" not in self._codes("incr {*}{a b c}\n", dialect)
+
+    @pytest.mark.parametrize("dialect", _EXPANDS)
+    def test_constant_list_fold_refuses_expansion(self, dialect):
+        # A list whose elements include a {*} expansion has unknown length and
+        # must not be folded to a literal (no O116).
+        assert "O116" not in self._codes("set v [list a b {*}$x]\nputs $v\n", dialect)
