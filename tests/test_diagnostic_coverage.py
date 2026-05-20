@@ -678,6 +678,11 @@ FIXTURES: dict[str, Case] = {
         "return [expr {$n * [factorial [expr {$n - 1}]]}]",
         "proc f {a} {\n    return $a\n}\nputs [f 1]\n",
     ),
+    "W120": Case(
+        "http::geturl $url\n",
+        "http::geturl",
+        "package require http\nhttp::geturl $url\n",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -861,7 +866,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O108",
         "O125",
         "T102",
-        "W120",
         "W122",
         "W130",
         "W131",
