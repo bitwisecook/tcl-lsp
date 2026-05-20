@@ -1134,11 +1134,18 @@ class TestStaticSubstringFolding:
 
     def test_overdefined_var_at_join_not_folded(self):
         """A variable assigned different values on different paths is not folded."""
-        source = 'if {1} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
+        # Use a runtime condition ($c) so the branch can't be const-folded and
+        # ``x`` genuinely stays overdefined at the join.
+        source = 'if {$c} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is overdefined at the puts — should not fold to either value.
-        # (The constant-branch pass may fold the if, but that's a different pass.)
-        assert result is not None
+        # Both branch values survive and the use stays a $-substitution — the
+        # overdefined join must NOT collapse to either literal.
+        assert "hello" in result.source and "world" in result.source
+        assert "$x" in result.source
+        assert not any(
+            "value: hello" in v or "value: world" in v
+            for v in (result.symbol_map.static_folds or {}).values()
+        )
 
     def test_tainted_var_not_folded(self):
         """A variable from tainted source is not folded even if SCCP says constant."""
@@ -1163,9 +1170,10 @@ class TestStaticSubstringFolding:
         """Variables not tracked by SSA (e.g. global) are not folded."""
         source = 'proc test {} {\n    global x\n    puts "value: $x"\n}\n'
         result = minify_tcl(source, aggressive=True)
-        # global barrier prevents SCCP from knowing x's value.
-        # Should not fold.
-        assert result is not None
+        # The global barrier prevents SCCP from knowing x's value, so no fold
+        # happens and the ``$x`` substitution survives verbatim.
+        assert "$x" in result.source
+        assert not result.symbol_map.static_folds
 
     def test_fold_preserves_literal_text(self):
         """Literal text around $var substitutions is preserved."""
@@ -1217,8 +1225,9 @@ class TestStaticSubstringFolding:
         """set is NOT removed when the variable is still referenced."""
         source = 'set x hello\nputs "greeting: $x"\nputs $x\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is used as a bare argument in `puts $x`, so the set must remain.
-        assert result is not None
+        # $x is used as a bare argument in `puts $x`, so the assignment must
+        # survive minification rather than being eliminated as a dead store.
+        assert "set x hello" in result.source
 
     def test_format_static_folds_in_symbol_map(self):
         """Static fold map records what was folded."""

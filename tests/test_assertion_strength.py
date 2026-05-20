@@ -105,7 +105,6 @@ BASELINE: dict[str, int] = {
     "test_irule_test_framework.py": 1,
     "test_irules_checks.py": 2,
     "test_licm.py": 11,
-    "test_minifier.py": 3,
     "test_optimiser_coverage.py": 4,
     "test_package_loading.py": 9,
     "test_parser_edge_cases.py": 4,
