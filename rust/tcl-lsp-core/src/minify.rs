@@ -34,11 +34,11 @@
 //! tier) so a rename never rewrites a declaration without its body
 //! references.  Scopes containing a dynamic-barrier command (e.g.
 //! `upvar`) are left untouched; `isolated` also compacts the global
-//! scope.
+//! scope.  Static array-member keys (`arr(member)`) are compacted
+//! too, skipping arrays whose members look user-input-derived.
 //!
-//! **Still deferred:** static array-member compaction (Python's
-//! `_compact_array_members`); the `aggressive` tier (namespace /
-//! string / argument aliasing + suffix-array static substitution +
+//! **Still deferred:** the `aggressive` tier (namespace / string /
+//! argument aliasing + suffix-array static substitution +
 //! `MinifyResult`); and the `workspace/executeCommand` LSP wiring
 //! (mirroring `lsp/commands.py::on_minify_document`).
 
@@ -66,6 +66,8 @@ pub struct SymbolMap {
     pub variables: BTreeMap<String, BTreeMap<String, String>>,
     /// `{original_proc: short}`.
     pub procs: BTreeMap<String, String>,
+    /// Per-array `{original_member: short}` maps.
+    pub array_members: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 impl SymbolMap {
@@ -82,6 +84,14 @@ impl SymbolMap {
         for (scope_name, var_map) in &self.variables {
             lines.push(format!("# Variables in {scope_name}"));
             let mut entries: Vec<(&String, &String)> = var_map.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, short) in entries {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        for (array_name, member_map) in &self.array_members {
+            lines.push(format!("# Array members of {array_name}"));
+            let mut entries: Vec<(&String, &String)> = member_map.iter().collect();
             entries.sort_by(|a, b| a.1.cmp(b.1));
             for (original, short) in entries {
                 lines.push(format!("  {short} <- {original}"));
@@ -447,8 +457,162 @@ fn compact_names(
         symbol_map.procs.insert(name.clone(), short);
     }
 
+    // Static array-member compaction (global across scopes).
+    let array_members = compact_array_members(source, &mut edits);
+    if !array_members.is_empty() {
+        symbol_map.array_members = array_members;
+    }
+
     let result = apply_edits(source, edits);
     (result, symbol_map)
+}
+
+/// Compact static array-member names (`arr(member)` → `arr(x)`).
+/// Mirrors `_compact_array_members`; renames are global across
+/// scopes and skip arrays whose members look user-input-derived.
+fn compact_array_members(
+    source: &str,
+    edits: &mut Vec<Edit>,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    let array_uses = collect_array_uses(source);
+    let mut result = BTreeMap::new();
+    for (arr, members) in &array_uses {
+        if members.keys().any(|m| is_unsafe_member(m)) {
+            continue;
+        }
+        let mut gen = NameGenerator::new();
+        let mut member_map: BTreeMap<String, String> = BTreeMap::new();
+        let existing: HashSet<String> = members.keys().cloned().collect();
+        for member in members.keys() {
+            let claimed: HashSet<String> = member_map.values().cloned().collect();
+            let Some(short) = next_unused_name(&mut gen, &existing, &claimed) else {
+                continue;
+            };
+            if short.len() >= member.len() {
+                continue;
+            }
+            for &off in &members[member] {
+                edits.push((off, member.len(), short.clone()));
+            }
+            member_map.insert(member.clone(), short);
+        }
+        if !member_map.is_empty() {
+            result.insert(arr.clone(), member_map);
+        }
+    }
+    result
+}
+
+/// Recursively scan for `arr(member)` references, descending into
+/// braced and command-substitution tokens.  Mirrors
+/// `_scan_array_tokens`; returns `arr -> member -> [offsets]`.
+fn collect_array_uses(top_source: &str) -> BTreeMap<String, BTreeMap<String, Vec<usize>>> {
+    let mut uses: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
+    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut prev_type = TokenType::Eol;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Sep | TokenType::Eol => {
+                    prev_type = tok.kind;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 4 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    prev_type = TokenType::Str;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 4 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    prev_type = TokenType::Cmd;
+                    continue;
+                }
+                _ => {}
+            }
+            if matches!(prev_type, TokenType::Sep | TokenType::Eol) {
+                let abs = (base + tok.span.start()) as usize;
+                in_quoted = top_source.as_bytes().get(abs) == Some(&b'"');
+            }
+            prev_type = tok.kind;
+            if in_quoted && tok.kind == TokenType::Esc {
+                continue;
+            }
+            if !matches!(tok.kind, TokenType::Esc | TokenType::Var) {
+                continue;
+            }
+            let ttext = sm.token_text(*tok);
+            let Some((arr, member)) = parse_array_member(ttext) else {
+                continue;
+            };
+            if member.chars().count() <= 1 || arr.contains("::") {
+                continue;
+            }
+            let text_start = if tok.kind == TokenType::Var {
+                base + tok.span.start() + 1
+            } else {
+                base + tok.span.start()
+            };
+            let member_offset = text_start as usize + arr.len() + 1;
+            uses.entry(arr.to_owned())
+                .or_default()
+                .entry(member.to_owned())
+                .or_default()
+                .push(member_offset);
+        }
+    }
+    uses
+}
+
+/// Parse `arr(member)` token text into `(arr, member)`.  Mirrors
+/// `_ARRAY_MEMBER_RE`: `arr` is `[\w:]+`, `member` excludes `)`,
+/// `$`, `[`.
+fn parse_array_member(text: &str) -> Option<(&str, &str)> {
+    let inner = text.strip_suffix(')')?;
+    let lparen = inner.find('(')?;
+    let arr = &inner[..lparen];
+    let member = &inner[lparen + 1..];
+    if arr.is_empty() || member.is_empty() {
+        return None;
+    }
+    if !arr
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    {
+        return None;
+    }
+    if member.chars().any(|c| c == ')' || c == '$' || c == '[') {
+        return None;
+    }
+    Some((arr, member))
+}
+
+/// Whether an array-member name looks user-input-derived (and so
+/// must not be renamed).  Mirrors `_UNSAFE_MEMBER_PATTERN`.
+fn is_unsafe_member(member: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        "uri", "url", "path", "header", "cookie", "query", "param", "filename", "request", "input",
+        "form", "method", "remote", "client", "addr", "password", "auth", "token", "session",
+    ];
+    let lower = member.to_ascii_lowercase();
+    PREFIXES.iter().any(|p| {
+        lower
+            .strip_prefix(p)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('_'))
+    })
 }
 
 /// Recursively rename variables (and params) in a scope, mirroring
@@ -1520,6 +1684,23 @@ mod tests {
             &registry,
         );
         assert_eq!(out, "set a 1;puts $a");
+    }
+
+    #[test]
+    fn compact_renames_static_array_members() {
+        assert_eq!(
+            min_compact("proc f {} {\n    set config(database) 1\n    set config(timeout) 2\n    puts $config(database)$config(timeout)\n}\n"),
+            "proc f {} {set config(a) 1;set config(b) 2;puts $config(a)$config(b)}",
+        );
+    }
+
+    #[test]
+    fn compact_skips_user_input_array_members() {
+        // `uri` looks user-input-derived — leave the array alone.
+        assert_eq!(
+            min_compact("proc f {} {\n    set config(uri) 1\n    puts $config(uri)\n}\n"),
+            "proc f {} {set config(uri) 1;puts $config(uri)}",
+        );
     }
 
     #[test]
