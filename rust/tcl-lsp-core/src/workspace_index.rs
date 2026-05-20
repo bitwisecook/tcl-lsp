@@ -23,13 +23,13 @@
 //!   (these consume the per-document *invocation* sites the
 //!   index also records).
 //!
+//! The server seeds the index from both editor-opened documents
+//! (via the diagnostics path) and an on-disk scan of the
+//! workspace folders on `initialized`, so unopened `.tcl` / `.tm`
+//! files are covered too.
+//!
 //! What is *deferred*:
 //!
-//! * On-disk scanning of workspace-folder files that haven't
-//!   been opened in the editor — the index only covers
-//!   documents the server has analysed.  A folder-walk that
-//!   analyses unopened `.tcl` files lands with the
-//!   workspace-folder enumeration follow-up.
 //! * Variable / namespace indexing — only procs, classes, and
 //!   command invocations are indexed today (the cross-document
 //!   features that need them).
