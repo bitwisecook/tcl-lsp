@@ -412,6 +412,7 @@ impl Analyser {
             diag_registry.load_dialect(d);
         }
         self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.apply_disabled_diagnostics();
@@ -504,6 +505,7 @@ impl Analyser {
             diag_registry.load_dialect(d);
         }
         self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.apply_disabled_diagnostics();
@@ -580,6 +582,7 @@ impl Analyser {
                 diag_registry.load_dialect(d);
             }
             self.emit_unresolved_command_diagnostics(&diag_registry);
+            self.emit_missing_package_require_diagnostics(&diag_registry);
             self.emit_variable_usage_diagnostics();
             self.emit_cfg_ssa_diagnostics(source);
             self.apply_disabled_diagnostics();

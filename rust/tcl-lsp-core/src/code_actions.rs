@@ -17,15 +17,19 @@
 //!   W213 (unset on possibly-undefined variable), the provider
 //!   offers an `Add '-nocomplain' to unset` quick-fix that
 //!   splices the flag right after the `unset` keyword.
+//! * `Add 'package require <pkg>'` action — the analyser emits
+//!   W120 (package-gated command without `package require`)
+//!   carrying an insert `CodeFix`; the provider lifts it via
+//!   the generic `diag.fixes` path below.
 //!
 //! What is *deferred*:
 //!
-//! * Package-suggestion actions (`Add 'package require ...'`)
-//!   — Python's provider walks the catalogue of stdlib /
-//!   tcllib commands and offers the missing `package require`
-//!   when an unresolved call matches.  Needs a stub-aware
-//!   catalogue lookup (lands alongside
-//!   `S-package-suggestions-rich`).
+//! * Package-*suggestion* actions for unresolved commands —
+//!   Python's provider also walks the catalogue of stdlib /
+//!   tcllib commands and offers a `package require` when an
+//!   *unknown* call fuzzy-matches a catalogued command.  That
+//!   fuzzy catalogue lookup (distinct from the W120 exact-spec
+//!   path that landed) needs a stub-aware catalogue surface.
 //! * Cross-document refactors (move to file, split namespace)
 //!   — lands alongside the workspace-index integration.
 
@@ -414,5 +418,37 @@ mod tests {
             assert_eq!(r.start_line, r.end_line);
             assert_eq!(r.start_character, r.end_character);
         }
+    }
+
+    // -- S-code-actions-rich: W120 package-require fix --------------
+
+    #[test]
+    fn w120_surfaces_add_package_require_action() {
+        // The analyser emits W120 (with a CodeFix) for a
+        // package-gated command used without `package require`;
+        // the code-actions provider lifts that fix into an
+        // `Add 'package require ...'` action.
+        let src = "tcl::idna decode example.com\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl9.0").clone();
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == "W120"),
+            "expected W120 from {:?}",
+            analysis.diagnostics,
+        );
+        let actions = code_actions(src, whole_document_range(src), Some(&analysis));
+        let add = actions
+            .iter()
+            .find(|a| a.title.starts_with("Add 'package require"));
+        assert!(
+            add.is_some(),
+            "expected package-require action in {actions:?}"
+        );
+        let act = add.unwrap();
+        assert_eq!(act.edits.len(), 1);
+        assert_eq!(act.edits[0].new_text, "package require tcl::idna\n");
+        // Insertion at the top of the file (line 0, col 0).
+        assert_eq!(act.edits[0].range.start_line, 0);
+        assert_eq!(act.edits[0].range.start_character, 0);
     }
 }
