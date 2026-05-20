@@ -3,40 +3,25 @@
 # bucket definitions.  Unlisted IDs default to ``must_pass`` —
 # anything new from upstream fails closed.
 #
-# Snapshot: 435/461 passing; 24 skipped (constraint-gated tcl::test
-# extensions); 2 categorised below.
+# Snapshot: 437/461 passing; 24 skipped (constraint-gated tcl::test
+# extensions); 0 failing.  (Reference C Tcl 9.0 is 430 / 31 / 0 — we
+# pass a few more because we skip fewer constraint-gated tests.)
 #
-# The bundle used to exceed the 45s harness watchdog before reaching
-# the tcltest summary — ``pow(3, 1000001)`` / ``pow(-3, 1000001)``
-# routed through the integer ``tcl_arith_pow`` and built ~477,000-digit
-# bignums that hung formatting.  ``pow()`` the math function now
-# returns a double (overflows to ±Inf), so the bundle completes and
-# 34.10 / 34.11b / 34.12b pass.  ``trap_allowed`` is therefore gone —
-# a future timeout would correctly fail the gate.
+# Everything that previously diverged is now fixed:
+#   * the pow()/exp() bignum hang (pow() is now a double-valued math
+#     function; 34.10 / 34.11b / 34.12b pass and the bundle no longer
+#     times out — ``trap_allowed`` removed),
+#   * srand()/rand() now use Tcl's exact Park-Miller recurrence, so
+#     32.50's seed→sequence pairing matches,
+#   * hypot()/math-func args validate as numbers and report
+#     ``expected floating-point number but got a list`` for list-shaped
+#     operands (34.3).
 
 good_to_have = []
-
-# Non-semantic divergences from C Tcl.  The tests run, they fail,
-# but the difference doesn't change observable behaviour for
-# user-level Tcl programs.
-just_to_match_ctcl = [
-  "32.50",        # expr-old-32.50: srand/rand seed→sequence
-                  #   pairing.  We use Zig's PRNG, not Tcl's
-                  #   Park-Miller.  Behaviour (rand returns float
-                  #   in (0,1), srand returns int) is correct;
-                  #   only the exact seed→sequence mapping differs.
-  "34.3",         # expr-old-34.3: hypot("a b", 2.0) — we raise
-                  #   `expected floating-point number but got "a b"`,
-                  #   reference Tcl's TclParseNumber detects list-
-                  #   shape input and shortens to `... but got a list`.
-                  #   Functionally equivalent diagnostic.
-]
-
-# No bytecode-internal probes in this stem.
+just_to_match_ctcl = []
 skip = []
 
 [baseline]
-# Snapshot at triage time.  good_to_have_failing must not grow.
 good_to_have_failing = 0
-just_to_match_ctcl_failing = 2
+just_to_match_ctcl_failing = 0
 skip_failing = 0

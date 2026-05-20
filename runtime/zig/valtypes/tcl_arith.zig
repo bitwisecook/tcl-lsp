@@ -790,9 +790,62 @@ pub export fn tcl_math_pow(x: i32, y: i32) i32 {
     return obj.obj_new_float(r);
 }
 
+/// Validate a math-function argument is number-shaped.  On a
+/// non-numeric operand it raises ``expected floating-point number but
+/// got <X>`` and returns false; the caller then short-circuits.  ``X``
+/// is ``a list`` for a list-shaped operand (``"a b"``) and ``"<str>"``
+/// otherwise — matching reference Tcl's ``TclParseNumber`` wording
+/// (expr-old-34.3).
+fn check_float_arg(o: i32) bool {
+    if (obj_is_numeric(o)) return true;
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return false;
+    const s = obj.obj_ensure_string(o);
+    const list_shape = obj_is_list_shape(o);
+    const prefix: []const u8 = "expected floating-point number but got ";
+    const body: []const u8 = if (list_shape) "a list" else "";
+    const q: []const u8 = if (list_shape) "" else "\"";
+    const slen: u32 = if (list_shape) 0 else s.len;
+    const total: u32 = @intCast(prefix.len + q.len + body.len + slen + q.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        stubs.raise("expected floating-point number");
+        return false;
+    }
+    const d: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    for (q) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    for (body) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    if (!list_shape and s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |k| {
+            d[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (q) |c| {
+        d[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+    return false;
+}
+
 /// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate
 /// overflow.
 pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
+    if (!check_float_arg(x)) return obj.obj_new_float(0.0);
+    if (!check_float_arg(y)) return obj.obj_new_float(0.0);
     return obj.obj_new_float(std.math.hypot(obj.obj_get_float(x), obj.obj_get_float(y)));
 }
 
@@ -802,15 +855,30 @@ pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
 // match Tcl's Park-Miller seed→sequence mapping (expr-old-32.50 /
 // 32.53 are categorised as ``just_to_match_ctcl``), but the
 // distribution and value range are correct.
-var g_prng: std.Random.DefaultPrng = std.Random.DefaultPrng.init(1);
-var g_prng_seeded: bool = false;
+// Tcl's ``rand()`` / ``srand()`` use the Park-Miller "minimal
+// standard" linear congruential generator (tclBasic.c
+// ``ExprRandFunc``): ``seed = (16807 * seed) mod (2^31 - 1)``, kept in
+// ``[1, 2^31 - 2]``.  Matching the exact recurrence — not just the
+// (0,1) range — is what makes ``srand(12345)`` reproduce the reference
+// sequence in expr-old-32.50.
+var g_rand_seed: i64 = 1;
+var g_rand_seeded: bool = false;
 
-fn prng() *std.Random.DefaultPrng {
-    if (!g_prng_seeded) {
-        g_prng = std.Random.DefaultPrng.init(1);
-        g_prng_seeded = true;
+fn rand_next_double() f64 {
+    if (!g_rand_seeded) {
+        // Auto-seed deterministically; tests that depend on a specific
+        // sequence call ``srand`` first.
+        g_rand_seed = 1;
+        g_rand_seeded = true;
     }
-    return &g_prng;
+    const RAND_IA: i64 = 16807;
+    const RAND_IM: i64 = 2147483647;
+    const RAND_IQ: i64 = 127773;
+    const RAND_IR: i64 = 2836;
+    const tmp = @divTrunc(g_rand_seed, RAND_IQ);
+    g_rand_seed = RAND_IA * (g_rand_seed - tmp * RAND_IQ) - RAND_IR * tmp;
+    if (g_rand_seed < 0) g_rand_seed += RAND_IM;
+    return @as(f64, @floatFromInt(g_rand_seed)) * (1.0 / 2147483647.0);
 }
 
 // IEEE-754 float classification helpers — TIP 519 / Tcl 9.0
@@ -941,8 +1009,7 @@ pub export fn tcl_math_fpclassify(a: i32) i32 {
 /// rand() — uniform random float in ``[0.0, 1.0)``.  The PRNG is
 /// auto-seeded on first call; explicit reseed is via :func:`tcl_math_srand`.
 pub export fn tcl_math_rand() i32 {
-    const r = prng().random();
-    return obj.obj_new_float(r.float(f64));
+    return obj.obj_new_float(rand_next_double());
 }
 
 /// srand(seed) — reseed the PRNG with the given integer seed and
@@ -956,11 +1023,15 @@ pub export fn tcl_math_srand(seed: i32) i32 {
         stubs.raise("can't use floating-point value as argument to srand");
         return obj.obj_new_int(0);
     }
+    // ``TclGetWideBitsFromObj`` then mask to 31 bits; 0 and 2^31-1 are
+    // forbidden seeds (they map the recurrence to a fixed point), so
+    // perturb them exactly as tclBasic.c does.  ``srand`` returns the
+    // first ``rand()`` draw from the fresh seed.
     const seed_val = obj.obj_get_int(seed);
-    g_prng = std.Random.DefaultPrng.init(@bitCast(seed_val));
-    g_prng_seeded = true;
-    const r = g_prng.random();
-    return obj.obj_new_float(r.float(f64));
+    g_rand_seed = seed_val & 0x7FFFFFFF;
+    if (g_rand_seed == 0 or g_rand_seed == 0x7FFFFFFF) g_rand_seed ^= 123459876;
+    g_rand_seeded = true;
+    return obj.obj_new_float(rand_next_double());
 }
 
 /// bool(x) — coerce ``x`` to a Tcl boolean (0 or 1).  Accepts any
