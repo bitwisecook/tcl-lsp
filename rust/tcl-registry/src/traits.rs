@@ -153,5 +153,15 @@ bitflags! {
         /// non-command heads like `method` / `itcl::class` are handled
         /// by a small residual set in the scanner).
         const NOT_PROC_FACTORY          = 1 << 43;
+
+        /// Command whose codegen always lowers to a dedicated runtime
+        /// helper (or to a structured IR node) and never falls back to
+        /// the interpreter — so a call to it needs no runtime frame in
+        /// the callee.  The var-escape analysis treats only these as
+        /// frame-free.  Single source of truth for the former
+        /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
+        /// stamping a command that secretly eval-falls-back would
+        /// break eval-inside-proc semantics in escape-free procs.
+        const FRAMELESS_RUNTIME         = 1 << 44;
     }
 }

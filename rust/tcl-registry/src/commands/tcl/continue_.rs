@@ -6,7 +6,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "continue",
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::NEEDS_START_CMD,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

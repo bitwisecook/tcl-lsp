@@ -4,7 +4,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
-        traits: Traits::BYTE_COMPILED | Traits::PURE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::PURE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),

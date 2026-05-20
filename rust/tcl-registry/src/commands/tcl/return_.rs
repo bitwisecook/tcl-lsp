@@ -7,7 +7,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
-        traits: Traits::BYTE_COMPILED
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::TERMINATES_BLOCK
             | Traits::NEEDS_START_CMD,

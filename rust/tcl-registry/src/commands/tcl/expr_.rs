@@ -9,7 +9,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expr",
-        traits: Traits::NOT_PROC_FACTORY
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::PURE_EVALUATION
             | Traits::NEEDS_START_CMD

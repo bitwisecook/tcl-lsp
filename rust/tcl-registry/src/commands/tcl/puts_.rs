@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "puts",
-        traits: Traits::BYTE_COMPILED | Traits::TAINT_SINK,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

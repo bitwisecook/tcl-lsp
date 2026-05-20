@@ -7,7 +7,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
-        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::READS_BEFORE_WRITE,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::READS_BEFORE_WRITE,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

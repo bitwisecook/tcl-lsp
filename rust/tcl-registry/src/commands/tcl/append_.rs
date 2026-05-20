@@ -7,7 +7,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
-        traits: Traits::BYTE_COMPILED | Traits::READS_BEFORE_WRITE | Traits::STRING_LIST_CONFUSION,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
+            | Traits::READS_BEFORE_WRITE
+            | Traits::STRING_LIST_CONFUSION,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

@@ -7,7 +7,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
-        traits: Traits::BYTE_COMPILED
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS

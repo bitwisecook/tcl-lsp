@@ -7,13 +7,20 @@
 //! * [`is_literal_name`] / [`is_dynamic_token`] / [`is_dynamic_name`]
 //!   — string-shape predicates for argument tokens and lowering's
 //!   preserved name fields.
-//! * [`FRAMELESS_RUNTIME_COMMANDS`] — audited allow-list of commands
-//!   the codegen dispatches via dedicated runtime helpers (no
-//!   eval-fallback).
+//! * [`is_frameless_runtime_command`] — audited allow-list of
+//!   commands the codegen dispatches via dedicated runtime helpers
+//!   (no eval-fallback), sourced from the registry's
+//!   `FRAMELESS_RUNTIME` trait.
 //! * [`NAME_FIRST_COMMANDS`] — the five commands whose first arg is
 //!   the variable name (used by the dynamic-name-first detector).
 //! * [`scan_value_for_info_hazards`] — find embedded
 //!   `[info <subcmd> ...]` substitutions inside a value string.
+
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
+use tcl_registry::prelude::Traits;
+use tcl_registry::CommandRegistry;
 
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
@@ -23,53 +30,28 @@ use crate::var_escape::info_subcommands::{
 /// modify). Used to detect dynamic-name forms like `set $n value`.
 pub const NAME_FIRST_COMMANDS: &[&str] = &["set", "incr", "append", "lappend", "unset"];
 
-/// Commands whose codegen always uses a dedicated runtime helper
-/// and never falls back to the interpreter. Calls to these
-/// commands do **not** require a runtime frame on the WASM side —
-/// they're straight-line primitives with no `$var` resolution
-/// needed at the callee.
+/// Memoised set of commands carrying the registry's
+/// [`Traits::FRAMELESS_RUNTIME`] trait — the audited allow-list of
+/// commands whose codegen always uses a dedicated runtime helper (or
+/// a structured IR node) and never falls back to the interpreter, so
+/// a call to one needs no runtime frame in the callee.
 ///
-/// Keep this list audited: adding a command that secretly falls
-/// back will break eval-inside-proc semantics in escape-free
-/// procs. Mirrors Python's `_FRAMELESS_RUNTIME_COMMANDS`.
-pub const FRAMELESS_RUNTIME_COMMANDS: &[&str] = &[
-    // List primitives.
-    "list",
-    "lindex",
-    "lrange",
-    "linsert",
-    "llength",
-    "lsort",
-    "lsearch",
-    "lappend",
-    "lreverse",
-    "lreplace",
-    "lrepeat",
-    "lassign",
-    "concat",
-    // String primitives.
-    "split",
-    "join",
-    "string",
-    // Arithmetic wrappers.
-    "expr",
-    // Locally-handled scope declarations — no runtime frame needed.
-    "global",
-    "variable",
-    "upvar",
-    "namespace",
-    // Self-assignment shapes already covered by IRAssign* / IRIncr.
-    "set",
-    "incr",
-    "append",
-    "unset",
-    // I/O and diagnostics.
-    "puts",
-    "return",
-    "error",
-    "continue",
-    "break",
-];
+/// Sourced from the registry (the single source of truth) rather than
+/// a hardcoded copy; cached once because the set is dialect-agnostic
+/// (all entries are core Tcl commands present in `build_default`).
+fn frameless_runtime_set() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| {
+        // Leak the owned names once at first use so the set can hold
+        // `&'static str`; the registry that produced them is dropped
+        // here, and the process keeps a single immutable copy.
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::FRAMELESS_RUNTIME)
+            .into_iter()
+            .map(|name| &*Box::leak(name.to_owned().into_boxed_str()))
+            .collect()
+    })
+}
 
 /// True if *arg* is a plain identifier, not a substituted ref.
 /// Mirrors the "starts with `$` or `[`" filter used throughout the
@@ -137,10 +119,11 @@ pub fn normalise_cmd_subst_head(head: &str) -> &str {
     head.strip_prefix("::").unwrap_or(head)
 }
 
-/// True if *cmd* is in the audited frameless-runtime allow-list.
+/// True if *cmd* is in the audited frameless-runtime allow-list
+/// (the registry's [`Traits::FRAMELESS_RUNTIME`] commands).
 #[must_use]
 pub fn is_frameless_runtime_command(cmd: &str) -> bool {
-    FRAMELESS_RUNTIME_COMMANDS.contains(&cmd)
+    frameless_runtime_set().contains(cmd)
 }
 
 /// True if *cmd* is one of the five `set` / `incr` / `append` /

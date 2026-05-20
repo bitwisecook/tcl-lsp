@@ -740,6 +740,53 @@ mod tests {
     }
 
     #[test]
+    fn frameless_runtime_covers_the_audited_allow_list() {
+        let reg = CommandRegistry::build_default();
+        let got: std::collections::HashSet<&str> = reg
+            .commands_with_trait(Traits::FRAMELESS_RUNTIME)
+            .into_iter()
+            .collect();
+        let expected: std::collections::HashSet<&str> = [
+            "list",
+            "lindex",
+            "lrange",
+            "linsert",
+            "llength",
+            "lsort",
+            "lsearch",
+            "lappend",
+            "lreverse",
+            "lreplace",
+            "lrepeat",
+            "lassign",
+            "concat",
+            "split",
+            "join",
+            "string",
+            "expr",
+            "global",
+            "variable",
+            "upvar",
+            "namespace",
+            "set",
+            "incr",
+            "append",
+            "unset",
+            "puts",
+            "return",
+            "error",
+            "continue",
+            "break",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            got, expected,
+            "FRAMELESS_RUNTIME stamps drifted from the audited allow-list"
+        );
+    }
+
+    #[test]
     fn dialect_filter() {
         let reg = CommandRegistry::build_default();
         let spec = reg.get_for_dialect("dict", DialectSet::TCL86);

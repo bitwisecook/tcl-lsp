@@ -3,7 +3,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lindex",
-        traits: Traits::NOT_PROC_FACTORY
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::PURE
             | Traits::CSE_CANDIDATE,
