@@ -13,7 +13,12 @@ from ...commands.registry.runtime import (
 )
 from ...common.codes import diag
 from ...common.dialect import active_dialect
-from ...common.ranges import position_from_relative, range_from_token, range_from_tokens
+from ...common.ranges import (
+    position_from_relative,
+    range_from_token,
+    range_from_tokens,
+    widen_range_for_closer,
+)
 from ...compiler.expr_ast import (
     BinOp,
     ExprBinary,
@@ -877,16 +882,38 @@ def check_string_compare_in_expr(
         if len(matched_ops) >= total_eq_ne:
             fixed = _rewrite_string_compare_ops(text)
             if fixed != text:
+                # ``text`` for a braced/quoted ``if``/``while`` condition is the
+                # delimiter-free word content, so the fix range must exclude the
+                # opening delimiter — otherwise the rewrite eats the ``{`` and
+                # leaves a dangling ``}``.  (For ``expr`` the slice already
+                # includes the opener, so it is left as-is.)
+                fix_range = range_for_fix
+                opener_off = tok.start.offset
+                if (
+                    cmd_name != "expr"
+                    and 0 <= opener_off < len(source)
+                    and source[opener_off] in '{"'
+                ):
+                    fix_range = Range(
+                        start=SourcePosition(
+                            line=tok.start.line,
+                            character=tok.start.character + 1,
+                            offset=opener_off + 1,
+                        ),
+                        end=tok.end,
+                    )
                 fixes = (
                     CodeFix(
-                        range=range_for_fix,
+                        range=fix_range,
                         new_text=fixed,
                         description=f"Use '{replacement}' for string comparison",
                     ),
                 )
+        # The squiggle covers the whole braced expression (including the
+        # closing brace the lexer omits); the code fix keeps its own range.
         diagnostics.append(
             Diagnostic(
-                range=range_for_fix,
+                range=widen_range_for_closer(source, range_for_fix),
                 message=(
                     f"Use '{replacement}' instead of '{op}' for string "
                     f"comparison in expressions to avoid ambiguous "

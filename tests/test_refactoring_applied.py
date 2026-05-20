@@ -279,6 +279,24 @@ class TestQuickFixesApplied:
         applied = _apply_action(source, action)
         assert applied == "catch {error oops} result\n"
 
+    def test_w110_string_compare_fix_preserves_braces(self):
+        # Regression: the fix replaced ``{$x == "foo"`` with brace-free
+        # ``$x eq "foo"``, leaving a dangling ``}``.  It must rewrite only the
+        # operator and keep the braces intact.
+        source = 'if {$x == "foo"} {puts yes}\n'
+        d = _diag(
+            "W110",
+            "Use 'eq' instead of '==' for string comparison",
+            0,
+            3,
+            0,
+            18,
+        )
+        actions = get_code_actions(source, d.range, _ctx([d]))
+        action = _find_action(actions, "string comparison")
+        applied = _apply_action(source, action)
+        assert applied == 'if {$x eq "foo"} {puts yes}\n'
+
     def test_w120_add_package_require(self):
         source = "json::write foo\n"
         d = _diag(

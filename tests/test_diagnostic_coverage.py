@@ -65,7 +65,13 @@ def _matches(source: str, code: str) -> list[types.Diagnostic]:
 
 FIXTURES: dict[str, Case] = {
     "E002": Case("set\n", "set", "set x 1\n"),
+    "W001": Case("string bogus x\n", "bogus", "string length x\n"),
     "W100": Case("if $x == 1 {puts hi}\n", "$x", "if {$x == 1} {puts hi}\n"),
+    "W110": Case(
+        'if {$x == "hello"} {set x done}\n',
+        '{$x == "hello"}',
+        'if {$x eq "hello"} {set x done}\n',
+    ),
     "W112": Case("set x 1   \n", "   ", "set x 1\n"),
     "W201": Case(
         'set p "$dir/$file"\nputs $p\n', '"$dir/$file"', "set p [file join $d $f]\nputs $p\n"
@@ -85,12 +91,9 @@ FIXTURES: dict[str, Case] = {
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
 
-RANGE_FIXME: dict[str, FiresCase] = {
-    # highlights the command word, not the offending subcommand
-    "W001": FiresCase("string bogus x\n", "string length x\n"),
-    # braced-expr span drops the closing brace
-    "W110": FiresCase('if {$x == "hello"} {set x done}\n', 'if {$x eq "hello"} {set x done}\n'),
-}
+# Empty: every previously-too-wide range has been narrowed and graduated into
+# FIXTURES.  New too-wide-but-firing codes can be parked here while pending.
+RANGE_FIXME: dict[str, FiresCase] = {}
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
 # This list only shrinks: as a code graduates into FIXTURES/RANGE_FIXME it

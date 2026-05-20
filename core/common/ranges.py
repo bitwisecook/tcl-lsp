@@ -18,6 +18,32 @@ def range_from_tokens(tokens: list[Token]) -> Range:
     return Range(start=tokens[0].start, end=tokens[-1].end)
 
 
+_RANGE_CLOSERS = {'"': '"', "{": "}", "[": "]"}
+
+
+def widen_range_for_closer(source: str, range_: Range) -> Range:
+    """Extend *range_* by one character to include a closing delimiter.
+
+    The lexer's token end omits the closing ``}`` / ``"`` / ``]`` of a
+    braced/quoted/bracketed word, so a range built from such a token stops one
+    character short.  When *range_* opens with one of those delimiters and the
+    matching closer immediately follows its (inclusive) end, return a range
+    extended to cover the closer; otherwise return *range_* unchanged.  Only
+    same-line closers are widened, so a multi-line ``{ ... \\n}`` is left alone.
+    """
+    start_off = range_.start.offset
+    if not (0 <= start_off < len(source)):
+        return range_
+    closer = _RANGE_CLOSERS.get(source[start_off])
+    end = range_.end
+    if closer and end.offset + 1 < len(source) and source[end.offset + 1] == closer:
+        return Range(
+            start=range_.start,
+            end=SourcePosition(line=end.line, character=end.character + 1, offset=end.offset + 1),
+        )
+    return range_
+
+
 def position_from_relative(
     text: str,
     rel_offset: int,
