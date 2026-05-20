@@ -236,20 +236,33 @@ def outgoing_calls(
     calls_by_target: dict[str, list[types.Range]] = {}
     targets: dict[str, ProcDef] = {}
 
+    # Index procs once so resolving each invocation is O(1) instead of a
+    # nested scan (which made the whole pass O(invocations × procs)).  The
+    # original matched the *first* proc, in ``all_procs`` insertion order,
+    # whose bare name, qualified name, or the invocation's resolved name
+    # matched; we reproduce that by ranking candidates on insertion position.
+    pos = {qname: i for i, qname in enumerate(analysis.all_procs)}
+    first_qname_by_name: dict[str, str] = {}
+    for qname, target in analysis.all_procs.items():
+        first_qname_by_name.setdefault(target.name, qname)
+
     for inv in analysis.command_invocations:
         # Check if invocation is within proc body
         if inv.range.start.line < br.start.line or inv.range.end.line > br.end.line:
             continue
-        # Check if it calls a known proc
-        for qname, target in analysis.all_procs.items():
-            if (
-                target.name == inv.name
-                or qname == inv.name
-                or (inv.resolved_qualified_name and inv.resolved_qualified_name == qname)
-            ):
-                calls_by_target.setdefault(qname, []).append(to_lsp_range(inv.range))
-                targets[qname] = target
-                break
+        # Candidate qnames matching the original three conditions; pick the one
+        # that appears first in ``all_procs`` (matching the old break-on-first).
+        candidates = [
+            first_qname_by_name.get(inv.name),
+            inv.name if inv.name in pos else None,
+            inv.resolved_qualified_name if inv.resolved_qualified_name in pos else None,
+        ]
+        matched = [q for q in candidates if q is not None]
+        if not matched:
+            continue
+        qname = min(matched, key=lambda q: pos[q])
+        calls_by_target.setdefault(qname, []).append(to_lsp_range(inv.range))
+        targets[qname] = analysis.all_procs[qname]
 
     results: list[types.CallHierarchyOutgoingCall] = []
     for qname, ranges in calls_by_target.items():
