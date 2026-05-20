@@ -1791,6 +1791,7 @@ fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
     match k {
         CoreCompletionKind::Variable => CompletionItemKind::VARIABLE,
         CoreCompletionKind::Function => CompletionItemKind::FUNCTION,
+        CoreCompletionKind::EnumValue => CompletionItemKind::ENUM_MEMBER,
     }
 }
 

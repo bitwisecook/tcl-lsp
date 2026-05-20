@@ -2,6 +2,99 @@
 
 use crate::prelude::*;
 
+/// Character classes accepted by `string is <class>`.  Mirrors
+/// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
+static IS_CLASSES: &[ArgValue] = &[
+    ArgValue {
+        value: "alnum",
+        detail: "Any Unicode alphabet or digit character.",
+    },
+    ArgValue {
+        value: "alpha",
+        detail: "Any Unicode alphabet character.",
+    },
+    ArgValue {
+        value: "ascii",
+        detail: "Any character with a value less than U+0080 (7-bit ASCII).",
+    },
+    ArgValue {
+        value: "boolean",
+        detail: "Any valid boolean value (true/false/yes/no/on/off/0/1).",
+    },
+    ArgValue {
+        value: "control",
+        detail: "Any Unicode control character.",
+    },
+    ArgValue {
+        value: "dict",
+        detail: "Any proper dict structure, with optional surrounding whitespace.",
+    },
+    ArgValue {
+        value: "digit",
+        detail: "Any Unicode digit character.",
+    },
+    ArgValue {
+        value: "double",
+        detail: "Any valid floating-point number.",
+    },
+    ArgValue {
+        value: "entier",
+        detail: "Synonym for integer.",
+    },
+    ArgValue {
+        value: "false",
+        detail: "Any valid boolean false value.",
+    },
+    ArgValue {
+        value: "graph",
+        detail: "Any Unicode printing character, except space.",
+    },
+    ArgValue {
+        value: "integer",
+        detail: "Any valid integer of arbitrary size.",
+    },
+    ArgValue {
+        value: "list",
+        detail: "Any proper list structure, with optional surrounding whitespace.",
+    },
+    ArgValue {
+        value: "lower",
+        detail: "Any Unicode lower case alphabet character.",
+    },
+    ArgValue {
+        value: "print",
+        detail: "Any Unicode printing character, including space.",
+    },
+    ArgValue {
+        value: "punct",
+        detail: "Any Unicode punctuation character.",
+    },
+    ArgValue {
+        value: "space",
+        detail: "Any Unicode whitespace character.",
+    },
+    ArgValue {
+        value: "true",
+        detail: "Any valid boolean true value.",
+    },
+    ArgValue {
+        value: "upper",
+        detail: "Any upper case alphabet character.",
+    },
+    ArgValue {
+        value: "wideinteger",
+        detail: "Any valid wide integer.",
+    },
+    ArgValue {
+        value: "wordchar",
+        detail: "Any Unicode word character (alphanumeric + connector punctuation).",
+    },
+    ArgValue {
+        value: "xdigit",
+        detail: "Any hexadecimal digit character (0-9, A-F, a-f).",
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bytelength",
@@ -148,6 +241,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 dialects: None,
             },
         ],
+        // First sub-arg (index 0 after `is`) is the character
+        // class — complete it from the fixed class set.
+        arg_values: &[(0, IS_CLASSES)],
         ..SubCommand::DEFAULT
     },
     SubCommand {

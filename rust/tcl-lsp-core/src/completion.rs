@@ -19,16 +19,17 @@
 //!   When no registry is provided, the completion surface
 //!   degrades cleanly to the minimal port's proc-only set.
 //!
+//! Subcommand-scoped argument-value completion has landed:
+//! when a subcommand declares `arg_values` for a positional
+//! slot (e.g. `string is <class>`), the matching character
+//! classes complete at that argument with `EnumValue` kind.
+//!
 //! What is *still deferred* (planned as further
 //! `S-completion-rich` follow-ups):
 //!
-//! * Subcommand completion (`SIGNATURES.get(cmd)` →
-//!   `SubcommandSig` path in `lsp/features/completion.py`).
-//! * Switch completion (`-foo`, `-bar` for known switches).
-//! * Argument-value completion (registry-driven when arg index
-//!   has known values; subcommand-scoped values for things like
-//!   `string is <class>`).
-//! * Dialect-specific arg rules beyond the two trait-driven
+//! * Command-level (non-subcommand) argument-value completion
+//!   for the remaining registry-driven cases.
+//! * Dialect-specific arg rules beyond the trait-driven
 //!   patterns now landed: any command carrying
 //!   `Traits::IS_EVENT_HANDLER` triggers event-name completion
 //!   at word-index 1 (iRules `when EVENT`), and any command
@@ -54,6 +55,9 @@ pub enum CompletionKind {
     Variable,
     /// User-defined proc.
     Function,
+    /// Enumerable argument value (e.g. a `string is <class>`
+    /// character class).
+    EnumValue,
 }
 
 /// A single completion suggestion.
@@ -164,6 +168,22 @@ pub fn completions(
                 }
                 if word_idx == 1 && !spec.subcommands.is_empty() {
                     return subcommand_completions(spec, &partial);
+                }
+                // Subcommand argument-value completion — e.g.
+                // `string is <class>`.  When the cursor is at
+                // word-index ≥ 2 of a command whose subcommand
+                // (the word at index 1) declares enumerable
+                // values for that sub-arg position, list them.
+                if word_idx >= 2 {
+                    if let Some(sub_name) = nth_word_on_line(source, line, 1) {
+                        if let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name) {
+                            let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
+                            let values = sub.arg_values_at(sub_arg_idx);
+                            if !values.is_empty() {
+                                return arg_value_completions(values, &partial);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -406,6 +426,37 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             sort_text: None,
         })
         .collect()
+}
+
+/// Return the `n`-th whitespace-delimited word on `line` of
+/// `source` (0-based), if present.  Used to recover the
+/// subcommand keyword (word index 1) for argument-value
+/// completion.
+fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
+    source
+        .split('\n')
+        .nth(line as usize)?
+        .split_whitespace()
+        .nth(n)
+        .map(str::to_owned)
+}
+
+/// Build completions for a fixed set of enumerable argument
+/// values (e.g. `string is <class>`), filtered by `partial`.
+fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
+    let mut items: Vec<CompletionItem> = values
+        .iter()
+        .filter(|v| partial.is_empty() || v.value.starts_with(partial))
+        .map(|v| CompletionItem {
+            label: v.value.to_owned(),
+            insert_text: v.value.to_owned(),
+            kind: CompletionKind::EnumValue,
+            detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
+            sort_text: None,
+        })
+        .collect();
+    items.sort_unstable_by(|a, b| a.label.cmp(&b.label));
+    items
 }
 
 /// Math operators that the registry registers as commands
@@ -1102,6 +1153,81 @@ mod tests {
         assert!(
             labels.iter().any(|l| l.starts_with('e') && *l != "helper"),
             "fallback should surface some e-prefixed built-in at word-index 2; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: subcommand argument-value completion ----
+
+    #[test]
+    fn string_is_completes_character_classes() {
+        // `string is a` — cursor at the class arg (word 2);
+        // expect the `a*` classes (alnum, alpha, ascii).
+        let src = "string is a\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 11, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"alnum"), "{labels:?}");
+        assert!(labels.contains(&"alpha"), "{labels:?}");
+        assert!(labels.contains(&"ascii"), "{labels:?}");
+        // Every result is an enum value, not a proc / command.
+        for it in &items {
+            assert_eq!(it.kind, CompletionKind::EnumValue, "{it:?}");
+        }
+        // Non-`a` classes filtered out.
+        assert!(!labels.contains(&"digit"), "{labels:?}");
+    }
+
+    #[test]
+    fn string_is_lists_all_classes_with_empty_partial() {
+        // `string is ` — cursor just past the space, empty
+        // partial → all 22 character classes.
+        let src = "string is \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 10, &analysis, Some(&registry));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"boolean"), "{labels:?}");
+        assert!(labels.contains(&"wordchar"), "{labels:?}");
+        assert!(
+            labels.len() >= 20,
+            "expected the full class set; got {labels:?}"
+        );
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+    }
+
+    #[test]
+    fn string_is_class_detail_is_surfaced() {
+        let src = "string is alnum\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
+        assert!(
+            alnum
+                .detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("alphabet or digit"),
+            "{alnum:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_without_arg_values_falls_through() {
+        // `string length x` — `length` has no arg_values, so
+        // word-index 2 falls through to plain completion (no
+        // enum-value items).
+        let src = "string length x\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        assert!(
+            items.iter().all(|i| i.kind != CompletionKind::EnumValue),
+            "no enum-value completions expected; got {items:?}",
         );
     }
 }
