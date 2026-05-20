@@ -942,10 +942,6 @@ _BASELINE: dict[str, dict[str, int | bool]] = {
     # vs expected 1) and proc-old-10.1 (ByteCode epoch change during
     # recursive proc execution).
     "proc-old": {"min_passed": 31, "max_failed": 43},
-    # opt.test — 29/31 passing.  opt-10.8 / opt-10.9 need
-    # ``return -code break`` / ``return -code continue`` to propagate
-    # through compiled-proc bodies (codegen follow-up from #325).
-    "opt": {"min_passed": 27, "max_failed": 4},
 }
 
 

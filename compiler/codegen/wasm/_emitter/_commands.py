@@ -365,23 +365,51 @@ class _WasmEmitterCmdMixin(_Base):
                 self._emit(WasmOp.END)
             self._emit(WasmOp.END)
         # ``return -code break`` / ``return -code continue`` from a
-        # compiled callee leaves a signal flag set.  Two cases:
+        # compiled callee leaves ``break_flag`` / ``continue_flag`` set
+        # (``flow_take_return`` translated the pending ``-code`` above)
+        # plus the matching signal side-channel.  Two cases:
         #
-        # * Inside a compiled while/foreach: fall through naturally
-        #   to the loop's body-end ``flow_consume_break/continue``
-        #   probes, which catch ``break_flag`` / ``continue_flag``
-        #   (both of which were paired with the signal flag).  No
-        #   explicit branch needed — the flags stay live.  We just
-        #   clear the *signal* side-channel so the next dispatch
-        #   level doesn't try to translate it.
+        # * Inside a compiled while/foreach reachable by a direct br:
+        #   consume the flag and branch to the loop's break / continue
+        #   target *immediately*.  C Tcl ends the loop body the moment a
+        #   command returns TCL_BREAK / TCL_CONTINUE — statements after
+        #   the call (e.g. ``OptNextDesc`` after ``OptDoOne`` in
+        #   optparse's ``OptDoAll``) must NOT run.  Relying on the
+        #   loop's body-end consume probe would wrongly execute them.
         #
         # * Outside any loop in this proc: ``return`` from the WASM
-        #   function so the proc dispatcher (compiled-proc path in
-        #   ``eval_proc_call_bucket`` or the matching post-dispatch
-        #   stamp) translates the signal into the caller's
-        #   ``break_flag`` / ``continue_flag``.  Skipped inside a
-        #   catch — the surrounding ``_emit_catch`` per-statement
-        #   probe handles unwind via the catch absorption path.
+        #   function so the proc dispatcher translates the signal into
+        #   the caller's ``break_flag`` / ``continue_flag``.  Skipped
+        #   inside a catch — the surrounding ``_emit_catch`` per-
+        #   statement probe handles unwind via the catch absorption
+        #   path.
+        consume_break_idx = self._shared_imports.get("tcl_flow_consume_break")
+        consume_cont_idx = self._shared_imports.get("tcl_flow_consume_continue")
+        # ``loop_inside_catch`` is True when the innermost enclosing loop
+        # is NOT separated from this call site by a compile-time
+        # ``catch`` — i.e. a structured ``br`` to the loop targets is
+        # safe (mirrors the lexical break/continue logic in
+        # ``_statements.py``).  When a catch sits between, leave the
+        # flags set so ``catch_leave`` absorbs the loop-control code.
+        loop_reachable = bool(self._loop_ctrl_depths) and (
+            not self._loop_catch_depths or self._loop_catch_depths[-1] >= self._catch_depth
+        )
+        if self._loop_depth > 0 and loop_reachable and consume_break_idx is not None:
+            loop_ctrl = self._loop_ctrl_depths[-1]
+            # The br is emitted inside the ``IF`` block, so ``_ctrl_depth``
+            # is already incremented by it — the lexical break/continue
+            # depth formulae (``_ctrl_depth - loop_ctrl + 2`` /
+            # ``_ctrl_depth - loop_ctrl``) then yield the correct target
+            # automatically (the extra IF frame is accounted for).
+            self._emit_call(consume_break_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(self._ctrl_depth - loop_ctrl + 2)
+            self._emit(WasmOp.END)
+            if consume_cont_idx is not None:
+                self._emit_call(consume_cont_idx)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_br(self._ctrl_depth - loop_ctrl)
+                self._emit(WasmOp.END)
         sig_loop_idx = self._shared_imports.get("tcl_flow_check_signal_loop")
         if (
             sig_loop_idx is not None
