@@ -167,6 +167,24 @@ class TestDiagnostics:
         errors = [d for d in result.diagnostics if d.code == "E003"]
         assert len(errors) >= 1
 
+    def test_regsub_switches_not_counted_as_positional(self):
+        # Regression for #455: leading switches must be skipped before
+        # counting positional args, so option-laden regsub calls don't
+        # trip E003. Commands with a role hint previously lost their
+        # declared options during signature merging.
+        for snippet in (
+            "regsub -all -line {\\n} $args {} str",
+            "regsub -all {a} $b {} c",
+            "regsub -nocase -all -- $pat $s {} out",
+        ):
+            result = analyse(snippet)
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert errors == [], f"unexpected E003 for {snippet!r}: {errors}"
+        # Genuine over-arity (5 positional) still fires.
+        result = analyse("regsub a b c d e")
+        errors = [d for d in result.diagnostics if d.code == "E003"]
+        assert len(errors) >= 1
+
     def test_while_too_few_args(self):
         result = analyse("while {1}")
         errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]

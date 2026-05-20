@@ -550,6 +550,7 @@ def _with_roles(name: str, sig: CommandSig | SubcommandSig) -> CommandSig | Subc
                 arity=sig.arity,
                 arg_roles=dict(hint.arg_roles),
                 arg_role_resolver=hint.arg_role_resolver or sig.arg_role_resolver,
+                leading_options=hint.leading_options or sig.leading_options,
             )
         return sig
 
