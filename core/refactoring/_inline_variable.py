@@ -107,12 +107,27 @@ def inline_variable(
         ref_start = ref_name_start - 1
     ref_line, ref_char, ref_end_line, ref_end_char = offsets_to_position(source, ref_start, ref_end)
 
+    # Choose the spliced text based on the reference context.  A standalone
+    # word keeps the value verbatim (preserving quotes/braces so the word
+    # stays intact).  Interpolation inside a ``"..."`` string, or bare
+    # concatenation, must splice the unquoted value content instead — keeping
+    # the delimiters there would produce ``"hello "world""``.
+    if _ref_in_quoted_string(source, ref_start):
+        new_text = _dequote(value_text)
+    elif _ref_adjacent_concat(source, ref_start, ref_end):
+        inner = _dequote(value_text)
+        if any(ch.isspace() for ch in inner):
+            return None  # unsafe: bare concatenation would split into words
+        new_text = inner
+    else:
+        new_text = value_text
+
     replace_edit = RefactoringEdit(
         start_line=ref_line,
         start_character=ref_char,
         end_line=ref_end_line,
         end_character=ref_end_char,
-        new_text=value_text,
+        new_text=new_text,
     )
 
     return RefactoringResult(
@@ -120,6 +135,46 @@ def inline_variable(
         edits=(delete_edit, replace_edit),
         kind="refactor.inline",
     )
+
+
+_WORD_BOUNDARY = set(' \t\r\n;[]{}"') | {""}
+
+
+def _dequote(value_text: str) -> str:
+    """Strip one layer of matching ``"..."`` or ``{...}`` delimiters."""
+    if len(value_text) >= 2 and value_text[0] == value_text[-1] == '"':
+        return value_text[1:-1]
+    if len(value_text) >= 2 and value_text[0] == "{" and value_text[-1] == "}":
+        return value_text[1:-1]
+    return value_text
+
+
+def _ref_in_quoted_string(source: str, ref_start: int) -> bool:
+    """True when the reference at *ref_start* sits inside a ``"..."`` literal.
+
+    Counts unescaped double quotes between the start of the reference's
+    physical line and the reference itself; an odd count means we are inside
+    an open quoted string, so a ``$var`` there is string interpolation.
+    """
+    line_start = source.rfind("\n", 0, ref_start) + 1
+    seg = source[line_start:ref_start]
+    quotes = 0
+    k = 0
+    while k < len(seg):
+        if seg[k] == "\\":
+            k += 2
+            continue
+        if seg[k] == '"':
+            quotes += 1
+        k += 1
+    return quotes % 2 == 1
+
+
+def _ref_adjacent_concat(source: str, ref_start: int, ref_end: int) -> bool:
+    """True when the reference abuts other word characters (bare concatenation)."""
+    before = source[ref_start - 1] if ref_start > 0 else ""
+    after = source[ref_end] if ref_end < len(source) else ""
+    return (after not in _WORD_BOUNDARY) or (before not in _WORD_BOUNDARY)
 
 
 def _walk_scopes(scope):

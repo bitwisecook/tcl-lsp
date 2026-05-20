@@ -29,6 +29,7 @@ from core.refactoring._extract_datagroup import extract_to_datagroup
 from core.refactoring._extract_variable import extract_variable
 from core.refactoring._if_to_switch import if_to_switch
 from core.refactoring._inline_variable import inline_variable
+from core.refactoring._spans import command_span_offsets
 from core.refactoring._switch_to_dict import switch_to_dict
 
 from .diagnostics import _check_comment_continuation, _check_trailing_whitespace
@@ -764,7 +765,12 @@ def _inline_proc_action(
     if arg_map is None:
         return None
 
-    replacement = _substitute_proc_params(" ".join(body_cmd.texts), arg_map).strip()
+    # Substitute parameters into the *raw* body text rather than the
+    # space-joined word texts — joining drops structural braces/quotes
+    # (``expr {$x * 2}`` would collapse to ``expr $x * 2``).
+    body_start, body_end = command_span_offsets(body_text, body_cmd)
+    raw_body = body_text[body_start:body_end]
+    replacement = _substitute_proc_params(raw_body, arg_map).strip()
     if not replacement:
         return None
     prefix = _line_indent(source, cmd.range.start.line)
