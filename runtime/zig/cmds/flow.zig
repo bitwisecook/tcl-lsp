@@ -383,22 +383,6 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         catch_mod.state.return_via_error_code = 1;
         return result_mod.from_globals(0);
     }
-    // ``return -code break`` / ``return -code continue`` aren't yet
-    // wired through the compiled-proc body machinery — propagating
-    // them correctly requires a per-statement break/continue check
-    // that can branch out to the enclosing loop's consume probe,
-    // which the codegen doesn't emit yet.  Falling through to the
-    // default return path keeps single-callsite tests green at the
-    // cost of a small handful of optparse state-machine cases
-    // (opt-10.8 / 10.9 / 11.x).  Tracking as a follow-up; the
-    // signal-flag scaffolding (``signal_break_flag`` /
-    // ``signal_continue_flag`` / ``flow_check_signal_loop``) stays
-    // in place for that future work.
-    if (code_kind == .brk or code_kind == .cont) {
-        // Suppress "unused .brk/.cont arm" while we leave the full
-        // wire-up for the follow-up that adds the codegen-side
-        // per-statement probes.
-    }
     // ``return -level 0 …`` is the no-unwind form: the command
     // produces the value with the requested status code but the
     // current frame keeps running.  ``return -level 0 X`` is exactly
@@ -432,6 +416,25 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
             },
             .ret, .err => {},
         }
+    }
+    // ``return -code break`` / ``return -code continue`` (default
+    // ``-level 1``) unwind the proc body like a normal ``return`` — the
+    // ``set_return`` below sets ``return_flag`` with ``return_level ==
+    // 0`` and ``pending_return_code`` (3 / 4) was stamped above — but
+    // ALSO arm the ``signal_break_flag`` / ``signal_continue_flag``
+    // side-channel.  At the proc-dispatch / compiled-call absorb
+    // boundary the pending code is translated into ``break_flag`` /
+    // ``continue_flag`` for an enclosing loop to catch (interpreted:
+    // ``apply_pending_return_code``; compiled: ``flow_take_return``).
+    // When the loop-control ``return`` lands in a proc with no enclosing
+    // loop the signal flag drives ``flow_check_signal_loop`` so the
+    // compiled body returns out to its dispatcher, which re-stamps the
+    // caller's flag.  The ``-level 0`` no-unwind form is handled above
+    // and never reaches here.
+    if (code_kind == .brk) {
+        result_mod.set_signal_break();
+    } else if (code_kind == .cont) {
+        result_mod.set_signal_continue();
     }
     // MM-B.5: ``return_val`` slot holds the value until
     // ``eval_proc_call_bucket`` reads it back.  Retain so ``MM-B.4``'s

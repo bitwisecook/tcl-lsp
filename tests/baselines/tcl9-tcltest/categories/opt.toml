@@ -1,19 +1,14 @@
 # opt.test categorisation (Tcl 9.0.3 source tree).
-# Bundle reaches its tcltest summary line now.  Residual must_pass
-# failures are ``return -code break`` / ``return -code continue``
-# propagation through compiled-proc bodies — see issue #325 follow-up.
+# Runs the real upstream ``library/opt/optparse.tcl`` and passes
+# 31/31 — no opt-specific runtime / compiler support.  ``OptDoOne``'s
+# ``return -code break`` / ``return -code continue`` now propagate
+# through compiled-proc bodies to ``OptDoAll``'s enclosing loop.
 
-good_to_have = [
-  "10.8",   # opt-10.8: ``OptDoOne`` issues ``return -code break`` to
-            # exit the ``OptDoAll`` foreach early; our compiled-proc
-            # codegen consumes the break flag at the proc boundary
-            # instead of letting it bubble to the enclosing loop.
-  "10.9",   # opt-10.9: same shape with ``return -code continue``.
-]
+good_to_have = []
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 2
+good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
