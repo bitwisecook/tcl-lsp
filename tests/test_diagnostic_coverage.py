@@ -562,6 +562,18 @@ FIXTURES: dict[str, Case] = {
         "when CLIENT_ACCEPTED {\n  TCP::collect\n  TCP::release\n}\n",
         dialect="f5-irules",
     ),
+    "IRULE2002": Case(
+        "when CLIENT_ACCEPTED {\n  accumulate\n}\n",
+        "accumulate",
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2003": Case(
+        "when HTTP_REQUEST {\n  uplevel 1 {set x 1}\n}\n",
+        "uplevel",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -684,8 +696,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IAPP7001",
         "IAPP7002",
         "IRULE1202",
-        "IRULE2002",
-        "IRULE2003",
         "IRULE3103",
         "IRULE4002",
         "IRULE4003",
