@@ -579,6 +579,11 @@ FIXTURES: dict[str, Case] = {
         "lindex $myList 1",
         "set myList [list a b c]\nlindex $myList 1\nputs $myList\n",
     ),
+    "O103": Case(
+        "proc pi {} { return 3 }\nset v [pi]\n",
+        "[pi]",
+        "proc effect {} { puts hi; return 1 }\nset v [effect]\n",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -605,6 +610,9 @@ RANGE_FIXME: dict[str, FiresCase] = {
     "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
     # Dead store: range bleeds onto the following line's first character.
     "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
+    # lassign-pack of consecutive set literals: range bleeds onto the
+    # following line's first character.
+    "O119": FiresCase("set a 1\nset b 2\nset c 3\nlassign $lst a b c\n", "set a 1\nputs $a\n"),
     # `drop` without `event disable all`/`return`: range points at the
     # event block's closing brace rather than the drop command.
     "IRULE5002": FiresCase(
@@ -708,12 +716,10 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE4005",
         "IRULE5003",
         "O101",
-        "O103",
         "O106",
         "O108",
         "O113",
         "O115",
-        "O119",
         "O121",
         "O123",
         "O125",
