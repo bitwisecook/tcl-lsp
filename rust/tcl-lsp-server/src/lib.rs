@@ -15,7 +15,8 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
@@ -415,25 +416,7 @@ impl Backend {
     /// folders shadow their parents.
     async fn resolve_folder_dialect(&self, uri: &Url) -> Option<String> {
         let folders = self.folder_dialects.lock().await;
-        let mut best: Option<(usize, &str)> = None;
-        let target = uri.as_str();
-        for (folder, dialect) in folders.iter() {
-            if !uri_under_folder(target, folder.as_str()) {
-                continue;
-            }
-            // Track the longest-prefix match so nested folder
-            // mappings (`file:///workspace/irules/` inside
-            // `file:///workspace/`) shadow their parents.
-            let len = folder.as_str().len();
-            let take = match best {
-                Some((existing, _)) => len > existing,
-                None => true,
-            };
-            if take {
-                best = Some((len, dialect));
-            }
-        }
-        best.map(|(_, d)| d.to_owned())
+        folder_dialect_for(uri, &folders)
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
@@ -848,6 +831,74 @@ impl Backend {
             }
         }
     }
+
+    /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
+    /// files in the workspace folders that the editor hasn't
+    /// opened, merging their definitions / invocation sites into
+    /// the cross-document workspace index.
+    ///
+    /// Editor-opened documents already feed the index through
+    /// `publish_analyser_diagnostics`; this fills the gap for
+    /// project files the user hasn't opened yet so cross-document
+    /// features (references / rename / call-hierarchy /
+    /// completion) see the whole project, not just open tabs.
+    ///
+    /// The directory walk, file reads and per-file analysis run on
+    /// a `spawn_blocking` worker so the LSP event loop stays
+    /// responsive.  URIs already present in `self.documents` are
+    /// skipped so the on-disk copy never clobbers a live (and
+    /// possibly unsaved) editor buffer.  The walk is capped at
+    /// [`WORKSPACE_SCAN_FILE_CAP`] files so a large tree can't
+    /// stall start-up.
+    async fn scan_workspace_folders(&self) {
+        let folders = self.workspace_folder_urls().await;
+        let roots: Vec<PathBuf> = folders
+            .iter()
+            .filter_map(|f| f.to_file_path().ok())
+            .collect();
+        if roots.is_empty() {
+            return;
+        }
+        // Snapshot the dialect-resolution inputs and the set of
+        // open documents so the blocking worker can run without
+        // touching any async mutex.
+        let open: HashSet<Url> = self.documents.lock().await.keys().cloned().collect();
+        let folder_dialects = self.folder_dialects.lock().await.clone();
+        let default_dialect = self.default_dialect.lock().await.clone();
+
+        let analysed = tokio::task::spawn_blocking(move || {
+            let mut files: Vec<PathBuf> = Vec::new();
+            for root in &roots {
+                collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
+            }
+            let mut out: Vec<(String, AnalysisResult)> = Vec::new();
+            for path in files {
+                let Ok(uri) = Url::from_file_path(&path) else {
+                    continue;
+                };
+                if open.contains(&uri) {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let dialect = folder_dialect_for(&uri, &folder_dialects)
+                    .unwrap_or_else(|| default_dialect.clone());
+                let mut analyser = Analyser::new();
+                let analysis = analyser.analyse(&text, &dialect).clone();
+                out.push((uri.to_string(), analysis));
+            }
+            out
+        })
+        .await
+        .unwrap_or_default();
+
+        let mut index = self.workspace_index.lock().await;
+        for (uri, analysis) in &analysed {
+            index.remove_document(uri);
+            index.add_document(uri, analysis);
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -868,6 +919,9 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "tcl-lsp-server initialised")
             .await;
+        // Seed the cross-document index with on-disk project files
+        // the editor hasn't opened yet.
+        self.scan_workspace_folders().await;
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
@@ -2247,6 +2301,91 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
     ))
 }
 
+/// Resolve the per-folder dialect override for the given URI. The
+/// longest matching folder prefix wins so a nested folder mapping
+/// shadows its parent. Returns `None` when no folder covers the
+/// URI, in which case the caller falls back to the session
+/// default.
+fn folder_dialect_for(uri: &Url, folders: &[(Url, String)]) -> Option<String> {
+    let mut best: Option<(usize, &str)> = None;
+    let target = uri.as_str();
+    for (folder, dialect) in folders {
+        if !uri_under_folder(target, folder.as_str()) {
+            continue;
+        }
+        let len = folder.as_str().len();
+        let take = match best {
+            Some((existing, _)) => len > existing,
+            None => true,
+        };
+        if take {
+            best = Some((len, dialect.as_str()));
+        }
+    }
+    best.map(|(_, d)| d.to_owned())
+}
+
+/// Upper bound on the number of files the on-disk workspace scan
+/// will analyse, so a pathologically large tree can't stall
+/// start-up.  Open documents are always indexed regardless of
+/// this cap (they flow through `publish_analyser_diagnostics`).
+const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
+
+/// `true` when `path` names a directory the workspace scan should
+/// not descend into: hidden directories (dot-prefixed) and the
+/// common vendor / build / scratch trees that never hold
+/// first-party Tcl sources worth indexing.
+fn is_skipped_scan_dir(path: &Path) -> bool {
+    match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name.starts_with('.') || matches!(name, "node_modules" | "target" | "tmp"),
+        // No representable file name (e.g. `..`): skip to be safe.
+        None => true,
+    }
+}
+
+/// `true` when `path` has a Tcl source extension the analyser can
+/// usefully index (`.tcl` scripts and `.tm` Tcl modules).
+fn is_tcl_source(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|e| e.to_str()),
+        Some("tcl" | "tm")
+    )
+}
+
+/// Iteratively walk `root`, appending the paths of Tcl source
+/// files to `out` until `out` reaches `cap` entries.  Skips the
+/// directories [`is_skipped_scan_dir`] rejects and silently
+/// ignores unreadable directories so a single permission error
+/// doesn't abort the whole scan.  Iterative (explicit stack) to
+/// avoid unbounded recursion on deep trees.
+fn collect_tcl_files(root: &Path, cap: usize, out: &mut Vec<PathBuf>) {
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        if out.len() >= cap {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            let path = entry.path();
+            if file_type.is_dir() {
+                if !is_skipped_scan_dir(&path) {
+                    stack.push(path);
+                }
+            } else if file_type.is_file() && is_tcl_source(&path) {
+                if out.len() >= cap {
+                    return;
+                }
+                out.push(path);
+            }
+        }
+    }
+}
+
 /// `true` when `uri` sits under the workspace folder `folder`.
 ///
 /// Performs the directory-boundary check the prefix-only
@@ -2704,6 +2843,84 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn scan_workspace_folders_indexes_unopened_files() {
+        let root = unique_scratch_dir("scan");
+        std::fs::write(
+            root.join("lib.tcl"),
+            "proc greet {name} { puts \"hi $name\" }\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("main.tcl"), "greet world\n").unwrap();
+
+        let backend = test_backend();
+        let root_url = Url::from_file_path(&root).unwrap();
+        *backend.workspace_folders.lock().await = vec![root_url];
+
+        backend.scan_workspace_folders().await;
+
+        let index = backend.workspace_index.lock().await;
+        let defs = index.proc_definitions("greet", "greet");
+        assert!(
+            !defs.is_empty(),
+            "expected the unopened lib.tcl proc to be indexed",
+        );
+        // The call site in main.tcl should be indexed too (no
+        // current-URI exclusion here).
+        let invs = index.invocations_of("greet", "greet", "");
+        assert!(
+            !invs.is_empty(),
+            "expected the unopened main.tcl call site to be indexed",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn scan_workspace_folders_skips_open_documents() {
+        let root = unique_scratch_dir("scan-open");
+        let on_disk = root.join("buf.tcl");
+        // The on-disk copy defines `stale`; the live buffer (below)
+        // defines `fresh`. After the scan the index must reflect the
+        // live buffer, not the on-disk copy.
+        std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let root_url = Url::from_file_path(&root).unwrap();
+        let uri = Url::from_file_path(&on_disk).unwrap();
+        *backend.workspace_folders.lock().await = vec![root_url];
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        // Seed the index from the live buffer the way did_open would.
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+
+        backend.scan_workspace_folders().await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("fresh", "fresh").is_empty(),
+            "live buffer's proc must survive the scan",
+        );
+        assert!(
+            index.proc_definitions("stale", "stale").is_empty(),
+            "on-disk copy must not clobber the open document",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
     async fn resolve_folder_dialect_picks_deepest_prefix() {
         let backend = test_backend();
         *backend.folder_dialects.lock().await = vec![
@@ -2780,6 +2997,103 @@ mod tests {
             "file:///ws/app2/file.tcl",
             "file:///ws/app/",
         ));
+    }
+
+    #[test]
+    fn folder_dialect_for_prefers_deepest_match() {
+        let folders = vec![
+            (Url::parse("file:///ws/").unwrap(), "tcl8.6".to_owned()),
+            (
+                Url::parse("file:///ws/irules/").unwrap(),
+                "f5-irules".to_owned(),
+            ),
+        ];
+        // A file under the nested folder picks up the nested
+        // (deepest-prefix) dialect, not the parent's.
+        let nested = Url::parse("file:///ws/irules/app.tcl").unwrap();
+        assert_eq!(
+            folder_dialect_for(&nested, &folders).as_deref(),
+            Some("f5-irules"),
+        );
+        // A file only under the root folder gets the root dialect.
+        let top = Url::parse("file:///ws/util.tcl").unwrap();
+        assert_eq!(
+            folder_dialect_for(&top, &folders).as_deref(),
+            Some("tcl8.6"),
+        );
+        // A file outside every folder has no override.
+        let outside = Url::parse("file:///other/x.tcl").unwrap();
+        assert_eq!(folder_dialect_for(&outside, &folders), None);
+    }
+
+    #[test]
+    fn is_tcl_source_matches_tcl_and_tm_only() {
+        assert!(is_tcl_source(Path::new("/a/b.tcl")));
+        assert!(is_tcl_source(Path::new("/a/b.tm")));
+        assert!(!is_tcl_source(Path::new("/a/b.txt")));
+        assert!(!is_tcl_source(Path::new("/a/b")));
+    }
+
+    #[test]
+    fn is_skipped_scan_dir_skips_vendor_and_hidden() {
+        assert!(is_skipped_scan_dir(Path::new("/a/.git")));
+        assert!(is_skipped_scan_dir(Path::new("/a/node_modules")));
+        assert!(is_skipped_scan_dir(Path::new("/a/target")));
+        assert!(is_skipped_scan_dir(Path::new("/a/tmp")));
+        assert!(!is_skipped_scan_dir(Path::new("/a/src")));
+        assert!(!is_skipped_scan_dir(Path::new("/a/irules")));
+    }
+
+    /// Build a unique scratch directory under the system temp dir
+    /// for a disk-walk test, returning its path. The caller removes
+    /// it when done.
+    fn unique_scratch_dir(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn collect_tcl_files_walks_recursively_and_skips_vendor() {
+        let root = unique_scratch_dir("walk");
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::write(root.join("top.tcl"), "set x 1\n").unwrap();
+        std::fs::write(root.join("mod.tm"), "set y 2\n").unwrap();
+        std::fs::write(root.join("readme.txt"), "not tcl\n").unwrap();
+        std::fs::write(root.join("sub/nested.tcl"), "set z 3\n").unwrap();
+        std::fs::write(root.join("node_modules/dep.tcl"), "set q 4\n").unwrap();
+        std::fs::write(root.join(".git/hook.tcl"), "set w 5\n").unwrap();
+
+        let mut out = Vec::new();
+        collect_tcl_files(&root, 100, &mut out);
+        let mut names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(names, vec!["mod.tm", "nested.tcl", "top.tcl"]);
+    }
+
+    #[test]
+    fn collect_tcl_files_respects_cap() {
+        let root = unique_scratch_dir("cap");
+        for i in 0..10 {
+            std::fs::write(root.join(format!("f{i}.tcl")), "set x 1\n").unwrap();
+        }
+        let mut out = Vec::new();
+        collect_tcl_files(&root, 3, &mut out);
+        let got = out.len();
+        std::fs::remove_dir_all(&root).ok();
+        assert_eq!(got, 3);
     }
 
     #[test]
