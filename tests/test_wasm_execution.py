@@ -959,11 +959,11 @@ class TestNopReduction:
         wasm_mod, _ = _compile_to_wasm("proc f {} { global x; return 1 }\n")
         # Find the proc function
         proc_funcs = [f for f in wasm_mod.functions if f.name != "::top"]
-        if proc_funcs:
-            from core.compiler.codegen.wasm import WasmOp
+        assert proc_funcs, "expected proc ::f to be compiled"
+        from core.compiler.codegen.wasm import WasmOp
 
-            nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
-            assert nop_count == 0
+        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+        assert nop_count == 0
 
 
 # Proc call WAT inspection
@@ -2066,9 +2066,9 @@ class TestBreakContinue:
 
         wasm_mod, _ = _compile_to_wasm('proc f {} { foreach i "1 2 3" { break } }\n')
         proc_funcs = [f for f in wasm_mod.functions if "f" in f.name]
-        if proc_funcs:
-            has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
-            assert has_br, "break should emit a br instruction"
+        assert proc_funcs, "expected proc ::f to be compiled"
+        has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
+        assert has_br, "break should emit a br instruction"
 
 
 # Unknown command traps

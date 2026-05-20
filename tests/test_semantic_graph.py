@@ -181,13 +181,13 @@ class TestBuildSymbolGraph:
             puts $counter
         """)
         data = build_symbol_graph(source)
-        # Should have at least one scope with variables
         global_scope = data["scopes"][0]
         variables = global_scope.get("variables", [])
-        if variables:
-            counter_var = [v for v in variables if v["name"] == "counter"]
-            if counter_var:
-                assert len(counter_var[0].get("references", [])) >= 0
+        counter_var = [v for v in variables if v["name"] == "counter"]
+        assert counter_var, variables
+        # ``counter`` is referenced twice — by ``incr`` (line 1) and ``puts``
+        # (line 2); the previous ``len(...) >= 0`` check was always true.
+        assert len(counter_var[0].get("references", [])) == 2
 
     def test_proc_references(self):
         source = textwrap.dedent("""\
@@ -251,10 +251,11 @@ class TestBuildDataflowGraph:
         data = build_dataflow_graph(source)
         effects = data["proc_effects"]
         names = {e["name"]: e for e in effects}
-        if "::pure_add" in names:
-            assert names["::pure_add"]["pure"] is True
-        if "::impure" in names:
-            assert names["::impure"]["pure"] is False
+        # Both procs must be analysed: pure_add is side-effect-free, impure
+        # calls puts and is not.
+        assert "::pure_add" in names and "::impure" in names, names
+        assert names["::pure_add"]["pure"] is True
+        assert names["::impure"]["pure"] is False
 
     def test_tainted_variables(self):
         source = textwrap.dedent("""\
