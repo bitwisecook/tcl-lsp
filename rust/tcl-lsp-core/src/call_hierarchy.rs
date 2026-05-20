@@ -3,20 +3,32 @@
 //!
 //! Three entry points:
 //!
-//! * [`prepare`] — resolves the proc at the cursor into a
-//!   single [`CallHierarchyItem`].
+//! * [`prepare`] — resolves the proc *or class method* at the
+//!   cursor into a single [`CallHierarchyItem`].
 //! * [`incoming_calls`] — every call site in the document that
-//!   targets the given proc, grouped by the enclosing proc.
+//!   targets the given proc / method, grouped by the enclosing
+//!   proc / method.
 //! * [`outgoing_calls`] — every call site inside the given
-//!   proc's body, grouped by the called proc.
+//!   proc's / method's body, grouped by the callee.
 //!
-//! Edge enumeration mirrors Python's per-proc call-site
+//! Proc edge enumeration mirrors Python's per-proc call-site
 //! computation by walking `analysis.command_invocations` and
 //! intersecting their byte spans with each proc's body span.
+//!
+//! Class-method edges are computed differently: the analyser's
+//! `command_invocations` collection only records top-level
+//! invocations, so method bodies are re-segmented on demand via
+//! [`tcl_compiler::segmenter::segment_commands_with_offset`] —
+//! the same strategy the rename / references / code-lens
+//! class-member walks use.  A method item is identified by the
+//! synthetic name `<class-qualified-name>::<method-name>` (e.g.
+//! `::C::greet`); intra-class calls match on the bare method
+//! name.
+//!
 //! No workspace-wide call-graph index is required — every
 //! computation stays in-document.
 
-use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
@@ -54,7 +66,128 @@ pub fn prepare(
             return vec![item_for_proc(proc_def, qname, &line_index)];
         }
     }
+    // Class-method fallback — cursor inside a class body on a
+    // method / classmethod name.
+    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    if let Some((class_def, method)) = enclosing_class_method(analysis, &word, cursor_offset) {
+        return vec![item_for_method(class_def, method, &line_index)];
+    }
     Vec::new()
+}
+
+/// Synthetic call-hierarchy name for a class method:
+/// `<class-qualified-name>::<method-name>` (e.g. `::C::greet`).
+fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
+    format!("{}::{}", class_def.qualified_name, method.name)
+}
+
+/// Build a [`CallHierarchyItem`] for a class method.
+fn item_for_method(
+    class_def: &ClassDef,
+    method: &MethodDef,
+    line_index: &LineIndex,
+) -> CallHierarchyItem {
+    let name_range = span_to_range(line_index, method.name_span);
+    let body_range = span_to_range(line_index, method.body_span);
+    let detail = Some(format!(
+        "{} of {} ({} params)",
+        method.kind,
+        class_def.qualified_name,
+        method.params.len(),
+    ));
+    let full_range = LspRange {
+        start_line: name_range.start_line,
+        start_character: name_range.start_character,
+        end_line: body_range.end_line,
+        end_character: body_range.end_character,
+    };
+    CallHierarchyItem {
+        name: method_item_name(class_def, method),
+        detail,
+        range: full_range,
+        selection_range: name_range,
+    }
+}
+
+/// Find the class + method whose body contains `cursor_offset`
+/// and whose method name matches `word`.  Searches `methods`
+/// then `class_methods`.
+fn enclosing_class_method<'a>(
+    analysis: &'a AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<(&'a ClassDef, &'a MethodDef)> {
+    for class_def in analysis.all_classes.values() {
+        let body = class_def.body_span;
+        if !(body.start() < cursor_offset && cursor_offset < body.end()) {
+            continue;
+        }
+        if let Some(m) = class_def.methods.get(word) {
+            return Some((class_def, m));
+        }
+        if let Some(m) = class_def.class_methods.get(word) {
+            return Some((class_def, m));
+        }
+    }
+    None
+}
+
+/// Resolve a method item name (`<class-qual>::<method>`) back to
+/// its [`ClassDef`] + [`MethodDef`].  Splits on the final `::`.
+fn resolve_method_item<'a>(
+    analysis: &'a AnalysisResult,
+    item_name: &str,
+) -> Option<(&'a ClassDef, &'a MethodDef)> {
+    let idx = item_name.rfind("::")?;
+    let class_q = &item_name[..idx];
+    let method_name = &item_name[idx + 2..];
+    let class_def = analysis
+        .all_classes
+        .values()
+        .find(|c| c.qualified_name == class_q)?;
+    let method = class_def
+        .methods
+        .get(method_name)
+        .or_else(|| class_def.class_methods.get(method_name))?;
+    Some((class_def, method))
+}
+
+/// Re-segment a method body and return `(head_word, head_span)`
+/// for every command invocation in it.  Surrounding braces are
+/// stripped so the segmenter descends into the body rather than
+/// treating the leading `{` as a braced literal.
+fn segment_body_calls(source: &str, body_span: tcl_lexer::Span) -> Vec<(String, tcl_lexer::Span)> {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    if body_span.is_empty() {
+        return Vec::new();
+    }
+    let mut start = body_span.start() as usize;
+    let mut end = body_span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return Vec::new();
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    let body_text = &source[start..end];
+    let commands =
+        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    let mut out = Vec::new();
+    for cmd in &commands {
+        let Some(head) = cmd.argv.first() else {
+            continue;
+        };
+        let h_start = head.span.start() as usize;
+        let h_end = head.span.end() as usize;
+        if h_start >= source.len() || h_end > source.len() {
+            continue;
+        }
+        out.push((source[h_start..h_end].to_owned(), head.span));
+    }
+    out
 }
 
 /// Build a [`CallHierarchyItem`] for a given proc definition.
@@ -174,7 +307,8 @@ pub fn incoming_calls(
     let Some((target_qname, target_proc)) =
         analysis.all_procs.iter().find(|(qn, _)| **qn == item.name)
     else {
-        return Vec::new();
+        // Not a proc — try a class method.
+        return method_incoming_calls(source, item, analysis, &line_index);
     };
     // (caller-qname → (caller-item, ranges)) keyed by qname so
     // multiple call sites from one caller group together.
@@ -242,7 +376,8 @@ pub fn outgoing_calls(
 ) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
     let Some((_, source_proc)) = analysis.all_procs.iter().find(|(qn, _)| **qn == item.name) else {
-        return Vec::new();
+        // Not a proc — try a class method.
+        return method_outgoing_calls(source, item, analysis, &line_index);
     };
     // Map target qname → (target item, list of ranges).
     let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
@@ -267,6 +402,101 @@ pub fn outgoing_calls(
         .into_values()
         .map(|(to, from_ranges)| OutgoingCall { to, from_ranges })
         .collect()
+}
+
+/// Incoming calls for a class method — every call site naming
+/// the method inside any sibling method body, grouped by the
+/// enclosing method.  Intra-class calls match on the bare
+/// method name.
+fn method_incoming_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<IncomingCall> {
+    let Some((class_def, target_method)) = resolve_method_item(analysis, &item.name) else {
+        return Vec::new();
+    };
+    let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
+        std::collections::BTreeMap::new();
+    for caller in class_methods_iter(class_def) {
+        for (head, span) in segment_body_calls(source, caller.body_span) {
+            if head != target_method.name {
+                continue;
+            }
+            // Skip the declaration site itself.
+            if span == target_method.name_span {
+                continue;
+            }
+            let key = method_item_name(class_def, caller);
+            let entry = by_caller
+                .entry(key)
+                .or_insert_with(|| (item_for_method(class_def, caller, line_index), Vec::new()));
+            entry.1.push(span_to_range(line_index, span));
+        }
+    }
+    by_caller
+        .into_values()
+        .map(|(from, from_ranges)| IncomingCall { from, from_ranges })
+        .collect()
+}
+
+/// Outgoing calls from a class method — every call site inside
+/// the method's body that names a sibling method (→ method
+/// item) or a top-level user proc (→ proc item).
+fn method_outgoing_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<OutgoingCall> {
+    let Some((class_def, source_method)) = resolve_method_item(analysis, &item.name) else {
+        return Vec::new();
+    };
+    let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
+        std::collections::BTreeMap::new();
+    for (head, span) in segment_body_calls(source, source_method.body_span) {
+        let range = span_to_range(line_index, span);
+        // Sibling method?
+        if let Some(callee) = class_def
+            .methods
+            .get(&head)
+            .or_else(|| class_def.class_methods.get(&head))
+        {
+            // Skip self-recursion's own declaration site only;
+            // recursive calls are legitimate outgoing edges.
+            let key = method_item_name(class_def, callee);
+            let entry = by_target
+                .entry(key)
+                .or_insert_with(|| (item_for_method(class_def, callee, line_index), Vec::new()));
+            entry.1.push(range);
+            continue;
+        }
+        // Top-level user proc?
+        if let Some((qname, proc_def)) = analysis
+            .all_procs
+            .iter()
+            .find(|(qn, p)| p.name == head || qn.as_str() == head || **qn == format!("::{head}"))
+        {
+            let entry = by_target
+                .entry(qname.clone())
+                .or_insert_with(|| (item_for_proc(proc_def, qname, line_index), Vec::new()));
+            entry.1.push(range);
+        }
+    }
+    by_target
+        .into_values()
+        .map(|(to, from_ranges)| OutgoingCall { to, from_ranges })
+        .collect()
+}
+
+/// Iterate every method + classmethod of a class (the bodies
+/// that can host intra-class method calls).
+fn class_methods_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> {
+    class_def
+        .methods
+        .values()
+        .chain(class_def.class_methods.values())
 }
 
 fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -395,5 +625,55 @@ mod tests {
             },
         };
         assert!(outgoing_calls(src, &bogus, &analysis).is_empty());
+    }
+
+    // -- S-call-hierarchy-rich: class methods -----------------------
+
+    #[test]
+    fn prepare_resolves_method_at_cursor() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `greet` declaration (line 1, col 11).
+        let items = prepare(src, 1, 11, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].name, "::C::greet");
+    }
+
+    #[test]
+    fn incoming_calls_for_method_grouped_by_caller_method() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        let incoming = incoming_calls(src, &items[0], &analysis);
+        // One caller method (`twice`) with two call ranges.
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::twice");
+        assert_eq!(incoming[0].from_ranges.len(), 2, "{incoming:?}");
+    }
+
+    #[test]
+    fn outgoing_calls_from_method_to_sibling_method() {
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        // Resolve the `twice` method (line 2, col 11).
+        let items = prepare(src, 2, 11, &analysis);
+        assert_eq!(items[0].name, "::C::twice");
+        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
+        // Two call sites collapse into one target entry.
+        assert_eq!(outgoing[0].from_ranges.len(), 2, "{outgoing:?}");
+    }
+
+    #[test]
+    fn outgoing_calls_from_method_to_top_level_proc() {
+        let src = "proc helper {} {}\noo::class create C {\n    method use {} { helper }\n}\n";
+        let analysis = analyse(src);
+        // Resolve the `use` method (line 2, col 11).
+        let items = prepare(src, 2, 11, &analysis);
+        assert_eq!(items[0].name, "::C::use");
+        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert_eq!(names, vec!["::helper"], "{outgoing:?}");
     }
 }
