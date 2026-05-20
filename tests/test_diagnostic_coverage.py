@@ -550,6 +550,18 @@ FIXTURES: dict[str, Case] = {
         "set z 1",
         "puts hi\nputs there\n",
     ),
+    "IRULE1003": Case(
+        "when AUTH_SUCCESS {\n  log local0. hi\n}\n",
+        "AUTH_SUCCESS",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1008": Case(
+        "when CLIENT_ACCEPTED {\n  TCP::release\n}\n",
+        "TCP::release",
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n  TCP::release\n}\n",
+        dialect="f5-irules",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -665,8 +677,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "E203",
         "IAPP7001",
         "IAPP7002",
-        "IRULE1003",
-        "IRULE1008",
         "IRULE1202",
         "IRULE2002",
         "IRULE2003",
