@@ -514,6 +514,17 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # Unused proc parameter: range spans the whole proc rather than the
     # offending parameter token.
     "W214": FiresCase("proc f {a b} {return $a}\n", "proc f {a} {return $a}\n"),
+    # Shimmer inside loop body: range points at the pre-loop initialiser
+    # rather than the in-loop conversion site.
+    "S101": FiresCase(
+        'set x 0\nwhile {1} {\n  set x [expr {$x + 1}]\n  set x "str"\n}\n',
+        "set x 0\nputs $x\n",
+    ),
+    # Type oscillation across iterations: range drops the trailing quote.
+    "S102": FiresCase(
+        'set x 0\nwhile {1} {\n  set x [expr {$x + 1}]\n  set x "str"\n}\n',
+        "set x 0\nwhile {$x < 3} {\n  incr x\n}\n",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -570,8 +581,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O126",
         "O127",
         "S100",
-        "S101",
-        "S102",
         "T102",
         "T103",
         "T106",
