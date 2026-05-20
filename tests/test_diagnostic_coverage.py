@@ -255,13 +255,131 @@ FIXTURES: dict[str, Case] = {
         dialect="f5-irules",
         xc=True,
     ),
+    "W103": Case(
+        'set f [open "| rm -rf /"]\n',
+        "| rm -rf /",
+        "set f [open data.txt]\n",
+        contains=True,
+    ),
+    "W105": Case(
+        'if {1} "puts $x"\n',
+        '"puts $x"',
+        "if {1} {puts $x}\n",
+    ),
+    "W113": Case(
+        "proc set {a b} {return}\n",
+        "set",
+        "proc myproc {} {return}\n",
+    ),
+    "W115": Case(
+        "# comment \\\nputs hi\n",
+        "# comment \\\nputs hi",
+        "# comment\nputs hi\n",
+    ),
+    "W121": Case(
+        "set m 255.255.0.255\n",
+        "255.255.0.255",
+        "set m 255.255.255.0\n",
+    ),
+    "W125": Case(
+        "if {1} {puts a}\nelse {puts b}\n",
+        "else",
+        "if {1} {puts a} else {puts b}\n",
+    ),
+    "W231": Case(
+        "set l {a b}\nlset l 5 x\n",
+        "5",
+        "set l {a b}\nlset l 1 x\n",
+    ),
+    "W301": Case(
+        'uplevel "set $x 1"\n',
+        "set $x 1",
+        "uplevel {set x 1}\n",
+        contains=True,
+    ),
+    "W303": Case(
+        "regexp {(a+)+$} $s\n",
+        "(a+)+$",
+        "regexp {abc} $s\n",
+        contains=True,
+    ),
+    "W308": Case(
+        "subst {$x [cmd]}\n",
+        "subst",
+        "subst -nocommands {$x}\n",
+    ),
+    "W313": Case(
+        "file delete $path\n",
+        "$path",
+        "file delete /tmp/static\n",
+    ),
+    "H300": Case(
+        "set x 1\nset x 1\n",
+        "set x 1",
+        "set x 1\nset y 2\n",
+    ),
+    "E102": Case(
+        "set x }\n",
+        "}",
+        "set x y\n",
+    ),
+    "E201": Case(
+        "set x [\n",
+        "[",
+        "set x [expr 1]\n",
+    ),
+    "O110": Case(
+        "puts [expr {$x + 0}]\n",
+        "[expr {$x + 0}]",
+        "puts $x\n",
+    ),
+    "O114": Case(
+        "set x [expr {$x + 1}]\nputs $x\n",
+        "set x [expr {$x + 1}]",
+        "incr x\nputs $x\n",
+    ),
+    "O117": Case(
+        "if {[string length $s] == 0} {puts empty}\n",
+        "{[string length $s] == 0}",
+        'if {$s eq ""} {puts empty}\n',
+    ),
+    "O128": Case(
+        "set L {a b c}\nputs [lindex $L [expr {[llength $L] - 1}]]\n",
+        "[expr {[llength $L] - 1}]",
+        "set L {a b c}\nputs [lindex $L 0]\n",
+    ),
+    "O124": Case(
+        "when HTTP_REQUEST {\n  log local0. hi\n}\nproc unused {} {return 1}\n",
+        "proc unused",
+        "when HTTP_REQUEST {\n  call used\n}\nproc used {} {return 1}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "O122": Case(
+        "proc f {n} {\n  if {$n <= 0} {return 0}\n  return [f [expr {$n-1}]]\n}\n",
+        "proc f",
+        "proc f {n} {\n  return [expr {$n+1}]\n}\n",
+        contains=True,
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
 
 # Empty: every previously-too-wide range has been narrowed and graduated into
 # FIXTURES.  New too-wide-but-firing codes can be parked here while pending.
-RANGE_FIXME: dict[str, FiresCase] = {}
+RANGE_FIXME: dict[str, FiresCase] = {
+    # File-level inconsistent line endings: range points at the first
+    # character of the file rather than the offending line ending.
+    "W118": FiresCase("set a 1\r\nset b 2\n", "set a 1\nset b 2\n"),
+    # Invalid IP literal: range spans the whole `set` command rather than
+    # the IP literal token.
+    "W124": FiresCase("set ip 999.999.999.999\n", "set ip 1.2.3.4\n"),
+    # String-build chain: each step's range bleeds onto the next line's
+    # first character instead of ending at the statement.
+    "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
+    # Dead store: range bleeds onto the following line's first character.
+    "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
+}
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
 # This list only shrinks: as a code graduates into FIXTURES/RANGE_FIXME it
@@ -283,13 +401,10 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "E004",
         "E100",
         "E101",
-        "E102",
         "E103",
         "E200",
-        "E201",
         "E202",
         "E203",
-        "H300",
         "IAPP7001",
         "IAPP7002",
         "IAPP7003",
@@ -323,27 +438,19 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE6001",
         "O101",
         "O103",
-        "O104",
         "O105",
         "O106",
         "O107",
         "O108",
-        "O109",
-        "O110",
         "O112",
         "O113",
-        "O114",
         "O115",
-        "O117",
         "O119",
         "O121",
-        "O122",
         "O123",
-        "O124",
         "O125",
         "O126",
         "O127",
-        "O128",
         "S100",
         "S101",
         "S102",
@@ -356,22 +463,14 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W002",
         "W003",
         "W004",
-        "W103",
         "W104",
-        "W105",
         "W106",
         "W108",
         "W111",
-        "W113",
-        "W115",
         "W116",
         "W117",
-        "W118",
         "W120",
-        "W121",
         "W122",
-        "W124",
-        "W125",
         "W126",
         "W130",
         "W131",
@@ -382,15 +481,10 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W214",
         "W215",
         "W216",
-        "W231",
-        "W301",
-        "W303",
         "W304",
         "W306",
-        "W308",
         "W310",
         "W311",
-        "W313",
         "XC200",
     }
 )
