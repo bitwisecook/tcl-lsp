@@ -22,9 +22,11 @@ class TestInlayHints:
     def test_integer_type_hint(self):
         source = "set x 42\n"
         hints = get_inlay_hints(source, FULL_RANGE)
-        # Should show int type for x
+        # Should show a ``: int`` hint immediately after ``set x`` (col 5).
         int_hints = [h for h in hints if "int" in h.label]
-        assert len(int_hints) >= 1
+        assert any(h.label == ": int" and h.position.character == 5 for h in int_hints), [
+            (h.label, h.position.line, h.position.character) for h in int_hints
+        ]
 
     def test_no_hints_for_unknown_type(self):
         source = "set x [some_command]\n"

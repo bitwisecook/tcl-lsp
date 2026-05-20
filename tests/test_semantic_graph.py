@@ -291,9 +291,9 @@ class TestBuildDataflowGraph:
         """)
         data = build_dataflow_graph(source)
         warnings = data["taint_warnings"]
-        # Should detect taint from HTTP::uri flowing to eval
+        # Should detect taint from $uri (HTTP::uri) flowing into the eval sink.
         t100s = [w for w in warnings if w["code"] == "T100"]
-        assert len(t100s) >= 1
+        assert any(w["variable"] == "uri" and w["sink_command"] == "eval" for w in t100s), t100s
 
 
 class TestSemanticGraphBundle:
