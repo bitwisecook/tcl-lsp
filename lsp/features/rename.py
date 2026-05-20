@@ -133,6 +133,17 @@ def _resolve_variable_symbol(
     return None
 
 
+def _array_index_suffix(body: str) -> str:
+    """Return a trailing array-index suffix like ``(a)`` from a var reference body.
+
+    A reference to an array element such as ``$arr(a)`` carries the whole
+    ``arr(a)`` span, but renaming the base variable must rewrite only the name
+    and keep the index intact.
+    """
+    paren = body.find("(")
+    return body[paren:] if paren >= 0 else ""
+
+
 def _build_var_replacement(
     ref_line: str,
     ref: Range,
@@ -162,9 +173,13 @@ def _build_var_replacement(
                 offset=end.offset + 1,
             )
     elif has_dollar:
-        replacement = "$" + new_qualified
+        # Preserve a trailing array-index suffix, e.g. $arr(a) -> $new(a).
+        body = ref_line[ch + 1 : end.character + 1]
+        suffix = _array_index_suffix(body)
+        replacement = "$" + new_qualified + suffix
     else:
-        replacement = new_qualified
+        suffix = _array_index_suffix(ref_line[ch : end.character + 1])
+        replacement = new_qualified + suffix
 
     return Range(start=ref.start, end=end), replacement
 
