@@ -478,26 +478,102 @@ impl Backend {
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
-    async fn compute_definition(
-        &self,
-        uri: &Url,
-        pos: Position,
-    ) -> jsonrpc::Result<Vec<CoreLspRange>> {
+    async fn compute_definition(&self, uri: &Url, pos: Position) -> jsonrpc::Result<Vec<Location>> {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        tokio::task::spawn_blocking(move || {
-            core_definition::definition(&doc.text, pos.line, pos.character, &analysis)
+        let text = doc.text.clone();
+        let in_doc = tokio::task::spawn_blocking(move || {
+            core_definition::definition(&text, pos.line, pos.character, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
             code: jsonrpc::ErrorCode::InternalError,
             message: format!("definition worker panicked: {err}").into(),
             data: None,
-        })
+        })?;
+        if !in_doc.is_empty() {
+            // Resolved within the current document.
+            return Ok(in_doc
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_lsp_range(r),
+                })
+                .collect());
+        }
+        // Cross-document fallback: resolve a proc / class
+        // defined in a sibling document via the workspace index.
+        self.cross_document_definition(uri, &doc.text, pos).await
+    }
+
+    /// Resolve the symbol at `pos` against the workspace index
+    /// when the current document has no local definition.  Only
+    /// fires on bare command words (not `$var` references), and
+    /// returns `Location`s pointing into the *defining*
+    /// documents.
+    async fn cross_document_definition(
+        &self,
+        uri: &Url,
+        source: &str,
+        pos: Position,
+    ) -> jsonrpc::Result<Vec<Location>> {
+        // A `$var` reference can't resolve to a cross-document
+        // proc / class.
+        if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
+            return Ok(Vec::new());
+        }
+        let Some((word, _, _)) =
+            core_hover::find_word_span_at_position(source, pos.line, pos.character)
+        else {
+            return Ok(Vec::new());
+        };
+        // Collect (uri, name_span) targets from the index.
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.lock().await;
+            index
+                .proc_definitions(&word, uri.as_str())
+                .into_iter()
+                .map(|p| (p.uri.clone(), p.name_span))
+                .chain(
+                    index
+                        .class_definitions(&word, uri.as_str())
+                        .into_iter()
+                        .map(|c| (c.uri.clone(), c.name_span)),
+                )
+                .collect()
+        };
+        // Resolve each target's byte span to an LSP range using
+        // the *target* document's source.
+        let mut locations = Vec::new();
+        for (target_uri, span) in targets {
+            let Ok(parsed) = Url::parse(&target_uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let start = line_index.position_at(span.start());
+            let end = line_index.position_at(span.end());
+            locations.push(Location {
+                uri: parsed,
+                range: Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character,
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character,
+                    },
+                },
+            });
+        }
+        Ok(locations)
     }
 
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
@@ -786,17 +862,10 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let ranges = self.compute_definition(&uri, pos).await?;
-        if ranges.is_empty() {
+        let locations = self.compute_definition(&uri, pos).await?;
+        if locations.is_empty() {
             return Ok(None);
         }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
         Ok(Some(GotoDefinitionResponse::Array(locations)))
     }
 
@@ -810,17 +879,10 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let ranges = self.compute_definition(&uri, pos).await?;
-        if ranges.is_empty() {
+        let locations = self.compute_definition(&uri, pos).await?;
+        if locations.is_empty() {
             return Ok(None);
         }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
         Ok(Some(GotoDeclarationResponse::Array(locations)))
     }
 
@@ -834,17 +896,10 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let ranges = self.compute_definition(&uri, pos).await?;
-        if ranges.is_empty() {
+        let locations = self.compute_definition(&uri, pos).await?;
+        if locations.is_empty() {
             return Ok(None);
         }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
         Ok(Some(GotoTypeDefinitionResponse::Array(locations)))
     }
 
@@ -858,17 +913,10 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let ranges = self.compute_definition(&uri, pos).await?;
-        if ranges.is_empty() {
+        let locations = self.compute_definition(&uri, pos).await?;
+        if locations.is_empty() {
             return Ok(None);
         }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
         Ok(Some(GotoImplementationResponse::Array(locations)))
     }
 
@@ -2554,5 +2602,67 @@ mod tests {
             backend.dialect_for_open(&doc, "plaintext").await,
             "f5-irules".to_owned(),
         );
+    }
+
+    #[tokio::test]
+    async fn cross_document_definition_resolves_sibling_proc() {
+        let backend = test_backend();
+        let lib_uri = Url::parse("file:///lib.tcl").unwrap();
+        let main_uri = Url::parse("file:///main.tcl").unwrap();
+        let lib_src = "proc shared_helper {} {}\n";
+        let main_src = "shared_helper\n";
+        // Register both documents.
+        {
+            let mut docs = backend.documents.lock().await;
+            docs.insert(
+                lib_uri.clone(),
+                DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
+            );
+            docs.insert(
+                main_uri.clone(),
+                DocumentState::new(main_src.to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        // Index the library document's proc.
+        {
+            let mut a = Analyser::new();
+            let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(lib_uri.as_str(), &lib_analysis);
+        }
+        // From main.tcl, jumping on `shared_helper` resolves to
+        // lib.tcl's declaration.
+        let locs = backend
+            .compute_definition(&main_uri, Position::new(0, 0))
+            .await
+            .expect("definition ok");
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].uri, lib_uri);
+        // `proc shared_helper` — name token starts at column 5.
+        assert_eq!(locs[0].range.start.line, 0);
+        assert_eq!(locs[0].range.start.character, 5);
+    }
+
+    #[tokio::test]
+    async fn cross_document_definition_skipped_when_local_match_exists() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///main.tcl").unwrap();
+        let src = "proc greet {} {}\ngreet\n";
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
+        );
+        // Cursor on the `greet` call (line 1) resolves locally;
+        // the result points at the same document, line 0.
+        let locs = backend
+            .compute_definition(&uri, Position::new(1, 0))
+            .await
+            .expect("definition ok");
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].uri, uri);
+        assert_eq!(locs[0].range.start.line, 0);
     }
 }
