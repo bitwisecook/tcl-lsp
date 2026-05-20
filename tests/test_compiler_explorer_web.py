@@ -104,7 +104,8 @@ class TestIR:
     def test_top_level_statements(self, client):
         data = _compile(client, "set x 1\nputs $x")
         ir = data["ir"]
-        assert len(ir["topLevel"]) >= 1
+        # Both top-level statements (set, puts) are present.
+        assert len(ir["topLevel"]) == 2
 
     def test_ir_node_shape(self, client):
         data = _compile(client, "set x 1")
@@ -262,7 +263,8 @@ class TestOptimisations:
 
     def test_optimised_source_present(self, client):
         data = _compile(client, "set a 1\nset b [expr {$a + 2}]")
-        assert data["optimisedSource"] is not None
+        # Constant propagation + folding collapses the pair to ``set b 3``.
+        assert data["optimisedSource"] == "set b 3"
 
     def test_optimised_source_none_when_unchanged(self, client):
         data = _compile(client, "puts hello")

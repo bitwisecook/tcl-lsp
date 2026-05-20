@@ -97,8 +97,6 @@ BASELINE: dict[str, int] = {
     "test_checks.py": 4,
     "test_command_registry.py": 5,
     "test_command_segmenter.py": 7,
-    "test_compiler_explorer_web.py": 2,
-    "test_complex_codegen.py": 2,
     "test_debugger_backends.py": 1,
     "test_def_use.py": 1,
     "test_diagnostic_phases.py": 3,
