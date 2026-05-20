@@ -455,7 +455,25 @@ impl Backend {
     }
 
     async fn read_document(&self, url: &Url) -> Option<DocumentState> {
-        self.documents.lock().await.get(url).cloned()
+        if let Some(doc) = self.documents.lock().await.get(url).cloned() {
+            return Some(doc);
+        }
+        // On-disk fallback: files the folder scan indexed but the
+        // editor hasn't opened aren't in the open-document map.
+        // Read them from disk so cross-document span→range
+        // resolution (references / rename / call-hierarchy) can
+        // reach their sources.  Non-`file://` URLs and unreadable
+        // paths fall through to `None`.
+        let path = url.to_file_path().ok()?;
+        let text = tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
+            .await
+            .ok()?
+            .ok()?;
+        let dialect = match self.resolve_folder_dialect(url).await {
+            Some(d) => d,
+            None => self.default_dialect.lock().await.clone(),
+        };
+        Some(DocumentState::new(text, dialect))
     }
 
     /// Shared helper for the goto-definition family — runs the
@@ -745,6 +763,102 @@ impl Backend {
             for c in calls {
                 out.push((doc_uri.clone(), c));
             }
+        }
+        out
+    }
+
+    /// Cross-document outgoing calls from the queried proc /
+    /// method: the call sites inside its body whose callee is
+    /// defined in a *sibling* document.  The local
+    /// [`core_call_hierarchy::outgoing_calls`] pass only resolves
+    /// callees in the current document; this resolves the
+    /// remaining heads against the workspace index, builds a `to`
+    /// item pointing at the sibling definition (URI + name span →
+    /// range against that document's source), and keeps the call
+    /// ranges from the *current* document.
+    async fn cross_document_outgoing_calls(
+        &self,
+        current_uri: &Url,
+        source: &str,
+        item: &core_call_hierarchy::CallHierarchyItem,
+        analysis: &AnalysisResult,
+    ) -> Vec<CallHierarchyOutgoingCall> {
+        let unresolved = {
+            let source = source.to_owned();
+            let item = item.clone();
+            let analysis = analysis.clone();
+            tokio::task::spawn_blocking(move || {
+                core_call_hierarchy::unresolved_outgoing_calls(&source, &item, &analysis)
+            })
+            .await
+            .unwrap_or_default()
+        };
+        let mut out = Vec::new();
+        for call in unresolved {
+            // Resolve the callee head against the index, preferring
+            // the analyser's resolved qualified name when present.
+            let Some((target_uri, qualified, name_span, detail)) = ({
+                let index = self.workspace_index.lock().await;
+                let mut found = None;
+                for key in [
+                    call.resolved_qualified_name.as_deref(),
+                    Some(call.name.as_str()),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    if let Some(p) = index.proc_definitions(key, current_uri.as_str()).first() {
+                        found = Some((
+                            p.uri.clone(),
+                            p.qualified_name.clone(),
+                            p.name_span,
+                            Some(format!("({} params)", p.param_count)),
+                        ));
+                        break;
+                    }
+                    if let Some(c) = index.class_definitions(key, current_uri.as_str()).first() {
+                        found = Some((c.uri.clone(), c.qualified_name.clone(), c.name_span, None));
+                        break;
+                    }
+                }
+                found
+            }) else {
+                continue;
+            };
+            // Convert the sibling definition's name span to a range
+            // against that document's source.
+            let Ok(parsed) = Url::parse(&target_uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let start = line_index.position_at(name_span.start());
+            let end = line_index.position_at(name_span.end());
+            let name_range = Range {
+                start: Position {
+                    line: start.line,
+                    character: start.character,
+                },
+                end: Position {
+                    line: end.line,
+                    character: end.character,
+                },
+            };
+            out.push(CallHierarchyOutgoingCall {
+                to: CallHierarchyItem {
+                    name: qualified,
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    detail,
+                    uri: parsed,
+                    range: name_range,
+                    selection_range: name_range,
+                    data: None,
+                },
+                from_ranges: call.from_ranges.into_iter().map(lift_lsp_range).collect(),
+            });
         }
         out
     }
@@ -1396,8 +1510,14 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // Cross-document edges: callees defined in sibling files.
+        let cross = self
+            .cross_document_outgoing_calls(&uri, &doc.text, &core_item, &analysis)
+            .await;
+        let local_uri = uri.clone();
+        let local_analysis = analysis.clone();
         let outgoing = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &analysis)
+            core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &local_analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1405,7 +1525,7 @@ impl LanguageServer for Backend {
             message: format!("outgoing_calls worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted = outgoing
+        let mut lifted: Vec<CallHierarchyOutgoingCall> = outgoing
             .into_iter()
             .map(|c| CallHierarchyOutgoingCall {
                 to: CallHierarchyItem {
@@ -1413,7 +1533,7 @@ impl LanguageServer for Backend {
                     kind: SymbolKind::FUNCTION,
                     tags: None,
                     detail: c.to.detail,
-                    uri: uri.clone(),
+                    uri: local_uri.clone(),
                     range: lift_lsp_range(c.to.range),
                     selection_range: lift_lsp_range(c.to.selection_range),
                     data: None,
@@ -1421,6 +1541,7 @@ impl LanguageServer for Backend {
                 from_ranges: c.from_ranges.into_iter().map(lift_lsp_range).collect(),
             })
             .collect();
+        lifted.extend(cross);
         Ok(Some(lifted))
     }
 
@@ -3380,5 +3501,45 @@ mod tests {
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].0, consumer);
         assert_eq!(cross[0].1.from.name, "::caller");
+    }
+
+    #[tokio::test]
+    async fn outgoing_calls_resolve_sibling_document_callee() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let main = Url::parse("file:///main.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\n").await;
+        // `caller` calls a builtin (`puts`) and the sibling-file
+        // proc `helper`; only `helper` resolves cross-document.
+        let main_src = "proc caller {} { puts hi\n helper }\n";
+        register(&backend, &main, main_src).await;
+
+        let item = core_call_hierarchy::CallHierarchyItem {
+            name: "::caller".to_owned(),
+            detail: None,
+            range: CoreLspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 0,
+            },
+            selection_range: CoreLspRange {
+                start_line: 0,
+                start_character: 5,
+                end_line: 0,
+                end_character: 11,
+            },
+        };
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(main_src, "tcl8.6").clone()
+        };
+        let cross = backend
+            .cross_document_outgoing_calls(&main, main_src, &item, &analysis)
+            .await;
+        assert_eq!(cross.len(), 1, "{cross:?}");
+        assert_eq!(cross[0].to.name, "::helper");
+        assert_eq!(cross[0].to.uri, lib);
+        assert_eq!(cross[0].from_ranges.len(), 1, "{cross:?}");
     }
 }

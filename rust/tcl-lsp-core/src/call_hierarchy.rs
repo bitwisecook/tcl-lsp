@@ -25,8 +25,13 @@
 //! `::C::greet`); intra-class calls match on the bare method
 //! name.
 //!
-//! No workspace-wide call-graph index is required — every
-//! computation stays in-document.
+//! The in-document computations above need no workspace index.
+//! Cross-document edges are layered on top by the server: it
+//! feeds the heads from [`unresolved_outgoing_calls`] (call sites
+//! whose callee isn't defined locally) to the workspace index to
+//! resolve sibling-file definitions, and runs
+//! [`incoming_calls_for_target`] over each other document to find
+//! sibling-file call sites.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef, ProcDef};
 use tcl_lexer::LineIndex;
@@ -287,6 +292,118 @@ pub struct OutgoingCall {
     pub to: CallHierarchyItem,
     /// Spans at which the source proc calls `to`.
     pub from_ranges: Vec<LspRange>,
+}
+
+/// A call site inside the queried item's body whose callee is
+/// *not* defined in the current document.  The local
+/// [`outgoing_calls`] pass can only resolve callees present in
+/// `analysis.all_procs` / the enclosing class; cross-document
+/// outgoing-call resolution feeds these unresolved heads to the
+/// workspace index, which knows the sibling-file definitions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnresolvedOutgoingCall {
+    /// Command head as written at the call site.
+    pub name: String,
+    /// Scope-resolved qualified name when the analyser inferred
+    /// one for the call site, else `None`.
+    pub resolved_qualified_name: Option<String>,
+    /// Ranges (in the *current* document) of each call site,
+    /// grouped under this callee head.
+    pub from_ranges: Vec<LspRange>,
+}
+
+/// Collect the call sites inside the queried item's body whose
+/// callee is not resolvable within the current document — the
+/// raw material for cross-document outgoing-call edges.
+///
+/// Mirrors [`outgoing_calls`]'s body-scan but inverts the filter:
+/// it keeps the invocations that *don't* match a local proc /
+/// sibling method, grouped by call-site head, so the server can
+/// resolve each head against the workspace index.  Builtins and
+/// unknown commands are returned too (the index lookup discards
+/// the ones that aren't user-defined elsewhere).
+#[must_use]
+pub fn unresolved_outgoing_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+) -> Vec<UnresolvedOutgoingCall> {
+    let line_index = LineIndex::new(source);
+    if let Some((_, source_proc)) = analysis.all_procs.iter().find(|(qn, _)| **qn == item.name) {
+        let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
+            std::collections::BTreeMap::new();
+        for inv in &analysis.command_invocations {
+            if !span_contains(source_proc.body_span, inv.range) {
+                continue;
+            }
+            // Skip call sites the local pass already resolves.
+            if analysis
+                .all_procs
+                .iter()
+                .any(|(qname, proc_def)| invocation_targets(inv, proc_def, qname))
+            {
+                continue;
+            }
+            let range = span_to_range(&line_index, inv.range);
+            let entry = by_head
+                .entry(inv.name.clone())
+                .or_insert_with(|| (inv.resolved_qualified_name.clone(), Vec::new()));
+            entry.1.push(range);
+        }
+        return by_head
+            .into_iter()
+            .map(
+                |(name, (resolved_qualified_name, from_ranges))| UnresolvedOutgoingCall {
+                    name,
+                    resolved_qualified_name,
+                    from_ranges,
+                },
+            )
+            .collect();
+    }
+    unresolved_method_outgoing_calls(source, item, analysis, &line_index)
+}
+
+/// Method-body variant of [`unresolved_outgoing_calls`]: keeps
+/// the call sites inside a class method that name neither a
+/// sibling method nor a local top-level proc.
+fn unresolved_method_outgoing_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<UnresolvedOutgoingCall> {
+    let Some((class_def, source_method)) = resolve_method_item(analysis, &item.name) else {
+        return Vec::new();
+    };
+    let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
+        std::collections::BTreeMap::new();
+    for (head, span) in segment_body_calls(source, source_method.body_span) {
+        // Sibling method?
+        if class_def.methods.contains_key(&head) || class_def.class_methods.contains_key(&head) {
+            continue;
+        }
+        // Local top-level proc?
+        if analysis
+            .all_procs
+            .iter()
+            .any(|(qn, p)| p.name == head || qn.as_str() == head || **qn == format!("::{head}"))
+        {
+            continue;
+        }
+        by_head
+            .entry(head)
+            .or_default()
+            .push(span_to_range(line_index, span));
+    }
+    by_head
+        .into_iter()
+        .map(|(name, from_ranges)| UnresolvedOutgoingCall {
+            name,
+            resolved_qualified_name: None,
+            from_ranges,
+        })
+        .collect()
 }
 
 /// Enumerate incoming calls for the proc identified by
@@ -655,6 +772,40 @@ mod tests {
             },
         };
         assert!(outgoing_calls(src, &bogus, &analysis).is_empty());
+    }
+
+    #[test]
+    fn unresolved_outgoing_calls_lists_non_local_heads() {
+        // `caller` calls `local` (defined here), `sibling` (would
+        // live in another file) and `puts` (builtin).  Only the
+        // heads not resolvable in this document come back; the
+        // server filters those against the workspace index.
+        let src = "proc local {} {}\nproc caller {} { local\n sibling\n puts hi }\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 6, &analysis);
+        assert_eq!(items[0].name, "::caller");
+        let unresolved = unresolved_outgoing_calls(src, &items[0], &analysis);
+        let names: Vec<&str> = unresolved.iter().map(|u| u.name.as_str()).collect();
+        assert!(names.contains(&"sibling"), "{unresolved:?}");
+        assert!(names.contains(&"puts"), "{unresolved:?}");
+        assert!(
+            !names.contains(&"local"),
+            "local resolves in-document: {unresolved:?}"
+        );
+    }
+
+    #[test]
+    fn unresolved_outgoing_calls_groups_repeated_heads() {
+        let src = "proc caller {} { sibling\n sibling }\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 0, 6, &analysis);
+        assert_eq!(items[0].name, "::caller");
+        let unresolved = unresolved_outgoing_calls(src, &items[0], &analysis);
+        let sibling = unresolved
+            .iter()
+            .find(|u| u.name == "sibling")
+            .expect("sibling head present");
+        assert_eq!(sibling.from_ranges.len(), 2, "{unresolved:?}");
     }
 
     // -- S-call-hierarchy-rich: class methods -----------------------
