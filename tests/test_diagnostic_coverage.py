@@ -67,6 +67,8 @@ FIXTURES: dict[str, Case] = {
     "E002": Case("set\n", "set", "set x 1\n"),
     "W001": Case("string bogus x\n", "bogus", "string length x\n"),
     "W100": Case("if $x == 1 {puts hi}\n", "$x", "if {$x == 1} {puts hi}\n"),
+    "W101": Case("eval $userinput\n", "$userinput", "eval {puts hi}\n"),
+    "W102": Case("subst $x\n", "$x", "subst {literal}\n"),
     "W110": Case(
         'if {$x == "hello"} {set x done}\n',
         '{$x == "hello"}',
@@ -199,8 +201,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W002",
         "W003",
         "W004",
-        "W101",
-        "W102",
         "W103",
         "W104",
         "W105",
