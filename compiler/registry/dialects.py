@@ -41,6 +41,7 @@ def is_irules_dialect(dialect: str | None) -> bool:
     """
     return dialect in IRULES_DIALECT_NAMES
 
+
 # Runtime Tcl version that each dialect is based on.  Used by
 # ``dialects_since()`` to resolve version-dependent behaviour such as
 # ``incr`` safely initialising an uninitialised variable (8.5+).
