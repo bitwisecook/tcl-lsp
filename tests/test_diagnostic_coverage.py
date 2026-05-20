@@ -36,6 +36,7 @@ class Case:
     dialect: str | None = None  # analyse under this dialect when set
     xc: bool = False  # enable XC translatability diagnostics
     contains: bool = False  # expected is a substring of a covering construct
+    bigip: bool = False  # source is a BIG-IP .conf — use the bigip validator
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class FiresCase:
     source: str
     clean: str
     dialect: str | None = None
+    bigip: bool = False
 
 
 def _covered(source: str, r: types.Range) -> str:
@@ -58,7 +60,14 @@ def _covered(source: str, r: types.Range) -> str:
     )
 
 
-def _run(source: str, dialect: str | None, xc: bool) -> list[types.Diagnostic]:
+def _run(
+    source: str, dialect: str | None, xc: bool, bigip: bool = False
+) -> list[types.Diagnostic]:
+    if bigip:
+        from core.bigip.diagnostics import get_bigip_diagnostics
+        from core.bigip.parser import parse_bigip_conf
+
+        return get_bigip_diagnostics(parse_bigip_conf(source))
     if dialect is not None:
         with dialect_scope(dialect):
             return get_diagnostics(source, xc_diagnostics_enabled=xc)
@@ -66,11 +75,15 @@ def _run(source: str, dialect: str | None, xc: bool) -> list[types.Diagnostic]:
 
 
 def _matches(
-    source: str, code: str, dialect: str | None = None, xc: bool = False
+    source: str,
+    code: str,
+    dialect: str | None = None,
+    xc: bool = False,
+    bigip: bool = False,
 ) -> list[types.Diagnostic]:
     return [
         d
-        for d in _run(source, dialect, xc)
+        for d in _run(source, dialect, xc, bigip)
         if (d.code if isinstance(d.code, str) else str(d.code)) == code
     ]
 
@@ -516,6 +529,14 @@ FIXTURES: dict[str, Case] = {
         'set x "' + "a" * 200 + '"',
         "set x 1\n",
     ),
+    "BIGIP6008": Case(
+        "ltm pool /Common/p { }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        "{ }",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        bigip=True,
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -568,6 +589,30 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "package require Tk\nbutton .b -bogusopt 1\n",
         "package require Tk\nbutton .b -text hi\n",
     ),
+    # iRule references a pool that does not exist: range is empty (zero-width)
+    # and needs to be anchored on the pool reference token.
+    "BIGIP6002": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/missing_pool }\n}\n",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/p }\n}\n",
+        bigip=True,
+    ),
+    # Virtual references a missing iRule: range spans the whole virtual stanza
+    # body rather than the offending rule reference.
+    "BIGIP6003": FiresCase(
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/missing_rule } }\n",
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        bigip=True,
+    ),
+    # Virtual references a missing pool: range spans the whole virtual stanza
+    # body rather than the pool reference token.
+    "BIGIP6005": FiresCase(
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/missing }\n",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        bigip=True,
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -577,13 +622,9 @@ RANGE_FIXME: dict[str, FiresCase] = {
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
         "BIGIP6001",
-        "BIGIP6002",
-        "BIGIP6003",
         "BIGIP6004",
-        "BIGIP6005",
         "BIGIP6006",
         "BIGIP6007",
-        "BIGIP6008",
         "BIGIP6009",
         "BIGIP6010",
         "BIGIP6011",
@@ -669,7 +710,7 @@ def test_every_code_is_classified_exactly_once():
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_fires_with_exact_range(code):
     case = FIXTURES[code]
-    matches = _matches(case.source, code, case.dialect, case.xc)
+    matches = _matches(case.source, code, case.dialect, case.xc, case.bigip)
     assert matches, f"{code} did not fire on {case.source!r}"
     covered = {_covered(case.source, d.range) for d in matches}
     if case.contains:
@@ -685,7 +726,7 @@ def test_fixture_fires_with_exact_range(code):
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_no_false_positive(code):
     case = FIXTURES[code]
-    assert not _matches(case.clean, code, case.dialect, case.xc), (
+    assert not _matches(case.clean, code, case.dialect, case.xc, case.bigip), (
         f"{code} should not fire on clean {case.clean!r}"
     )
 
@@ -693,7 +734,9 @@ def test_fixture_no_false_positive(code):
 @pytest.mark.parametrize("code", sorted(RANGE_FIXME))
 def test_range_fixme_fires_and_is_clean(code):
     case = RANGE_FIXME[code]
-    assert _matches(case.source, code, case.dialect), f"{code} did not fire on {case.source!r}"
-    assert not _matches(case.clean, code, case.dialect), (
+    assert _matches(case.source, code, case.dialect, bigip=case.bigip), (
+        f"{code} did not fire on {case.source!r}"
+    )
+    assert not _matches(case.clean, code, case.dialect, bigip=case.bigip), (
         f"{code} should not fire on clean {case.clean!r}"
     )
