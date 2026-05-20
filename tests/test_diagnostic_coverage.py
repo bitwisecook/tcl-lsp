@@ -479,6 +479,22 @@ FIXTURES: dict[str, Case] = {
         "$x",
         "switch -- $x a b\n",
     ),
+    "O112": Case(
+        "if {0} {\n  puts never\n}\n",
+        "if {0} {\n  puts never\n}",
+        "if {$x} {\n  puts maybe\n}\n",
+    ),
+    "O126": Case(
+        "proc f {} {\n  set x 1\n  return 0\n}\n",
+        "set x 1",
+        "proc f {} {\n  set x 1\n  return $x\n}\n",
+    ),
+    "O105": Case(
+        "set a [expr {$x + 1}]\nset b [expr {$x + 1}]\nputs $a$b\n",
+        "expr {$x + 1}",
+        "set a [expr {$x + 1}]\nputs $a\n",
+        contains=True,
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -567,18 +583,15 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE5003",
         "O101",
         "O103",
-        "O105",
         "O106",
         "O107",
         "O108",
-        "O112",
         "O113",
         "O115",
         "O119",
         "O121",
         "O123",
         "O125",
-        "O126",
         "O127",
         "S100",
         "T102",
