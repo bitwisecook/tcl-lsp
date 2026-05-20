@@ -667,6 +667,17 @@ FIXTURES: dict[str, Case] = {
         "{[expr {$x > 0}]}",
         "while {$x > 0} { incr x -1 }\n",
     ),
+    "O121": Case(
+        "proc f {a b} {\n    return [f $a]\n}\nputs [f 1 2]\n",
+        "return [f $a]",
+        "proc f {a} {\n    return $a\n}\nputs [f 1]\n",
+    ),
+    "O123": Case(
+        "proc factorial {n} {\n    if {$n <= 1} { return 1 }\n"
+        "    return [expr {$n * [factorial [expr {$n - 1}]]}]\n}\nputs [factorial 5]\n",
+        "return [expr {$n * [factorial [expr {$n - 1}]]}]",
+        "proc f {a} {\n    return $a\n}\nputs [f 1]\n",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -848,8 +859,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O101",
         "O106",
         "O108",
-        "O121",
-        "O123",
         "O125",
         "T102",
         "W120",
