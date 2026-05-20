@@ -390,8 +390,17 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     // Clear any CMD_IMPORTED bit — defining a proc with the same
     // simple name shadows an import in this ns (matches C Tcl).
     write_i32(cmd + OFF_FLAGS, 0);
+    // Re-registration over an existing slot must release the
+    // prior ``params_obj``/``body_obj`` retains before overwriting,
+    // or each ``proc foo …; proc foo …`` cycle leaks two TclObjs.
+    // First-registration paths land here with both slots at 0; the
+    // null-safe ``tcl_obj_release`` handles that without a branch.
+    const prev_params: i32 = read_i32(cmd + OFF_PARAMS_OBJ);
+    const prev_body: i32 = read_i32(cmd + OFF_BODY_OBJ);
     write_i32(cmd + OFF_PARAMS_OBJ, owned_params);
     write_i32(cmd + OFF_BODY_OBJ, owned_body);
+    if (prev_params != 0 and prev_params != owned_params) obj.tcl_obj_release(prev_params);
+    if (prev_body != 0 and prev_body != owned_body) obj.tcl_obj_release(prev_body);
     write_i32(cmd + OFF_N_PARAMS, @intCast(n_params));
     write_i32(cmd + OFF_FUNC_IDX, 0);
     write_i32(cmd + OFF_ARGS_TAIL, 0);
@@ -466,6 +475,25 @@ pub fn register_builtin_masked(name_ptr: u32, name_len: u32) void {
 pub fn unregister_command(name_ptr: u32, name_len: u32) bool {
     const ctx = resolve_for_register(name_ptr, name_len);
     if (ctx.existing == 0) return false;
+    // Release any retained ``params_obj`` / ``body_obj`` slots
+    // before clearing the table entry — every ``rename foo {}``
+    // (and every inverse-rename through here) used to leak the
+    // proc's params + body retains.
+    const cmd = ctx.existing;
+    const flags: u32 = @bitCast(read_i32(cmd + OFF_FLAGS));
+    // Only release for plain interpreted procs — imports / aliases /
+    // hidden child Interp pointers stash other things in PARAMS_OBJ
+    // / BODY_OBJ that aren't TclObj refs.
+    const is_special = (flags & (CMD_IMPORTED | CMD_ALIAS | CMD_INTERP_CHILD |
+        CMD_COROUTINE | CMD_BUILTIN_FORWARD | CMD_BUILTIN_MASKED | CMD_ENSEMBLE)) != 0;
+    if (!is_special) {
+        const prev_params: i32 = read_i32(cmd + OFF_PARAMS_OBJ);
+        const prev_body: i32 = read_i32(cmd + OFF_BODY_OBJ);
+        if (prev_params != 0) obj.tcl_obj_release(prev_params);
+        if (prev_body != 0) obj.tcl_obj_release(prev_body);
+        write_i32(cmd + OFF_PARAMS_OBJ, 0);
+        write_i32(cmd + OFF_BODY_OBJ, 0);
+    }
     _ = tcl_ns.ns_cmd_clear(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len);
     lru_invalidate_all();
     return true;
@@ -637,10 +665,14 @@ pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
     // (so a self-set with the same handle stays alive), then release
     // the old slot — the order makes a same-obj rebind a net no-op
     // refcount change rather than a transient drop-to-zero.
+    //
+    // Gate both the retain AND release on the inequality so a
+    // same-handle re-stamp doesn't leak +1 (the retain would have
+    // fired unconditionally while the release was suppressed).
     const prev: i32 = read_i32(cmd + OFF_BODY_OBJ);
-    obj.tcl_obj_retain(body_obj);
+    if (body_obj != prev) obj.tcl_obj_retain(body_obj);
     write_i32(cmd + OFF_BODY_OBJ, body_obj);
-    if (prev != 0) obj.tcl_obj_release(prev);
+    if (prev != 0 and prev != body_obj) obj.tcl_obj_release(prev);
     return obj_new_int(0);
 }
 

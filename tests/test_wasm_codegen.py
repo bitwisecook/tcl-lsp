@@ -418,6 +418,13 @@ def test_no_cmd_imports_for_pure_math():
         "obj_get_int",
         "tcl_arith_add",
         "tcl_cmd_error",
+        # ``tcl_cmd_error_via_return`` is always imported now that
+        # the runtime wires ``return -code error msg`` through a
+        # dedicated entry point (PR #452); the lowering/codegen
+        # doesn't fire it for pure arithmetic but the import
+        # scanner pulls it into the always-on set alongside
+        # ``tcl_cmd_error``.
+        "tcl_cmd_error_via_return",
         "tcl_eval",
         "tcl_obj_retain",
         "tcl_obj_release",

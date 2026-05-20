@@ -115,6 +115,7 @@ fn raise_bad_index(idx_ptr: [*]const u8, idx_len: usize) void {
     const suffix: []const u8 = "\": must be integer?[+-]integer? or end?[+-]integer?";
     const total: u32 = @intCast(prefix.len + idx_len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -152,6 +153,7 @@ fn raise_bad_option(
     const middle: []const u8 = "\": must be ";
     const total: u32 = @intCast(prefix.len + opt_len + middle.len + must_be.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -196,6 +198,7 @@ fn raise_compile_error(errcode: c_int) void {
         detail_len - 1;
     const total: u32 = @intCast(prefix.len + written);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return;
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |b| {
@@ -524,6 +527,12 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     const sub_len: u32 = sub_s.len;
     const max_result: u32 = str_s.len * (sub_len + 2) + 256;
     const result_buf = alloc(max_result);
+    if (result_buf == 0) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(str_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return rt.obj_new_string(0, 0);
+    }
     var result_off: u32 = 0;
 
     const nmatch: usize = 10; // whole match + up to 9 capture groups
@@ -637,7 +646,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     result_off += tail_len;
 
     if (n_subs_out) |p| p.* = n_subs;
-    return rt.obj_new_string(@bitCast(result_buf), @bitCast(result_off));
+    return rt.obj_new_string_take(result_buf, result_off, max_result);
 }
 
 /// Interpreter-side ``regexp`` command handler.  Called from
@@ -806,6 +815,12 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     var inline_cap: u32 = 0;
     inline_cap = 256;
     inline_buf = alloc(inline_cap);
+    if (inline_buf == 0) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        return obj_new_int(0);
+    }
 
     // nmatch shape mirrors do_regsub's working pattern.  Without
     // captures we only need slot 0 (whole match start/end) — request
@@ -909,6 +924,14 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             while (v < var_words.len and v < nmatch) : (v += 1) {
                 const so = pm[v * 2];
                 const eo = pm[v * 2 + 1];
+                // ``build_capture_value`` returns a fresh +1 owned obj.
+                // ``var_set`` retains internally (via the array/global
+                // store), so the extra ``tcl_obj_retain`` on top
+                // double-counted the var slot's ref AND the original
+                // +1 from ``build_capture_value`` was never released.
+                // Net effect: every captured group leaked +2.  Just
+                // release after ``var_set`` to match the caller-owned
+                // contract.
                 const value = build_capture_value(
                     indices_mode,
                     sub_s,
@@ -917,12 +940,14 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                     so,
                     eo,
                 );
-                obj.tcl_obj_retain(value);
                 _ = frames.var_set(var_words[v], value);
+                obj.tcl_obj_release(value);
             }
             // Remaining unset vars get empty (Tcl matches set "").
             while (v < var_words.len) : (v += 1) {
-                _ = frames.var_set(var_words[v], obj_new_string(0, 0));
+                const empty = obj_new_string(0, 0);
+                _ = frames.var_set(var_words[v], empty);
+                obj.tcl_obj_release(empty);
             }
         }
 
@@ -1002,11 +1027,12 @@ fn build_capture_value(
         const end_str = obj.itoa(@intCast(end_inclusive));
         const total: u32 = start_len + 1 + @as(u32, @intCast(end_str.len));
         const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
         const dst: [*]u8 = @ptrFromInt(buf);
         for (0..start_len) |k| dst[k] = start_buf[k];
         dst[start_len] = ' ';
         for (0..end_str.len) |k| dst[start_len + 1 + k] = end_str.ptr[k];
-        return obj_new_string(@bitCast(buf), @bitCast(total));
+        return obj.obj_new_string_take(buf, total, total);
     }
     // Substring mode: extract the bytes covering [start_cp, end_cp).
     const sb_start = codepoint_to_byte(sub_s.ptr, sub_s.len, start_cp);
@@ -1014,10 +1040,11 @@ fn build_capture_value(
     if (sb_end <= sb_start) return obj_new_string(0, 0);
     const len = sb_end - sb_start;
     const buf = alloc(len);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     const src: [*]const u8 = @ptrFromInt(sub_s.ptr + sb_start);
     for (0..len) |k| dst[k] = src[k];
-    return obj_new_string(@bitCast(buf), @bitCast(len));
+    return obj.obj_new_string_take(buf, len, len);
 }
 
 /// Append one capture (already decoded into start/end codepoints) to
@@ -1033,7 +1060,16 @@ fn append_inline_capture(
     rm_so: i32,
     rm_eo: i32,
 ) u32 {
+    // ``build_capture_value`` returns a fresh +1 owned obj; release
+    // after ``list_elem_quote_nth`` copies its bytes into the
+    // accumulator buffer.  An earlier revision (the F7 fix sweep
+    // missed this site) leaked one TclObj per capture group AND
+    // leaked the old buffer on every grow.  ``defer`` in Zig fires
+    // at function exit — safe to schedule before the byte read at
+    // line below because the quoter consumes ``vs.ptr`` synchronously
+    // and the obj's str_ptr stays valid until function exit.
     const value = build_capture_value(indices_mode, sub_s, sub_u, pos_cp, rm_so, rm_eo);
+    defer obj.tcl_obj_release(value);
     const vs = obj_ensure_string(value);
     // Worst case: ' ' + braces + content
     const need: u32 = off_in + vs.len + 4;
@@ -1041,11 +1077,16 @@ fn append_inline_capture(
         var new_cap: u32 = cap_ref.* * 2;
         while (new_cap < need) new_cap *= 2;
         const new_buf = alloc(new_cap);
+        if (new_buf == 0) return off_in;
         if (off_in > 0) {
             const src: [*]const u8 = @ptrFromInt(buf_ref.*);
             const dst: [*]u8 = @ptrFromInt(new_buf);
             for (0..off_in) |k| dst[k] = src[k];
         }
+        // Free the prior buffer on grow — the earlier revision
+        // overwrote ``buf_ref.*`` without ``free_sized``ing the
+        // previous slab.
+        if (buf_ref.* != 0) obj.free_sized(buf_ref.*, cap_ref.*);
         buf_ref.* = new_buf;
         cap_ref.* = new_cap;
     }
@@ -1138,6 +1179,11 @@ pub fn capture_match_for_switch(
     var index_buf: u32 = alloc(256);
     var index_cap: u32 = 256;
     var index_off: u32 = 0;
+    if (match_buf == 0 or index_buf == 0) {
+        if (match_buf != 0) obj.free_sized(match_buf, match_cap);
+        if (index_buf != 0) obj.free_sized(index_buf, index_cap);
+        return .{ .match_list = 0, .index_list = 0 };
+    }
 
     const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
     var g: usize = 0;
@@ -1176,8 +1222,11 @@ pub fn capture_match_for_switch(
     arena.arena_free(sub_u.alloc);
     arena.arena_free(pat_u.alloc);
 
-    const match_obj = obj_new_string(@bitCast(match_buf), @bitCast(match_off));
-    const index_obj = obj_new_string(@bitCast(index_buf), @bitCast(index_off));
+    // ``obj_new_string_take`` so each result obj owns its buffer and
+    // ``release_now`` reclaims the slab — the borrow form would let
+    // both match_buf and index_buf leak permanently per match call.
+    const match_obj = obj.obj_new_string_take(match_buf, match_off, match_cap);
+    const index_obj = obj.obj_new_string_take(index_buf, index_off, index_cap);
     return .{ .match_list = match_obj, .index_list = index_obj };
 }
 
@@ -1554,6 +1603,10 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     }
     const max_out: u32 = @intCast(max_out_usize);
     const out_addr = alloc(max_out);
+    if (out_addr == 0) {
+        regfree_safe(re_ptr);
+        return obj_new_int(0);
+    }
     const out: [*]u8 = @ptrFromInt(out_addr);
     var out_len: usize = 0;
 
@@ -1635,7 +1688,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
 
     regfree_safe(re_ptr);
 
-    const result = obj_new_string(@bitCast(out_addr), @bitCast(out_len));
+    const result = rt.obj_new_string_take(out_addr, @intCast(out_len), max_out);
 
     if (has_var) {
         _ = frames.var_set(varname, result);

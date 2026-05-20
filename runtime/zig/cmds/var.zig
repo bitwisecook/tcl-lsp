@@ -47,6 +47,17 @@ fn eval_set(words: []const i32) result_mod.InterpResult {
         catch_mod.var_unset_error(words[1]);
         return result_mod.from_globals(0);
     }
+    // ``var_resolve`` hands back the var slot's stored handle WITHOUT
+    // bumping the refcount — the slot's own +1 is the only reference
+    // backing the obj.  ``eval_script`` releases each statement's
+    // result before running the next (and again at the eval_script
+    // caller boundary), so handing back this bare borrow would
+    // decrement the slot's hold to zero and queue the obj for free.
+    // Retain here so the result is a true +1 owned handle the
+    // dispatcher / eval_script chain can release without ever
+    // touching the slot's live reference.
+    const tcl_obj_mod = @import("../valtypes/tcl_obj.zig");
+    tcl_obj_mod.tcl_obj_retain(v);
     return result_mod.from_globals(v);
 }
 

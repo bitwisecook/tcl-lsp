@@ -103,6 +103,10 @@ fn eval_glob(words: []const i32) result_mod.InterpResult {
         const suffix: []const u8 = "\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --";
         const total: u32 = @intCast(prefix.len + s.len + suffix.len);
         const buf_addr = obj.alloc(total);
+        if (buf_addr == 0) {
+            stubs.raise("bad option");
+            return result_mod.from_globals(0);
+        }
         const buf: [*]u8 = @ptrFromInt(buf_addr);
         var off: usize = 0;
         for (prefix) |c| {
@@ -117,8 +121,14 @@ fn eval_glob(words: []const i32) result_mod.InterpResult {
             buf[off] = c;
             off += 1;
         }
-        const msg_slice = (@as([*]const u8, @ptrFromInt(buf_addr)))[0..total];
-        stubs.raise(msg_slice);
+        // Wrap the buffer via ``obj_new_string_take`` so its bytes
+        // belong to the error message TclObj — previously the slab
+        // was orphaned and ``stubs.raise`` minted a second copy from
+        // the byte view, leaking the original ``total`` bytes per
+        // unknown-switch diagnostic.
+        const msg_obj = obj.obj_new_string_take(buf_addr, total, total);
+        const catch_mod_glob = @import("../interp/tcl_catch.zig");
+        catch_mod_glob.tcl_cmd_error(msg_obj);
         return result_mod.from_globals(0);
     }
     if (idx >= words.len) {
@@ -126,26 +136,49 @@ fn eval_glob(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"glob ?switches? pattern ?pattern ...?\"");
         return result_mod.from_globals(0);
     }
-    var acc: i32 = obj.obj_new_string(0, 0);
+    // Ownership: ``acc`` is NULL until the first non-empty glob
+    // result lands.  On match #1 we move ``result`` straight into
+    // ``acc`` (transfer of +1).  On match #2+ we concat into a fresh
+    // ``list_concat`` return (also +1) and release both the prior
+    // ``acc`` and ``result``.  The earlier code seeded ``acc`` with
+    // a fresh empty-string obj that leaked on the first transfer,
+    // and never released the per-pattern ``result`` after concat —
+    // every multi-pattern glob leaked one TclObj per non-first
+    // pattern plus the empty seed.
+    var acc: i32 = 0;
     var any_matched = false;
     while (idx < words.len) : (idx += 1) {
         const result = fs_mod.tcl_cmd_glob(words[idx]);
-        if (result == 0) return result_mod.from_globals(0); // capability-denied or fatal — error already raised
+        if (result == 0) {
+            if (acc != 0) obj.tcl_obj_release(acc);
+            return result_mod.from_globals(0); // capability-denied or fatal — error already raised
+        }
         const r = obj.obj_ensure_string(result);
-        if (r.len == 0) continue;
+        if (r.len == 0) {
+            obj.tcl_obj_release(result);
+            continue;
+        }
         any_matched = true;
-        // Concatenate result lists by pasting raw bytes with a single
-        // separator — both sides are already canonical list strings.
-        if (obj.obj_ensure_string(acc).len == 0) {
+        if (acc == 0) {
             acc = result;
         } else {
-            acc = list_concat(acc, result);
+            const next = list_concat(acc, result);
+            // ``list_concat`` may return a borrow on the empty-side
+            // paths; only release the inputs when they're not the
+            // returned handle.  Both ``acc`` and ``result`` are +1
+            // owned here so the safe pattern is "release each if it
+            // didn't become the new accumulator".
+            if (next != acc) obj.tcl_obj_release(acc);
+            if (next != result) obj.tcl_obj_release(result);
+            acc = next;
         }
     }
     if (!any_matched and !nocomplain) {
+        if (acc != 0) obj.tcl_obj_release(acc);
         stubs.raise("no files matched glob pattern");
         return result_mod.from_globals(0);
     }
+    if (acc == 0) acc = obj.obj_new_string(0, 0);
     return result_mod.from_globals(acc);
 }
 
@@ -167,13 +200,14 @@ fn list_concat(a: i32, b: i32) i32 {
     if (sb.len == 0) return a;
     const total: u32 = sa.len + 1 + sb.len;
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     const out: [*]u8 = @ptrFromInt(buf);
     const ap: [*]const u8 = @ptrFromInt(sa.ptr);
     const bp: [*]const u8 = @ptrFromInt(sb.ptr);
     for (0..sa.len) |i| out[i] = ap[i];
     out[sa.len] = ' ';
     for (0..sb.len) |i| out[sa.len + 1 + i] = bp[i];
-    return obj.obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 pub const registrations = [_]reg.CmdEntry{

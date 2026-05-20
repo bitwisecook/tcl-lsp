@@ -30,6 +30,13 @@ pub fn unsupported(name: []const u8) void {
     const prefix: []const u8 = "unsupported command: ";
     const total: u32 = @intCast(prefix.len + name.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM building the diagnostic — surface a literal-only
+        // error so a hostile script that triggered the allocation
+        // failure can't pivot to writing through ``@ptrFromInt(0)``.
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (prefix, 0..) |c, i| buf[i] = c;
     for (name, 0..) |c, i| buf[prefix.len + i] = c;
@@ -53,6 +60,10 @@ pub fn unsupported(name: []const u8) void {
 pub fn raise(msg: []const u8) void {
     const alloc_size: u32 = @intCast(msg.len);
     const buf_addr: u32 = obj.alloc(alloc_size);
+    if (buf_addr == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (msg, 0..) |c, i| buf[i] = c;
     // Issue #317: see ``unsupported`` above.
@@ -69,6 +80,10 @@ pub fn unsupported_sub(cmd: []const u8, sub: []const u8) void {
     const sep: []const u8 = " ";
     const total: u32 = @intCast(prefix.len + cmd.len + sep.len + sub.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {

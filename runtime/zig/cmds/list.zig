@@ -16,6 +16,7 @@ const parse = @import("../parse/tcl_parse.zig");
 const std = @import("std");
 
 const alloc = rt.alloc;
+const free_sized = obj_mod.free_sized;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
@@ -192,19 +193,32 @@ fn eval_lset(words: []const i32) result_mod.InterpResult {
     }
     const current = frames.var_resolve(words[1]);
     const newval = words[words.len - 1];
-    const indices: i32 = if (words.len == 3)
-        obj_new_string(0, 0)
-    else if (words.len == 4)
+    // ``indices`` ownership:
+    //   words.len == 3 — fresh empty-string obj (owned, must release);
+    //   words.len == 4 — borrowed ``words[2]`` (do NOT release);
+    //   words.len  > 4 — fresh +1 owned list built by ``tcl_list``.
+    // Tracking ``owns_indices`` lets the multi-index loop release
+    // the per-step intermediate ``acc`` returned by each ``tcl_list``
+    // call without breaking the borrowed single-index case.
+    var owns_indices: bool = false;
+    const indices: i32 = if (words.len == 3) blk_empty: {
+        owns_indices = true;
+        break :blk_empty obj_new_string(0, 0);
+    } else if (words.len == 4)
         words[2]
     else blk: {
         var acc: i32 = rt.tcl_list(words[2], words[3]);
         var wi: u32 = 4;
         while (wi + 1 < words.len) : (wi += 1) {
-            acc = rt.tcl_list(acc, words[wi]);
+            const next = rt.tcl_list(acc, words[wi]);
+            obj_mod.tcl_obj_release(acc);
+            acc = next;
         }
+        owns_indices = true;
         break :blk acc;
     };
     const result = rt.tcl_cmd_list_set(current, indices, newval);
+    if (owns_indices) obj_mod.tcl_obj_release(indices);
     _ = frames.var_set(words[1], result);
     return result_mod.from_globals(result);
 }
@@ -934,15 +948,29 @@ fn ls_match_exact(nocase: bool, pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) 
 
 fn ls_match_glob_nc(pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) bool {
     // Case-insensitive glob: lowercase copies then call glob_match.
-    const bp = alloc(pat_len + 1);
-    const be = alloc(elen + 1);
-    if (pat_len > 0 and bp != 0) {
+    // Both buffers must reclaim via ``free_sized`` after ``glob_match``
+    // returns — the earlier revision (Copilot review on PR #453)
+    // allocated them but never freed either, leaking ~``pat_len +
+    // elen + 2`` bytes per ``lsearch -nocase`` probe.  The
+    // ``be == 0`` failure path also previously orphaned ``bp``.
+    const bp_size = pat_len + 1;
+    const bp = alloc(bp_size);
+    if (bp == 0) return false;
+    const be_size = elen + 1;
+    const be = alloc(be_size);
+    if (be == 0) {
+        free_sized(bp, bp_size);
+        return false;
+    }
+    defer free_sized(bp, bp_size);
+    defer free_sized(be, be_size);
+    if (pat_len > 0) {
         const src: [*]const u8 = @ptrFromInt(pat_ptr);
         const dst: [*]u8 = @ptrFromInt(bp);
         var k: u32 = 0;
         while (k < pat_len) : (k += 1) dst[k] = ls_tolower(src[k]);
     }
-    if (elen > 0 and be != 0) {
+    if (elen > 0) {
         const src: [*]const u8 = @ptrFromInt(ep);
         const dst: [*]u8 = @ptrFromInt(be);
         var k: u32 = 0;
@@ -1838,10 +1866,18 @@ fn eval_join(words: []const i32) result_mod.InterpResult {
     if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
         return result_mod.from_globals(0);
     if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
-    const sp = alloc(1);
-    const d: [*]u8 = @ptrFromInt(sp);
-    d[0] = ' ';
-    return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
+    // Default separator: a single space.  ``obj_new_string_copy``
+    // mints an OWNED 1-byte buffer so the separator TclObj cleans
+    // up via release.  The earlier ``alloc(1)`` + ``obj_new_string``
+    // pattern leaked both the slab (cap=0 borrow obj couldn't
+    // reclaim it on release) and the obj header itself (no caller
+    // released the temporary, Copilot review on PR #453).
+    const sep_byte: u8 = ' ';
+    const sep_obj = rt.obj_new_string_copy(@intFromPtr(&sep_byte), 1);
+    if (sep_obj == 0) return result_mod.from_globals(0);
+    const result = rt.tcl_cmd_join(words[1], sep_obj);
+    obj_mod.tcl_obj_release(sep_obj);
+    return result_mod.from_globals(result);
 }
 
 fn eval_split(words: []const i32) result_mod.InterpResult {
@@ -1889,6 +1925,7 @@ fn eval_lrepeat(words: []const i32) result_mod.InterpResult {
         if (vi > 2) cycle_max += 1;
     }
     const cycle_buf = alloc(cycle_max + 4);
+    if (cycle_buf == 0) return result_mod.from_globals(0);
     var cycle_off: u32 = 0;
     vi = 2;
     while (vi < words.len) : (vi += 1) {
@@ -1907,6 +1944,7 @@ fn eval_lrepeat(words: []const i32) result_mod.InterpResult {
     if (cycle_off == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const total: u32 = count * (cycle_off + 1);
     const result_buf = alloc(total);
+    if (result_buf == 0) return result_mod.from_globals(0);
     var off: u32 = 0;
     var ci: u32 = 0;
     while (ci < count) : (ci += 1) {
@@ -1934,9 +1972,11 @@ fn eval_lassign(words: []const i32) result_mod.InterpResult {
             if (elem.braced) {
                 break :blk rt.obj_new_string_copy(list_s.ptr + elem.start, elem.len);
             } else {
-                const buf = alloc(elem.len + 4);
+                const buf_size: u32 = elem.len + 4;
+                const buf = alloc(buf_size);
+                if (buf == 0) break :blk obj_new_string(0, 0);
                 const out_len = rt.copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-                break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+                break :blk obj_mod.obj_new_string_take(buf, out_len, buf_size);
             }
         } else obj_new_string(0, 0);
         _ = frames.var_set(words[pi], val);
@@ -2045,8 +2085,26 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
         const item = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(item);
         switch (ir.code) {
-            .OK => result = rt.tcl_list(result, item),
+            .OK => {
+                // ``tcl_list`` returns a fresh +1 owned obj (or the
+                // existing handle when the in-place fast path takes
+                // — accumulator grow).  Release the prior accumulator
+                // on swap.  ``item`` is intentionally NOT released:
+                // ``eval_script`` can return a BORROWED handle into a
+                // variable's live storage (a body that ends in
+                // ``[set x]`` or similar borrows-the-var-slot
+                // pattern).  Releasing item here would corrupt the
+                // var; leaking it when the body produced a +1 owned
+                // obj is the safer trade-off until ``eval_script``'s
+                // contract is normalised across the runtime.
+                const next_result = rt.tcl_list(result, item);
+                if (next_result != result) obj_mod.tcl_obj_release(result);
+                result = next_result;
+            },
             .BREAK => {
+                // ``break`` / ``continue`` return 0 (no value) so
+                // the historical release-when-non-zero on ``item``
+                // is a no-op.  Kept for documentation.
                 result_mod.consume(.BREAK);
                 if (item != 0) obj_mod.tcl_obj_release(item);
                 break;
@@ -2056,7 +2114,12 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
                 if (item != 0) obj_mod.tcl_obj_release(item);
                 continue;
             },
-            .ERROR, .RETURN => return result_mod.from_globals(item),
+            .ERROR, .RETURN => {
+                // Forward ``item`` as the result and drop the
+                // accumulator we've been building.
+                obj_mod.tcl_obj_release(result);
+                return result_mod.from_globals(item);
+            },
         }
     }
     return result_mod.from_globals(result);

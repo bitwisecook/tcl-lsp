@@ -162,6 +162,7 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     if (wi + 1 < words.len) total += 1;
                 }
                 const buf = alloc(total);
+                if (buf == 0) return result_mod.from_globals(0);
                 var off: u32 = 0;
                 wi = 3;
                 while (wi < words.len) : (wi += 1) {
@@ -174,7 +175,13 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         off += 1;
                     }
                 }
-                return result_mod.from_globals(interp.eval_script(buf, total));
+                const ns_result = interp.eval_script(buf, total);
+                // Free the synthesised script buffer.  ``eval_script``
+                // either copies bytes into owned TclObjs or borrows
+                // through retained var slots; either way the result's
+                // bytes don't reference this buffer once we return.
+                obj_mod.free_sized(buf, total);
+                return result_mod.from_globals(ns_result);
             }
         }
         if (sub.len == 6 and sub.ptr != 0) {
@@ -477,6 +484,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     return result_mod.from_globals(0);
                 }
                 const targets_buf = alloc(@intCast(count * 4));
+                // OOM: alloc raised ``oom_flag``.  Drop the partial
+                // assignment without touching ``ns_current``'s path
+                // — the existing path remains in effect.  Returning
+                // 0 mirrors every other error/no-op branch in this
+                // ``namespace path`` block.
+                if (targets_buf == 0) return result_mod.from_globals(0);
                 var li: i64 = 0;
                 while (li < count) : (li += 1) {
                     const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
@@ -616,21 +629,37 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             }
             // Build a properly-quoted args list via tcl_list, then append to body.
             // This ensures args containing spaces/braces are re-tokenized correctly.
+            //
+            // Each ``tcl_list`` call returns a fresh +1 owned obj (or
+            // an in-place same-handle return on capacity).  Release
+            // the prior accumulator on swap, then release the final
+            // args_obj after the bytes are copied into ``buf`` — and
+            // free the synthesised script buffer once eval_script
+            // finishes, mirroring the ``namespace eval`` arm above.
             var args_obj: i32 = obj_new_string_copy(0, 0);
             var wi: u32 = 4;
             while (wi < words.len) : (wi += 1) {
-                args_obj = rt.tcl_list(args_obj, words[wi]);
+                const next = rt.tcl_list(args_obj, words[wi]);
+                if (next != args_obj) obj_mod.tcl_obj_release(args_obj);
+                args_obj = next;
             }
             const as = obj_ensure_string(args_obj);
             const total = bs.len + (if (as.len > 0) 1 + as.len else 0);
             const buf = alloc(total);
+            if (buf == 0) {
+                obj_mod.tcl_obj_release(args_obj);
+                return result_mod.from_globals(0);
+            }
             memcpy(buf, bs.ptr, bs.len);
             if (as.len > 0) {
                 const d: [*]u8 = @ptrFromInt(buf + bs.len);
                 d[0] = ' ';
                 memcpy(buf + bs.len + 1, as.ptr, as.len);
             }
-            return result_mod.from_globals(interp.eval_script(buf, total));
+            obj_mod.tcl_obj_release(args_obj);
+            const ns_result = interp.eval_script(buf, total);
+            obj_mod.free_sized(buf, total);
+            return result_mod.from_globals(ns_result);
         }
         // ``namespace code script`` — return a script that evaluates
         // *script* in the current namespace.  Reference Tcl
@@ -771,10 +800,11 @@ fn ns_parent(ptr: u32, len: u32) i32 {
     if (i == 0 and has_sep) {
         // Was ``::foo`` — parent is root ``::``.
         const buf = alloc(2);
+        if (buf == 0) return obj_new_string(0, 0);
         const d: [*]u8 = @ptrFromInt(buf);
         d[0] = ':';
         d[1] = ':';
-        return obj_new_string(@bitCast(buf), 2);
+        return rt.obj_new_string_take(buf, 2, 2);
     }
     return obj_new_string(@bitCast(ptr), @bitCast(i));
 }
@@ -888,6 +918,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
     }
     if (count == 0) return obj_new_string(0, 0);
     const buf = alloc(total_bytes);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var first: bool = true;
     i = 0;
@@ -908,7 +939,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
         memcpy(buf + off, fqn.ptr, fqn.len);
         off += fqn.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(total_bytes));
+    return rt.obj_new_string_take(buf, total_bytes, total_bytes);
 }
 
 /// ``namespace delete name ...`` — mark namespace dead by removing it from its
@@ -1558,6 +1589,11 @@ const ENS_REC_SIZE: u32 = @sizeOf(EnsembleRec);
 
 fn ensemble_rec_alloc() u32 {
     const addr = alloc(ENS_REC_SIZE);
+    // OOM: surface 0 to the caller without writing through a null
+    // pointer.  ``alloc`` already raised ``oom_flag``; callers test
+    // ``rec_addr == 0`` (added at each call site) and raise a Tcl
+    // error before returning.
+    if (addr == 0) return 0;
     const r: *EnsembleRec = @ptrFromInt(addr);
     r.target_ns = 0;
     r.map_obj = 0;
@@ -1699,6 +1735,12 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
         return 0;
     }
     const rec_addr = ensemble_rec_alloc();
+    // OOM: ``ensemble_rec_alloc`` returned 0 and raised ``oom_flag``;
+    // surface a Tcl error rather than ``@ptrFromInt(0)``.
+    if (rec_addr == 0) {
+        raise_ns_error("namespace ensemble create: out of memory");
+        return 0;
+    }
     const rec: *EnsembleRec = @ptrFromInt(rec_addr);
     rec.target_ns = tcl_ns.ns_current();
     var cmd_name: i32 = 0; // optional ``-command`` override

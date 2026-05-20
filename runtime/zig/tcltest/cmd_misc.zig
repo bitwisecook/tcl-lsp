@@ -194,7 +194,10 @@ fn eval_testdoubledigits(words: []const i32) result_mod.InterpResult {
         .exponential => std.fmt.bufPrint(&buf, "{e:.[1]}", .{ v, precision }) catch "0",
         .fixed => std.fmt.bufPrint(&buf, "{d:.[1]}", .{ v, precision }) catch "0",
     };
-    return result_mod.ok(obj.obj_new_string(@intCast(@intFromPtr(slice.ptr)), @intCast(slice.len)));
+    // Copy the bytes out of the stack buffer — ``obj_new_string`` would
+    // return a TclObj whose ``OBJ_STR_PTR`` aliased ``buf`` and gone
+    // garbage as soon as this function returned.
+    return result_mod.ok(obj.obj_new_string_copy(@intCast(@intFromPtr(slice.ptr)), @intCast(slice.len)));
 }
 
 // -- testlutil ---------------------------------------------------------
@@ -342,7 +345,9 @@ fn eval_testprint(words: []const i32) result_mod.InterpResult {
     var out_buf: [128]u8 = undefined;
     const slice = std.fmt.bufPrint(&out_buf, "{d}", .{v}) catch return err_msg("format error");
     _ = fmt; // we don't honour the format string's prefix/suffix yet
-    return result_mod.ok(obj.obj_new_string(@intCast(@intFromPtr(slice.ptr)), @intCast(slice.len)));
+    // Copy out of the stack buffer — see ``eval_testdoubledigits`` for
+    // the use-after-stack-free rationale.
+    return result_mod.ok(obj.obj_new_string_copy(@intCast(@intFromPtr(slice.ptr)), @intCast(slice.len)));
 }
 
 // -- testparseargs ------------------------------------------------------
@@ -403,7 +408,10 @@ var current_platform_len: u32 = 4;
 
 fn eval_testgetplatform(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return result_mod.ok(obj.obj_new_string(@intCast(@intFromPtr(&current_platform_buf)), @intCast(current_platform_len)));
+    // Copy out of the mutable static — ``testsetplatform`` can
+    // rewrite ``current_platform_buf`` in place, which would
+    // silently mutate a TclObj the caller already holds.
+    return result_mod.ok(obj.obj_new_string_copy(@intCast(@intFromPtr(&current_platform_buf)), @intCast(current_platform_len)));
 }
 
 fn eval_testsetplatform(words: []const i32) result_mod.InterpResult {

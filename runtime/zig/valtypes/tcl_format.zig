@@ -147,13 +147,28 @@ pub export fn tcl_cmd_format_list(fmt: i32, args_list: i32) i32 {
     // ``tcl_cmd_list_index`` (handles braced + quoted elements
     // and backslash decoding) so the format routine can pull
     // integer widths and string values uniformly.
-    const objs_addr = alloc(n * 4);
+    //
+    // Every ``tcl_cmd_list_index`` returns a fresh +1 owned obj
+    // and every immediate ``obj_new_int(i)`` past 2^30 is also
+    // heap-allocated.  Previously these were just dropped on the
+    // floor — N+1 leaked TclObjs per ``format`` call plus the
+    // ``objs_addr`` indexer buffer.  Release each element AFTER
+    // ``format_internal`` is done reading it, and free the buffer.
+    const objs_size: u32 = n * 4;
+    const objs_addr = alloc(objs_size);
+    if (objs_addr == 0) return format_internal(fmt, &[_]i32{});
+    defer obj.free_sized(objs_addr, objs_size);
     const objs: [*]i32 = @ptrFromInt(objs_addr);
     var i: u32 = 0;
     while (i < n) : (i += 1) {
-        objs[i] = list_mod.tcl_cmd_list_index(args_list, obj.obj_new_int(@intCast(i)));
+        const idx_obj = obj.obj_new_int(@intCast(i));
+        objs[i] = list_mod.tcl_cmd_list_index(args_list, idx_obj);
+        obj.tcl_obj_release(idx_obj);
     }
-    return format_internal(fmt, objs[0..n]);
+    const result = format_internal(fmt, objs[0..n]);
+    i = 0;
+    while (i < n) : (i += 1) obj.tcl_obj_release(objs[i]);
+    return result;
 }
 
 /// Scan a format string for the maximum literal width / precision
@@ -256,6 +271,16 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         bufsize += as.len + 64;
     }
     const buf_addr: u32 = alloc(bufsize);
+    if (buf_addr == 0) return obj_new_string(0, 0);
+    // Cascade-leak fix: every early-return path through the format
+    // loop (``"not enough arguments"``, ``"format string ended"``,
+    // checked_int / checked_float failures, the positional /
+    // sequential-mix diagnostic, etc.) previously abandoned
+    // ``buf_addr`` on the heap.  Schedule a free that fires on
+    // every exit, then clear the flag on the success path so the
+    // buffer's ownership transfers to the returned TclObj instead.
+    var success: bool = false;
+    defer if (!success) obj.free_sized(buf_addr, bufsize);
     const out: [*]u8 = @ptrFromInt(buf_addr);
     var off: u32 = 0;
 
@@ -456,6 +481,7 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
     // The older borrowing form leaked one buf per ``format`` call;
     // tcltest's progress / diagnostic output exercises this path
     // heavily.
+    success = true; // ownership transferred to the TclObj below
     return obj.obj_new_string_take(buf_addr, off, bufsize);
 }
 
