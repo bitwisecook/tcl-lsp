@@ -33,6 +33,14 @@
 //! member.  `document_highlights` returns the declaration as
 //! `Write` and every call site as `Text`.
 //!
+//! External `$obj method` references also land: when the
+//! cursor sits on the method-name token of a `$obj method`
+//! call (or inside the class body), the provider additionally
+//! scans the whole document for `$v method` / `[$v method]`
+//! call sites where `v`'s class (per
+//! `analysis.instance_classes`) matches.  See
+//! [`find_obj_method_call_sites`] for the scan's coverage.
+//!
 //! What is *still deferred* (planned as `S-references-rich`
 //! follow-ups):
 //!
@@ -40,9 +48,10 @@
 //!   that surfaces references across every open document; lands
 //!   alongside `S-workspace-symbols` and the workspace-index
 //!   chunks.
-//! * `$obj method` call sites *outside* the class body —
-//!   needs analyser-side variable-type tracking so the
-//!   provider knows which object's class to match against.
+//! * `$obj method` sites embedded in quoted / word tokens
+//!   (`"prefix[$d bark]"`) — the scan descends into
+//!   command-substitution args and proc / method bodies but
+//!   not into string interpolation.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -135,11 +144,36 @@ pub fn references(
         }
     }
 
+    // `$obj method` external call site — when the cursor sits
+    // on the method-name token of an instance-method call and
+    // `$obj`'s class is known, surface the method declaration
+    // plus every call site (intra-class + external).
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+    {
+        if let Some(class_q) = analysis.instance_classes.get(&inst) {
+            if let Some((decl_span, call_spans)) =
+                method_references_for_class(source, analysis, class_q, &method)
+            {
+                let mut out = Vec::new();
+                if include_declaration {
+                    out.push(span_to_range(&line_index, decl_span));
+                }
+                for s in call_spans {
+                    out.push(span_to_range(&line_index, s));
+                }
+                dedup_ranges(&mut out);
+                return out;
+            }
+        }
+    }
+
     // Class-member references — when the cursor sits inside a
     // class body and `word` matches a method / classmethod /
     // property, re-segment the sibling method bodies to find
-    // every invocation that names the same member.  Mirrors
-    // the `rename_method` walk in `crate::rename`.
+    // every invocation that names the same member, then append
+    // external `$obj method` call sites.  Mirrors the
+    // `rename_method` walk in `crate::rename`.
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
     if let Some(spans) = find_class_member_references(source, &word, analysis, cursor_offset) {
         let (decl_span, call_spans) = spans;
@@ -155,6 +189,77 @@ pub fn references(
     }
 
     Vec::new()
+}
+
+/// Resolve a method's declaration span plus every call site —
+/// intra-class (re-segment the class's own method bodies) and
+/// external (`$obj method` across the document).  Returns
+/// `None` when `class_q` has no method / classmethod named
+/// `method`.
+pub(crate) fn method_references_for_class(
+    source: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_lexer::Span;
+    let class_def = analysis.all_classes.get(class_q)?;
+    let decl_span = class_def
+        .methods
+        .get(method)
+        .map(|m| m.name_span)
+        .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))?;
+
+    let mut call_spans: Vec<Span> = Vec::new();
+    // Intra-class: re-segment every method / classmethod /
+    // ctor / dtor body for bare `method` invocations.
+    let mut bodies: Vec<Span> = class_def
+        .methods
+        .values()
+        .map(|m| m.body_span)
+        .chain(class_def.class_methods.values().map(|m| m.body_span))
+        .chain(class_def.constructors.iter().map(|c| c.body_span))
+        .collect();
+    if let Some(d) = &class_def.destructor {
+        bodies.push(d.body_span);
+    }
+    for body_span in bodies {
+        if body_span.is_empty() {
+            continue;
+        }
+        let mut start = body_span.start() as usize;
+        let mut end = body_span.end() as usize;
+        if start >= source.len() || end > source.len() || start > end {
+            continue;
+        }
+        if source.as_bytes().get(start) == Some(&b'{') {
+            start += 1;
+        }
+        if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+            end -= 1;
+        }
+        let body_text = &source[start..end];
+        let commands = segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(0));
+        for cmd in &commands {
+            let Some(head) = cmd.argv.first() else {
+                continue;
+            };
+            let h_start = head.span.start() as usize;
+            let h_end = head.span.end() as usize;
+            if h_start >= source.len() || h_end > source.len() {
+                continue;
+            }
+            if &source[h_start..h_end] == method && head.span != decl_span {
+                call_spans.push(head.span);
+            }
+        }
+    }
+    // External `$obj method` sites.
+    call_spans.extend(find_obj_method_call_sites(
+        source, analysis, class_q, method,
+    ));
+    Some((decl_span, call_spans))
 }
 
 /// Find a class member's declaration span plus every call
@@ -238,9 +343,204 @@ fn find_class_member_references(
                 call_spans.push(head.span);
             }
         }
+        // Append external `$obj method` call sites for
+        // methods / classmethods (not properties — those
+        // aren't dispatched as `$obj prop`).
+        if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
+            call_spans.extend(find_obj_method_call_sites(
+                source,
+                analysis,
+                &class_def.qualified_name,
+                word,
+            ));
+        }
         return Some((decl_span, call_spans));
     }
     None
+}
+
+/// Find every external `$v method` / `[$v method]` call site
+/// in the document where `v` is an instance variable whose
+/// class qualified-name is `class_q` (per
+/// `analysis.instance_classes`).  Returns the spans of the
+/// method-name tokens.
+///
+/// Scans three region kinds — the top-level command stream,
+/// each user proc body, and each class method body — and
+/// recurses into command-substitution (`[...]`) args at every
+/// level.  This covers the common call forms (`$d bark`,
+/// `puts [$d bark]`, calls inside procs / methods).  Method
+/// names embedded in quoted / word tokens
+/// (`"prefix[$d bark]"`) are not descended — a rare form.
+pub(crate) fn find_obj_method_call_sites(
+    source: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    use std::collections::HashSet;
+    // Variables of the target class.
+    let var_set: HashSet<&str> = analysis
+        .instance_classes
+        .iter()
+        .filter(|(_, c)| c.as_str() == class_q)
+        .map(|(v, _)| v.as_str())
+        .collect();
+    if var_set.is_empty() {
+        return Vec::new();
+    }
+    let mut out: Vec<tcl_lexer::Span> = Vec::new();
+    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+
+    // Region 1: the whole document.
+    scan_obj_method_region(
+        source,
+        0,
+        source.len(),
+        &var_set,
+        method,
+        &mut out,
+        &mut seen,
+    );
+    // Regions 2/3: proc + method bodies (the top-level scan
+    // skips braced body args, so descend explicitly).
+    for proc_def in analysis.all_procs.values() {
+        scan_obj_method_body(
+            source,
+            proc_def.body_span,
+            &var_set,
+            method,
+            &mut out,
+            &mut seen,
+        );
+    }
+    for class_def in analysis.all_classes.values() {
+        for m in class_def
+            .methods
+            .values()
+            .chain(class_def.class_methods.values())
+            .chain(class_def.constructors.iter())
+            .chain(class_def.destructor.iter())
+        {
+            scan_obj_method_body(source, m.body_span, &var_set, method, &mut out, &mut seen);
+        }
+    }
+    out
+}
+
+/// Scan a brace-delimited body span for `$v method` call sites
+/// (stripping the surrounding braces first).
+fn scan_obj_method_body(
+    source: &str,
+    body_span: tcl_lexer::Span,
+    var_set: &std::collections::HashSet<&str>,
+    method: &str,
+    out: &mut Vec<tcl_lexer::Span>,
+    seen: &mut std::collections::HashSet<(u32, u32)>,
+) {
+    if body_span.is_empty() {
+        return;
+    }
+    let mut start = body_span.start() as usize;
+    let mut end = body_span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return;
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    scan_obj_method_region(source, start, end, var_set, method, out, seen);
+}
+
+/// Segment `source[start..end]` and record every `$v method`
+/// call site, recursing into command-substitution (`[...]`)
+/// args.  `var_set` holds the bare names of in-scope instance
+/// variables.
+fn scan_obj_method_region(
+    source: &str,
+    start: usize,
+    end: usize,
+    var_set: &std::collections::HashSet<&str>,
+    method: &str,
+    out: &mut Vec<tcl_lexer::Span>,
+    seen: &mut std::collections::HashSet<(u32, u32)>,
+) {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_lexer::TokenType;
+    if start >= end || end > source.len() {
+        return;
+    }
+    let region = &source[start..end];
+    let commands = segment_commands_with_offset(region, u32::try_from(start).unwrap_or(0));
+    for cmd in &commands {
+        // Head `$v` + method at argv[1].
+        if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
+            if head.kind == TokenType::Var {
+                let h_start = head.span.start() as usize;
+                let h_end = head.span.end() as usize;
+                if h_start < source.len() && h_end <= source.len() {
+                    let raw = &source[h_start..h_end];
+                    if let Some(name) = strip_var_decoration(raw) {
+                        if var_set.contains(name) {
+                            let m_start = method_tok.span.start() as usize;
+                            let m_end = method_tok.span.end() as usize;
+                            if m_start < source.len()
+                                && m_end <= source.len()
+                                && &source[m_start..m_end] == method
+                            {
+                                let key = (method_tok.span.start(), method_tok.span.end());
+                                if seen.insert(key) {
+                                    out.push(method_tok.span);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Recurse into command-substitution args.
+        for arg in &cmd.argv {
+            if arg.kind != TokenType::Cmd {
+                continue;
+            }
+            let a_start = arg.span.start() as usize;
+            let a_end = arg.span.end() as usize;
+            if a_start >= source.len() || a_end > source.len() || a_start >= a_end {
+                continue;
+            }
+            // Strip the surrounding `[` `]`.
+            let inner_start = if source.as_bytes().get(a_start) == Some(&b'[') {
+                a_start + 1
+            } else {
+                a_start
+            };
+            let inner_end =
+                if a_end > inner_start && source.as_bytes().get(a_end - 1) == Some(&b']') {
+                    a_end - 1
+                } else {
+                    a_end
+                };
+            scan_obj_method_region(source, inner_start, inner_end, var_set, method, out, seen);
+        }
+    }
+}
+
+/// Strip a `$name` / `${name}` decoration to the bare variable
+/// name.  Returns `None` when the text isn't a `$`-prefixed
+/// reference.
+fn strip_var_decoration(raw: &str) -> Option<&str> {
+    let rest = raw.strip_prefix('$')?;
+    let inner = rest
+        .strip_prefix('{')
+        .map_or(rest, |r| r.strip_suffix('}').unwrap_or(r));
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner)
+    }
 }
 
 /// Read / write kind for a document-highlight span.  Mirrors
@@ -688,5 +988,51 @@ mod tests {
             .collect();
         assert_eq!(writes.len(), 1, "{h:?}");
         assert_eq!(texts.len(), 2, "{h:?}");
+    }
+
+    // -- S-references-rich: external $obj method sites --------------
+
+    #[test]
+    fn references_from_external_obj_method_site() {
+        // Declaration + 2 external call sites (`$d bark`,
+        // `[$d bark]`).
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
+        let analysis = analyse(src);
+        // Cursor on `bark` in `$d bark` (line 4, col 3).
+        let refs = references(src, 4, 3, &analysis, true);
+        // Declaration (line 1) + two external sites (lines 4, 5).
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&4), "line-4 call missing: {refs:?}");
+        assert!(lines.contains(&5), "line-5 call missing: {refs:?}");
+    }
+
+    #[test]
+    fn references_from_inside_class_includes_external_sites() {
+        // Cursor on the declaration; refs include the external
+        // `$d bark` site as well as the declaration.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
+        let analysis = analyse(src);
+        let refs = references(src, 1, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(lines.contains(&4), "external call missing: {refs:?}");
+    }
+
+    #[test]
+    fn find_obj_method_call_sites_covers_top_level_and_subst() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, &analysis, "::Dog", "bark");
+        // Two external sites: `$d bark` and `[$d bark]`.
+        assert_eq!(sites.len(), 2, "{sites:?}");
+    }
+
+    #[test]
+    fn find_obj_method_call_sites_finds_calls_in_proc_body() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
+        let analysis = analyse(src);
+        let sites = find_obj_method_call_sites(src, &analysis, "::Dog", "bark");
+        assert_eq!(sites.len(), 1, "{sites:?}");
     }
 }

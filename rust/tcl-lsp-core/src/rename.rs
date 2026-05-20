@@ -36,16 +36,22 @@
 //! the cursor sits on a member name inside the class body
 //! (either at the declaration or at a call site), the
 //! provider rewrites the declaration's name span plus every
-//! same-name command invocation inside the class body.
+//! same-name command invocation inside the class body, **and**
+//! every external `$obj method` / `[$obj method]` call site
+//! where `$obj`'s class (per `analysis.instance_classes`)
+//! matches.  Renaming can also be triggered from an external
+//! call site.  See [`crate::references::find_obj_method_call_sites`]
+//! for the external-site scan's coverage.
 //!
 //! What is *still deferred* (planned as further
 //! `S-rename-rich` sub-strips):
 //!
 //! * Cross-document rename — the workspace-index integration
 //!   that lands alongside `S-workspace-symbols`.
-//! * `$obj method` call sites *outside* the class body —
-//!   needs analyser-side variable-type tracking so the
-//!   provider knows which object's class to rename against.
+//! * `$obj method` sites embedded in quoted / word tokens
+//!   (`"prefix[$d bark]"`) — the external scan descends into
+//!   command-substitution args and proc / method bodies but
+//!   not into string interpolation.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -194,6 +200,37 @@ pub fn prepare_rename(
             });
         }
     }
+    // External `$obj method` call site — editors that gate the
+    // rename UI on `prepare_rename` should still see it as
+    // renameable.  Resolve `$obj`'s class and confirm a method
+    // of that name exists.
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+    {
+        if let Some(class_q) = analysis.instance_classes.get(&inst) {
+            if let Some(class_def) = analysis.all_classes.get(class_q) {
+                let member = class_def
+                    .methods
+                    .get(&method)
+                    .or_else(|| class_def.class_methods.get(&method));
+                if let Some(m) = member {
+                    // Anchor the placeholder range on the call
+                    // site's method token so the editor's rename
+                    // box opens where the cursor is.
+                    let (_, mstart, mend) = find_word_span_at_position(source, line, character)?;
+                    return Some(PrepareRename {
+                        range: LspRange {
+                            start_line: line,
+                            start_character: mstart,
+                            end_line: line,
+                            end_character: mend,
+                        },
+                        placeholder: m.name.clone(),
+                    });
+                }
+            }
+        }
+    }
     None
 }
 
@@ -237,6 +274,28 @@ pub fn rename(
     if let Some(edits) = rename_class(&word, new_name, analysis, registry, &line_index) {
         return edits;
     }
+    // `$obj method` external call site — when the cursor sits
+    // on the method-name token of an instance-method call and
+    // `$obj`'s class is known, rename the method across its
+    // declaration + all call sites (intra-class + external).
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+    {
+        if method == word {
+            if let Some(class_q) = analysis.instance_classes.get(&inst) {
+                if let Some(edits) = rename_method_in_class(
+                    source,
+                    class_q,
+                    &method,
+                    new_name,
+                    analysis,
+                    &line_index,
+                ) {
+                    return edits;
+                }
+            }
+        }
+    }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
@@ -251,6 +310,36 @@ pub fn rename(
         return edits;
     }
     Vec::new()
+}
+
+/// Rename a method of the class identified by `class_q`:
+/// rewrite the declaration name span, every intra-class call
+/// site, and every external `$obj method` call site.  Returns
+/// `None` when `class_q` has no method / classmethod named
+/// `method`.  Shared by the in-class-body and external
+/// `$obj method` rename entry points.
+fn rename_method_in_class(
+    source: &str,
+    class_q: &str,
+    method: &str,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<Vec<TextEdit>> {
+    let (decl_span, call_spans) =
+        crate::references::method_references_for_class(source, analysis, class_q, method)?;
+    let mut edits = vec![TextEdit {
+        range: span_to_range(line_index, decl_span),
+        new_text: new_name.to_owned(),
+    }];
+    for span in call_spans {
+        edits.push(TextEdit {
+            range: span_to_range(line_index, span),
+            new_text: new_name.to_owned(),
+        });
+    }
+    dedup_edits(&mut edits);
+    Some(edits)
 }
 
 /// Variable-rename path — declaration span + every read site,
@@ -453,6 +542,21 @@ fn rename_method(
             scan_body_for_method_calls(
                 source, span, word, new_name, name_span, line_index, &mut edits,
             );
+        }
+        // Append external `$obj method` call sites for
+        // methods / classmethods (not properties).
+        if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
+            for span in crate::references::find_obj_method_call_sites(
+                source,
+                analysis,
+                &class_def.qualified_name,
+                word,
+            ) {
+                edits.push(TextEdit {
+                    range: span_to_range(line_index, span),
+                    new_text: new_name.to_owned(),
+                });
+            }
         }
         dedup_edits(&mut edits);
         return Some(edits);
@@ -1044,5 +1148,52 @@ mod tests {
         let analysis = analyse(src);
         let p = prepare_rename(src, 1, 11, &analysis).expect("expected prepare_rename on method");
         assert_eq!(p.placeholder, "greet");
+    }
+
+    // -- S-rename-rich: external $obj method rename -----------------
+
+    #[test]
+    fn rename_method_from_decl_rewrites_external_obj_sites() {
+        // Renaming `bark` from its declaration also rewrites the
+        // external `$d bark` / `[$d bark]` call sites.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 1, 11, "yip", &analysis, None);
+        // Declaration + 2 external sites = 3 edits, all "yip".
+        assert!(edits.len() >= 3, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "yip");
+        }
+        // One edit on line 4 (`$d bark`) and one on line 5
+        // (`[$d bark]`).
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&4) && lines.contains(&5), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_method_from_external_call_site() {
+        // Triggering rename from the external `$d bark` site
+        // rewrites the declaration + all sites.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
+        let analysis = analyse(src);
+        // Cursor on `bark` in `$d bark` (line 4, col 3).
+        let edits = rename(src, 4, 3, "yip", &analysis, None);
+        assert!(edits.len() >= 2, "{edits:?}");
+        for e in &edits {
+            assert_eq!(e.new_text, "yip");
+        }
+        // Declaration (line 1) is rewritten too.
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        assert!(lines.contains(&1), "decl not renamed: {edits:?}");
+    }
+
+    #[test]
+    fn rename_method_external_rewrites_proc_body_sites() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
+        let analysis = analyse(src);
+        let edits = rename(src, 1, 11, "yip", &analysis, None);
+        let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
+        // Declaration (1) + proc-body call (4).
+        assert!(lines.contains(&1) && lines.contains(&4), "{edits:?}");
     }
 }
