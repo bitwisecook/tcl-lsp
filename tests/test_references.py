@@ -91,15 +91,18 @@ class TestVariableReferences:
     def test_find_var_refs(self):
         source = "set x 42\nputs $x"
         refs = get_references(source, TEST_URI, 1, 7)
-        # Should include definition and reference
-        assert len(refs) >= 1
+        # Should include the ``set x`` definition (line 0) and the ``$x``
+        # read (line 1) — both at the variable name's column.
+        starts = {(r.range.start.line, r.range.start.character) for r in refs}
+        assert starts == {(0, 4), (1, 5)}, starts
 
     def test_multiple_var_refs(self):
         source = "set x 1\nset x 2\nputs $x"
         # Position on $x at line 2, col 6 (the 'x' after '$')
         refs = get_references(source, TEST_URI, 2, 6)
-        # Should find at least the definition
-        assert len(refs) >= 1
+        # Both ``set x`` writes (lines 0,1) and the ``$x`` read (line 2).
+        starts = {(r.range.start.line, r.range.start.character) for r in refs}
+        assert starts == {(0, 4), (1, 4), (2, 5)}, starts
 
     def test_no_refs_for_unknown(self):
         refs = get_references("puts hello", TEST_URI, 0, 6)
