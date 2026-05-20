@@ -610,6 +610,19 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n  regexp {^/api} $data\n}\n",
         dialect="f5-irules",
     ),
+    "IRULE1202": Case(
+        "when HTTP_REQUEST {\n    HTTP::respond 200\n    HTTP::respond 302\n}\n",
+        "HTTP::respond 302",
+        "when HTTP_REQUEST {\n    HTTP::respond 200\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3103": Case(
+        'set uri [HTTP::uri]\nset parts [split $uri "?"]\n',
+        "split $uri",
+        "set p [HTTP::path]\nset q [HTTP::query]\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
     "T106": Case(
         "when HTTP_REQUEST {\n  set safe [HTML::encode [HTTP::uri]]\n  set double [HTML::encode $safe]\n}\n",
         "HTML::encode $safe",
@@ -830,8 +843,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "E203",
         "IAPP7001",
         "IAPP7002",
-        "IRULE1202",
-        "IRULE3103",
         "IRULE4002",
         "IRULE4003",
         "O101",
