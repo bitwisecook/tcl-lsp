@@ -653,6 +653,13 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "set x 1\n",
         iapp=True,
     ),
+    # Invalid IP record in an ip-type data-group: range spans the whole
+    # data-group stanza body rather than the offending record.
+    "BIGIP6011": FiresCase(
+        "ltm data-group internal /Common/dg {\ntype ip\nrecords {\n300.1.1.1/32 { }\n}\n}\n",
+        "ltm data-group internal /Common/dg {\ntype ip\nrecords {\n10.1.1.1/32 { }\n}\n}\n",
+        bigip=True,
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -667,7 +674,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "BIGIP6007",
         "BIGIP6009",
         "BIGIP6010",
-        "BIGIP6011",
         "E004",
         "E100",
         "E101",
