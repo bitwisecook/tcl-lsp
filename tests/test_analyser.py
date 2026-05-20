@@ -167,6 +167,42 @@ class TestDiagnostics:
         errors = [d for d in result.diagnostics if d.code == "E003"]
         assert len(errors) >= 1
 
+    def test_switches_not_counted_as_positional(self):
+        # Regression for #455: declared option flags must be skipped before
+        # counting positional args. Commands with a role hint previously
+        # lost their declared switch names during signature merging, so
+        # bounded-arity commands (regsub max 4) tripped a false E003 once
+        # any switch was supplied. These regsub switches exist in every
+        # supported dialect, so the default test dialect (tcl8.6) suffices.
+        for snippet in (
+            "regsub -all -line {\\n} $args {} str",
+            "regsub -all {a} $b {} c",
+            "regsub -nocase -all -- $pat $s {} out",
+        ):
+            result = analyse(snippet)
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert errors == [], f"unexpected E003 for {snippet!r}: {errors}"
+        # Genuine over-arity (5 positional) still fires.
+        result = analyse("regsub a b c d e")
+        errors = [d for d in result.diagnostics if d.code == "E003"]
+        assert len(errors) >= 1
+
+    def test_switch_options_are_dialect_filtered(self):
+        # vwait gained its option switches in Tcl 9.0; under 8.6 they are
+        # not valid, so option-aware arity counting must reject them.
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("tcl9.0"):
+            # ``-variable`` is a real switch in 9.0 → skipped, 1 positional.
+            result = analyse("vwait -variable x")
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert errors == [], f"unexpected E003 under tcl9.0: {errors}"
+        with dialect_scope("tcl8.6"):
+            # In 8.6 ``-variable`` is unknown → counted positional (2 > max 1).
+            result = analyse("vwait -variable x")
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert len(errors) >= 1, "expected E003 for tcl9.0-only switch under tcl8.6"
+
     def test_while_too_few_args(self):
         result = analyse("while {1}")
         errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
