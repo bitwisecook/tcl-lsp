@@ -584,6 +584,23 @@ FIXTURES: dict[str, Case] = {
         "[pi]",
         "proc effect {} { puts hi; return 1 }\nset v [effect]\n",
     ),
+    "W200": Case(
+        "binary format su $val\n",
+        "su",
+        "binary format s $val\n",
+        dialect="tcl8.4",
+    ),
+    "W306": Case(
+        "regexp -- $pattern$suffix $text\n",
+        "$pattern$suffix",
+        "regexp -- {^foo} $text\n",
+    ),
+    "W215": Case(
+        'set "weird}name" 1\n',
+        "weird}name",
+        "set x 1\n",
+        contains=True,
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -613,6 +630,24 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # lassign-pack of consecutive set literals: range bleeds onto the
     # following line's first character.
     "O119": FiresCase("set a 1\nset b 2\nset c 3\nlassign $lst a b c\n", "set a 1\nputs $a\n"),
+    # Non-ASCII token content: range bleeds into the adjacent ASCII
+    # character rather than covering only the non-ASCII run.
+    "W108": FiresCase("set x Аbc\n", "set x abc\n"),
+    # Stub command shadows builtin: range points at the leading `#` of the
+    # stub comment rather than the shadowed command name.
+    "W116": FiresCase(
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub set {varName value}\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub my_custom_cmd {arg1}\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+    ),
+    # Stub expr-func shadows builtin function: same leading-`#` range issue.
+    "W117": FiresCase(
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sin 1\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sizeof 1\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+    ),
     # `drop` without `event disable all`/`return`: range points at the
     # event block's closing brace rather than the drop command.
     "IRULE5002": FiresCase(
@@ -727,9 +762,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "T102",
         "T103",
         "T106",
-        "W108",
-        "W116",
-        "W117",
         "W120",
         "W122",
         "W126",
@@ -738,9 +770,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W132",
         "W133",
         "W134",
-        "W200",
-        "W215",
-        "W306",
         "W310",
         "W311",
         "XC200",
