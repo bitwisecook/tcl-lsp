@@ -361,6 +361,85 @@ FIXTURES: dict[str, Case] = {
         "proc f {n} {\n  return [expr {$n+1}]\n}\n",
         contains=True,
     ),
+    "IRULE1005": Case(
+        "when HTTP_REQUEST_DATA {\n  log local0. hi\n}\n",
+        "HTTP_REQUEST_DATA",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1006": Case(
+        "when HTTP_REQUEST {\n  set p [HTTP::payload]\n}\n",
+        "HTTP::payload",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "IRULE1201": Case(
+        "when HTTP_REQUEST {\n  HTTP::respond 200\n  HTTP::header insert X 1\n}\n",
+        "HTTP::header insert X 1",
+        "when HTTP_REQUEST {\n  HTTP::respond 200\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3003": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  log local0. $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3102": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n}\n",
+        "HTTP::uri",
+        "when HTTP_REQUEST {\n  set u [HTTP::uri -normalized]\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE4001": Case(
+        "when HTTP_REQUEST {\n  set static::count 1\n}\n",
+        "set",
+        "when RULE_INIT {\n  set static::count 1\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5001": Case(
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        "log",
+        "when RULE_INIT {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5005": Case(
+        "proc helper {} {return 1}\nwhen HTTP_REQUEST {\n  helper\n}\n",
+        "helper",
+        "proc helper {} {return 1}\nwhen HTTP_REQUEST {\n  call helper\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5007": Case(
+        "HTTP::uri\n",
+        "HTTP::uri",
+        "set x 1\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2101": Case(
+        "when HTTP_REQUEST {\n  if {[regexp {^/api/.*} $s]} {pool p}\n}\n",
+        "regexp",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5006": Case(
+        "when HTTP_REQUEST {\n  if {1} {\n    when HTTP_RESPONSE {log local0. x}\n  }\n}\n",
+        "when",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE6001": Case(
+        "when HTTP_REQUEST {\n  global g\n}\n",
+        "global",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3101": Case(
+        "when HTTP_REQUEST {\n  HTTP::uri foo\n}\n",
+        "HTTP::uri foo",
+        "when HTTP_REQUEST {\n  HTTP::uri /foo\n}\n",
+        dialect="f5-irules",
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -379,6 +458,13 @@ RANGE_FIXME: dict[str, FiresCase] = {
     "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
     # Dead store: range bleeds onto the following line's first character.
     "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
+    # `drop` without `event disable all`/`return`: range points at the
+    # event block's closing brace rather than the drop command.
+    "IRULE5002": FiresCase(
+        "when CLIENT_ACCEPTED {\n  drop\n}\n",
+        "when CLIENT_ACCEPTED {\n  drop\n  return\n}\n",
+        dialect="f5-irules",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -410,32 +496,18 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IAPP7003",
         "IRULE1001",
         "IRULE1003",
-        "IRULE1005",
-        "IRULE1006",
         "IRULE1007",
         "IRULE1008",
-        "IRULE1201",
         "IRULE1202",
         "IRULE2002",
         "IRULE2003",
-        "IRULE2101",
-        "IRULE3003",
-        "IRULE3101",
-        "IRULE3102",
         "IRULE3103",
-        "IRULE4001",
         "IRULE4002",
         "IRULE4003",
         "IRULE4004",
         "IRULE4005",
-        "IRULE5001",
-        "IRULE5002",
         "IRULE5003",
         "IRULE5004",
-        "IRULE5005",
-        "IRULE5006",
-        "IRULE5007",
-        "IRULE6001",
         "O101",
         "O103",
         "O105",
