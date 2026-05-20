@@ -942,6 +942,18 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
         bigip=True,
     ),
+    # iRule `persist` references a profile not attached to its virtual: range
+    # spans the whole virtual stanza body.
+    "BIGIP6010": FiresCase(
+        "ltm persistence cookie /Common/ck { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { persist /Common/ck }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        "ltm persistence cookie /Common/ck { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { persist /Common/ck }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } "
+        "persist { /Common/ck { } } }\n",
+        bigip=True,
+    ),
 }
 
 
@@ -1021,7 +1033,6 @@ def test_crossfile_fires_and_is_clean(code):
 
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
-        "BIGIP6010",
         "E200",
         "IRULE4003",
         "O101",
