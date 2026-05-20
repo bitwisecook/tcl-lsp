@@ -116,6 +116,12 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n}\n",
         dialect="f5-irules",
     ),
+    "IRULE1004": Case(
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        "when",
+        "when CLIENT_ACCEPTED priority 500 {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
     "IRULE2001": Case(
         "when HTTP_REQUEST {\n  matchclass $x equals $y\n}\n",
         "matchclass",
@@ -187,7 +193,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IAPP7003",
         "IRULE1001",
         "IRULE1003",
-        "IRULE1004",
         "IRULE1005",
         "IRULE1006",
         "IRULE1007",
