@@ -298,7 +298,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
-        traits: Traits::CSE_CANDIDATE | Traits::NEVER_INLINE_BODY,
+        traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

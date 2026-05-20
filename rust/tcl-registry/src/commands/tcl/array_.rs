@@ -132,6 +132,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         assigns_variable_at: Some(1),
         inferred_storage_type: Some(StorageType::Array),

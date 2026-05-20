@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "seek",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),

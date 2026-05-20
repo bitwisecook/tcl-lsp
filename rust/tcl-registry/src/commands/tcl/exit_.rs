@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        traits: Traits::TERMINATES_BLOCK,
+        traits: Traits::BYTE_COMPILED | Traits::TERMINATES_BLOCK,
         arity: Arity::new(0, 1),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

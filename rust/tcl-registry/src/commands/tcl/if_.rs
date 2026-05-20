@@ -70,7 +70,8 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
-        traits: Traits::CONTROL_FLOW
+        traits: Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_BOOLEAN_COND
             | Traits::NEVER_INLINE_BODY,

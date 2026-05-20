@@ -518,7 +518,8 @@ pub fn minify_tcl_aggressive(
     // Phases 2.5–2.7: aliasing.  Seed claimed names with every
     // compacted short so aliases never shadow a local variable.
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
-    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, dialect, &mut claimed_names);
+    let (renamed, cmd_aliases) =
+        alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
     symbol_map.command_aliases = cmd_aliases;
     let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, &mut claimed_names);
     symbol_map.argument_aliases = arg_aliases;
@@ -1144,88 +1145,6 @@ fn process_scope(
 // Aggressive-tier aliasing (command / argument / string-literal)
 // ---------------------------------------------------------------------------
 
-/// Tcl core builtins that are byte-compiled and break when invoked
-/// through a `$var` alias — never aliased.  Mirrors `_BUILTIN_SKIP`.
-const BUILTIN_SKIP: &[&str] = &[
-    "set",
-    "unset",
-    "proc",
-    "if",
-    "else",
-    "elseif",
-    "while",
-    "for",
-    "foreach",
-    "switch",
-    "return",
-    "break",
-    "continue",
-    "expr",
-    "catch",
-    "try",
-    "throw",
-    "package",
-    "namespace",
-    "upvar",
-    "uplevel",
-    "variable",
-    "global",
-    "append",
-    "lappend",
-    "incr",
-    "info",
-    "string",
-    "list",
-    "llength",
-    "lindex",
-    "lrange",
-    "lsort",
-    "lsearch",
-    "lreplace",
-    "linsert",
-    "dict",
-    "array",
-    "regexp",
-    "regsub",
-    "scan",
-    "format",
-    "open",
-    "close",
-    "read",
-    "gets",
-    "eof",
-    "flush",
-    "seek",
-    "tell",
-    "fconfigure",
-    "fcopy",
-    "fileevent",
-    "socket",
-    "after",
-    "update",
-    "vwait",
-    "rename",
-    "source",
-    "eval",
-    "apply",
-    "tailcall",
-    "error",
-    "cd",
-    "pwd",
-    "file",
-    "glob",
-    "clock",
-    "binary",
-    "encoding",
-    "interp",
-    "load",
-    "exit",
-    "pid",
-    "exec",
-    "chan",
-    "puts",
-];
-
 /// Control-flow keywords that must stay literal (body/expr index
 /// detection checks them by value).  Mirrors `_CONTROL_FLOW_KEYWORDS`.
 const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
@@ -1313,13 +1232,14 @@ fn alias_repeated_commands(
     source: &str,
     dialect: &str,
     claimed: &mut HashSet<String>,
+    registry: &CommandRegistry,
 ) -> (String, BTreeMap<String, String>) {
     let analysis = Analyser::new().analyse(source, dialect).clone();
     let mut order: Vec<String> = Vec::new();
     let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
     for inv in &analysis.command_invocations {
         let name = &inv.name;
-        if name.len() <= 2 || BUILTIN_SKIP.contains(&name.as_str()) {
+        if name.len() <= 2 || registry.is_byte_compiled(name) {
             continue;
         }
         uses.entry(name.clone())

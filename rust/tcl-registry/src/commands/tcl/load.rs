@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
         // Mirrors ``core/commands/registry/tcl/load.py``.  ``--`` is

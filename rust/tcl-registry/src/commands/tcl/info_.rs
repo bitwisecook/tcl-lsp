@@ -278,6 +278,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

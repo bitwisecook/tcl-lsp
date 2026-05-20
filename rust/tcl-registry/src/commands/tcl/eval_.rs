@@ -6,7 +6,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "eval",
-        traits: Traits::CREATES_BARRIER | Traits::EVALUATES_CODE | Traits::TAINT_SINK,
+        traits: Traits::BYTE_COMPILED
+            | Traits::CREATES_BARRIER
+            | Traits::EVALUATES_CODE
+            | Traits::TAINT_SINK,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),

@@ -32,7 +32,10 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "try",
-        traits: Traits::CONTROL_FLOW | Traits::LANGUAGE_KEYWORD | Traits::NEVER_INLINE_BODY,
+        traits: Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::NEVER_INLINE_BODY,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(try_arg_roles),

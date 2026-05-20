@@ -17,7 +17,8 @@ fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach",
-        traits: Traits::CONTROL_FLOW
+        traits: Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY

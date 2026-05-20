@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
-        traits: Traits::TAINT_SINK | Traits::TAINT_SOURCE | Traits::UNSAFE,
+        traits: Traits::BYTE_COMPILED | Traits::TAINT_SINK | Traits::TAINT_SOURCE | Traits::UNSAFE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

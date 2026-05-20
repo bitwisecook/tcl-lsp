@@ -6,7 +6,8 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
-        traits: Traits::LANGUAGE_KEYWORD
+        traits: Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
             | Traits::TAINT_SINK

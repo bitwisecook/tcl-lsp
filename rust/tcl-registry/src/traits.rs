@@ -134,5 +134,24 @@ bitflags! {
         /// provider to surface user-proc names — and only those,
         /// not built-in commands — at word-index 1.
         const INVOKES_USER_PROC         = 1 << 41;
+
+        /// Core Tcl built-in that the bytecode compiler special-cases
+        /// (or that is otherwise load-bearing as a literal command
+        /// word).  Re-invoking such a command through a `$var`
+        /// command alias would defeat byte-compilation or change
+        /// semantics, so the minifier never rewrites these heads to
+        /// `$alias`.  Single source of truth for the minifier's
+        /// former `_BUILTIN_SKIP` list; query via
+        /// [`crate::registry::CommandRegistry::is_byte_compiled`].
+        const BYTE_COMPILED             = 1 << 42;
+
+        /// Command head incidentally matches the
+        /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
+        /// proc-factory wrapper, so the signature scanner must not
+        /// treat it as one.  Single source of truth for the analyser's
+        /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
+        /// non-command heads like `method` / `itcl::class` are handled
+        /// by a small residual set in the scanner).
+        const NOT_PROC_FACTORY          = 1 << 43;
     }
 }

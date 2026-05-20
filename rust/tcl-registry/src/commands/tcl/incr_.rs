@@ -28,7 +28,7 @@ const INCR_EXPLICIT: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "incr",
-        traits: Traits::READS_BEFORE_WRITE,
+        traits: Traits::BYTE_COMPILED | Traits::READS_BEFORE_WRITE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

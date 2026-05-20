@@ -391,7 +391,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
-        traits: Traits::HAS_DESTRUCTIVE_OPS | Traits::RETURNS_PATH,
+        traits: Traits::BYTE_COMPILED | Traits::HAS_DESTRUCTIVE_OPS | Traits::RETURNS_PATH,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

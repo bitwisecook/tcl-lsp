@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        traits: Traits::WARN_WITHOUT_TERMINATOR,
+        traits: Traits::BYTE_COMPILED | Traits::WARN_WITHOUT_TERMINATOR,
         arity: Arity::at_least(1),
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {

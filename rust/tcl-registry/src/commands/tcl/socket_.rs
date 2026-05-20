@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
-        traits: Traits::OPENS_CHANNEL | Traits::TAINT_SOURCE,
+        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL | Traits::TAINT_SOURCE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {

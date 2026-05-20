@@ -9,7 +9,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expr",
-        traits: Traits::PURE_EVALUATION | Traits::NEEDS_START_CMD | Traits::TAINT_SINK,
+        traits: Traits::BYTE_COMPILED
+            | Traits::PURE_EVALUATION
+            | Traits::NEEDS_START_CMD
+            | Traits::TAINT_SINK,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Expr)],
         return_type: Some(TclType::Numeric),

@@ -233,7 +233,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
-        traits: Traits::CONFIGURES_CHANNEL | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::HAS_DESTRUCTIVE_OPS,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

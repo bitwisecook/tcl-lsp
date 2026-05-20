@@ -149,7 +149,7 @@ static OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsearch",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::Int),
         options: OPTIONS,

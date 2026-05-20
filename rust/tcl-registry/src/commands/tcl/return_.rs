@@ -7,7 +7,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::TERMINATES_BLOCK | Traits::NEEDS_START_CMD,
+        traits: Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::TERMINATES_BLOCK
+            | Traits::NEEDS_START_CMD,
         arity: Arity::any(),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

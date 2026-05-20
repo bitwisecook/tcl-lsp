@@ -4,7 +4,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "llength",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::exact(1),
         return_type: Some(TclType::Int),
         arg_types: &[(

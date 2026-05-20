@@ -133,6 +133,35 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Whether `name` is a core Tcl built-in carrying the
+    /// [`Traits::BYTE_COMPILED`] trait — i.e. the minifier must not
+    /// rewrite this command head to a `$var` alias.  Checks every
+    /// registered spec for the name (not just the dialect-preferred
+    /// one) so the core stamp is honoured even when a dialect layers
+    /// an additional spec under the same name.
+    #[must_use]
+    pub fn is_byte_compiled(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::BYTE_COMPILED))
+        })
+    }
+
+    /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
+    /// a registered command head that incidentally matches the
+    /// proc-factory token shape but is not a factory wrapper.  Like
+    /// [`Self::is_byte_compiled`], checks every spec registered under
+    /// the name.
+    #[must_use]
+    pub fn is_not_proc_factory(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::NOT_PROC_FACTORY))
+        })
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
@@ -566,6 +595,101 @@ mod tests {
         assert!(control_flow.contains(&"if"));
         assert!(control_flow.contains(&"while"));
         assert!(!control_flow.contains(&"puts"));
+    }
+
+    #[test]
+    fn byte_compiled_covers_the_core_builtins() {
+        let reg = CommandRegistry::build_default();
+        // Every registered command the minifier must never alias.
+        // Mirrors the former `_BUILTIN_SKIP` list (minus the
+        // non-command keywords `else` / `elseif` and the unregistered
+        // `pwd`).
+        let expected = [
+            "set",
+            "unset",
+            "proc",
+            "if",
+            "while",
+            "for",
+            "foreach",
+            "switch",
+            "return",
+            "break",
+            "continue",
+            "expr",
+            "catch",
+            "try",
+            "throw",
+            "package",
+            "namespace",
+            "upvar",
+            "uplevel",
+            "variable",
+            "global",
+            "append",
+            "lappend",
+            "incr",
+            "info",
+            "string",
+            "list",
+            "llength",
+            "lindex",
+            "lrange",
+            "lsort",
+            "lsearch",
+            "lreplace",
+            "linsert",
+            "dict",
+            "array",
+            "regexp",
+            "regsub",
+            "scan",
+            "format",
+            "open",
+            "close",
+            "read",
+            "gets",
+            "eof",
+            "flush",
+            "seek",
+            "tell",
+            "fconfigure",
+            "fcopy",
+            "fileevent",
+            "socket",
+            "after",
+            "update",
+            "vwait",
+            "rename",
+            "source",
+            "eval",
+            "apply",
+            "tailcall",
+            "error",
+            "cd",
+            "file",
+            "glob",
+            "clock",
+            "binary",
+            "encoding",
+            "interp",
+            "load",
+            "exit",
+            "pid",
+            "exec",
+            "chan",
+            "puts",
+        ];
+        for name in expected {
+            assert!(
+                reg.is_byte_compiled(name),
+                "{name} should carry Traits::BYTE_COMPILED"
+            );
+        }
+        // A user-proc-like name and a command outside the curated
+        // skip set must not carry the trait.
+        assert!(!reg.is_byte_compiled("my_helper_proc"));
+        assert!(!reg.is_byte_compiled("split"));
     }
 
     #[test]
