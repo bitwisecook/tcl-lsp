@@ -6,11 +6,12 @@ Tcl variables appear in several syntactic forms — bare ``$name``, braced
 every form as the same symbol.  These tests exercise the find-references
 provider (which backs go-to-references and rename) across the forms.
 
-Known gaps tracked separately (not asserted here):
-- bareword command-argument uses (``incr count``, ``set count``) are not yet
-  recorded as references;
-- relative namespace-qualified reads (``$ns::v``) do not yet resolve to a
-  ``namespace eval ns { variable v }`` definition.
+Bareword command-argument writes (``incr count``, ``append count``, a second
+``set count``) are recorded as references too, so rename rewrites them.
+
+Known gap tracked separately (not asserted here): relative namespace-qualified
+reads (``$ns::v``) do not yet resolve to a ``namespace eval ns { variable v }``
+definition.
 """
 
 from __future__ import annotations
@@ -89,3 +90,26 @@ class TestReferencesAcrossForms:
         starts = _ref_starts(src, 1, 5)
         assert (0, 4) in starts
         assert (1, 5) in starts
+
+
+class TestBarewordWriteReferences:
+    """Bareword command-argument writes are use sites for rename."""
+
+    def test_incr_and_append_are_references(self):
+        src = (
+            "proc p {} {\n    set count 0\n    incr count\n    append count x\n    puts $count\n}\n"
+        )
+        starts = _ref_starts(src, 4, 10)  # cursor on $count
+        # definition + incr + append + $count read
+        assert starts == {(1, 8), (2, 9), (3, 11), (4, 9)}
+
+    def test_repeated_set_is_a_reference(self):
+        src = "set x 1\nset x 2\nputs $x\n"
+        assert _ref_starts(src, 2, 5) == {(0, 4), (1, 4), (2, 5)}
+
+    def test_lappend_is_a_reference(self):
+        src = "set items {}\nlappend items a\nputs $items\n"
+        starts = _ref_starts(src, 2, 7)
+        assert (0, 4) in starts  # definition
+        assert (1, 8) in starts  # lappend write
+        assert (2, 5) in starts  # $items read

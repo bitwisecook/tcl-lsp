@@ -225,6 +225,13 @@ class _AnalyserScopeMixin(_Base):
                 scope.variables[base_name].warn_if_unused = True
             if element is not None:
                 scope.variables[base_name].array_indices.add(element)
+            # A write to an already-defined variable (``set x 2``,
+            # ``lappend x ...``, ``append x ...``) is a use site: rename and
+            # find-references must include every write, not only the first
+            # definition.
+            scope.variables[base_name].references.append(
+                definition_range or range_from_token(tok)
+            )
 
         # Warn (once, at first definition) when the name is unreachable
         # via Tcl's ``$``-substitution forms.  The variable is creatable
