@@ -384,11 +384,11 @@ class TestBasicFormatting:
         source = "if {1} {\nif {2} {\nif {3} {\nif {4} {\nputs deep\n}\n}\n}\n}"
         result = format_tcl(source)
         lines = result.strip().split("\n")
-        # Find the "puts deep" line and check its indent
-        for line in lines:
-            if "puts deep" in line:
-                indent = len(line) - len(line.lstrip())
-                assert indent == 16  # 4 levels * 4 spaces
+        # The "puts deep" line must survive and be indented 4 levels deep.
+        deep = [ln for ln in lines if "puts deep" in ln]
+        assert len(deep) == 1, result
+        indent = len(deep[0]) - len(deep[0].lstrip())
+        assert indent == 16  # 4 levels * 4 spaces
 
     def test_quoted_string_preserved(self):
         source = 'puts "hello $name"'
@@ -1109,29 +1109,34 @@ class TestLongLineWrapping:
         )
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # Expression content at indent_level 0 + 1 = 4 spaces
-        for line in lines:
-            if line.lstrip().startswith("&&") or line.lstrip().startswith("||"):
-                indent_count = len(line) - len(line.lstrip())
-                assert indent_count == 4  # (indent_level + 1) * indent_size
+        # The condition must wrap, and continuation lines sit at
+        # (indent_level 0 + 1) * 4 = 4 spaces.
+        cont = [ln for ln in lines if ln.lstrip().startswith(("&&", "||"))]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) == 4
 
     def test_nested_continuation_indent(self):
         """Wrapped lines inside a proc use correct indentation."""
         config = FormatterConfig(max_line_length=70, indent_size=4)
+        # Long enough that the proc-indented if-condition exceeds 70 cols and
+        # must wrap (the previous $a/$b/$c/$d version fit on one line, so this
+        # test never actually exercised wrapping).
         source = (
             "proc test {} {\n"
-            "    if {$a > 1 && $b > 2 && $c > 3 && $d > 4} {\n"
+            "    if {$alpha_value > 100 && $beta_value > 200 && $gamma_value > 300} {\n"
             "        puts yes\n"
             "    }\n"
             "}"
         )
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # if is at indent_level=1 (4 spaces), so expression at (1+1)*4 = 8
-        for line in lines:
-            if line.lstrip().startswith("&&") or line.lstrip().startswith("||"):
-                indent = len(line) - len(line.lstrip())
-                assert indent == 8  # (indent_level + 1) * indent_size
+        # if is at indent_level=1 (4 spaces), so continuation lines sit at
+        # (1+1)*4 = 8 spaces — and the condition must actually wrap.
+        cont = [ln for ln in lines if ln.lstrip().startswith(("&&", "||"))]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) == 8
 
     def test_mixed_operators(self):
         """Wrapping works with mixed && and || operators."""
@@ -1143,15 +1148,19 @@ class TestLongLineWrapping:
 
     def test_no_break_inside_brackets(self):
         """&& inside command substitution is not a break point."""
-        config = FormatterConfig(max_line_length=60)
-        source = "if {[expr {$a && $b}] && [expr {$c && $d}]} {\n    puts yes\n}"
+        # max_line_length 40 forces the top-level && to wrap; the previous
+        # 60-col limit left the line intact so this never exercised the
+        # bracket-aware break logic.
+        config = FormatterConfig(max_line_length=40)
+        source = "if {[expr {$aaa && $bbb}] && [expr {$ccc && $ddd}]} {\n    puts yes\n}"
         result = format_tcl(source, config)
-        # Should only break at the top-level && between the two [expr]
+        # Should only break at the top-level && between the two [expr]; the
+        # && inside each [expr] must not become a break point.
         lines = result.strip().split("\n")
-        for line in lines:
-            stripped = line.lstrip()
-            if stripped.startswith("&&"):
-                assert stripped.startswith("&& [expr")
+        cont = [ln.lstrip() for ln in lines if ln.lstrip().startswith("&&")]
+        assert cont, result
+        for stripped in cont:
+            assert stripped.startswith("&& [expr")
 
     def test_one_operand_per_line(self):
         """Each operand gets its own indented line in block style."""
@@ -1241,12 +1250,12 @@ class TestBackslashContinuation:
         source = "proc foo {} {\n    set x [long_command -option1 value1 -option2 value2 -option3 value3]\n}"
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # Find continuation lines (those that follow a line ending with \)
-        for i, line in enumerate(lines):
-            if i > 0 and lines[i - 1].rstrip().endswith("\\"):
-                indent = len(line) - len(line.lstrip())
-                # Should be at least indent_level + 1
-                assert indent >= 8  # (1 + 1) * 4
+        # The long command must wrap onto backslash-continuation lines, each
+        # indented to at least indent_level + 1.
+        cont = [ln for i, ln in enumerate(lines) if i > 0 and lines[i - 1].rstrip().endswith("\\")]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) >= 8  # (1 + 1) * 4
 
     def test_splitting_idempotent(self):
         """Splitting is stable across multiple format passes."""
