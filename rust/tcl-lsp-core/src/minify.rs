@@ -33,6 +33,8 @@
 //! `workspace/executeCommand` wiring (mirroring
 //! `lsp/commands.py::on_minify_document`) is a follow-up.
 
+use tcl_compiler::expr_ast::render_expr;
+use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -61,10 +63,26 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> Strin
         return String::new();
     }
 
+    // Render each command, abbreviating ensemble subcommands.
+    let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
+    for cmd_args in &commands {
+        let mut arg_strs = render_command(&sm, cmd_args, dialect, registry);
+        if arg_strs.len() >= 2 {
+            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
+        }
+        rendered.push(arg_strs);
+    }
+
+    // Template deduplication (subst aliasing) of repeated dynamic
+    // quoted args.
+    let (template_map, rendered) = dedup_templates(rendered);
+
     let is_irules = dialect == "f5-irules";
     let mut parts: Vec<String> = Vec::new();
-    for cmd_args in &commands {
-        let arg_strs = render_command(&sm, cmd_args, dialect, registry);
+    for (content, alias) in &template_map {
+        parts.push(format!("set {alias} {{{content}}}"));
+    }
+    for arg_strs in &rendered {
         if is_irules && arg_strs.len() > 1 {
             // In iRules, `}{` is a valid word boundary — omit the
             // space between adjacent braced args to save bytes.
@@ -84,6 +102,251 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> Strin
         }
     }
     parts.join(";")
+}
+
+/// Lazy generator of short identifier names: `a`, `b`, …, `z`,
+/// `aa`, `ab`, …  Mirrors `core/common/text_edits.py::name_generator`.
+struct NameGenerator {
+    indices: Vec<usize>,
+}
+
+impl NameGenerator {
+    fn new() -> Self {
+        Self { indices: vec![0] }
+    }
+
+    fn next_name(&mut self) -> String {
+        let name: String = self
+            .indices
+            .iter()
+            .map(|&i| (b'a' + u8::try_from(i).unwrap_or(0)) as char)
+            .collect();
+        self.advance();
+        name
+    }
+
+    fn advance(&mut self) {
+        let mut pos = self.indices.len();
+        loop {
+            if pos == 0 {
+                // All positions wrapped — grow the length.
+                self.indices = vec![0; self.indices.len() + 1];
+                return;
+            }
+            pos -= 1;
+            if self.indices[pos] + 1 < 26 {
+                self.indices[pos] += 1;
+                return;
+            }
+            self.indices[pos] = 0;
+        }
+    }
+}
+
+/// Dialects where ensemble commands are fixed (no user-added
+/// subcommands), so prefix abbreviation is safe.
+const FIXED_ENSEMBLE_DIALECTS: &[&str] = &["f5-irules", "f5-iapps", "f5-bigip"];
+
+/// Return the abbreviated subcommand text when safe for `dialect`.
+/// Mirrors `_abbreviated_subcommand`.
+fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &str) -> String {
+    if !FIXED_ENSEMBLE_DIALECTS.contains(&dialect) {
+        return subcommand_name.to_owned();
+    }
+    subcommand_abbreviation(command_name, subcommand_name)
+        .unwrap_or(subcommand_name)
+        .to_owned()
+}
+
+/// Shortest unambiguous abbreviation for `sub` of ensemble
+/// `command`, or `None`.  Mirrors `_SUBCMD_ABBREVIATIONS` (only the
+/// entries strictly shorter than the full subcommand are kept).
+fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
+    let table: &[(&str, &str)] = match command {
+        "string" => &[
+            ("bytelength", "b"),
+            ("cat", "ca"),
+            ("compare", "co"),
+            ("equal", "e"),
+            ("first", "f"),
+            ("index", "in"),
+            ("last", "la"),
+            ("length", "le"),
+            ("match", "mat"),
+            ("range", "ra"),
+            ("repeat", "repe"),
+            ("replace", "repl"),
+            ("reverse", "rev"),
+            ("tolower", "tol"),
+            ("totitle", "tot"),
+            ("toupper", "tou"),
+            ("trimleft", "triml"),
+            ("trimright", "trimr"),
+            ("wordend", "worde"),
+            ("wordstart", "words"),
+        ],
+        "info" => &[
+            ("args", "a"),
+            ("body", "b"),
+            ("cmdcount", "cm"),
+            ("commands", "comm"),
+            ("complete", "comp"),
+            ("default", "d"),
+            ("exists", "e"),
+            ("frame", "fr"),
+            ("functions", "fu"),
+            ("globals", "g"),
+            ("hostname", "h"),
+            ("level", "le"),
+            ("library", "li"),
+            ("loaded", "loa"),
+            ("locals", "loc"),
+            ("nameofexecutable", "n"),
+            ("patchlevel", "pa"),
+            ("procs", "pr"),
+            ("script", "sc"),
+            ("sharedlibextension", "sh"),
+            ("tclversion", "t"),
+        ],
+        "clock" => &[
+            ("add", "a"),
+            ("clicks", "c"),
+            ("format", "f"),
+            ("microseconds", "mic"),
+            ("milliseconds", "mil"),
+            ("scan", "sc"),
+            ("seconds", "se"),
+        ],
+        _ => return None,
+    };
+    table
+        .iter()
+        .find(|(full, _)| *full == sub)
+        .map(|(_, abbr)| *abbr)
+}
+
+/// Replace repeated dynamic quoted args with `[subst $alias]` and a
+/// shared `set alias {content}` preamble.  Mirrors
+/// `_dedup_templates`; returns the ordered `(content, alias)`
+/// preamble pairs plus the rewritten commands.
+fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Vec<String>>) {
+    // content -> use sites, preserving first-seen order.
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: std::collections::HashMap<String, Vec<(usize, usize)>> =
+        std::collections::HashMap::new();
+    for (ci, args) in rendered.iter().enumerate() {
+        for (ai, s) in args.iter().enumerate() {
+            if !(s.starts_with('"') && s.ends_with('"') && s.len() >= 2) {
+                continue;
+            }
+            let content = &s[1..s.len() - 1];
+            if !content.contains('$') && !content.contains('[') {
+                continue;
+            }
+            if content.len() < 10 {
+                continue;
+            }
+            if content.matches('{').count() != content.matches('}').count() {
+                continue;
+            }
+            let key = content.to_owned();
+            uses.entry(key.clone()).or_insert_with(|| {
+                order.push(key.clone());
+                Vec::new()
+            });
+            uses.get_mut(&key).expect("inserted").push((ci, ai));
+        }
+    }
+    if order.is_empty() {
+        return (Vec::new(), rendered);
+    }
+
+    // Names already referenced as $var, so aliases don't shadow them.
+    let mut used_names = collect_used_var_names(&rendered);
+
+    // Process candidates by descending count * content-length.
+    let mut candidates = order.clone();
+    candidates.sort_by(|a, b| {
+        let ka = uses[a].len() * a.len();
+        let kb = uses[b].len() * b.len();
+        kb.cmp(&ka).then_with(|| {
+            // Stable on first-seen order for ties.
+            order
+                .iter()
+                .position(|x| x == a)
+                .cmp(&order.iter().position(|x| x == b))
+        })
+    });
+
+    let mut gen = NameGenerator::new();
+    let mut template_map: Vec<(String, String)> = Vec::new();
+    for content in &candidates {
+        let count = uses[content].len();
+        if count < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while used_names.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let original_cost = count * (content.len() + 2);
+        let preamble_cost = 4 + alias.len() + 1 + 1 + content.len() + 1 + 1;
+        let subst_ref = format!("[subst ${alias}]");
+        let aliased_cost = preamble_cost + count * subst_ref.len();
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        if content.contains(&format!("${alias}")) || content.contains(&format!("${{{alias}}}")) {
+            continue;
+        }
+        template_map.push((content.clone(), alias.clone()));
+        used_names.insert(alias);
+    }
+    if template_map.is_empty() {
+        return (Vec::new(), rendered);
+    }
+
+    // Apply replacements.
+    let mut result = rendered;
+    for (content, alias) in &template_map {
+        let subst_ref = format!("[subst ${alias}]");
+        for &(ci, ai) in &uses[content] {
+            result[ci][ai].clone_from(&subst_ref);
+        }
+    }
+    (template_map, result)
+}
+
+/// Names referenced as `$var` / `${var}` anywhere in the rendered
+/// commands.  Mirrors the `_used_var_re` scan in `_dedup_templates`.
+fn collect_used_var_names(rendered: &[Vec<String>]) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for args in rendered {
+        for s in args {
+            let bytes = s.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'$' {
+                    let mut j = i + 1;
+                    if j < bytes.len() && bytes[j] == b'{' {
+                        j += 1;
+                    }
+                    let start = j;
+                    while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_')
+                    {
+                        j += 1;
+                    }
+                    if j > start {
+                        out.insert(s[start..j].to_owned());
+                    }
+                    i = j;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Group a token stream into commands (lists of arguments),
@@ -163,10 +426,7 @@ fn render_command(
             out.push(format!("{{{minified}}}"));
         } else if expr_indices.contains(&i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            out.push(format!(
-                "{{{}}}",
-                strip_expr_whitespace(inner, dialect, registry)
-            ));
+            out.push(format!("{{{}}}", compress_expr(inner, dialect, registry)));
         } else {
             out.push(reconstruct_arg(sm, arg, dialect, registry));
         }
@@ -449,6 +709,213 @@ fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) 
     out
 }
 
+/// Compress and shrink an `expr` body: strip whitespace, then try
+/// AST transforms (De Morgan / comparison inversion / double
+/// negation) and keep whichever is shorter.  Mirrors
+/// `_compress_expr`.
+fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let compressed = strip_expr_whitespace(text, dialect, registry);
+    let shrunk = shrink_expr_ast(&compressed, dialect, registry);
+    if shrunk.len() < compressed.len() {
+        shrunk
+    } else {
+        compressed
+    }
+}
+
+/// AST-based expression shrinking.  Mirrors `_shrink_expr_ast`.
+fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let node = parse_expr(text, Some(dialect));
+    if matches!(node, ExprNode::Raw { .. }) {
+        return text.to_owned();
+    }
+    let shrunk = shrink_node(&node);
+    if shrunk == node {
+        return text.to_owned();
+    }
+    let rendered = render_expr(&shrunk);
+    strip_expr_whitespace(&rendered, dialect, registry)
+}
+
+/// The logical complement of a comparison / membership operator,
+/// or `None` when it has none.  Mirrors `_COMPARISON_INVERSION`.
+fn comparison_inversion(op: BinOp) -> Option<BinOp> {
+    Some(match op {
+        BinOp::Eq => BinOp::Ne,
+        BinOp::Ne => BinOp::Eq,
+        BinOp::Lt => BinOp::Ge,
+        BinOp::Ge => BinOp::Lt,
+        BinOp::Gt => BinOp::Le,
+        BinOp::Le => BinOp::Gt,
+        BinOp::StrEq => BinOp::StrNe,
+        BinOp::StrNe => BinOp::StrEq,
+        BinOp::In => BinOp::Ni,
+        BinOp::Ni => BinOp::In,
+        BinOp::StrLt => BinOp::StrGe,
+        BinOp::StrGe => BinOp::StrLt,
+        BinOp::StrGt => BinOp::StrLe,
+        BinOp::StrLe => BinOp::StrGt,
+        _ => return None,
+    })
+}
+
+/// Build a `!operand` node.
+fn negate(operand: ExprNode) -> ExprNode {
+    ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand: Box::new(operand),
+    }
+}
+
+/// Pick `candidate` over `original` when its rendering is shorter.
+fn pick_shorter(candidate: ExprNode, original: &ExprNode) -> ExprNode {
+    if render_expr(&candidate).len() < render_expr(original).len() {
+        candidate
+    } else {
+        original.clone()
+    }
+}
+
+/// Recursively try size-reducing transforms on an expression node.
+/// Mirrors `_shrink_node`.
+fn shrink_node(node: &ExprNode) -> ExprNode {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => shrink_not(node, operand),
+        ExprNode::Binary { op, left, right }
+            if matches!(op, BinOp::Or | BinOp::WordOr) && both_negations(left, right) =>
+        {
+            // De Morgan reverse: !a || !b → !(a && b) (if shorter).
+            let (a, b) = (unwrap_not(left), unwrap_not(right));
+            let dual = if *op == BinOp::Or {
+                BinOp::And
+            } else {
+                BinOp::WordAnd
+            };
+            let combined = negate(ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(a)),
+                right: Box::new(shrink_node(b)),
+            });
+            pick_shorter(combined, node)
+        }
+        ExprNode::Binary { op, left, right }
+            if matches!(op, BinOp::And | BinOp::WordAnd) && both_negations(left, right) =>
+        {
+            // De Morgan reverse: !a && !b → !(a || b) (if shorter).
+            let (a, b) = (unwrap_not(left), unwrap_not(right));
+            let dual = if *op == BinOp::And {
+                BinOp::Or
+            } else {
+                BinOp::WordOr
+            };
+            let combined = negate(ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(a)),
+                right: Box::new(shrink_node(b)),
+            });
+            pick_shorter(combined, node)
+        }
+        ExprNode::Binary { op, left, right } => {
+            let new_left = shrink_node(left);
+            let new_right = shrink_node(right);
+            ExprNode::Binary {
+                op: *op,
+                left: Box::new(new_left),
+                right: Box::new(new_right),
+            }
+        }
+        ExprNode::Unary { op, operand } => ExprNode::Unary {
+            op: *op,
+            operand: Box::new(shrink_node(operand)),
+        },
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => ExprNode::Ternary {
+            condition: Box::new(shrink_node(condition)),
+            true_branch: Box::new(shrink_node(true_branch)),
+            false_branch: Box::new(shrink_node(false_branch)),
+        },
+        other => other.clone(),
+    }
+}
+
+/// Whether both operands are `!`-negations.
+fn both_negations(left: &ExprNode, right: &ExprNode) -> bool {
+    matches!(
+        left,
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    ) && matches!(
+        right,
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    )
+}
+
+/// The operand of a `!`-negation (caller guarantees the shape).
+fn unwrap_not(node: &ExprNode) -> &ExprNode {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => operand,
+        _ => node,
+    }
+}
+
+/// Handle the `!`-prefixed shrink cases (double negation,
+/// comparison inversion, De Morgan forward), falling back to a
+/// generic operand recurse.
+fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
+    // Double negation: !!x → x.
+    if let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand: inner,
+    } = operand
+    {
+        return shrink_node(inner);
+    }
+    if let ExprNode::Binary { op, left, right } = operand {
+        // Comparison inversion: !($a == $b) → $a != $b.
+        if let Some(inv) = comparison_inversion(*op) {
+            let inverted = ExprNode::Binary {
+                op: inv,
+                left: Box::new(shrink_node(left)),
+                right: Box::new(shrink_node(right)),
+            };
+            return pick_shorter(inverted, node);
+        }
+        // De Morgan forward.
+        if matches!(op, BinOp::And | BinOp::WordAnd | BinOp::Or | BinOp::WordOr) {
+            let neg_l = negate(shrink_node(left));
+            let neg_r = negate(shrink_node(right));
+            let dual = match op {
+                BinOp::And => BinOp::Or,
+                BinOp::WordAnd => BinOp::WordOr,
+                BinOp::Or => BinOp::And,
+                _ => BinOp::WordAnd,
+            };
+            let demorgan = ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(&neg_l)),
+                right: Box::new(shrink_node(&neg_r)),
+            };
+            return pick_shorter(demorgan, node);
+        }
+    }
+    // Generic recurse into the operand.
+    negate(shrink_node(operand))
+}
+
 /// Tokenise an `expr` body, mirroring the `_EXPR_TOKEN` alternation
 /// (with a catch-all so no character is dropped — safer than the
 /// Python reference, which silently drops unmatched characters).
@@ -587,6 +1054,69 @@ mod tests {
     #[test]
     fn strips_comments() {
         check("# a comment\nputs hi\n", "puts hi");
+    }
+
+    fn min_dialect(src: &str, dialect: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl(src, dialect, &registry)
+    }
+
+    #[test]
+    fn dedup_repeated_dynamic_templates() {
+        check(
+            "puts \"value is $longvariablename here\"\nputs \"value is $longvariablename here\"\n",
+            "set a {value is $longvariablename here};puts [subst $a];puts [subst $a]",
+        );
+    }
+
+    #[test]
+    fn abbreviates_ensemble_subcommand_in_irules() {
+        assert_eq!(
+            min_dialect("string length $x\n", "f5-irules"),
+            "string le $x"
+        );
+        assert_eq!(min_dialect("info exists $x\n", "f5-irules"), "info e $x");
+    }
+
+    #[test]
+    fn no_subcommand_abbreviation_in_plain_tcl() {
+        assert_eq!(
+            min_dialect("string length $x\n", "tcl8.6"),
+            "string length $x"
+        );
+    }
+
+    #[test]
+    fn expr_comparison_inversion() {
+        check("if {!($a == $b)} {puts x}\n", "if {$a!=$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_de_morgan_forward() {
+        check("if {!($a && $b)} {puts x}\n", "if {!$a||!$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_de_morgan_reverse() {
+        check("if {!$a || !$b} {puts x}\n", "if {!$a||!$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_double_negation() {
+        check("if {!!$x} {puts x}\n", "if {$x} {puts x}");
+    }
+
+    #[test]
+    fn expr_no_change_when_already_minimal() {
+        check("if {$a < $b} {puts x}\n", "if {$a<$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_shrink_nested_in_command_subst() {
+        check(
+            "set y [expr {!($a==1 && $b==2)}]\n",
+            "set y [expr {$a!=1||$b!=2}]",
+        );
     }
 
     #[test]
