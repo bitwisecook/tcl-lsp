@@ -436,12 +436,26 @@ pub export fn flow_take_return() i32 {
         // ``signal_continue_flag`` stay set (armed by ``eval_return``);
         // the consume probe clears both.  Other pending codes (TCL_OK,
         // TCL_RETURN, custom) keep their existing absorb paths.
+        //
+        // Disarm the pending-return metadata when translating: once the
+        // loop-control code lives in ``break_flag`` / ``continue_flag``,
+        // a surrounding ``catch BODY result options`` must report the
+        // options dict via ``catch_leave``'s break / continue mapping
+        // (``-code 3 -level 1`` / ``-code 4 -level 1``), exactly as a
+        // raw ``break`` / ``continue`` would.  Leaving ``pending_return_
+        // armed`` set with a now-zero ``pending_return_code`` would make
+        // ``catch_leave`` snapshot ``-code 0`` even though the catch
+        // result code is 3 / 4.
         if (state.pending_return_code == 3) {
             state.break_flag = 1;
             state.pending_return_code = 0;
+            state.pending_return_level = 1;
+            state.pending_return_armed = 0;
         } else if (state.pending_return_code == 4) {
             state.continue_flag = 1;
             state.pending_return_code = 0;
+            state.pending_return_level = 1;
+            state.pending_return_armed = 0;
         }
         return v;
     }
