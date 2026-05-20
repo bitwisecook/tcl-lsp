@@ -163,6 +163,26 @@ class TestRenameVariable:
         assert "myns::total" in texts  # definition
         assert "${myns::total}" in texts  # braced reference
 
+    def test_rename_preserves_array_index(self):
+        """Renaming a base variable keeps the array index of element refs."""
+        source = textwrap.dedent("""\
+            set arr 1
+            puts $arr
+            puts $arr(a)
+            puts $arr($i)
+            puts ${arr(b)}
+        """)
+        edit = get_rename_edits(source, TEST_URI, 0, 4, "new")
+        assert edit is not None
+        assert edit.changes is not None
+        edits = edit.changes[TEST_URI]
+        texts = {e.new_text for e in edits}
+        assert "new" in texts  # definition
+        assert "$new" in texts  # scalar reference
+        assert "$new(a)" in texts  # literal index preserved
+        assert "$new($i)" in texts  # variable index preserved
+        assert "${new(b)}" in texts  # braced index preserved
+
     def test_rename_respects_scope(self):
         source = textwrap.dedent("""\
             set x 1
