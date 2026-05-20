@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 from ..commands.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from ..commands.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from ..common.naming import normalise_var_name as _normalise_var_name
+from ..parsing.command_segmenter import segment_commands
 from ..parsing.lexer import TclLexer
 from ..parsing.tokens import TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
@@ -86,6 +87,35 @@ if TYPE_CHECKING:
     from .taint import TaintLattice
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
+
+
+def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
+    """If *value* is exactly a ``[cmd args...]`` command substitution, return
+    ``(command_name, raw_args_text)``; otherwise ``None``.
+
+    Token-based replacement for the command-substitution regexes: the value
+    must lex to a single command-substitution word, and the inner script is
+    segmented so the command name and raw argument span come from the tokens.
+    """
+    v = value.strip()
+    if not (v.startswith("[") and v.endswith("]")):
+        return None
+    lexer = TclLexer(v)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = lexer.get_token()
+    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
+        nxt = lexer.get_token()
+    if nxt is not None:
+        return None
+    inner = v[1:-1]
+    commands = segment_commands(inner)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    cmd = commands[0]
+    args_text = inner[cmd.argv[1].start.offset :].rstrip() if len(cmd.argv) >= 2 else ""
+    return cmd.texts[0], args_text
 
 
 def _expr_has_command(node: ExprNode) -> bool:
@@ -429,9 +459,6 @@ def _fold_interpolation_set(
     return frozenset(current) if current else None
 
 
-_LIST_CMD_RE = re.compile(r"^\s*\[\s*list\s+(.*?)\s*\]\s*$", re.DOTALL)
-
-
 def _extract_foreach_elements(list_text: str) -> list[str] | None:
     """Extract constant list elements from a foreach list argument.
 
@@ -457,9 +484,9 @@ def _extract_foreach_elements(list_text: str) -> list[str] | None:
         return _split_tcl_list(inner)
 
     # Pattern 2: [list elem1 elem2 ...] with all literal args
-    m = _LIST_CMD_RE.match(stripped)
-    if m:
-        args_text = m.group(1)
+    parsed = _parse_cmd_subst(stripped)
+    if parsed is not None and parsed[0] == "list" and parsed[1]:
+        args_text = parsed[1]
         if "$" in args_text or "[" in args_text:
             return None
         return _split_tcl_list(args_text)
@@ -506,9 +533,6 @@ def _resolve_foreach_list_via_lattice(
     return None
 
 
-_CMD_SUBST_RE = re.compile(r"^\s*\[\s*(\S+)(?:\s+(.*?))?\s*\]\s*$", re.DOTALL)
-
-
 def _try_fold_cmd_subst(
     value: str,
     uses: dict[str, int],
@@ -520,12 +544,11 @@ def _try_fold_cmd_subst(
     ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
     is foldable with all-constant arguments, or ``None`` if not.
     """
-    m = _CMD_SUBST_RE.match(value)
-    if m is None:
+    parsed = _parse_cmd_subst(value)
+    if parsed is None:
         return None
 
-    cmd_name = m.group(1)
-    args_text = m.group(2) or ""
+    cmd_name, args_text = parsed
 
     # Look up fold callback — check subcommand hints first.
     fold_fn = FOLD_HINTS.get(cmd_name)
