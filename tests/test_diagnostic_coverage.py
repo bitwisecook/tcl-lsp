@@ -39,6 +39,7 @@ class Case:
     bigip: bool = False  # source is a BIG-IP .conf — use the bigip validator
     iapp: bool = False  # source is an APL presentation — use the iApp validator
     analyse_raw: bool = False  # internal code — read raw analyser diagnostics
+    recovery: bool = False  # parser-recovery code — use segment_with_recovery
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class FiresCase:
     bigip: bool = False
     iapp: bool = False
     analyse_raw: bool = False
+    recovery: bool = False
 
 
 def _covered(source: str, r: Any) -> str:
@@ -71,7 +73,13 @@ def _run(
     bigip: bool = False,
     iapp: bool = False,
     analyse_raw: bool = False,
+    recovery: bool = False,
 ) -> list[Any]:
+    if recovery:
+        from core.parsing.recovery import segment_with_recovery
+
+        _cmds, diags = segment_with_recovery(source)
+        return list(diags)
     if bigip:
         from core.bigip.diagnostics import get_bigip_diagnostics
         from core.bigip.parser import parse_bigip_conf
@@ -106,10 +114,11 @@ def _matches(
     bigip: bool = False,
     iapp: bool = False,
     analyse_raw: bool = False,
+    recovery: bool = False,
 ) -> list[Any]:
     return [
         d
-        for d in _run(source, dialect, xc, bigip, iapp, analyse_raw)
+        for d in _run(source, dialect, xc, bigip, iapp, analyse_raw, recovery)
         if (d.code if isinstance(d.code, str) else str(d.code)) == code
     ]
 
@@ -836,6 +845,12 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "when HTTP_RESPONSE {\n    log local0. $static::token\n}\n",
         dialect="f5-irules",
     ),
+    # Unmatched close-bracket (internal syntax error): range covers the
+    # command text rather than the offending `]`.
+    "E100": FiresCase("set x foo]\n", "set x [string length foo]\n", analyse_raw=True),
+    # Parser recovery for an unterminated quote: range is a zero-width
+    # marker at the opening quote.
+    "E202": FiresCase('set totp_key "\nset y 1\n', 'set x "hello"\n', recovery=True),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -851,11 +866,9 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "BIGIP6009",
         "BIGIP6010",
         "E004",
-        "E100",
         "E101",
         "E103",
         "E200",
-        "E202",
         "E203",
         "IAPP7001",
         "IAPP7002",
@@ -933,6 +946,7 @@ def test_range_fixme_fires_and_is_clean(code):
         bigip=case.bigip,
         iapp=case.iapp,
         analyse_raw=case.analyse_raw,
+        recovery=case.recovery,
     ), f"{code} did not fire on {case.source!r}"
     assert not _matches(
         case.clean,
@@ -941,4 +955,5 @@ def test_range_fixme_fires_and_is_clean(code):
         bigip=case.bigip,
         iapp=case.iapp,
         analyse_raw=case.analyse_raw,
+        recovery=case.recovery,
     ), f"{code} should not fire on clean {case.clean!r}"
