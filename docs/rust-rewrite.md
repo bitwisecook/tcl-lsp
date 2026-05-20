@@ -3755,6 +3755,35 @@ Nothing — the next session can pick up `S-diagnostics`
   share `lift_analyser_diagnostics` so the two report shapes
   stay in lock-step.
 
+### Landed this session — continuation (2026-05-20, sixth run)
+
+* **`argument_values` enum-completion field** (`9a9fe78d`).
+  New `ArgValue { value, detail }` registry type +
+  `SubCommand.arg_values` (keyed by post-subcommand arg
+  index).  `string is <class>` populated with the 22
+  character classes; completion surfaces them at the class
+  arg with `CompletionKind::EnumValue` (server →
+  `ENUM_MEMBER`).  7 tests.
+* **Workspace index foundation** (`0b26f8fe`).  New
+  `tcl-lsp-core::workspace_index::WorkspaceIndex` — owned,
+  Send-able aggregate of proc / class definitions built from
+  `(uri, &AnalysisResult)` pairs, with `procs_matching` /
+  `proc_definitions` / `class_definitions` queries and
+  incremental `add_document` / `remove_document`.  5 tests.
+* **Workspace-wide proc completion** (`ee5ec6b0`).
+  `completions()` grows `Option<&WorkspaceIndex>`; the
+  command/proc fallback appends sibling-document procs
+  (deduped, `C0_` sort key, `(workspace)` detail).  Server
+  maintains the index on did_open/change/close and snapshots
+  it into the completion worker.  3 tests.
+* **Cross-document go-to-definition** (`b9978626`).
+  `compute_definition` now returns `Vec<Location>` with
+  target URIs; the new `cross_document_definition` fallback
+  resolves a sibling-document proc / class (bare words only,
+  not `$var`) and converts its byte name_span to a range
+  against the target document.  Shared by all four goto
+  handlers.  2 server tests.
+
 ### Landed this session — continuation (2026-05-20, fifth run)
 
 * **`registry(tcllib)` `required_package` population**
@@ -3983,23 +4012,30 @@ for the common call forms.
 
 ### Still deferred (next-session targets)
 
-* **Workspace index** — a true cross-document index unlocks
-  several rich follow-ups:
-  - cross-document references / call-hierarchy / rename
-  - workspace-wide proc enumeration in completion
-  - cross-document code-lens reference counts
+* **Workspace index** — foundation + first two consumers
+  **landed** (`0b26f8fe` / `ee5ec6b0` / `b9978626`):
+  `tcl-lsp-core::workspace_index::WorkspaceIndex` aggregates
+  proc / class definitions across analysed documents, the
+  server maintains it incrementally on did_open/change/close,
+  and it now powers **workspace-wide proc completion** and
+  **cross-document go-to-definition**.  Remaining consumers:
+  - cross-document references / rename / call-hierarchy
+    (each provider needs to walk every indexed document's
+    invocation sites — the index stores definitions today,
+    not per-doc invocation sites);
+  - cross-document code-lens reference counts;
+  - on-disk scanning of unopened workspace-folder files
+    (the index only covers documents the editor has opened).
 * **Analyser side**: method-body scope kind, var
   type/taint annotations on `$var` hovers, flow-sensitive
   instance-class tracking (the `instance_classes` map is
   global by var name, last-assignment-wins).
 * **Registry data**: `required_package` for tcllib **landed**
-  (`f5d07596`) — `tcllib_command_specs()` derives it from the
-  command namespace for all ~200 tcllib commands, so W120 +
-  package-gated completion now cover tcllib.  stdlib (tcl core)
-  isn't package-gated, so nothing more there.  Still pending:
-  an `argument_values` field for enum-style completion
-  (`string is alnum/alpha/...`) — a *new* registry field
-  threaded through completion, not pure data entry.
+  (`f5d07596`); `argument_values` enum-completion field
+  **landed** (`9a9fe78d`) — `SubCommand.arg_values` +
+  `string is <class>` populated, surfaced as `EnumValue`
+  completions.  Remaining: populate `arg_values` for other
+  enum-valued args as they're identified.
 * **F-tcl-formatter**: brace-placement normalisation,
   comment-block reflow.  True range-formatting landed.
 * **Semantic tokens**: full classification taxonomy
