@@ -99,7 +99,6 @@ BASELINE: dict[str, int] = {
     "test_command_segmenter.py": 7,
     "test_compiler_explorer_web.py": 2,
     "test_complex_codegen.py": 2,
-    "test_dataflow_graph.py": 2,
     "test_debugger_backends.py": 1,
     "test_def_use.py": 2,
     "test_diagnostic_phases.py": 3,
