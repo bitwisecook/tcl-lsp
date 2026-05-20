@@ -68,6 +68,7 @@ def _matches(source: str, code: str, dialect: str | None = None) -> list[types.D
 # ── verified: exact narrow range + no false positive ──────────────────
 
 FIXTURES: dict[str, Case] = {
+    "E001": Case("string\n", "string", "string length x\n"),
     "E002": Case("set\n", "set", "set x 1\n"),
     "E003": Case("string length a b c\n", "string", "string length a\n"),
     "W001": Case("string bogus x\n", "bogus", "string length x\n"),
@@ -177,7 +178,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "BIGIP6009",
         "BIGIP6010",
         "BIGIP6011",
-        "E001",
         "E004",
         "E100",
         "E101",
