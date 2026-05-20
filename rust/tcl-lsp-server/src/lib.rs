@@ -35,6 +35,7 @@ use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
+use tcl_lsp_core::minify as core_minify;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -72,23 +73,24 @@ use tower_lsp::lsp_types::{
     DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
-    DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-    InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, LinkedEditingRangeParams,
-    LinkedEditingRanges, Location, MarkupContent, MarkupKind, MessageType, OneOf,
-    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RenameOptions, RenameParams, SelectionRange,
-    SelectionRangeParams, SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensEdit,
-    SemanticTokensFullDeltaResult, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
-    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
+    DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
+    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
+    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
+    PrepareRenameResponse, Range, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
+    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -861,6 +863,81 @@ impl Backend {
             });
         }
         out
+    }
+
+    /// Handle the `tcl-lsp.minifyDocument` workspace command.
+    ///
+    /// Arguments (positional, matching the editor extensions):
+    /// `[uri: string, compact: bool, aggressive: bool, isolated: bool]`.
+    /// Returns a JSON object with `source`, `originalLength`,
+    /// `minifiedLength`, and — for the compact / aggressive tiers —
+    /// `symbolMap` (and `optimisationsApplied` for aggressive),
+    /// mirroring `lsp/commands.py::on_minify_document`.
+    async fn minify_document_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let compact = args
+            .get(1)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let aggressive = args
+            .get(2)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let isolated = args
+            .get(3)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+
+        // Pure-CPU work; run off the LSP event loop.
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            if aggressive {
+                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, &registry);
+                serde_json::json!({
+                    "source": res.source,
+                    "originalLength": res.original_length,
+                    "minifiedLength": res.minified_length(),
+                    "symbolMap": res.symbol_map.format(),
+                    "optimisationsApplied": res.optimisations_applied,
+                })
+            } else if compact {
+                let (minified, symbol_map) =
+                    core_minify::minify_tcl_compact(&text, &dialect, isolated, &registry);
+                serde_json::json!({
+                    "source": minified,
+                    "originalLength": text.len(),
+                    "minifiedLength": minified.len(),
+                    "symbolMap": symbol_map.format(),
+                })
+            } else {
+                let minified = core_minify::minify_tcl(&text, &dialect, &registry);
+                serde_json::json!({
+                    "source": minified,
+                    "originalLength": text.len(),
+                    "minifiedLength": minified.len(),
+                })
+            }
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("minify worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(Some(value))
     }
 
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
@@ -2002,6 +2079,16 @@ impl LanguageServer for Backend {
         Ok(Some(lifted))
     }
 
+    async fn execute_command(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        match params.command.as_str() {
+            "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
+            _ => Ok(None),
+        }
+    }
+
     async fn formatting(
         &self,
         params: DocumentFormattingParams,
@@ -2611,6 +2698,12 @@ fn build_server_capabilities() -> ServerCapabilities {
             workspace_diagnostics: false,
             work_done_progress_options: WorkDoneProgressOptions::default(),
         })),
+        // Editor-invoked workspace commands (currently the
+        // minify-document command family).
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: vec!["tcl-lsp.minifyDocument".to_owned()],
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
         ..ServerCapabilities::default()
     }
 }
@@ -3354,6 +3447,60 @@ mod tests {
         // `proc shared_helper` — name token starts at column 5.
         assert_eq!(locs[0].range.start.line, 0);
         assert_eq!(locs[0].range.start.character, 5);
+    }
+
+    #[tokio::test]
+    async fn minify_document_command_returns_minified_source() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///m.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("# c\nputs   hi\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        // Plain minify (compact=false, aggressive=false).
+        let args = vec![
+            serde_json::Value::String(uri.to_string()),
+            serde_json::Value::Bool(false),
+            serde_json::Value::Bool(false),
+            serde_json::Value::Bool(false),
+        ];
+        let result = backend
+            .minify_document_command(&args)
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(result["source"], serde_json::json!("puts hi"));
+        assert_eq!(result["minifiedLength"], serde_json::json!(7));
+        assert!(result.get("symbolMap").is_none());
+    }
+
+    #[tokio::test]
+    async fn minify_document_command_compact_includes_symbol_map() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///m.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(
+                "proc greet {name} {\n    return $name\n}\n".to_owned(),
+                "tcl8.6".to_owned(),
+            ),
+        );
+        let args = vec![
+            serde_json::Value::String(uri.to_string()),
+            serde_json::Value::Bool(true), // compact
+            serde_json::Value::Bool(false),
+            serde_json::Value::Bool(false),
+        ];
+        let result = backend
+            .minify_document_command(&args)
+            .await
+            .expect("ok")
+            .expect("some");
+        assert_eq!(result["source"], serde_json::json!("proc a {a} {return $a}"));
+        assert!(
+            result["symbolMap"].as_str().is_some_and(|s| s.contains("a <- greet")),
+            "{result:?}"
+        );
     }
 
     #[tokio::test]
