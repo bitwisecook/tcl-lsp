@@ -773,6 +773,12 @@ pub export fn tcl_math_fmod(x: i32, y: i32) i32 {
 /// digit bignum that hung formatting (the expr-old timeout).  As a
 /// double it overflows to ``Inf`` (expr-old-34.11b).
 pub export fn tcl_math_pow(x: i32, y: i32) i32 {
+    // Validate both operands are numeric before coercing — ``obj_get_float``
+    // returns 0.0 for a non-numeric string, so without this ``pow("abc", 2)``
+    // would silently compute with zero instead of raising.  ``check_float_arg``
+    // raises ``expected floating-point number but got <X>`` and returns false.
+    if (!check_float_arg(x)) return obj.obj_new_float(0.0);
+    if (!check_float_arg(y)) return obj.obj_new_float(0.0);
     const xf = obj.obj_get_float(x);
     const yf = obj.obj_get_float(y);
     // ``pow(0, -n)`` is a pole — Tcl raises rather than returning Inf.
