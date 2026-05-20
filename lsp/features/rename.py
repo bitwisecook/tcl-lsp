@@ -163,7 +163,10 @@ def _build_var_replacement(
     end = ref.end
 
     if has_brace:
-        replacement = "${" + new_qualified + "}"
+        # Preserve a trailing array-index suffix, e.g. ${arr(a)} -> ${new(a)}.
+        body = ref_line[ch + 2 : end.character + 1]
+        suffix = _array_index_suffix(body)
+        replacement = "${" + new_qualified + suffix + "}"
         # Extend range to cover closing brace
         close_ch = end.character + 1
         if close_ch < len(ref_line) and ref_line[close_ch] == "}":

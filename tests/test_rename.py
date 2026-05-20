@@ -170,6 +170,7 @@ class TestRenameVariable:
             puts $arr
             puts $arr(a)
             puts $arr($i)
+            puts ${arr(b)}
         """)
         edit = get_rename_edits(source, TEST_URI, 0, 4, "new")
         assert edit is not None
@@ -180,6 +181,7 @@ class TestRenameVariable:
         assert "$new" in texts  # scalar reference
         assert "$new(a)" in texts  # literal index preserved
         assert "$new($i)" in texts  # variable index preserved
+        assert "${new(b)}" in texts  # braced index preserved
 
     def test_rename_respects_scope(self):
         source = textwrap.dedent("""\
