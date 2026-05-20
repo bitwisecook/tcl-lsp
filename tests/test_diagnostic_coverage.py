@@ -851,6 +851,29 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # Parser recovery for an unterminated quote: range is a zero-width
     # marker at the opening quote.
     "E202": FiresCase('set totp_key "\nset y 1\n', 'set x "hello"\n', recovery=True),
+    # Malformed `if` (extra words after else): range spans the whole `if`
+    # statement rather than the trailing extra word.
+    "E004": FiresCase(
+        "if {1} {puts a} else {puts b} extraword\n",
+        "if {1} {puts a} else {puts b}\n",
+    ),
+    # Missing `{` after switch (internal recovery): zero-width range at the
+    # insertion point.
+    "E101": FiresCase(
+        "switch $x\n  a {puts 1}\n  b {puts 2}\n",
+        "switch $x {\n  a {puts 1}\n}\n",
+        analyse_raw=True,
+    ),
+    # Missing `}` — a nested body consumed the closing brace (internal
+    # recovery): range covers just the stolen brace.
+    "E103": FiresCase(
+        'when ACCESS_POLICY_AGENT_EVENT {\n    switch [ACCESS::policy agent_id] {\n'
+        '        "a" {\n            set x 1\n        }\n        "b" {\n            set y 2\n'
+        "        }\n    \n}\n",
+        "when HTTP_REQUEST {\n  switch $x {\n    a { set y 1 }\n  }\n}\n",
+        dialect="f5-irules",
+        analyse_raw=True,
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -865,9 +888,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "BIGIP6007",
         "BIGIP6009",
         "BIGIP6010",
-        "E004",
-        "E101",
-        "E103",
         "E200",
         "E203",
         "IAPP7001",
