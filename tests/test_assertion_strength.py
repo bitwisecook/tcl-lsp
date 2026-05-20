@@ -113,7 +113,6 @@ BASELINE: dict[str, int] = {
     "test_optimiser_coverage.py": 4,
     "test_package_loading.py": 9,
     "test_parser_edge_cases.py": 4,
-    "test_recovery.py": 1,
     "test_refactoring.py": 3,
     "test_semantic_tokens.py": 9,
     "test_semantic_tokens_delta.py": 2,
