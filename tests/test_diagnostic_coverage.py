@@ -574,6 +574,11 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n  log local0. hi\n}\n",
         dialect="f5-irules",
     ),
+    "S100": Case(
+        "set myList {a b c d}\nlindex $myList 1\nputs $myList\n",
+        "lindex $myList 1",
+        "set myList [list a b c]\nlindex $myList 1\nputs $myList\n",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -713,7 +718,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O123",
         "O125",
         "O127",
-        "S100",
         "T102",
         "T103",
         "T106",
