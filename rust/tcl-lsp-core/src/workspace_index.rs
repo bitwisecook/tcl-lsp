@@ -20,7 +20,8 @@
 //! * workspace-wide proc enumeration in completion;
 //! * cross-document go-to-definition;
 //! * cross-document references / rename / call-hierarchy
-//!   (later strips).
+//!   (these consume the per-document *invocation* sites the
+//!   index also records).
 //!
 //! What is *deferred*:
 //!
@@ -29,9 +30,9 @@
 //!   documents the server has analysed.  A folder-walk that
 //!   analyses unopened `.tcl` files lands with the
 //!   workspace-folder enumeration follow-up.
-//! * Variable / namespace indexing — only procs and classes
-//!   are indexed today (the cross-document features that need
-//!   them).
+//! * Variable / namespace indexing — only procs, classes, and
+//!   command invocations are indexed today (the cross-document
+//!   features that need them).
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::Span;
@@ -66,11 +67,32 @@ pub struct WorkspaceClass {
     pub name_span: Span,
 }
 
-/// Cross-document aggregate of proc / class definitions.
+/// One command-invocation (call) site recorded in the index.
+///
+/// Mirrors `AnalysisResult.command_invocations` but tagged with
+/// the defining document so cross-document references / rename
+/// / call-hierarchy can walk every call site of a symbol.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceInvocation {
+    /// Document the call site is in.
+    pub uri: String,
+    /// Command head as written at the call site (no namespace
+    /// resolution).
+    pub name: String,
+    /// Scope-resolved qualified name when the analyser computed
+    /// one, else `None`.
+    pub resolved_qualified_name: Option<String>,
+    /// Byte span of the command-head token in `uri`'s source.
+    pub range: Span,
+}
+
+/// Cross-document aggregate of proc / class definitions and
+/// command-invocation sites.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndex {
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
+    invocations: Vec<WorkspaceInvocation>,
 }
 
 impl WorkspaceIndex {
@@ -116,6 +138,14 @@ impl WorkspaceIndex {
                 name_span: class_def.name_span,
             });
         }
+        for inv in &analysis.command_invocations {
+            self.invocations.push(WorkspaceInvocation {
+                uri: uri.to_owned(),
+                name: inv.name.clone(),
+                resolved_qualified_name: inv.resolved_qualified_name.clone(),
+                range: inv.range,
+            });
+        }
     }
 
     /// Drop every entry that came from `uri` (used before
@@ -123,6 +153,7 @@ impl WorkspaceIndex {
     pub fn remove_document(&mut self, uri: &str) {
         self.procs.retain(|p| p.uri != uri);
         self.classes.retain(|c| c.uri != uri);
+        self.invocations.retain(|i| i.uri != uri);
     }
 
     /// Every indexed proc.
@@ -182,6 +213,42 @@ impl WorkspaceIndex {
             .iter()
             .filter(|c| c.uri != exclude_uri)
             .filter(|c| c.name == name || c.qualified_name == name || c.qualified_name == qualified)
+            .collect()
+    }
+
+    /// Every indexed invocation site.
+    #[must_use]
+    pub fn invocations(&self) -> &[WorkspaceInvocation] {
+        &self.invocations
+    }
+
+    /// Invocation sites that target the proc identified by
+    /// `simple_name` / `qualified_name`, excluding any in
+    /// `exclude_uri` (the caller's own document, whose call
+    /// sites the single-doc provider already surfaces).
+    ///
+    /// Matches the call-site head against the proc's simple
+    /// name, its qualified name, the `::`-stripped qualified
+    /// name, or the call site's `resolved_qualified_name` —
+    /// the same matching the in-document references provider
+    /// uses.
+    #[must_use]
+    pub fn invocations_of<'a>(
+        &'a self,
+        simple_name: &str,
+        qualified_name: &str,
+        exclude_uri: &str,
+    ) -> Vec<&'a WorkspaceInvocation> {
+        let qname_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+        self.invocations
+            .iter()
+            .filter(|i| i.uri != exclude_uri)
+            .filter(|i| {
+                i.name == simple_name
+                    || i.name == qualified_name
+                    || i.name == qname_no_prefix
+                    || i.resolved_qualified_name.as_deref() == Some(qualified_name)
+            })
             .collect()
     }
 }
@@ -253,5 +320,38 @@ mod tests {
         let defs = index.class_definitions("Widget", "file:///other.tcl");
         assert_eq!(defs.len(), 1);
         assert_eq!(defs[0].qualified_name, "::Widget");
+    }
+
+    #[test]
+    fn indexes_invocation_sites_per_document() {
+        // a.tcl defines `helper`; b.tcl calls it twice.
+        let a = analyse("proc helper {} {}\n");
+        let b = analyse("helper\nhelper\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        // From a.tcl's view, the two calls live in b.tcl.
+        let calls = index.invocations_of("helper", "::helper", "file:///a.tcl");
+        assert_eq!(calls.len(), 2, "{calls:?}");
+        assert!(calls.iter().all(|c| c.uri == "file:///b.tcl"));
+    }
+
+    #[test]
+    fn invocations_of_excludes_current_doc() {
+        let a = analyse("proc helper {} {}\nhelper\n");
+        let b = analyse("helper\n");
+        let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        // Excluding a.tcl leaves only b.tcl's call.
+        let calls = index.invocations_of("helper", "::helper", "file:///a.tcl");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].uri, "file:///b.tcl");
+    }
+
+    #[test]
+    fn remove_document_drops_invocations_too() {
+        let a = analyse("helper\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        assert!(!index.invocations().is_empty());
+        index.remove_document("file:///a.tcl");
+        assert!(index.invocations().is_empty());
     }
 }
