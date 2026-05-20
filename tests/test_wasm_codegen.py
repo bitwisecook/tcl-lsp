@@ -371,8 +371,8 @@ def test_wasm_codegen_function_api():
 
 
 def test_codegen_package_exports_wasm():
-    """WASM symbols should be accessible from the codegen package."""
-    from compiler.codegen import (
+    """WASM symbols should be accessible from the wasm codegen subpackage."""
+    from compiler.codegen.wasm import (
         WasmFunction,
         WasmModule,
         wasm_codegen_function,

@@ -24,7 +24,7 @@ from compiler.codegen.wasm.extensions import (  # noqa: E402
     _tcltest_runtime_path,
     default_runtime_path,
 )
-from compiler.codegen.wasm_link import wasm_link_bundled  # noqa: E402
+from compiler.codegen.wasm.link import wasm_link_bundled  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SAMPLES = _REPO_ROOT / "samples"

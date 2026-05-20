@@ -15,10 +15,10 @@ bottom-tested loop reordering, label-based jump emission, iterative jump
 size optimisation, and peephole passes — all designed to match tclsh's
 bytecode output.
 
-Source: [`compiler/codegen/_emitter.py`](../../../compiler/codegen/_emitter.py),
-[`compiler/codegen/layout.py`](../../../compiler/codegen/layout.py),
-[`compiler/codegen/_peephole.py`](../../../compiler/codegen/_peephole.py),
-[`compiler/codegen/_types.py`](../../../compiler/codegen/_types.py)
+Source: [`compiler/codegen/bytecode/_emitter.py`](../../../compiler/codegen/bytecode/_emitter.py),
+[`compiler/codegen/bytecode/layout.py`](../../../compiler/codegen/bytecode/layout.py),
+[`compiler/codegen/bytecode/_peephole.py`](../../../compiler/codegen/bytecode/_peephole.py),
+[`compiler/codegen/bytecode/_types.py`](../../../compiler/codegen/bytecode/_types.py)
 
 ## Content
 

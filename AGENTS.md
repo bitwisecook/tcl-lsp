@@ -292,7 +292,7 @@ requests via `package require`.  Today this is implemented as
 runtime variants — `zig build` produces both `tcl_runtime.wasm`
 (lean) and `tcl_runtime_with_<extname>.wasm` (with the extension's
 commands compiled into BUILTINS).  The bundler in
-:func:`core.compiler.codegen.wasm_link.wasm_link_bundled` picks the
+:func:`compiler.codegen.wasm.link.wasm_link_bundled` picks the
 right variant based on the `package require` calls it finds in the
 merged IR, then `wasm-merge`s it with the user-code module to
 produce a single bundled `.wasm`.
@@ -754,7 +754,7 @@ the generic `IRCall`** rather than producing incorrect specialised IR.
 
 This fallback-to-runtime pattern is intentional and preserves correctness.
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `compiler/codegen/_helpers.py`) are not
+`_parse_subst_template()` in `compiler/codegen/bytecode/_helpers.py`) are not
 incomplete — they are conservative by design. The runtime interpreter
 handles the full Tcl specification; the compiler only inlines what it can
 prove is safe.

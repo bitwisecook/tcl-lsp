@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from analyser.semantic_model import Range
 from compiler.cfg import CFGModule, build_cfg_function
-from compiler.codegen import ModuleAsm, codegen_module
+from compiler.codegen.bytecode import ModuleAsm, codegen_module
 from compiler.ir import (
     IRAssignConst,
     IRAssignValue,

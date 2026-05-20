@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
-from compiler.codegen import FunctionAsm
+from compiler.codegen.bytecode import FunctionAsm
 from compiler.expr_ast import (
     BinOp,
     ExprBinary,

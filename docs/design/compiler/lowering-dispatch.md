@@ -151,7 +151,7 @@ runtime interpreter handles the full Tcl specification; the compiler only
 inlines what it can prove is safe.
 
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `compiler/codegen/_helpers.py`) are not
+`_parse_subst_template()` in `compiler/codegen/bytecode/_helpers.py`) are not
 incomplete — they are conservative by design. Missing escape forms are an
 optimisation limitation, not a correctness bug.
 

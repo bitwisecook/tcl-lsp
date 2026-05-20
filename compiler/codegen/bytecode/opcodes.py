@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum, auto
 
-from ..expr_ast import BinOp, UnaryOp
+from compiler.expr_ast import BinOp, UnaryOp
 
 # Bytecode opcodes
 

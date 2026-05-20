@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from compiler.cfg import build_cfg
-from compiler.codegen import codegen_module, format_module_asm
+from compiler.codegen.bytecode import codegen_module, format_module_asm
 from compiler.lowering import lower_to_ir
 
 # Paths

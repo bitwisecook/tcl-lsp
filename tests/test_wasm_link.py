@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from compiler.codegen.wasm_link import (
+from compiler.codegen.wasm.link import (
     merge_ir_modules,
     wasm_link,
     wasm_link_sources,
@@ -116,7 +116,7 @@ class TestWasmLinkSources:
         references would.  An earlier worry about "linker-mode
         DCE missing cross-file calls" turned out to be unfounded.
         """
-        from compiler.codegen.wasm_link import (
+        from compiler.codegen.wasm.link import (
             merge_ir_modules,
             wasm_link_sources,
         )

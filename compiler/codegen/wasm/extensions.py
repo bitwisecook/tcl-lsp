@@ -93,12 +93,12 @@ def find_required_extensions(ir_module: IRModule) -> list[ExtensionDescriptor]:
     """Return the extensions a compiled IR module needs.
 
     Scans the IR for ``package require <name>`` calls (delegating to
-    :func:`wasm_link._extract_package_requires` so the traversal stays
+    :func:`link._extract_package_requires` so the traversal stays
     in one place) and returns each matching extension at most once,
     in :data:`EXTENSIONS` declaration order.
     """
-    # Lazy import to avoid a wasm_link → wasm.__init__ import cycle.
-    from ..wasm_link import _extract_package_requires  # noqa: PLC0415
+    # Lazy import to avoid a link → wasm.__init__ import cycle.
+    from .link import _extract_package_requires  # noqa: PLC0415
 
     requested = set(_extract_package_requires(ir_module))
     matched: list[ExtensionDescriptor] = []

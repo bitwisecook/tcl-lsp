@@ -12,8 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from compiler.codegen import FunctionAsm, Instruction, Op
-from compiler.codegen.opcodes import _INDEX_END
+from compiler.codegen.bytecode import FunctionAsm, Instruction, Op
+from compiler.codegen.bytecode.opcodes import _INDEX_END
 
 from .compiler import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn
@@ -1782,7 +1782,7 @@ class BytecodeVM:
                     # strclass classId: check whether TOS is a member of
                     # the given character class.  Replaces TOS with "1"
                     # or "0".  Used by bytecoded ``string is CLASS``.
-                    from compiler.codegen.opcodes import _STR_CLASS_NAMES
+                    from compiler.codegen.bytecode.opcodes import _STR_CLASS_NAMES
 
                     val = stack.pop() if stack else ""
                     class_id = instr.operands[0] if instr.operands else 0

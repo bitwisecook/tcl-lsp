@@ -16,7 +16,7 @@ from analyser.mro import MROError, tcloo_linearise
 from .types import TclError, TclResult, TclReturn, TclTailcall
 
 if TYPE_CHECKING:
-    from compiler.codegen import FunctionAsm
+    from compiler.codegen.bytecode import FunctionAsm
 
     from .interp import TclInterp
 

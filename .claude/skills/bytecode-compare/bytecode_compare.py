@@ -167,9 +167,9 @@ def ref_dir(version: str) -> Path:
 
 def regenerate_ours() -> None:
     """Regenerate our bytecode reference files."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen import codegen_module, format_module_asm
-    from core.compiler.lowering import lower_to_ir
+    from compiler.cfg import build_cfg
+    from compiler.codegen.bytecode import codegen_module, format_module_asm
+    from compiler.lowering import lower_to_ir
 
     OURS_DIR.mkdir(parents=True, exist_ok=True)
     for snippet in sorted(SNIPPETS_DIR.glob("*.tcl")):

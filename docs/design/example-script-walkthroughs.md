@@ -23,7 +23,7 @@ produced at every stage, with field-level detail.
 | **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in [`ir.py`](../../compiler/ir.py); the union type `IRStatement` (`ir.py:265`) covers all statement kinds. |
 | **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is [`LatticeValue`](../../compiler/core_analyses.py) (`core_analyses.py:111`); the type lattice is [`TypeLattice`](../../compiler/types.py) (`types.py:53`). |
 | **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in [`FunctionAnalysis.live_in / live_out`](../../compiler/core_analyses.py) (`core_analyses.py:176`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../compiler/codegen/_types.py) (`codegen/_types.py:63`). |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../compiler/codegen/bytecode/_types.py) (`codegen/bytecode/_types.py:63`). |
 | **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by [`SSAPhi`](../../compiler/ssa.py) (`ssa.py:168`). |
 | **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in [`analyse_function()`](../../compiler/core_analyses.py) (`core_analyses.py:1210`). |
 | **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:53`). |
@@ -61,7 +61,7 @@ Source text
 │ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1058
 │ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:359
 │ 6. Core analyses analyse_function()       → FunctionAnalysis         │  core_analyses.py:1210
-│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/_emitter.py:904
+│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/bytecode/_emitter.py:904
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -413,7 +413,7 @@ class TypeLattice:             # types.py:53
 ### Stage 7 — Codegen types ([`compiler/codegen/`](../../compiler/codegen/))
 
 ```python
-class Op(Enum):        # codegen/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
+class Op(Enum):        # codegen/bytecode/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
     PUSH1, PUSH4, POP, DUP,
     LOAD_SCALAR1, STORE_SCALAR1,
     INVOKE_STK1, INVOKE_STK4,
@@ -422,17 +422,17 @@ class Op(Enum):        # codegen/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcod
     ...
 
 @dataclass(slots=True)
-class Instruction:     # codegen/_types.py:11
+class Instruction:     # codegen/bytecode/_types.py:11
     op: Op
     operands: tuple[int | str, ...]  # int = literal/imm, str = label ref
     comment: str = ""
     offset: int = -1                 # filled by layout pass
 
-class LiteralTable:    # codegen/_types.py:32 — intern pool: string → object-array index
-class LocalVarTable:   # codegen/_types.py:63 — LVT: variable name → slot index (see Glossary)
+class LiteralTable:    # codegen/bytecode/_types.py:32 — intern pool: string → object-array index
+class LocalVarTable:   # codegen/bytecode/_types.py:63 — LVT: variable name → slot index (see Glossary)
 
 @dataclass(slots=True)
-class FunctionAsm:     # codegen/_types.py:91
+class FunctionAsm:     # codegen/bytecode/_types.py:91
     name: str
     literals: LiteralTable
     lvt: LocalVarTable
@@ -440,7 +440,7 @@ class FunctionAsm:     # codegen/_types.py:91
     labels: dict[str, int]           # label → byte offset
 
 @dataclass(slots=True)
-class ModuleAsm:       # codegen/_types.py:105
+class ModuleAsm:       # codegen/bytecode/_types.py:105
     top_level: FunctionAsm
     procedures: dict[str, FunctionAsm]
 ```
@@ -3339,7 +3339,7 @@ _place_label("L_end")         → if_end_2
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
 
-[`layout.py`](../../compiler/codegen/layout.py) iterates up to 10
+[`layout.py`](../../compiler/codegen/bytecode/layout.py) iterates up to 10
 times, replacing 4-byte jumps with 1-byte jumps when the relative
 offset fits in [-128, 127]:
 
@@ -3809,4 +3809,4 @@ Each stage transforms the data into a richer representation:
 4. **CFG blocks** — explicit control flow with terminators (`cfg.py:374`)
 5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:195`)
 6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`core_analyses.py:176`)
-7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/_types.py:91`)
+7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/bytecode/_types.py:91`)

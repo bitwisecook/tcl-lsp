@@ -4,26 +4,27 @@
 
 from __future__ import annotations
 
-from ..cfg import (
+from compiler.cfg import (
     CFGBranch,
     CFGFunction,
     CFGGoto,
     CFGModule,
     CFGReturn,
 )
-from ..expr_ast import (
+from compiler.expr_ast import (
     ExprCommand,
     ExprLiteral,
     ExprNode,
     ExprRaw,
     ExprVar,
 )
-from ..ir import (
+from compiler.ir import (
     IRCall,
     IRModule,
     IRProcedure,
 )
-from ..tcl_expr_eval import eval_tcl_expr
+from compiler.tcl_expr_eval import eval_tcl_expr
+
 from ._bytecoded import _BytecodedMixin
 from ._cmd_subst import _CmdSubstMixin
 from ._control_flow import _ControlFlowMixin
@@ -1175,7 +1176,7 @@ def _proc_is_compile_blocked(ir_proc: "IRProcedure | None") -> bool:
     """
     if ir_proc is None:
         return False
-    from ..ir import IRUpFrame
+    from compiler.ir import IRUpFrame
 
     stmts = ir_proc.body.statements
     return len(stmts) == 1 and isinstance(stmts[0], IRUpFrame)

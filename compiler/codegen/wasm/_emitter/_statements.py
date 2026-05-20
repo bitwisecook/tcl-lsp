@@ -949,7 +949,7 @@ class _WasmEmitterStmtMixin(_Base):
         # name (required positional) or a ``{name default}`` 2-elem
         # list (optional with default).  The trailing ``args`` formal
         # is variadic.
-        from ....codegen._helpers import _split_list_simple
+        from ....codegen.bytecode._helpers import _split_list_simple
 
         try:
             param_list = _split_list_simple(params)

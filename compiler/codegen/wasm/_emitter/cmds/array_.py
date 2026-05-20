@@ -90,7 +90,7 @@ def _emit_array_set_list(emitter, arr: str, kv_text: str) -> None:
     Leaves an empty string TclObj on the stack as the command's
     return value.
     """
-    from ...._helpers import _split_list_simple
+    from ....bytecode._helpers import _split_list_simple
 
     fidx = emitter._shared_imports.get("tcl_array_set")
     if fidx is None:

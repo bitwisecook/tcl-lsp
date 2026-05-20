@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
-
-from ..ir import (
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -19,11 +17,14 @@ from ..ir import (
     IRStatement,
     IRSwitch,
 )
+from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+
 from ._types import Instruction
 from .opcodes import Op
 
 if TYPE_CHECKING:
-    from ..ir import CommandTokens
+    from compiler.ir import CommandTokens
+
     from ._emitter import _Emitter
 
 

@@ -6,18 +6,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from compiler.expr_ast import ExprBinary, ExprNode
+from compiler.ir import IRCall, IRStatement
 from compiler.registry import REGISTRY
+from compiler.tcl_expr_eval import eval_tcl_expr
 
-from ..expr_ast import ExprBinary, ExprNode
-from ..ir import IRCall, IRStatement
-from ..tcl_expr_eval import eval_tcl_expr
 from .opcodes import Op
 
 if TYPE_CHECKING:
     from ._emitter import _Emitter
 
 # Avoid circular import — use string annotation for BinOp
-from ..expr_ast import BinOp
+from compiler.expr_ast import BinOp
 
 
 class _ControlFlowMixin:

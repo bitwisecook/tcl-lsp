@@ -640,7 +640,7 @@ def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
     ranges, and label anchors.  The frontend switches to the rich
     renderer when ``instructions`` is present.
     """
-    from compiler.codegen import codegen_module, format_module_explorer
+    from compiler.codegen.bytecode import codegen_module, format_module_explorer
 
     if cfg_module is None:
         from compiler.cfg import build_cfg

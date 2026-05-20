@@ -22,8 +22,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..cfg import build_cfg
-from ..ir import (
+from ...cfg import build_cfg
+from ...ir import (
     IRCall,
     IRCatch,
     IRFor,
@@ -36,8 +36,8 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
-from ..lowering import lower_to_ir
-from .wasm import WasmModule, wasm_codegen_module
+from ...lowering import lower_to_ir
+from . import WasmModule, wasm_codegen_module
 
 
 def merge_ir_modules(*modules: IRModule) -> IRModule:
@@ -371,8 +371,8 @@ def wasm_link_bundled(
     """
     # Lazy imports keep the un-bundled path (``wasm_link``) free of any
     # dependency on Binaryen or the extension manifest.
-    from .wasm._bundle import bundle_wasm  # noqa: PLC0415
-    from .wasm.extensions import runtime_path_for  # noqa: PLC0415
+    from ._bundle import bundle_wasm  # noqa: PLC0415
+    from .extensions import runtime_path_for  # noqa: PLC0415
 
     merged_ir = _link_to_ir(main_source, search_paths=search_paths, max_depth=max_depth)
     cfg = build_cfg(merged_ir)

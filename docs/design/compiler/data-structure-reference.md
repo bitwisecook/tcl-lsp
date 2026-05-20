@@ -19,7 +19,7 @@ Source: [`shared/tokens.py`](../../../shared/tokens.py),
 [`compiler/cfg.py`](../../../compiler/cfg.py),
 [`compiler/ssa.py`](../../../compiler/ssa.py),
 [`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
-[`compiler/codegen/_types.py`](../../../compiler/codegen/_types.py),
+[`compiler/codegen/bytecode/_types.py`](../../../compiler/codegen/bytecode/_types.py),
 [`compiler/compilation_unit.py`](../../../compiler/compilation_unit.py)
 
 ## Content

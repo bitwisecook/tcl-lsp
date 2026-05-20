@@ -18,7 +18,7 @@ from compiler.cfg import (
     CFGReturn,
     build_cfg,
 )
-from compiler.codegen import (
+from compiler.codegen.bytecode import (
     FunctionAsm,
     ModuleAsm,
     Op,

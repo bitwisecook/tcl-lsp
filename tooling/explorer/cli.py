@@ -1026,7 +1026,7 @@ _WASM_RULES: list[tuple[str, str]] = [
 
 def print_asm(ir_module: IRModule, *, cfg_module=None, use_colour: bool) -> None:
     """Render bytecode assembly for all functions in the module."""
-    from compiler.codegen import codegen_module, format_module_asm
+    from compiler.codegen.bytecode import codegen_module, format_module_asm
 
     if cfg_module is None:
         from compiler.cfg import build_cfg

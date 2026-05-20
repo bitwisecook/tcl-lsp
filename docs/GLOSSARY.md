@@ -975,8 +975,8 @@ KCS tag: `codegen`.
 
 Local Variable Table — maps variable names to integer slot indices for
 fast access inside procedures.  See
-[`LocalVarTable`](../compiler/codegen/_types.py)
-(`codegen/_types.py:63`).
+[`LocalVarTable`](../compiler/codegen/bytecode/_types.py)
+(`codegen/bytecode/_types.py:63`).
 
 ```mermaid
 flowchart LR

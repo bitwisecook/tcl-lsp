@@ -155,7 +155,7 @@ def format_module_asm(module) -> str:
 # once in ``wasm/_ir.py`` and re-used here so the ASM and WASM
 # explorer payloads stay in lockstep — any future change to the range
 # wire format lands in a single spot.
-from .wasm._ir import _range_to_explorer_dict  # noqa: E402
+from ..wasm._ir import _range_to_explorer_dict  # noqa: E402
 
 
 def format_function_explorer(asm: FunctionAsm, *, func_name: str | None = None) -> dict:

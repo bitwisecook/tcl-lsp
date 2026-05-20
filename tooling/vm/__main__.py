@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from compiler.codegen import format_module_asm
+from compiler.codegen.bytecode import format_module_asm
 
 from .compiler import compile_script
 from .interp import TclInterp

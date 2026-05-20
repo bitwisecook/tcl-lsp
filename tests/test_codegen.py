@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.cfg import build_cfg
-from compiler.codegen import (
+from compiler.codegen.bytecode import (
     FunctionAsm,
     LiteralTable,
     LocalVarTable,
@@ -19,7 +19,7 @@ from compiler.codegen import (
     format_function_asm,
     format_module_asm,
 )
-from compiler.codegen.format import _esc
+from compiler.codegen.bytecode.format import _esc
 from compiler.lowering import lower_to_ir
 
 # Helpers
