@@ -24,6 +24,7 @@ from lsprotocol import types
 
 import core.common.codes_all  # noqa: F401 — registers every code
 from core.common.codes import all_codes
+from core.common.dialect import dialect_scope
 from lsp.features.diagnostics import get_diagnostics
 
 
@@ -32,12 +33,14 @@ class Case:
     source: str
     expected: str  # exact substring the range must cover
     clean: str  # a snippet on which the code must NOT fire
+    dialect: str | None = None  # analyse under this dialect when set
 
 
 @dataclass(frozen=True)
 class FiresCase:
     source: str
     clean: str
+    dialect: str | None = None
 
 
 def _covered(source: str, r: types.Range) -> str:
@@ -53,12 +56,13 @@ def _covered(source: str, r: types.Range) -> str:
     )
 
 
-def _matches(source: str, code: str) -> list[types.Diagnostic]:
-    return [
-        d
-        for d in get_diagnostics(source)
-        if (d.code if isinstance(d.code, str) else str(d.code)) == code
-    ]
+def _matches(source: str, code: str, dialect: str | None = None) -> list[types.Diagnostic]:
+    if dialect is not None:
+        with dialect_scope(dialect):
+            diags = get_diagnostics(source)
+    else:
+        diags = get_diagnostics(source)
+    return [d for d in diags if (d.code if isinstance(d.code, str) else str(d.code)) == code]
 
 
 # ── verified: exact narrow range + no false positive ──────────────────
@@ -88,6 +92,18 @@ FIXTURES: dict[str, Case] = {
     "O111": Case("expr $a + $b\n", "$a + $b", "expr {$a + $b}\n"),
     "O120": Case(
         'if {$x == "hello"} {set x done}\n', '{$x == "hello"}', 'if {$x eq "hello"} {set x done}\n'
+    ),
+    "IRULE1002": Case(
+        "when BOGUS {\n}\n",
+        "BOGUS",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2001": Case(
+        "when HTTP_REQUEST {\n  matchclass $x equals $y\n}\n",
+        "matchclass",
+        "when HTTP_REQUEST {\n  class match $x equals $y\n}\n",
+        dialect="f5-irules",
     ),
 }
 
@@ -130,7 +146,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IAPP7002",
         "IAPP7003",
         "IRULE1001",
-        "IRULE1002",
         "IRULE1003",
         "IRULE1004",
         "IRULE1005",
@@ -139,7 +154,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE1008",
         "IRULE1201",
         "IRULE1202",
-        "IRULE2001",
         "IRULE2002",
         "IRULE2003",
         "IRULE2101",
@@ -288,7 +302,7 @@ def test_every_code_is_classified_exactly_once():
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_fires_with_exact_range(code):
     case = FIXTURES[code]
-    matches = _matches(case.source, code)
+    matches = _matches(case.source, code, case.dialect)
     assert matches, f"{code} did not fire on {case.source!r}"
     covered = {_covered(case.source, d.range) for d in matches}
     assert case.expected in covered, (
@@ -299,11 +313,15 @@ def test_fixture_fires_with_exact_range(code):
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_no_false_positive(code):
     case = FIXTURES[code]
-    assert not _matches(case.clean, code), f"{code} should not fire on clean {case.clean!r}"
+    assert not _matches(case.clean, code, case.dialect), (
+        f"{code} should not fire on clean {case.clean!r}"
+    )
 
 
 @pytest.mark.parametrize("code", sorted(RANGE_FIXME))
 def test_range_fixme_fires_and_is_clean(code):
     case = RANGE_FIXME[code]
-    assert _matches(case.source, code), f"{code} did not fire on {case.source!r}"
-    assert not _matches(case.clean, code), f"{code} should not fire on clean {case.clean!r}"
+    assert _matches(case.source, code, case.dialect), f"{code} did not fire on {case.source!r}"
+    assert not _matches(case.clean, code, case.dialect), (
+        f"{code} should not fire on clean {case.clean!r}"
+    )
