@@ -90,6 +90,9 @@ FIXTURES: dict[str, Case] = {
     "O100": Case("set x [expr {1 + 2}]\nputs $x\n", "$x", "puts hi\n"),
     "O102": Case("puts [expr {1 + 1}]\n", "[expr {1 + 1}]", "puts hi\n"),
     "O111": Case("expr $a + $b\n", "$a + $b", "expr {$a + $b}\n"),
+    "O116": Case(
+        "set x [list]\nlappend x a\nputs $x\n", "[list]", "set x {}\nlappend x a\nputs $x\n"
+    ),
     "O120": Case(
         'if {$x == "hello"} {set x done}\n', '{$x == "hello"}', 'if {$x eq "hello"} {set x done}\n'
     ),
@@ -189,7 +192,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O113",
         "O114",
         "O115",
-        "O116",
         "O117",
         "O118",
         "O119",
