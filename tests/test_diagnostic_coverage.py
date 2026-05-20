@@ -122,6 +122,30 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n  class match $x equals $y\n}\n",
         dialect="f5-irules",
     ),
+    "T100": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  eval $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  eval {puts hi}\n}\n",
+        dialect="f5-irules",
+    ),
+    "T101": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  puts $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  puts hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3001": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  HTTP::respond 200 content $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  HTTP::respond 200 content static\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3002": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  HTTP::header insert X $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  HTTP::header insert X static\n}\n",
+        dialect="f5-irules",
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -173,8 +197,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE2002",
         "IRULE2003",
         "IRULE2101",
-        "IRULE3001",
-        "IRULE3002",
         "IRULE3003",
         "IRULE3101",
         "IRULE3102",
@@ -218,8 +240,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "S100",
         "S101",
         "S102",
-        "T100",
-        "T101",
         "T102",
         "T103",
         "T106",
