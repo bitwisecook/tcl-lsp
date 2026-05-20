@@ -2009,7 +2009,8 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
-        let edits = core_formatting::formatting(&doc.text);
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let edits = core_formatting::formatting(&doc.text, &registry);
         if edits.is_empty() {
             return Ok(None);
         }

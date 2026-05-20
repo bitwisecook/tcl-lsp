@@ -32,18 +32,26 @@
 //! * `lsp/features/code_actions.py`-driven indentation
 //!   adjustments for partial edits.
 
+pub mod config;
+pub mod engine;
+
+pub use config::FormatterConfig;
+pub use engine::format_tcl;
+
 use crate::definition::LspRange;
 use crate::rename::TextEdit;
 use tcl_lexer::LineIndex;
+use tcl_registry::CommandRegistry;
 
 /// Compute formatting edits for the entire document.
 ///
-/// Returns a single `TextEdit` that replaces the whole
-/// document with its normalised form, or an empty `Vec`
-/// when the document is already normalised.
+/// Runs the token-aware [`engine::format_tcl`] with default
+/// (F5 iRules) settings and returns a single `TextEdit` that
+/// replaces the whole document with its normalised form, or an
+/// empty `Vec` when the document is already normalised.
 #[must_use]
-pub fn formatting(source: &str) -> Vec<TextEdit> {
-    let formatted = format_source(source);
+pub fn formatting(source: &str, registry: &CommandRegistry) -> Vec<TextEdit> {
+    let formatted = engine::format_tcl(source, &FormatterConfig::default(), registry);
     if formatted == source {
         return Vec::new();
     }
@@ -266,8 +274,13 @@ mod tests {
 
     #[test]
     fn already_formatted_returns_no_edits() {
+        let registry = tcl_registry::CommandRegistry::build_default();
         let src = "proc foo {} {\n    set x 1\n}\n";
-        assert!(formatting(src).is_empty(), "{:?}", formatting(src));
+        assert!(
+            formatting(src, &registry).is_empty(),
+            "{:?}",
+            formatting(src, &registry)
+        );
     }
 
     #[test]
