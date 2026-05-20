@@ -425,6 +425,24 @@ pub export fn flow_take_return() i32 {
         }
         state.return_flag = 0;
         state.return_val = 0;
+        // ``return -code break`` / ``return -code continue`` arrive here
+        // with ``return_flag`` set (the unwind reached the proc body's
+        // top) and ``pending_return_code`` == 3 / 4.  Translate the
+        // pending code into the matching loop-control flag so the
+        // caller's enclosing compiled loop (its ``flow_consume_break`` /
+        // ``flow_consume_continue`` probe) — or, when there's no loop,
+        // the compiled body's ``flow_check_signal_loop`` early-return —
+        // observes the break / continue.  ``signal_break_flag`` /
+        // ``signal_continue_flag`` stay set (armed by ``eval_return``);
+        // the consume probe clears both.  Other pending codes (TCL_OK,
+        // TCL_RETURN, custom) keep their existing absorb paths.
+        if (state.pending_return_code == 3) {
+            state.break_flag = 1;
+            state.pending_return_code = 0;
+        } else if (state.pending_return_code == 4) {
+            state.continue_flag = 1;
+            state.pending_return_code = 0;
+        }
         return v;
     }
     return 0;
