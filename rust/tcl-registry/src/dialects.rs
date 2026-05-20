@@ -49,6 +49,16 @@ bitflags! {
 }
 
 impl DialectSet {
+    /// Whether `name` denotes the F5 iRules dialect.  Accepts the
+    /// canonical `f5-irules` and the legacy `irules` alias.  This is
+    /// the single source of truth for the "is this iRules?" check
+    /// that compiler / LSP passes need, replacing the per-module
+    /// `matches!(dialect, Some("f5-irules" | "irules"))` copies.
+    #[must_use]
+    pub fn is_irules_dialect(name: Option<&str>) -> bool {
+        matches!(name, Some("f5-irules" | "irules"))
+    }
+
     /// Parse a dialect name string to a single-bit set.
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {

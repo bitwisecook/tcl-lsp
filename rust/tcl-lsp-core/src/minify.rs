@@ -581,7 +581,7 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> Strin
     // quoted args.
     let (template_map, rendered) = dedup_templates(rendered);
 
-    let is_irules = dialect == "f5-irules";
+    let is_irules = tcl_registry::prelude::DialectSet::is_irules_dialect(Some(dialect));
     let mut parts: Vec<String> = Vec::new();
     for (content, alias) in &template_map {
         parts.push(format!("set {alias} {{{content}}}"));

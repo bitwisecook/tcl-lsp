@@ -292,7 +292,7 @@ fn is_taint_source(
 /// can gate their iRules-only diagnostics on the same predicate.
 #[must_use]
 pub fn is_irules_dialect(dialect: Option<&str>) -> bool {
-    matches!(dialect, Some("f5-irules" | "irules"))
+    tcl_registry::prelude::DialectSet::is_irules_dialect(dialect)
 }
 
 fn dialect_to_set(dialect: Option<&str>) -> DialectSet {
