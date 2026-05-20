@@ -692,6 +692,12 @@ FIXTURES: dict[str, Case] = {
         "http::geturl",
         "package require http\nhttp::geturl $url\n",
     ),
+    "O106": Case(
+        "set n 5\nfor {set i 0} {$i < 10} {incr i} {\n  set k [string repeat x $n]\n  puts $k\n}\n",
+        "string repeat x $n",
+        "for {set i 0} {$i < 10} {incr i} {\n  puts $i\n}\n",
+        contains=True,
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -927,6 +933,15 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "ltm rule /Common/r {\nwhen CLIENT_ACCEPTED { snatpool /Common/missing_snat }\n}\n",
         bigip=True,
     ),
+    # Duplicate iRule attachment on a virtual: range spans the whole virtual
+    # stanza body rather than the repeated reference.
+    "BIGIP6009": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r /Common/r } }\n",
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        bigip=True,
+    ),
 }
 
 
@@ -1006,12 +1021,10 @@ def test_crossfile_fires_and_is_clean(code):
 
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
-        "BIGIP6009",
         "BIGIP6010",
         "E200",
         "IRULE4003",
         "O101",
-        "O106",
         "O108",
         "O125",
         "T102",
