@@ -95,7 +95,7 @@ fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
         if (std.mem.eql(u8, name, "srand")) return result_mod.from_globals(arith.tcl_math_srand(words[1]));
     }
     if (words.len == 3) {
-        if (std.mem.eql(u8, name, "pow")) return result_mod.from_globals(arith.tcl_arith_pow(words[1], words[2]));
+        if (std.mem.eql(u8, name, "pow")) return result_mod.from_globals(arith.tcl_math_pow(words[1], words[2]));
         if (std.mem.eql(u8, name, "atan2")) return result_mod.from_globals(arith.tcl_math_atan2(words[1], words[2]));
         if (std.mem.eql(u8, name, "fmod")) return result_mod.from_globals(arith.tcl_math_fmod(words[1], words[2]));
         if (std.mem.eql(u8, name, "hypot")) return result_mod.from_globals(arith.tcl_math_hypot(words[1], words[2]));

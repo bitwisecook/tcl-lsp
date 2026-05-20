@@ -164,12 +164,12 @@ pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
 pub export fn tcl_arith_div(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, "/")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b)) {
-        const bf = obj.obj_get_float(b);
-        if (bf == 0.0) {
-            stubs.raise("divide by zero");
-            return obj.obj_new_int(0);
-        }
-        return obj.obj_new_float(obj.obj_get_float(a) / bf);
+        // IEEE-754 floating-point division: ``x / 0.0`` yields
+        // ±Inf (or NaN for ``0.0 / 0.0``) rather than raising —
+        // matches Tcl 9 on an IEEE platform (compExpr-old-11.13a:
+        // ``expr {2.3/0.0}`` is ``Inf``).  Only *integer* division
+        // by zero is an error.
+        return obj.obj_new_float(obj.obj_get_float(a) / obj.obj_get_float(b));
     }
     if (is_bignum(a) or is_bignum(b)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
@@ -763,6 +763,31 @@ pub export fn tcl_math_ceil(a: i32) i32 {
 /// integer-only and uses divisor sign).
 pub export fn tcl_math_fmod(x: i32, y: i32) i32 {
     return obj.obj_new_float(@rem(obj.obj_get_float(x), obj.obj_get_float(y)));
+}
+
+/// ``pow(x, y)`` math function — ALWAYS returns a double, unlike the
+/// ``**`` operator (which keeps integer / bignum precision).  C Tcl's
+/// ``pow`` is the libm ``pow`` and yields a double even for integer
+/// args (``pow(2, 3)`` is ``8.0``), so routing it through the integer
+/// ``tcl_arith_pow`` was wrong: ``pow(3, 1000001)`` built a ~477,000-
+/// digit bignum that hung formatting (the expr-old timeout).  As a
+/// double it overflows to ``Inf`` (expr-old-34.11b).
+pub export fn tcl_math_pow(x: i32, y: i32) i32 {
+    const xf = obj.obj_get_float(x);
+    const yf = obj.obj_get_float(y);
+    // ``pow(0, -n)`` is a pole — Tcl raises rather than returning Inf.
+    if (xf == 0.0 and yf < 0.0) {
+        stubs.raise("exponentiation of zero by negative power");
+        return obj.obj_new_int(0);
+    }
+    const r = std.math.pow(f64, xf, yf);
+    // Negative base raised to a non-integer power is a NaN from libm;
+    // Tcl reports it as a domain error rather than surfacing NaN.
+    if (std.math.isNan(r) and !std.math.isNan(xf) and !std.math.isNan(yf)) {
+        stubs.raise("domain error: argument not in valid range");
+        return obj.obj_new_int(0);
+    }
+    return obj.obj_new_float(r);
 }
 
 /// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate

@@ -3,150 +3,41 @@
 # bucket definitions.  Unlisted IDs default to ``must_pass`` —
 # anything new from upstream fails closed.
 #
-# Snapshot: 1033/2168 passing; 1055 skipped (constraint-gated tests
-# plus the tcltest-internal "test runner" skips); 80 categorised
-# below.  Was timeout-trap before the binary / octal literal panic
-# fix and the bool / isqrt / float-classification math additions.
-# Of the 80 failures, 44 are loop-driven instances of expr-58.x
-# (NaN-related cases, mostly from ``isunordered`` not propagating
-# the NaN-flag through promoted-from-string ``$v`` reads).
-
-# Real semantic feature gaps tracked but non-gating.
+# Snapshot: 2117/2168 passing; 24 skipped; 27 categorised below.
+# The jump from ~1099 passing happened once ``binary format``/``binary
+# scan`` of IEEE-754 doubles started working (the ``d``/``q``/``Q``/
+# ``f``/``r``/``R`` codes used to serialise zero bytes) AND the
+# ``variable``-aliased array over-release in ``frame_resolve_array_name``
+# was fixed — together those make ``testIEEE`` return true, unblocking
+# the ~1014-test ``ieeeFloatingPoint``-gated section 28 ("input
+# floating-point conversion") plus the other ieee variants, which now
+# run and pass.
+#
+# The residuals below are real semantic gaps, non-gating:
 good_to_have = [
-  # ``hello_world`` / ``do_twelve_days`` stress procs are stubbed by
-  # ``_patch_hello_world_procs`` because their deeply nested ternaries
-  # trip the AOT codegen's short-circuit-with-side-effect handling.
-  "3.7",
-  "3.8",
-  # ``expr 01eq1`` — leading-zero canonicalisation makes the string
-  # repr ``"1"`` instead of ``"01"`` so the ``eq`` string comparison
-  # reports them equal.
-  "8.17",
-  # ``cannot use a list as right operand of "+"`` — error wording for
-  # list-shaped arithmetic operands.
-  "11.14",
-  "11.16",
-  # ``expr $a(123)`` — array-elem ref in unbraced expr through the
-  # runtime eval-script path.  AOT path handles it.
-  "14.13",
-  # ``expr + {[incr]}`` — compile error of nested cmd subst should
-  # surface the ``wrong # args`` directly.
-  "20.6",
-  # ``NaN`` arithmetic error wording.
-  "22.1",
-  "22.3",
-  "22.7",
-  # ``expr {$x == $x}`` with ``$x = NaN`` should be 0.
-  "22.9",
-  # ``**`` (power) error messages and precedence (``-2**N`` evaluates
-  # left-to-right rather than C Tcl's right-associative ``-(2**N)``).
-  "23.9",
-  "23.10",
-  "23.12",
-  "23.49",
-  # ``NaN`` ordering across the compiled fast path.
-  "27.4",
-  # ``::tcl::mathfunc::abs`` direct-command invocation — the
-  # ``::tcl::mathfunc::*`` namespace isn't yet exposed as runtime
-  # commands.
-  "38.5",
-  "38.6",
-  "38.7",
-  "38.8",
-  "38.11",
-  "38.12",
-  "38.13",
-  "38.14",
-  "38.15",
-  # Float significand overflow.
-  "41.23",
-  # ``entier(Inf)`` error wording.
-  "45.7",
-  # ``isqrt`` error wording / 256-digit bignum operand.
-  "47.2",
-  "47.13",
-  "47.14",
-  "47.15",
-  "47.16",
-  # ``expr {-0x8000000000000001 >> 0x8000000000000000}``.
-  "48.1",
-  # ``coroutine`` / ``[yield]`` inside expr.
-  "49.1",
-  # ``sqrt("1[616 zeros]") == 1e308``.
-  "50.1",
-  # Empty-string compare without forcing string-rep generation.
-  "52.1",
-  # TIP 519 float-classification tests where ``$v`` is a number-shaped
-  # string that should round-trip the special-value detection.  The
-  # bulk pass (the ``Inf`` / ``NaN`` / ``zero`` / ``normal`` cases all
-  # match) but the 1e308**1e10 / .0999999**319 / 1e-320/.9 / 1/Inf
-  # subnormal / infinity expression-as-literal cases trip the
-  # subst-in-foreach pre-evaluation and confuse the classifier.
-  # Tracked alongside ``58.8`` whose ``isunordered($v, NaN) +
-  # isunordered(NaN, $v)`` form needs the NaN flag to survive the
-  # variable round-trip.
-  "58.1(-.0999999**319)=subnormal-1",
-  "58.1(-1e-320/.9)=subnormal-1",
-  "58.1(-1e308**(1e10+1))=infinite-1",
-  "58.1(.0999999**319)=subnormal-1",
-  "58.1(1e-320/.9)=subnormal-1",
-  "58.1(1e308**1e10)=infinite-1",
-  "58.2(-1e308**(1e10+1))-1",
-  "58.2(1e308**1e10)-1",
-  "58.3(-1e308**(1e10+1))-1",
-  "58.3(1e308**1e10)-1",
-  "58.4(NaN)-0",
-  "58.6(-.0999999**319)-1",
-  "58.6(-1e-320/.9)-1",
-  "58.6(.0999999**319)-1",
-  "58.6(1e-320/.9)-1",
-  "58.7(NaN)-0",
-  "58.8(-.0999999**319)-1",
-  "58.8(-0)-0",
-  "58.8(-0.0)-0",
-  "58.8(-0x7fffffffffffffff)-0",
-  "58.8(-0xffffffffffffffffff)-0",
-  "58.8(-1)-0",
-  "58.8(-1.0)-0",
-  "58.8(-1/Inf)-1",
-  "58.8(-1e-314)-0",
-  "58.8(-1e-320/.9)-1",
-  "58.8(-1e308**(1e10+1))-1",
-  "58.8(-1e5555)-0",
-  "58.8(-Inf)-0",
-  "58.8(.0999999**319)-1",
-  "58.8(0)-0",
-  "58.8(0.0)-0",
-  "58.8(0x7fffffffffffffff)-0",
-  "58.8(0xffffffffffffffffff)-0",
-  "58.8(1)-0",
-  "58.8(1.0)-0",
-  "58.8(1/Inf)-1",
-  "58.8(1e-314)-0",
-  "58.8(1e-320/.9)-1",
-  "58.8(1e308**1e10)-1",
-  "58.8(1e5555)-0",
-  "58.8(Inf)-0",
-  "58.8(NaN)-0",
-  # TIP 582 token-splice with hex source-spelling preservation.
-  "62.6",
-  # Residual after the EQ / NE string-aware compare landed — these
-  # surfaced because the bundle now reaches its summary.
-  "22.2",   # NaN propagation through ``==`` / ``!=``.
-  "22.4",   # same shape — NaN as RHS.
-  "22.6",   # NaN in a chained comparison.
-  "22.8",   # NaN equality semantics.
-  "27.3",   # NaN ordering in compiled fast path.
-  "47.6",   # ``isqrt`` with non-integer / bignum operand.
+  # IEEE special-value comparison/classification tests that read
+  # ``$ieeeValues(...)``.  Those values are populated by ``binary
+  # scan`` of ``\xNN`` byte-string literals with high bytes (0xF0,
+  # 0xFF, ...); our string-as-byte-array model UTF-8-inflates those
+  # bytes, so the scanned doubles are wrong (Inf/NaN come back as
+  # tiny finite values).  Blocked on byte-array string semantics.
+  "11.13b", "27.1", "27.2", "27.3", "27.4",
+  "29.1", "29.2", "29.3", "29.4",
+  # ``silent overflow on input conversion`` / ``entier`` / ``isqrt``
+  # of out-of-range floats — Inf / huge-magnitude edge handling.
+  "30.3", "30.4", "45.8", "45.9", "47.6", "47.7", "47.13", "47.15",
+  # NaN propagation, ``**`` precedence/wording, leading-zero
+  # canonicalisation, ``::tcl::mathfunc`` direct calls, coroutine in
+  # expr, sqrt/empty-compare, and TIP-582 token splice — pre-existing
+  # arithmetic-wording residuals (unchanged by the binary work).
+  "8.17", "22.9", "23.49", "38.11", "38.13", "41.23",
+  "49.1", "50.1", "52.1", "62.6",
 ]
-
 just_to_match_ctcl = []
-
-# No bytecode-internal probes in this stem.
 skip = []
 
 [baseline]
 # Snapshot at triage time.  good_to_have_failing must not grow.
-good_to_have_failing = 86
+good_to_have_failing = 27
 just_to_match_ctcl_failing = 0
 skip_failing = 0

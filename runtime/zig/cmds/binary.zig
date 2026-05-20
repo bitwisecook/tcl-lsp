@@ -235,7 +235,7 @@ fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M' => {
                 const nbytes = spec_byte_width(spec);
                 if (wi >= words.len) break;
                 const obj_mod_x = @import("../valtypes/tcl_obj.zig");
@@ -259,6 +259,40 @@ fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []
                         break :blk 0;
                     } else 0;
                     if (big_end) write_be(buf, off, elem_v, nbytes) else write_le(buf, off, elem_v, nbytes);
+                    off += nbytes;
+                }
+                wi += 1;
+            },
+            'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // IEEE-754 floats: ``f``/``r`` little-endian + ``R``
+                // big-endian 32-bit; ``d``/``q`` little-endian + ``Q``
+                // big-endian 64-bit.  The value must be parsed as a
+                // *double* — the integer path above wrote zero bytes
+                // for ``binary format d 1.0`` (parse_i128 rejects the
+                // fractional literal), which collapsed ``testIEEE`` and
+                // skipped the ieeeFloatingPoint-gated suites.
+                const nbytes = spec_byte_width(spec);
+                const is32 = (nbytes == 4);
+                if (wi >= words.len) break;
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
+                const big_end = is_be(spec);
+                var k: u32 = 0;
+                while (k < cnt and off + nbytes <= buf_len) : (k += 1) {
+                    const fval: f64 = if (k < elem_count) blk: {
+                        const elem = obj_mod_x.list_element_at(arg_s.ptr, arg_s.len, @as(i64, k));
+                        if (elem.len == 0) break :blk 0;
+                        if (obj_mod_x.try_parse_float(arg_s.ptr + elem.start, elem.len)) |fv| break :blk fv;
+                        if (obj_mod_x.try_parse_int(arg_s.ptr + elem.start, elem.len)) |iv| break :blk @floatFromInt(iv);
+                        break :blk 0;
+                    } else 0;
+                    const bits: i64 = if (is32) blk: {
+                        const f32v: f32 = @floatCast(fval);
+                        break :blk @bitCast(@as(u64, @as(u32, @bitCast(f32v))));
+                    } else @bitCast(fval);
+                    if (big_end) write_be(buf, off, bits, nbytes) else write_le(buf, off, bits, nbytes);
                     off += nbytes;
                 }
                 wi += 1;
@@ -395,7 +429,62 @@ fn eval_binary_scan(words: []const i32) i32 {
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // IEEE-754 float decode — read the raw bytes and
+                // reinterpret as f32 (``f``/``r``/``R``) or f64
+                // (``d``/``q``/``Q``).  The integer path below would
+                // hand back the two's-complement view of the bits.
+                const nbytes = spec_byte_width(spec);
+                const cnt: u32 = count_or_null orelse
+                    if (nbytes > 0) (src_len -| off) / nbytes else 0;
+                const big_end = is_be(spec);
+                const is32 = (nbytes == 4);
+                const obj_mod_f = @import("../valtypes/tcl_obj.zig");
+                if (cnt == 1) {
+                    if (off + nbytes > src_len) break;
+                    const raw: u64 = @bitCast(if (big_end) read_be_unsigned(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
+                    off += nbytes;
+                    const fval: f64 = if (is32) @floatCast(@as(f32, @bitCast(@as(u32, @truncate(raw))))) else @bitCast(raw);
+                    if (words.len > 3 + vi) {
+                        _ = frames.var_set(words[3 + vi], obj_mod_f.obj_new_float(fval));
+                        vi += 1;
+                        assigned += 1;
+                    }
+                } else {
+                    var k: u32 = 0;
+                    // Build a space-separated list of the canonical
+                    // float reprs via obj_ensure_string(obj_new_float).
+                    var list_off: u32 = 0;
+                    // Worst case: each double repr ~25 chars + space.
+                    const list_buf_size: u32 = cnt * 28 + 8;
+                    const list_buf = alloc(list_buf_size);
+                    if (list_buf == 0) break;
+                    const list_dst: [*]u8 = @ptrFromInt(list_buf);
+                    while (k < cnt and off + nbytes <= src_len) : (k += 1) {
+                        const raw: u64 = @bitCast(if (big_end) read_be_unsigned(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
+                        off += nbytes;
+                        const fval: f64 = if (is32) @floatCast(@as(f32, @bitCast(@as(u32, @truncate(raw))))) else @bitCast(raw);
+                        if (k > 0) {
+                            list_dst[list_off] = ' ';
+                            list_off += 1;
+                        }
+                        const fo = obj_mod_f.obj_new_float(fval);
+                        const fs2 = obj_mod_f.obj_ensure_string(fo);
+                        const fp: [*]const u8 = @ptrFromInt(fs2.ptr);
+                        for (0..fs2.len) |j| list_dst[list_off + j] = fp[j];
+                        list_off += fs2.len;
+                        obj_mod_f.tcl_obj_release(fo);
+                    }
+                    if (words.len > 3 + vi) {
+                        _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
+                        vi += 1;
+                        assigned += 1;
+                    } else {
+                        obj_mod_f.free_sized(list_buf, list_buf_size);
+                    }
+                }
+            },
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M' => {
                 const nbytes = spec_byte_width(spec);
                 // ``*`` = read all remaining bytes / nbytes items.
                 const cnt: u32 = count_or_null orelse
