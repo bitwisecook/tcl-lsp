@@ -520,6 +520,14 @@ impl Backend {
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // The cross-document fallback should only fire when the cursor
+        // sits on a command head (a call site), matching what the
+        // in-document provider resolves.  Compute that here, while
+        // `analysis` is still in scope (it is moved into the worker
+        // below).  Without this gate, an argument word that happens to
+        // collide with a sibling proc/class name produces a
+        // false-positive go-to-definition jump.
+        let on_command_head = position_is_command_head(&doc.text, pos, &analysis);
         let text = doc.text.clone();
         let in_doc = tokio::task::spawn_blocking(move || {
             core_definition::definition(&text, pos.line, pos.character, &analysis)
@@ -539,6 +547,9 @@ impl Backend {
                     range: lift_lsp_range(r),
                 })
                 .collect());
+        }
+        if !on_command_head {
+            return Ok(Vec::new());
         }
         // Cross-document fallback: resolve a proc / class
         // defined in a sibling document via the workspace index.
@@ -776,21 +787,43 @@ impl Backend {
         qualified: &str,
     ) -> Vec<(Url, core_call_hierarchy::IncomingCall)> {
         let simple = qualified.rsplit("::").next().unwrap_or(qualified);
-        // Snapshot (uri, source) for every other open document.
-        let docs: Vec<(Url, String)> = {
+        // Collect (uri, source, dialect) for every document *other
+        // than* the current one: first the open buffers, then the
+        // indexed-but-unopened files the folder scan discovered
+        // (read from disk).  Without the latter, callers living in
+        // files the editor never opened would be missing from the
+        // incoming-call results even though they are indexed for
+        // every other cross-document feature.
+        let mut open_uris: HashSet<Url> = HashSet::new();
+        let mut docs: Vec<(Url, String, String)> = {
             let store = self.documents.lock().await;
             store
                 .iter()
                 .filter(|(u, _)| *u != current_uri)
-                .map(|(u, d)| (u.clone(), d.text.clone()))
+                .map(|(u, d)| {
+                    open_uris.insert(u.clone());
+                    (u.clone(), d.text.clone(), d.dialect.clone())
+                })
                 .collect()
         };
+        let indexed = self.workspace_index.lock().await.document_uris();
+        for uri_str in indexed {
+            let Ok(uri) = Url::parse(&uri_str) else {
+                continue;
+            };
+            if uri == *current_uri || open_uris.contains(&uri) {
+                continue;
+            }
+            if let Some(doc) = self.read_document(&uri).await {
+                docs.push((uri, doc.text, doc.dialect));
+            }
+        }
         let mut out = Vec::new();
-        for (doc_uri, source) in docs {
+        for (doc_uri, source, dialect) in docs {
             let analysis = self
                 .cached_analysis(&doc_uri)
                 .await
-                .unwrap_or_else(|| Analyser::new().analyse(&source, "tcl8.6").clone());
+                .unwrap_or_else(|| Analyser::new().analyse(&source, &dialect).clone());
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );
@@ -2495,6 +2528,41 @@ fn materialise_selection_range(
     wrapped.into_iter().next().flatten()
 }
 
+/// Byte offset of the `(line, col)` cursor in `source`, where `col`
+/// is a character index within the line (matching how
+/// [`core_hover::find_word_span_at_position`] interprets the LSP
+/// position).  `None` when the line is out of range.
+fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
+    let mut byte = 0usize;
+    for (i, line_text) in source.split_inclusive('\n').enumerate() {
+        if i == line as usize {
+            let col_bytes: usize = line_text
+                .chars()
+                .take(col as usize)
+                .map(char::len_utf8)
+                .sum();
+            return Some(byte + col_bytes);
+        }
+        byte += line_text.len();
+    }
+    None
+}
+
+/// Whether the cursor at `pos` sits on a command head (the first
+/// word of a command), per the analyser's recorded command
+/// invocations.  Used to gate the cross-document go-to-definition
+/// fallback so it only fires on call sites, not on argument words
+/// that happen to collide with a sibling proc/class name.
+fn position_is_command_head(source: &str, pos: Position, analysis: &AnalysisResult) -> bool {
+    let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character) else {
+        return false;
+    };
+    analysis.command_invocations.iter().any(|inv| {
+        let (start, end) = (inv.range.start() as usize, inv.range.end() as usize);
+        offset >= start && offset < end
+    })
+}
+
 fn lift_lsp_range(r: CoreLspRange) -> Range {
     Range {
         start: Position {
@@ -3537,6 +3605,31 @@ mod tests {
             backend.dialect_for_open(&doc, "plaintext").await,
             "f5-irules".to_owned(),
         );
+    }
+
+    #[test]
+    fn command_head_gate_distinguishes_head_from_argument() {
+        let src = "proc greet {x} {}\ngreet arg\n";
+        let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
+        // `greet` at line 1 is a command head (the call site).
+        assert!(position_is_command_head(
+            src,
+            Position {
+                line: 1,
+                character: 2
+            },
+            &analysis,
+        ));
+        // `arg` at line 1 is an argument word, not a command head, so
+        // the cross-document fallback must not fire on it.
+        assert!(!position_is_command_head(
+            src,
+            Position {
+                line: 1,
+                character: 7
+            },
+            &analysis,
+        ));
     }
 
     #[tokio::test]

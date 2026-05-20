@@ -222,6 +222,25 @@ impl WorkspaceIndex {
         &self.invocations
     }
 
+    /// The distinct set of document URIs the index currently holds
+    /// (across procs, classes, and invocation sites).  Lets the
+    /// server reach indexed-but-unopened files for cross-document
+    /// passes that need each document's source (e.g. incoming call
+    /// hierarchy).
+    #[must_use]
+    pub fn document_uris(&self) -> Vec<String> {
+        let mut uris: Vec<String> = self
+            .procs
+            .iter()
+            .map(|p| p.uri.clone())
+            .chain(self.classes.iter().map(|c| c.uri.clone()))
+            .chain(self.invocations.iter().map(|i| i.uri.clone()))
+            .collect();
+        uris.sort();
+        uris.dedup();
+        uris
+    }
+
     /// Invocation sites that target the proc identified by
     /// `simple_name` / `qualified_name`, excluding any in
     /// `exclude_uri` (the caller's own document, whose call
