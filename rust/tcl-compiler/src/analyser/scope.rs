@@ -131,6 +131,39 @@ impl Analyser {
         for (name, span) in reads {
             self.record_var_read(&name, span, scope_path);
         }
+
+        // `$var` reads also occur inside command substitutions
+        // (`[…]`) and braced `expr` / condition arguments, which the
+        // main body walk treats as opaque tokens.  Collect those
+        // here too so `VarDef.references` is complete for the
+        // references / document-highlight providers and the
+        // minifier's rename pass.  `record_var_read` no-ops on names
+        // that aren't in the current scope, so liberal collection is
+        // safe.
+        if let Some(registry) = self.registry.as_ref() {
+            let mut extra: Vec<(String, tcl_lexer::Span)> = Vec::new();
+            let cmd_name = cmd.texts.first().map_or("", String::as_str);
+            let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+            let expr_idx: std::collections::HashSet<usize> = registry
+                .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
+                .into_iter()
+                .collect();
+            // Top-level command-substitution tokens.
+            for tok in &cmd.all_tokens {
+                if tok.kind == tcl_lexer::TokenType::Cmd {
+                    collect_cmd_subst_reads(&self.source, *tok, registry, &mut extra);
+                }
+            }
+            // Braced expr arguments.
+            for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
+                if arg.kind == tcl_lexer::TokenType::Str && expr_idx.contains(&(i - 1)) {
+                    collect_expr_reads(&self.source, *arg, registry, &mut extra);
+                }
+            }
+            for (name, span) in extra {
+                self.record_var_read(&name, span, scope_path);
+            }
+        }
     }
 
     /// Compute the scope-resolved qualified name for a command
@@ -398,6 +431,147 @@ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>) 
         let mut child_path = path.to_vec();
         child_path.push(i);
         walk_scopes_helper(child, &child_path, out);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Substituted / expr `$var` read collection
+// ---------------------------------------------------------------------------
+
+/// Extract the base variable name from a `Var` token's source span
+/// (`$name` / `${name}` / `$arr(idx)` → `name`).
+fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
+    let (s, e) = (span.start() as usize, span.end() as usize);
+    if s > e || e > source.len() {
+        return None;
+    }
+    let text = &source[s..e];
+    let rest = text.strip_prefix('$')?;
+    let name = if let Some(inner) = rest.strip_prefix('{') {
+        inner.strip_suffix('}').unwrap_or(inner)
+    } else {
+        rest
+    };
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+/// Inner content text + base offset of a wrapper token (`[…]` /
+/// `{…}`): the delimiter is a single leading byte, the span
+/// excludes the closing delimiter.
+fn inner_of(source: &str, span: Span) -> Option<(&str, u32)> {
+    let (s, e) = (span.start() as usize, span.end() as usize);
+    if s + 1 > e || e > source.len() {
+        return None;
+    }
+    Some((&source[s + 1..e], span.start() + 1))
+}
+
+/// Collect `$var` reads inside a command-substitution token,
+/// recursing into nested substitutions, expr arguments, and
+/// same-scope (plain) body arguments.  Structural-body arguments
+/// (proc / namespace / oo) introduce a new scope and are skipped.
+fn collect_cmd_subst_reads(
+    source: &str,
+    cmd_tok: Token,
+    registry: &tcl_registry::CommandRegistry,
+    out: &mut Vec<(String, Span)>,
+) {
+    let Some((inner, base)) = inner_of(source, cmd_tok.span) else {
+        return;
+    };
+    for cmd in crate::segmenter::segment_commands_with_offset(inner, base) {
+        collect_script_command_reads(source, &cmd, registry, out);
+    }
+}
+
+/// Record reads for one command appearing inside a substitution:
+/// top-level `$var` tokens, plus recursion into nested
+/// substitutions / expr args / plain bodies.
+fn collect_script_command_reads(
+    source: &str,
+    cmd: &crate::segmenter::SegmentedCommand,
+    registry: &tcl_registry::CommandRegistry,
+    out: &mut Vec<(String, Span)>,
+) {
+    let head_span = cmd.argv.first().map(|t| t.span);
+    for tok in &cmd.all_tokens {
+        if tok.kind == tcl_lexer::TokenType::Var && Some(tok.span) != head_span {
+            if let Some(name) = var_name_from_span(source, tok.span) {
+                out.push((name.to_owned(), tok.span));
+            }
+        } else if tok.kind == tcl_lexer::TokenType::Cmd {
+            collect_cmd_subst_reads(source, *tok, registry, out);
+        }
+    }
+    let cmd_name = cmd.texts.first().map_or("", String::as_str);
+    let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+    let expr_idx: std::collections::HashSet<usize> = registry
+        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
+        .into_iter()
+        .collect();
+    let body_idx: std::collections::HashSet<usize> = registry
+        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Body)
+        .into_iter()
+        .collect();
+    let structural = registry
+        .get(cmd_name)
+        .is_some_and(|s| s.body_kind == tcl_registry::BodyKind::Structural);
+    for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
+        if arg.kind != tcl_lexer::TokenType::Str {
+            continue;
+        }
+        let pidx = i - 1;
+        if expr_idx.contains(&pidx) {
+            collect_expr_reads(source, *arg, registry, out);
+        } else if body_idx.contains(&pidx) && !structural {
+            // Plain body inside a substitution — same scope, and the
+            // main walk never reached it.
+            if let Some((inner, base)) = inner_of(source, arg.span) {
+                for sub in crate::segmenter::segment_commands_with_offset(inner, base) {
+                    collect_script_command_reads(source, &sub, registry, out);
+                }
+            }
+        }
+    }
+}
+
+/// Collect `$var` reads inside a braced `expr` argument: every
+/// `Var` token plus any command substitution nested in the
+/// expression.
+fn collect_expr_reads(
+    source: &str,
+    expr_tok: Token,
+    registry: &tcl_registry::CommandRegistry,
+    out: &mut Vec<(String, Span)>,
+) {
+    let Some((inner, base)) = inner_of(source, expr_tok.span) else {
+        return;
+    };
+    let Ok(tokens) = tcl_lexer::Lexer::new(inner).tokenise_all() else {
+        return;
+    };
+    for tok in tokens {
+        let abs = Span::new(tok.span.start() + base, tok.span.end() + base);
+        match tok.kind {
+            tcl_lexer::TokenType::Var => {
+                if let Some(name) = var_name_from_span(source, abs) {
+                    out.push((name.to_owned(), abs));
+                }
+            }
+            tcl_lexer::TokenType::Cmd => {
+                collect_cmd_subst_reads(
+                    source,
+                    Token::new(tcl_lexer::TokenType::Cmd, abs),
+                    registry,
+                    out,
+                );
+            }
+            _ => {}
+        }
     }
 }
 
