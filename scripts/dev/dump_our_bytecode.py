@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from compiler.cfg import build_cfg
-from compiler.codegen import codegen_module, format_module_asm
+from compiler.codegen.bytecode import codegen_module, format_module_asm
 from compiler.lowering import lower_to_ir
 
 
