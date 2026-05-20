@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tcl_compiler::analyser::Analyser;
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
@@ -546,8 +546,17 @@ impl Backend {
                 )
                 .collect()
         };
-        // Resolve each target's byte span to an LSP range using
-        // the *target* document's source.
+        Ok(self.resolve_target_locations(targets).await)
+    }
+
+    /// Resolve a list of `(target-uri, byte-span)` pairs to LSP
+    /// `Location`s, converting each span against the *target*
+    /// document's source.  Targets whose document isn't in the
+    /// store, or whose URI doesn't parse, are dropped.
+    async fn resolve_target_locations(
+        &self,
+        targets: Vec<(String, tcl_lexer::Span)>,
+    ) -> Vec<Location> {
         let mut locations = Vec::new();
         for (target_uri, span) in targets {
             let Ok(parsed) = Url::parse(&target_uri) else {
@@ -573,7 +582,89 @@ impl Backend {
                 },
             });
         }
-        Ok(locations)
+        locations
+    }
+
+    /// Resolve the proc / class symbol at `pos` (a bare command
+    /// word, not a `$var`) to its `(simple_name,
+    /// qualified_name)`, consulting the current document's
+    /// analysis first and the workspace index second.  Used by
+    /// cross-document references / rename to identify which
+    /// symbol's call sites to gather.
+    async fn resolve_workspace_symbol(
+        &self,
+        uri: &Url,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> Option<(String, String)> {
+        if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
+            return None;
+        }
+        let (word, _, _) = core_hover::find_word_span_at_position(source, pos.line, pos.character)?;
+        // Current document: proc, then class.
+        for (qname, proc_def) in &analysis.all_procs {
+            if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
+                return Some((proc_def.name.clone(), proc_def.qualified_name.clone()));
+            }
+        }
+        for class_def in analysis.all_classes.values() {
+            if class_def.name == word
+                || class_def.qualified_name == word
+                || class_def.qualified_name == format!("::{word}")
+            {
+                return Some((class_def.name.clone(), class_def.qualified_name.clone()));
+            }
+        }
+        // Otherwise the symbol may be defined in a sibling
+        // document — resolve its qualified name from the index.
+        let index = self.workspace_index.lock().await;
+        if let Some(p) = index.proc_definitions(&word, uri.as_str()).first() {
+            return Some((p.name.clone(), p.qualified_name.clone()));
+        }
+        if let Some(c) = index.class_definitions(&word, uri.as_str()).first() {
+            return Some((c.name.clone(), c.qualified_name.clone()));
+        }
+        None
+    }
+
+    /// Cross-document references for the proc / class at `pos`:
+    /// every invocation site in *other* documents, plus the
+    /// definition sites in other documents when
+    /// `include_declaration`.  Returns `Location`s resolved
+    /// against their defining documents.
+    async fn cross_document_references(
+        &self,
+        uri: &Url,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let Some((simple, qualified)) = self
+            .resolve_workspace_symbol(uri, source, analysis, pos)
+            .await
+        else {
+            return Vec::new();
+        };
+        let targets: Vec<(String, tcl_lexer::Span)> = {
+            let index = self.workspace_index.lock().await;
+            let mut t: Vec<(String, tcl_lexer::Span)> = index
+                .invocations_of(&simple, &qualified, uri.as_str())
+                .into_iter()
+                .map(|i| (i.uri.clone(), i.range))
+                .collect();
+            if include_declaration {
+                for p in index.proc_definitions(&simple, uri.as_str()) {
+                    t.push((p.uri.clone(), p.name_span));
+                }
+                for c in index.class_definitions(&simple, uri.as_str()) {
+                    t.push((c.uri.clone(), c.name_span));
+                }
+            }
+            t
+        };
+        self.resolve_target_locations(targets).await
     }
 
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
@@ -930,8 +1021,16 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let text = doc.text.clone();
+        let analysis_for_worker = analysis.clone();
         let ranges = tokio::task::spawn_blocking(move || {
-            core_references::references(&doc.text, pos.line, pos.character, &analysis, include_decl)
+            core_references::references(
+                &text,
+                pos.line,
+                pos.character,
+                &analysis_for_worker,
+                include_decl,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -939,16 +1038,24 @@ impl LanguageServer for Backend {
             message: format!("references worker panicked: {err}").into(),
             data: None,
         })?;
-        if ranges.is_empty() {
-            return Ok(None);
-        }
-        let locations = ranges
+        // Current-document hits.
+        let mut locations: Vec<Location> = ranges
             .into_iter()
             .map(|r| Location {
                 uri: uri.clone(),
                 range: lift_lsp_range(r),
             })
             .collect();
+        // Cross-document call sites (and, when requested,
+        // sibling-document definition sites).
+        let cross = self
+            .cross_document_references(&uri, &doc.text, &analysis, pos, include_decl)
+            .await;
+        locations.extend(cross);
+        dedup_locations(&mut locations);
+        if locations.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(locations))
     }
 
@@ -1922,6 +2029,23 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
     }
 }
 
+/// Deduplicate `Location`s by `(uri, range)`, preserving first-
+/// seen order.  Used to merge current-document and cross-
+/// document reference hits without double-listing a location.
+fn dedup_locations(locations: &mut Vec<Location>) {
+    let mut seen: std::collections::HashSet<(String, u32, u32, u32, u32)> =
+        std::collections::HashSet::new();
+    locations.retain(|loc| {
+        seen.insert((
+            loc.uri.to_string(),
+            loc.range.start.line,
+            loc.range.start.character,
+            loc.range.end.line,
+            loc.range.end.character,
+        ))
+    });
+}
+
 /// Lift the analyser's diagnostic records into the LSP wire
 /// shape.  Shared by both the push-based `publish_diagnostics`
 /// path (via `publish_analyser_diagnostics`) and the pull-
@@ -2243,6 +2367,9 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tower_lsp::lsp_types::{
+        PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
+    };
 
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
@@ -2664,5 +2791,69 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].uri, uri);
         assert_eq!(locs[0].range.start.line, 0);
+    }
+
+    /// Register a document in the store and the workspace index.
+    async fn register(backend: &Backend, uri: &Url, src: &str) {
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
+        );
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        backend
+            .workspace_index
+            .lock()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    #[tokio::test]
+    async fn cross_document_references_finds_sibling_call_sites() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib_src = "proc helper {} {}\nhelper\n";
+        register(&backend, &lib, lib_src).await;
+        register(&backend, &consumer, "helper\nhelper\n").await;
+        // From lib.tcl's `helper` declaration, cross-doc refs
+        // are the two calls in consumer.tcl.
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(lib_src, "tcl8.6").clone()
+        };
+        let cross = backend
+            .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 5), false)
+            .await;
+        assert_eq!(cross.len(), 2, "{cross:?}");
+        assert!(cross.iter().all(|l| l.uri == consumer));
+    }
+
+    #[tokio::test]
+    async fn references_handler_merges_local_and_cross_document() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        // lib.tcl: declaration + one local call.
+        register(&backend, &lib, "proc helper {} {}\nhelper\n").await;
+        // consumer.tcl: one cross-doc call.
+        register(&backend, &consumer, "helper\n").await;
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: lib.clone() },
+                position: Position::new(0, 5),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+        };
+        let result = backend.references(params).await.expect("ok").expect("some");
+        // Declaration (lib:0) + local call (lib:1) + cross-doc
+        // call (consumer:0) = 3 locations across 2 files.
+        assert_eq!(result.len(), 3, "{result:?}");
+        assert!(result.iter().any(|l| l.uri == consumer));
+        assert!(result.iter().filter(|l| l.uri == lib).count() == 2);
     }
 }
