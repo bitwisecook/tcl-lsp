@@ -919,7 +919,86 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "when RULE_INIT {\n  set static::myAppCacheV2 1\n}\n",
         dialect="f5-irules",
     ),
+    # iRule references a SNAT pool not in the config: zero-width range at
+    # the reference site.
+    "BIGIP6007": FiresCase(
+        "ltm rule /Common/r {\nwhen CLIENT_ACCEPTED { snatpool /Common/missing_snat }\n}\n",
+        "ltm snatpool /Common/missing_snat { members { /Common/1.1.1.1 } }\n"
+        "ltm rule /Common/r {\nwhen CLIENT_ACCEPTED { snatpool /Common/missing_snat }\n}\n",
+        bigip=True,
+    ),
 }
+
+
+@dataclass(frozen=True)
+class CrossFileCase:
+    """A cross-file iApp case: an APL presentation paired with an
+    implementation Tcl body.  Both validators run under the f5-iapps
+    dialect; ``code`` must fire on the (apl, impl) trigger pair and stay
+    silent on the (clean_apl, clean_impl) pair."""
+
+    apl: str
+    impl: str
+    clean_apl: str
+    clean_impl: str
+    # Which validator surfaces the code: "impl" → validate_iapp_implementation,
+    # "pres" → validate_iapp_presentation.
+    via: str
+
+
+# ── cross-file iApp checks (presentation + implementation) ────────────
+# These need two coordinated sources, so they have their own harness; their
+# ranges are placeholders (line-only / whole-field) pending narrowing.
+
+CROSSFILE: dict[str, CrossFileCase] = {
+    # IAPP7001: implementation references an APL field not defined in the
+    # presentation.
+    "IAPP7001": CrossFileCase(
+        apl="section basic {\n    string addr\n}\n",
+        impl="set addr $::basic__addr\nset port $::basic__port\n",
+        clean_apl="section basic {\n    string addr\n}\n",
+        clean_impl="set addr $::basic__addr\n",
+        via="impl",
+    ),
+    # IAPP7002: presentation field never referenced by the implementation.
+    "IAPP7002": CrossFileCase(
+        apl="section basic {\n    string addr\n    string port\n    string unused_field\n}\n",
+        impl="set addr $::basic__addr\nset port $::basic__port\n",
+        clean_apl="section basic {\n    string addr\n}\n",
+        clean_impl="set addr $::basic__addr\n",
+        via="pres",
+    ),
+}
+
+
+def _crossfile_matches(case: CrossFileCase, code: str, *, clean: bool) -> list[Any]:
+    from core.bigip.apl_model import parse_apl
+    from core.bigip.iapp_diagnostics import (
+        validate_iapp_implementation,
+        validate_iapp_presentation,
+    )
+    from core.bigip.iapp_vars import extract_iapp_var_refs
+
+    apl_src = case.clean_apl if clean else case.apl
+    impl_src = case.clean_impl if clean else case.impl
+    with dialect_scope("f5-iapps"):
+        model = parse_apl(apl_src)
+        refs = extract_iapp_var_refs(impl_src)
+        if case.via == "impl":
+            diags = validate_iapp_implementation(refs, model)
+        else:
+            diags = validate_iapp_presentation(model, refs)
+    return [d for d in diags if str(d.code) == code]
+
+
+@pytest.mark.parametrize("code", sorted(CROSSFILE))
+def test_crossfile_fires_and_is_clean(code):
+    case = CROSSFILE[code]
+    assert _crossfile_matches(case, code, clean=False), f"{code} did not fire on its trigger pair"
+    assert not _crossfile_matches(case, code, clean=True), (
+        f"{code} should not fire on its clean pair"
+    )
+
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
 # This list only shrinks: as a code graduates into FIXTURES/RANGE_FIXME it
@@ -927,12 +1006,9 @@ RANGE_FIXME: dict[str, FiresCase] = {
 
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
-        "BIGIP6007",
         "BIGIP6009",
         "BIGIP6010",
         "E200",
-        "IAPP7001",
-        "IAPP7002",
         "IRULE4003",
         "O101",
         "O106",
@@ -951,22 +1027,22 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
 
 
 def test_every_code_is_classified_exactly_once():
-    covered = set(FIXTURES) | set(RANGE_FIXME) | set(NOT_YET_COVERED)
+    covered = set(FIXTURES) | set(RANGE_FIXME) | set(CROSSFILE) | set(NOT_YET_COVERED)
     registered = set(all_codes())
 
     unclassified = registered - covered
     assert not unclassified, (
         f"{len(unclassified)} code(s) are not classified into FIXTURES, "
-        f"RANGE_FIXME, or NOT_YET_COVERED: {sorted(unclassified)}"
+        f"RANGE_FIXME, CROSSFILE, or NOT_YET_COVERED: {sorted(unclassified)}"
     )
     stale = covered - registered
     assert not stale, f"classified codes that no longer exist: {sorted(stale)}"
 
-    overlap = (
-        (set(FIXTURES) & set(RANGE_FIXME))
-        | (set(FIXTURES) & NOT_YET_COVERED)
-        | (set(RANGE_FIXME) & NOT_YET_COVERED)
-    )
+    buckets = [set(FIXTURES), set(RANGE_FIXME), set(CROSSFILE), NOT_YET_COVERED]
+    overlap: set[str] = set()
+    for i in range(len(buckets)):
+        for j in range(i + 1, len(buckets)):
+            overlap |= buckets[i] & buckets[j]
     assert not overlap, f"codes classified in more than one bucket: {sorted(overlap)}"
 
 
