@@ -15,6 +15,12 @@ from lsp.features.diagnostics import get_diagnostics
 from lsp.state import workspace_state
 
 
+def _fix_all(uri: str) -> dict:
+    result = commands.on_fix_all_safe_issues(uri)
+    assert result is not None
+    return result
+
+
 def _command_signature(source: str) -> list[tuple[str, int]]:
     return [(c.texts[0], len(c.texts)) for c in segment_commands(source) if c.texts]
 
@@ -46,7 +52,7 @@ class TestFixAllManyPositions:
         src = "".join(f'if {{$v{i} == "x{i}"}} {{set r{i} 1}}\n' for i in range(n))
         uri = "file:///w110_struct.tcl"
         workspace_state.open(uri, src)
-        out = commands.on_fix_all_safe_issues(uri)["source"]
+        out = _fix_all(uri)["source"]
         # Same commands, same arities — only the operator changed.
         assert _command_signature(out) == _command_signature(src)
 
@@ -55,7 +61,7 @@ class TestFixAllManyPositions:
         src = "".join(f'if {{$v{i} == "x{i}"}} {{set r{i} 1}}\n' for i in range(n))
         uri = "file:///w110_idem.tcl"
         workspace_state.open(uri, src)
-        once = commands.on_fix_all_safe_issues(uri)["source"]
+        once = _fix_all(uri)["source"]
 
         workspace_state.open(uri, once)
         again = commands.on_fix_all_safe_issues(uri)
@@ -69,7 +75,7 @@ class TestFixAllManyPositions:
         src = "".join(f'if {{${nm} == "{nm}"}} {{set ok 1}}\n' for nm in names)
         uri = "file:///w110_drift.tcl"
         workspace_state.open(uri, src)
-        out = commands.on_fix_all_safe_issues(uri)["source"]
+        out = _fix_all(uri)["source"]
         for nm in names:
             assert f'if {{${nm} eq "{nm}"}}' in out, f"corrupted fix for {nm!r}:\n{out}"
 

@@ -51,9 +51,11 @@ def _apply_lsp_edits(source: str, edits: Sequence[types.TextEdit]) -> str:
 
 
 def _apply_action(source: str, action: types.CodeAction) -> str:
-    assert action.edit is not None and action.edit.changes is not None
-    edits = action.edit.changes["__current__"]
-    return _apply_lsp_edits(source, edits)
+    edit = action.edit
+    assert edit is not None
+    changes = edit.changes
+    assert changes is not None
+    return _apply_lsp_edits(source, changes["__current__"])
 
 
 def _find_action(actions: list[types.CodeAction], needle: str) -> types.CodeAction:
@@ -296,6 +298,38 @@ class TestQuickFixesApplied:
         action = _find_action(actions, "string comparison")
         applied = _apply_action(source, action)
         assert applied == 'if {$x eq "foo"} {puts yes}\n'
+
+    def test_w115_converts_to_per_line_comments(self):
+        source = "# a long comment \\\nthat continues\n"
+        d = _diag("W115", "comment continuation", 0, 0, 0, 1)
+        actions = get_code_actions(source, d.range, _ctx([d]))
+        action = _find_action(actions, "per-line comments")
+        applied = _apply_action(source, action)
+        assert applied == "# a long comment\n# that continues\n"
+
+    def test_ipv4_converts_to_ipv6_mapped(self):
+        source = "set ip 10.0.0.1\n"
+        actions = get_code_actions(source, _rng(0, 7, 0, 7), _ctx())
+        action = _find_action(actions, "IPv6-mapped")
+        applied = _apply_action(source, action)
+        assert applied == "set ip ::ffff:10.0.0.1\n"
+
+    def test_t102_inserts_double_dash_before_tainted_var(self):
+        source = "HTTP::redirect $url\n"
+        d = _diag("T102", "Tainted variable $url", 0, 15, 0, 19)
+        actions = get_code_actions(source, d.range, _ctx([d]))
+        action = _find_action(actions, "Insert '--'")
+        applied = _apply_action(source, action)
+        assert applied == "HTTP::redirect -- $url\n"
+
+    def test_irule3001_wraps_and_inserts_helper(self):
+        source = "HTTP::respond 200 content $userdata\n"
+        d = _diag("IRULE3001", "Tainted variable $userdata", 0, 26, 0, 35)
+        actions = get_code_actions(source, d.range, _ctx([d]))
+        action = _find_action(actions, "[html_encode]")
+        applied = _apply_action(source, action)
+        assert "[html_encode $userdata]" in applied
+        assert "proc html_encode {str} {" in applied
 
     def test_w120_add_package_require(self):
         source = "json::write foo\n"
