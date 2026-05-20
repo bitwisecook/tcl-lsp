@@ -3771,36 +3771,61 @@ Nothing — the next session can pick up `S-diagnostics`
   discovered by re-segmenting method bodies (the analyser's
   `command_invocations` only records top-level invocations).
   Outgoing edges resolve both sibling methods and top-level
-  user procs.  4 new tests.  Deferred: `$obj method` call
-  sites outside the class body.
+  user procs.  4 new tests.
+* **`$obj method` resolution — definition + hover**
+  (`f7c7dd11`).  Analyser records a `var → class` map
+  (`instance_classes`) from `set v [Cls new]` / `Cls create v`
+  sites; definition / hover resolve `$obj method` /
+  `[$obj method]` call sites to the method declaration.
+  Self-contained syntactic scan (no SSA/type-pipeline
+  changes).  16 new tests.  See the dedicated section below.
 
-### `$obj method` resolution — analyser prerequisite (deferred)
+### `$obj method` resolution — keystone landed (2026-05-20)
 
-The remaining class-member follow-ups (definition / hover /
-rename / references / call-hierarchy at `$obj method` and
-`[$obj method]` call sites *outside* the class body) all gate
-on the same analyser feature: a populated object-class type
-map.  **Finding (2026-05-20):** the W308 emitter already has
-the consumer side — it builds `all_object_types: HashMap<var,
-HashSet<class>>` from the SSA `TypeLattice` (entries where
-`tcl_type == Object` carry a `class_name`).  But that map is
-**dormant** because nothing produces an `Object` lattice value
-with a class name: `type_infer::return_type_for_command`
-returns `TypeLattice::of(spec.return_type)` (always
-`class_name: None`), and `TypeLattice::object_of(class)` has
-no live caller.  `CLASS new` resolves to `registry.get("Dog")
-→ None → overdefined`, since user classes aren't in the
-registry.  **To unblock:** thread the analyser's
-`all_classes` set into the type-inference pass
-(`propagate_types` / `evaluate_type_def` /
-`return_type_for_command`) and special-case `<UserClass> new`
-/ `<UserClass> create` to produce
-`TypeLattice::object_of(class_qualified_name)`.  Then persist
-the var→class map onto `AnalysisResult` so the LSP providers
-can resolve `$obj method`.  This is a cross-cutting
-type-inference change (signature widening across the
-SSA/type pipeline), not a self-contained provider commit —
-hence deferred.
+The keystone class-member follow-up landed via `f7c7dd11`,
+implemented as a **syntactic instance-class scan** rather than
+the cross-cutting type-inference change the prior session
+sketched (threading `all_classes` through the SSA/type
+pipeline).  The syntactic approach is self-contained and
+lower-risk while delivering the same provider payoff.
+
+* **Analyser** — `AnalysisResult` grows
+  `instance_classes: HashMap<String, String>` (var-name →
+  class qualified-name).  `process_command` populates it via
+  `record_instance_creation`, pattern-matching
+  `set VAR [CLASS new …]`, `set VAR [CLASS create NAME …]`,
+  and `CLASS create VAR …` where `CLASS` is a user class in
+  `all_classes` (so `oo::class create Dog` is excluded — it
+  defines a class, not an instance).
+* **definition** + **hover** — when the cursor sits on the
+  method-name token of a `$obj method` / `[$obj method]` call
+  and `$obj`'s class is known, they jump to / summarise the
+  method declaration.  `definition::instance_method_at_cursor`
+  parses the command-segment head (single `$name` / `${name}`
+  token; method at word-index 1; segments delimited by `;` /
+  `[` / `{` / line start).
+
+  *Note:* this is the dormant W308 `all_object_types` machinery
+  bypassed — the W308 path remains type-lattice-based; the LSP
+  providers read the new syntactic map directly.  Promoting the
+  SSA-based path (so `CLASS new` produces
+  `TypeLattice::object_of`) is still available as a future
+  unification, but no longer blocks `$obj method` navigation.
+
+**Still deferred** (cross-instance / correctness-sensitive):
+
+* **rename / references for external `$obj method` sites** —
+  the intra-class method rename / references (cursor inside
+  the class body) already rewrite the declaration + intra-class
+  call sites.  Extending to *external* `$d method` sites needs
+  a document-wide cross-instance scan (enumerate every var of
+  the class, find every `$v method` / `[$v method]` site
+  including nested-bracket forms).  A partial rename corrupts
+  code, so this is held until the scan covers every call form.
+* **flow-sensitive / scope-aware tracking** —
+  `instance_classes` is global by var name (last assignment
+  wins); re-binding a name to a different class, or two locals
+  of the same name in different procs, isn't disambiguated.
 
 ### Landed this session — continuation (2026-05-19, second run)
 
@@ -3912,15 +3937,18 @@ hence deferred.
   - cross-document references / call-hierarchy / rename
   - workspace-wide proc enumeration in completion
   - cross-document code-lens reference counts
-* **`$obj method` resolution (the keystone)** — object-class
-  type inference, blocking definition / hover / rename /
-  references / call-hierarchy at `$obj method` call sites
-  outside the class body.  See the dedicated "`$obj method`
-  resolution — analyser prerequisite" section above for the
-  exact hook (`return_type_for_command` →
-  `TypeLattice::object_of`).
+* **rename / references for external `$obj method` sites** —
+  definition + hover landed (`f7c7dd11`), but rename /
+  references at external `$d method` call sites need a
+  document-wide cross-instance scan (enumerate every var of
+  the class, rewrite every `$v method` / `[$v method]` site).
+  A partial rename corrupts code, so this is held until the
+  scan covers every call form.  See the "`$obj method`
+  resolution — keystone landed" section above.
 * **Analyser side**: method-body scope kind, var
-  type/taint annotations on `$var` hovers.
+  type/taint annotations on `$var` hovers, flow-sensitive
+  instance-class tracking (the `instance_classes` map is
+  global by var name, last-assignment-wins).
 * **Registry**: `argument_values` field for things like
   `string is alnum/alpha/...` completion; built-in
   inlay-hint parameter names (currently needs synopsis
