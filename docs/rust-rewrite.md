@@ -3755,6 +3755,43 @@ Nothing — the next session can pick up `S-diagnostics`
   share `lift_analyser_diagnostics` so the two report shapes
   stay in lock-step.
 
+### Landed this session — continuation (2026-05-20, fourth run)
+
+The three remaining tractable items all landed.
+
+* **`S-inlay-hints-rich` built-in command parameter names**
+  (`304961c7`).  `inlay_hints` grows an
+  `Option<&CommandRegistry>` param; built-in call-site args
+  are labelled from the spec synopsis.  `param_names_from_synopsis`
+  + `synopsis_groups` extract positional names, dropping flag
+  tokens (`?-nocase?`, re-joined `?-length length?`) and
+  stopping at varargs.  Call-side flag-shaped args (`-x`) don't
+  consume a positional slot; the `cmd subcommand` shape uses
+  the subcommand synopsis.  9 new tests.
+* **`S-rename/references-rich` external `$obj method` sites**
+  (`39a85911`).  New shared scanner
+  `references::find_obj_method_call_sites` walks the top-level
+  command stream + every proc body + every method body and
+  recurses into command-sub (`[...]`) args, matching vars
+  against `analysis.instance_classes`.  references /
+  document_highlights / rename now cover external `$d method`
+  / `[$d method]` call sites (declaration + intra-class +
+  external); rename can trigger from an external site, making
+  method rename *complete* for the common forms (eliminating
+  the partial-rename corruption risk).  `prepare_rename` grows
+  the external case.  10 new tests.  Documented limit: method
+  names embedded in quoted / word tokens
+  (`"prefix[$d bark]"`) aren't descended.
+* **W120 missing-package-require** (`732ba57c`).  The analyser
+  emits W120 for a command whose spec carries a
+  `required_package` the file hasn't imported, attaching a
+  `package require <pkg>` insert fix; the existing code-action
+  `diag.fixes` lift surfaces `Add 'package require <pkg>'`.
+  Gated off for iRules / dynamic-providers / disabled-W120.
+  Coverage tracks the registry's `required_package` data
+  (today `tcl::idna`, grows as specs populate it).  10 new
+  tests.
+
 ### Landed this session — continuation (2026-05-20, third run)
 
 * **`analyser(oo)` constructor/destructor `name_span`** —
@@ -3812,16 +3849,19 @@ lower-risk while delivering the same provider payoff.
   `TypeLattice::object_of`) is still available as a future
   unification, but no longer blocks `$obj method` navigation.
 
-**Still deferred** (cross-instance / correctness-sensitive):
+**Follow-up landed (2026-05-20, fourth run):** rename /
+references / document-highlights for external `$obj method`
+sites landed via `39a85911` — the shared
+`references::find_obj_method_call_sites` scanner walks the
+top-level command stream + proc bodies + method bodies and
+recurses into command-subs, so method rename is now complete
+for the common call forms.
 
-* **rename / references for external `$obj method` sites** —
-  the intra-class method rename / references (cursor inside
-  the class body) already rewrite the declaration + intra-class
-  call sites.  Extending to *external* `$d method` sites needs
-  a document-wide cross-instance scan (enumerate every var of
-  the class, find every `$v method` / `[$v method]` site
-  including nested-bracket forms).  A partial rename corrupts
-  code, so this is held until the scan covers every call form.
+**Still deferred** (correctness-sensitive):
+
+* **`$obj method` sites in quoted / word tokens** — the scan
+  doesn't descend into string interpolation
+  (`"prefix[$d bark]"`); a rare residual form.
 * **flow-sensitive / scope-aware tracking** —
   `instance_classes` is global by var name (last assignment
   wins); re-binding a name to a different class, or two locals
@@ -3937,31 +3977,28 @@ lower-risk while delivering the same provider payoff.
   - cross-document references / call-hierarchy / rename
   - workspace-wide proc enumeration in completion
   - cross-document code-lens reference counts
-* **rename / references for external `$obj method` sites** —
-  definition + hover landed (`f7c7dd11`), but rename /
-  references at external `$d method` call sites need a
-  document-wide cross-instance scan (enumerate every var of
-  the class, rewrite every `$v method` / `[$v method]` site).
-  A partial rename corrupts code, so this is held until the
-  scan covers every call form.  See the "`$obj method`
-  resolution — keystone landed" section above.
 * **Analyser side**: method-body scope kind, var
   type/taint annotations on `$var` hovers, flow-sensitive
   instance-class tracking (the `instance_classes` map is
   global by var name, last-assignment-wins).
-* **Registry**: `argument_values` field for things like
-  `string is alnum/alpha/...` completion; built-in
-  inlay-hint parameter names (currently needs synopsis
-  parsing).
+* **Registry data**: populate `required_package` across the
+  tcllib / stdlib specs (only `tcl::idna` is set today) so
+  W120 and package-gated completion gain coverage; add an
+  `argument_values` field for things like
+  `string is alnum/alpha/...` completion.
 * **F-tcl-formatter**: brace-placement normalisation,
-  comment-block reflow.  True range-formatting landed
-  this session.
+  comment-block reflow.  True range-formatting landed.
 * **Semantic tokens**: full classification taxonomy
   (format-string components, BigIP URI segments, …) and
   true minimal edit-diff for `semanticTokens/full/delta`
   (currently returns either an empty edit list or a fresh
   full stream).
-* **W120 missing-package-require code action** — Python
-  has a `Add 'package require <pkg>'` quick-fix that fires
-  on W120 diagnostics.  Blocked on the analyser emitting
-  W120 (not yet ported from the Python side).
+* **Package-suggestion code action for unknown commands** —
+  distinct from the W120 exact-spec path that landed: a fuzzy
+  catalogue lookup that offers `package require` when an
+  *unresolved* command name matches a catalogued stdlib /
+  tcllib command.  Needs a stub-aware catalogue surface.
+* **`$obj method` rename in quoted/word tokens** — the
+  external-site scan descends command-subs + proc/method
+  bodies but not string interpolation
+  (`"prefix[$d bark]"`); a rare residual form.
