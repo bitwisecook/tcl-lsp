@@ -1688,8 +1688,18 @@ fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
                 }
                 if end < chars.len() && cursor <= end {
                     let name: String = chars[inner_start..end].iter().collect();
-                    if !name.is_empty() {
-                        return Some(name);
+                    // `${arr(idx)}` resolves to the base array variable
+                    // `arr` (matching the analyser's `normalise_var_name`,
+                    // which strips the index for the braced form too), so
+                    // a cursor anywhere inside the braces — including on
+                    // the index — finds the same symbol the unbraced
+                    // `$arr(idx)` path does.
+                    let base = match name.find('(') {
+                        Some(i) => &name[..i],
+                        None => name.as_str(),
+                    };
+                    if !base.is_empty() {
+                        return Some(base.to_owned());
                     }
                 }
             }

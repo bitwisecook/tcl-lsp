@@ -751,12 +751,17 @@ fn build_var_ref_replacement(source: &str, span: tcl_lexer::Span, new_tail: &str
     }
     let text = &source[start..end];
     if let Some(rest) = text.strip_prefix("${") {
+        // `${arr(idx)}` is recorded against base `arr` (the analyser's
+        // `normalise_var_name` strips the index for the braced form
+        // too), so preserve the index here as well: `${arr(idx)}` →
+        // `${<new>(idx)}` rather than clobbering it to `${<new>}`.
         let inner = rest.strip_suffix('}').unwrap_or(rest);
-        let ns_prefix = match inner.rfind("::") {
-            Some(idx) => &inner[..idx + 2],
+        let (name_part, suffix) = split_array_suffix(inner);
+        let ns_prefix = match name_part.rfind("::") {
+            Some(idx) => &name_part[..idx + 2],
             None => "",
         };
-        return format!("${{{ns_prefix}{new_tail}}}");
+        return format!("${{{ns_prefix}{new_tail}{suffix}}}");
     }
     if let Some(rest) = text.strip_prefix('$') {
         // Preserve an array-index suffix so renaming the base array
@@ -899,6 +904,22 @@ mod tests {
     }
 
     #[test]
+    fn rename_array_variable_preserves_index_in_braced_reference() {
+        // The `${arr(0)}` braced form is recorded against base `arr`,
+        // so renaming must rewrite it to `${data(0)}` (index kept).
+        let src = "set arr(0) 1\nputs ${arr(0)}\n";
+        let analysis = analyse(src);
+        // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
+        let edits = rename(src, 1, 7, "data", &analysis, None);
+        assert!(!edits.is_empty(), "expected braced array rename edits");
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            texts.iter().any(|t| *t == "${data(0)}"),
+            "braced reference edit must preserve the array index, got {texts:?}",
+        );
+    }
+
+    #[test]
     fn prepare_rename_returns_range_for_proc() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
@@ -970,6 +991,21 @@ mod tests {
         assert_eq!(
             build_var_ref_replacement(src, tcl_lexer::Span::new(21, 30), "b"),
             "$ns::b(k)"
+        );
+    }
+
+    #[test]
+    fn build_var_ref_replacement_preserves_array_index_in_braced_form() {
+        // `${arr(idx)}` is recorded against base `arr`, so renaming it
+        // must keep the index inside the braces: `${data(idx)}`.
+        let src = "${arr(idx)}  ${ns::a(k)}";
+        assert_eq!(
+            build_var_ref_replacement(src, tcl_lexer::Span::new(0, 11), "data"),
+            "${data(idx)}"
+        );
+        assert_eq!(
+            build_var_ref_replacement(src, tcl_lexer::Span::new(13, 23), "b"),
+            "${ns::b(k)}"
         );
     }
 
