@@ -1,8 +1,8 @@
-//! Tcl code minifier — Rust port of `core/minifier/minifier.py`
-//! (basic tier).
+//! Tcl code minifier — Rust port of `core/minifier/minifier.py`.
 //!
-//! Pure function: source in, minified source out, preserving
-//! semantic equivalence by:
+//! Pure function: source in, minified source out.  The **default
+//! tier** ([`minify_tcl`]) is complete and preserves semantic
+//! equivalence by:
 //!
 //! 1. Stripping all comments.
 //! 2. Collapsing inter-command whitespace to `;`.
@@ -11,16 +11,14 @@
 //!    command substitutions).
 //! 5. Preserving string literals verbatim, dropping redundant
 //!    double quotes when safe.
-//! 6. Compressing whitespace inside `expr` bodies.
+//! 6. Compressing whitespace inside `expr` bodies and applying
+//!    AST-level shrinking (comparison inversion, De Morgan,
+//!    double-negation) when it shortens the expression.
 //! 7. Replacing `${var}` with `$var` when safe.
 //! 8. Minifying `switch` braced case-list bodies individually.
-//!
-//! Deferred to later sub-strips (the opt-in tiers Python gates
-//! behind flags, plus two default-path optimisations): AST-level
-//! expression shrinking (De Morgan / comparison inversion),
-//! template/`subst` deduplication, ensemble-subcommand
-//! abbreviation, local-name compaction, namespace / string-literal
-//! aliasing, and the symbol map.
+//! 9. Deduplicating repeated dynamic templates (`[subst $alias]`).
+//! 10. Abbreviating ensemble subcommands for fixed-ensemble
+//!     dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
 //!
 //! Note: the expression tokeniser adds a catch-all so no character
 //! is dropped — the Python reference's `_EXPR_TOKEN` regex silently
@@ -28,10 +26,20 @@
 //! braces in `$x ni {a b}`), corrupting those expressions; this
 //! port preserves them.
 //!
-//! Like the `type_hierarchy` provider, this is a pure-CPU core
-//! provider that lands ahead of its LSP surface: the
-//! `workspace/executeCommand` wiring (mirroring
-//! `lsp/commands.py::on_minify_document`) is a follow-up.
+//! **Deferred — the `compact_names` and `aggressive` tiers** (local
+//! variable / proc / array-member renaming, namespace / string /
+//! argument aliasing, suffix-array static substitution, and the
+//! symbol map).  These are **blocked on an analyser enhancement**:
+//! the Rust analyser does not yet record `$var` references that
+//! occur inside `[…]` command substitutions or braced `expr` /
+//! condition bodies (`VarDef.references` is empty for them — the
+//! same gap the references / document-highlight providers note for
+//! expr bodies).  A faithful rename pass on top of that would
+//! rewrite a parameter's declaration without its body references
+//! and corrupt the script, so the renaming tiers must wait until
+//! the analyser tracks those reads.  The
+//! `workspace/executeCommand` LSP wiring (mirroring
+//! `lsp/commands.py::on_minify_document`) is a separate follow-up.
 
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
