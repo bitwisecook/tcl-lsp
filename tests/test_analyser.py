@@ -167,15 +167,17 @@ class TestDiagnostics:
         errors = [d for d in result.diagnostics if d.code == "E003"]
         assert len(errors) >= 1
 
-    def test_regsub_switches_not_counted_as_positional(self):
+    def test_switches_not_counted_as_positional(self):
         # Regression for #455: leading switches must be skipped before
-        # counting positional args, so option-laden regsub calls don't
-        # trip E003. Commands with a role hint previously lost their
-        # declared options during signature merging.
+        # counting positional args. Commands with a role hint previously
+        # lost their declared options during signature merging, so
+        # bounded-arity commands (regsub max 4, vwait max 1) tripped a
+        # false E003 once any switch was supplied.
         for snippet in (
             "regsub -all -line {\\n} $args {} str",
             "regsub -all {a} $b {} c",
             "regsub -nocase -all -- $pat $s {} out",
+            "vwait -variable x",
         ):
             result = analyse(snippet)
             errors = [d for d in result.diagnostics if d.code == "E003"]
