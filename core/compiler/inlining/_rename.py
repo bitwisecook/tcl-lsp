@@ -29,7 +29,6 @@ of the callee) passes through verbatim.
 
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 
 from ..expr_ast import (
@@ -58,11 +57,6 @@ from ..ir import (
     IRUpFrame,
     IRWhile,
 )
-
-# ``$name`` and ``${name}`` substitutions.  Same regex used by
-# the DCE read scanner — kept consistent so both passes agree on
-# what counts as a variable reference.
-_VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)")
 
 
 def rewrite_script(script: IRScript, rename: dict[str, str]) -> IRScript:
