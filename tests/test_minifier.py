@@ -595,10 +595,11 @@ class TestArrayMemberCompaction:
     def test_array_member_preserves_semantics(self):
         source = "set config(server_name) myhost\nputs $config(server_name)\n"
         result, smap = minify_tcl(source, compact_names=True)
-        if smap.array_members:
-            # The short name should appear in both set and reference.
-            short = list(smap.array_members.get("config", {}).values())[0]
-            assert f"config({short})" in result
+        # The array member must be compacted (not left to chance) and the
+        # short name must appear in both the set and the reference.
+        assert smap.array_members.get("config"), smap.array_members
+        short = list(smap.array_members["config"].values())[0]
+        assert f"config({short})" in result
 
     def test_array_member_in_string_not_compacted(self):
         # "foo(bar)" inside a string literal must NOT be treated as an array ref.
@@ -632,10 +633,11 @@ class TestCommandAliasing:
             "}\n"
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.command_aliases:
-            alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
-            assert alias  # Should have been aliased.
-            assert f"${alias}" in result.source
+        # HTTP::uri appears 3× so it must be aliased to a short command var,
+        # and that ``$alias`` must render in the output.
+        alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
+        assert alias, result.symbol_map.command_aliases
+        assert f"${alias}" in result.source
 
     def test_aliasing_not_applied_for_single_use(self):
         source = "HTTP::uri /test\n"
@@ -767,10 +769,12 @@ class TestStringLiteralAliasing:
             'puts "-normalized_long_flag"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.string_aliases:
-            alias = list(result.symbol_map.string_aliases.values())[0]
-            # Quote stripping may remove the quotes, leaving bare $alias.
-            assert f"${alias}" in result.source
+        # Three identical string literals must be aliased, and the alias
+        # reference must render as a valid ``$alias`` substitution.
+        assert result.symbol_map.string_aliases, result.source
+        alias = list(result.symbol_map.string_aliases.values())[0]
+        # Quote stripping may remove the quotes, leaving bare $alias.
+        assert f"${alias}" in result.source
 
     def test_no_collision_with_prior_alias_phases(self):
         source = (
@@ -885,15 +889,15 @@ class TestSubstTemplateAliasing:
             'log local0. "[clock format [clock seconds]] INFO: [HTTP::uri] $timing done"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        # Should parse correctly — no variable name collisions.
-        if "[subst " in result.source:
-            # The subst alias should not collide with command aliases.
-            cmd_aliases = set(result.symbol_map.command_aliases.values())
-            # Extract the subst alias name from [subst $X]
-            import re
+        # The repeated template must be subst-aliased, and that subst alias
+        # must not collide with any command alias from a prior phase.
+        assert "[subst " in result.source, result.source
+        cmd_aliases = set(result.symbol_map.command_aliases.values())
+        import re
 
-            subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
-            assert not cmd_aliases & subst_vars
+        subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
+        assert subst_vars
+        assert not cmd_aliases & subst_vars
 
     def test_short_dynamic_string_not_aliased(self):
         # Short strings: [subst $a] overhead exceeds savings.
@@ -1170,9 +1174,11 @@ class TestStaticSubstringFolding:
         """Static fold details appear in the symbol map."""
         source = 'set x hello\nputs "greeting: $x"\n'
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.static_folds:
-            for original, folded in result.symbol_map.static_folds.items():
-                assert "hello" in folded
+        # The ``greeting: $x`` template must be statically folded, and every
+        # recorded fold must carry the resolved ``hello`` value.
+        assert result.symbol_map.static_folds, result.source
+        for _original, folded in result.symbol_map.static_folds.items():
+            assert "hello" in folded
 
     def test_no_fold_when_var_not_in_ssa(self):
         """Variables not tracked by SSA (e.g. global) are not folded."""
