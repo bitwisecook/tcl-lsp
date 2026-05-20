@@ -1662,6 +1662,14 @@ fn truthy_strict(o: i32) ?bool {
     if (obj.try_parse_int(s.ptr, s.len)) |iv| return iv != 0;
     if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv != 0.0;
     if (obj.try_parse_bool(s.ptr, s.len)) |bv| return bv != 0;
+    // Integer literal beyond i64 (``! 10000000000000000000000000``,
+    // mathop-3.7 / 3.17) — a non-zero bignum is truthy.
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    if (bignum.parse_i128(s.ptr, s.len)) |iv| return iv != 0;
+    if (bignum.alloc_from_string(s.ptr, s.len)) |m| {
+        defer bignum.destroy(m);
+        return !m.eqlZero();
+    }
     return null;
 }
 

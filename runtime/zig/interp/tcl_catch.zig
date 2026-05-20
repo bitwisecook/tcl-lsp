@@ -838,7 +838,47 @@ fn detect_error_code(msg: i32) i32 {
             "ARITH IOVERFLOW {integer value too large to represent}";
         return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
     }
+    // ``::tcl::mathop`` / expr operand-domain errors carry an
+    // ``ARITH DOMAIN {<detail>}`` code where the detail echoes the
+    // operand classification embedded in the message (mathop-21.5 /
+    // 22.4 / 24.3 grep for the exact code).  ``cannot use
+    // non-numeric floating-point value`` must be tested before
+    // ``cannot use floating-point value`` — it is the longer,
+    // more-specific prefix.
+    if (starts_with(sp, s.len, "cannot use non-numeric floating-point value")) {
+        const code_text: []const u8 = "ARITH DOMAIN {non-numeric floating-point value}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (starts_with(sp, s.len, "cannot use non-numeric string")) {
+        const code_text: []const u8 = "ARITH DOMAIN {non-numeric string}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (starts_with(sp, s.len, "cannot use floating-point value")) {
+        const code_text: []const u8 = "ARITH DOMAIN {floating-point value}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "exponentiation of zero by negative power")) {
+        const code_text: []const u8 =
+            "ARITH DOMAIN {exponentiation of zero by negative power}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "unmatched open brace in list")) {
+        const code_text: []const u8 = "TCL VALUE LIST BRACE";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
     return 0;
+}
+
+// When set, the next :func:`tcl_cmd_error` stamps ``::errorCode`` as
+// the default ``NONE`` and skips :func:`detect_error_code`.  Used by
+// the shift operators, whose ``integer value too large to represent``
+// surface carries NO ``ARITH`` code (mathop-24.5) — unlike the
+// string-to-integer conversion path (get.test) which DOES want
+// ``ARITH IOVERFLOW`` for the identical message.
+var force_error_code_none: bool = false;
+
+pub fn force_next_error_code_none() void {
+    force_error_code_none = true;
 }
 
 fn starts_with(sp: [*]const u8, slen: u32, prefix: []const u8) bool {
@@ -887,7 +927,10 @@ pub export fn tcl_cmd_error(msg: i32) void {
     // overflow, …).  ``stamp_error_globals`` retains it via
     // ``global_set`` so it's safe to release here once the stamp
     // completes; without this every typed error leaked one TclObj.
-    const code = detect_error_code(msg);
+    const code = if (force_error_code_none) blk: {
+        force_error_code_none = false;
+        break :blk @as(i32, 0);
+    } else detect_error_code(msg);
     stamp_error_globals(msg, 0, code);
     if (code != 0) obj.tcl_obj_release(code);
     if (state.catch_depth > 0) {

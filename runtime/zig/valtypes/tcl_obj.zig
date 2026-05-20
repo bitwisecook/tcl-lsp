@@ -833,6 +833,14 @@ pub export fn obj_get_float(obj: i32) f64 {
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
         if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        // Integer literal beyond i128 (e.g. ``8.4e40``-magnitude
+        // operands in ``** $big -1.0``) — convert through the full
+        // bignum so the float exponent path sees the true magnitude
+        // instead of collapsing to 0.0.
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     // S6.2 — inline string parses the inline payload through the
     // obj-internal pointer in OBJ_STR_PTR.
@@ -842,6 +850,10 @@ pub export fn obj_get_float(obj: i32) f64 {
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
         if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     return 0.0;
 }

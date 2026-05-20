@@ -459,6 +459,32 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
         }
         return obj.obj_new_float(std.math.pow(f64, af, bf));
     }
+    // Bignum exponent — ``obj_get_int(b)`` truncates a bignum to its
+    // low 64 bits, so the negative / parity / overflow corner cases
+    // have to be decided from the full-magnitude value first.  A base
+    // of magnitude >= 2 with an exponent that doesn't fit i64 can
+    // never be materialised, so it is "exponent too large"; the
+    // degenerate bases 0 / 1 / -1 collapse regardless of how big the
+    // exponent is.
+    if (is_bignum(b)) {
+        const b_neg = bignum_is_negative(b);
+        if (!is_bignum(a)) {
+            const ai = obj.obj_get_int(a);
+            if (ai == 0) {
+                if (b_neg) {
+                    stubs.raise("exponentiation of zero by negative power");
+                    return obj.obj_new_int(0);
+                }
+                return obj.obj_new_int(0);
+            }
+            if (ai == 1) return obj.obj_new_int(1);
+            if (ai == -1) return obj.obj_new_int(if (bignum_is_odd(b)) -1 else 1);
+        }
+        // |base| >= 2 (bignum base, or i64 base outside {-1,0,1}).
+        if (b_neg) return obj.obj_new_int(0);
+        stubs.raise("exponent too large");
+        return obj.obj_new_int(0);
+    }
     // Integer base / integer exponent.  We need the exponent as an
     // i64 to detect the negative-exponent corner cases; even a
     // bignum exponent that fits a u32 maxes out at ~4 billion which
@@ -1644,7 +1670,10 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         if (bignum_is_negative(b)) {
             stubs.raise("negative shift argument");
         } else {
-            stubs.raise("integer value too large to represent");
+            // Shift overflow keeps the default ``NONE`` errorCode
+            // (mathop-24.5) — distinct from the conversion-path
+            // ``ARITH IOVERFLOW`` for the same message (get.test).
+            stubs.raise_none("integer value too large to represent");
         }
         return obj.obj_new_int(0);
     }
@@ -1654,7 +1683,7 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         return obj.obj_new_int(0);
     }
     if (bi > std.math.maxInt(i32)) {
-        stubs.raise("integer value too large to represent");
+        stubs.raise_none("integer value too large to represent");
         return obj.obj_new_int(0);
     }
     // Bignum operand or wide shift count → Managed (arbitrary-precision)
@@ -1742,6 +1771,18 @@ fn bignum_is_negative(o: i32) bool {
     const ap = promote_to_bignum(o) orelse return false;
     defer release_promoted(ap);
     return !ap.m.isPositive() and !ap.m.eqlZero();
+}
+
+/// True iff the operand reads as an odd integer.  Parity is a
+/// property of the magnitude, so the least-significant limb's low
+/// bit answers it regardless of sign.  Used by ``tcl_arith_pow`` to
+/// resolve ``(-1) ** bignum`` (``-1`` for odd exponents, ``1`` for
+/// even) without materialising the unrepresentable result.
+fn bignum_is_odd(o: i32) bool {
+    const ap = promote_to_bignum(o) orelse return false;
+    defer release_promoted(ap);
+    if (ap.m.limbs.len == 0) return false;
+    return (ap.m.limbs[0] & 1) == 1;
 }
 
 /// Right-shift collapse for shift counts beyond what ``mp_div_2d``
