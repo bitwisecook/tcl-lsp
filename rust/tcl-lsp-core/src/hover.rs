@@ -21,11 +21,15 @@
 //!   `_*_hover` helper in `lsp/features/hover.py` from line ~558
 //!   onwards.
 //! * IP-address hover (`_ip_address_hover`).
-//! * Inferred-intrep / taint annotations on `$var` hovers
-//!   (`_infer_var_type` / `_infer_var_taint`).
 //! * Subcommand / operator / event registry lookups.
 //! * Method-body context lookups (Python's `scope.kind == "method"`
 //!   path).
+//!
+//! Inferred-intrep / taint annotations on `$var` hovers
+//! (`_infer_var_type` / `_infer_var_taint`) have landed: when a
+//! registry is supplied the provider builds a compiler
+//! [`tcl_compiler::compilation_unit::CompilationUnit`] and reads
+//! the per-variable type / taint lattices off it.
 //!
 //! Cache + debounce + `spawn_blocking` + `Ok(None)`-on-no-cached-
 //! analysis (the SYNC11 contract documented in
@@ -34,6 +38,9 @@
 //! computation, no I/O, no async.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, Scope, VarDef};
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_compiler::taint::{TaintColour, TaintLattice};
+use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
 use tcl_registry::CommandRegistry;
 
 /// LSP markup-content kind for a hover body.
@@ -115,7 +122,19 @@ pub fn hover(
     // the same name.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         if let Some(var_def) = lookup_var_in_scope_chain(&analysis.global_scope, line, &var_name) {
-            return Some(Hover::markdown(var_hover_text(var_def)));
+            // Inferred-intrep / taint annotations need the compiler
+            // pipeline (`CompilationUnit`), which requires a
+            // registry; without one we surface just the reference
+            // count.
+            let (type_info, taint_info) = match registry {
+                Some(reg) => infer_var_type_and_taint(source, reg, &var_name),
+                None => (None, None),
+            };
+            return Some(Hover::markdown(var_hover_text(
+                var_def,
+                type_info.as_deref(),
+                taint_info.as_deref(),
+            )));
         }
     }
 
@@ -1940,12 +1959,169 @@ fn class_hover_text(class_def: &ClassDef) -> String {
     parts.join("\n\n")
 }
 
-fn var_hover_text(var_def: &VarDef) -> String {
+fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<&str>) -> String {
+    use std::fmt::Write as _;
     let ref_count = var_def.references.len();
-    format!(
+    let mut text = format!(
         "**Variable** `{}`\n\n{} reference(s)",
         var_def.name, ref_count
+    );
+    if let Some(t) = type_info {
+        let _ = write!(text, "\n\n**Inferred intrep**: {t}");
+    }
+    if let Some(t) = taint_info {
+        let _ = write!(text, "\n\n**Taint**: {t}");
+    }
+    text
+}
+
+/// Lower-case label for a Tcl intrep type, matching Python's
+/// `TclType.name.lower()` (e.g. `ByteArray` → `bytearray`).
+fn tcl_type_label(t: TclType) -> String {
+    format!("{t:?}").to_lowercase()
+}
+
+/// Build the compiler [`CompilationUnit`] and extract the
+/// inferred-intrep and taint annotations for `var_name`.  Mirrors
+/// Python's `_infer_var_type` / `_infer_var_taint`.  Returns
+/// `(type_label, taint_label)`; either may be `None`.
+fn infer_var_type_and_taint(
+    source: &str,
+    registry: &CommandRegistry,
+    var_name: &str,
+) -> (Option<String>, Option<String>) {
+    let unit = CompilationUnit::build_for(source, registry, false);
+    (
+        infer_var_type(&unit, var_name),
+        infer_var_taint(&unit, var_name),
     )
+}
+
+/// The top-level function unit followed by every procedure unit
+/// in deterministic (name-sorted) order, so the per-variable
+/// inference picks a stable first match regardless of the
+/// procedure map's hashing order.
+fn function_units_in_order(unit: &CompilationUnit) -> Vec<&FunctionUnit> {
+    let mut out: Vec<&FunctionUnit> = Vec::with_capacity(unit.procedures.len() + 1);
+    out.push(&unit.top_level);
+    let mut procs: Vec<&FunctionUnit> = unit.procedures.values().collect();
+    procs.sort_by(|a, b| a.name.cmp(&b.name));
+    out.extend(procs);
+    out
+}
+
+/// Infer a dominant intrep type for `var_name`, mirroring
+/// `_infer_var_type`: returns the first function (top-level, then
+/// procs in name order) that has type entries for the variable
+/// and resolves them to a single label.
+fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
+    for func in function_units_in_order(unit) {
+        let entries: Vec<&TypeLattice> = func
+            .types
+            .iter()
+            .filter(|((name, _ver), _)| name == var_name)
+            .map(|(_, t)| t)
+            .collect();
+        if entries.is_empty() {
+            continue;
+        }
+        // Every version agrees on the same KNOWN type.
+        let known: Vec<&TypeLattice> = entries
+            .iter()
+            .copied()
+            .filter(|t| t.kind == TypeKind::Known && t.tcl_type.is_some())
+            .collect();
+        if !known.is_empty()
+            && known.iter().all(|t| t.tcl_type == known[0].tcl_type)
+            && known.len() == entries.len()
+        {
+            return Some(tcl_type_label(known[0].tcl_type.unwrap()));
+        }
+        // Every version agrees on the same SHIMMERED pair.
+        let shimmered: Vec<&TypeLattice> = entries
+            .iter()
+            .copied()
+            .filter(|t| {
+                t.kind == TypeKind::Shimmered && t.from_type.is_some() && t.tcl_type.is_some()
+            })
+            .collect();
+        if !shimmered.is_empty() && shimmered.len() == entries.len() {
+            let s = shimmered[0];
+            if shimmered.iter().all(|t| *t == s) {
+                return Some(format!(
+                    "shimmered ({} / {})",
+                    tcl_type_label(s.from_type.unwrap()),
+                    tcl_type_label(s.tcl_type.unwrap()),
+                ));
+            }
+        }
+        // Mixed, but a dominant KNOWN type exists.  Pick the
+        // smallest by `Ord` so the choice is deterministic.
+        if let Some(t) = known
+            .iter()
+            .filter_map(|t| t.tcl_type)
+            .min()
+            .map(tcl_type_label)
+        {
+            return Some(t);
+        }
+    }
+    None
+}
+
+/// Human-readable mitigation-colour labels present in `taint`,
+/// in display-priority order.  Mirrors Python's
+/// `_taint_colour_labels`.
+fn taint_colour_labels(taint: TaintLattice) -> Vec<&'static str> {
+    let flag_labels: [(TaintColour, &str); 13] = [
+        (TaintColour::PATH_PREFIXED, "path-prefixed"),
+        (TaintColour::NON_DASH_PREFIXED, "non-dash-prefixed"),
+        (TaintColour::CRLF_FREE, "CRLF-free"),
+        (TaintColour::SHELL_ATOM, "shell-atom"),
+        (TaintColour::LIST_CANONICAL, "list-canonical"),
+        (TaintColour::REGEX_LITERAL, "regex-literal"),
+        (TaintColour::PATH_NORMALISED, "path-normalised"),
+        (TaintColour::HEADER_TOKEN_SAFE, "header-token-safe"),
+        (TaintColour::HTML_ESCAPED, "HTML-escaped"),
+        (TaintColour::URL_ENCODED, "URL-encoded"),
+        (TaintColour::IP_ADDRESS, "IP-address"),
+        (TaintColour::PORT, "port"),
+        (TaintColour::FQDN, "FQDN"),
+    ];
+    flag_labels
+        .into_iter()
+        .filter(|(flag, _)| taint.colours.contains(*flag))
+        .map(|(_, label)| label)
+        .collect()
+}
+
+/// Infer taint for `var_name`, mirroring `_infer_var_taint`:
+/// returns the first function with taint entries for the
+/// variable, joining the tainted versions to the most
+/// conservative colour set.
+fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
+    for func in function_units_in_order(unit) {
+        let entries: Vec<&TaintLattice> = func
+            .taints
+            .iter()
+            .filter(|((name, _ver), _)| name == var_name)
+            .map(|(_, t)| t)
+            .collect();
+        if entries.is_empty() {
+            continue;
+        }
+        let tainted: Vec<&TaintLattice> =
+            entries.iter().copied().filter(|t| t.is_tainted()).collect();
+        if let Some((first, rest)) = tainted.split_first() {
+            let combined = rest.iter().fold(**first, |acc, t| acc.join(**t));
+            let labels = taint_colour_labels(combined);
+            if labels.is_empty() {
+                return Some("tainted (from I/O)".to_owned());
+            }
+            return Some(format!("tainted (from I/O); {}", labels.join(", ")));
+        }
+    }
+    None
 }
 
 /// Hover text for a class member at the cursor's byte
@@ -2144,6 +2320,19 @@ mod tests {
     }
 
     #[test]
+    fn hover_on_var_surfaces_inferred_intrep() {
+        // `x` is assigned an integer literal; the compiler's
+        // type-propagation pass should infer `int`, and the hover
+        // (given a registry) should surface it.
+        let src = "set x 1\nset y $x\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 7, &analysis, Some(&registry)).expect("hover");
+        assert!(h.value.contains("**Variable** `x`"), "{}", h.value);
+        assert!(h.value.contains("**Inferred intrep**: int"), "{}", h.value);
+    }
+
+    #[test]
     fn hover_returns_none_for_out_of_range_line() {
         let src = "proc foo {} {}\n";
         let analysis = analyse(src);
@@ -2191,9 +2380,22 @@ mod tests {
             .variables
             .get("x")
             .expect("x recorded");
-        let text = var_hover_text(var_def);
+        let text = var_hover_text(var_def, None, None);
         assert!(text.contains("**Variable** `x`"), "{}", text);
         assert!(text.contains("reference"), "{}", text);
+    }
+
+    #[test]
+    fn var_hover_text_appends_intrep_and_taint() {
+        let var_def = VarDef {
+            name: "x".to_owned(),
+            definition_span: tcl_lexer::Span::new(0, 1),
+            references: Vec::new(),
+            warn_if_unused: false,
+        };
+        let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
+        assert!(text.contains("**Inferred intrep**: int"), "{text}");
+        assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
     }
 
     // -- S-hover-rich: clock format hover ----------------------------
