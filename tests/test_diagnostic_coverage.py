@@ -440,6 +440,45 @@ FIXTURES: dict[str, Case] = {
         "when HTTP_REQUEST {\n  HTTP::uri /foo\n}\n",
         dialect="f5-irules",
     ),
+    "IRULE1001": Case(
+        "when CLIENT_ACCEPTED {\n  HTTP::uri\n}\n",
+        "HTTP::uri",
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1007": Case(
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n}\n",
+        "TCP::collect",
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n  TCP::release\n}\n",
+        dialect="f5-irules",
+    ),
+    "W002": Case(
+        "when HTTP_REQUEST {\n  exec ls\n}\n",
+        "exec",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "W104": Case(
+        'set l ""\nappend l " $x"\n',
+        '" $x"',
+        "set l {}\nlappend l $x\n",
+    ),
+    "W106": Case(
+        'switch $x "a" "puts 1"\n',
+        "puts 1",
+        "switch -- $x a {puts 1}\n",
+        contains=True,
+    ),
+    "W216": Case(
+        "set ${arr}(x) 1\n",
+        "${arr}(x)",
+        "set arr(x) 1\n",
+    ),
+    "W304": Case(
+        "switch $x a b\n",
+        "$x",
+        "switch -- $x a b\n",
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -465,6 +504,16 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "when CLIENT_ACCEPTED {\n  drop\n  return\n}\n",
         dialect="f5-irules",
     ),
+    # `DNS::return` without `return`: range points at the event block's
+    # closing brace rather than the DNS::return command.
+    "IRULE5004": FiresCase(
+        "when DNS_REQUEST {\n  DNS::return\n}\n",
+        "when DNS_REQUEST {\n  DNS::return\n  return\n}\n",
+        dialect="f5-irules",
+    ),
+    # Unused proc parameter: range spans the whole proc rather than the
+    # offending parameter token.
+    "W214": FiresCase("proc f {a b} {return $a}\n", "proc f {a} {return $a}\n"),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -494,9 +543,7 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IAPP7001",
         "IAPP7002",
         "IAPP7003",
-        "IRULE1001",
         "IRULE1003",
-        "IRULE1007",
         "IRULE1008",
         "IRULE1202",
         "IRULE2002",
@@ -507,7 +554,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "IRULE4004",
         "IRULE4005",
         "IRULE5003",
-        "IRULE5004",
         "O101",
         "O103",
         "O105",
@@ -532,11 +578,8 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "TK1001",
         "TK1002",
         "TK1003",
-        "W002",
         "W003",
         "W004",
-        "W104",
-        "W106",
         "W108",
         "W111",
         "W116",
@@ -550,10 +593,7 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W133",
         "W134",
         "W200",
-        "W214",
         "W215",
-        "W216",
-        "W304",
         "W306",
         "W310",
         "W311",
