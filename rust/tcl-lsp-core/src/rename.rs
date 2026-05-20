@@ -665,6 +665,71 @@ fn invocation_replacement(
     }
 }
 
+/// A rename edit targeting a specific document, expressed as a
+/// byte span (the caller resolves it to an LSP range against
+/// that document's source).  Used for cross-document rename,
+/// where the core provider can't see sibling documents'
+/// sources.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceTextEdit {
+    /// Document the edit applies to.
+    pub uri: String,
+    /// Byte span in `uri`'s source to replace.
+    pub span: tcl_lexer::Span,
+    /// Replacement text.
+    pub new_text: String,
+}
+
+/// Compute the cross-document rename edits for a proc / class
+/// identified by `(simple_name, qualified_name)` renamed to
+/// `new_name`.  Walks the workspace index for every invocation
+/// site (and definition site) in documents *other than*
+/// `current_uri`, applying the same namespace-aware
+/// replacement shape the in-document proc rename uses.
+///
+/// The caller (server) is responsible for the current document
+/// — this returns only the sibling-document edits — and for
+/// resolving each [`WorkspaceTextEdit`] span to an LSP range
+/// against the target document's source.
+#[must_use]
+pub fn cross_document_symbol_edits(
+    simple_name: &str,
+    qualified_name: &str,
+    new_name: &str,
+    index: &crate::workspace_index::WorkspaceIndex,
+    current_uri: &str,
+) -> Vec<WorkspaceTextEdit> {
+    let namespace_prefix = namespace_prefix_of(qualified_name);
+    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    let mut edits = Vec::new();
+    // Call sites.
+    for inv in index.invocations_of(simple_name, qualified_name, current_uri) {
+        let replacement =
+            invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
+        edits.push(WorkspaceTextEdit {
+            uri: inv.uri.clone(),
+            span: inv.range,
+            new_text: replacement,
+        });
+    }
+    // Definition sites (proc + class) in other documents.
+    for p in index.proc_definitions(simple_name, current_uri) {
+        edits.push(WorkspaceTextEdit {
+            uri: p.uri.clone(),
+            span: p.name_span,
+            new_text: new_decl_text.clone(),
+        });
+    }
+    for c in index.class_definitions(simple_name, current_uri) {
+        edits.push(WorkspaceTextEdit {
+            uri: c.uri.clone(),
+            span: c.name_span,
+            new_text: new_decl_text.clone(),
+        });
+    }
+    edits
+}
+
 /// Build a replacement string for a variable reference span.
 ///
 /// The reference span covers the full Var token (`$x`,

@@ -667,6 +667,67 @@ impl Backend {
         self.resolve_target_locations(targets).await
     }
 
+    /// Add cross-document rename edits for the proc / class at
+    /// `pos` into `changes`.  Resolves the symbol, asks the core
+    /// rename provider for the namespace-aware sibling-document
+    /// edit intents (call sites + definition sites), converts
+    /// each byte span to a range against its target document,
+    /// and merges into the per-URI edit map (deduped).
+    async fn add_cross_document_rename_edits(
+        &self,
+        uri: &Url,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+        changes: &mut std::collections::HashMap<Url, Vec<TextEdit>>,
+    ) {
+        let Some((simple, qualified)) = self
+            .resolve_workspace_symbol(uri, source, analysis, pos)
+            .await
+        else {
+            return;
+        };
+        let intents = {
+            let index = self.workspace_index.lock().await;
+            core_rename::cross_document_symbol_edits(
+                &simple,
+                &qualified,
+                new_name,
+                &index,
+                uri.as_str(),
+            )
+        };
+        for intent in intents {
+            let Ok(parsed) = Url::parse(&intent.uri) else {
+                continue;
+            };
+            let Some(target_doc) = self.read_document(&parsed).await else {
+                continue;
+            };
+            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let start = line_index.position_at(intent.span.start());
+            let end = line_index.position_at(intent.span.end());
+            let edit = TextEdit {
+                range: Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character,
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character,
+                    },
+                },
+                new_text: intent.new_text,
+            };
+            let bucket = changes.entry(parsed).or_default();
+            if !bucket.iter().any(|e| e.range == edit.range) {
+                bucket.push(edit);
+            }
+        }
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
@@ -1841,14 +1902,18 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let text = doc.text.clone();
+        let analysis_for_worker = analysis.clone();
+        let new_name_worker = new_name.clone();
+        let registry_worker = Arc::clone(&registry);
         let edits = tokio::task::spawn_blocking(move || {
             core_rename::rename(
-                &doc.text,
+                &text,
                 pos.line,
                 pos.character,
-                &new_name,
-                &analysis,
-                Some(&registry),
+                &new_name_worker,
+                &analysis_for_worker,
+                Some(&registry_worker),
             )
         })
         .await
@@ -1857,18 +1922,39 @@ impl LanguageServer for Backend {
             message: format!("rename worker panicked: {err}").into(),
             data: None,
         })?;
-        if edits.is_empty() {
+        let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        if !edits.is_empty() {
+            let lifted: Vec<TextEdit> = edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect();
+            changes.insert(uri.clone(), lifted);
+        }
+        // Cross-document rename: rewrite the symbol's call /
+        // definition sites in sibling documents.  Gated on the
+        // same safety checks as the in-document path
+        // (`is_safe_symbol_name`, no built-in shadow) so a
+        // cross-doc rename can't produce an unsafe edit set.
+        if core_rename::is_safe_symbol_name(&new_name)
+            && !core_rename::is_builtin_command_name(&new_name, &registry)
+        {
+            self.add_cross_document_rename_edits(
+                &uri,
+                &doc.text,
+                &analysis,
+                pos,
+                &new_name,
+                &mut changes,
+            )
+            .await;
+        }
+        if changes.is_empty() {
             return Ok(None);
         }
-        let lifted: Vec<TextEdit> = edits
-            .into_iter()
-            .map(|e| TextEdit {
-                range: lift_lsp_range(e.range),
-                new_text: e.new_text,
-            })
-            .collect();
-        let mut changes = std::collections::HashMap::new();
-        changes.insert(uri, lifted);
         Ok(Some(WorkspaceEdit {
             changes: Some(changes),
             document_changes: None,
@@ -2858,5 +2944,55 @@ mod tests {
         assert_eq!(result.len(), 3, "{result:?}");
         assert!(result.iter().any(|l| l.uri == consumer));
         assert!(result.iter().filter(|l| l.uri == lib).count() == 2);
+    }
+
+    #[tokio::test]
+    async fn rename_edits_span_multiple_documents() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\nhelper\n").await;
+        register(&backend, &consumer, "helper\nhelper\n").await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: lib.clone() },
+                position: Position::new(0, 5),
+            },
+            new_name: "do_it".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let changes = edit.changes.expect("changes");
+        // Both documents get edits.
+        assert!(changes.contains_key(&lib), "lib edits missing: {changes:?}");
+        assert!(
+            changes.contains_key(&consumer),
+            "consumer edits missing: {changes:?}",
+        );
+        // consumer.tcl: two call sites rewritten to `do_it`.
+        let consumer_edits = &changes[&consumer];
+        assert_eq!(consumer_edits.len(), 2, "{consumer_edits:?}");
+        assert!(consumer_edits.iter().all(|e| e.new_text == "do_it"));
+    }
+
+    #[tokio::test]
+    async fn rename_to_builtin_blocked_cross_document() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\n").await;
+        register(&backend, &consumer, "helper\n").await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: lib.clone() },
+                position: Position::new(0, 5),
+            },
+            // `if` is a built-in command — renaming to it must be
+            // refused (no edits in any document).
+            new_name: "if".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let result = backend.rename(params).await.expect("ok");
+        assert!(result.is_none(), "rename to a built-in should be refused");
     }
 }
