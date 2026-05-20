@@ -1439,7 +1439,11 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "fpclassify")) return arith.tcl_math_fpclassify(args[0]);
     }
     if (args.len == 2) {
-        if (std.mem.eql(u8, name, "pow")) return arith.tcl_arith_pow(args[0], args[1]);
+        // ``pow()`` the math function ALWAYS returns a double (libm
+        // semantics) — distinct from the ``**`` operator's integer /
+        // bignum path.  Using ``tcl_arith_pow`` here built a huge
+        // bignum for ``pow(3, 1000001)`` that hung formatting.
+        if (std.mem.eql(u8, name, "pow")) return arith.tcl_math_pow(args[0], args[1]);
         if (std.mem.eql(u8, name, "isunordered")) return arith.tcl_math_isunordered(args[0], args[1]);
         if (std.mem.eql(u8, name, "atan2")) return arith.tcl_math_atan2(args[0], args[1]);
         if (std.mem.eql(u8, name, "fmod")) return arith.tcl_math_fmod(args[0], args[1]);

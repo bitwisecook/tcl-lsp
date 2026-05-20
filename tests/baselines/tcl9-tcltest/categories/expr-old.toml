@@ -3,30 +3,18 @@
 # bucket definitions.  Unlisted IDs default to ``must_pass`` —
 # anything new from upstream fails closed.
 #
-# Snapshot: 431/461 passing; 27 skipped (constraint-gated tcl::test
-# extensions); 3 categorised below.  Was 429/461 before the bignum-
-# canonicalisation pass that landed ``expr-old-32.53`` and
-# ``expr-old-36.16``.
+# Snapshot: 435/461 passing; 24 skipped (constraint-gated tcl::test
+# extensions); 2 categorised below.
 #
-# The bundle currently exceeds the 45s harness watchdog before the
-# tcltest summary line emerges — the bignum-overflow probes in 32.x
-# and the high-precision pow / sqrt tests in 34.x each spin in a
-# Zig-side computation loop that doesn't yield to the wasmtime
-# epoch interrupt.  Tracked as ``trap_allowed`` so the timeout
-# is recorded without blocking the sweep; the real fix is yielding
-# inside the bignum / sqrt iteration so the watchdog can fire.
-trap_allowed = true
+# The bundle used to exceed the 45s harness watchdog before reaching
+# the tcltest summary — ``pow(3, 1000001)`` / ``pow(-3, 1000001)``
+# routed through the integer ``tcl_arith_pow`` and built ~477,000-digit
+# bignums that hung formatting.  ``pow()`` the math function now
+# returns a double (overflows to ±Inf), so the bundle completes and
+# 34.10 / 34.11b / 34.12b pass.  ``trap_allowed`` is therefore gone —
+# a future timeout would correctly fail the gate.
 
-# Real semantic feature gaps tracked but non-gating.
-good_to_have = [
-  "34.10",        # expr-old-34.10: pow(-3, 1000001) should coerce
-                  #   both args to double per ExprPowFunc and return
-                  #   -Inf.  Our tcl_arith_pow keeps the integer
-                  #   path and returns a 100k-digit bignum.  Real
-                  #   semantic gap (pow() math function is float-
-                  #   typed in Tcl 9, distinct from the ** operator)
-                  #   — fixable separately.
-]
+good_to_have = []
 
 # Non-semantic divergences from C Tcl.  The tests run, they fail,
 # but the difference doesn't change observable behaviour for
@@ -49,6 +37,6 @@ skip = []
 
 [baseline]
 # Snapshot at triage time.  good_to_have_failing must not grow.
-good_to_have_failing = 1
+good_to_have_failing = 0
 just_to_match_ctcl_failing = 2
 skip_failing = 0
