@@ -618,6 +618,16 @@ FIXTURES: dict[str, Case] = {
         "set x 1\n",
         contains=True,
     ),
+    "O113": Case(
+        "if {$x % 16} {}\n",
+        "{$x % 16}",
+        "if {$x % 7} {}\n",
+    ),
+    "O115": Case(
+        "while {[expr {$x > 0}]} { incr x -1 }\n",
+        "{[expr {$x > 0}]}",
+        "while {$x > 0} { incr x -1 }\n",
+    ),
     "BIGIP6008": Case(
         "ltm pool /Common/p { }\n"
         "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
@@ -756,6 +766,12 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "proc f {} { gets notachannel line }\n",
         "proc f {fd} { gets $fd line }\n",
     ),
+    # Single-use variable inlining: range spans the multi-line set statement
+    # rather than the variable reference being forwarded.
+    "O127": FiresCase(
+        "proc f {a} { set x $a\n puts $x }\n",
+        "proc f {} { set x 42\n puts $x }\n",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -789,12 +805,9 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "O101",
         "O106",
         "O108",
-        "O113",
-        "O115",
         "O121",
         "O123",
         "O125",
-        "O127",
         "T102",
         "T103",
         "T106",
