@@ -37,10 +37,16 @@
 //! scope.  Static array-member keys (`arr(member)`) are compacted
 //! too, skipping arrays whose members look user-input-derived.
 //!
-//! **Still deferred:** the `aggressive` tier (namespace / string /
-//! argument aliasing + suffix-array static substitution +
-//! `MinifyResult`); and the `workspace/executeCommand` LSP wiring
-//! (mirroring `lsp/commands.py::on_minify_document`).
+//! The **`aggressive` tier** ([`minify_tcl_aggressive`]) applies the
+//! compiler's optimiser rewrites, then compacts names, then minifies
+//! whitespace, returning a [`MinifyResult`] with the optimisation
+//! count and size savings.
+//!
+//! **Still deferred** within the aggressive tier: static-substring
+//! folding (SCCP-based, Python's phase 1.5) and the command /
+//! argument / string-literal aliasing phases (2.5–2.7).  Also
+//! pending: the `workspace/executeCommand` LSP wiring (mirroring
+//! `lsp/commands.py::on_minify_document`).
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -101,10 +107,88 @@ impl SymbolMap {
     }
 }
 
+/// Full result from aggressive minification.  Mirrors Python's
+/// `MinifyResult`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MinifyResult {
+    /// The minified source.
+    pub source: String,
+    /// Compaction symbol map.
+    pub symbol_map: SymbolMap,
+    /// Number of optimiser rewrites applied.
+    pub optimisations_applied: usize,
+    /// Length of the original source (bytes).
+    pub original_length: usize,
+}
+
+impl MinifyResult {
+    /// Length of the minified source.
+    #[must_use]
+    pub fn minified_length(&self) -> usize {
+        self.source.len()
+    }
+
+    /// Percentage size reduction versus the original.
+    #[must_use]
+    pub fn savings_pct(&self) -> f64 {
+        if self.original_length == 0 {
+            return 0.0;
+        }
+        let min = f64::from(u32::try_from(self.source.len()).unwrap_or(u32::MAX));
+        let orig = f64::from(u32::try_from(self.original_length).unwrap_or(u32::MAX));
+        (1.0 - min / orig) * 100.0
+    }
+}
+
 /// Minify a Tcl source string for the given dialect (default tier).
 #[must_use]
 pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
     minify_body(source, dialect, registry)
+}
+
+/// Aggressive minification: apply the compiler's optimiser
+/// rewrites, then compact names, then minify whitespace.  Returns
+/// a [`MinifyResult`].  Mirrors `minify_tcl(..., aggressive=True)`.
+///
+/// Deferred relative to the Python pipeline: static-substring
+/// folding (SCCP-based, phase 1.5) and the command / argument /
+/// string-literal aliasing phases (2.5–2.7).
+#[must_use]
+pub fn minify_tcl_aggressive(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> MinifyResult {
+    let original_length = source.len();
+
+    // Phase 1: apply the optimiser's semantic-preserving rewrites.
+    let optimisations =
+        tcl_compiler::optimiser::optimise_with_dialect(source, registry, Some(dialect));
+    let opt_count = optimisations.iter().filter(|o| !o.hint_only).count();
+    let opt_edits: Vec<Edit> = optimisations
+        .iter()
+        .filter(|o| !o.hint_only)
+        .map(|o| {
+            (
+                o.span.start() as usize,
+                (o.span.end() - o.span.start()) as usize,
+                o.replacement.clone(),
+            )
+        })
+        .collect();
+    let optimised = apply_edits(source, opt_edits);
+
+    // Phase 2: compact names.  Phase 3: minify whitespace.
+    let (renamed, symbol_map) = compact_names(&optimised, dialect, isolated, registry);
+    let minified = minify_body(&renamed, dialect, registry);
+
+    MinifyResult {
+        source: minified,
+        symbol_map,
+        optimisations_applied: opt_count,
+        original_length,
+    }
 }
 
 /// Minify with local-name compaction: rename proc-local variables,
@@ -1684,6 +1768,18 @@ mod tests {
             &registry,
         );
         assert_eq!(out, "set a 1;puts $a");
+    }
+
+    #[test]
+    fn aggressive_runs_optimise_compact_minify() {
+        let registry = CommandRegistry::build_default();
+        let src = "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n";
+        let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
+        // With no applicable optimisations this equals the compact tier.
+        assert_eq!(res.source, "proc a {b} {set a \"hi $b\";return $a}");
+        assert_eq!(res.original_length, src.len());
+        assert_eq!(res.minified_length(), res.source.len());
+        assert!(res.savings_pct() > 0.0);
     }
 
     #[test]
