@@ -52,10 +52,13 @@ def _assert_kind(node: ast.Assert) -> str:
         # None`` / ``x == None`` is a complete negative assertion (strong).
         if isinstance(op, (ast.IsNot, ast.NotEq)) and none_cmp:
             return "existence"
+        # ``len(x) > 0`` or ``len(x) >= 1`` is existence ("at least one");
+        # ``> 1`` / ``>= 2`` are real cardinality checks (strong).
+        is_nonempty = (isinstance(op, ast.Gt) and getattr(comp, "value", None) == 0) or (
+            isinstance(op, ast.GtE) and getattr(comp, "value", None) == 1
+        )
         if (
-            isinstance(op, (ast.Gt, ast.GtE))
-            and isinstance(comp, ast.Constant)
-            and comp.value in (0, 1)
+            is_nonempty
             and isinstance(test.left, ast.Call)
             and isinstance(test.left.func, ast.Name)
             and test.left.func.id == "len"
@@ -101,9 +104,8 @@ BASELINE: dict[str, int] = {
     "test_def_use.py": 2,
     "test_diagnostic_phases.py": 3,
     "test_event_registry.py": 3,
-    "test_formatter.py": 1,
     "test_incremental_update.py": 3,
-    "test_inlay_hints.py": 2,
+    "test_inlay_hints.py": 1,
     "test_irule_test_framework.py": 1,
     "test_irules_checks.py": 2,
     "test_licm.py": 11,
@@ -115,7 +117,7 @@ BASELINE: dict[str, int] = {
     "test_recovery.py": 1,
     "test_refactoring.py": 3,
     "test_rendered_properties.py": 1,
-    "test_semantic_graph.py": 2,
+    "test_semantic_graph.py": 1,
     "test_semantic_tokens.py": 9,
     "test_semantic_tokens_delta.py": 2,
     "test_shimmer.py": 2,
