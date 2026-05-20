@@ -18,9 +18,33 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from ..parsing.command_segmenter import SegmentedCommand
+from ..parsing.command_segmenter import SegmentedCommand, segment_commands
 from . import DataGroupDefinition, DataGroupExtractionResult, RefactoringEdit
-from ._spans import command_replacement_range, find_command_at, walk_all_commands
+from ._spans import command_replacement_range, find_command_at, token_end_offset, walk_all_commands
+
+
+def _parse_set_or_return(text: str) -> tuple[str, str, str] | None:
+    """Parse a single-command arm body via the tokeniser.
+
+    Returns ``("set", var, raw_value)`` for ``set var value``,
+    ``("return", "", raw_value)`` for ``return value``, else ``None``.  The
+    value keeps its original source span (quotes/braces intact).
+    """
+    commands = segment_commands(text)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    cmd = commands[0]
+
+    def raw(index: int) -> str:
+        tok = cmd.argv[index]
+        return text[tok.start.offset : token_end_offset(text, tok)]
+
+    if cmd.texts[0] == "set" and len(cmd.texts) == 3:
+        return ("set", cmd.texts[1], raw(2))
+    if cmd.texts[0] == "return" and len(cmd.texts) == 2:
+        return ("return", "", raw(1))
+    return None
+
 
 # ── Value-type inference ──────────────────────────────────────────────
 
@@ -703,9 +727,6 @@ def _analyse_switch(source: str, cmd: SegmentedCommand) -> dict | None:
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
-_SET_VAL_RE = re.compile(r"^\s*set\s+(\S+)\s+(.+?)\s*$", re.DOTALL)
-_RETURN_VAL_RE = re.compile(r"^\s*return\s+(.+?)\s*$", re.DOTALL)
-
 
 def _try_or_chain(condition: str) -> tuple[str, list[str]] | None:
     """Detect ``$var eq "a" || $var eq "b" || ...`` chains."""
@@ -759,9 +780,9 @@ def _classify_body_shape(bodies: list[str]) -> str:
         if text.startswith("{") and text.endswith("}"):
             text = text[1:-1].strip()
 
-        m = _SET_VAL_RE.match(text)
-        if m:
-            var = m.group(1)
+        parsed = _parse_set_or_return(text)
+        if parsed is not None and parsed[0] == "set":
+            var = parsed[1]
             if target_var is None:
                 target_var = var
                 use_return = False
@@ -769,8 +790,7 @@ def _classify_body_shape(bodies: list[str]) -> str:
                 return "complex"
             continue
 
-        m = _RETURN_VAL_RE.match(text)
-        if m:
+        if parsed is not None and parsed[0] == "return":
             if use_return is None:
                 use_return = True
             elif not use_return:
@@ -799,10 +819,9 @@ def _extract_set_or_return_values(
         if text.startswith("{") and text.endswith("}"):
             text = text[1:-1].strip()
 
-        m = _SET_VAL_RE.match(text)
-        if m:
-            var = m.group(1)
-            val = m.group(2).strip()
+        parsed = _parse_set_or_return(text)
+        if parsed is not None and parsed[0] == "set":
+            var, val = parsed[1], parsed[2]
             if target_var is None:
                 target_var = var
                 use_return = False
@@ -811,9 +830,8 @@ def _extract_set_or_return_values(
             values.append(val)
             continue
 
-        m = _RETURN_VAL_RE.match(text)
-        if m:
-            val = m.group(1).strip()
+        if parsed is not None and parsed[0] == "return":
+            val = parsed[2]
             if use_return is None:
                 use_return = True
                 target_var = "__return__"
@@ -835,13 +853,13 @@ def _extract_single_value(body: str, use_return: bool, target_var: str) -> str |
     if text.startswith("{") and text.endswith("}"):
         text = text[1:-1].strip()
 
+    parsed = _parse_set_or_return(text)
+    if parsed is None:
+        return None
     if use_return:
-        m = _RETURN_VAL_RE.match(text)
-        return m.group(1).strip() if m else None
-
-    m = _SET_VAL_RE.match(text)
-    if m and m.group(1) == target_var:
-        return m.group(2).strip()
+        return parsed[2] if parsed[0] == "return" else None
+    if parsed[0] == "set" and parsed[1] == target_var:
+        return parsed[2]
     return None
 
 
