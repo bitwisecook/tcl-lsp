@@ -945,7 +945,7 @@ class _WasmEmitterBase:
         ``_emit_block``'s implicit-return tail path which invokes
         ``_emit_call_stmt_tail`` directly without going through
         ``_emit_stmt``.  Every IR statement carries a ``range`` (see
-        core/compiler/ir.py); IRCall additionally carries ``command``
+        compiler/ir.py); IRCall additionally carries ``command``
         and ``args``.
         """
         rng = getattr(stmt, "range", None)

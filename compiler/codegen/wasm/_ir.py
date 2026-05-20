@@ -170,7 +170,7 @@ class WasmFunction:
     """Compiled WASM function.
 
     ``source_range`` records the proc's original source range (from
-    :class:`~core.compiler.ir.IRProcedure`) so the explorer can place
+    :class:`~compiler.ir.IRProcedure`) so the explorer can place
     the cursor inside the proc body when the user clicks on a call
     target that resolves to this function.  ``kind`` distinguishes the
     synthetic ``::top`` wrapper from real Tcl procs and methods.

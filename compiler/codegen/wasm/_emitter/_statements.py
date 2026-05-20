@@ -99,7 +99,7 @@ def _static_parse_error_message(
 
     The lowering pass already detects malformed ``if`` shapes and emits an
     ``IRBarrier`` whose ``reason`` describes the static problem (see
-    ``_lower_if`` in ``core/compiler/lowering.py``).  The Python VM and C
+    ``_lower_if`` in ``compiler/lowering.py``).  The Python VM and C
     Tcl both raise specific ``wrong # args …`` messages for these shapes
     *before* evaluating any branch; the WASM backend used to send the
     script back through ``tcl_eval``, where the runtime parser silently

@@ -127,7 +127,7 @@ class _StatementsMixin:
         # originating Tcl span — consumed by the compiler explorer for
         # click-to-source and per-source-line group comments.
         # Invariant: every IR statement carries a ``range`` field
-        # (see core/compiler/ir.py), so the ``hasattr`` guard is
+        # (see compiler/ir.py), so the ``hasattr`` guard is
         # defensive — when it ever slips we'd rather inherit the
         # previous statement's range than crash the emitter.
         # ``_emit_term`` / ``_emit_proc_return`` and the CFG block

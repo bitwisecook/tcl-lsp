@@ -620,7 +620,7 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
     # ``::tcl::Bgerror`` — singleton command at ``::tcl`` level, not
     # inside a sub-namespace.  (``::tcl::build-info`` is registered
     # separately by ``runtime/zig/cmds/inspect.zig`` /
-    # ``core/.../tcl_build_info.py``; we don't duplicate it here.)
+    # ``compiler/`` build-info; we don't duplicate it here.)
     tcl_ns = ensure_namespace(interp.root_namespace, "::tcl")
     tcl_ns.register_command("Bgerror", _bgerror_default)
 

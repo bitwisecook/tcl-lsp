@@ -92,7 +92,7 @@ class TclInterp:
     """The main Tcl interpreter.
 
     Owns the global call frame, command registry, and procedure table.
-    Compiles Tcl source to bytecode via the ``core/`` compiler suite
+    Compiles Tcl source to bytecode via the ``compiler/`` suite
     and executes it on the ``BytecodeVM`` stack machine.
     """
 

@@ -1,6 +1,6 @@
 """Compilation pipeline wrapper: source -> ModuleAsm.
 
-Orchestrates the full compiler suite from ``core/`` to produce
+Orchestrates the full compiler suite from ``compiler/`` to produce
 bytecode that the VM can execute.
 """
 
