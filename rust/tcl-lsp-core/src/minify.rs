@@ -52,16 +52,30 @@
 //! `tcl-lsp.minifyDocument` and `tcl-lsp.unminifyError`
 //! `workspace/executeCommand` handlers are wired in the server.
 //!
-//! **Still deferred** within the aggressive tier: SCCP static-
-//! substring folding (Python's phase 1.5).  `unminify_error`'s
-//! source-correlated line remapping (`_remap_line_references`) is
-//! also a follow-up.
+//! SCCP static-substring folding (Python's phase 1.5,
+//! [`fold_static_substrings`]) replaces `$var` interpolations inside
+//! quoted strings with the literal the compiler's SCCP pass proves
+//! them to be (integer / string constants), taint-guarded.
+//! `unminify_error` also remaps minified line references back to
+//! original lines ([`remap_line_references`]) when both sources are
+//! supplied.
+//!
+//! **Still deferred** within static-substring folding: compile-time
+//! evaluation of pure command substitutions (`[string …]` /
+//! `[format …]` / `[expr …]`), boolean / float constants, and the
+//! follow-up dead-`set` elimination (leaving the now-unused `set` is
+//! harmless, just larger).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyses::{ConstValue, LatticeValue};
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
+use tcl_compiler::ir::Statement;
+use tcl_compiler::ssa::Version;
+use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
 use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
@@ -90,6 +104,9 @@ pub struct SymbolMap {
     pub argument_aliases: BTreeMap<String, String>,
     /// `{original_literal: alias_var}` (aggressive tier).
     pub string_aliases: BTreeMap<String, String>,
+    /// `{original_dynamic_string: folded_static_value}` (aggressive
+    /// tier, SCCP static-substring folding).
+    pub static_folds: BTreeMap<String, String>,
 }
 
 impl SymbolMap {
@@ -137,6 +154,12 @@ impl SymbolMap {
             entries.sort_by(|a, b| a.1.cmp(b.1));
             for (original, alias) in entries {
                 lines.push(format!("  ${alias} <- {original:?}"));
+            }
+        }
+        if !self.static_folds.is_empty() {
+            lines.push("# Static substring folds (SCCP)".to_owned());
+            for (original, folded) in &self.static_folds {
+                lines.push(format!("  {folded:?} <- {original:?}"));
             }
         }
         lines.join("\n")
@@ -485,8 +508,12 @@ pub fn minify_tcl_aggressive(
         .collect();
     let optimised = apply_edits(source, opt_edits);
 
+    // Phase 1.5: static-substring folding (SCCP-proven constants).
+    let (folded, fold_count, static_folds) = fold_static_substrings(&optimised, dialect, registry);
+
     // Phase 2: compact names.
-    let (renamed, mut symbol_map) = compact_names(&optimised, dialect, isolated, registry);
+    let (renamed, mut symbol_map) = compact_names(&folded, dialect, isolated, registry);
+    symbol_map.static_folds = static_folds;
 
     // Phases 2.5–2.7: aliasing.  Seed claimed names with every
     // compacted short so aliases never shadow a local variable.
@@ -504,7 +531,7 @@ pub fn minify_tcl_aggressive(
     MinifyResult {
         source: minified,
         symbol_map,
-        optimisations_applied: opt_count,
+        optimisations_applied: opt_count + fold_count,
         original_length,
     }
 }
@@ -1666,12 +1693,371 @@ fn braces_balanced(s: &[u8]) -> bool {
     balance == 0
 }
 
+/// Whether braces in `s` are properly nested (depth never negative,
+/// ends at zero).  Mirrors `_braces_balanced`.
+fn braces_nested(s: &str) -> bool {
+    let mut depth: i64 = 0;
+    for c in s.bytes() {
+        match c {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
 /// First index ≥ `from` where `needle` occurs in `haystack`.
 fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     if needle.is_empty() || from + needle.len() > haystack.len() {
         return None;
     }
     (from..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
+}
+
+// ---------------------------------------------------------------------------
+// Static-substring folding (aggressive phase 1.5)
+// ---------------------------------------------------------------------------
+
+/// Taint colours that prove a fixed-form value, so folding stays
+/// safe even when the underlying value is tainted.
+fn safe_taint_colours() -> TaintColour {
+    TaintColour::IP_ADDRESS
+        | TaintColour::PORT
+        | TaintColour::FQDN
+        | TaintColour::LIST_CANONICAL
+        | TaintColour::REGEX_LITERAL
+}
+
+/// Replace dynamic quoted strings with their static values where the
+/// compiler's SCCP pass proves every `$var` substitution is a
+/// compile-time constant and no unsanitised tainted value is
+/// involved.  A safe subset of Python's `fold_static_substrings`:
+/// folds `$var` interpolations resolving to integer / string
+/// constants; bails on command substitutions (`[…]`) and on
+/// boolean / float constants.  Returns `(folded_source, fold_count,
+/// fold_map)`.
+fn fold_static_substrings(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> (String, usize, BTreeMap<String, String>) {
+    let cu = CompilationUnit::build_for(source, registry, false);
+    let _ = dialect;
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut fold_map: BTreeMap<String, String> = BTreeMap::new();
+
+    let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
+    scopes.extend(cu.procedures.values());
+    for fu in scopes {
+        collect_folds_for_scope(source, fu, &mut edits, &mut fold_map);
+    }
+    if edits.is_empty() {
+        return (source.to_owned(), 0, fold_map);
+    }
+    // Deduplicate by (offset, length).
+    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut unique: Vec<Edit> = Vec::new();
+    for e in edits {
+        if seen.insert((e.0, e.1)) {
+            unique.push(e);
+        }
+    }
+    let fold_count = unique.len();
+    let result = apply_edits(source, unique);
+    (result, fold_count, fold_map)
+}
+
+/// Collect static-fold edits for one function scope.
+fn collect_folds_for_scope(
+    source: &str,
+    fu: &FunctionUnit,
+    edits: &mut Vec<Edit>,
+    fold_map: &mut BTreeMap<String, String>,
+) {
+    for (block_name, block) in &fu.cfg.blocks {
+        let Some(ssa_block) = fu.ssa.blocks.get(block_name) else {
+            continue;
+        };
+        if !fu.sccp.executable_blocks.contains(block_name) {
+            continue;
+        }
+        let mut block_vars: HashMap<String, Version> = ssa_block.entry_versions.clone();
+        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+            let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
+                continue;
+            };
+            let mut uses = block_vars.clone();
+            for (name, ver) in &ssa_stmt.uses {
+                uses.insert(name.clone(), *ver);
+            }
+            match stmt {
+                Statement::AssignValue {
+                    span,
+                    value,
+                    value_needs_backsubst: true,
+                    ..
+                } if value.contains('$') || value.contains('[') => {
+                    try_fold_region(source, *span, value, &uses, fu, edits, fold_map);
+                }
+                Statement::Call {
+                    tokens: Some(toks), ..
+                } => {
+                    for i in 1..toks.argv.len() {
+                        let arg_off = toks.argv[i].start() as usize;
+                        if source.as_bytes().get(arg_off) != Some(&b'"') {
+                            continue;
+                        }
+                        let content = &toks.argv_texts[i];
+                        if !(content.contains('$') || content.contains('[')) {
+                            continue;
+                        }
+                        if let Some(folded) = fold_string_via_sccp(content, &uses, &fu.sccp.values)
+                        {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints) {
+                                continue;
+                            }
+                            if let Some(close) = find_close_quote(source, arg_off + 1) {
+                                edits.push((
+                                    arg_off,
+                                    close - arg_off + 1,
+                                    build_replacement(&folded),
+                                ));
+                                fold_map.insert(content.clone(), folded);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            for (name, ver) in &ssa_stmt.defs {
+                block_vars.insert(name.clone(), *ver);
+            }
+        }
+    }
+}
+
+/// Fold the quoted string inside the `span` region of an
+/// `AssignValue` (`set x "…"`).
+fn try_fold_region(
+    source: &str,
+    span: Span,
+    value: &str,
+    uses: &HashMap<String, Version>,
+    fu: &FunctionUnit,
+    edits: &mut Vec<Edit>,
+    fold_map: &mut BTreeMap<String, String>,
+) {
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values) else {
+        return;
+    };
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints) {
+        return;
+    }
+    let (start, end) = (span.start() as usize, span.end() as usize);
+    let region = &source[start..end.min(source.len())];
+    let Some(q) = region.find('"') else {
+        return;
+    };
+    let abs_start = start + q;
+    let Some(close) = find_close_quote(source, abs_start + 1) else {
+        return;
+    };
+    let inner = &source[abs_start + 1..close];
+    if !(inner.contains('$') || inner.contains('[')) {
+        return;
+    }
+    edits.push((abs_start, close - abs_start + 1, build_replacement(&folded)));
+    fold_map.insert(inner.to_owned(), folded);
+}
+
+/// Resolve a quoted-string body to a static value via SCCP, or
+/// `None` when any substitution is non-constant.  `$var` only;
+/// command substitutions (`[…]`) bail out.
+fn fold_string_via_sccp(
+    content: &str,
+    uses: &HashMap<String, Version>,
+    values: &HashMap<(String, Version), LatticeValue>,
+) -> Option<String> {
+    let bytes = content.as_bytes();
+    let n = bytes.len();
+    let mut out = String::new();
+    let mut has_dynamic = false;
+    let mut pos = 0;
+    while pos < n {
+        match bytes[pos] {
+            b'$' => {
+                let (end, name) = parse_var_ref(content, pos);
+                let name = name?;
+                let ver = uses.get(name).copied().unwrap_or(0);
+                if ver == 0 {
+                    return None;
+                }
+                let lv = values.get(&(name.to_owned(), ver))?;
+                let LatticeValue::Const(cv) = lv else {
+                    return None;
+                };
+                out.push_str(&const_to_string(cv)?);
+                has_dynamic = true;
+                pos = end;
+            }
+            b'[' => return None, // command substitution — deferred.
+            b'\\' if pos + 1 < n => {
+                match bytes[pos + 1] {
+                    b'n' => out.push('\n'),
+                    b't' => out.push('\t'),
+                    b'r' => out.push('\r'),
+                    _ => out.push_str(&content[pos + 1..pos + 1 + utf8_len(bytes[pos + 1])]),
+                }
+                pos += 1 + utf8_len(bytes[pos + 1]);
+            }
+            _ => {
+                let len = utf8_len(bytes[pos]);
+                out.push_str(&content[pos..pos + len]);
+                pos += len;
+            }
+        }
+    }
+    if has_dynamic {
+        Some(out)
+    } else {
+        None
+    }
+}
+
+/// Render an integer / string SCCP constant; `None` for boolean /
+/// float (rendering is ambiguous, so folding bails for safety).
+fn const_to_string(cv: &ConstValue) -> Option<String> {
+    match cv {
+        ConstValue::Int(n) => Some(n.to_string()),
+        ConstValue::String(s) => Some(s.clone()),
+        ConstValue::Bool(_) | ConstValue::Float(_) => None,
+    }
+}
+
+/// Whether any `$var` in `content` is tainted without a
+/// fixed-form mitigation colour.  Mirrors `_has_unsafe_tainted_inputs`.
+fn has_unsafe_tainted_inputs(
+    content: &str,
+    uses: &HashMap<String, Version>,
+    taints: &HashMap<(String, Version), TaintLattice>,
+) -> bool {
+    let safe = safe_taint_colours();
+    let mut pos = 0;
+    let bytes = content.as_bytes();
+    while pos < bytes.len() {
+        if bytes[pos] == b'$' {
+            let (end, name) = parse_var_ref(content, pos);
+            if let Some(name) = name {
+                let ver = uses.get(name).copied().unwrap_or(0);
+                if ver > 0 {
+                    if let Some(t) = taints.get(&(name.to_owned(), ver)) {
+                        if t.is_tainted() && !t.colours.intersects(safe) {
+                            return true;
+                        }
+                    }
+                }
+                pos = end;
+            } else {
+                pos += 1;
+            }
+        } else {
+            pos += 1;
+        }
+    }
+    false
+}
+
+/// Parse a `$var` / `${var}` reference at `pos`, returning
+/// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
+/// (`$a::b`) forms.  Mirrors `_parse_var_ref`.
+fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
+    let bytes = text.as_bytes();
+    if pos >= bytes.len() || bytes[pos] != b'$' {
+        return (pos + 1, None);
+    }
+    let start = pos + 1;
+    if start >= bytes.len() {
+        return (start, None);
+    }
+    if bytes[start] == b'{' {
+        return match text[start + 1..].find('}') {
+            Some(rel) => {
+                let close = start + 1 + rel;
+                (close + 1, Some(&text[start + 1..close]))
+            }
+            None => (start, None),
+        };
+    }
+    let mut end = start;
+    while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+        end += 1;
+    }
+    if end == start {
+        return (start, None);
+    }
+    if end < bytes.len() {
+        if bytes[end] == b'(' {
+            return (start, None);
+        }
+        if bytes[end] == b':' && end + 1 < bytes.len() && bytes[end + 1] == b':' {
+            return (start, None);
+        }
+    }
+    (end, Some(&text[start..end]))
+}
+
+/// Find the closing `"` from `start`, skipping `\`-escapes and
+/// `[…]` command substitutions.  Mirrors `_find_close_quote`.
+fn find_close_quote(source: &str, start: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut pos = start;
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'"' => return Some(pos),
+            b'\\' => pos += 2,
+            b'[' => {
+                let mut depth = 1;
+                pos += 1;
+                while pos < bytes.len() && depth > 0 {
+                    match bytes[pos] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        b'\\' => pos += 1,
+                        _ => {}
+                    }
+                    pos += 1;
+                }
+            }
+            _ => pos += 1,
+        }
+    }
+    None
+}
+
+/// Build a replacement token for a folded static string: bare when
+/// no quoting is needed, braced when safe, else escaped double
+/// quotes.  Mirrors `_build_replacement`.
+fn build_replacement(folded: &str) -> String {
+    let needs_quoting = folded.is_empty()
+        || folded.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';']);
+    if !needs_quoting {
+        return folded.to_owned();
+    }
+    if !folded.contains('\\') && braces_nested(folded) {
+        return format!("{{{folded}}}");
+    }
+    let escaped = folded
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('[', "\\[");
+    format!("\"{escaped}\"")
 }
 
 /// Dialects where ensemble commands are fixed (no user-added
@@ -2707,6 +3093,27 @@ mod tests {
     fn agg(src: &str) -> String {
         let registry = CommandRegistry::build_default();
         minify_tcl_aggressive(src, "tcl8.6", false, &registry).source
+    }
+
+    #[test]
+    fn static_fold_folds_sccp_constant_interpolation() {
+        let registry = CommandRegistry::build_default();
+        // `$x` is a proven integer constant; fold `"n=$x"` -> `n=5`.
+        let (out, count, map) =
+            fold_static_substrings("set x 5\nputs \"n=$x\"\n", "tcl8.6", &registry);
+        assert_eq!(out, "set x 5\nputs n=5\n");
+        assert_eq!(count, 1);
+        assert!(map.values().any(|v| v == "n=5"), "{map:?}");
+    }
+
+    #[test]
+    fn static_fold_skips_non_constant() {
+        let registry = CommandRegistry::build_default();
+        // `[HTTP::uri]` is dynamic — nothing folds.
+        let (out, count, _) =
+            fold_static_substrings("set u [HTTP::uri]\nputs \"got $u\"\n", "tcl8.6", &registry);
+        assert_eq!(count, 0);
+        assert!(out.contains("$u"));
     }
 
     #[test]
