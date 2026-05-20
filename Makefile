@@ -558,22 +558,31 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh --check || \
 			echo "    -> proceeding; the missing tools above will turn into pytest skips"; \
 	fi
-	@$(MAKE) capture-bytecode-refs
-	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
-	@$(MAKE) prep-pr
-	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
+	@# Drive every phase through the runner, which keeps going past
+	@# failures, preserves full per-phase output, and prints a single
+	@# consolidated PASS/FAIL summary at the END (so `| tail` and
+	@# file-redirected logs both surface every failure) before exiting
+	@# non-zero.  capture-bytecode-refs + prep-pr run serially first;
+	@# the cross-language lint/typecheck + heavy suites then run in
+	@# parallel.
 	@# pyvm (test-vm) is a multi-minute Python-VM tcltest sweep that's
 	@# slow enough to dominate the parallel batch's wall time.  Skip it by
-	@# default in test-slow; opt in with RUN_TEST_VM=1.  When opting in,
-	@# explicitly unset SKIP_TEST_VM in the sub-make environment so a
-	@# developer with SKIP_TEST_VM=1 exported globally doesn't silently
-	@# get a no-op test-vm under what looks like an explicit opt-in run.
+	@# default; opt in with RUN_TEST_VM=1.  When opting in, explicitly
+	@# unset SKIP_TEST_VM in the sub-make environment so a developer with
+	@# SKIP_TEST_VM=1 exported globally doesn't silently get a no-op
+	@# test-vm under what looks like an explicit opt-in run.
 	@if [ -n "$${RUN_TEST_VM:-}" ]; then \
 		echo "==> test-slow: RUN_TEST_VM set — including pyvm (test-vm) in the batch"; \
-		env -u SKIP_TEST_VM $(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+		env -u SKIP_TEST_VM NPROC="$(NPROC)" MAKE="$(MAKE)" \
+			bash $(ROOT)scripts/dev/test-slow-runner.sh \
+				--serial "capture-bytecode-refs prep-pr" \
+				--parallel "check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust"; \
 	else \
 		echo "==> test-slow: skipping pyvm (test-vm) — set RUN_TEST_VM=1 to include it"; \
-		SKIP_TEST_VM=1 $(MAKE) -j $(NPROC) check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+		SKIP_TEST_VM=1 NPROC="$(NPROC)" MAKE="$(MAKE)" \
+			bash $(ROOT)scripts/dev/test-slow-runner.sh \
+				--serial "capture-bytecode-refs prep-pr" \
+				--parallel "check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust"; \
 	fi
 	@mkdir -p $(ROOT)tmp
 	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
