@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from lsprotocol import types
 
 from analyser import analyse
-from analyser.semantic_model import AnalysisResult
+from analyser.semantic_model import AnalysisResult, ProcDef
 from compiler.core_analyses import analyse_source
+from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.token_positions import token_content_shift
+from compiler.registry import REGISTRY
+from compiler.registry.models import OptionSpec
 from compiler.types import TypeKind
 from shared.tokens import TokenType
 
@@ -359,6 +363,158 @@ def _emit_regsub_hints(hints, cmd_name, argv_texts, argv_tokens, line_no):
             )
 
 
+def _synopsis_groups(synopsis: str) -> list[str]:
+    """Split a synopsis into tokens, re-joining ``?...?`` optional groups
+    that span multiple tokens (e.g. ``?-length length?`` → one group)."""
+    groups: list[str] = []
+    current: str | None = None
+    for tok in synopsis.split():
+        if current is not None:
+            current += " " + tok
+            if tok.endswith("?"):
+                groups.append(current)
+                current = None
+        elif tok.startswith("?") and not tok.endswith("?"):
+            current = tok
+        else:
+            groups.append(tok)
+    if current is not None:
+        groups.append(current)
+    return groups
+
+
+def _param_names_from_synopsis(synopsis: str, skip_words: int) -> list[str]:
+    """Parse positional parameter names out of a command synopsis.
+
+    ``name`` / ``?name?`` → emitted (optionals stripped); ``-flag`` /
+    ``?-flag value?`` → skipped; ``...`` / ``?name ...?`` → stops the parse.
+    """
+    names: list[str] = []
+    for group in _synopsis_groups(synopsis)[skip_words:]:
+        if "..." in group:
+            break
+        if group.startswith("?") and group.endswith("?"):
+            inner = group[1:-1].strip()
+            if not inner or inner.startswith("-") or any(c.isspace() for c in inner):
+                continue
+            names.append(inner)
+        elif group.startswith("-"):
+            continue
+        elif group:
+            names.append(group)
+    return names
+
+
+def _lookup_user_proc(analysis: AnalysisResult, cmd_name: str) -> ProcDef | None:
+    """Resolve a command head to a user-defined proc, if any."""
+    bare = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    for qname, proc_def in analysis.all_procs.items():
+        if proc_def.name == bare or qname == cmd_name or qname.endswith(f"::{bare}"):
+            return proc_def
+    return None
+
+
+def _emit_positional_hints(
+    hints: list[types.InlayHint],
+    cmd,
+    param_names: list[str],
+    first_arg_idx: int,
+    option_for: Callable[[str], OptionSpec | None],
+    range_: types.Range,
+) -> None:
+    """Label each positional call argument with its parameter name.
+
+    Whether a ``-``-prefixed token is an option is decided by the
+    registry (``option_for``), not its spelling: only declared options
+    are skipped (and their value too, when ``takes_value``).  This keeps
+    a real positional like the ``-1`` in ``string index $s -1`` — which
+    is no command's option — labelled correctly.  ``--`` ends options.
+    """
+    if not param_names:
+        return
+    slot = 0
+    arg_idx = first_arg_idx
+    options_ended = False
+    while arg_idx < len(cmd.argv) and slot < len(param_names):
+        arg_text = cmd.texts[arg_idx] if arg_idx < len(cmd.texts) else ""
+        if not options_ended and arg_text.startswith("-") and arg_text != "-":
+            if arg_text == "--":
+                options_ended = True
+                arg_idx += 1
+                continue
+            opt = option_for(arg_text)
+            if opt is not None:
+                arg_idx += 1
+                if opt.takes_value and arg_idx < len(cmd.argv):
+                    arg_idx += 1
+                continue
+        tok = cmd.argv[arg_idx]
+        arg_idx += 1
+        slot += 1
+        pos = tok.start
+        if range_.start.line <= pos.line <= range_.end.line:
+            hints.append(
+                types.InlayHint(
+                    position=types.Position(line=pos.line, character=pos.character),
+                    label=f"{param_names[slot - 1]}:",
+                    kind=types.InlayHintKind.Parameter,
+                    padding_right=True,
+                )
+            )
+
+
+def _collect_param_name_hints(
+    source: str,
+    range_: types.Range,
+    analysis: AnalysisResult,
+) -> list[types.InlayHint]:
+    """Parameter-name hints at each positional argument of a call.
+
+    User procs take precedence; built-in commands fall back to their
+    registry synopsis (and the ``cmd subcommand`` shape when the spec
+    declares subcommands).
+    """
+    hints: list[types.InlayHint] = []
+    for cmd in segment_commands(source):
+        if cmd.is_partial or not cmd.argv or not cmd.texts:
+            continue
+        cmd_name = cmd.texts[0]
+
+        proc_def = _lookup_user_proc(analysis, cmd_name)
+        if proc_def is not None:
+            names: list[str] = []
+            for p in proc_def.params:
+                if p.name in ("args", "::args"):
+                    break
+                names.append(p.name)
+            _emit_positional_hints(hints, cmd, names, 1, lambda _n: None, range_)
+            continue
+
+        spec = REGISTRY.get(cmd_name)
+        if spec is None:
+            continue
+        if not spec.subcommands:
+            synopsis = ""
+            if spec.hover and spec.hover.synopsis:
+                synopsis = spec.hover.synopsis[0]
+            elif spec.forms:
+                synopsis = spec.forms[0].synopsis
+            if not synopsis:
+                continue
+            names = _param_names_from_synopsis(synopsis, skip_words=1)
+            _emit_positional_hints(hints, cmd, names, 1, spec.option, range_)
+        else:
+            if len(cmd.texts) < 2:
+                continue
+            sub = spec.subcommands.get(cmd.texts[1])
+            if sub is None:
+                continue
+            names = _param_names_from_synopsis(sub.synopsis, skip_words=2)
+            sub_opts = {o.name: o for o in sub.options}
+            _emit_positional_hints(hints, cmd, names, 2, sub_opts.get, range_)
+    return hints
+
+
 def get_inlay_hints(
     source: str,
     range_: types.Range,
@@ -372,4 +528,5 @@ def get_inlay_hints(
 
     hints = _collect_type_hints(source, analysis, range_)
     hints.extend(_collect_format_string_hints(source, range_, lines=lines))
+    hints.extend(_collect_param_name_hints(source, range_, analysis))
     return hints
