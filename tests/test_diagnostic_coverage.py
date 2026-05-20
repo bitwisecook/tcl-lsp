@@ -874,6 +874,36 @@ RANGE_FIXME: dict[str, FiresCase] = {
         dialect="f5-irules",
         analyse_raw=True,
     ),
+    # iRule references a data-group not in the config: zero-width range at
+    # the reference site.
+    "BIGIP6001": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/missing_dg]} { pool p }\n}\n}\n",
+        "ltm data-group internal /Common/missing_dg { type string }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/missing_dg]} { pool p }\n}\n}\n",
+        bigip=True,
+    ),
+    # iRule uses HTTP:: commands but its virtual has no HTTP profile: range
+    # spans the whole virtual stanza body.
+    "BIGIP6004": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { HTTP::respond 200 }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        "ltm profile http /Common/http { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { HTTP::respond 200 }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } "
+        "profiles { /Common/http { } } }\n",
+        bigip=True,
+    ),
+    # Data-group defined but never referenced: range spans the whole
+    # data-group stanza body.
+    "BIGIP6006": FiresCase(
+        "ltm data-group internal /Common/dg { type string }\n",
+        "ltm data-group internal /Common/dg { type string }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/dg]} { pool p }\n}\n}\n",
+        bigip=True,
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -882,9 +912,6 @@ RANGE_FIXME: dict[str, FiresCase] = {
 
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
-        "BIGIP6001",
-        "BIGIP6004",
-        "BIGIP6006",
         "BIGIP6007",
         "BIGIP6009",
         "BIGIP6010",
