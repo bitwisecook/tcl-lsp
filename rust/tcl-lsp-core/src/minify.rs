@@ -299,6 +299,117 @@ pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
     out
 }
 
+/// Remap `line N` / `(procedure "X" line N)` references in `message`
+/// from minified positions to approximate original lines, using the
+/// proportional heuristic from `_remap_line_references`.  Single
+/// pass (no double-application).
+#[must_use]
+pub fn remap_line_references(
+    message: &str,
+    minified_source: &str,
+    original_source: &str,
+) -> String {
+    let min_commands = minified_source.matches(';').count() + 1;
+    let orig_non_empty: Vec<usize> = original_source
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with('#')
+        })
+        .map(|(i, _)| i + 1)
+        .collect();
+    if orig_non_empty.is_empty() {
+        return message.to_owned();
+    }
+    let map_line = |line_no: usize| -> Option<usize> {
+        if line_no > min_commands {
+            return None;
+        }
+        // Integer proportional map: (line_no-1)/(min_commands-1) of the
+        // non-empty original lines.
+        let denom = min_commands.saturating_sub(1).max(1);
+        let last = orig_non_empty.len() - 1;
+        let idx = ((line_no - 1) * last / denom).min(last);
+        Some(orig_non_empty[idx])
+    };
+
+    let bytes = message.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        // `(procedure "NAME" line N)` form.
+        if message[i..].starts_with("(procedure \"") {
+            if let Some(rewritten) = try_remap_procline(&message[i..], &map_line) {
+                out.push_str(&rewritten.0);
+                i += rewritten.1;
+                continue;
+            }
+        }
+        // Standalone `line N` (word-bounded).
+        if message[i..].starts_with("line ") && (i == 0 || !is_word_byte(Some(bytes[i - 1]))) {
+            if let Some((rewritten, consumed)) = try_remap_line(&message[i..], &map_line) {
+                out.push_str(&rewritten);
+                i += consumed;
+                continue;
+            }
+        }
+        let ch_len = utf8_len(bytes[i]);
+        out.push_str(&message[i..i + ch_len]);
+        i += ch_len;
+    }
+    out
+}
+
+/// Parse a leading `line N` (digits, then a word boundary) and remap
+/// it.  Returns `(replacement, bytes_consumed)`.
+fn try_remap_line(s: &str, map_line: &impl Fn(usize) -> Option<usize>) -> Option<(String, usize)> {
+    let rest = s.strip_prefix("line ")?;
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let after = rest.as_bytes().get(digits.len()).copied();
+    if is_word_byte(after) {
+        return None;
+    }
+    let line_no: usize = digits.parse().ok()?;
+    if line_no == 1 {
+        // Line 1 of minified code = whole script; not useful.
+        return None;
+    }
+    let orig = map_line(line_no)?;
+    let consumed = "line ".len() + digits.len();
+    Some((format!("line {orig} (minified line {line_no})"), consumed))
+}
+
+/// Parse a leading `(procedure "NAME" line N)` and remap the line.
+fn try_remap_procline(
+    s: &str,
+    map_line: &impl Fn(usize) -> Option<usize>,
+) -> Option<(String, usize)> {
+    let rest = s.strip_prefix("(procedure \"")?;
+    let name_end = rest.find('"')?;
+    let name = &rest[..name_end];
+    let tail = &rest[name_end + 1..];
+    let tail = tail.strip_prefix(" line ")?;
+    let digits: String = tail.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let rest_after = &tail[digits.len()..];
+    let close = rest_after.strip_prefix(')')?;
+    let _ = close;
+    let line_no: usize = digits.parse().ok()?;
+    let orig = map_line(line_no)?;
+    let consumed = s.len() - rest_after.len() + 1; // up to and including ')'
+    Some((
+        format!("(procedure \"{name}\" line {orig}, minified line {line_no})"),
+        consumed,
+    ))
+}
+
 /// Full result from aggressive minification.  Mirrors Python's
 /// `MinifyResult`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -2555,6 +2666,28 @@ mod tests {
         assert_eq!(
             unminify_error("invalid command name \"a\"", &sym),
             "invalid command name \"greet\"",
+        );
+    }
+
+    #[test]
+    fn remap_line_references_maps_proportionally() {
+        let orig = "proc f {} {\n    set x 1\n    set y 2\n    set z 3\n}\n";
+        let mini = "proc f {} {set x 1;set y 2;set z 3}";
+        // min_commands = 3; line 2 -> proportional original line 3.
+        assert_eq!(
+            remap_line_references("error at line 2", mini, orig),
+            "error at line 3 (minified line 2)",
+        );
+    }
+
+    #[test]
+    fn remap_line_references_procline_single_pass() {
+        let orig = "proc f {} {\n    set x 1\n    set y 2\n    set z 3\n}\n";
+        let mini = "proc f {} {set x 1;set y 2;set z 3}";
+        // Single pass (no Python double-application): line 3 -> 5.
+        assert_eq!(
+            remap_line_references("(procedure \"f\" line 3)", mini, orig),
+            "(procedure \"f\" line 5, minified line 3)",
         );
     }
 

@@ -955,7 +955,16 @@ impl Backend {
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
         let symbol_map = core_minify::SymbolMap::parse(symbol_map_text);
-        let translated = core_minify::unminify_error(error_message, &symbol_map);
+        let mut translated = core_minify::unminify_error(error_message, &symbol_map);
+        // When both the minified and original sources are supplied,
+        // remap minified line references to approximate original lines.
+        let minified = args.get(2).and_then(serde_json::Value::as_str);
+        let original = args.get(3).and_then(serde_json::Value::as_str);
+        if let (Some(minified), Some(original)) = (minified, original) {
+            if !minified.is_empty() && !original.is_empty() {
+                translated = core_minify::remap_line_references(&translated, minified, original);
+            }
+        }
         Some(serde_json::json!({
             "originalError": error_message,
             "translatedError": translated,
