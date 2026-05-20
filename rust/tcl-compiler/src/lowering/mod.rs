@@ -255,7 +255,7 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// Returns `true` when the body contains a nested dynamic-shape
 /// barrier (the caller should fall back to `IRBarrier`); `false`
 /// when the body is safe to relax.
-fn body_has_dynamic_barrier(body_text: &str) -> bool {
+fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool {
     use tcl_lexer::TokenType;
     let commands = segment_commands(body_text);
     for sc in &commands {
@@ -263,7 +263,17 @@ fn body_has_dynamic_barrier(body_text: &str) -> bool {
             continue;
         }
         let name = sc.texts[0].as_str();
-        let is_barrier = matches!(name, "eval" | "uplevel" | "::eval" | "::uplevel");
+        // A "dynamic barrier" command evaluates a script in another
+        // frame (`eval` / `uplevel`).  Sourced from the registry's
+        // `EVALUATES_CODE` trait (stamped on exactly those two)
+        // rather than a hardcoded name list; strip any leading `::`
+        // so the fully-qualified spellings resolve too.
+        let is_barrier = registry
+            .get(name.strip_prefix("::").unwrap_or(name))
+            .is_some_and(|s| {
+                s.traits
+                    .contains(tcl_registry::prelude::Traits::EVALUATES_CODE)
+            });
         if !is_barrier {
             // Recurse into braced args of non-barrier commands so
             // nested barriers still trip the gate.
@@ -275,7 +285,7 @@ fn body_has_dynamic_barrier(body_text: &str) -> bool {
                     continue;
                 }
                 let arg_text = sc.texts.get(i).map_or("", String::as_str);
-                if body_has_dynamic_barrier(arg_text) {
+                if body_has_dynamic_barrier(arg_text, registry) {
                     return true;
                 }
             }
@@ -318,7 +328,7 @@ fn body_has_dynamic_barrier(body_text: &str) -> bool {
             return true;
         }
         // Recurse into the literal nested body.
-        if body_has_dynamic_barrier(&args[body_idx]) {
+        if body_has_dynamic_barrier(&args[body_idx], registry) {
             return true;
         }
     }
@@ -1257,7 +1267,7 @@ impl<'r> Lowerer<'r> {
         // relax to inline IR with a still-dynamic `eval`; reject.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[body_tok_idx];
-            if body_has_dynamic_barrier(body_text) {
+            if body_has_dynamic_barrier(body_text, self.registry) {
                 return None;
             }
         }
@@ -1377,7 +1387,7 @@ impl<'r> Lowerer<'r> {
         // default IRBarrier dispatch.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
-            if body_has_dynamic_barrier(body_text) {
+            if body_has_dynamic_barrier(body_text, self.registry) {
                 return None;
             }
         }
@@ -1387,7 +1397,7 @@ impl<'r> Lowerer<'r> {
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
-            if body_has_dynamic_barrier(&literal) {
+            if body_has_dynamic_barrier(&literal, self.registry) {
                 return None;
             }
             self.lower_script(&literal, namespace)
@@ -2451,25 +2461,28 @@ mod tests {
     #[test]
     fn body_has_dynamic_barrier_clean() {
         // No barriers at all.
-        assert!(!body_has_dynamic_barrier("set x 1"));
+        assert!(!body_has_dynamic_barrier("set x 1", &reg()));
         // Barrier with a fully literal body.
-        assert!(!body_has_dynamic_barrier("eval { set x 1 }"));
+        assert!(!body_has_dynamic_barrier("eval { set x 1 }", &reg()));
         // Nested literal.
-        assert!(!body_has_dynamic_barrier("if { 1 } { eval { set x 1 } }"));
+        assert!(!body_has_dynamic_barrier(
+            "if { 1 } { eval { set x 1 } }",
+            &reg()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_eval_body() {
         // ``eval $x`` inside the outer body — dynamic.
-        assert!(body_has_dynamic_barrier("eval $x"));
+        assert!(body_has_dynamic_barrier("eval $x", &reg()));
         // Same shape nested.
-        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }"));
+        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }", &reg()));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_uplevel_body() {
-        assert!(body_has_dynamic_barrier("uplevel 1 $body"));
-        assert!(body_has_dynamic_barrier("uplevel #0 $b"));
+        assert!(body_has_dynamic_barrier("uplevel 1 $body", &reg()));
+        assert!(body_has_dynamic_barrier("uplevel #0 $b", &reg()));
     }
 
     #[test]
@@ -2477,14 +2490,14 @@ mod tests {
         // ``uplevel $lvl {body}`` with a literal body is OK — the
         // gate only poisons when the BODY is substitution-bearing.
         // Mirrors Python parity.
-        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}"));
+        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}", &reg()));
     }
 
     #[test]
     fn body_has_dynamic_barrier_qualified_eval_uplevel() {
         // ``::eval`` and ``::uplevel`` are also caught.
-        assert!(body_has_dynamic_barrier("::eval $x"));
-        assert!(body_has_dynamic_barrier("::uplevel 1 $body"));
+        assert!(body_has_dynamic_barrier("::eval $x", &reg()));
+        assert!(body_has_dynamic_barrier("::uplevel 1 $body", &reg()));
     }
 
     #[test]
