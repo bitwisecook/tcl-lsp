@@ -281,7 +281,7 @@ def _run_minify(args: argparse.Namespace) -> int:
     isolated = getattr(args, "isolated", False)
 
     if args.aggressive:
-        result = minify_tcl(source, aggressive=True, isolated=isolated)
+        result = minify_tcl(source, aggressive=True, isolated=isolated, dialect=args.dialect)
         _write_highlighted_output(
             args.output, result.source, use_colour=use_colour, tab_width=_resolve_tab_width(args)
         )
@@ -295,7 +295,9 @@ def _run_minify(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     elif args.compact:
-        minified, symbol_map = minify_tcl(source, compact_names=True, isolated=isolated)
+        minified, symbol_map = minify_tcl(
+            source, compact_names=True, isolated=isolated, dialect=args.dialect
+        )
         _write_highlighted_output(
             args.output, minified, use_colour=use_colour, tab_width=_resolve_tab_width(args)
         )
@@ -306,7 +308,7 @@ def _run_minify(args: argparse.Namespace) -> int:
             if map_text:
                 print(map_text, file=sys.stderr)
     else:
-        minified = minify_tcl(source)
+        minified = minify_tcl(source, dialect=args.dialect)
         _write_highlighted_output(
             args.output, minified, use_colour=use_colour, tab_width=_resolve_tab_width(args)
         )

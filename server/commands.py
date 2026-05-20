@@ -103,8 +103,13 @@ def on_minify_document(
 ) -> dict | None:
     """Minify the Tcl document: strip comments, collapse whitespace, join commands."""
     source = _state._get_doc_source(uri)
+    # Resolve the document's dialect (in-source hints → folder config →
+    # active profile) so dialect-specific minify transforms — e.g. F5
+    # iRules fixed-ensemble subcommand abbreviation — fire for the open
+    # file.  ``None`` lets the minifier fall back to the active profile.
+    dialect, _ = _state.resolve_dialect_for_uri(uri, source)
     if aggressive:
-        result = minify_tcl(source, aggressive=True, isolated=isolated)
+        result = minify_tcl(source, aggressive=True, isolated=isolated, dialect=dialect)
         return {
             "source": result.source,
             "originalLength": result.original_length,
@@ -113,14 +118,16 @@ def on_minify_document(
             "optimisationsApplied": result.optimisations_applied,
         }
     if compact:
-        minified, symbol_map = minify_tcl(source, compact_names=True, isolated=isolated)
+        minified, symbol_map = minify_tcl(
+            source, compact_names=True, isolated=isolated, dialect=dialect
+        )
         return {
             "source": minified,
             "originalLength": len(source),
             "minifiedLength": len(minified),
             "symbolMap": symbol_map.format(),
         }
-    minified = minify_tcl(source)
+    minified = minify_tcl(source, dialect=dialect)
     return {
         "source": minified,
         "originalLength": len(source),

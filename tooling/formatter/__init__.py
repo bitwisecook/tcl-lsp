@@ -13,7 +13,7 @@ from .docstring import (
     render_markdown,
     resolve_tag_style,
 )
-from .formatter import format_tcl
+from .formatter import format_body, format_tcl
 
 __all__ = [
     "BraceStyle",
@@ -24,6 +24,7 @@ __all__ = [
     "IndentStyle",
     "ParamDoc",
     "extract_body_docstring",
+    "format_body",
     "format_docstring",
     "format_tcl",
     "generate_stub",

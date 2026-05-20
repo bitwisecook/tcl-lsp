@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from .config import FormatterConfig
+
+# ``format_body`` is the core recursive snippet formatter.  It is part of
+# the public surface (re-exported from the package) for callers that need
+# to format a fragment at a known indent level — e.g. the LSP
+# ``rangeFormatting`` provider — without the document-level normalisation
+# (final newline / line-ending rewrite) that :func:`format_tcl` applies.
 from .engine import format_body
+
+__all__ = ["format_body", "format_tcl"]
 
 
 def format_tcl(source: str, config: FormatterConfig | None = None) -> str:
