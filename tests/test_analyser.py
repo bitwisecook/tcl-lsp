@@ -190,7 +190,7 @@ class TestDiagnostics:
     def test_switch_options_are_dialect_filtered(self):
         # vwait gained its option switches in Tcl 9.0; under 8.6 they are
         # not valid, so option-aware arity counting must reject them.
-        from core.common.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("tcl9.0"):
             # ``-variable`` is a real switch in 9.0 → skipped, 1 positional.
