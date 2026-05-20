@@ -940,6 +940,29 @@ impl Backend {
         Ok(Some(value))
     }
 
+    /// Handle the `tcl-lsp.unminifyError` workspace command.
+    ///
+    /// Arguments: `[errorMessage, symbolMapText, minifiedSource?,
+    /// originalSource?]`.  Translates compacted names in the error
+    /// message back to originals via the symbol map and returns
+    /// `{originalError, translatedError, changed}`.  Source-
+    /// correlated line remapping (the `minified` / `original`
+    /// arguments) is a follow-up.
+    fn unminify_error_command(args: &[serde_json::Value]) -> Option<serde_json::Value> {
+        let error_message = args.first().and_then(serde_json::Value::as_str)?;
+        let symbol_map_text = args
+            .get(1)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let symbol_map = core_minify::SymbolMap::parse(symbol_map_text);
+        let translated = core_minify::unminify_error(error_message, &symbol_map);
+        Some(serde_json::json!({
+            "originalError": error_message,
+            "translatedError": translated,
+            "changed": translated != error_message,
+        }))
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
@@ -2085,6 +2108,7 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         match params.command.as_str() {
             "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
+            "tcl-lsp.unminifyError" => Ok(Self::unminify_error_command(&params.arguments)),
             _ => Ok(None),
         }
     }
@@ -2701,7 +2725,10 @@ fn build_server_capabilities() -> ServerCapabilities {
         // Editor-invoked workspace commands (currently the
         // minify-document command family).
         execute_command_provider: Some(ExecuteCommandOptions {
-            commands: vec!["tcl-lsp.minifyDocument".to_owned()],
+            commands: vec![
+                "tcl-lsp.minifyDocument".to_owned(),
+                "tcl-lsp.unminifyError".to_owned(),
+            ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
         ..ServerCapabilities::default()
@@ -3496,11 +3523,30 @@ mod tests {
             .await
             .expect("ok")
             .expect("some");
-        assert_eq!(result["source"], serde_json::json!("proc a {a} {return $a}"));
+        assert_eq!(
+            result["source"],
+            serde_json::json!("proc a {a} {return $a}")
+        );
         assert!(
-            result["symbolMap"].as_str().is_some_and(|s| s.contains("a <- greet")),
+            result["symbolMap"]
+                .as_str()
+                .is_some_and(|s| s.contains("a <- greet")),
             "{result:?}"
         );
+    }
+
+    #[test]
+    fn unminify_error_command_translates_names() {
+        let args = vec![
+            serde_json::Value::String("can't read \"a\": no such variable".to_owned()),
+            serde_json::Value::String("# Procs\n  a <- greet".to_owned()),
+        ];
+        let result = Backend::unminify_error_command(&args).expect("some");
+        assert_eq!(
+            result["translatedError"],
+            serde_json::json!("can't read \"greet\": no such variable")
+        );
+        assert_eq!(result["changed"], serde_json::json!(true));
     }
 
     #[tokio::test]

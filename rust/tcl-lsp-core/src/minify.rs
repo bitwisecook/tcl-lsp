@@ -42,11 +42,19 @@
 //! whitespace, returning a [`MinifyResult`] with the optimisation
 //! count and size savings.
 //!
+//! [`unminify_error`] translates compacted names in an error
+//! message back to the originals via a [`SymbolMap`] (round-tripped
+//! through [`SymbolMap::format`] / [`SymbolMap::parse`]).  Both the
+//! `tcl-lsp.minifyDocument` and `tcl-lsp.unminifyError`
+//! `workspace/executeCommand` handlers are wired in the server.
+//!
 //! **Still deferred** within the aggressive tier: static-substring
 //! folding (SCCP-based, Python's phase 1.5) and the command /
-//! argument / string-literal aliasing phases (2.5–2.7).  Also
-//! pending: the `workspace/executeCommand` LSP wiring (mirroring
-//! `lsp/commands.py::on_minify_document`).
+//! argument / string-literal aliasing phases (2.5–2.7) — the
+//! aliasing phases additionally need a collision-safe redesign
+//! (Python's emits `set a <cmd>` aliases that can clash with a
+//! compacted proc-local `a`).  `unminify_error`'s source-correlated
+//! line remapping (`_remap_line_references`) is also a follow-up.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -105,6 +113,153 @@ impl SymbolMap {
         }
         lines.join("\n")
     }
+
+    /// Reverse lookup: compacted name → original.  Variables also
+    /// get a `scope:short` → `scope:original` entry; the bare entry
+    /// keeps the first scope seen.  Mirrors `SymbolMap.reverse`.
+    #[must_use]
+    pub fn reverse(&self) -> BTreeMap<String, String> {
+        let mut rev: BTreeMap<String, String> = BTreeMap::new();
+        for (original, short) in &self.procs {
+            rev.entry(short.clone()).or_insert_with(|| original.clone());
+        }
+        for (scope, var_map) in &self.variables {
+            for (original, short) in var_map {
+                rev.insert(format!("{scope}:{short}"), format!("{scope}:{original}"));
+                rev.entry(short.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        for member_map in self.array_members.values() {
+            for (original, short) in member_map {
+                rev.entry(short.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        rev
+    }
+
+    /// Parse a symbol map from the [`Self::format`] text.  Mirrors
+    /// `SymbolMap.parse` (the sections the landed tiers emit).
+    #[must_use]
+    pub fn parse(text: &str) -> Self {
+        let mut sm = SymbolMap::default();
+        let mut section = "";
+        let mut section_name = String::new();
+        for line in text.lines() {
+            let stripped = line.trim();
+            if stripped.is_empty() {
+                continue;
+            }
+            if let Some(rest) = stripped.strip_prefix("# Variables in ") {
+                section = "variables";
+                section_name.clear();
+                section_name.push_str(rest);
+                continue;
+            }
+            if let Some(rest) = stripped.strip_prefix("# Array members of ") {
+                section = "array_members";
+                section_name.clear();
+                section_name.push_str(rest);
+                continue;
+            }
+            if stripped.starts_with("# Procs") {
+                section = "procs";
+                continue;
+            }
+            if stripped.starts_with('#') {
+                section = "";
+                continue;
+            }
+            // Entry line: `short <- original`.
+            let Some((short, original)) = stripped.split_once(" <- ") else {
+                continue;
+            };
+            let (short, original) = (short.trim().to_owned(), original.trim().to_owned());
+            match section {
+                "procs" => {
+                    sm.procs.insert(original, short);
+                }
+                "variables" => {
+                    sm.variables
+                        .entry(section_name.clone())
+                        .or_default()
+                        .insert(original, short);
+                }
+                "array_members" => {
+                    sm.array_members
+                        .entry(section_name.clone())
+                        .or_default()
+                        .insert(original, short);
+                }
+                _ => {}
+            }
+        }
+        sm
+    }
+}
+
+/// Translate a Tcl / iRule error message from minified names back
+/// to the originals using `symbol_map`.  Replaces `$short` and
+/// `"short"` occurrences.  Mirrors the name-translation half of
+/// `unminify_error` (the source-correlated line remapping is a
+/// follow-up).
+#[must_use]
+pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
+    let rev = symbol_map.reverse();
+    if rev.is_empty() {
+        return error_message.to_owned();
+    }
+    let bytes = error_message.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let c = bytes[i];
+        // `$short` variable reference.
+        if c == b'$' {
+            let start = i + 1;
+            let mut j = start;
+            while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            if j > start {
+                let ident = &error_message[start..j];
+                if let Some(orig) = rev.get(ident) {
+                    out.push('$');
+                    out.push_str(orig);
+                    i = j;
+                    continue;
+                }
+            }
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        // `"short"` quoted identifier.
+        if c == b'"' {
+            let start = i + 1;
+            let mut j = start;
+            while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            if j < n && bytes[j] == b'"' && j > start {
+                let ident = &error_message[start..j];
+                if let Some(orig) = rev.get(ident) {
+                    out.push('"');
+                    out.push_str(orig);
+                    out.push('"');
+                    i = j + 1;
+                    continue;
+                }
+            }
+            out.push('"');
+            i += 1;
+            continue;
+        }
+        let ch_len = utf8_len(c);
+        out.push_str(&error_message[i..i + ch_len]);
+        i += ch_len;
+    }
+    out
 }
 
 /// Full result from aggressive minification.  Mirrors Python's
@@ -1768,6 +1923,39 @@ mod tests {
             &registry,
         );
         assert_eq!(out, "set a 1;puts $a");
+    }
+
+    #[test]
+    fn unminify_error_round_trips_via_symbol_map() {
+        let registry = CommandRegistry::build_default();
+        let (_, sym) = minify_tcl_compact(
+            "proc greet {name} {\n    return $name\n}\n",
+            "tcl8.6",
+            false,
+            &registry,
+        );
+        // Procs win the bare-name reverse entry, so `a` -> `greet`.
+        assert_eq!(
+            unminify_error("can't read \"a\": no such variable", &sym),
+            "can't read \"greet\": no such variable",
+        );
+        assert_eq!(
+            unminify_error("invalid command name \"a\"", &sym),
+            "invalid command name \"greet\"",
+        );
+    }
+
+    #[test]
+    fn unminify_error_parse_round_trip() {
+        let mut sym = SymbolMap::default();
+        sym.procs.insert("greet".to_owned(), "a".to_owned());
+        let text = sym.format();
+        let parsed = SymbolMap::parse(&text);
+        assert_eq!(parsed.procs.get("greet").map(String::as_str), Some("a"));
+        assert_eq!(
+            unminify_error("calling $a now", &parsed),
+            "calling $greet now"
+        );
     }
 
     #[test]
