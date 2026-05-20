@@ -904,6 +904,21 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "  if {[class match [HTTP::uri] equals /Common/dg]} { pool p }\n}\n}\n",
         bigip=True,
     ),
+    # Parser recovery — unclosed brace (internal): the analyser emits a
+    # zero-width E203 marker where the missing `}` belongs.
+    "E203": FiresCase(
+        "proc broken {} {\n    set inner 1\n    set inner2 2\n"
+        "    # missing close brace\nset x 1\nset y 2\n",
+        "proc ok {} {\n    set inner 1\n}\nset x 1\n",
+        analyse_raw=True,
+    ),
+    # Generic static:: variable name likely to collide across iRules: range
+    # spans the whole `set` statement rather than the variable name.
+    "IRULE4002": FiresCase(
+        "when RULE_INIT {\n  set static::data 1\n}\n",
+        "when RULE_INIT {\n  set static::myAppCacheV2 1\n}\n",
+        dialect="f5-irules",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -916,10 +931,8 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "BIGIP6009",
         "BIGIP6010",
         "E200",
-        "E203",
         "IAPP7001",
         "IAPP7002",
-        "IRULE4002",
         "IRULE4003",
         "O101",
         "O106",
