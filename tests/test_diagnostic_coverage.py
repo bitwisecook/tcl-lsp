@@ -71,6 +71,10 @@ FIXTURES: dict[str, Case] = {
         'set p "$dir/$file"\nputs $p\n', '"$dir/$file"', "set p [file join $d $f]\nputs $p\n"
     ),
     "W302": Case("catch {error oops}\n", "catch", "catch {error oops} result\n"),
+    "W210": Case("puts $undefined\n", "$undefined", "set u 1\nputs $u\n"),
+    "W211": Case("set unused 5\n", "unused", "set y 5\nputs $y\n"),
+    "W213": Case("unset maybe\n", "maybe", "set m 1\nunset m\n"),
+    "W220": Case("set dead 5\n", "dead", "set y 5\nputs $y\n"),
     "O100": Case("set x [expr {1 + 2}]\nputs $x\n", "$x", "puts hi\n"),
     "O102": Case("puts [expr {1 + 1}]\n", "[expr {1 + 1}]", "puts hi\n"),
     "O111": Case("expr $a + $b\n", "$a + $b", "expr {$a + $b}\n"),
@@ -82,11 +86,6 @@ FIXTURES: dict[str, Case] = {
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
 
 RANGE_FIXME: dict[str, FiresCase] = {
-    # whole-command span; should narrow to the variable reference
-    "W210": FiresCase("puts $undefined\n", "set u 1\nputs $u\n"),
-    "W211": FiresCase("set unused 5\n", "set y 5\nputs $y\n"),
-    "W213": FiresCase("unset maybe\n", "set m 1\nunset m\n"),
-    "W220": FiresCase("set dead 5\n", "set y 5\nputs $y\n"),
     # highlights the command word, not the offending subcommand
     "W001": FiresCase("string bogus x\n", "string length x\n"),
     # braced-expr span drops the closing brace
