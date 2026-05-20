@@ -759,17 +759,34 @@ fn build_var_ref_replacement(source: &str, span: tcl_lexer::Span, new_tail: &str
         return format!("${{{ns_prefix}{new_tail}}}");
     }
     if let Some(rest) = text.strip_prefix('$') {
-        let ns_prefix = match rest.rfind("::") {
-            Some(idx) => &rest[..idx + 2],
+        // Preserve an array-index suffix so renaming the base array
+        // variable keeps the element index: `$arr(idx)` → `$<new>(idx)`
+        // rather than clobbering it to `$<new>`.  The index text is
+        // copied verbatim (any `$`/`[` substitution inside it is
+        // renamed independently via its own reference).
+        let (name_part, suffix) = split_array_suffix(rest);
+        let ns_prefix = match name_part.rfind("::") {
+            Some(idx) => &name_part[..idx + 2],
             None => "",
         };
-        return format!("${ns_prefix}{new_tail}");
+        return format!("${ns_prefix}{new_tail}{suffix}");
     }
-    let ns_prefix = match text.rfind("::") {
-        Some(idx) => &text[..idx + 2],
+    let (name_part, suffix) = split_array_suffix(text);
+    let ns_prefix = match name_part.rfind("::") {
+        Some(idx) => &name_part[..idx + 2],
         None => "",
     };
-    format!("{ns_prefix}{new_tail}")
+    format!("{ns_prefix}{new_tail}{suffix}")
+}
+
+/// Split a (already `$`-stripped) variable reference into its base
+/// name and any trailing array-index suffix.  `arr(idx)` →
+/// `("arr", "(idx)")`; `name` → `("name", "")`.
+fn split_array_suffix(rest: &str) -> (&str, &str) {
+    match rest.find('(') {
+        Some(idx) => (&rest[..idx], &rest[idx..]),
+        None => (rest, ""),
+    }
 }
 
 /// Return the namespace prefix of a qualified name — everything
@@ -866,6 +883,22 @@ mod tests {
     }
 
     #[test]
+    fn rename_array_variable_preserves_element_index() {
+        // Renaming the base array variable `arr` must keep each
+        // element index intact: `$arr(0)` → `$data(0)`, not `$data`.
+        let src = "set arr(0) 1\nputs $arr(0)\n";
+        let analysis = analyse(src);
+        // Cursor on `arr` in the `set` target (line 0, col 4).
+        let edits = rename(src, 1, 6, "data", &analysis, None);
+        assert!(!edits.is_empty(), "expected array rename edits");
+        let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(
+            texts.iter().any(|t| *t == "$data(0)"),
+            "reference edit must preserve the array index, got {texts:?}",
+        );
+    }
+
+    #[test]
     fn prepare_rename_returns_range_for_proc() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
@@ -915,6 +948,28 @@ mod tests {
         assert_eq!(
             build_var_ref_replacement(src, span_braced_w, "d"),
             "${ns::d}"
+        );
+    }
+
+    #[test]
+    fn build_var_ref_replacement_preserves_array_index() {
+        // Renaming the base array variable must keep the element
+        // index: `$arr(idx)` → `$data(idx)`, not `$data`.
+        let src = "$arr(idx)  $arr($i)  $ns::a(k)";
+        assert_eq!(
+            build_var_ref_replacement(src, tcl_lexer::Span::new(0, 9), "data"),
+            "$data(idx)"
+        );
+        // A substituted index is copied verbatim (the inner `$i`
+        // reference is renamed on its own if `i` is renamed).
+        assert_eq!(
+            build_var_ref_replacement(src, tcl_lexer::Span::new(11, 19), "data"),
+            "$data($i)"
+        );
+        // Namespace prefix + array index together.
+        assert_eq!(
+            build_var_ref_replacement(src, tcl_lexer::Span::new(21, 30), "b"),
+            "$ns::b(k)"
         );
     }
 

@@ -39,16 +39,13 @@ pub const NAME_FIRST_COMMANDS: &[&str] = &["set", "incr", "append", "lappend", "
 /// Sourced from the registry (the single source of truth) rather than
 /// a hardcoded copy; cached once because the set is dialect-agnostic
 /// (all entries are core Tcl commands present in `build_default`).
-fn frameless_runtime_set() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+fn frameless_runtime_set() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
-        // Leak the owned names once at first use so the set can hold
-        // `&'static str`; the registry that produced them is dropped
-        // here, and the process keeps a single immutable copy.
         CommandRegistry::build_default()
             .commands_with_trait(Traits::FRAMELESS_RUNTIME)
             .into_iter()
-            .map(|name| &*Box::leak(name.to_owned().into_boxed_str()))
+            .map(str::to_owned)
             .collect()
     })
 }

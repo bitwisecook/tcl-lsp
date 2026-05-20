@@ -113,19 +113,9 @@ impl Analyser {
             if tok.span.end() > source_len {
                 continue;
             }
-            let text = &self.source[tok.span.start() as usize..tok.span.end() as usize];
-            let name = if let Some(rest) = text.strip_prefix('$') {
-                if let Some(stripped) = rest.strip_prefix('{') {
-                    stripped.strip_suffix('}').unwrap_or(stripped)
-                } else {
-                    rest
-                }
-            } else {
+            let Some(name) = var_name_from_span(&self.source, tok.span) else {
                 continue;
             };
-            if name.is_empty() {
-                continue;
-            }
             reads.push((name.to_string(), tok.span));
         }
         for (name, span) in reads {
@@ -438,8 +428,18 @@ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>) 
 // Substituted / expr `$var` read collection
 // ---------------------------------------------------------------------------
 
-/// Extract the base variable name from a `Var` token's source span
-/// (`$name` / `${name}` / `$arr(idx)` → `name`).
+/// Extract the base variable name from a `Var` token's source span:
+/// `$name` / `${name}` → `name`, and `$arr(idx)` → `arr` (the array
+/// index is dropped so element reads attribute to the base array
+/// variable).
+///
+/// Handles the lexer's `Var`-token span convention, which excludes
+/// the closing `}` of a braced reference (`${x}` spans `${x`), so the
+/// trailing brace is stripped only when present.  The array-index
+/// suffix is dropped for the unbraced form only — inside `${…}` the
+/// parentheses are part of a literal name.  The recorded base name is
+/// re-normalised by [`normalise_var_name`] in `record_var_read`; this
+/// helper keeps that contract so reads attribute to the right slot.
 fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
     let (s, e) = (span.start() as usize, span.end() as usize);
     if s > e || e > source.len() {
@@ -448,9 +448,14 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
     let text = &source[s..e];
     let rest = text.strip_prefix('$')?;
     let name = if let Some(inner) = rest.strip_prefix('{') {
+        // Braced `${name}` — the span may omit the closing brace.
         inner.strip_suffix('}').unwrap_or(inner)
     } else {
-        rest
+        // Unbraced `$arr(idx)` — keep everything before the index.
+        match rest.find('(') {
+            Some(i) => &rest[..i],
+            None => rest,
+        }
     };
     if name.is_empty() {
         None
