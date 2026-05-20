@@ -8,6 +8,7 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
+const obj = @import("../valtypes/tcl_obj.zig");
 
 fn eval_global(words: []const i32) result_mod.InterpResult {
     var gi: u32 = 1;
@@ -65,6 +66,10 @@ fn eval_variable(words: []const i32) result_mod.InterpResult {
         // and avoid descriptor-side TclObj lifetime questions
         // (Copilot review on PR #343).
         frames.frame_alias_ns_var(local_name, var_ptr, r.target_ns, r.simple_ptr, r.simple_len);
+        // ``frame_alias_ns_var`` reads ``local_name``'s bytes (for
+        // hashing) but doesn't retain the obj.  Release our +1 here
+        // or each ``variable foo`` declaration leaks one TclObj.
+        obj.tcl_obj_release(local_name);
         if (i + 1 < words.len) {
             tcl_ns.var_set_scalar(var_ptr, @bitCast(words[i + 1]));
             i += 1;

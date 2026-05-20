@@ -211,6 +211,12 @@ fn dir_init() void {
     if (dir_cap != 0) return;
     dir_cap = DIR_INITIAL_CAP;
     dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    if (dir_buf == 0) {
+        // OOM — leave the directory uninitialised so callers retry
+        // (dir_cap == 0 is the not-yet-initialised sentinel).
+        dir_cap = 0;
+        return;
+    }
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
@@ -256,6 +262,7 @@ fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 
 fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
     dir_init();
+    if (dir_buf == 0) return; // dir_init OOM
     if (dir_count * 4 >= dir_cap * 3) dir_grow();
     const mask = dir_cap - 1;
     var idx = hash & mask;
@@ -268,6 +275,7 @@ fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
         // probed via the same chain.
         if (ep == 0 or ep == @as(u32, 0xFFFFFFFF)) {
             const nbuf = alloc(name_len);
+            if (nbuf == 0) return;
             memcpy(nbuf, name_ptr, name_len);
             write_i32(bucket, @bitCast(nbuf));
             write_i32(bucket + 4, @bitCast(name_len));
@@ -285,6 +293,13 @@ fn dir_grow() void {
     const old_cap = dir_cap;
     dir_cap *= 2;
     dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    if (dir_buf == 0) {
+        // OOM — keep the old directory live so existing entries stay
+        // reachable.  The next insert will retry the grow.
+        dir_buf = old_buf;
+        dir_cap = old_cap;
+        return;
+    }
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
@@ -299,7 +314,16 @@ fn dir_grow() void {
         const eh: u32 = @bitCast(read_i32(bucket + 8));
         const tp: u32 = @bitCast(read_i32(bucket + 12));
         dir_insert(ep, el, eh, tp);
+        // ``dir_insert`` duplicates the name bytes into a fresh
+        // ``alloc(name_len)`` buffer, so the old per-entry name
+        // buffer is no longer referenced — free it instead of
+        // leaking one slab per live entry per grow.
+        obj.free_sized(ep, el);
     }
+    // Free the old directory buffer itself.  Without this the
+    // grow doubled the directory but left the prior buffer on the
+    // heap forever — ``dir_cap * DIR_BUCKET_SIZE`` bytes per grow.
+    obj.free_sized(old_buf, old_cap * DIR_BUCKET_SIZE);
 }
 
 // --- Per-array table (key → value) -------------------------------------
@@ -321,6 +345,7 @@ const AR_TOMBSTONE: i32 = @bitCast(@as(u32, 0xFFFF_FFFF));
 fn ar_new() u32 {
     const cap: u32 = AR_INITIAL_CAP;
     const t = alloc(AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
+    if (t == 0) return 0;
     write_i32(t, @bitCast(cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;
@@ -389,7 +414,10 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
 /// :func:`ensure_array_value_owned`.
 fn bucket_set_value(bucket: u32, value: i32) void {
     const old: i32 = read_i32(bucket + 12);
-    if (value != 0) obj.tcl_obj_retain(value);
+    // Same-handle re-stamp (``set arr(k) $val`` with $val unchanged)
+    // must be a no-op on rc.  Gate both retain AND release on the
+    // inequality or the unconditional retain leaks +1 per repeat.
+    if (value != 0 and value != old) obj.tcl_obj_retain(value);
     write_i32(bucket + 12, value);
     if (old != 0 and old != value) obj.tcl_obj_release(old);
 }
@@ -433,6 +461,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
             // Empty terminator: insert here, or fill the earlier tombstone if any.
             const target = first_tomb orelse bucket;
             const kbuf = alloc(key_len);
+            if (kbuf == 0) return t;
             memcpy(kbuf, key_ptr, key_len);
             write_i32(target, @bitCast(kbuf));
             write_i32(target + 4, @bitCast(key_len));
@@ -472,6 +501,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
     // Table was full of tombstones — fall back to the tombstone slot.
     if (first_tomb) |target| {
         const kbuf = alloc(key_len);
+        if (kbuf == 0) return t;
         memcpy(kbuf, key_ptr, key_len);
         write_i32(target, @bitCast(kbuf));
         write_i32(target + 4, @bitCast(key_len));
@@ -487,6 +517,7 @@ fn ar_grow(old_table: u32) u32 {
     const old_cap = ar_cap(old_table);
     const new_cap = old_cap * 2;
     const t = alloc(AR_HEADER_SIZE + new_cap * AR_BUCKET_SIZE);
+    if (t == 0) return old_table;
     write_i32(t, @bitCast(new_cap));
     write_i32(t + 4, 0);
     var i: u32 = 0;
@@ -505,6 +536,13 @@ fn ar_grow(old_table: u32) u32 {
         const eh: u32 = @bitCast(read_i32(bucket + 8));
         const v: i32 = read_i32(bucket + 12);
         _ = ar_insert(t, ep, el, eh, v);
+        // ``ar_insert`` allocates a fresh key buffer + retains the
+        // value handle.  Free the old key buffer and release the
+        // old retain so the rc accounting nets to "slot transferred,
+        // same total ref count".  Without these, every grow leaked
+        // one key slab + one obj retain per live entry.
+        obj.free_sized(ep, el);
+        if (v != 0) obj.tcl_obj_release(v);
     }
     // Rewrite the directory entries that pointed at old_table.  Since
     // we don't know which directory entry owned it cheaply, walk the
@@ -519,6 +557,11 @@ fn ar_grow(old_table: u32) u32 {
             }
         }
     }
+    // Free the old table itself.  The bucket headers and per-key
+    // slabs are reclaimed above; without this the table backbone
+    // (``AR_HEADER_SIZE + old_cap * AR_BUCKET_SIZE`` bytes) stayed
+    // resident forever after every grow.
+    obj.free_sized(old_table, AR_HEADER_SIZE + old_cap * AR_BUCKET_SIZE);
     return t;
 }
 
@@ -1205,6 +1248,30 @@ pub export fn array_unset(arr: i32) i32 {
     if (dir_buf == 0) return obj_new_int(0);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
+        // Release every value TclObj, free every key buffer, then
+        // free the table backbone before clearing the directory
+        // pointer.  Without this teardown ``array unset arrName``
+        // dropped its sole reference to the entire array without
+        // reclaiming any of the per-element key slabs (one alloc per
+        // ``set arr(K)``), the per-element TclObj values (each had
+        // the bucket's retain), or the table header itself
+        // (``AR_HEADER_SIZE + cap * AR_BUCKET_SIZE`` bytes).
+        const table: u32 = @bitCast(read_i32(bucket + 12));
+        if (table != 0) {
+            const cap = ar_cap(table);
+            var k: u32 = 0;
+            while (k < cap) : (k += 1) {
+                const b = table + AR_HEADER_SIZE + k * AR_BUCKET_SIZE;
+                const raw = read_i32(b);
+                if (raw == 0 or raw == AR_TOMBSTONE) continue;
+                const kp: u32 = @bitCast(raw);
+                const kl: u32 = @bitCast(read_i32(b + 4));
+                const v: i32 = read_i32(b + 12);
+                if (v != 0) obj.tcl_obj_release(v);
+                obj.free_sized(kp, kl);
+            }
+            obj.free_sized(table, AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
+        }
         // Null out the table pointer so array_exists / find_table
         // treat this array as non-existent.  The directory entry itself
         // stays so the open-addressing chain isn't broken; find_or_create
@@ -1233,13 +1300,19 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
         // isn't there does NOT auto-stop).
         array_invalidate_searches_for(arr);
         // MM-B.5: release the value slot's reference before tombstoning.
+        // Also free the per-element key buffer allocated by
+        // ``ar_insert`` — without this every ``unset arr(k)`` leaked
+        // one ``alloc(key_len)`` slab.
         const old: i32 = read_i32(bucket + 12);
+        const kp: u32 = @bitCast(read_i32(bucket));
+        const kl: u32 = @bitCast(read_i32(bucket + 4));
         write_i32(bucket, AR_TOMBSTONE);
         write_i32(bucket + 4, 0);
         write_i32(bucket + 8, 0);
         write_i32(bucket + 12, 0);
         ar_set_count(t, ar_count(t) - 1);
         if (old != 0) obj.tcl_obj_release(old);
+        if (kp != 0 and kl > 0) obj.free_sized(kp, kl);
     }
     // Phase 6: fire UNSET trace AFTER the unset so the callback sees
     // the variable in its final (gone) state.
@@ -1676,6 +1749,7 @@ pub fn array_top_level_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     if (total == 0) return obj_new_string(0, 0);
 
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1698,7 +1772,7 @@ pub fn array_top_level_names_matching(pat_ptr: u32, pat_len: u32) i32 {
         off += name_len;
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
@@ -1727,6 +1801,7 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     if (total == 0) return obj_new_string(0, 0);
 
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1750,5 +1825,5 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
         off += name_len;
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }

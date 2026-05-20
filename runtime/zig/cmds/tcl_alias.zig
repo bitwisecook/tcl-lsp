@@ -172,6 +172,7 @@ pub fn alias_alloc_with_token(
     child_interp: u32,
 ) u32 {
     const cmd = alloc(tcl_procs.COMMAND_SIZE);
+    if (cmd == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..tcl_procs.COMMAND_SIZE], 0);
 
@@ -187,12 +188,14 @@ pub fn alias_alloc_with_token(
 
     // Heap-copy the target name bytes.
     const tbuf = alloc(target_name_len);
+    if (tbuf == 0 and target_name_len > 0) return 0;
     if (target_name_len > 0) memcpy(tbuf, target_name_ptr, target_name_len);
 
     // Heap-copy the token (original alias name as the user passed
     // it — may include ``::`` qualifiers like ``ns::cmd``).
     // Mirrors C Tcl's ``Alias.token`` field (tclInterp.c).
     const token_buf = alloc(token_src_len);
+    if (token_buf == 0 and token_src_len > 0) return 0;
     if (token_src_len > 0) memcpy(token_buf, token_src_ptr, token_src_len);
 
     // Heap-copy the prefix-args array.  Each element is a u32
@@ -203,6 +206,7 @@ pub fn alias_alloc_with_token(
     var pbuf: u32 = 0;
     if (n_prefix > 0 and prefix_args_addr != 0) {
         pbuf = alloc(n_prefix * 4);
+        if (pbuf == 0) return 0;
         var i: u32 = 0;
         while (i < n_prefix) : (i += 1) {
             const handle = read_i32(prefix_args_addr + i * 4);
@@ -215,6 +219,7 @@ pub fn alias_alloc_with_token(
     }
 
     const rec = alloc(@sizeOf(AliasRec));
+    if (rec == 0) return 0;
     const r: *AliasRec = @ptrFromInt(rec);
     r.target_name_ptr = tbuf;
     r.target_name_len = target_name_len;
@@ -283,6 +288,27 @@ pub fn alias_clear_rec(rec_addr: u32) void {
     if (real_parent != 0) {
         interp_reg.alias_chain_remove(real_parent, rec_addr, .target);
     }
+    // Release each prefix-args TclObj retained by ``alias_alloc``
+    // and free the heap-allocated arrays.  Mirrors :func:`alias_clear`
+    // — the previous implementation just zeroed the fields, leaking
+    // ``n_prefix + 1`` TclObj retains and two slab allocations every
+    // time an alias was deleted via the cross-interp cascade or via
+    // ``interp alias child foo {}`` after a rename.
+    const objm = @import("../valtypes/tcl_obj.zig");
+    if (r.n_prefix > 0 and r.prefix_args_addr != 0) {
+        var i: u32 = 0;
+        while (i < r.n_prefix) : (i += 1) {
+            const handle = read_i32(r.prefix_args_addr + i * 4);
+            if (handle != 0) objm.tcl_obj_release(handle);
+        }
+        objm.free_sized(r.prefix_args_addr, r.n_prefix * 4);
+    }
+    if (r.target_name_len > 0 and r.target_name_ptr != 0) {
+        objm.free_sized(r.target_name_ptr, r.target_name_len);
+    }
+    if (r.token_len > 0 and r.token_ptr != 0) {
+        objm.free_sized(r.token_ptr, r.token_len);
+    }
     r.target_name_len = 0;
     r.target_name_ptr = 0;
     r.n_prefix = 0;
@@ -290,6 +316,7 @@ pub fn alias_clear_rec(rec_addr: u32) void {
     r.parent_interp = 0;
     r.child_interp = 0;
     r.token_len = 0;
+    r.token_ptr = 0;
     r.next_in_child = 0;
     r.next_target_in_parent = 0;
 }
@@ -372,6 +399,25 @@ pub fn alias_clear(cmd: u32) void {
     if (real_parent != 0) {
         interp_reg.alias_chain_remove(real_parent, rec_addr, .target);
     }
+    // ``alias_alloc`` retains every prefix-args TclObj for the
+    // alias's lifetime; release them here or every
+    // ``interp alias {} foo {}`` (delete) leaks ``n_prefix``
+    // TclObjs.  Also free the heap-allocated arrays so they
+    // don't leak the slab.
+    const objm = @import("../valtypes/tcl_obj.zig");
+    if (r.n_prefix > 0 and r.prefix_args_addr != 0) {
+        var i: u32 = 0;
+        while (i < r.n_prefix) : (i += 1) {
+            const handle = read_i32(r.prefix_args_addr + i * 4);
+            if (handle != 0) objm.tcl_obj_release(handle);
+        }
+        objm.free_sized(r.prefix_args_addr, r.n_prefix * 4);
+    }
+    // ``target_name_ptr`` is a heap-allocated byte copy from
+    // ``alias_alloc``; free the slab so it doesn't leak.
+    if (r.target_name_len > 0 and r.target_name_ptr != 0) {
+        objm.free_sized(r.target_name_ptr, r.target_name_len);
+    }
     r.target_name_len = 0;
     r.target_name_ptr = 0;
     r.n_prefix = 0;
@@ -412,6 +458,7 @@ fn alias_describe_inner(r: *AliasRec) i32 {
         total += 1 + s.len * 2 + 8; // leading space + quoted element
     }
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
 
     // Element 0: the target name.  ``list_elem_quote`` treats it as
     // the first list element so a leading ``#`` is braced — matches
@@ -430,5 +477,5 @@ fn alias_describe_inner(r: *AliasRec) i32 {
         const s = obj_ensure_string(h);
         off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }

@@ -325,6 +325,14 @@ pub var current_interp: u32 = 0;
 fn alloc_interp() u32 {
     const size: u32 = @sizeOf(Interp);
     const addr = alloc(size);
+    // OOM: alloc raised ``oom_flag``.  Return 0 so callers can
+    // surface the failure rather than ``@memset`` through a null
+    // pointer.  ``child_create`` propagates 0 up to
+    // ``eval_interp_create`` which already bails on a missing
+    // child handle; ``interp_root`` callers will see the root
+    // interp unallocated and the next interp boundary will
+    // surface the OOM.
+    if (addr == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(addr);
     @memset(slice[0..size], 0);
     return addr;
@@ -338,6 +346,14 @@ fn alloc_interp() u32 {
 pub fn interp_root() u32 {
     if (root_interp_addr != 0) return root_interp_addr;
     root_interp_addr = alloc_interp();
+    // OOM at very early init: ``alloc_interp`` already surfaced 0
+    // and raised ``oom_flag``.  Skip the field writes (otherwise
+    // ``@ptrFromInt(0)`` panics in debug) and return 0 so the next
+    // ``interp_root`` call retries the allocation.  Callers that
+    // assume this is non-null are limited to early-init hooks; if
+    // they actually deref they'll panic the same way as today, but
+    // strictly worse off than before — net win.
+    if (root_interp_addr == 0) return 0;
     const i: *Interp = @ptrFromInt(root_interp_addr);
     i.root_ns = tcl_ns.ns_root();
     // Root interp has no parent, no simple name, no children yet.
@@ -389,6 +405,12 @@ pub fn child_create(parent: u32, name_ptr: u32, name_len: u32, flags: u32) u32 {
         p.children.insert_header(name_ptr, name_len, hash);
 
     const child = alloc_interp();
+    // OOM: ``alloc_interp`` returned 0 and raised ``oom_flag``.
+    // Don't write back through the bucket; the bucket entry still
+    // has its handle slot zero (per ``insert_header``) and a
+    // retry after the OOM clears can reattempt the create against
+    // the same bucket name.
+    if (child == 0) return 0;
     const c: *Interp = @ptrFromInt(child);
     c.parent = parent;
     c.flags = flags;
@@ -402,9 +424,18 @@ pub fn child_create(parent: u32, name_ptr: u32, name_len: u32, flags: u32) u32 {
 
     if (name_len > 0) {
         const nbuf = alloc(name_len);
-        memcpy(nbuf, name_ptr, name_len);
-        c.name_ptr = nbuf;
-        c.name_len = name_len;
+        // OOM: alloc raised ``oom_flag``.  Leave the child without
+        // a name (name_ptr=0, name_len=0) and surface the partial
+        // Interp anyway — the bucket entry still points to it so
+        // callers can find / delete the half-built child.  Skipping
+        // the ``memcpy`` avoids ``@ptrFromInt(0)``; the missing
+        // name will surface as an empty path in any subsequent
+        // ``namespace which`` style lookup.
+        if (nbuf != 0) {
+            memcpy(nbuf, name_ptr, name_len);
+            c.name_ptr = nbuf;
+            c.name_len = name_len;
+        }
     }
 
     write_i32(bucket + tcl_ns.OFF_HANDLE, @bitCast(child));
@@ -623,6 +654,12 @@ pub fn alloc_child_command(
     child_interp: u32,
 ) u32 {
     const cmd = alloc(COMMAND_SIZE);
+    // OOM: alloc raised ``oom_flag``.  Surface 0 to the caller
+    // (``eval_interp_create``) which already handles a 0 return
+    // for the analogous ``child_create`` path — it bails before
+    // registering the half-built Command into the parent's
+    // cmd_table.
+    if (cmd == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..COMMAND_SIZE], 0);
 

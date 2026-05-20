@@ -28,6 +28,7 @@ const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const chars = @import("../valtypes/tcl_chars.zig");
+const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const bignum = @import("../valtypes/tcl_bignum.zig");
@@ -274,10 +275,17 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             if (!suppress) {
                 const val = obj_new_int(@intCast(si));
                 if (has_vars) {
-                    if (vi >= n_vars) break;
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
                     _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
                 } else {
-                    list_result = rt.tcl_list(list_result, val);
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
                 }
                 vi += 1;
                 assigned += 1;
@@ -304,13 +312,22 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             const val = obj_new_int(cp);
             if (!suppress) {
                 if (has_vars) {
-                    if (vi >= n_vars) break;
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
                     _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
                 } else {
-                    list_result = rt.tcl_list(list_result, val);
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
                 }
                 vi += 1;
                 assigned += 1;
+            } else {
+                obj_mod_scan.tcl_obj_release(val);
             }
             si = tmp_i;
             continue;
@@ -326,16 +343,28 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             const accept_0x = (spec == 'x' or spec == 'X');
             var matched = false;
             const val = scan_int(src, ss.len, &si, base, accept_0x, &matched);
-            if (!matched) break;
+            if (!matched) {
+                obj_mod_scan.tcl_obj_release(val);
+                break;
+            }
             if (!suppress) {
                 if (has_vars) {
-                    if (vi >= n_vars) break;
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
                     _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
                 } else {
-                    list_result = rt.tcl_list(list_result, val);
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
                 }
                 vi += 1;
                 assigned += 1;
+            } else {
+                obj_mod_scan.tcl_obj_release(val);
             }
             continue;
         }
@@ -372,13 +401,22 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             const val = obj_new_int(if (neg) -int_val else int_val);
             if (!suppress) {
                 if (has_vars) {
-                    if (vi >= n_vars) break;
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
                     _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
                 } else {
-                    list_result = rt.tcl_list(list_result, val);
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
                 }
                 vi += 1;
                 assigned += 1;
+            } else {
+                obj_mod_scan.tcl_obj_release(val);
             }
             continue;
         }
@@ -397,13 +435,22 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(end_si - start_si));
             if (!suppress) {
                 if (has_vars) {
-                    if (vi >= n_vars) break;
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
                     _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
                 } else {
-                    list_result = rt.tcl_list(list_result, val);
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
                 }
                 vi += 1;
                 assigned += 1;
+            } else {
+                obj_mod_scan.tcl_obj_release(val);
             }
             si = end_si;
             continue;
@@ -417,6 +464,10 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
         // No-variable form: return the list of parsed values.
         return result_mod.from_globals(list_result);
     }
+    // ``has_vars`` path doesn't return ``list_result`` — release the
+    // empty seed (and any partial accumulation if vars ran short
+    // partway through) so it doesn't outlive the call.
+    obj_mod_scan.tcl_obj_release(list_result);
     return result_mod.from_globals(obj_new_int(@intCast(assigned)));
 }
 

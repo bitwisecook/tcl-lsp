@@ -55,6 +55,19 @@ pub fn get(idx: u32) i32 {
     return slots[idx];
 }
 
+/// Same as :func:`get` but bumps the returned handle's refcount so
+/// the caller can return it through the dispatcher chain without
+/// the eval_script-loop release dropping the slot's own +1.  Mirror
+/// of the ``eval_set`` read-form fix in ``cmds/var.zig`` — every
+/// borrow returned to the dispatcher needs an extra retain so the
+/// caller's release doesn't decrement the storage's live reference.
+pub fn get_owned(idx: u32) i32 {
+    if (idx >= NUM_SLOTS) return 0;
+    const h = slots[idx];
+    if (h != 0) obj.tcl_obj_retain(h);
+    return h;
+}
+
 /// Store *handle* in slot *idx*, retaining the new value and
 /// releasing the prior occupant.  ``handle == 0`` clears the slot.
 pub fn set(idx: u32, handle: i32) void {

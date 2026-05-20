@@ -553,9 +553,15 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
             target_ext = dict_clone_ext(ext);
         }
         obj.write_i32(new_addr + obj.OBJ_DICT_EXT, @bitCast(target_ext));
-        const v_obj = obj_new_string_copy(sv.ptr, sv.len);
-        dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
-        obj.tcl_obj_release(v_obj);
+        // ``dict_clone_ext`` returns 0 on OOM; ``dict_hash_insert``
+        // would then read/write addresses 4/8/12 of low memory.
+        // Skip the cache plumbing on the OOM path — the dict's
+        // list-rep is correct either way.
+        if (target_ext != 0) {
+            const v_obj = obj_new_string_copy(sv.ptr, sv.len);
+            dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
+            obj.tcl_obj_release(v_obj);
+        }
     } else {
         dict_invalidate_cache(dict);
     }
@@ -634,18 +640,12 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
             off += elem.len;
         }
     }
-    // Claim ownership of ``buf`` via OBJ_STR_CAP so eventual
-    // ``tcl_obj_release`` reclaims the bytes through ``free_sized``.
-    // Without this the rebuilt-dict buffer would leak on every
-    // ``dict unset`` (or any caller that releases the returned
-    // dict TclObj).
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``obj_new_string_take`` writes the cap atomically with the
+    // header and free_sizes ``buf`` on its own OOM path — the
+    // earlier two-step ``obj_new_string`` + manual cap-write form
+    // was racy under header OOM (we had to add an explicit free
+    // on the OOM branch to compensate).
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
@@ -690,13 +690,10 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             }
         }
     }
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``_take`` atomically transfers ownership of ``buf`` to the
+    // returned obj and frees it on header-OOM — no need for the
+    // explicit ``free_sized`` + manual cap-write dance.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
@@ -724,11 +721,8 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, vp, vl);
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    }
-    return new_obj;
+    // Atomic take — see the rationale in ``dict_rebuild_with_value``.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 // Exported: dict merge — merge *source* into *target*; for duplicate
@@ -782,7 +776,9 @@ pub export fn dict_keys(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 2) {
@@ -806,7 +802,7 @@ pub export fn dict_keys(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: dict values — return a list of all values in the dict.
@@ -814,7 +810,9 @@ pub export fn dict_values(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 1;
     while (idx < n) : (idx += 2) {
@@ -838,7 +836,7 @@ pub export fn dict_values(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: dict size — number of UNIQUE key-value pairs.  When the

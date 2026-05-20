@@ -55,6 +55,7 @@ pub fn eval_fconfigure(words: []const i32) result_mod.InterpResult {
     }
     if (total_cap == 0) total_cap = 1;
     const buf = alloc(total_cap);
+    if (buf == 0) return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, 0));
     var off: u32 = 0;
     i = 2;
     while (i < words.len) : (i += 1) {
@@ -66,7 +67,7 @@ pub fn eval_fconfigure(words: []const i32) result_mod.InterpResult {
         const s = obj.obj_ensure_string(words[i]);
         off = list_quote.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    const args_obj = obj_new_string(@bitCast(buf), @bitCast(off));
+    const args_obj = rt.obj_new_string_take(buf, off, total_cap);
     return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, args_obj));
 }
 
@@ -110,7 +111,19 @@ fn eval_chan_names(words: []const i32) i32 {
             const ns = obj_ensure_string(name);
             if (!tcl_string.glob_match(pattern_ptr, pattern_len, ns.ptr, ns.len)) continue;
         }
-        result = rt.tcl_cmd_lappend(result, name);
+        // ``tcl_cmd_lappend`` may take the in-place fast path
+        // (returning the same handle) or the canonical-rebuild slow
+        // path (returning a fresh +1 owned obj).  The empty-string
+        // seed always misses the fast path (``cap == 0``), so the
+        // first hit returns a fresh handle — release the prior
+        // accumulator on swap so the seed (and any subsequent
+        // intermediate rebuild) doesn't outlive the call.
+        const next = rt.tcl_cmd_lappend(result, name);
+        if (next != result) {
+            const obj_mod_chan = @import("../valtypes/tcl_obj.zig");
+            obj_mod_chan.tcl_obj_release(result);
+        }
+        result = next;
     }
     return result;
 }

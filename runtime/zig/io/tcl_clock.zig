@@ -2120,6 +2120,12 @@ fn raise_clock_error(msg: []const u8, code: []const u8) void {
     const code_obj = obj_new_string_copy(@intCast(@intFromPtr(code.ptr)), @intCast(code.len));
     const tcl_catch = @import("../interp/tcl_catch.zig");
     tcl_catch.tcl_cmd_error_full(msg_obj, 0, code_obj);
+    // ``tcl_cmd_error_full`` retains both handles into the
+    // ``::errorInfo`` / ``::errorCode`` var slots via ``global_set``;
+    // our local +1 share is unconsumed and would otherwise leak one
+    // TclObj header per error.  Release after the stamp.
+    obj.tcl_obj_release(msg_obj);
+    obj.tcl_obj_release(code_obj);
 }
 
 /// clock_scan_format — strftime-driven scan.  Returns a TclObj integer

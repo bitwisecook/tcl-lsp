@@ -182,13 +182,17 @@ fn eval_testintobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "get")) {
         if (words.len != 3) return err_msg("wrong # args: testintobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "get2")) {
         if (words.len != 3) return err_msg("wrong # args: testintobj get2 varIndex");
         if (check_unset(slot)) |e| return e;
+        // ``obj_new_string_copy`` (NOT the borrow form) — the prior
+        // ``obj_new_string`` left ``cap=0`` and pointed at the
+        // slot's bytes.  If the slot is later overwritten the
+        // returned TclObj's str_ptr would dangle (cmd_obj UAF).
         const s = obj.obj_ensure_string(slots.get(slot));
-        return result_mod.ok(obj.obj_new_string(@bitCast(s.ptr), @bitCast(s.len)));
+        return result_mod.ok(obj.obj_new_string_copy(s.ptr, s.len));
     }
     if (obj_eq_lit(words[1], "inttoobigtest")) {
         if (words.len != 3) return err_msg("wrong # args: testintobj inttoobigtest varIndex");
@@ -238,7 +242,7 @@ fn eval_testbooleanobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "get")) {
         if (words.len != 3) return err_msg("wrong # args: testbooleanobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "not")) {
         if (words.len != 3) return err_msg("wrong # args: testbooleanobj not varIndex");
@@ -272,7 +276,7 @@ fn eval_testdoubleobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "get")) {
         if (words.len != 3) return err_msg("wrong # args: testdoubleobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "mult10")) {
         if (words.len != 3) return err_msg("wrong # args: testdoubleobj mult10 varIndex");
@@ -321,7 +325,7 @@ fn eval_testbignumobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "get")) {
         if (words.len != 3) return err_msg("wrong # args: testbignumobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "mult10")) {
         if (words.len != 3) return err_msg("wrong # args: testbignumobj mult10 varIndex");
@@ -448,7 +452,7 @@ fn eval_testlistobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "get")) {
         if (words.len != 3) return err_msg("wrong # args: testlistobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "replace")) {
         // testlistobj replace varIndex start count ?element...?
@@ -559,7 +563,7 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
             .err => |e| return e,
         };
         slots.set(dslot, slots.get(sslot));
-        return result_mod.ok(slots.get(dslot));
+        return result_mod.ok(slots.get_owned(dslot));
     }
     if (obj_eq_lit(words[1], "duplicate")) {
         if (words.len != 4) return err_msg("wrong # args: testobj duplicate varIndex destIndex");
@@ -576,10 +580,17 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
         };
         // "Duplicate" semantically: build a fresh string-rep obj.  Our
         // tagged-immediate values are already shared-safe; for non-
-        // immediate types we copy the string rep.
+        // immediate types we copy the string rep.  Must use
+        // ``obj_new_string_copy`` so the duplicate owns its bytes;
+        // the prior ``obj_new_string`` borrowed the source slot's
+        // buffer, and clearing the source via ``slots.set`` later
+        // would have left the duplicate with a dangling str_ptr.
         const s = obj.obj_ensure_string(slots.get(sslot));
-        const fresh = obj.obj_new_string(@bitCast(s.ptr), @bitCast(s.len));
+        const fresh = obj.obj_new_string_copy(s.ptr, s.len);
         slots.set(dslot, fresh);
+        // ``slots.set`` retained ``fresh`` for ``dslot``; return our
+        // local +1 to the caller without extra release (this site
+        // owns the share that propagates through eval_script).
         return result_mod.ok(fresh);
     }
     if (obj_eq_lit(words[1], "convert")) {
@@ -593,7 +604,7 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
         // Forces materialisation by reading the string rep — that's
         // the closest portable approximation of Tcl_ConvertToType.
         _ = obj.obj_ensure_string(slots.get(slot));
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "refcount") or
         obj_eq_lit(words[1], "invalidateStringRep") or
@@ -636,15 +647,20 @@ fn eval_teststringobj(words: []const i32) result_mod.InterpResult {
 
     if (obj_eq_lit(words[1], "set") or obj_eq_lit(words[1], "set2")) {
         if (words.len != 4) return err_msg("wrong # args: teststringobj set varIndex value");
+        // ``obj_new_string_copy`` materialises an owned buffer so
+        // the slot survives the parser's release of ``words[3]``.
+        // The prior ``obj_new_string`` borrowed ``words[3]``'s
+        // bytes — after the dispatcher's word-release loop ran the
+        // slot held a dangling pointer.
         const s = obj.obj_ensure_string(words[3]);
-        const out = obj.obj_new_string(@bitCast(s.ptr), @bitCast(s.len));
+        const out = obj.obj_new_string_copy(s.ptr, s.len);
         slots.set(slot, out);
         return result_mod.ok(out);
     }
     if (obj_eq_lit(words[1], "get") or obj_eq_lit(words[1], "get2")) {
         if (words.len != 3) return err_msg("wrong # args: teststringobj get varIndex");
         if (check_unset(slot)) |e| return e;
-        return result_mod.ok(slots.get(slot));
+        return result_mod.ok(slots.get_owned(slot));
     }
     if (obj_eq_lit(words[1], "length") or obj_eq_lit(words[1], "length2")) {
         if (words.len != 3) return err_msg("wrong # args: teststringobj length varIndex");

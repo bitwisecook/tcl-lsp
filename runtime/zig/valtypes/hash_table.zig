@@ -90,6 +90,15 @@ pub fn Table(comptime bucket_size: u32) type {
             if (self.buf != 0) return;
             self.cap = initial_cap;
             self.buf = alloc(self.cap * bucket_size);
+            // OOM: leave ``buf == 0`` so ``find``/``insert_header`` /
+            // ``each`` continue to treat the table as unallocated and
+            // a subsequent ``init`` retry can succeed.  Clear ``cap``
+            // too to keep the (buf == 0, cap == 0) invariant the rest
+            // of this file relies on.
+            if (self.buf == 0) {
+                self.cap = 0;
+                return;
+            }
             var i: u32 = 0;
             while (i < self.cap) : (i += 1) {
                 write_i32(self.buf + i * bucket_size, 0); // empty marker
@@ -261,6 +270,17 @@ pub fn Table(comptime bucket_size: u32) type {
             const old_cap = self.cap;
             self.cap = old_cap * 2;
             self.buf = alloc(self.cap * bucket_size);
+            // OOM: leave the table in a usable state by restoring the
+            // original buffer.  ``alloc`` already raised ``oom_flag``,
+            // so the caller will see the OOM on the next interpreter
+            // boundary check.  Callers that rely on ``needs_grow`` +
+            // ``grow`` will simply skip the rehash this round and try
+            // again after the OOM clears.
+            if (self.buf == 0) {
+                self.buf = old_buf;
+                self.cap = old_cap;
+                return;
+            }
             self.count = 0;
             var i: u32 = 0;
             while (i < self.cap) : (i += 1) {
@@ -280,6 +300,10 @@ pub fn Table(comptime bucket_size: u32) type {
                         // Bulk-copy all bucket bytes (header + value)
                         // word-by-word.  ``bucket_size`` is comptime
                         // so this loop is fully unrolled in release.
+                        // The ``name_ptr`` byte buffer is transferred
+                        // verbatim — both old and new bucket share
+                        // the same heap allocation, so we MUST NOT
+                        // free it here (the new bucket still uses it).
                         var k: u32 = 0;
                         while (k < bucket_size) : (k += 4) {
                             write_i32(nb + k, read_i32(base + k));
@@ -290,6 +314,11 @@ pub fn Table(comptime bucket_size: u32) type {
                     idx = (idx + 1) & mask;
                 }
             }
+            // Free the old bucket array backbone — the per-entry
+            // name buffers were transferred to the new buffer above,
+            // so only the table itself needs reclaiming.  Without
+            // this every grow leaked ``old_cap * bucket_size`` bytes.
+            obj.free_sized(old_buf, old_cap * bucket_size);
         }
 
         /// Iterate every populated bucket base in capacity order
@@ -321,12 +350,18 @@ pub fn Table(comptime bucket_size: u32) type {
         pub fn delete_at(self: *Self, base: u32) void {
             const ep: u32 = @bitCast(read_i32(base));
             if (ep == 0 or ep == TOMBSTONE) return;
+            // Free the name buffer that ``try_insert_header`` minted
+            // — the tombstone marker overwrites the pointer, so the
+            // slab would otherwise leak.  Capture the length before
+            // we zero the field below.
+            const el: u32 = @bitCast(read_i32(base + 4));
             write_i32(base, @bitCast(TOMBSTONE));
             // Optional: zero name_len + hash so a stale read sees
             // self-consistent zero rather than partial old data.
             write_i32(base + 4, 0);
             write_i32(base + 8, 0);
             if (self.count > 0) self.count -= 1;
+            if (el > 0) obj.free_sized(ep, el);
         }
     };
 }

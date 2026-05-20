@@ -15,6 +15,7 @@ const obj_new_string = obj.obj_new_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 const obj_new_string_copy = obj.obj_new_string_copy;
+const obj_new_string_take = obj.obj_new_string_take;
 const try_parse_int = obj.try_parse_int;
 const is_space = obj.is_space;
 const list_count_elements = obj.list_count_elements;
@@ -97,11 +98,13 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     if (buf == 0) return obj_new_string(0, 0);
     if (a.len > 0) memcpy(buf, a.ptr, a.len);
     if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(total));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
-    }
-    return new_obj;
+    // ``obj_new_string_take`` claims ``buf`` as the obj's owned
+    // backing storage in one shot — the older two-step pattern
+    // (``obj_new_string`` + manual ``OBJ_STR_CAP`` write) is
+    // bug-prone because an OOM on the obj header would leak ``buf``
+    // outright.  ``_take`` frees ``buf`` internally when the obj
+    // header alloc fails, so the path is leak-safe end-to-end.
+    return obj.obj_new_string_take(buf, total, new_cap);
 }
 
 // Exported: string compare — lexicographic comparison of string representations.
@@ -382,10 +385,11 @@ pub export fn string_index(value: i32, idx: i32) i32 {
     const cl = utf8_lead_len(sp[start]);
     const actual = if (start + cl > s.len) s.len - start else cl;
     const buf = alloc(actual);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var k: u32 = 0;
     while (k < actual) : (k += 1) dst[k] = sp[start + k];
-    return obj_new_string(@bitCast(buf), @bitCast(actual));
+    return obj_new_string_take(buf, actual, actual);
 }
 
 // Exported: string range — extract codepoints [first..last] inclusive.
@@ -428,7 +432,9 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
     const n_elems = list_count_elements(sm.ptr, sm.len);
     if (n_elems < 2) return value;
     const n_pairs: u32 = @intCast(@divTrunc(n_elems, 2));
-    const buf = alloc(sv.len * 2 + 64);
+    const alloc_size = sv.len * 2 + 64;
+    const buf = alloc(alloc_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     var out_len: u32 = 0;
     var pos: u32 = 0;
@@ -470,7 +476,7 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
         out_len += 1;
         pos += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return obj_new_string_take(buf, out_len, alloc_size);
 }
 
 // Exported: string match — glob pattern matching (* and ? wildcards).
@@ -1139,13 +1145,14 @@ pub export fn string_repeat(value: i32, count: i32) i32 {
     const cn: u32 = @intCast(n);
     const total = sv.len * cn;
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var i: u32 = 0;
     while (i < cn) : (i += 1) {
         memcpy(buf + off, sv.ptr, sv.len);
         off += sv.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_new_string_take(buf, total, total);
 }
 
 // Exported: string reverse — reverse a string.
@@ -1160,7 +1167,9 @@ pub export fn string_reverse(value: i32) i32 {
     // ``\uDE02\uD83Dblubф``).  Reserve worst-case 6 bytes per
     // input codepoint (BMP = 3 bytes UTF-8; supplementary = 4 input →
     // 2 × 3 output bytes for surrogates).
-    const buf = alloc(sv.len * 2 + 4);
+    const buf_size: u32 = sv.len * 2 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var src_i: u32 = 0;
     // First pass: walk forward and accumulate the reversed output by
@@ -1168,7 +1177,7 @@ pub export fn string_reverse(value: i32) i32 {
     var out_len: u32 = 0;
     // Use a two-pass strategy — gather byte runs into ``buf`` from
     // the *end* so each new unit takes the lowest-index slot.
-    var write_head: u32 = sv.len * 2 + 4;
+    var write_head: u32 = buf_size;
     while (src_i < sv.len) {
         const d = decode_utf8_at(src, sv.len, src_i);
         if (d.cp >= 0x10000 and d.cp <= 0x10FFFF) {
@@ -1205,7 +1214,7 @@ pub export fn string_reverse(value: i32) i32 {
             dst[i] = dst[write_head + i];
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return obj_new_string_take(buf, out_len, buf_size);
 }
 
 // Exported: string toupper — convert to uppercase.
@@ -1235,7 +1244,9 @@ fn case_fold_whole(value: i32, kind: FoldKind) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return value;
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const buf = alloc(sv.len * 4 + 4);
+    const buf_size: u32 = sv.len * 4 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var src_i: u32 = 0;
     var out_i: u32 = 0;
@@ -1245,7 +1256,7 @@ fn case_fold_whole(value: i32, kind: FoldKind) i32 {
         out_i += encode_utf8(folded, dst + out_i);
         src_i += d.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+    return obj_new_string_take(buf, out_i, buf_size);
 }
 
 /// Range-bounded variants for ``string tolower/toupper STRING
@@ -1270,7 +1281,9 @@ fn case_fold_range(value: i32, first: i32, last: i32, kind: FoldKind) i32 {
     if (l >= cp_count) l = cp_count - 1;
     if (f > l) return value;
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const buf = alloc(sv.len * 4 + 4);
+    const buf_size: u32 = sv.len * 4 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var src_i: u32 = 0;
     var out_i: u32 = 0;
@@ -1285,7 +1298,7 @@ fn case_fold_range(value: i32, first: i32, last: i32, kind: FoldKind) i32 {
         src_i += d.len;
         cp_idx += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+    return obj_new_string_take(buf, out_i, buf_size);
 }
 
 // Exported: string totitle — title-case the first codepoint and
@@ -1296,7 +1309,9 @@ pub export fn string_totitle(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return value;
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const buf = alloc(sv.len * 4 + 4);
+    const buf_size: u32 = sv.len * 4 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var src_i: u32 = 0;
     var out_i: u32 = 0;
@@ -1308,7 +1323,7 @@ pub export fn string_totitle(value: i32) i32 {
         src_i += d.len;
         first = false;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+    return obj_new_string_take(buf, out_i, buf_size);
 }
 
 /// ``string totitle STRING ?first? ?last?`` — title-case the
@@ -1326,7 +1341,9 @@ pub export fn string_totitle_range(value: i32, first: i32, last: i32) i32 {
     if (l >= cp_count) l = cp_count - 1;
     if (f > l) return value;
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const buf = alloc(sv.len * 4 + 4);
+    const buf_size: u32 = sv.len * 4 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     const dst: [*]u8 = @ptrFromInt(buf);
     var src_i: u32 = 0;
     var out_i: u32 = 0;
@@ -1342,7 +1359,7 @@ pub export fn string_totitle_range(value: i32, first: i32, last: i32) i32 {
         src_i += d.len;
         cp_idx += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+    return obj_new_string_take(buf, out_i, buf_size);
 }
 
 // Exported: string insert — insert ``ins`` into ``value`` at byte
@@ -1423,11 +1440,13 @@ pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i3
         sv.len;
     const tail_len = sv.len - tail_start_byte;
     const total = fst_byte + sn.len + tail_len;
-    const buf = alloc(total + 1);
+    const buf_size: u32 = total + 1;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     if (fst_byte > 0) memcpy(buf, sv.ptr, fst_byte);
     if (sn.len > 0) memcpy(buf + fst_byte, sn.ptr, sn.len);
     if (tail_len > 0) memcpy(buf + fst_byte + sn.len, sv.ptr + tail_start_byte, tail_len);
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_new_string_take(buf, total, buf_size);
 }
 
 // Exported: string is integer — check if a string is a valid integer.
@@ -1537,7 +1556,9 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
         // Each char becomes a properly-quoted list element.
         // Allocate generously: each char can expand to at most 4 bytes
         // (backslash + char + possible braces) plus a space separator.
-        const buf = alloc(sv.len * 5 + 4);
+        const buf_size: u32 = sv.len * 5 + 4;
+        const buf = alloc(buf_size);
+        if (buf == 0) return obj_new_string(0, 0);
         var out: u32 = 0;
         for (0..sv.len) |i| {
             if (i > 0) {
@@ -1547,7 +1568,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
             }
             out = list_quote_elem(buf, out, sv.ptr + @as(u32, @intCast(i)), 1);
         }
-        return obj_new_string(@bitCast(buf), @bitCast(out));
+        return obj_new_string_take(buf, out, buf_size);
     }
 
     // Single-char separator (common case)
@@ -1555,7 +1576,9 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
     if (sd.len == 1) {
         const sc = sep[0];
         // Allocate generously — backslash-escape path can double each byte.
-        const buf = alloc(sv.len * 3 + 4);
+        const buf_size: u32 = sv.len * 3 + 4;
+        const buf = alloc(buf_size);
+        if (buf == 0) return obj_new_string(0, 0);
         var out: u32 = 0;
         var start: u32 = 0;
         var i: u32 = 0;
@@ -1572,14 +1595,16 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
                 start = i + 1;
             }
         }
-        return obj_new_string(@bitCast(buf), @bitCast(out));
+        return obj_new_string_take(buf, out, buf_size);
     }
 
     // Multi-char separator: split on any codepoint in splitChars.
     // Both *src* and *sep* are walked codepoint by codepoint so a
     // multi-byte separator like ``乎`` doesn't mis-split on its
     // continuation bytes (cmdMZ-4.13).
-    const buf = alloc(sv.len * 3 + 4);
+    const buf_size: u32 = sv.len * 3 + 4;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var out: u32 = 0;
     var start: u32 = 0;
     var i: u32 = 0;
@@ -1606,7 +1631,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
         out += 1;
     }
     out = list_quote_elem(buf, out, sv.ptr + start, sv.len - start);
-    return obj_new_string(@bitCast(buf), @bitCast(out));
+    return obj_new_string_take(buf, out, buf_size);
 }
 
 /// Does *cp* appear in the codepoint set described by *set_ptr*
@@ -1639,7 +1664,9 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
         return obj_new_string_copy(sl.ptr + elem.start, elem.len);
     }
     // Estimate output: sum of element lengths + (n-1) * sep_len
-    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss_len + 1);
+    const buf_size: u32 = sl.len + @as(u32, @intCast(n)) * ss_len + 1;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var out: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
@@ -1653,7 +1680,7 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
             out += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out));
+    return obj_new_string_take(buf, out, buf_size);
 }
 
 // Exported: concat — concatenate two TclObj string representations with space.
@@ -1710,9 +1737,10 @@ pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     if (tb_len == 0) return obj_new_string_copy(sa.ptr + a_start, ta_len);
     const total = ta_len + 1 + tb_len;
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     memcpy(buf, sa.ptr + a_start, ta_len);
     const dst: [*]u8 = @ptrFromInt(buf + ta_len);
     dst[0] = ' ';
     memcpy(buf + ta_len + 1, sb.ptr + b_start, tb_len);
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_new_string_take(buf, total, total);
 }
