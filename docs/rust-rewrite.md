@@ -3755,6 +3755,17 @@ Nothing — the next session can pick up `S-diagnostics`
   share `lift_analyser_diagnostics` so the two report shapes
   stay in lock-step.
 
+### Landed this session — continuation (2026-05-20, fifth run)
+
+* **`registry(tcllib)` `required_package` population**
+  (`f5d07596`).  `tcllib_command_specs()` now derives
+  `required_package` from the command namespace for all ~200
+  tcllib commands (flat namespaces → leading segment;
+  `math::statistics::*` → two-level; `struct::*` ensembles own
+  their package; `sha1`/`sha2` versioned).  Activates W120 +
+  package-gated completion for tcllib with no per-spec edits.
+  3 tests.  stdlib is not package-gated, so no stdlib changes.
+
 ### Landed this session — continuation (2026-05-20, fourth run)
 
 The three remaining tractable items all landed.
@@ -3981,11 +3992,14 @@ for the common call forms.
   type/taint annotations on `$var` hovers, flow-sensitive
   instance-class tracking (the `instance_classes` map is
   global by var name, last-assignment-wins).
-* **Registry data**: populate `required_package` across the
-  tcllib / stdlib specs (only `tcl::idna` is set today) so
-  W120 and package-gated completion gain coverage; add an
-  `argument_values` field for things like
-  `string is alnum/alpha/...` completion.
+* **Registry data**: `required_package` for tcllib **landed**
+  (`f5d07596`) — `tcllib_command_specs()` derives it from the
+  command namespace for all ~200 tcllib commands, so W120 +
+  package-gated completion now cover tcllib.  stdlib (tcl core)
+  isn't package-gated, so nothing more there.  Still pending:
+  an `argument_values` field for enum-style completion
+  (`string is alnum/alpha/...`) — a *new* registry field
+  threaded through completion, not pure data entry.
 * **F-tcl-formatter**: brace-placement normalisation,
   comment-block reflow.  True range-formatting landed.
 * **Semantic tokens**: full classification taxonomy
