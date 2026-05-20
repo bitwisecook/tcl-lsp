@@ -9,6 +9,7 @@ from functools import lru_cache
 from compiler.parsing.lexer import TclLexer
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
+from compiler.registry.dialects import is_irules_dialect
 from compiler.registry.runtime import (
     TAINT_HINTS,
     regex_pattern_commands,
@@ -317,7 +318,7 @@ def _find_taint_sinks(
     """Find tainted variables flowing into dangerous or output commands."""
     warnings: list[TaintWarning] = []
     dialect = active_dialect()
-    is_irules = dialect == "f5-irules"
+    is_irules = is_irules_dialect(dialect)
 
     for bn in executable_blocks:
         block = cfg.blocks.get(bn)

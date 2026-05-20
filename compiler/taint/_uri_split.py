@@ -28,6 +28,7 @@ from functools import lru_cache
 
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
+from compiler.registry.dialects import is_irules_dialect
 from shared.codes import diag
 from shared.naming import normalise_var_name as _normalise_var_name
 
@@ -821,7 +822,7 @@ def _find_uri_split_suggestions(
 
     Returns IRULE3103 warnings.
     """
-    if active_dialect() != "f5-irules":
+    if not is_irules_dialect(active_dialect()):
         return []
 
     if not _uri_families():

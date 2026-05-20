@@ -10,6 +10,7 @@ excluded.
 from __future__ import annotations
 
 from compiler.registry.dialect import active_dialect
+from compiler.registry.dialects import is_irules_dialect
 from shared.codes import opt
 
 from ..ir import when_event_name
@@ -66,7 +67,7 @@ def _comment_out(text: str, proc_name: str) -> str:
 )
 def optimise_unused_procs(ctx: PassContext) -> None:
     """O124: comment out procs not called from any event handler."""
-    if active_dialect() != "f5-irules":
+    if not is_irules_dialect(active_dialect()):
         return
 
     ir_module = ctx.ir_module

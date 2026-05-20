@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Literal, overload
 
 from compiler.parsing.lexer import TclLexer
+from compiler.registry.dialects import is_irules_dialect
 from compiler.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
@@ -1781,7 +1782,7 @@ def _minify_body(source: str, *, dialect: str | None = None) -> str:
         preamble_parts.append(f"set {alias} {{{content}}}")
 
     parts: list[str] = preamble_parts
-    is_irules = dialect == "f5-irules"
+    is_irules = is_irules_dialect(dialect)
     for arg_strs in rendered_commands:
         if is_irules and len(arg_strs) > 1:
             # In iRules, }{ is a valid word boundary — omit spaces between

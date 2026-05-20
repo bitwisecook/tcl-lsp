@@ -24,6 +24,23 @@ KNOWN_DIALECTS: frozenset[str] = frozenset(
 # Positive dialect set for commands available everywhere except iRules.
 DIALECTS_EXCEPT_IRULES: frozenset[str] = KNOWN_DIALECTS - frozenset({"f5-irules"})
 
+# Canonical spelling plus the legacy alias for the F5 iRules dialect.
+# ``f5-irules`` is the value carried by the active-dialect context var and
+# every ``KNOWN_DIALECTS`` entry; ``irules`` is an older alias still passed
+# by some call sites (e.g. side-effect lookups).
+IRULES_DIALECT_NAMES: frozenset[str] = frozenset({"f5-irules", "irules"})
+
+
+def is_irules_dialect(dialect: str | None) -> bool:
+    """Return True if *dialect* names the F5 iRules dialect.
+
+    Single source of truth for the iRules-dialect check: accepts the
+    canonical ``f5-irules`` and the legacy ``irules`` alias.  Prefer this
+    over inline ``dialect == "f5-irules"`` comparisons so the alias and
+    any future spelling change live in one place.
+    """
+    return dialect in IRULES_DIALECT_NAMES
+
 # Runtime Tcl version that each dialect is based on.  Used by
 # ``dialects_since()`` to resolve version-dependent behaviour such as
 # ``incr`` safely initialising an uninitialised variable (8.5+).

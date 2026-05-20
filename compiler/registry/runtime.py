@@ -710,7 +710,9 @@ def active_signature_profile() -> SignatureProfile:
 
 def is_irules_dialect() -> bool:
     """Return True if the active dialect is iRules."""
-    return _dialect_var.get() == "f5-irules"
+    from compiler.registry.dialects import is_irules_dialect as _is_irules_name
+
+    return _is_irules_name(_dialect_var.get())
 
 
 @lru_cache(maxsize=32)
