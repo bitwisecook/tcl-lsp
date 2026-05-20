@@ -71,6 +71,17 @@ pub fn raise(msg: []const u8) void {
     catch_mod.tcl_cmd_error(msg_obj);
 }
 
+/// Like :func:`raise`, but forces ``::errorCode`` to the default
+/// ``NONE`` instead of letting ``detect_error_code`` infer a typed
+/// code from the message.  Used by the shift operators whose
+/// ``integer value too large to represent`` surface carries no
+/// ``ARITH`` code (mathop-24.5), unlike the string-to-integer
+/// conversion path which keeps ``ARITH IOVERFLOW`` (get.test).
+pub fn raise_none(msg: []const u8) void {
+    catch_mod.force_next_error_code_none();
+    raise(msg);
+}
+
 /// Same shape as ``unsupported`` but for a subcommand.  Produces
 /// ``unsupported command: <cmd> <sub>`` so the user can see
 /// which specific form (``clock format`` vs ``clock scan``) is
