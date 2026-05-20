@@ -38,9 +38,13 @@
 //! too, skipping arrays whose members look user-input-derived.
 //!
 //! The **`aggressive` tier** ([`minify_tcl_aggressive`]) applies the
-//! compiler's optimiser rewrites, then compacts names, then minifies
-//! whitespace, returning a [`MinifyResult`] with the optimisation
-//! count and size savings.
+//! compiler's optimiser rewrites, compacts names, aliases repeated
+//! commands / arguments / quoted-string substrings (the last via a
+//! suffix array), then minifies whitespace, returning a
+//! [`MinifyResult`].  The aliasing generators are seeded with every
+//! compacted short name so a `$alias` can never shadow a proc-local
+//! compacted variable — a collision-safe improvement on the Python
+//! reference.
 //!
 //! [`unminify_error`] translates compacted names in an error
 //! message back to the originals via a [`SymbolMap`] (round-tripped
@@ -48,15 +52,13 @@
 //! `tcl-lsp.minifyDocument` and `tcl-lsp.unminifyError`
 //! `workspace/executeCommand` handlers are wired in the server.
 //!
-//! **Still deferred** within the aggressive tier: static-substring
-//! folding (SCCP-based, Python's phase 1.5) and the command /
-//! argument / string-literal aliasing phases (2.5–2.7) — the
-//! aliasing phases additionally need a collision-safe redesign
-//! (Python's emits `set a <cmd>` aliases that can clash with a
-//! compacted proc-local `a`).  `unminify_error`'s source-correlated
-//! line remapping (`_remap_line_references`) is also a follow-up.
+//! **Still deferred** within the aggressive tier: SCCP static-
+//! substring folding (Python's phase 1.5).  `unminify_error`'s
+//! source-correlated line remapping (`_remap_line_references`) is
+//! also a follow-up.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::expr_ast::render_expr;
@@ -82,6 +84,12 @@ pub struct SymbolMap {
     pub procs: BTreeMap<String, String>,
     /// Per-array `{original_member: short}` maps.
     pub array_members: BTreeMap<String, BTreeMap<String, String>>,
+    /// `{original_command: alias_var}` (aggressive tier).
+    pub command_aliases: BTreeMap<String, String>,
+    /// `{original_argument: alias_var}` (aggressive tier).
+    pub argument_aliases: BTreeMap<String, String>,
+    /// `{original_literal: alias_var}` (aggressive tier).
+    pub string_aliases: BTreeMap<String, String>,
 }
 
 impl SymbolMap {
@@ -111,6 +119,26 @@ impl SymbolMap {
                 lines.push(format!("  {short} <- {original}"));
             }
         }
+        if !self.command_aliases.is_empty() {
+            lines.push("# Command aliases".to_owned());
+            for (original, alias) in &self.command_aliases {
+                lines.push(format!("  ${alias} <- {original}"));
+            }
+        }
+        if !self.argument_aliases.is_empty() {
+            lines.push("# Argument aliases".to_owned());
+            for (original, alias) in &self.argument_aliases {
+                lines.push(format!("  ${alias} <- {original}"));
+            }
+        }
+        if !self.string_aliases.is_empty() {
+            lines.push("# String literal aliases".to_owned());
+            let mut entries: Vec<(&String, &String)> = self.string_aliases.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, alias) in entries {
+                lines.push(format!("  ${alias} <- {original:?}"));
+            }
+        }
         lines.join("\n")
     }
 
@@ -132,6 +160,15 @@ impl SymbolMap {
         for member_map in self.array_members.values() {
             for (original, short) in member_map {
                 rev.entry(short.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        for aliases in [
+            &self.command_aliases,
+            &self.argument_aliases,
+            &self.string_aliases,
+        ] {
+            for (original, alias) in aliases {
+                rev.entry(alias.clone()).or_insert_with(|| original.clone());
             }
         }
         rev
@@ -302,12 +339,15 @@ pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> St
 }
 
 /// Aggressive minification: apply the compiler's optimiser
-/// rewrites, then compact names, then minify whitespace.  Returns
-/// a [`MinifyResult`].  Mirrors `minify_tcl(..., aggressive=True)`.
+/// rewrites, compact names, alias repeated commands / arguments /
+/// string substrings, then minify whitespace.  Returns a
+/// [`MinifyResult`].  Mirrors `minify_tcl(..., aggressive=True)`.
 ///
-/// Deferred relative to the Python pipeline: static-substring
-/// folding (SCCP-based, phase 1.5) and the command / argument /
-/// string-literal aliasing phases (2.5–2.7).
+/// The aliasing phases seed their generators with every compacted
+/// short name so a `$alias` can never collide with a (possibly
+/// proc-local) compacted variable — a collision-safe improvement on
+/// the Python reference.  Deferred: SCCP static-substring folding
+/// (phase 1.5).
 #[must_use]
 pub fn minify_tcl_aggressive(
     source: &str,
@@ -334,8 +374,20 @@ pub fn minify_tcl_aggressive(
         .collect();
     let optimised = apply_edits(source, opt_edits);
 
-    // Phase 2: compact names.  Phase 3: minify whitespace.
-    let (renamed, symbol_map) = compact_names(&optimised, dialect, isolated, registry);
+    // Phase 2: compact names.
+    let (renamed, mut symbol_map) = compact_names(&optimised, dialect, isolated, registry);
+
+    // Phases 2.5–2.7: aliasing.  Seed claimed names with every
+    // compacted short so aliases never shadow a local variable.
+    let mut claimed_names = collect_symbol_shorts(&symbol_map);
+    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, dialect, &mut claimed_names);
+    symbol_map.command_aliases = cmd_aliases;
+    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, &mut claimed_names);
+    symbol_map.argument_aliases = arg_aliases;
+    let (renamed, str_aliases) = alias_string_literals(&renamed, &mut claimed_names);
+    symbol_map.string_aliases = str_aliases;
+
+    // Phase 3: minify whitespace.
     let minified = minify_body(&renamed, dialect, registry);
 
     MinifyResult {
@@ -948,6 +1000,567 @@ fn process_scope(
             edits,
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Aggressive-tier aliasing (command / argument / string-literal)
+// ---------------------------------------------------------------------------
+
+/// Tcl core builtins that are byte-compiled and break when invoked
+/// through a `$var` alias — never aliased.  Mirrors `_BUILTIN_SKIP`.
+const BUILTIN_SKIP: &[&str] = &[
+    "set",
+    "unset",
+    "proc",
+    "if",
+    "else",
+    "elseif",
+    "while",
+    "for",
+    "foreach",
+    "switch",
+    "return",
+    "break",
+    "continue",
+    "expr",
+    "catch",
+    "try",
+    "throw",
+    "package",
+    "namespace",
+    "upvar",
+    "uplevel",
+    "variable",
+    "global",
+    "append",
+    "lappend",
+    "incr",
+    "info",
+    "string",
+    "list",
+    "llength",
+    "lindex",
+    "lrange",
+    "lsort",
+    "lsearch",
+    "lreplace",
+    "linsert",
+    "dict",
+    "array",
+    "regexp",
+    "regsub",
+    "scan",
+    "format",
+    "open",
+    "close",
+    "read",
+    "gets",
+    "eof",
+    "flush",
+    "seek",
+    "tell",
+    "fconfigure",
+    "fcopy",
+    "fileevent",
+    "socket",
+    "after",
+    "update",
+    "vwait",
+    "rename",
+    "source",
+    "eval",
+    "apply",
+    "tailcall",
+    "error",
+    "cd",
+    "pwd",
+    "file",
+    "glob",
+    "clock",
+    "binary",
+    "encoding",
+    "interp",
+    "load",
+    "exit",
+    "pid",
+    "exec",
+    "chan",
+    "puts",
+];
+
+/// Control-flow keywords that must stay literal (body/expr index
+/// detection checks them by value).  Mirrors `_CONTROL_FLOW_KEYWORDS`.
+const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
+
+/// Every compacted short name across the symbol map, so aggressive
+/// aliases avoid colliding with a (possibly proc-local) compacted
+/// name — a `$alias` used in command position must not resolve to a
+/// local variable.  This is the collision-safe seed the Python
+/// reference lacks.
+fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
+    let mut out = HashSet::new();
+    out.extend(sm.procs.values().cloned());
+    for m in sm.variables.values() {
+        out.extend(m.values().cloned());
+    }
+    for m in sm.array_members.values() {
+        out.extend(m.values().cloned());
+    }
+    out
+}
+
+/// Shared cost-benefit + apply for command / argument aliasing:
+/// each name used ≥ 2 times becomes `$alias` with a `set alias name`
+/// preamble when that saves bytes.  `used` accumulates claimed alias
+/// names across phases.
+fn alias_by_uses(
+    source: &str,
+    order: &[String],
+    uses: &HashMap<String, Vec<usize>>,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    if order.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+    let mut cands = order.to_vec();
+    cands.sort_by(|a, b| {
+        let (ka, kb) = (uses[a].len() * a.len(), uses[b].len() * b.len());
+        kb.cmp(&ka).then_with(|| {
+            order
+                .iter()
+                .position(|x| x == a)
+                .cmp(&order.iter().position(|x| x == b))
+        })
+    });
+    let mut gen = NameGenerator::new();
+    let mut aliases: Vec<(String, String)> = Vec::new();
+    for name in &cands {
+        let count = uses[name].len();
+        if count < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while claimed.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let original_cost = count * name.len();
+        let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
+        let aliased_cost = preamble_cost + count * (alias.len() + 1);
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        claimed.insert(alias.clone());
+        aliases.push((name.clone(), alias));
+    }
+    if aliases.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut preamble = String::new();
+    let mut map = BTreeMap::new();
+    for (name, alias) in &aliases {
+        let _ = writeln!(preamble, "set {alias} {name}");
+        for &off in &uses[name] {
+            edits.push((off, name.len(), format!("${alias}")));
+        }
+        map.insert(name.clone(), alias.clone());
+    }
+    let body = apply_edits(source, edits);
+    (format!("{preamble}{body}"), map)
+}
+
+/// Phase 2.5: alias repeated long command names (`HTTP::uri` → `$a`).
+/// Mirrors `_alias_repeated_commands`.
+fn alias_repeated_commands(
+    source: &str,
+    dialect: &str,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    let analysis = Analyser::new().analyse(source, dialect).clone();
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
+    for inv in &analysis.command_invocations {
+        let name = &inv.name;
+        if name.len() <= 2 || BUILTIN_SKIP.contains(&name.as_str()) {
+            continue;
+        }
+        uses.entry(name.clone())
+            .or_insert_with(|| {
+                order.push(name.clone());
+                Vec::new()
+            })
+            .push(inv.range.start() as usize);
+    }
+    alias_by_uses(source, &order, &uses, claimed)
+}
+
+/// Phase 2.6: alias repeated literal arguments (`-normalized` → `$a`).
+/// Mirrors `_alias_repeated_arguments` + `_scan_argument_tokens`.
+fn alias_repeated_arguments(
+    source: &str,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut is_command_word = true;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Eol => {
+                    is_command_word = true;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Sep => {
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 3 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 3 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    continue;
+                }
+                _ => {}
+            }
+            if is_command_word {
+                is_command_word = false;
+                continue;
+            }
+            if tok.kind != TokenType::Esc {
+                in_quoted = false;
+                continue;
+            }
+            let abs_off = (base + tok.span.start()) as usize;
+            if source.as_bytes().get(abs_off) == Some(&b'"') {
+                in_quoted = true;
+            }
+            if in_quoted {
+                continue;
+            }
+            let val = sm.token_text(*tok);
+            if val.len() < 3
+                || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
+                || CONTROL_FLOW_KEYWORDS.contains(&val)
+            {
+                continue;
+            }
+            uses.entry(val.to_owned())
+                .or_insert_with(|| {
+                    order.push(val.to_owned());
+                    Vec::new()
+                })
+                .push(abs_off);
+        }
+    }
+    alias_by_uses(source, &order, &uses, claimed)
+}
+
+/// Build a suffix array for `text` (naive sort of byte suffixes).
+/// Mirrors `core/common/suffix_array.py::build_suffix_array`.
+fn build_suffix_array(text: &[u8]) -> Vec<usize> {
+    let mut sa: Vec<usize> = (0..text.len()).collect();
+    sa.sort_by(|&a, &b| text[a..].cmp(&text[b..]));
+    sa
+}
+
+/// Kasai's LCP array from a suffix array.  Mirrors
+/// `build_lcp_array`.
+fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
+    let n = text.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut rank = vec![0usize; n];
+    for (i, &s) in sa.iter().enumerate() {
+        rank[s] = i;
+    }
+    let mut lcp = vec![0usize; n];
+    let mut k = 0usize;
+    for i in 0..n {
+        if rank[i] == n - 1 {
+            k = 0;
+            continue;
+        }
+        let j = sa[rank[i] + 1];
+        while i + k < n && j + k < n && text[i + k] == text[j + k] {
+            k += 1;
+        }
+        lcp[rank[i]] = k;
+        k = k.saturating_sub(1);
+    }
+    lcp
+}
+
+/// Find repeated substrings (≥ 3 bytes, ≥ 2 sentinel-free
+/// occurrences) across the quoted-string segments of `source`,
+/// returning `substring -> source byte offsets`.  Steps 1–5 of
+/// `_alias_string_literals`.
+fn string_alias_candidates(source: &str) -> BTreeMap<Vec<u8>, Vec<usize>> {
+    let segments = collect_string_literals(source);
+    if segments.is_empty() {
+        return BTreeMap::new();
+    }
+    // Concatenate segments with a `\0` sentinel; map concat byte →
+    // source byte offset (`usize::MAX` for sentinels).
+    let mut concat: Vec<u8> = Vec::new();
+    let mut concat_to_src: Vec<usize> = Vec::new();
+    for &(src_offset, ref seg) in &segments {
+        for (j, b) in seg.bytes().enumerate() {
+            concat.push(b);
+            concat_to_src.push(src_offset + j);
+        }
+        concat.push(0);
+        concat_to_src.push(usize::MAX);
+    }
+
+    let sa = build_suffix_array(&concat);
+    let lcp = build_lcp_array(&concat, &sa);
+    let min_len = 3;
+
+    let mut candidates: HashSet<Vec<u8>> = HashSet::new();
+    for i in 0..sa.len().saturating_sub(1) {
+        if lcp[i] < min_len {
+            continue;
+        }
+        let (p1, p2) = (sa[i], sa[i + 1]);
+        if concat_to_src[p1] == usize::MAX || concat_to_src[p2] == usize::MAX {
+            continue;
+        }
+        let mut actual = 0;
+        for k in 0..lcp[i] {
+            if p1 + k >= concat_to_src.len()
+                || p2 + k >= concat_to_src.len()
+                || concat_to_src[p1 + k] == usize::MAX
+                || concat_to_src[p2 + k] == usize::MAX
+            {
+                break;
+            }
+            actual = k + 1;
+        }
+        if actual >= min_len {
+            candidates.insert(concat[p1..p1 + actual].to_vec());
+        }
+    }
+
+    let mut occ: BTreeMap<Vec<u8>, Vec<usize>> = BTreeMap::new();
+    for sub in &candidates {
+        let mut offsets = Vec::new();
+        let mut start = 0;
+        while let Some(idx) = find_subslice(&concat, sub, start) {
+            if !(0..sub.len()).any(|k| concat_to_src[idx + k] == usize::MAX) {
+                offsets.push(concat_to_src[idx]);
+            }
+            start = idx + 1;
+        }
+        if offsets.len() >= 2 {
+            occ.insert(sub.clone(), offsets);
+        }
+    }
+    occ
+}
+
+/// Phase 2.7: alias repeated substrings inside double-quoted
+/// strings.  Mirrors `_alias_string_literals` (+ `_collect_string_literals`).
+fn alias_string_literals(
+    source: &str,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    let occ = string_alias_candidates(source);
+    if occ.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+
+    // Step 6: score, then greedily select non-overlapping aliases.
+    let mut scored: Vec<(usize, Vec<u8>, Vec<usize>)> = Vec::new();
+    for (sub, offsets) in &occ {
+        let count = offsets.len();
+        let original_cost = count * sub.len();
+        let preamble_cost = 4 + 1 + 1 + 1 + sub.len() + 1 + 1;
+        let aliased_cost = preamble_cost + count * 2;
+        let savings = original_cost.saturating_sub(aliased_cost);
+        if savings > 0 {
+            scored.push((savings, sub.clone(), offsets.clone()));
+        }
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
+
+    let src_bytes = source.as_bytes();
+    let mut gen = NameGenerator::new();
+    let mut claimed_bytes: HashSet<usize> = HashSet::new();
+    let mut aliases: Vec<(Vec<u8>, String, Vec<usize>)> = Vec::new();
+    for (_, sub, offsets) in scored {
+        if !braces_balanced(&sub) {
+            continue;
+        }
+        let free: Vec<usize> = offsets
+            .iter()
+            .copied()
+            .filter(|&off| !(off..off + sub.len()).any(|p| claimed_bytes.contains(&p)))
+            .collect();
+        if free.len() < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while claimed.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let count = free.len();
+        let original_cost = count * sub.len();
+        let preamble_cost = 4 + alias.len() + 1 + 1 + sub.len() + 1 + 1;
+        let mut aliased_cost = preamble_cost;
+        for &off in &free {
+            let end = off + sub.len();
+            if is_word_byte(src_bytes.get(end).copied()) {
+                aliased_cost += alias.len() + 3;
+            } else {
+                aliased_cost += alias.len() + 1;
+            }
+        }
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        claimed.insert(alias.clone());
+        for &off in &free {
+            for p in off..off + sub.len() {
+                claimed_bytes.insert(p);
+            }
+        }
+        aliases.push((sub, alias, free));
+    }
+    if aliases.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+
+    // Step 7: build preamble + edits.
+    let mut preamble = String::new();
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut map = BTreeMap::new();
+    for (sub, alias, offsets) in &aliases {
+        let sub_str = String::from_utf8_lossy(sub).into_owned();
+        let _ = writeln!(preamble, "set {alias} {{{sub_str}}}");
+        for &off in offsets {
+            let end = off + sub.len();
+            let replacement = if is_word_byte(src_bytes.get(end).copied()) {
+                format!("${{{alias}}}")
+            } else {
+                format!("${alias}")
+            };
+            edits.push((off, sub.len(), replacement));
+        }
+        map.insert(sub_str, alias.clone());
+    }
+    let body = apply_edits(source, edits);
+    (format!("{preamble}{body}"), map)
+}
+
+/// Collect `(abs_offset, text)` of `ESC` segments inside
+/// double-quoted strings, descending into braced / command-subst
+/// tokens.  Mirrors `_collect_string_literals`.
+fn collect_string_literals(top_source: &str) -> Vec<(usize, String)> {
+    let mut segments: Vec<(usize, String)> = Vec::new();
+    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut is_command_word = true;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Eol => {
+                    is_command_word = true;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Sep => {
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 2 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 2 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    continue;
+                }
+                _ => {}
+            }
+            let mut abs_off = (base + tok.span.start()) as usize;
+            if is_command_word {
+                is_command_word = false;
+                in_quoted = false;
+                continue;
+            }
+            if !in_quoted && top_source.as_bytes().get(abs_off) == Some(&b'"') {
+                in_quoted = true;
+                abs_off += 1;
+            }
+            if in_quoted && tok.kind == TokenType::Esc {
+                let inner = sm.token_text(*tok);
+                if inner.len() >= 2 {
+                    segments.push((abs_off, inner.to_owned()));
+                }
+            }
+            if !matches!(tok.kind, TokenType::Esc | TokenType::Var | TokenType::Cmd) {
+                in_quoted = false;
+            }
+        }
+    }
+    segments
+}
+
+/// Whether `s` has equal numbers of `{` and `}` bytes.
+fn braces_balanced(s: &[u8]) -> bool {
+    let mut balance: i64 = 0;
+    for &c in s {
+        match c {
+            b'{' => balance += 1,
+            b'}' => balance -= 1,
+            _ => {}
+        }
+    }
+    balance == 0
+}
+
+/// First index ≥ `from` where `needle` occurs in `haystack`.
+fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+    if needle.is_empty() || from + needle.len() > haystack.len() {
+        return None;
+    }
+    (from..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
 }
 
 /// Dialects where ensemble commands are fixed (no user-added
@@ -1955,6 +2568,46 @@ mod tests {
         assert_eq!(
             unminify_error("calling $a now", &parsed),
             "calling $greet now"
+        );
+    }
+
+    fn agg(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl_aggressive(src, "tcl8.6", false, &registry).source
+    }
+
+    #[test]
+    fn aggressive_aliases_repeated_commands() {
+        assert_eq!(
+            agg("mylongcommand a\nmylongcommand b\nmylongcommand c\n"),
+            "set a mylongcommand;$a a;$a b;$a c",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_repeated_arguments() {
+        assert_eq!(
+            agg("foo --somelongflag\nbar --somelongflag\nbaz --somelongflag\n"),
+            "set a --somelongflag;foo $a;bar $a;baz $a",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_string_substrings() {
+        assert_eq!(
+            agg("puts \"the quick brown fox jumps\"\nputs \"the quick brown fox runs\"\n"),
+            "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_avoid_compacted_local_collisions() {
+        // `handler`->`a`, `request`->`a` (proc-local); the command
+        // alias must skip `a` and use `b`, else `$a` in command
+        // position would resolve to the local param.
+        assert_eq!(
+            agg("proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"),
+            "set b mylongcmd;proc a {a} {$b $a;$b $a;$b $a}",
         );
     }
 
