@@ -185,11 +185,11 @@ def test_mathop_logical_boolean_keywords() -> None:
     # operand of "!"`` (mathop-21.5), matching reference Tcl.  (The
     # old prefix heuristic silently treated them as ``0`` → ``1``.)
     assert (
-        _run('puts [catch {::tcl::mathop::! tree} m]:$m')
+        _run("puts [catch {::tcl::mathop::! tree} m]:$m")
         == '1:cannot use non-numeric string "tree" as operand of "!"'
     )
     assert (
-        _run('puts [catch {::tcl::mathop::! frame} m]:$m')
+        _run("puts [catch {::tcl::mathop::! frame} m]:$m")
         == '1:cannot use non-numeric string "frame" as operand of "!"'
     )
     # Numeric truth still works.
