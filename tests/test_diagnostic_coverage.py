@@ -867,7 +867,7 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # Missing `}` — a nested body consumed the closing brace (internal
     # recovery): range covers just the stolen brace.
     "E103": FiresCase(
-        'when ACCESS_POLICY_AGENT_EVENT {\n    switch [ACCESS::policy agent_id] {\n'
+        "when ACCESS_POLICY_AGENT_EVENT {\n    switch [ACCESS::policy agent_id] {\n"
         '        "a" {\n            set x 1\n        }\n        "b" {\n            set y 2\n'
         "        }\n    \n}\n",
         "when HTTP_REQUEST {\n  switch $x {\n    a { set y 1 }\n  }\n}\n",
