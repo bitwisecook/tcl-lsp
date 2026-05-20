@@ -1,8 +1,8 @@
 //! Workspace-symbols provider — minimal Rust port of
 //! `lsp/features/workspace_symbols.py`.
 //!
-//! Lists every proc, class, class-method, class-method
-//! (`classmethod`), and constructor recorded in the analyser's
+//! Lists every proc, class, method, `classmethod`, and
+//! constructor recorded in the analyser's
 //! `AnalysisResult` for the **current document**, filtered by
 //! a query string.  The Python implementation walks every
 //! document in the workspace index; the workspace-index port

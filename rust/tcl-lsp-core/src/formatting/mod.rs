@@ -1,36 +1,33 @@
 //! Formatting provider — Rust port of
-//! `lsp/features/formatting.py` (basic shape).
+//! `lsp/features/formatting.py` + `core/formatting/`.
 //!
-//! Produces a single full-document `TextEdit` that
-//! replaces the source with a normalised form:
+//! [`formatting`] produces a single full-document `TextEdit`
+//! by running the token-aware [`engine::format_tcl`] with a
+//! default [`FormatterConfig`].  The engine is more than a
+//! whitespace pass — it normalises:
 //!
-//! * Each line is trimmed of trailing whitespace.
-//! * Tabs at the start of a line are converted to four
-//!   spaces.
-//! * Indentation tracks the brace nesting depth (4 spaces
-//!   per level).  Continuation lines inside an open brace
-//!   pick up one level of indentation.
-//! * Multiple consecutive blank lines collapse to a single
-//!   blank line.
-//! * The final line is followed by a single trailing
-//!   newline.
+//! * Brace placement (K&R: `{` kept on the command line, the
+//!   matching `}` re-anchored).
+//! * Indentation tracking brace nesting (configurable width),
+//!   including continuation lines inside an open brace.
+//! * Trailing-whitespace trimming and tab-to-space conversion.
+//! * Blank-line policy (collapsing runs, blank lines around
+//!   procs) and a single trailing newline.
+//! * Comment normalisation, switch-body formatting, long-line
+//!   backslash splitting, and `&&` / `||` expression wrapping.
 //!
-//! The formatter is intentionally conservative — it only
-//! rewrites whitespace, never the order or shape of
-//! command words.  Subtle multi-line Tcl forms (`if {1}
-//! { … } else { … }` on one line, switch-case bodies,
-//! complex `proc` arg lists) keep their existing layout.
+//! Formatting never reorders or rewrites command words — only
+//! their layout changes.
 //!
-//! What is *deferred* (planned as further `S-formatting-
-//! rich` / `F-tcl-formatter` sub-strips):
+//! [`range_formatting`] re-normalises just the requested line
+//! slice (extended to whole lines), computing the brace depth
+//! at the slice start from the source prefix above it, so
+//! `textDocument/rangeFormatting` ("format selection") leaves
+//! the rest of the document untouched.
 //!
-//! * Brace-placement normalisation (K&R / Allman /
-//!   per-file-config).
-//! * Comment-block reflow.
-//! * Configurable tab width / indentation style via
-//!   `FormatterConfig`.
-//! * `lsp/features/code_actions.py`-driven indentation
-//!   adjustments for partial edits.
+//! What is still *deferred*: docstring reflow and the
+//! expr-brace knobs (tracked under `S-formatting` /
+//! `F-tcl-formatter`).
 
 pub mod config;
 pub mod engine;
@@ -138,13 +135,18 @@ pub fn range_formatting(source: &str, range: LspRange) -> Vec<TextEdit> {
             end_character: 0,
         }
     } else {
-        let last_line_len =
-            u32::try_from(lines[end_line as usize].chars().count()).unwrap_or(u32::MAX);
+        // `end_line` is the document's last line, so the slice runs
+        // to EOF.  Derive the end column via `LineIndex` (the same
+        // position encoding the full-document path uses) so the
+        // range is correct for non-ASCII text rather than counting
+        // raw `char`s.
+        let line_index = LineIndex::new(source);
+        let end_pos = line_index.position_at(u32::try_from(source.len()).unwrap_or(u32::MAX));
         LspRange {
             start_line,
             start_character: 0,
-            end_line,
-            end_character: last_line_len,
+            end_line: end_pos.line,
+            end_character: end_pos.character,
         }
     };
     vec![TextEdit {

@@ -478,6 +478,38 @@ impl Backend {
         Some(DocumentState::new(text, dialect))
     }
 
+    /// Re-index a (now-closed) document from its on-disk contents so
+    /// its definitions / calls remain visible to cross-document
+    /// features.  `scan_workspace_folders` only runs at
+    /// `initialized`, so on `did_close` we must refresh the index
+    /// from disk rather than dropping the entry — otherwise opening
+    /// then closing a file would erase it from cross-document
+    /// definition / references / rename / call-hierarchy until the
+    /// server restarts.  Falls back to removing the entry when the
+    /// URI isn't a readable file (untitled buffer, deleted file).
+    async fn reindex_index_from_disk(&self, uri: &Url) {
+        let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
+            let dialect = match self.resolve_folder_dialect(uri).await {
+                Some(d) => d,
+                None => self.default_dialect.lock().await.clone(),
+            };
+            tokio::task::spawn_blocking(move || {
+                let text = std::fs::read_to_string(path).ok()?;
+                Some(Analyser::new().analyse(&text, &dialect).clone())
+            })
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        };
+        let mut index = self.workspace_index.lock().await;
+        index.remove_document(uri.as_str());
+        if let Some(analysis) = analysed {
+            index.add_document(uri.as_str(), &analysis);
+        }
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -1235,10 +1267,14 @@ impl LanguageServer for Backend {
         let uri = &params.text_document.uri;
         self.documents.lock().await.remove(uri);
         self.analyses.lock().await.remove(uri);
-        self.workspace_index
-            .lock()
-            .await
-            .remove_document(uri.as_str());
+        // Re-index the file from disk rather than dropping it: the
+        // file still exists on disk and was (or would be) part of
+        // the on-disk index, so cross-document definition /
+        // references / rename / call-hierarchy must keep seeing it
+        // after the editor closes the buffer.  `scan_workspace_folders`
+        // only runs at `initialized`, so a plain `remove_document`
+        // here would make the file vanish until restart.
+        self.reindex_index_from_disk(uri).await;
         self.hover_cache.lock().await.invalidate_uri(uri);
         self.semantic_tokens_cache.lock().await.remove(uri);
         // Clear any previously-published diagnostics so the
@@ -3179,6 +3215,66 @@ mod tests {
         drop(index);
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn reindex_from_disk_refreshes_index_rather_than_dropping() {
+        let root = unique_scratch_dir("reindex");
+        let on_disk = root.join("lib.tcl");
+        std::fs::write(&on_disk, "proc helper {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let uri = Url::from_file_path(&on_disk).unwrap();
+        // Seed the index with a now-closed buffer version (proc `fresh`),
+        // standing in for what did_open would have indexed.
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+
+        // What did_close does: refresh from disk instead of removing.
+        backend.reindex_index_from_disk(&uri).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("helper", "other").is_empty(),
+            "on-disk proc must remain indexed after the buffer closes",
+        );
+        assert!(
+            index.proc_definitions("fresh", "other").is_empty(),
+            "stale buffer-only proc must be gone after reindex from disk",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn reindex_from_disk_drops_entry_when_file_is_gone() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///does/not/exist/gone.tcl").unwrap();
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse("proc ghost {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+
+        backend.reindex_index_from_disk(&uri).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            index.proc_definitions("ghost", "other").is_empty(),
+            "an entry whose file no longer exists must be dropped",
+        );
     }
 
     #[tokio::test]

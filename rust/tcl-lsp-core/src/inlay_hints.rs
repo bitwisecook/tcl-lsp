@@ -114,10 +114,15 @@ fn emit_builtin_hints(
     range: LspRange,
     out: &mut Vec<InlayHint>,
 ) {
-    // Resolve synopsis + the call-arg index at which positional
-    // arguments begin.  argv[0] is the command head.
-    let (synopsis, skip_words, first_arg_idx): (&str, usize, usize) = if spec.subcommands.is_empty()
-    {
+    // Resolve synopsis, the call-arg index at which positional
+    // arguments begin, and the option set the registry declares
+    // for this command / subcommand.  argv[0] is the command head.
+    let (synopsis, skip_words, first_arg_idx, options): (
+        &str,
+        usize,
+        usize,
+        &[tcl_registry::prelude::OptionSpec],
+    ) = if spec.subcommands.is_empty() {
         let Some(hover) = spec.hover.as_ref() else {
             return;
         };
@@ -127,7 +132,7 @@ fn emit_builtin_hints(
         // Synopsis like `set varName ?value?` — skip the
         // command word (1); positional call args start at
         // argv[1].
-        (*line, 1, 1)
+        (*line, 1, 1, spec.options)
     } else {
         // Subcommand shape: argv[1] should name a subcommand.
         let Some(sub_name) = seg.texts.get(1) else {
@@ -139,7 +144,7 @@ fn emit_builtin_hints(
         // Synopsis like `string length string` — skip the
         // command + subcommand words (2); positional call args
         // start at argv[2].
-        (sub.synopsis, 2, 2)
+        (sub.synopsis, 2, 2, sub.options)
     };
 
     let param_names = param_names_from_synopsis(synopsis, skip_words);
@@ -147,20 +152,35 @@ fn emit_builtin_hints(
         return;
     }
 
-    // Walk call args, skipping flag-shaped args (`-x`); assign
-    // each remaining arg the next positional param name.  `argv`
-    // and `texts` are parallel, so index both with `arg_idx`.
+    // Walk call args, assigning each positional the next param name.
+    // Whether a `-`-prefixed token is an option is decided by the
+    // registry, not its spelling: only tokens matching a declared
+    // `OptionSpec` are skipped (and their value too, when the option
+    // `takes_value`).  This keeps real positionals like the `-1` in
+    // `string index $s -1` — which is no command's option — labelled
+    // correctly.  `argv` and `texts` are parallel, indexed by `arg_idx`.
     let mut slot = 0;
     let mut arg_idx = first_arg_idx;
+    let mut options_ended = false;
     while arg_idx < seg.argv.len() && slot < param_names.len() {
-        let arg_tok = &seg.argv[arg_idx];
         let arg_text = seg.texts.get(arg_idx).map_or("", String::as_str);
-        arg_idx += 1;
-        if arg_text.starts_with('-') {
-            // Looks like a flag at the call site — don't consume
-            // a positional slot.
-            continue;
+        if !options_ended && arg_text.starts_with('-') && arg_text != "-" {
+            // `--` ends option parsing; everything after is positional.
+            if arg_text == "--" {
+                options_ended = true;
+                arg_idx += 1;
+                continue;
+            }
+            if let Some(opt) = options.iter().find(|o| o.name == arg_text) {
+                arg_idx += 1;
+                if opt.takes_value && arg_idx < seg.argv.len() {
+                    arg_idx += 1;
+                }
+                continue;
+            }
         }
+        let arg_tok = &seg.argv[arg_idx];
+        arg_idx += 1;
         let pos = line_index.position_at(arg_tok.span.start());
         slot += 1;
         if !position_within_range(pos.line, pos.character, range) {
@@ -486,6 +506,34 @@ mod tests {
         for h in &hints {
             assert_ne!(h.position_character, 15, "flag should not be hinted: {h:?}");
         }
+    }
+
+    #[test]
+    fn builtin_hint_treats_negative_number_as_positional() {
+        // `string index $s -1` — the `index` subcommand declares no
+        // `-1` option, so the registry-driven walk keeps `-1` as the
+        // `charIndex` positional rather than skipping it as a flag.
+        let src = "string index $s -1\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(labels.contains(&"string:"), "{hints:?}");
+        assert!(labels.contains(&"charIndex:"), "{hints:?}");
+    }
+
+    #[test]
+    fn builtin_hint_consumes_value_taking_option() {
+        // `string compare -length 3 $a $b` — `-length` takes a value,
+        // so both `-length` and `3` are skipped; $a→string1, $b→string2.
+        let src = "string compare -length 3 $a $b\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        // Only the two positionals are labelled — `-length` and its
+        // value `3` are both consumed.
+        assert_eq!(labels, vec!["string1:", "string2:"], "{hints:?}");
     }
 
     #[test]

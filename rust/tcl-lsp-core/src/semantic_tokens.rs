@@ -444,9 +444,15 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
     let start = prefix * TOKEN_STRIDE;
     let delete_count = (old_tokens - prefix - suffix) * TOKEN_STRIDE;
     let data = new[start..(new_tokens - suffix) * TOKEN_STRIDE].to_vec();
+    // Token streams are bounded well below `u32::MAX`; on the
+    // theoretical overflow, return `None` so the caller falls back to
+    // a full token set rather than emitting an invalid edit.
+    let (Ok(start), Ok(delete_count)) = (u32::try_from(start), u32::try_from(delete_count)) else {
+        return None;
+    };
     Some(TokenEdit {
-        start: u32::try_from(start).unwrap_or(u32::MAX),
-        delete_count: u32::try_from(delete_count).unwrap_or(u32::MAX),
+        start,
+        delete_count,
         data,
     })
 }
