@@ -160,6 +160,34 @@ async def did_change(params: types.DidChangeTextDocumentParams) -> None:
     )
 
 
+def _reindex_closed_document_from_disk(uri: str) -> bool:
+    """Re-index a just-closed document from its on-disk contents.
+
+    The initial workspace folder scan only runs at ``initialized``, so a
+    file created (or first opened) after that point has no background
+    cache entry.  Dropping it from the index on close would make it
+    vanish from cross-document definition / references / rename /
+    call-hierarchy until the server restarts.  Re-reading it from disk
+    keeps the on-disk view indexed.
+
+    Returns ``True`` when the file was found on disk and re-indexed,
+    ``False`` when it could not be read (``rescan_file`` returns ``None``
+    on read failure) — the caller then removes the stale entry.
+    """
+    file_path = uri_to_path(uri)
+    if not file_path:
+        return False
+    scan_result = _state.background_scanner.rescan_file(file_path)
+    if not scan_result:
+        return False
+    _state.workspace_index.update(uri, scan_result.analysis, EntrySource.BACKGROUND)
+    if scan_result.dialect_hint == "f5-irules":
+        _state.workspace_index.update_irules_globals(uri, scan_result.analysis.all_procs)
+        if scan_result.rule_init_exports:
+            _state.workspace_index.update_rule_init_vars(uri, scan_result.rule_init_exports)
+    return True
+
+
 def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
     log.info("Closed %s", uri)
@@ -188,7 +216,9 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     bg_analysis = _state.background_scanner.get_cached(uri)
     if bg_analysis is not None:
         _state.workspace_index.update(uri, bg_analysis, EntrySource.BACKGROUND)
-    else:
+    elif not _reindex_closed_document_from_disk(uri):
+        # The closed buffer isn't in the background cache and isn't on
+        # disk any more — drop the stale index entry.
         _state.workspace_index.remove(uri)
     _require_server().text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
