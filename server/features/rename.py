@@ -133,6 +133,17 @@ def _resolve_variable_symbol(
     return None
 
 
+def _array_index_suffix(body: str) -> str:
+    """Return a trailing array-index suffix like ``(a)`` from a var reference body.
+
+    A reference to an array element such as ``$arr(a)`` carries the whole
+    ``arr(a)`` span, but renaming the base variable must rewrite only the name
+    and keep the index intact.
+    """
+    paren = body.find("(")
+    return body[paren:] if paren >= 0 else ""
+
+
 def _build_var_replacement(
     ref_line: str,
     ref: Range,
@@ -152,7 +163,10 @@ def _build_var_replacement(
     end = ref.end
 
     if has_brace:
-        replacement = "${" + new_qualified + "}"
+        # Preserve a trailing array-index suffix, e.g. ${arr(a)} -> ${new(a)}.
+        body = ref_line[ch + 2 : end.character + 1]
+        suffix = _array_index_suffix(body)
+        replacement = "${" + new_qualified + suffix + "}"
         # Extend range to cover closing brace
         close_ch = end.character + 1
         if close_ch < len(ref_line) and ref_line[close_ch] == "}":
@@ -161,22 +175,14 @@ def _build_var_replacement(
                 character=close_ch,
                 offset=end.offset + 1,
             )
+    elif has_dollar:
+        # Preserve a trailing array-index suffix, e.g. $arr(a) -> $new(a).
+        body = ref_line[ch + 1 : end.character + 1]
+        suffix = _array_index_suffix(body)
+        replacement = "$" + new_qualified + suffix
     else:
-        # Preserve a trailing array-index suffix so renaming a base array
-        # variable rewrites ``$arr(idx)`` -> ``$new(idx)`` instead of
-        # clobbering the index to ``$new``.  The reference span covers the
-        # whole ``$arr(idx)`` (the analyser matches array reads to the base
-        # name), so re-append any ``(...)`` found after the name.
-        covered = ref_line[ch : end.character + 1]
-        body = covered[1:] if has_dollar else covered
-        suffix = ""
-        paren = body.find("(")
-        if paren != -1 and body.endswith(")"):
-            suffix = body[paren:]
-        if has_dollar:
-            replacement = "$" + new_qualified + suffix
-        else:
-            replacement = new_qualified + suffix
+        suffix = _array_index_suffix(ref_line[ch : end.character + 1])
+        replacement = new_qualified + suffix
 
     return Range(start=ref.start, end=end), replacement
 
