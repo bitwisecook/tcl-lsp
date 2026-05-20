@@ -19,8 +19,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from tooling.cli.f5_remote import FetchResult, fetch_scf
-from tooling.cli.f5_remote.auth import Credentials, resolve_credentials, xdg_cache_dir
+from tooling.f5.f5_remote import FetchResult, fetch_scf
+from tooling.f5.f5_remote.auth import Credentials, resolve_credentials, xdg_cache_dir
 
 from ._registry import verb
 

@@ -47,12 +47,12 @@ from shared.codes import (
 from shared.codes import (
     diagnostic_codes as _diagnostic_codes,
 )
-from tooling.cli.verbs._registry import apply_verb_registrations, get_verb_catalogue
-from tooling.cli.verbs._utils import TclCliError
-from tooling.cli.verbs.lookup import (
+from tooling.cli._utils import TclCliError
+from tooling.formatter.config import FormatterConfig
+from tooling.tcl.verbs._registry import apply_verb_registrations, get_verb_catalogue
+from tooling.tcl.verbs.lookup import (
     _load_help_queries as _load_help_queries,  # re-exported; tests monkeypatch this attribute
 )
-from tooling.formatter.config import FormatterConfig
 
 _ALL_DIAGNOSTIC_CODES = _diagnostic_codes()
 
@@ -318,15 +318,15 @@ def build_parser(
     sub = parser.add_subparsers(dest="verb", required=True)
 
     # Register all @verb-decorated modules.
-    from tooling.cli.verbs import load_verbs
+    from tooling.tcl.verbs import load_verbs
 
     load_verbs()
     apply_verb_registrations(sub, prog_name=prog_name, default_dialect=default_dialect)
 
     # Complex verb groups with sub-sub-commands (unchanged pattern).
-    from tooling.cli.verbs.docker import add_docker_subparser
-    from tooling.cli.verbs.pkg import add_pkg_subparser
-    from tooling.cli.verbs.venv import add_venv_subparser
+    from tooling.tcl.verbs.docker import add_docker_subparser
+    from tooling.tcl.verbs.pkg import add_pkg_subparser
+    from tooling.tcl.verbs.venv import add_venv_subparser
 
     add_pkg_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
     add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)

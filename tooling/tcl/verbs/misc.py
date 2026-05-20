@@ -7,15 +7,15 @@ import json
 
 from analyser import analyse
 from compiler.registry.runtime import configure_signatures
-from tooling.explorer.cli import main as explorer_main
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_input_arguments,
     _combine_sources,
     _read_input_documents,
     _write_text_output,
 )
+from tooling.explorer.cli import main as explorer_main
+
+from ._registry import verb
 
 _CONVERTIBLE_CODES = frozenset(
     {

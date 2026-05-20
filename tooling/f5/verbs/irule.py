@@ -34,9 +34,7 @@ from compiler.registry.info import lookup_event_info
 from compiler.registry.namespace_data import event_multiplicity, order_events_for_file
 from compiler.registry.runtime import configure_signatures
 from dialects.f5.bigip.model import BigipConfig
-
-from ...pipeline import AVAILABLE_DIALECTS
-from .._utils import (
+from tooling.cli._utils import (
     _add_colour_arguments,
     _add_formatter_arguments,
     _resolve_formatter_config,
@@ -45,6 +43,8 @@ from .._utils import (
     _write_highlighted_output,
     _write_text_output,
 )
+from tooling.cli.pipeline import AVAILABLE_DIALECTS
+
 from ._paths import IruleInput, load_irule_inputs
 
 

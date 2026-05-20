@@ -11,13 +11,13 @@ import json
 import sys
 
 from compiler.registry.info import lookup_command_info
-
-from ..pipeline import AVAILABLE_DIALECTS
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     TclCliError,
     _write_text_output,
 )
+from tooling.cli.pipeline import AVAILABLE_DIALECTS
+
+from ._registry import verb
 
 _HELP_DIALECT_TERMS: dict[str, tuple[str, ...]] = {
     "synopsys-eda-tcl": (

@@ -38,7 +38,7 @@ dialects/f5/query/
   runner.py          # high-level orchestration used by the CLI verb
   grammar.py         # plain-text grammar for --help-dsl
   examples.py        # worked-example cookbook for --help-examples
-tooling/cli/verbs/f5/query.py
+tooling/f5/verbs/query.py
                      # argparse plumbing + custom help actions
 ```
 
@@ -468,7 +468,7 @@ it is a special form (evaluator-driven, like `select` / `map`).
 The same registry feeds:
 
 - runtime dispatch in `evaluator._eval_call`;
-- the `--help-builtins` action in `tooling/cli/verbs/f5/query.py`;
+- the `--help-builtins` action in `tooling/f5/verbs/query.py`;
 - the test that asserts every builtin has at least one example and
   one signature.
 

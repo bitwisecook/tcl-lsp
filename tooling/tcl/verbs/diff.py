@@ -9,17 +9,17 @@ from typing import Any, cast
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.registry import REGISTRY
-
-from ..formatters import range_dict
-from ..pipeline import AVAILABLE_DIALECTS, run_pipeline
-from ..serialise import serialise_result
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     TclCliError,
     _combine_sources,
     _read_input_documents,
     _write_text_output,
 )
+from tooling.cli.formatters import range_dict
+from tooling.cli.pipeline import AVAILABLE_DIALECTS, run_pipeline
+from tooling.cli.serialise import serialise_result
+
+from ._registry import verb
 
 _DIFF_LAYERS = ("ast", "ir", "cfg")
 

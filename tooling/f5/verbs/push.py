@@ -7,8 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from tooling.cli.f5_remote.auth import resolve_credentials
-from tooling.cli.f5_remote.object_io import push_object
+from tooling.f5.f5_remote.auth import resolve_credentials
+from tooling.f5.f5_remote.object_io import push_object
 
 from ._registry import verb
 

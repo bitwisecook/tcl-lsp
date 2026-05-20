@@ -10,15 +10,15 @@ from typing import Any, cast
 from analyser import analyse
 from analyser.semantic_model import Severity
 from compiler.registry.runtime import configure_signatures
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_input_arguments,
     _add_toggle_arguments,
     _format_diagnostic_line,
     _read_input_documents,
     _resolve_disabled_diagnostics,
 )
+
+from ._registry import verb
 
 _PROBLEM_SEVERITIES = frozenset({Severity.ERROR, Severity.WARNING})
 

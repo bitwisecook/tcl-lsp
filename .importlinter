@@ -256,7 +256,7 @@ ignore_imports =
     ; produce a context bundle from the CLI.  Lazy import behind the
     ; verb dispatcher so the CLI itself stays usable without ai/
     ; installed.
-    tooling.cli.verbs.f5.irule -> ai.shared.irule_context
+    tooling.f5.verbs.irule -> ai.shared.irule_context
 
 ; ---------------------------------------------------------------------------
 ; 7.  ai/ may sit on top of any concern — no outbound restriction.

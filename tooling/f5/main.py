@@ -26,9 +26,9 @@ except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
 
-from tooling.cli.verbs.f5 import load_verbs
-from tooling.cli.verbs.f5._registry import apply_verb_registrations, get_verb_catalogue
-from tooling.cli.verbs.f5.irule import add_irule_subparser
+from tooling.f5.verbs import load_verbs
+from tooling.f5.verbs._registry import apply_verb_registrations, get_verb_catalogue
+from tooling.f5.verbs.irule import add_irule_subparser
 
 
 def _version_string() -> str:

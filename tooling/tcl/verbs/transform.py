@@ -8,10 +8,7 @@ from pathlib import Path
 
 from compiler.optimiser import apply_optimisations, find_optimisations
 from compiler.registry.runtime import configure_signatures
-from tooling.formatter import format_tcl
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_colour_arguments,
     _add_formatter_arguments,
     _add_input_arguments,
@@ -25,6 +22,9 @@ from ._utils import (
     _write_highlighted_output,
     _write_text_output,
 )
+from tooling.formatter import format_tcl
+
+from ._registry import verb
 
 
 @verb(

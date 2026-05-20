@@ -22,7 +22,7 @@ from compiler.registry import REGISTRY
 from shared.tokens import TokenType
 from tooling.formatter.config import FormatterConfig
 
-from ..pipeline import AVAILABLE_DIALECTS
+from .pipeline import AVAILABLE_DIALECTS
 
 # ---------------------------------------------------------------------------
 # Source file detection

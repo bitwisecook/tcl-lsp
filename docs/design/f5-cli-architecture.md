@@ -7,11 +7,11 @@ The `f5` CLI is a separate top-level binary from `tcl` and `irule`,
 distributed as a single-file zipapp.  It is built around three
 layers:
 
-1. **Verb registry** (`tooling/cli/verbs/f5/_registry.py`,
+1. **Verb registry** (`tooling/f5/verbs/_registry.py`,
    `tooling/f5/main.py`) — argparse subparsers, brief-help builder,
    and zero auto-discovery.  Each verb module decorates a configure
    function with `@verb(name, aliases=..., help=...)`; new verbs are
-   wired in by importing them from `tooling/cli/verbs/f5/__init__.py:load_verbs()`.
+   wired in by importing them from `tooling/f5/verbs/__init__.py:load_verbs()`.
 
 2. **Core analysis** (`dialects/f5/bigip/`) — a parser
    (`dialects/f5/bigip/parser.py`), a typed object model (`dialects/f5/bigip/model.py`),
@@ -29,7 +29,7 @@ layers:
    auto-generated per-function reference).  All verbs are thin
    shells over these modules.
 
-3. **Networking** (`tooling/cli/f5_remote/`) — stdlib-only iControl REST
+3. **Networking** (`tooling/f5/f5_remote/`) — stdlib-only iControl REST
    client (`rest.py`, using `http.client`), SSH transport
    (`ssh.py`, wrapping the system `ssh`/`scp` binaries via
    `subprocess`), UCS extraction (`ucs.py`, gzip+tar), credential
@@ -63,7 +63,7 @@ engine, so the two verbs share one rewrite path.
 
 `irule` is a sub-parser group rather than a top-level verb, hosting
 five sub-verbs (`event-order`, `event-info`, `lint`, `trace`,
-`extract`).  See [`tooling/cli/verbs/f5/irule.py`](../../tooling/cli/verbs/f5/irule.py)
+`extract`).  See [`tooling/f5/verbs/irule.py`](../../tooling/f5/verbs/irule.py)
 for the registration pattern; new sub-groups follow the same shape.
 
 ## Query DSL
@@ -196,10 +196,10 @@ dialects/f5/bigip/
 
 ## Adding a new verb
 
-1. Create `tooling/cli/verbs/f5/<name>.py` with a `@verb`-decorated
+1. Create `tooling/f5/verbs/<name>.py` with a `@verb`-decorated
    `_configure(p, *, prog_name, default_dialect)` function that calls
    `p.set_defaults(handler=_run_<name>)`.
-2. Add the import to `tooling/cli/verbs/f5/__init__.py:load_verbs()`.
+2. Add the import to `tooling/f5/verbs/__init__.py:load_verbs()`.
 3. Put any non-trivial logic in `dialects/f5/bigip/<name>.py` so it can be
    tested independently of argparse.
 4. Add a CLI integration test in `tests/test_f5_<name>.py` and (for

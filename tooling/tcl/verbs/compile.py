@@ -10,16 +10,16 @@ from compiler.codegen import format_module_asm
 from compiler.codegen.wasm import wasm_codegen_module
 from compiler.lowering import lower_to_ir
 from compiler.registry.runtime import configure_signatures
-from tooling.vm.compiler import compile_script
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_input_arguments,
     _combine_sources,
     _read_input_documents,
     _write_binary_output,
     _write_text_output,
 )
+from tooling.vm.compiler import compile_script
+
+from ._registry import verb
 
 
 @verb(

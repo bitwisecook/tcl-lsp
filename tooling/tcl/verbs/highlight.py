@@ -5,9 +5,7 @@ from __future__ import annotations
 import argparse
 
 from compiler.registry.runtime import configure_signatures
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_colour_arguments,
     _add_input_arguments,
     _combine_sources,
@@ -18,6 +16,8 @@ from ._utils import (
     _resolve_use_colour,
     _write_text_output,
 )
+
+from ._registry import verb
 
 
 @verb(

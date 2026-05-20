@@ -983,7 +983,7 @@ To add a new value-spec (typed property handling): see
 
 To add a new output mode: add a `_render_<mode>` function in
 `output.py`, register it in `render`'s dispatch, and update the
-CLI's `--output` choices in `tooling/cli/verbs/f5/query.py`.
+CLI's `--output` choices in `tooling/f5/verbs/query.py`.
 
 ## Related design docs
 

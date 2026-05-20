@@ -14,14 +14,14 @@ from analyser.semantic_graph import (
     build_symbol_graph,
 )
 from compiler.registry.runtime import configure_signatures
-
-from ._registry import verb
-from ._utils import (
+from tooling.cli._utils import (
     _add_input_arguments,
     _combine_sources,
     _read_input_documents,
     _write_text_output,
 )
+
+from ._registry import verb
 
 _WHEN_EVENT_PATTERN = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)")
 

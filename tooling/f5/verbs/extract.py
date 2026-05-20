@@ -12,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from tooling.cli.f5_remote.ucs import extract_ucs_file
+from tooling.f5.f5_remote.ucs import extract_ucs_file
 
 from ._emit import add_format_arg, render_config
 from ._registry import verb
@@ -68,7 +68,7 @@ def _run_extract(args: argparse.Namespace) -> int:
         return 2
     try:
         if args.include_extras:
-            from tooling.cli.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+            from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
             data = ucs_path.read_bytes()
             if not is_ucs_bytes(data):

@@ -178,7 +178,7 @@ def test_mcp_irule_with_context_ucs_path(tmp_path):
     """``config_paths`` must extract UCS archives, not feed gzip bytes
     straight to the parser (regression for the original Codex review)."""
     from ai.mcp.tcl_mcp_server import _tool_irule_with_context
-    from tooling.cli.f5_remote.ucs import make_test_ucs
+    from tooling.f5.f5_remote.ucs import make_test_ucs
 
     ucs_path = tmp_path / "device.ucs"
     ucs_path.write_bytes(
