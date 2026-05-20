@@ -128,13 +128,14 @@ def test_mathop_compare_falls_back_to_string_for_non_numeric() -> None:
     assert _run("puts [::tcl::mathop::< 9 10]") == "1"
 
 
-def test_mathop_div_negative_truncates_toward_zero() -> None:
-    # ``::tcl::mathop::/`` integer division must use truncation
-    # toward zero (``@divTrunc``) to match ``tcl_arith_div`` and
-    # ``expr {a / b}``.  An earlier ``@divFloor`` produced ``-3``
-    # instead of the Tcl-correct ``-2`` (Copilot review).
-    assert _run("puts [::tcl::mathop::/ 5 -2]") == "-2"
-    assert _run("puts [::tcl::mathop::/ -5 2]") == "-2"
+def test_mathop_div_negative_floors() -> None:
+    # ``::tcl::mathop::/`` is the same operator as ``expr {a / b}`` and
+    # must match it: Tcl 9 integer division rounds toward negative
+    # infinity (floored), so ``5 / -2`` is ``-3`` (not the truncated
+    # ``-2``).  The command form now folds over ``tcl_arith_div``
+    # (which floors), unifying it with the expression compiler.
+    assert _run("puts [::tcl::mathop::/ 5 -2]") == "-3"
+    assert _run("puts [::tcl::mathop::/ -5 2]") == "-3"
     assert _run("puts [::tcl::mathop::/ -7 -2]") == "3"
 
 
@@ -151,14 +152,17 @@ def test_mathop_mod_uses_floor_sign_of_divisor() -> None:
     assert _run("puts [::tcl::mathop::% -7 -3]") == "-1"
 
 
-def test_mathop_pow_negative_exponent_returns_float() -> None:
-    # ``::tcl::mathop::** 2 -1`` must produce a fractional ``0.5``
-    # rather than the integer-pow ``0``.  Negative exponents force
-    # the float pathway (Copilot review).
-    out = _run("puts [::tcl::mathop::** 2 -1]")
-    assert out == "0.5"
-    out = _run("puts [::tcl::mathop::** 4 -2]")
-    assert out == "0.0625"
+def test_mathop_pow_negative_exponent_is_integer() -> None:
+    # Integer base ** negative integer exponent stays on the INTEGER
+    # path in Tcl 9 (matching the ``**`` operator and mathop-25.15):
+    # ``|base| > 1`` truncates the fractional reciprocal to ``0``,
+    # ``base == 1`` is ``1``, and ``base == -1`` follows the exponent
+    # parity.  (A *float* exponent — ``** 2 -1.0`` — would promote.)
+    assert _run("puts [::tcl::mathop::** 2 -1]") == "0"
+    assert _run("puts [::tcl::mathop::** 4 -2]") == "0"
+    assert _run("puts [::tcl::mathop::** 1 -5]") == "1"
+    assert _run("puts [::tcl::mathop::** -1 -3]") == "-1"
+    assert _run("puts [::tcl::mathop::** -1 -2]") == "1"
     # Positive integer exponents stay on the integer path.
     assert _run("puts [::tcl::mathop::** 3 4]") == "81"
 
@@ -176,13 +180,18 @@ def test_mathop_logical_boolean_keywords() -> None:
     assert _run("puts [::tcl::mathop::! no]") == "1"
     assert _run("puts [::tcl::mathop::! off]") == "1"
     # Ambiguous prefixes that LOOK like a boolean keyword
-    # — ``"tree"`` (4 chars starting with ``tr``) used to slip
-    # through as truthy.  Now ``try_parse_bool`` rejects it and
-    # we fall through to the numeric coerce (which yields 0
-    # because the string isn't an integer either, so ``! tree``
-    # returns 1).
-    assert _run("puts [::tcl::mathop::! tree]") == "1"
-    assert _run("puts [::tcl::mathop::! frame]") == "1"
+    # — ``"tree"`` / ``"frame"`` are neither boolean keywords nor
+    # numbers, so ``!`` raises ``cannot use non-numeric string "X" as
+    # operand of "!"`` (mathop-21.5), matching reference Tcl.  (The
+    # old prefix heuristic silently treated them as ``0`` → ``1``.)
+    assert (
+        _run('puts [catch {::tcl::mathop::! tree} m]:$m')
+        == '1:cannot use non-numeric string "tree" as operand of "!"'
+    )
+    assert (
+        _run('puts [catch {::tcl::mathop::! frame} m]:$m')
+        == '1:cannot use non-numeric string "frame" as operand of "!"'
+    )
     # Numeric truth still works.
     assert _run("puts [::tcl::mathop::&& 1 1 1]") == "1"
     assert _run("puts [::tcl::mathop::|| 0 0 1]") == "1"

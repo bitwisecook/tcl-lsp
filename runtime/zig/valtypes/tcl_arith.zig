@@ -777,8 +777,12 @@ pub export fn tcl_math_pow(x: i32, y: i32) i32 {
     // returns 0.0 for a non-numeric string, so without this ``pow("abc", 2)``
     // would silently compute with zero instead of raising.  ``check_float_arg``
     // raises ``expected floating-point number but got <X>`` and returns false.
-    if (!check_float_arg(x)) return obj.obj_new_float(0.0);
-    if (!check_float_arg(y)) return obj.obj_new_float(0.0);
+    // Return an immediate 0 (not a heap float) on the validation
+    // error path: ``check_float_arg`` already raised, and the
+    // mathfunc command wrapper discards this value on ERROR — a
+    // heap ``obj_new_float`` would leak, an immediate cannot.
+    if (!check_float_arg(x)) return obj.obj_new_int(0);
+    if (!check_float_arg(y)) return obj.obj_new_int(0);
     const xf = obj.obj_get_float(x);
     const yf = obj.obj_get_float(y);
     // ``pow(0, -n)`` is a pole — Tcl raises rather than returning Inf.
@@ -850,8 +854,12 @@ fn check_float_arg(o: i32) bool {
 /// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate
 /// overflow.
 pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
-    if (!check_float_arg(x)) return obj.obj_new_float(0.0);
-    if (!check_float_arg(y)) return obj.obj_new_float(0.0);
+    // Return an immediate 0 (not a heap float) on the validation
+    // error path: ``check_float_arg`` already raised, and the
+    // mathfunc command wrapper discards this value on ERROR — a
+    // heap ``obj_new_float`` would leak, an immediate cannot.
+    if (!check_float_arg(x)) return obj.obj_new_int(0);
+    if (!check_float_arg(y)) return obj.obj_new_int(0);
     return obj.obj_new_float(std.math.hypot(obj.obj_get_float(x), obj.obj_get_float(y)));
 }
 

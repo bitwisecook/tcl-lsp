@@ -286,6 +286,15 @@ fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []
                         if (elem.len == 0) break :blk 0;
                         if (obj_mod_x.try_parse_float(arg_s.ptr + elem.start, elem.len)) |fv| break :blk fv;
                         if (obj_mod_x.try_parse_int(arg_s.ptr + elem.start, elem.len)) |iv| break :blk @floatFromInt(iv);
+                        // Integer literal beyond i64 (no ``.``/``e``) —
+                        // convert through the bignum so it isn't silently
+                        // encoded as 0.0 (mirrors ``obj_get_float``).
+                        const bn = @import("../valtypes/tcl_bignum.zig");
+                        if (bn.parse_i128(arg_s.ptr + elem.start, elem.len)) |iv| break :blk @floatFromInt(iv);
+                        if (bn.alloc_from_string(arg_s.ptr + elem.start, elem.len)) |m| {
+                            defer bn.destroy(m);
+                            break :blk bn.to_f64(m);
+                        }
                         break :blk 0;
                     } else 0;
                     const bits: i64 = if (is32) blk: {
@@ -455,7 +464,11 @@ fn eval_binary_scan(words: []const i32) i32 {
                     // Build a space-separated list of the canonical
                     // float reprs via obj_ensure_string(obj_new_float).
                     var list_off: u32 = 0;
-                    // Worst case: each double repr ~25 chars + space.
+                    // Worst case: each double repr is ~24 chars + a
+                    // separating space, so budget 28/elem.  Guard the
+                    // size against u32 overflow for a pathological
+                    // element count (a huge preopen'd data string).
+                    if (cnt > (0xFFFFFFFF - 8) / 28) break;
                     const list_buf_size: u32 = cnt * 28 + 8;
                     const list_buf = alloc(list_buf_size);
                     if (list_buf == 0) break;
@@ -464,12 +477,20 @@ fn eval_binary_scan(words: []const i32) i32 {
                         const raw: u64 = @bitCast(if (big_end) read_be_unsigned(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                         off += nbytes;
                         const fval: f64 = if (is32) @floatCast(@as(f32, @bitCast(@as(u32, @truncate(raw))))) else @bitCast(raw);
+                        const fo = obj_mod_f.obj_new_float(fval);
+                        const fs2 = obj_mod_f.obj_ensure_string(fo);
+                        // Capacity guard: never write past the buffer even
+                        // if a repr is unexpectedly long.  Release the
+                        // float obj before bailing so it doesn't leak.
+                        const need: u32 = (if (k > 0) @as(u32, 1) else 0) + fs2.len;
+                        if (list_off + need > list_buf_size) {
+                            obj_mod_f.tcl_obj_release(fo);
+                            break;
+                        }
                         if (k > 0) {
                             list_dst[list_off] = ' ';
                             list_off += 1;
                         }
-                        const fo = obj_mod_f.obj_new_float(fval);
-                        const fs2 = obj_mod_f.obj_ensure_string(fo);
                         const fp: [*]const u8 = @ptrFromInt(fs2.ptr);
                         for (0..fs2.len) |j| list_dst[list_off + j] = fp[j];
                         list_off += fs2.len;

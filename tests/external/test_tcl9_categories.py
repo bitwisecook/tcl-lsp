@@ -69,27 +69,48 @@ def test_load_unknown_stem_is_empty_default() -> None:
     assert cats.good_to_have_baseline == 0
 
 
-def test_unlisted_id_is_must_pass() -> None:
-    cats = load_categories("expr-old")
+# These three tests use an inline synthetic TOML rather than a real
+# stem's categorisation: the on-disk buckets legitimately change as
+# runtime fixes land (e.g. expr-old went to 0 categorised once
+# pow()/rand()/hypot() were fixed), and the loader logic under test
+# is independent of which stem supplies the data.
+def _write_fixture(tmp_path, monkeypatch):
+    inline = tmp_path / "fix.toml"
+    inline.write_text(
+        """
+        good_to_have = ["34.10"]
+        just_to_match_ctcl = ["32.50"]
+        skip = []
+        """,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
+
+
+def test_unlisted_id_is_must_pass(tmp_path, monkeypatch) -> None:
+    _write_fixture(tmp_path, monkeypatch)
+    cats = load_categories("fix")
     assert cats.bucket_of("999.999") == "must_pass"
     assert cats.bucket_of("32.50") == "just_to_match_ctcl"
     assert cats.bucket_of("34.10") == "good_to_have"
 
 
-def test_bucket_of_accepts_full_id_or_suffix() -> None:
-    cats = load_categories("expr-old")
-    assert cats.bucket_of("expr-old-32.50") == "just_to_match_ctcl"
+def test_bucket_of_accepts_full_id_or_suffix(tmp_path, monkeypatch) -> None:
+    _write_fixture(tmp_path, monkeypatch)
+    cats = load_categories("fix")
+    assert cats.bucket_of("fix-32.50") == "just_to_match_ctcl"
     assert cats.bucket_of("32.50") == "just_to_match_ctcl"
 
 
-def test_bucket_failures_partitions_correctly() -> None:
+def test_bucket_failures_partitions_correctly(tmp_path, monkeypatch) -> None:
+    _write_fixture(tmp_path, monkeypatch)
     report = bucket_failures(
-        "expr-old",
-        ["expr-old-32.50", "expr-old-34.10", "expr-old-999.999"],
+        "fix",
+        ["fix-32.50", "fix-34.10", "fix-999.999"],
     )
-    assert report.must_pass_failures == ["expr-old-999.999"]
-    assert report.good_to_have_failures == ["expr-old-34.10"]
-    assert report.just_to_match_ctcl_failures == ["expr-old-32.50"]
+    assert report.must_pass_failures == ["fix-999.999"]
+    assert report.good_to_have_failures == ["fix-34.10"]
+    assert report.just_to_match_ctcl_failures == ["fix-32.50"]
     assert report.skip_failures == []
     assert report.total == 3
 
