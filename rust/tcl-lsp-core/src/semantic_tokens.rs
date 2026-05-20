@@ -29,11 +29,11 @@
 //! * Range variant ([`range`]) — same encoding as [`full`]
 //!   filtered to tokens whose start position falls inside
 //!   the request range.  Server advertises `range: true`.
-//! * Delta variant — server-side per-URI cache compares the
-//!   packed data against the previous result-id; matching
-//!   responses get an empty `edits` list, others get a fresh
-//!   full stream.  (Computing a true minimal edit diff is
-//!   tracked under `Still deferred` below.)
+//! * Delta variant — when the client's `previousResultId`
+//!   matches the per-URI cached stream, the server returns the
+//!   minimal token-aligned edit computed by [`diff`] (an empty
+//!   edit list when nothing changed); a stale / unknown previous
+//!   id falls back to a fresh full stream.
 //!
 //! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
@@ -44,9 +44,6 @@
 //!   semantic-token side needs the same cursor-context
 //!   detection plus per-component classification.
 //! * `BigIP` URI segments / iRules-specific event names.
-//! * True minimal edit-diff for `semanticTokens/full/delta` —
-//!   the current implementation returns either an empty edit
-//!   list or a fresh full stream.
 
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -380,6 +377,80 @@ fn encode_entries(entries: &[(u32, u32, u32, TokenKind)]) -> SemanticTokens {
     SemanticTokens { data }
 }
 
+/// Number of packed integers per semantic token
+/// (`[deltaLine, deltaCol, length, type, modifiers]`).
+const TOKEN_STRIDE: usize = 5;
+
+/// One minimal edit transforming a previous packed token stream
+/// into a new one: starting at integer offset `start`, delete
+/// `delete_count` integers and splice in `data`.
+///
+/// All three fields are token-aligned (multiples of
+/// [`TOKEN_STRIDE`]) so the edit splits cleanly into whole
+/// `SemanticToken`s, which is what the LSP `semanticTokens/full/
+/// delta` wire shape requires.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenEdit {
+    /// Integer offset into the previous `data` where the edit
+    /// begins.
+    pub start: u32,
+    /// Number of integers to remove from the previous `data`.
+    pub delete_count: u32,
+    /// Replacement integers (the changed run of the new stream).
+    pub data: Vec<u32>,
+}
+
+/// Compute the single minimal edit that turns `old` into `new`
+/// by trimming the common leading and trailing tokens.
+///
+/// Operates at whole-token granularity: a token counts as common
+/// only when its entire 5-integer group is identical, so the
+/// returned offsets stay token-aligned.  Because the packed
+/// encoding is *relative* (each token's delta is measured from
+/// its predecessor), any change that shifts a token's position
+/// perturbs its 5-tuple and pulls it into the replacement run —
+/// so a prefix/suffix diff on the encoded array is correct
+/// without re-deltifying the boundary.
+///
+/// Returns `None` when the streams are identical.
+#[must_use]
+pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
+    if old == new {
+        return None;
+    }
+    let old_tokens = old.len() / TOKEN_STRIDE;
+    let new_tokens = new.len() / TOKEN_STRIDE;
+    let token = |buf: &[u32], i: usize| -> [u32; TOKEN_STRIDE] {
+        let base = i * TOKEN_STRIDE;
+        [
+            buf[base],
+            buf[base + 1],
+            buf[base + 2],
+            buf[base + 3],
+            buf[base + 4],
+        ]
+    };
+    let max_common = old_tokens.min(new_tokens);
+    let mut prefix = 0;
+    while prefix < max_common && token(old, prefix) == token(new, prefix) {
+        prefix += 1;
+    }
+    let mut suffix = 0;
+    while suffix < max_common - prefix
+        && token(old, old_tokens - 1 - suffix) == token(new, new_tokens - 1 - suffix)
+    {
+        suffix += 1;
+    }
+    let start = prefix * TOKEN_STRIDE;
+    let delete_count = (old_tokens - prefix - suffix) * TOKEN_STRIDE;
+    let data = new[start..(new_tokens - suffix) * TOKEN_STRIDE].to_vec();
+    Some(TokenEdit {
+        start: u32::try_from(start).unwrap_or(u32::MAX),
+        delete_count: u32::try_from(delete_count).unwrap_or(u32::MAX),
+        data,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,6 +463,50 @@ mod tests {
         assert!(!s.data.is_empty(), "{:?}", s.data);
         // 5 ints per token.
         assert_eq!(s.data.len() % 5, 0);
+    }
+
+    #[test]
+    fn diff_returns_none_for_identical_streams() {
+        let a = vec![0, 0, 4, 0, 0, 0, 5, 3, 1, 0];
+        assert_eq!(diff(&a, &a), None);
+    }
+
+    #[test]
+    fn diff_isolates_a_single_changed_token() {
+        // Three tokens; only the middle one's type changes.
+        let old = vec![
+            0, 0, 4, 0, 0, /**/ 0, 5, 3, 1, 0, /**/ 1, 0, 2, 2, 0,
+        ];
+        let new = vec![
+            0, 0, 4, 0, 0, /**/ 0, 5, 3, 4, 0, /**/ 1, 0, 2, 2, 0,
+        ];
+        let edit = diff(&old, &new).expect("an edit");
+        // Skip the first token (5 ints), replace exactly one token.
+        assert_eq!(edit.start, 5);
+        assert_eq!(edit.delete_count, 5);
+        assert_eq!(edit.data, vec![0, 5, 3, 4, 0]);
+    }
+
+    #[test]
+    fn diff_handles_appended_token() {
+        let old = vec![0, 0, 4, 0, 0];
+        let new = vec![0, 0, 4, 0, 0, 0, 5, 3, 1, 0];
+        let edit = diff(&old, &new).expect("an edit");
+        // Nothing deleted; one token appended after the prefix.
+        assert_eq!(edit.start, 5);
+        assert_eq!(edit.delete_count, 0);
+        assert_eq!(edit.data, vec![0, 5, 3, 1, 0]);
+    }
+
+    #[test]
+    fn diff_handles_removed_token() {
+        let old = vec![0, 0, 4, 0, 0, 0, 5, 3, 1, 0];
+        let new = vec![0, 0, 4, 0, 0];
+        let edit = diff(&old, &new).expect("an edit");
+        // One trailing token removed, nothing spliced in.
+        assert_eq!(edit.start, 5);
+        assert_eq!(edit.delete_count, 5);
+        assert!(edit.data.is_empty());
     }
 
     #[test]

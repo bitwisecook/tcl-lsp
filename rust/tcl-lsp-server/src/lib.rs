@@ -81,14 +81,14 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
     RelatedFullDocumentDiagnosticReport, RenameOptions, RenameParams, SelectionRange,
     SelectionRangeParams, SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    SemanticTokensDelta, SemanticTokensDeltaParams, SemanticTokensEdit,
+    SemanticTokensFullDeltaResult, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
+    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -1675,16 +1675,18 @@ impl LanguageServer for Backend {
         let new_data = core_semantic_tokens::full(&doc.text).data;
         let new_result_id = next_semantic_tokens_id();
 
-        // Compare against the cached snapshot.  When the
-        // previous_result_id matches the cached one *and* the
-        // packed data is unchanged, return an empty edit list.
-        // Otherwise return a fresh full token set — the LSP
-        // spec accepts this as a valid response.  Computing a
-        // minimal edit diff is a further follow-up.
+        // Compare against the cached snapshot.  When the client's
+        // `previous_result_id` matches the stream we last handed
+        // out for this URI, return the minimal token-aligned edit
+        // that turns the cached stream into the new one (an empty
+        // edit list when nothing changed).  When the ids don't
+        // line up (stale / unknown previous result) fall back to a
+        // fresh full token set, which the LSP spec accepts.
         let mut cache = self.semantic_tokens_cache.lock().await;
-        let prev = cache.get(&uri);
-        let return_empty_delta = prev
-            .is_some_and(|entry| entry.result_id == previous_result_id && entry.data == new_data);
+        let prev_match = cache
+            .get(&uri)
+            .filter(|entry| entry.result_id == previous_result_id)
+            .map(|entry| entry.data.clone());
         cache.insert(
             uri,
             SemanticTokensEntry {
@@ -1693,11 +1695,19 @@ impl LanguageServer for Backend {
             },
         );
         drop(cache);
-        if return_empty_delta {
+        if let Some(prev_data) = prev_match {
+            let edits = match core_semantic_tokens::diff(&prev_data, &new_data) {
+                None => Vec::new(),
+                Some(edit) => vec![SemanticTokensEdit {
+                    start: edit.start,
+                    delete_count: edit.delete_count,
+                    data: Some(lift_semantic_token_data(&edit.data)),
+                }],
+            };
             return Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
                 SemanticTokensDelta {
                     result_id: Some(new_result_id),
-                    edits: Vec::new(),
+                    edits,
                 },
             )));
         }
