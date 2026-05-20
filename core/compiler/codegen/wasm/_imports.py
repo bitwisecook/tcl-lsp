@@ -709,6 +709,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
     ),
     "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
+    # ``uplevel`` with a runtime-resolved level word (``uplevel $lvl
+    # body``).  The codegen resolves the level + body in the compiled
+    # frame and hands both objects here; the runtime parses the level
+    # from the substituted value, mirroring ``eval_uplevel``.
+    "tcl_uplevel_eval": (
+        "tcl",
+        "tcl_uplevel_eval",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Arrays — dedicated per-array hash tables.  ``array`` subcommands
     # are spec-owned but the helpers the codegen calls are shared
     # between ``array set`` literal emission and the sub-command
