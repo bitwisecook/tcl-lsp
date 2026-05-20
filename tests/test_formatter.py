@@ -1089,7 +1089,12 @@ class TestLongLineWrapping:
             "    }\n"
             "}"
         )
-        result = format_tcl(source)
+        # Wrapping a ``when`` event body keys off the active dialect
+        # recognising ``when``; scope it so the test is self-contained.
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = format_tcl(source)
         lines = result.strip().split("\n")
         # The condition should be split across lines
         assert any(line.lstrip().startswith("&&") for line in lines)
@@ -1280,13 +1285,17 @@ class TestBackslashContinuation:
             "    }\n"
             "}"
         )
-        result = format_tcl(source)
-        for line in result.strip().split("\n"):
-            assert len(line) <= 120, f"Line too long ({len(line)}): {line}"
-        # Braced variables must survive formatting (#137)
-        assert "${ttl_ceiling}" in result
-        # Verify idempotency
-        r2 = format_tcl(result)
+        # ``when`` event-body wrapping is dialect-driven; scope it.
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = format_tcl(source)
+            for line in result.strip().split("\n"):
+                assert len(line) <= 120, f"Line too long ({len(line)}): {line}"
+            # Braced variables must survive formatting (#137)
+            assert "${ttl_ceiling}" in result
+            # Verify idempotency
+            r2 = format_tcl(result)
         assert result == r2
 
 
