@@ -2,36 +2,77 @@
 
 ## Bug Fixes
 
-- **JetBrains plugin: Compiler Explorer tool window now receives source
-  from the editor.** Since v1.10.0 the tool window stayed stuck on
-  "Waiting for source from editor..." with the status line reading
-  "webview API unavailable". The JCEF adapter in
-  `CompilerExplorerHtml.kt` was rewriting a `const vscode =
-  acquireVsCodeApi();` string that the VS Code webview HTML no longer
-  contained — recent revisions capture the API via
-  `var __vscodeApi = typeof acquireVsCodeApi === 'function' ?
-  acquireVsCodeApi() : undefined` instead, so the replacement was a
-  silent no-op and `acquireVsCodeApi` stayed undefined. The adapter now
+- **Compiled `switch` over-release.** The bytecode emitter for `switch`
+  could release the matched `TclObj` one extra time, corrupting the
+  free list under workloads that hit the default branch repeatedly.
+  A regression test pinned the failure and the codegen now balances
+  the refcount across every arm.
+- **`return -code break` / `-code continue` from compiled procs.**
+  Compiled proc calls swallowed the propagated `break`/`continue`
+  return codes from `return -code`, so loops driven by helpers that
+  used this pattern terminated incorrectly. The interpreter result
+  now flows through unchanged.
+- **`TclObj` refcount leaks across runtime and codegen.** A sweep of
+  the runtime and codegen paths fixed several places where intermediate
+  `TclObj` values weren't released — including `eval`/`set` ownership
+  and a handful of arithmetic helpers — so long-running scripts no
+  longer drift upward in resident objects.
+- **`expr` error messages and boolean-context handling.** Error text
+  for malformed expressions and the boolean coercion in test/loop
+  contexts now match C Tcl, including the `expected boolean value`
+  wording and operand position.
+- **Alias loops and cross-interp `upvar`.** The interpreter now
+  detects alias cycles introduced by `interp alias` and resolves
+  `upvar` correctly when the target frame lives in a sibling
+  interpreter.
+- **`list` validation and `lsearch -bisect`.** Argument-count
+  validation for `list` and the bisection mode of `lsearch` now agree
+  with Tcl 9 semantics, including boundary behaviour on empty and
+  duplicated keys.
+- **E003 false positives when switches precede positional args.** The
+  arity diagnostic no longer trips when option switches (e.g. `-nocase`)
+  come before positional arguments to commands like `lsearch` and
+  `string match`.
+- **`rename` preserves array indices.** Renaming the base variable of
+  an array reference (`set a(b) …` → `set c(b) …`) now keeps the
+  index intact instead of dropping it.
+- **JetBrains: Compiler Explorer receives source from the editor.**
+  Since v1.10.0 the tool window stayed stuck on "Waiting for source
+  from editor..." with the status line reading "webview API
+  unavailable". The JCEF adapter in `CompilerExplorerHtml.kt` was
+  rewriting a `const vscode = acquireVsCodeApi();` string that the
+  current VS Code webview HTML no longer contains. The adapter now
   injects a `<head>` shim that defines `acquireVsCodeApi` to return a
   bridge object whose `postMessage` queues requests until the Kotlin
-  host installs `window.__tcllspBridge` on load-end, at which point the
-  queue is drained. Compile, hover-highlight, and clear-highlight
-  messages reach the LSP server again.
-- **JetBrains plugin: bundle LSP server outside the plugin jar.**
-  v1.10.6 shipped the source-level W105 quick-fix that preserves `$`
-  in variable references (`$script` → `{$script}` instead of
-  `{script}`), but users running the JetBrains plugin didn't see it on
-  upgrade: the plugin packed `tcl-lsp-server.pyz` into its jar and
-  extracted it to `${tmpdir}/tcl-lsp-server.pyz` at first launch, and
-  the existence check that gated re-extraction only fired when the
-  temp file was missing or empty.  Plugin upgrades therefore kept
-  reusing the previous version's extracted server, and v1.10.6's W105
-  fix never reached anyone who'd already launched v1.10.5.  The pyz
-  now lives at the plugin install root (next to `lib/`, matching
-  JetBrains' own Prisma ORM plugin layout), so Python executes it
-  directly from the install directory — no temp-dir cache, no
-  upgrade-time invalidation, and v1.10.6's source-side fix actually
-  takes effect on upgrade.
+  host installs `window.__tcllspBridge`, at which point the queue is
+  drained.
+- **JetBrains: bundle LSP server outside the plugin jar.** v1.10.6
+  shipped the source-level W105 quick-fix that preserves `$` in
+  variable references (`$script` → `{$script}`), but users running the
+  JetBrains plugin didn't see it on upgrade: the plugin extracted
+  `tcl-lsp-server.pyz` to `${tmpdir}` at first launch and only
+  re-extracted when the temp file was missing. The pyz now lives at
+  the plugin install root (next to `lib/`), so Python executes it
+  directly — no temp-dir cache, no upgrade-time invalidation.
+
+## Improvements
+
+- **`mathop` operators delegate to `tcl_arith` helpers.** The
+  `::tcl::mathop` namespace no longer duplicates arithmetic; every
+  operator now routes through the shared `tcl_arith` paths, bringing
+  operator semantics into line with `expr` and shrinking the divergence
+  surface between the two.
+
+## Internal
+
+- **Double-free sub-bucket counters in the leak-check runtime.**
+  `leak_sweep` and the diff tooling now classify double-free events
+  into sub-buckets and capture pending sample data, making
+  regressions easier to localise.
+- **Apply `zig fmt`** to `runtime/zig/cmds/dict.zig` and
+  `runtime/zig/cmds/tcl_mathop.zig`.
+- **Ignore JetBrains `tcl-lsp-server.pyz`** build artefact in the
+  source tree.
 
 # v1.10.6
 
