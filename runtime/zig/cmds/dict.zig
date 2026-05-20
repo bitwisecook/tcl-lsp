@@ -96,13 +96,22 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
                 }
                 const dst: [*]u8 = @ptrFromInt(buf);
                 var off: u32 = 0;
-                for (prefix) |c| { dst[off] = c; off += 1; }
+                for (prefix) |c| {
+                    dst[off] = c;
+                    off += 1;
+                }
                 if (ks.len > 0 and ks.ptr != 0) {
                     const sp_k: [*]const u8 = @ptrFromInt(ks.ptr);
                     var k: u32 = 0;
-                    while (k < ks.len) : (k += 1) { dst[off] = sp_k[k]; off += 1; }
+                    while (k < ks.len) : (k += 1) {
+                        dst[off] = sp_k[k];
+                        off += 1;
+                    }
                 }
-                for (middle) |c| { dst[off] = c; off += 1; }
+                for (middle) |c| {
+                    dst[off] = c;
+                    off += 1;
+                }
                 const msg = obj_mod_dict.obj_new_string_take(buf, total, total);
                 const catch_mod_dict = @import("../interp/tcl_catch.zig");
                 catch_mod_dict.tcl_cmd_error(msg);
