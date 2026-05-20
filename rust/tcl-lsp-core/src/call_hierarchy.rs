@@ -310,21 +310,51 @@ pub fn incoming_calls(
         // Not a proc — try a class method.
         return method_incoming_calls(source, item, analysis, &line_index);
     };
-    // (caller-qname → (caller-item, ranges)) keyed by qname so
-    // multiple call sites from one caller group together.
+    incoming_calls_for_target(
+        source,
+        analysis,
+        &target_proc.name,
+        target_qname,
+        Some(target_proc.name_span),
+    )
+}
+
+/// Enumerate incoming calls to a proc identified *externally*
+/// by `(target_simple, target_qualified)`, within the document
+/// described by `source` / `analysis`.  Unlike [`incoming_calls`],
+/// the target needn't be defined in this document — used by the
+/// server to gather cross-document callers (one call per
+/// indexed document).  `target_name_span`, when `Some`, skips
+/// an invocation that overlaps the proc's own declaration in
+/// *this* document (avoids self-linking); pass `None` for
+/// documents that don't define the proc.
+#[must_use]
+pub fn incoming_calls_for_target(
+    source: &str,
+    analysis: &AnalysisResult,
+    target_simple: &str,
+    target_qualified: &str,
+    target_name_span: Option<tcl_lexer::Span>,
+) -> Vec<IncomingCall> {
+    let line_index = LineIndex::new(source);
+    let qname_no_prefix = target_qualified
+        .strip_prefix("::")
+        .unwrap_or(target_qualified);
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
-        if !invocation_targets(inv, target_proc, target_qname) {
+        let matches = inv.name == target_simple
+            || inv.name == target_qualified
+            || inv.name == qname_no_prefix
+            || inv.resolved_qualified_name.as_deref() == Some(target_qualified);
+        if !matches {
             continue;
         }
-        // Skip the proc's own declaration site (the name
-        // span sits inside the `proc` invocation's range and
-        // would otherwise self-link).
-        if span_contains(target_proc.name_span, inv.range)
-            || span_contains(inv.range, target_proc.name_span)
-        {
-            continue;
+        // Skip the proc's own declaration site in this document.
+        if let Some(decl) = target_name_span {
+            if span_contains(decl, inv.range) || span_contains(inv.range, decl) {
+                continue;
+            }
         }
         let inv_range = span_to_range(&line_index, inv.range);
         let caller_key = enclosing_proc(analysis, inv.range)
@@ -675,5 +705,32 @@ mod tests {
         let outgoing = outgoing_calls(src, &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::helper"], "{outgoing:?}");
+    }
+
+    // -- workspace-index: cross-document incoming calls -------------
+
+    #[test]
+    fn incoming_calls_for_target_finds_callers_in_other_doc() {
+        // A consumer document that *doesn't* define `helper`
+        // but calls it from inside `caller` and at top level.
+        let src = "proc caller {} { helper }\nhelper\n";
+        let analysis = analyse(src);
+        let calls = incoming_calls_for_target(src, &analysis, "helper", "::helper", None);
+        // Callers: `caller` (one call) + `<top-level>` (one).
+        let from: Vec<&str> = calls.iter().map(|c| c.from.name.as_str()).collect();
+        assert!(from.contains(&"::caller"), "{calls:?}");
+        assert!(from.contains(&"<top-level>"), "{calls:?}");
+    }
+
+    #[test]
+    fn incoming_calls_for_target_no_self_skip_without_span() {
+        // With target_name_span = None nothing is skipped as a
+        // declaration, so a doc that calls the proc once yields
+        // exactly one caller bucket.
+        let src = "proc c {} { helper }\n";
+        let analysis = analyse(src);
+        let calls = incoming_calls_for_target(src, &analysis, "helper", "::helper", None);
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].from.name, "::c");
     }
 }

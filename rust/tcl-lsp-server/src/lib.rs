@@ -728,6 +728,44 @@ impl Backend {
         }
     }
 
+    /// Cross-document incoming calls to the proc whose
+    /// qualified name is `qualified`: run the externally-
+    /// targeted incoming-calls pass over every analysed
+    /// document *other than* `current_uri`, tagging each result
+    /// with its document's URI.  Documents that don't define
+    /// the proc still contribute their call sites (passing
+    /// `None` for the declaration span so nothing is skipped).
+    async fn cross_document_incoming_calls(
+        &self,
+        current_uri: &Url,
+        qualified: &str,
+    ) -> Vec<(Url, core_call_hierarchy::IncomingCall)> {
+        let simple = qualified.rsplit("::").next().unwrap_or(qualified);
+        // Snapshot (uri, source) for every other open document.
+        let docs: Vec<(Url, String)> = {
+            let store = self.documents.lock().await;
+            store
+                .iter()
+                .filter(|(u, _)| *u != current_uri)
+                .map(|(u, d)| (u.clone(), d.text.clone()))
+                .collect()
+        };
+        let mut out = Vec::new();
+        for (doc_uri, source) in docs {
+            let analysis = self
+                .cached_analysis(&doc_uri)
+                .await
+                .unwrap_or_else(|| Analyser::new().analyse(&source, "tcl8.6").clone());
+            let calls = core_call_hierarchy::incoming_calls_for_target(
+                &source, &analysis, simple, qualified, None,
+            );
+            for c in calls {
+                out.push((doc_uri.clone(), c));
+            }
+        }
+        out
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
@@ -1238,8 +1276,12 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let incoming = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::incoming_calls(&doc.text, &core_item, &analysis)
+        let qualified = core_item.name.clone();
+        let doc_text = doc.text.clone();
+        let local_item = core_item.clone();
+        let local_analysis = analysis.clone();
+        let local = tokio::task::spawn_blocking(move || {
+            core_call_hierarchy::incoming_calls(&doc_text, &local_item, &local_analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1247,15 +1289,21 @@ impl LanguageServer for Backend {
             message: format!("incoming_calls worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted = incoming
+        // Tag local results with the request URI.
+        let mut tagged: Vec<(Url, core_call_hierarchy::IncomingCall)> =
+            local.into_iter().map(|c| (uri.clone(), c)).collect();
+        // Cross-document callers: run the externally-targeted
+        // incoming-calls pass over every *other* analysed doc.
+        tagged.extend(self.cross_document_incoming_calls(&uri, &qualified).await);
+        let lifted = tagged
             .into_iter()
-            .map(|c| CallHierarchyIncomingCall {
+            .map(|(doc_uri, c)| CallHierarchyIncomingCall {
                 from: CallHierarchyItem {
                     name: c.from.name,
                     kind: SymbolKind::FUNCTION,
                     tags: None,
                     detail: c.from.detail,
-                    uri: uri.clone(),
+                    uri: doc_uri,
                     range: lift_lsp_range(c.from.range),
                     selection_range: lift_lsp_range(c.from.selection_range),
                     data: None,
@@ -2994,5 +3042,29 @@ mod tests {
         };
         let result = backend.rename(params).await.expect("ok");
         assert!(result.is_none(), "rename to a built-in should be refused");
+    }
+
+    #[tokio::test]
+    async fn incoming_calls_span_multiple_documents() {
+        let backend = test_backend();
+        let lib = Url::parse("file:///lib.tcl").unwrap();
+        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        register(&backend, &lib, "proc helper {} {}\n").await;
+        register(&backend, &consumer, "proc caller {} { helper }\n").await;
+        // prepare the `helper` item from lib.tcl.
+        let prep = {
+            let mut a = Analyser::new();
+            let analysis = a.analyse("proc helper {} {}\n", "tcl8.6").clone();
+            core_call_hierarchy::prepare("proc helper {} {}\n", 0, 5, &analysis)
+        };
+        let core_item = prep.into_iter().next().expect("prepared item");
+        assert_eq!(core_item.name, "::helper");
+        let cross = backend
+            .cross_document_incoming_calls(&lib, &core_item.name)
+            .await;
+        // The only caller is `caller` in consumer.tcl.
+        assert_eq!(cross.len(), 1, "{cross:?}");
+        assert_eq!(cross[0].0, consumer);
+        assert_eq!(cross[0].1.from.name, "::caller");
     }
 }
