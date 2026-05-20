@@ -161,10 +161,22 @@ def _build_var_replacement(
                 character=close_ch,
                 offset=end.offset + 1,
             )
-    elif has_dollar:
-        replacement = "$" + new_qualified
     else:
-        replacement = new_qualified
+        # Preserve a trailing array-index suffix so renaming a base array
+        # variable rewrites ``$arr(idx)`` -> ``$new(idx)`` instead of
+        # clobbering the index to ``$new``.  The reference span covers the
+        # whole ``$arr(idx)`` (the analyser matches array reads to the base
+        # name), so re-append any ``(...)`` found after the name.
+        covered = ref_line[ch : end.character + 1]
+        body = covered[1:] if has_dollar else covered
+        suffix = ""
+        paren = body.find("(")
+        if paren != -1 and body.endswith(")"):
+            suffix = body[paren:]
+        if has_dollar:
+            replacement = "$" + new_qualified + suffix
+        else:
+            replacement = new_qualified + suffix
 
     return Range(start=ref.start, end=end), replacement
 

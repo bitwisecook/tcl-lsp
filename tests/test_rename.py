@@ -135,6 +135,24 @@ class TestRenameVariable:
         assert "newvar" in texts  # definition
         assert "${newvar}" in texts  # braced reference
 
+    def test_rename_var_preserves_array_index_suffix(self):
+        # Renaming a base variable must rewrite ``$arr(idx)`` -> ``$new(idx)``
+        # rather than clobbering the index to ``$new``.
+        source = textwrap.dedent("""\
+            set arr 1
+            puts $arr
+            puts $arr(a)
+            puts $arr($i)
+        """)
+        edit = get_rename_edits(source, TEST_URI, 0, 4, "new")
+        assert edit is not None
+        assert edit.changes is not None
+        texts = {e.new_text for e in edit.changes[TEST_URI]}
+        assert "$new(a)" in texts  # literal array index preserved
+        assert "$new($i)" in texts  # variable array index preserved
+        # The bare scalar reference is still rewritten without a suffix.
+        assert "$new" in texts
+
     def test_rename_qualified_var_preserves_namespace(self):
         """Renaming a namespace-qualified variable preserves the ns:: prefix."""
         source = textwrap.dedent("""\
