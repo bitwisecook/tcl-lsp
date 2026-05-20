@@ -491,11 +491,16 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
 
     def _check_statement(stmt: IRStatement) -> None:
-        # W302: catch without result variable (IR-native)
+        # W302: catch without result variable (IR-native).  Highlight just
+        # the ``catch`` command word — narrowest span that identifies the
+        # issue — rather than the whole ``catch {…}`` statement.
         if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            w302_range = stmt.range
+            if stmt.tokens is not None and stmt.tokens.argv:
+                w302_range = range_from_token(stmt.tokens.argv[0])
             diagnostics.append(
                 Diagnostic(
-                    range=stmt.range,
+                    range=w302_range,
                     message=(
                         "catch without a result variable silently swallows errors. "
                         "Consider capturing the result: catch {…} result"
