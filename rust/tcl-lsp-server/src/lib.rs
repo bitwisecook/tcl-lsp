@@ -1379,14 +1379,16 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         // Build analysis on a worker so the inlay-hints
         // provider can surface parameter-name hints at user-
-        // proc call sites (`S-inlay-hints-rich`).  When the
-        // analyser surfaces an empty all_procs map (no user
-        // procs in the document), the provider still returns
-        // an empty hint set.
+        // proc call sites (`S-inlay-hints-rich`) plus built-in
+        // command synopsis hints.  When the analyser surfaces an
+        // empty all_procs map (no user procs in the document),
+        // the provider still returns built-in hints from the
+        // registry.
         let hints = tokio::task::spawn_blocking(move || {
-            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis))
+            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis), Some(&registry))
         })
         .await
         .map_err(|err| jsonrpc::Error {

@@ -22,14 +22,18 @@
 //! cached-analysis surface (`S-async-diagnostics`) will
 //! eventually let this share a cached segmenter pass.
 //!
+//! Built-in command hints also land: when a registry is
+//! provided and the call's head matches a built-in command (or
+//! `cmd subcommand`), the provider parses the spec's synopsis
+//! for positional parameter names and labels the matching
+//! call-site args.  Synopsis flags (`?-nocase?`,
+//! `?-length length?`) are skipped on both sides — synopsis
+//! parsing drops flag tokens, and call-site args that look
+//! like flags (start with `-`) don't consume a positional
+//! slot.  Varargs (`?name ...?`) stop the parse.
+//!
 //! What is *deferred*:
 //!
-//! * Built-in command hints — Python's provider also surfaces
-//!   parameter names for selected built-in commands (`set`,
-//!   `lassign`, etc.).  Needs the `argument_values` /
-//!   `arg_role` machinery the Rust registry doesn't yet
-//!   surface in the same shape; deferred until the registry's
-//!   argument-name surface lands.
 //! * Type / inferred-trait annotations on hints (Python's
 //!   richer mode shows `name:string`, `count:int`).  Same
 //!   gating as the `S-hover-rich` `_infer_var_type` follow-up.
@@ -39,6 +43,7 @@
 
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_lexer::LineIndex;
+use tcl_registry::CommandRegistry;
 
 use crate::definition::LspRange;
 
@@ -59,11 +64,14 @@ pub struct InlayHint {
 /// `analysis` provides the proc-name → parameter-list lookup
 /// the hints need.  When `analysis` is `None` (a stub-only
 /// caller from the minimal port), returns an empty vector.
+/// `registry`, when `Some`, additionally surfaces parameter-
+/// name hints for built-in commands via their synopsis.
 #[must_use]
 pub fn inlay_hints(
     source: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
+    registry: Option<&CommandRegistry>,
 ) -> Vec<InlayHint> {
     let Some(analysis) = analysis else {
         return Vec::new();
@@ -77,13 +85,167 @@ pub fn inlay_hints(
             continue;
         }
         let cmd_name = &seg.texts[0];
-        let Some(proc_def) = lookup_proc(analysis, cmd_name) else {
+        if let Some(proc_def) = lookup_proc(analysis, cmd_name) {
+            emit_hints_for_call(seg, proc_def, &line_index, range, &mut out);
             continue;
-        };
-        emit_hints_for_call(seg, proc_def, &line_index, range, &mut out);
+        }
+        // Built-in command — parse the registry synopsis for
+        // positional parameter names.  User procs take
+        // precedence (handled above).
+        if let Some(registry) = registry {
+            if let Some(spec) = registry.get(cmd_name) {
+                emit_builtin_hints(seg, spec, &line_index, range, &mut out);
+            }
+        }
     }
 
     out
+}
+
+/// Emit parameter-name hints for a built-in command call by
+/// parsing the spec's synopsis.  Handles the `cmd subcommand`
+/// shape: when the spec declares subcommands and the call's
+/// first arg names one, the subcommand's synopsis drives the
+/// hints (and the subcommand keyword itself isn't labelled).
+fn emit_builtin_hints(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    spec: &tcl_registry::CommandSpec,
+    line_index: &LineIndex,
+    range: LspRange,
+    out: &mut Vec<InlayHint>,
+) {
+    // Resolve synopsis + the call-arg index at which positional
+    // arguments begin.  argv[0] is the command head.
+    let (synopsis, skip_words, first_arg_idx): (&str, usize, usize) = if spec.subcommands.is_empty()
+    {
+        let Some(hover) = spec.hover.as_ref() else {
+            return;
+        };
+        let Some(line) = hover.synopsis.first() else {
+            return;
+        };
+        // Synopsis like `set varName ?value?` — skip the
+        // command word (1); positional call args start at
+        // argv[1].
+        (*line, 1, 1)
+    } else {
+        // Subcommand shape: argv[1] should name a subcommand.
+        let Some(sub_name) = seg.texts.get(1) else {
+            return;
+        };
+        let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name) else {
+            return;
+        };
+        // Synopsis like `string length string` — skip the
+        // command + subcommand words (2); positional call args
+        // start at argv[2].
+        (sub.synopsis, 2, 2)
+    };
+
+    let param_names = param_names_from_synopsis(synopsis, skip_words);
+    if param_names.is_empty() {
+        return;
+    }
+
+    // Walk call args, skipping flag-shaped args (`-x`); assign
+    // each remaining arg the next positional param name.  `argv`
+    // and `texts` are parallel, so index both with `arg_idx`.
+    let mut slot = 0;
+    let mut arg_idx = first_arg_idx;
+    while arg_idx < seg.argv.len() && slot < param_names.len() {
+        let arg_tok = &seg.argv[arg_idx];
+        let arg_text = seg.texts.get(arg_idx).map_or("", String::as_str);
+        arg_idx += 1;
+        if arg_text.starts_with('-') {
+            // Looks like a flag at the call site — don't consume
+            // a positional slot.
+            continue;
+        }
+        let pos = line_index.position_at(arg_tok.span.start());
+        slot += 1;
+        if !position_within_range(pos.line, pos.character, range) {
+            continue;
+        }
+        out.push(InlayHint {
+            position_line: pos.line,
+            position_character: pos.character,
+            label: format!("{}:", param_names[slot - 1]),
+        });
+    }
+}
+
+/// Parse positional parameter names out of a command synopsis,
+/// dropping the leading `skip_words` command/subcommand tokens.
+///
+/// Token grammar (best-effort):
+/// * `name` — required positional → emitted.
+/// * `?name?` — optional positional → emitted (stripped).
+/// * `?-flag?` / `-flag` / `?-flag value?` — flag → skipped.
+/// * `?name ...?` / `...` — varargs → stops the parse.
+fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<String> {
+    let groups = synopsis_groups(synopsis);
+    let mut names = Vec::new();
+    for group in groups.into_iter().skip(skip_words) {
+        // Varargs anywhere → stop.
+        if group.contains("...") {
+            break;
+        }
+        // Optional group `?...?`.
+        if let Some(inner) = group.strip_prefix('?').and_then(|g| g.strip_suffix('?')) {
+            let inner = inner.trim();
+            if inner.starts_with('-') {
+                // Optional flag (possibly `-flag value`) — skip.
+                continue;
+            }
+            if inner.is_empty() || inner.contains(char::is_whitespace) {
+                // Multi-word optional that isn't a plain name —
+                // skip conservatively.
+                continue;
+            }
+            names.push(inner.to_string());
+            continue;
+        }
+        // Bare flag.
+        if group.starts_with('-') {
+            continue;
+        }
+        // Plain required positional.
+        if !group.is_empty() {
+            names.push(group);
+        }
+    }
+    names
+}
+
+/// Split a synopsis into whitespace tokens, re-joining
+/// `?...?` optional groups that span multiple tokens (e.g.
+/// `?-length length?` → one group).
+fn synopsis_groups(synopsis: &str) -> Vec<String> {
+    let mut groups = Vec::new();
+    let mut current: Option<String> = None;
+    for tok in synopsis.split_whitespace() {
+        match &mut current {
+            Some(buf) => {
+                buf.push(' ');
+                buf.push_str(tok);
+                if tok.ends_with('?') {
+                    groups.push(current.take().unwrap());
+                }
+            }
+            None => {
+                if tok.starts_with('?') && !tok.ends_with('?') {
+                    current = Some(tok.to_string());
+                } else {
+                    groups.push(tok.to_string());
+                }
+            }
+        }
+    }
+    // Unterminated optional group — keep what we have.
+    if let Some(buf) = current {
+        groups.push(buf);
+    }
+    groups
 }
 
 fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcDef> {
@@ -172,7 +334,7 @@ mod tests {
 
     #[test]
     fn empty_hints_when_analysis_is_none() {
-        let hints = inlay_hints("set x 1\n", whole_document_range("set x 1\n"), None);
+        let hints = inlay_hints("set x 1\n", whole_document_range("set x 1\n"), None, None);
         assert!(hints.is_empty());
     }
 
@@ -180,7 +342,7 @@ mod tests {
     fn hints_emitted_for_user_proc_call() {
         let src = "proc greet {name greeting} {}\ngreet alice hello\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis));
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(
             labels.contains(&"name:"),
@@ -196,7 +358,7 @@ mod tests {
     fn hints_anchored_at_argument_start() {
         let src = "proc greet {name} {}\ngreet alice\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis));
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
         assert_eq!(hints.len(), 1);
         let h = &hints[0];
         assert_eq!(h.position_line, 1);
@@ -209,7 +371,7 @@ mod tests {
     fn no_hints_for_unknown_command() {
         let src = "unknown_cmd a b c\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis));
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -219,7 +381,7 @@ mod tests {
         // because there's no individual name to surface.
         let src = "proc many {first args} {}\nmany 1 2 3 4\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis));
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
         // Only the `first` arg gets a hint.
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
@@ -232,7 +394,7 @@ mod tests {
         // no hints (no name to attach).
         let src = "proc one {a} {}\none 1 2 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis));
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "a:");
     }
@@ -249,8 +411,102 @@ mod tests {
             end_line: 2,
             end_character: u32::MAX,
         };
-        let hints = inlay_hints(src, range, Some(&analysis));
+        let hints = inlay_hints(src, range, Some(&analysis), None);
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
+    }
+
+    // -- S-inlay-hints-rich: built-in command synopsis hints --------
+
+    fn registry() -> tcl_registry::CommandRegistry {
+        tcl_registry::CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn synopsis_groups_rejoins_optional_flag_value() {
+        let g = synopsis_groups("string compare ?-nocase? ?-length length? a b");
+        assert_eq!(
+            g,
+            vec![
+                "string",
+                "compare",
+                "?-nocase?",
+                "?-length length?",
+                "a",
+                "b"
+            ],
+        );
+    }
+
+    #[test]
+    fn param_names_skips_flags_and_keeps_positionals() {
+        // After `string compare`, the flags drop out leaving the
+        // two positionals.
+        let names = param_names_from_synopsis(
+            "string compare ?-nocase? ?-length length? string1 string2",
+            2,
+        );
+        assert_eq!(names, vec!["string1", "string2"]);
+    }
+
+    #[test]
+    fn param_names_stops_at_varargs() {
+        let names = param_names_from_synopsis("string cat ?string1? ?string2 ...?", 2);
+        // `?string1?` is an optional positional; `?string2 ...?`
+        // is varargs → stop.
+        assert_eq!(names, vec!["string1"]);
+    }
+
+    #[test]
+    fn builtin_hint_for_subcommand_positional() {
+        // `string index $s 3` — subcommand `index`, synopsis
+        // `string index string charIndex`.
+        let src = "string index $s 3\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(labels.contains(&"string:"), "{hints:?}");
+        assert!(labels.contains(&"charIndex:"), "{hints:?}");
+    }
+
+    #[test]
+    fn builtin_hint_skips_call_site_flags() {
+        // `string compare -nocase $a $b` — `-nocase` is a flag,
+        // so $a→string1, $b→string2.
+        let src = "string compare -nocase $a $b\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        // The flag token shouldn't be labelled.
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(labels.contains(&"string1:"), "{hints:?}");
+        assert!(labels.contains(&"string2:"), "{hints:?}");
+        // No hint anchored on the `-nocase` flag.
+        for h in &hints {
+            assert_ne!(h.position_character, 15, "flag should not be hinted: {h:?}");
+        }
+    }
+
+    #[test]
+    fn builtin_hint_not_emitted_without_registry() {
+        // Same source, no registry — no built-in hints.
+        let src = "string index $s 3\n";
+        let analysis = analyse(src);
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        assert!(hints.is_empty(), "{hints:?}");
+    }
+
+    #[test]
+    fn user_proc_takes_precedence_over_builtin() {
+        // A user proc named `string` (contrived) wins over the
+        // built-in.  Here we just confirm a user proc still
+        // gets its param hints when a registry is also present.
+        let src = "proc greet {name} {}\ngreet alice\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert!(labels.contains(&"name:"), "{hints:?}");
     }
 }
