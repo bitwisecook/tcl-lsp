@@ -495,6 +495,27 @@ FIXTURES: dict[str, Case] = {
         "set a [expr {$x + 1}]\nputs $a\n",
         contains=True,
     ),
+    "TK1001": Case(
+        "package require Tk\nbutton .b\nlabel .l\npack .b\ngrid .l\n",
+        "grid",
+        "package require Tk\nbutton .b\npack .b\n",
+    ),
+    "TK1002": Case(
+        "package require Tk\nbutton .frame.b\n",
+        "button",
+        "package require Tk\nframe .frame\nbutton .frame.b\n",
+    ),
+    "W004": Case(
+        "lsort -stride 2 $l\n",
+        "-stride",
+        "lsort $l\n",
+        dialect="tcl8.4",
+    ),
+    "W111": Case(
+        'set x "' + "a" * 200 + '"\n',
+        'set x "' + "a" * 200 + '"',
+        "set x 1\n",
+    ),
 }
 
 # ── fires + clean-clear, but range still too wide (narrowing pending) ──
@@ -540,6 +561,12 @@ RANGE_FIXME: dict[str, FiresCase] = {
     "S102": FiresCase(
         'set x 0\nwhile {1} {\n  set x [expr {$x + 1}]\n  set x "str"\n}\n',
         "set x 0\nwhile {$x < 3} {\n  incr x\n}\n",
+    ),
+    # Unknown widget option: range points at the widget command rather than
+    # the offending `-option` token.
+    "TK1003": FiresCase(
+        "package require Tk\nbutton .b -bogusopt 1\n",
+        "package require Tk\nbutton .b -text hi\n",
     ),
 }
 
@@ -597,13 +624,8 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "T102",
         "T103",
         "T106",
-        "TK1001",
-        "TK1002",
-        "TK1003",
         "W003",
-        "W004",
         "W108",
-        "W111",
         "W116",
         "W117",
         "W120",
