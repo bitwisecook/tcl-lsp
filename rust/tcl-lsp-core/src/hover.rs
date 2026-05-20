@@ -145,6 +145,21 @@ pub fn hover(
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
+    // `$obj method` dispatch — when the cursor sits on the
+    // method-name token of an instance-method call and the
+    // instance's class is known, render the method summary.
+    // Checked before the proc lookup so a method call wins over
+    // a same-named proc.
+    if let Some((inst, method)) =
+        crate::definition::instance_method_at_cursor(source, line, character)
+    {
+        if let Some(class_q) = analysis.instance_classes.get(&inst) {
+            if let Some(text) = obj_method_hover_text(analysis, class_q, &method) {
+                return Some(Hover::markdown(text));
+            }
+        }
+    }
+
     if let Some(proc_def) = lookup_proc(analysis, &word) {
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
@@ -1978,6 +1993,29 @@ fn class_member_hover_text(
     None
 }
 
+/// Hover text for a `$obj method` call — `method` resolved
+/// against the class identified by `class_q`.  Searches
+/// `methods` then `class_methods`, rendering a one-line
+/// summary that names the receiver class.
+fn obj_method_hover_text(analysis: &AnalysisResult, class_q: &str, method: &str) -> Option<String> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    if let Some(m) = class_def.methods.get(method) {
+        return Some(format!(
+            "**method** `{class_q}::{name}` ({nparam} param(s))",
+            name = m.name,
+            nparam = m.params.len(),
+        ));
+    }
+    if let Some(m) = class_def.class_methods.get(method) {
+        return Some(format!(
+            "**classmethod** `{class_q}::{name}` ({nparam} param(s))",
+            name = m.name,
+            nparam = m.params.len(),
+        ));
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2800,5 +2838,25 @@ mod tests {
         // Cursor on the bare `greet` outside the class body.
         // No proc / class / method match — should return None.
         assert!(hover(src, 3, 2, &analysis, None).is_none());
+    }
+
+    // -- S-hover-rich: $obj method dispatch -------------------------
+
+    #[test]
+    fn obj_method_hover_fires_for_known_instance() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
+        let analysis = analyse(src);
+        // Line 4 `$d bark` — cursor on `bark` (col 3).
+        let h = hover(src, 4, 3, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::Dog::bark"), "{}", h.value);
+    }
+
+    #[test]
+    fn obj_method_hover_none_for_unknown_instance() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\n$x bark\n";
+        let analysis = analyse(src);
+        // `x` has no recorded class — no hover.
+        assert!(hover(src, 3, 3, &analysis, None).is_none());
     }
 }

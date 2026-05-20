@@ -33,14 +33,21 @@
 //! method` calls inside the body and bare references to the
 //! class's own members.
 //!
+//! `$obj method` dispatch also lands: when the cursor sits on
+//! the method-name token of a `$obj method` / `[$obj method]`
+//! call and `$obj`'s class is known (recorded in
+//! `analysis.instance_classes` from a `set obj [Cls new]` /
+//! `Cls create obj` site), the provider jumps to the method
+//! declaration on that class.
+//!
 //! What is *still deferred* (planned as further
 //! `S-definition-rich` sub-strips):
 //!
-//! * Method-call dispatch resolution at `$obj method` /
-//!   `[$obj method]` call sites outside the class body —
-//!   needs the analyser to track the variable's class type
-//!   (gated on the `var type/taint annotations` analyser-
-//!   side surface).
+//! * Flow-sensitive / scope-aware instance-class tracking —
+//!   `analysis.instance_classes` is a best-effort global
+//!   var-name → class map (last assignment wins).  Re-binding
+//!   the same name to a different class, or two locals of the
+//!   same name in different procs, isn't disambiguated.
 //! * `BigIP` definition (`get_bigip_definition`) — entirely
 //!   separate provider keyed off iRules dialect that resolves
 //!   pool / data-group / iRule / virtual-server names against
@@ -101,6 +108,19 @@ pub fn definition(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
+    // `$obj method` / `[$obj method]` — when the cursor sits on
+    // the method-name token of an instance-method call and the
+    // instance variable's class is known, jump to the method
+    // declaration.  Checked before the proc lookup so a method
+    // call resolves to the method even when a same-named proc
+    // exists.
+    if let Some((inst, method)) = instance_method_at_cursor(source, line, character) {
+        if let Some(class_q) = analysis.instance_classes.get(&inst) {
+            if let Some(span) = lookup_method_in_class(analysis, class_q, &method) {
+                return vec![span_to_range(&line_index, span)];
+            }
+        }
+    }
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
             return vec![span_to_range(&line_index, proc_def.name_span)];
@@ -190,6 +210,84 @@ fn lookup_class_member(
         }
     }
     None
+}
+
+/// Look up `method` against the class identified by qualified
+/// name `class_q` — searches `methods`, `class_methods`, then
+/// `properties`.  Returns the member's `name_span`.
+fn lookup_method_in_class(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+) -> Option<tcl_lexer::Span> {
+    let class_def = analysis.all_classes.get(class_q)?;
+    class_def
+        .methods
+        .get(method)
+        .map(|m| m.name_span)
+        .or_else(|| class_def.class_methods.get(method).map(|m| m.name_span))
+        .or_else(|| class_def.properties.get(method).map(|p| p.name_span))
+}
+
+/// Detect a `$obj method ...` / `[$obj method ...]` call where
+/// the cursor sits on the *method-name* token.  Returns
+/// `(instance_var_name, method_name)`.
+///
+/// The instance variable must be the command-segment head (a
+/// single `$name` / `${name}` token immediately preceding the
+/// method), so the method sits at word-index 1.  Command
+/// segments are delimited by `;`, `[`, `{`, and the line start
+/// — a single-line approximation that covers the common editor
+/// cases.
+pub(crate) fn instance_method_at_cursor(
+    source: &str,
+    line: u32,
+    character: u32,
+) -> Option<(String, String)> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
+
+    // Method-name word bounds around the cursor.
+    let mut wstart = col;
+    while wstart > 0 && is_ident(chars[wstart - 1]) {
+        wstart -= 1;
+    }
+    let mut wend = col;
+    while wend < chars.len() && is_ident(chars[wend]) {
+        wend += 1;
+    }
+    if wstart == wend {
+        return None;
+    }
+    let method: String = chars[wstart..wend].iter().collect();
+
+    // Command-segment start: nearest `;` / `[` / `{` to the
+    // left, else the line start.
+    let mut seg_start = 0;
+    for i in (0..wstart).rev() {
+        if matches!(chars[i], ';' | '[' | '{') {
+            seg_start = i + 1;
+            break;
+        }
+    }
+    // The head must be exactly one whitespace-delimited token
+    // (the instance var), so the method is word-index 1.
+    let prefix: String = chars[seg_start..wstart].iter().collect();
+    let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
+    if head_tokens.len() != 1 {
+        return None;
+    }
+    let head = head_tokens[0];
+    let inst = head.strip_prefix('$')?;
+    let inst = inst
+        .strip_prefix('{')
+        .map_or(inst, |r| r.strip_suffix('}').unwrap_or(r));
+    if inst.is_empty() {
+        return None;
+    }
+    Some((inst.to_string(), method))
 }
 
 /// Look up an alias by name.  Accepts the alias's simple or
@@ -492,5 +590,57 @@ mod tests {
         // No proc / class / member named `greet` is in scope
         // here — the class-member lookup must not leak.
         assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    // -- S-definition-rich: $obj method dispatch --------------------
+
+    #[test]
+    fn definition_resolves_obj_method_call() {
+        // `set d [Dog new]` then `$d bark` — cursor on `bark`
+        // jumps to the method declaration on Dog.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
+        let analysis = analyse(src);
+        // Line 4 `$d bark` — `bark` starts at col 3.
+        let locs = definition(src, 4, 3, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // `method bark` is on line 1.
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_resolves_obj_method_in_bracket() {
+        // `[$d bark]` bracketed form.
+        let src =
+            "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nputs [$d bark]\n";
+        let analysis = analyse(src);
+        // Line 4 `puts [$d bark]` — `bark` starts at col 9.
+        let locs = definition(src, 4, 9, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_obj_method_unknown_instance_falls_through() {
+        // `$x bark` where `x` has no recorded class — no
+        // instance-method resolution, falls through (and finds
+        // nothing here).
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\n$x bark\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 3, 3, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn instance_method_at_cursor_detects_dollar_head() {
+        let src = "$d bark\n";
+        let got = instance_method_at_cursor(src, 0, 4);
+        assert_eq!(got, Some(("d".to_string(), "bark".to_string())));
+    }
+
+    #[test]
+    fn instance_method_at_cursor_rejects_non_dollar_head() {
+        // `foo bark` — head is a bare word, not an instance var.
+        let src = "foo bark\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 5), None);
     }
 }

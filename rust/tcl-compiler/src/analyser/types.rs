@@ -501,6 +501,16 @@ pub struct AnalysisResult {
     /// one was seen.  ``None`` when the document didn't define
     /// one (the W123 emitter then runs unconditionally).
     pub unknown_proc_info: Option<UnknownProcInfo>,
+    /// Instance-variable → class qualified-name map for `TclOO`
+    /// objects.  Populated by a syntactic scan for
+    /// ``set VAR [CLASS new …]`` / ``set VAR [CLASS create …]``
+    /// and ``CLASS create VAR …`` patterns where ``CLASS`` is a
+    /// user-defined class in [`Self::all_classes`].  Lets the
+    /// LSP providers resolve ``$obj method`` call sites to the
+    /// object's class.  Best-effort and not flow-sensitive — the
+    /// last assignment wins, matching the global-by-var-name
+    /// shape the W308 emitter already uses.
+    pub instance_classes: HashMap<String, String>,
 }
 
 /// `package provide NAME ?VERSION?` record.

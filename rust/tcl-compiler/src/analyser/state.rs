@@ -804,6 +804,67 @@ mod tests {
     }
 
     #[test]
+    fn analyse_records_instance_class_set_new() {
+        // `set d [Dog new]` maps `d` -> `::Dog`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nset d [Dog new]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("d").map(String::as_str),
+            Some("::Dog")
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_create_named() {
+        // `Dog create rex` maps `rex` -> `::Dog`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} {} }\nDog create rex\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("rex").map(String::as_str),
+            Some("::Dog"),
+        );
+    }
+
+    #[test]
+    fn analyse_records_instance_class_set_create() {
+        // `set d [Dog create rex]` maps `d` -> `::Dog`.
+        let mut a = Analyser::new();
+        let r = a.analyse("oo::class create Dog {}\nset d [Dog create rex]\n", "tcl");
+        assert_eq!(
+            r.instance_classes.get("d").map(String::as_str),
+            Some("::Dog")
+        );
+    }
+
+    #[test]
+    fn analyse_does_not_record_class_definition_as_instance() {
+        // `oo::class create Dog` defines a class, not an
+        // instance — `Dog` must not appear in instance_classes.
+        let mut a = Analyser::new();
+        let r = a.analyse("oo::class create Dog {}\n", "tcl");
+        assert!(
+            !r.instance_classes.contains_key("Dog"),
+            "class definition leaked into instance_classes: {:?}",
+            r.instance_classes,
+        );
+    }
+
+    #[test]
+    fn analyse_ignores_instance_of_unknown_class() {
+        // `set d [Widget new]` where Widget isn't a user class
+        // records nothing.
+        let mut a = Analyser::new();
+        let r = a.analyse("set d [Widget new]\n", "tcl");
+        assert!(r.instance_classes.is_empty(), "{:?}", r.instance_classes);
+    }
+
+    #[test]
     fn analyse_namespace_eval_opens_scope() {
         let mut a = Analyser::new();
         let r = a.analyse("namespace eval ns1 { }", "tcl");
