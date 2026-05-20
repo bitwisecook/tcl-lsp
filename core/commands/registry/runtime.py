@@ -585,15 +585,21 @@ def _signature_from_validation(validation: ValidationSpec | None) -> CommandSig:
     return CommandSig(arity=validation.arity)
 
 
-def _signature_from_spec(spec: "CommandSpec") -> CommandSig | SubcommandSig:
+def _signature_from_spec(
+    spec: "CommandSpec", dialect: str | None = None
+) -> CommandSig | SubcommandSig:
     """Derive a signature from a CommandSpec, preferring SubCommand data.
 
     For commands with subcommands: reads arg_roles from SubCommand objects.
     For simple commands: reads arg_roles from CommandSpec.arg_roles,
     falling back to _signature_from_validation when empty.
+
+    ``dialect`` filters the declared options so that switches introduced in
+    a later Tcl release (e.g. ``vwait -variable``, new in 9.0) are not
+    treated as valid option flags under an earlier dialect's signature.
     """
     # Collect declared option names from all forms for option-aware arity.
-    opts = frozenset(spec.switch_names()) if spec.forms else frozenset()
+    opts = frozenset(spec.switch_names(dialect)) if spec.forms else frozenset()
 
     if spec.subcommands:
         return SubcommandSig(
@@ -630,7 +636,7 @@ def _registry_signatures_for_dialect(dialect: str) -> dict[str, CommandSig | Sub
             continue
         spec = REGISTRY.get(name, dialect)
         if spec is not None:
-            sig = _signature_from_spec(spec)
+            sig = _signature_from_spec(spec, dialect)
         else:
             sig = _signature_from_validation(REGISTRY.validation(name, dialect))
         signatures[name] = _with_roles(name, sig)
