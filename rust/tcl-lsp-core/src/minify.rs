@@ -26,25 +26,29 @@
 //! braces in `$x ni {a b}`), corrupting those expressions; this
 //! port preserves them.
 //!
-//! **Deferred — the `compact_names` and `aggressive` tiers** (local
-//! variable / proc / array-member renaming, namespace / string /
-//! argument aliasing, suffix-array static substitution, and the
-//! symbol map).  These are **blocked on an analyser enhancement**:
-//! the Rust analyser does not yet record `$var` references that
-//! occur inside `[…]` command substitutions or braced `expr` /
-//! condition bodies (`VarDef.references` is empty for them — the
-//! same gap the references / document-highlight providers note for
-//! expr bodies).  A faithful rename pass on top of that would
-//! rewrite a parameter's declaration without its body references
-//! and corrupt the script, so the renaming tiers must wait until
-//! the analyser tracks those reads.  The
-//! `workspace/executeCommand` LSP wiring (mirroring
-//! `lsp/commands.py::on_minify_document`) is a separate follow-up.
+//! The **`compact_names` tier** ([`minify_tcl_compact`]) renames
+//! proc-local variables, parameters, and proc names to short
+//! identifiers and returns a [`SymbolMap`].  It relies on the
+//! analyser tracking `$var` references inside `[…]` command
+//! substitutions and braced `expr` bodies (added alongside this
+//! tier) so a rename never rewrites a declaration without its body
+//! references.  Scopes containing a dynamic-barrier command (e.g.
+//! `upvar`) are left untouched; `isolated` also compacts the global
+//! scope.
+//!
+//! **Still deferred:** static array-member compaction (Python's
+//! `_compact_array_members`); the `aggressive` tier (namespace /
+//! string / argument aliasing + suffix-array static substitution +
+//! `MinifyResult`); and the `workspace/executeCommand` LSP wiring
+//! (mirroring `lsp/commands.py::on_minify_document`).
 
+use std::collections::{BTreeMap, HashSet};
+
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
-use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// One argument accumulated while parsing a command.
 struct Arg {
@@ -53,10 +57,63 @@ struct Arg {
     is_quoted: bool,
 }
 
-/// Minify a Tcl source string for the given dialect.
+/// Map of original names to compacted names, grouped by scope.
+/// Mirrors Python's `SymbolMap` (the fields the landed tiers
+/// populate).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SymbolMap {
+    /// Per-scope `{original_var: short}` maps, keyed by scope label.
+    pub variables: BTreeMap<String, BTreeMap<String, String>>,
+    /// `{original_proc: short}`.
+    pub procs: BTreeMap<String, String>,
+}
+
+impl SymbolMap {
+    /// Human-readable symbol map.  Mirrors `SymbolMap.format`.
+    #[must_use]
+    pub fn format(&self) -> String {
+        let mut lines: Vec<String> = Vec::new();
+        if !self.procs.is_empty() {
+            lines.push("# Procs".to_owned());
+            for (original, short) in &self.procs {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        for (scope_name, var_map) in &self.variables {
+            lines.push(format!("# Variables in {scope_name}"));
+            let mut entries: Vec<(&String, &String)> = var_map.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, short) in entries {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        lines.join("\n")
+    }
+}
+
+/// Minify a Tcl source string for the given dialect (default tier).
 #[must_use]
 pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
     minify_body(source, dialect, registry)
+}
+
+/// Minify with local-name compaction: rename proc-local variables,
+/// parameters, and proc names to short identifiers, then run the
+/// default minifier.  Returns the minified source plus a
+/// [`SymbolMap`].  Mirrors `minify_tcl(..., compact_names=True)`.
+///
+/// `isolated` also compacts global-scope variables (safe for
+/// self-contained scripts like iRules event handlers).
+#[must_use]
+pub fn minify_tcl_compact(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> (String, SymbolMap) {
+    let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
+    let minified = minify_body(&renamed, dialect, registry);
+    (minified, symbol_map)
 }
 
 /// Minify a Tcl script body (top-level or inside braces).
@@ -148,6 +205,345 @@ impl NameGenerator {
             }
             self.indices[pos] = 0;
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Local-name compaction (compact_names tier)
+// ---------------------------------------------------------------------------
+
+/// A text edit: replace `length` bytes at `offset` with `text`.
+type Edit = (usize, usize, String);
+
+/// Apply non-overlapping `(offset, length, new_text)` edits in
+/// reverse offset order, deduplicating identical `(offset, length)`
+/// pairs.  Mirrors `core/common/text_edits.py::apply_edits`.
+fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
+    if edits.is_empty() {
+        return source.to_owned();
+    }
+    edits.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut result = source.to_owned();
+    for (offset, length, new_text) in edits {
+        if !seen.insert((offset, length)) {
+            continue;
+        }
+        if offset + length <= result.len() {
+            result.replace_range(offset..offset + length, &new_text);
+        }
+    }
+    result
+}
+
+/// Scope label: `::` for the root, then `parent::child`.
+fn child_scope_label(parent_label: &str, child_name: &str) -> String {
+    if parent_label == "::" {
+        format!("::{child_name}")
+    } else {
+        format!("{parent_label}::{child_name}")
+    }
+}
+
+/// Deepest scope label whose body span contains `offset`.  Mirrors
+/// `_scope_label_at_line` (byte-offset based).
+fn scope_label_at_offset(
+    scope: &Scope,
+    offset: u32,
+    prefix: &str,
+    include_global: bool,
+) -> Option<String> {
+    for child in &scope.children {
+        let label = child_scope_label(prefix, &child.name);
+        if let Some(body) = child.body_span {
+            if body.start() <= offset && offset <= body.end() {
+                if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
+                    return Some(deeper);
+                }
+                return Some(label);
+            }
+        }
+    }
+    match scope.kind {
+        ScopeKind::Proc => Some(prefix.to_owned()),
+        ScopeKind::Global if include_global => Some(prefix.to_owned()),
+        _ => None,
+    }
+}
+
+/// Scope labels containing a dynamic-barrier command — renaming
+/// inside them is unsafe.  Mirrors `_find_barrier_scopes`.
+fn find_barrier_scopes(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    include_global: bool,
+) -> HashSet<String> {
+    let barrier_cmds: HashSet<&str> = registry
+        .commands_with_trait(Traits::CREATES_DYNAMIC_BARRIER)
+        .into_iter()
+        .collect();
+    let mut out = HashSet::new();
+    for inv in &analysis.command_invocations {
+        if barrier_cmds.contains(inv.name.as_str()) {
+            if let Some(label) = scope_label_at_offset(
+                &analysis.global_scope,
+                inv.range.start(),
+                "::",
+                include_global,
+            ) {
+                out.insert(label);
+            }
+        }
+    }
+    out
+}
+
+/// Next short name avoiding existing and claimed names.  Mirrors
+/// `_next_unused_name`.
+fn next_unused_name(
+    gen: &mut NameGenerator,
+    existing: &HashSet<String>,
+    claimed: &HashSet<String>,
+) -> Option<String> {
+    for _ in 0..1000 {
+        let short = gen.next_name();
+        if !existing.contains(&short) && !claimed.contains(&short) {
+            return Some(short);
+        }
+    }
+    None
+}
+
+/// Rename parameter names within the proc's parameter-list region.
+/// Mirrors `_rename_params_in_list`.
+fn rename_params_in_list(
+    source: &str,
+    proc_def: &ProcDef,
+    var_map: &BTreeMap<String, String>,
+    edits: &mut Vec<Edit>,
+) {
+    let search_start = proc_def.name_span.end() as usize;
+    let search_end = proc_def.body_span.start() as usize;
+    if search_start > search_end || search_end > source.len() {
+        return;
+    }
+    let region = &source.as_bytes()[search_start..search_end];
+    for param in &proc_def.params {
+        let Some(short) = var_map.get(&param.name) else {
+            continue;
+        };
+        let pat = param.name.as_bytes();
+        if pat.is_empty() {
+            continue;
+        }
+        let mut i = 0;
+        while i + pat.len() <= region.len() {
+            if &region[i..i + pat.len()] == pat
+                && !(i > 0 && is_word_byte(Some(region[i - 1])))
+                && !is_word_byte(region.get(i + pat.len()).copied())
+            {
+                edits.push((search_start + i, pat.len(), short.clone()));
+                i += pat.len();
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
+/// Whether `b` is `[A-Za-z0-9_]`.
+fn is_word_byte(b: Option<u8>) -> bool {
+    matches!(b, Some(c) if c.is_ascii_alphanumeric() || c == b'_')
+}
+
+/// Byte-span slice of `source`.
+fn slice(source: &str, span: Span) -> &str {
+    let (s, e) = (span.start() as usize, span.end() as usize);
+    if s <= e && e <= source.len() {
+        &source[s..e]
+    } else {
+        ""
+    }
+}
+
+/// Call sites of the proc `name` / `qualified_name`.  Mirrors the
+/// inlined `find_proc_call_sites`.
+fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
+    let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+    let mut out = Vec::new();
+    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    for inv in &analysis.command_invocations {
+        let matches = match &inv.resolved_qualified_name {
+            Some(resolved) => resolved == qualified_name,
+            None => inv.name == name || inv.name == qualified_name || inv.name == qn_no_prefix,
+        };
+        if matches && seen.insert((inv.range.start(), inv.range.end())) {
+            out.push(inv.range);
+        }
+    }
+    out
+}
+
+/// Compact proc-local (and, when `isolated`, global) variable,
+/// parameter, and proc names.  Mirrors `_compact_names`; returns
+/// `(renamed_source, symbol_map)`.
+fn compact_names(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> (String, SymbolMap) {
+    let analysis = Analyser::new().analyse(source, dialect).clone();
+    let mut symbol_map = SymbolMap::default();
+    let mut edits: Vec<Edit> = Vec::new();
+
+    let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
+    let builtin_names: HashSet<&str> = registry.command_names().collect();
+
+    process_scope(
+        source,
+        &analysis,
+        &analysis.global_scope,
+        "::",
+        isolated,
+        &barrier_scopes,
+        &mut symbol_map,
+        &mut edits,
+    );
+
+    // Proc renaming.
+    let mut proc_gen = NameGenerator::new();
+    let mut used_proc_names: HashSet<String> = HashSet::new();
+    let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
+    proc_keys.sort();
+    for qname in proc_keys {
+        let proc_def = &analysis.all_procs[qname];
+        let name = &proc_def.name;
+        if name.len() <= 1 || name.contains("::") {
+            continue;
+        }
+        let mut short = proc_gen.next_name();
+        while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
+            short = proc_gen.next_name();
+        }
+        if short.len() >= name.len() {
+            continue;
+        }
+        used_proc_names.insert(short.clone());
+
+        let r = proc_def.name_span;
+        let actual = slice(source, r);
+        let def_key = (r.start() as usize, actual.len());
+        if actual == *name {
+            edits.push((r.start() as usize, actual.len(), short.clone()));
+        }
+        for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
+            let call_text = slice(source, call);
+            let key = (call.start() as usize, call_text.len());
+            if key != def_key && call_text == *name {
+                edits.push((call.start() as usize, call_text.len(), short.clone()));
+            }
+        }
+        symbol_map.procs.insert(name.clone(), short);
+    }
+
+    let result = apply_edits(source, edits);
+    (result, symbol_map)
+}
+
+/// Recursively rename variables (and params) in a scope, mirroring
+/// `_process_scope`.
+#[allow(clippy::too_many_arguments)]
+fn process_scope(
+    source: &str,
+    analysis: &AnalysisResult,
+    scope: &Scope,
+    scope_label: &str,
+    isolated: bool,
+    barrier_scopes: &HashSet<String>,
+    symbol_map: &mut SymbolMap,
+    edits: &mut Vec<Edit>,
+) {
+    let rename_scope = (scope.kind == ScopeKind::Proc
+        || (isolated && scope.kind == ScopeKind::Global))
+        && !barrier_scopes.contains(scope_label);
+
+    if rename_scope {
+        let proc_def = if scope.kind == ScopeKind::Proc {
+            analysis.all_procs.values().find(|pd| pd.name == scope.name)
+        } else {
+            None
+        };
+        let param_names: HashSet<&str> = proc_def
+            .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
+            .unwrap_or_default();
+
+        let mut var_gen = NameGenerator::new();
+        let existing: HashSet<String> = scope.variables.keys().cloned().collect();
+        let mut var_map: BTreeMap<String, String> = BTreeMap::new();
+
+        let mut var_names: Vec<&String> = scope.variables.keys().collect();
+        var_names.sort();
+        for var_name in var_names {
+            let var_def = &scope.variables[var_name];
+            if var_name.len() <= 1 || var_name.contains("::") {
+                continue;
+            }
+            let claimed: HashSet<String> = var_map.values().cloned().collect();
+            let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
+                continue;
+            };
+            if short.len() >= var_name.len() {
+                continue;
+            }
+            let is_param = param_names.contains(var_name.as_str());
+
+            // Definition site (non-params only — param defs point at
+            // the proc-name token).
+            if !is_param {
+                let r = var_def.definition_span;
+                if slice(source, r) == *var_name {
+                    edits.push((r.start() as usize, var_name.len(), short.clone()));
+                }
+            }
+            // Reference sites (`$var`): skip the `$`.
+            for &reference in &var_def.references {
+                let ref_text = slice(source, reference);
+                if let Some(rest) = ref_text.strip_prefix('$') {
+                    if rest == var_name {
+                        edits.push((
+                            reference.start() as usize + 1,
+                            var_name.len(),
+                            short.clone(),
+                        ));
+                    }
+                }
+            }
+            var_map.insert(var_name.clone(), short);
+        }
+
+        if let Some(pd) = proc_def {
+            if !var_map.is_empty() {
+                rename_params_in_list(source, pd, &var_map, edits);
+            }
+        }
+        if !var_map.is_empty() {
+            symbol_map.variables.insert(scope_label.to_owned(), var_map);
+        }
+    }
+
+    for child in &scope.children {
+        let label = child_scope_label(scope_label, &child.name);
+        process_scope(
+            source,
+            analysis,
+            child,
+            &label,
+            isolated,
+            barrier_scopes,
+            symbol_map,
+            edits,
+        );
     }
 }
 
@@ -1067,6 +1463,71 @@ mod tests {
     fn min_dialect(src: &str, dialect: &str) -> String {
         let registry = CommandRegistry::build_default();
         minify_tcl(src, dialect, &registry)
+    }
+
+    fn min_compact(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl_compact(src, "tcl8.6", false, &registry).0
+    }
+
+    #[test]
+    fn compact_renames_proc_local_vars_and_params() {
+        // `greet`→`a`, param `name`→`b`, local `message`→`a`.
+        assert_eq!(
+            min_compact(
+                "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n"
+            ),
+            "proc a {b} {set a \"hi $b\";return $a}",
+        );
+    }
+
+    #[test]
+    fn compact_renames_refs_inside_expr_and_command_subst() {
+        // The `$value` ref lives inside `[expr {...}]`; it must be
+        // renamed in lock-step with the param declaration (relies on
+        // the analyser tracking expr/command-subst references).
+        assert_eq!(
+            min_compact(
+                "proc helper {value} {\n    return [expr {$value * 2}]\n}\nproc main {} {\n    set result [helper 21]\n    puts $result\n}\n"
+            ),
+            "proc a {a} {return [expr {$a*2}]};proc b {} {set a [a 21];puts $a}",
+        );
+    }
+
+    #[test]
+    fn compact_returns_symbol_map() {
+        let registry = CommandRegistry::build_default();
+        let (_, sym) = minify_tcl_compact(
+            "proc greet {name} {\n    return $name\n}\n",
+            "tcl8.6",
+            false,
+            &registry,
+        );
+        assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
+        assert!(sym
+            .variables
+            .values()
+            .any(|m| m.get("name").map(String::as_str) == Some("a")));
+    }
+
+    #[test]
+    fn compact_isolated_renames_global_vars() {
+        let registry = CommandRegistry::build_default();
+        let (out, _) = minify_tcl_compact(
+            "set globalvar 1\nputs $globalvar\n",
+            "tcl8.6",
+            true,
+            &registry,
+        );
+        assert_eq!(out, "set a 1;puts $a");
+    }
+
+    #[test]
+    fn compact_non_isolated_keeps_global_vars() {
+        assert_eq!(
+            min_compact("set globalvar 1\nputs $globalvar\n"),
+            "set globalvar 1;puts $globalvar"
+        );
     }
 
     #[test]
