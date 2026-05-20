@@ -8,10 +8,8 @@ provider (which backs go-to-references and rename) across the forms.
 
 Bareword command-argument writes (``incr count``, ``append count``, a second
 ``set count``) are recorded as references too, so rename rewrites them.
-
-Known gap tracked separately (not asserted here): relative namespace-qualified
-reads (``$ns::v``) do not yet resolve to a ``namespace eval ns { variable v }``
-definition.
+Namespace-qualified reads (``$ns::v`` / ``$::ns::v`` / ``$a::b::v``) resolve to
+the ``namespace eval`` variable they name.
 """
 
 from __future__ import annotations
@@ -113,3 +111,23 @@ class TestBarewordWriteReferences:
         assert (0, 4) in starts  # definition
         assert (1, 8) in starts  # lappend write
         assert (2, 5) in starts  # $items read
+
+
+class TestNamespaceQualifiedVarResolution:
+    """A qualified read resolves to the namespace-eval variable it names."""
+
+    def test_relative_qualified_read(self):
+        src = "namespace eval ns {\n    variable v 1\n}\nputs $ns::v\n"
+        assert _ref_starts(src, 3, 7) == {(1, 13), (3, 5)}
+
+    def test_absolute_qualified_read(self):
+        src = "namespace eval ns {\n    variable v 1\n}\nputs $::ns::v\n"
+        assert _ref_starts(src, 3, 7) == {(1, 13), (3, 5)}
+
+    def test_nested_qualified_read(self):
+        src = "namespace eval a {\n  namespace eval b {\n    variable v 1\n  }\n}\nputs $a::b::v\n"
+        assert _ref_starts(src, 5, 7) == {(2, 13), (5, 5)}
+
+    def test_local_read_inside_namespace_still_resolves(self):
+        src = "namespace eval ns {\n    variable v 1\n    puts $v\n}\n"
+        assert _ref_starts(src, 2, 9) == {(1, 13), (2, 9)}
