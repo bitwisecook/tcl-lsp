@@ -7,8 +7,23 @@ Every registered code must be classified into exactly one bucket:
 - ``RANGE_FIXME`` — the code fires (true positive) and is clean-clear (no
   false positive), but its range is still too wide / drops a trailing
   delimiter and needs narrowing.  Range is *not* asserted yet.
-- ``NOT_YET_COVERED`` — no trigger fixture authored yet (often dialect- or
-  context-specific).
+- ``CROSSFILE`` — verified, but the code only fires for a *pair* of
+  coordinated sources (an iApp APL presentation + its implementation Tcl), so
+  it uses a dedicated two-input harness rather than the single-source ``Case``.
+- ``NOT_YET_COVERED`` — no trigger fixture authored yet; each entry is
+  annotated with the reason it is not (yet) reachable from a test harness.
+
+Codes reach their diagnostic producer through different entry points; a
+``Case``/``FiresCase`` selects one via boolean flags:
+
+- default — ``lsp.features.diagnostics.get_diagnostics`` (the editor path)
+- ``dialect`` — the same, under a ``dialect_scope`` (e.g. ``f5-irules``)
+- ``xc`` — enable XC translatability diagnostics
+- ``bigip`` — parse a BIG-IP ``.conf`` and run ``get_bigip_diagnostics``
+- ``iapp`` — parse an APL presentation and run ``validate_iapp_presentation``
+- ``analyse_raw`` — read raw analyser diagnostics (covers ``internal=True``
+  codes that ``get_diagnostics`` filters out)
+- ``recovery`` — run ``segment_with_recovery`` (parser-recovery codes)
 
 The partition test fails if any code is unclassified or double-classified, so
 a newly added code cannot slip through, and ``RANGE_FIXME`` / ``NOT_YET_COVERED``
@@ -1027,9 +1042,28 @@ def test_crossfile_fires_and_is_clean(code):
     )
 
 
-# ── no trigger fixture yet (dialect/context-specific) ─────────────────
+# ── no trigger fixture yet ────────────────────────────────────────────
 # This list only shrinks: as a code graduates into FIXTURES/RANGE_FIXME it
-# must be removed here or the partition test fails.
+# must be removed here or the partition test fails.  The remaining codes are
+# not reachable through any test harness available here; each is annotated
+# with the reason it cannot (yet) be exercised:
+#
+#   E200       — generic shimmer/parse fallback; always preempted by the more
+#                specific E201/E203/E102 recovery codes, so it never surfaces.
+#   IRULE4003  — cross-event variable-scoping hint requiring a multi-event
+#                data-flow shape we have not been able to reproduce.
+#   O101/O108  — optimiser passes (const fold / transitive DCE) whose findings
+#   O125         are always subsumed by a sibling pass (O100/O102/O109/O126)
+#                in the surfaced rewrite set.
+#   T102       — option-injection taint; needs a tainted value in an option
+#                position that survives to a sink without another T-code firing.
+#   W122       — mistyped-IPv4; suppressed on any line where W124 fires, which
+#                is every dotted-quad we have found that also trips W122.
+#   W130–W134  — tclpkg lockfile diagnostics: reserved codes with no emission
+#                site in the codebase (produced, if ever, by a future
+#                `tcl pkg` CLI path, not document analysis).
+#   XC200      — "Partial — requires manual review": an advisory bucket that is
+#                intentionally not auto-classifiable.
 
 NOT_YET_COVERED: frozenset[str] = frozenset(
     {
