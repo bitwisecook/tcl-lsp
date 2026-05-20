@@ -3755,6 +3755,53 @@ Nothing — the next session can pick up `S-diagnostics`
   share `lift_analyser_diagnostics` so the two report shapes
   stay in lock-step.
 
+### Landed this session — continuation (2026-05-20, third run)
+
+* **`analyser(oo)` constructor/destructor `name_span`** —
+  the OO body walker now anchors `MethodDef::name_span` on the
+  `constructor` / `destructor` keyword token (argv[0]) instead
+  of the default `(0, 0)` (`40e491a9`).  The definition /
+  hover / rename providers' body-span fallbacks stay as
+  defensive code but the common path now lands the cursor on
+  the keyword.  2 analyser tests updated.
+* **`S-call-hierarchy-rich` class-method call hierarchy** —
+  `prepare` / `incoming_calls` / `outgoing_calls` resolve
+  class methods + classmethods, identified by the synthetic
+  name `<class-qual>::<method>` (`6648d305`).  Call sites are
+  discovered by re-segmenting method bodies (the analyser's
+  `command_invocations` only records top-level invocations).
+  Outgoing edges resolve both sibling methods and top-level
+  user procs.  4 new tests.  Deferred: `$obj method` call
+  sites outside the class body.
+
+### `$obj method` resolution — analyser prerequisite (deferred)
+
+The remaining class-member follow-ups (definition / hover /
+rename / references / call-hierarchy at `$obj method` and
+`[$obj method]` call sites *outside* the class body) all gate
+on the same analyser feature: a populated object-class type
+map.  **Finding (2026-05-20):** the W308 emitter already has
+the consumer side — it builds `all_object_types: HashMap<var,
+HashSet<class>>` from the SSA `TypeLattice` (entries where
+`tcl_type == Object` carry a `class_name`).  But that map is
+**dormant** because nothing produces an `Object` lattice value
+with a class name: `type_infer::return_type_for_command`
+returns `TypeLattice::of(spec.return_type)` (always
+`class_name: None`), and `TypeLattice::object_of(class)` has
+no live caller.  `CLASS new` resolves to `registry.get("Dog")
+→ None → overdefined`, since user classes aren't in the
+registry.  **To unblock:** thread the analyser's
+`all_classes` set into the type-inference pass
+(`propagate_types` / `evaluate_type_def` /
+`return_type_for_command`) and special-case `<UserClass> new`
+/ `<UserClass> create` to produce
+`TypeLattice::object_of(class_qualified_name)`.  Then persist
+the var→class map onto `AnalysisResult` so the LSP providers
+can resolve `$obj method`.  This is a cross-cutting
+type-inference change (signature widening across the
+SSA/type pipeline), not a self-contained provider commit —
+hence deferred.
+
 ### Landed this session — continuation (2026-05-19, second run)
 
 * **`S-completion-rich` iRules `call PROC_NAME`** —
@@ -3865,19 +3912,15 @@ Nothing — the next session can pick up `S-diagnostics`
   - cross-document references / call-hierarchy / rename
   - workspace-wide proc enumeration in completion
   - cross-document code-lens reference counts
+* **`$obj method` resolution (the keystone)** — object-class
+  type inference, blocking definition / hover / rename /
+  references / call-hierarchy at `$obj method` call sites
+  outside the class body.  See the dedicated "`$obj method`
+  resolution — analyser prerequisite" section above for the
+  exact hook (`return_type_for_command` →
+  `TypeLattice::object_of`).
 * **Analyser side**: method-body scope kind, var
-  type/taint annotations on `$var` hovers, `$obj method`
-  resolution (variable-to-class tracking).  The in-class-
-  body method machinery (definition / hover / rename /
-  references / code-lens) all rely on the cursor sitting
-  inside the class body span; resolving `$inst method`
-  outside that body needs analyser-side variable-class
-  tracking.
-* **Analyser-side fix**: constructor / destructor
-  `name_span`.  The Rust analyser today leaves both at the
-  default `(0, 0)`.  The hover / definition / rename
-  providers fall back to the body span, but a proper
-  `name_span` would land the cursor on the keyword itself.
+  type/taint annotations on `$var` hovers.
 * **Registry**: `argument_values` field for things like
   `string is alnum/alpha/...` completion; built-in
   inlay-hint parameter names (currently needs synopsis
@@ -3890,11 +3933,6 @@ Nothing — the next session can pick up `S-diagnostics`
   true minimal edit-diff for `semanticTokens/full/delta`
   (currently returns either an empty edit list or a fresh
   full stream).
-* **Call hierarchy for class methods** — the existing
-  call-hierarchy provider walks `command_invocations` only,
-  so method invocations inside class bodies are invisible.
-  Adding methods would mirror the re-segmenting pattern
-  used by rename / references / code-lens in this session.
 * **W120 missing-package-require code action** — Python
   has a `Add 'package require <pkg>'` quick-fix that fires
   on W120 diagnostics.  Blocked on the analyser emitting
