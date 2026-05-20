@@ -276,15 +276,18 @@ class TestOptimisations:
 
 class TestShimmer:
     def test_shimmer_warning_shape(self, client):
+        # The previous snippet produced no shimmer at all, so the shape
+        # assertions never ran. Use a string→list intrep change that does
+        # raise an S100 shimmer.
         data = _compile(
             client,
-            "proc test {x} {\n  set len [string length $x]\n  expr {$x + 1}\n}",
+            "set myList {a b c d}\nlindex $myList 1\nputs $myList",
         )
-        if data["shimmer"]:
-            w = data["shimmer"][0]
-            assert "code" in w
-            assert "message" in w
-            assert "range" in w
+        assert data["shimmer"], data
+        w = data["shimmer"][0]
+        assert w["code"] == "S100"
+        assert "message" in w
+        assert "range" in w
 
     def test_no_shimmer_for_safe_code(self, client):
         data = _compile(client, "set x 1\nputs $x")
@@ -302,8 +305,10 @@ class TestAnnotations:
 
     def test_annotation_has_kind(self, client):
         data = _compile(client, "set a 1\nset b [expr {$a + 2}]")
-        if data["annotations"]:
-            ann = data["annotations"][0]
-            assert "kind" in ann
-            assert "label" in ann
-            assert "range" in ann
+        # This snippet is optimised, so annotations must be present and each
+        # must carry the editor-facing fields.
+        assert data["annotations"], data
+        ann = data["annotations"][0]
+        assert "kind" in ann
+        assert "label" in ann
+        assert "range" in ann
