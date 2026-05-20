@@ -750,6 +750,12 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "fconfigure $fd -encoding binary -translation binary\n",
         analyse_raw=True,
     ),
+    # Non-channel value in channel arg position: range spans the whole
+    # command rather than just the offending channel argument.
+    "W126": FiresCase(
+        "proc f {} { gets notachannel line }\n",
+        "proc f {fd} { gets $fd line }\n",
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -794,7 +800,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "T106",
         "W120",
         "W122",
-        "W126",
         "W130",
         "W131",
         "W132",
