@@ -43,15 +43,14 @@ from compiler.taint import (
     TaintWarning,
 )
 from compiler.types import TypeKind
-
-from .formatters import (
+from tooling.cli.formatters import (
     LineIndex,
     format_lattice,
     format_taint,
     format_type,
     preview,
 )
-from .pipeline import (
+from tooling.cli.pipeline import (
     AVAILABLE_DIALECTS,
     CompilerExplorerResult,
     FunctionSnapshot,

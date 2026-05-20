@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tooling.explorer.verbs.f5._emit import render_config
+from tooling.cli.verbs.f5._emit import render_config
 from tooling.f5.main import main
 
 SAMPLE = (

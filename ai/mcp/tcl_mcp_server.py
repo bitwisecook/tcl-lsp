@@ -2171,7 +2171,7 @@ def _tool_irule_with_context(
     )
     from dialects.f5.bigip.lint import _merge_configs
     from dialects.f5.bigip.parser import parse_bigip_conf
-    from tooling.explorer.verbs.f5._paths import load_irule_inputs
+    from tooling.cli.verbs.f5._paths import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:

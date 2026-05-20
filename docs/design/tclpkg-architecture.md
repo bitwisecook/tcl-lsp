@@ -106,8 +106,8 @@ tclpkg.tcl (manifest)
 - `tooling/tclpkg/registry.py` — registry client
 - `tooling/tclpkg/venv.py` — virtual environment management
 - `tooling/tclpkg/ui.py` — CLI output helpers
-- `tooling/explorer/verbs/pkg.py` — `tcl pkg` CLI verb handlers
-- `tooling/explorer/verbs/venv.py` — `tcl venv` CLI verb handlers
+- `tooling/cli/verbs/pkg.py` — `tcl pkg` CLI verb handlers
+- `tooling/cli/verbs/venv.py` — `tcl venv` CLI verb handlers
 - `tooling/vm/interp.py:102` — `TclInterp(safe=…)` parameter
 - `tooling/vm/commands/interp_cmds.py:65` — `interp issafe` handler
 - `shared/user_config.py:126` — `_cache_dir()` helper

@@ -7,8 +7,8 @@ import json
 
 from analyser import analyse
 from compiler.registry.runtime import configure_signatures
+from tooling.explorer.cli import main as explorer_main
 
-from ..cli import main as explorer_main
 from ._registry import verb
 from ._utils import (
     _add_input_arguments,

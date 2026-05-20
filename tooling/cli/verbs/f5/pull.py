@@ -6,8 +6,8 @@ import argparse
 import json
 import sys
 
-from tooling.explorer.f5_remote.auth import resolve_credentials
-from tooling.explorer.f5_remote.object_io import object_to_scf_stanza, pull_object
+from tooling.cli.f5_remote.auth import resolve_credentials
+from tooling.cli.f5_remote.object_io import object_to_scf_stanza, pull_object
 
 from ._emit import add_format_arg, render_config
 from ._registry import verb

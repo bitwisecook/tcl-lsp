@@ -70,7 +70,7 @@ AliasInfo
 
 | Consumer | Entry Point | Format |
 |----------|-------------|--------|
-| Compiler explorer | `tooling/explorer/pipeline.py` | JSON dict via `dataflow_graph_to_dict()` |
+| Compiler explorer | `tooling/cli/pipeline.py` | JSON dict via `dataflow_graph_to_dict()` |
 | MCP tools | `ai/mcp/tcl_mcp_server.py` | JSON dict |
 | AI skills | `ai/claude/tcl_ai.py` | Mermaid string |
 | CLI | `ai/claude/tcl_ai.py` | Mermaid string |

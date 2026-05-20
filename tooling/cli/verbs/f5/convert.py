@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dialects.f5.bigip.convert import scf_to_as3
 from dialects.f5.bigip.parser import parse_bigip_conf
-from tooling.explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+from tooling.cli.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
 from ._paths import read_path
 from ._registry import verb

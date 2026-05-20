@@ -43,7 +43,7 @@ def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
     if path_str == "-":
         raw = sys.stdin.buffer.read()
         if _is_gzip(raw):
-            from tooling.explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+            from tooling.cli.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
             if not is_ucs_bytes(raw):
                 raise ValueError("stdin: gzip stream is not a UCS archive")
@@ -56,7 +56,7 @@ def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
         raise FileNotFoundError(f"not a file: {path_str}")
     suffix = path.suffix.lower()
     if suffix in _UCS_SUFFIXES:
-        from tooling.explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+        from tooling.cli.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
         raw = path.read_bytes()
         if not is_ucs_bytes(raw):
@@ -169,7 +169,7 @@ def _load_one(
 
     # UCS — gzipped tar of /config — extract and treat as a SCF.
     if suffix in _UCS_SUFFIXES or _is_gzip(raw):
-        from tooling.explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+        from tooling.cli.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
         if not is_ucs_bytes(raw):
             raise ValueError(f"{path_str}: not a valid UCS archive")

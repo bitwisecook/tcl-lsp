@@ -252,7 +252,7 @@ def test_mermaid_falls_back_to_chain_for_dicts() -> None:
 def test_cli_help_renderers_lists_builtins(capsys) -> None:
     import argparse
 
-    from tooling.explorer.verbs.f5.query import _HelpRenderersAction
+    from tooling.cli.verbs.f5.query import _HelpRenderersAction
 
     parser = argparse.ArgumentParser()
     action = _HelpRenderersAction(option_strings=["--help-renderers"], dest="x", nargs=0)

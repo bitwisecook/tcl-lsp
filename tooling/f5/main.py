@@ -26,9 +26,9 @@ except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
 
-from tooling.explorer.verbs.f5 import load_verbs
-from tooling.explorer.verbs.f5._registry import apply_verb_registrations, get_verb_catalogue
-from tooling.explorer.verbs.f5.irule import add_irule_subparser
+from tooling.cli.verbs.f5 import load_verbs
+from tooling.cli.verbs.f5._registry import apply_verb_registrations, get_verb_catalogue
+from tooling.cli.verbs.f5.irule import add_irule_subparser
 
 
 def _version_string() -> str:
@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         prog_name = "f5"
 
     parser = _build_parser(prog_name)
-    from tooling.explorer._argcomplete_support import autocomplete
+    from tooling.cli._argcomplete_support import autocomplete
 
     autocomplete(parser)
     args = parser.parse_args(parsed_argv)

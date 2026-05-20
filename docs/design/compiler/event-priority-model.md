@@ -59,7 +59,7 @@ There are two independent priority extraction paths:
 
 - **Diagram data** (`tooling/diagram/extract.py`): emits `"priority"` as
   `base_priority` or `null` when equal to 500.
-- **Explorer event order** (`tooling/explorer/serialise.py`): emits `"base_priority"`
+- **Explorer event order** (`tooling/cli/serialise.py`): emits `"base_priority"`
   and `"priority_offset"`.
 
 ## File-path anchors
@@ -68,7 +68,7 @@ There are two independent priority extraction paths:
 - `compiler/lowering.py` — priority extraction during lowering
 - `compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
 - `tooling/diagram/extract.py` — diagram consumer
-- `tooling/explorer/serialise.py` — JSON serialisation
+- `tooling/cli/serialise.py` — JSON serialisation
 - `tooling/explorer/static/index.html` — explorer HTML consumer
 - `server/workspace/workspace_index.py` — `RuleInitVarDef`
 - `tests/test_irules_checks.py` — priority and offset assertions

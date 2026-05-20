@@ -8485,7 +8485,7 @@ ltm virtual /Common/v1 { destination /Common/10.0.0.1:80 pool /Common/p1 }
     ucs_path = tmp_path / "fake.ucs"
     ucs_path.write_bytes(gz)
 
-    from tooling.explorer.verbs.f5._paths import read_path
+    from tooling.cli.verbs.f5._paths import read_path
 
     uri, src = read_path(str(ucs_path))
     assert uri.endswith("fake.ucs")
@@ -8502,7 +8502,7 @@ def test_read_path_rejects_malformed_ucs(tmp_path):
 
     fake = tmp_path / "bogus.ucs"
     fake.write_bytes(b"not a gzip archive")
-    from tooling.explorer.verbs.f5._paths import read_path
+    from tooling.cli.verbs.f5._paths import read_path
 
     with pytest.raises(ValueError, match="not a valid UCS"):
         read_path(str(fake))

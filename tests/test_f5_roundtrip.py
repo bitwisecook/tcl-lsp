@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from tooling.explorer.f5_remote.auth import Credentials
-from tooling.explorer.f5_remote.object_io import (
+from tooling.cli.f5_remote.auth import Credentials
+from tooling.cli.f5_remote.object_io import (
     _encode_path,
     object_to_scf_stanza,
     pull_object,

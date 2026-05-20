@@ -6,8 +6,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from tooling.explorer.pipeline import run_pipeline
-from tooling.explorer.serialise import serialise_result
+from tooling.cli.pipeline import run_pipeline
+from tooling.cli.serialise import serialise_result
 
 app = Flask(__name__, static_folder=None)
 

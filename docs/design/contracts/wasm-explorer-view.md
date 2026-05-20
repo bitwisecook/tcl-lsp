@@ -4,7 +4,7 @@
 
 The compiler explorer renders the output of `wasm_codegen_module` as a
 per-instruction interactive disassembly.  The JSON shape that
-[`tooling/explorer/serialise.py`](../../../tooling/explorer/serialise.py) produces and
+[`tooling/cli/serialise.py`](../../../tooling/cli/serialise.py) produces and
 that [`tooling/explorer/static/explorer-core.js`](../../../tooling/explorer/static/explorer-core.js)
 consumes is fixed by this contract.  Both the standalone web panel
 (`tooling/explorer/static/index.html`) and the VS Code webview
@@ -17,7 +17,7 @@ consumes is fixed by this contract.  Both the standalone web panel
   (plus a synthetic module header).  Each instruction carries a decoded
   target (`call` → function name, `br` / `br_if` → matching structural
   open/close), a source range, an indent level, and an explorer label.
-- [`tooling/explorer/serialise.py`](../../../tooling/explorer/serialise.py) —
+- [`tooling/cli/serialise.py`](../../../tooling/cli/serialise.py) —
   `_serialise_wasm` calls `to_explorer_json()`, attaches a WAT text
   snippet per entry for legacy consumers, and returns the list as
   `data.wasm` / `data.wasmOptimised`.

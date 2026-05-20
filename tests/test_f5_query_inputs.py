@@ -173,7 +173,7 @@ class TestCSV:
 
 class TestCSVInputFlagParsing:
     def test_header_suffix_is_split_from_final_simple_segment(self):
-        from tooling.explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.cli.verbs.f5.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             ["nats=/tmp/nats.csv:internal,external"],
@@ -184,7 +184,7 @@ class TestCSVInputFlagParsing:
         assert bindings == {"nats": ("/tmp/nats.csv", ["internal", "external"])}
 
     def test_path_colon_is_not_always_a_header_separator(self):
-        from tooling.explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.cli.verbs.f5.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             ["nats=/tmp/source:archive/nats.csv"],
@@ -195,7 +195,7 @@ class TestCSVInputFlagParsing:
         assert bindings == {"nats": ("/tmp/source:archive/nats.csv", None)}
 
     def test_windows_style_path_is_not_treated_as_headers(self):
-        from tooling.explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.cli.verbs.f5.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             [r"nats=C:\exports\nats.csv"],

@@ -523,8 +523,8 @@ def on_compiler_explorer(source: str, dialect: str) -> dict | None:
             "details": "Open a Tcl/iRule file in the active editor and try again.",
         }
     try:
-        from tooling.explorer.pipeline import run_pipeline as explorer_run_pipeline
-        from tooling.explorer.serialise import serialise_result as explorer_serialise_result
+        from tooling.cli.pipeline import run_pipeline as explorer_run_pipeline
+        from tooling.cli.serialise import serialise_result as explorer_serialise_result
 
         result = explorer_run_pipeline(source, dialect=dialect or None)
         if not result.snapshots:

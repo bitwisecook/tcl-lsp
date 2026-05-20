@@ -47,9 +47,9 @@ from shared.codes import (
 from shared.codes import (
     diagnostic_codes as _diagnostic_codes,
 )
-from tooling.explorer.verbs._registry import apply_verb_registrations, get_verb_catalogue
-from tooling.explorer.verbs._utils import TclCliError
-from tooling.explorer.verbs.lookup import (
+from tooling.cli.verbs._registry import apply_verb_registrations, get_verb_catalogue
+from tooling.cli.verbs._utils import TclCliError
+from tooling.cli.verbs.lookup import (
     _load_help_queries as _load_help_queries,  # re-exported; tests monkeypatch this attribute
 )
 from tooling.formatter.config import FormatterConfig
@@ -318,15 +318,15 @@ def build_parser(
     sub = parser.add_subparsers(dest="verb", required=True)
 
     # Register all @verb-decorated modules.
-    from tooling.explorer.verbs import load_verbs
+    from tooling.cli.verbs import load_verbs
 
     load_verbs()
     apply_verb_registrations(sub, prog_name=prog_name, default_dialect=default_dialect)
 
     # Complex verb groups with sub-sub-commands (unchanged pattern).
-    from tooling.explorer.verbs.docker import add_docker_subparser
-    from tooling.explorer.verbs.pkg import add_pkg_subparser
-    from tooling.explorer.verbs.venv import add_venv_subparser
+    from tooling.cli.verbs.docker import add_docker_subparser
+    from tooling.cli.verbs.pkg import add_pkg_subparser
+    from tooling.cli.verbs.venv import add_venv_subparser
 
     add_pkg_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
     add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
@@ -345,7 +345,7 @@ def parse_args(
     # Hook argcomplete: when the shell invokes us with $_ARGCOMPLETE set,
     # this short-circuits, writes completions, and exits.  In normal use it
     # is a no-op.
-    from tooling.explorer._argcomplete_support import autocomplete
+    from tooling.cli._argcomplete_support import autocomplete
 
     autocomplete(parser)
     return parser.parse_args(argv)
