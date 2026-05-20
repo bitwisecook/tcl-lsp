@@ -22,6 +22,9 @@ class ListCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="list",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Create a list",
                 synopsis=("list ?arg arg ...?",),

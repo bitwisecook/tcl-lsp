@@ -30,6 +30,7 @@ class LrepeatCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lrepeat",
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Build a list by repeating elements",
                 synopsis=("lrepeat count ?element ...?",),

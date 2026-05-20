@@ -36,6 +36,7 @@ class BinaryCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="binary",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Manipulate binary data",
                 synopsis=(

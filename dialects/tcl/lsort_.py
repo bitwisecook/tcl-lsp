@@ -27,6 +27,8 @@ class LsortCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lsort",
+            byte_compiled=True,
+            frameless_runtime=True,
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,

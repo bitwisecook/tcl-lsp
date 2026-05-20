@@ -29,6 +29,8 @@ class ErrorCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="error",
+            byte_compiled=True,
+            frameless_runtime=True,
             needs_start_cmd=True,
             terminates_block=True,
             hover=HoverSnippet(

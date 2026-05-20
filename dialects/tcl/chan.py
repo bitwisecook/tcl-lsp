@@ -128,6 +128,7 @@ class ChanCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="chan",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Read, write and manipulate channels.",
                 synopsis=("chan subcommand ?arg ...?",),

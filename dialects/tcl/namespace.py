@@ -33,6 +33,9 @@ class NamespaceCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="namespace",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             never_inline_body=True,

@@ -30,6 +30,7 @@ class FcopyCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="fcopy",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Copy data from one channel to another",

@@ -30,6 +30,7 @@ class VwaitCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="vwait",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Process events until a variable is written",

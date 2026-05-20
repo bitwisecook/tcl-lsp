@@ -23,6 +23,8 @@ class EvalCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="eval",
+            byte_compiled=True,
+            not_proc_factory=True,
             creates_dynamic_barrier=True,
             hover=HoverSnippet(
                 summary="Evaluate a Tcl script.",

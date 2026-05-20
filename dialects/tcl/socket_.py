@@ -31,6 +31,7 @@ class SocketCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="socket",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Open a TCP client or server socket channel.",

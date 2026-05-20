@@ -30,6 +30,7 @@ class ConcatCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="concat",
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Join lists together",
                 synopsis=("concat ?arg arg ...?",),

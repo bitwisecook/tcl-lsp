@@ -26,6 +26,7 @@ class OoObjdefineCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="oo::objdefine",
+            not_proc_factory=True,
             is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(

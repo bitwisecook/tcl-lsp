@@ -29,6 +29,9 @@ class LappendCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lappend",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Append list elements onto a variable",
                 synopsis=("lappend varName ?value value value ...?",),

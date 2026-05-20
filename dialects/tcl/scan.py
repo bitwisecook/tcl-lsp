@@ -22,6 +22,7 @@ class ScanCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="scan",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Parse string using conversion specifiers in the style of sscanf",
                 synopsis=("scan string format ?varName varName ...?",),

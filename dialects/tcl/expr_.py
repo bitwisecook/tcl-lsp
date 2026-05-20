@@ -22,6 +22,9 @@ class ExprCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="expr",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             needs_start_cmd=True,
             hover=HoverSnippet(
                 summary="Evaluate a Tcl expression.",

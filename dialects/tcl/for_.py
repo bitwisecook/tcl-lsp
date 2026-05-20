@@ -22,6 +22,8 @@ class ForCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="for",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_control_flow=True,
             is_language_keyword=True,
             has_boolean_condition=True,

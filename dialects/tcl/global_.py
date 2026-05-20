@@ -22,6 +22,8 @@ class GlobalCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="global",
+            byte_compiled=True,
+            frameless_runtime=True,
             is_language_keyword=True,
             hover=HoverSnippet(
                 summary="Access global variables",

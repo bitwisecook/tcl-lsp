@@ -83,6 +83,10 @@ _BOOLEAN_TRAITS: tuple[str, ...] = (
     "irules_top_level_only",
     "is_oo_metaclass",
     "terminates_block",
+    # Command-classification traits replacing consumer-local name lists.
+    "byte_compiled",
+    "not_proc_factory",
+    "frameless_runtime",
 )
 
 
@@ -1386,6 +1390,34 @@ class CommandRegistry:
             if sub is not None and sub.creates_scope_alias:
                 return True
         return False
+
+    # Command-classification queries (single source of truth = the spec).
+    # "Any spec registered under the name" semantics so a dialect-shadowing
+    # spec can't hide a core stamp.
+
+    def is_byte_compiled(self, name: str) -> bool:
+        """Core builtin the minifier must never rewrite to a ``$var`` alias."""
+        return self._any_spec_has(name, "byte_compiled")
+
+    def is_not_proc_factory(self, name: str) -> bool:
+        """Registered head matching ``HEAD NAME BRACED BRACED`` but not a proc factory."""
+        return self._any_spec_has(name, "not_proc_factory")
+
+    def is_frameless_runtime(self, name: str) -> bool:
+        """Command whose codegen always uses a runtime helper (no callee frame)."""
+        return self._any_spec_has(name, "frameless_runtime")
+
+    def is_irules_dialect(self, dialect: str | None) -> bool:
+        """Whether *dialect* is the F5 iRules dialect (``f5-irules`` / ``irules``)."""
+        from compiler.registry.dialects import is_irules_dialect
+
+        return is_irules_dialect(dialect)
+
+    def has_fixed_ensembles(self, dialect: str | None) -> bool:
+        """Whether *dialect* guarantees fixed ensembles (no user-added subcommands)."""
+        from compiler.registry.dialects import has_fixed_ensembles
+
+        return has_fixed_ensembles(dialect)
 
     # Event-scoped command sets
 

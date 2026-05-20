@@ -29,6 +29,7 @@ class FormatCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="format",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Format a string in the style of sprintf",
                 synopsis=("format formatString ?arg arg ...?",),

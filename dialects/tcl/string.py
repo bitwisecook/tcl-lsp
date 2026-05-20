@@ -145,6 +145,9 @@ class StringCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="string",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Perform one of several string operations.",
                 synopsis=("string option arg ?arg ...?",),

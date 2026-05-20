@@ -30,6 +30,7 @@ class ReadCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="read",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Read from a channel",
                 synopsis=(

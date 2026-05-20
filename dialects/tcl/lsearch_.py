@@ -26,6 +26,8 @@ class LsearchCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lsearch",
+            byte_compiled=True,
+            frameless_runtime=True,
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,

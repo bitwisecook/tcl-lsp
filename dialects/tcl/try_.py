@@ -44,6 +44,8 @@ class TryCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="try",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_control_flow=True,
             is_language_keyword=True,
             never_inline_body=True,

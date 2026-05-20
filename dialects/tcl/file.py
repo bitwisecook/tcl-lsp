@@ -36,6 +36,7 @@ class FileCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="file",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Manipulate file names and attributes",

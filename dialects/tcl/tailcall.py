@@ -22,6 +22,7 @@ class TailcallCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="tailcall",
+            byte_compiled=True,
             is_language_keyword=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(

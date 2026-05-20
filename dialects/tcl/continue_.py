@@ -22,6 +22,8 @@ class ContinueCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="continue",
+            byte_compiled=True,
+            frameless_runtime=True,
             is_language_keyword=True,
             needs_start_cmd=True,
             hover=HoverSnippet(

@@ -30,6 +30,7 @@ class SplitCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="split",
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Split a string into a proper Tcl list",
                 synopsis=("split string ?splitChars?",),

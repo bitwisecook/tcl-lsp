@@ -29,6 +29,8 @@ class PutsCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="puts",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Write text to a channel (stdout by default).",
                 synopsis=("puts ?-nonewline? ?channelId? string",),

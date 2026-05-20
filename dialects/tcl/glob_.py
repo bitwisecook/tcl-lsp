@@ -27,6 +27,7 @@ class GlobCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="glob",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Return names of files that match patterns.",

@@ -32,6 +32,9 @@ class SetCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="set",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Read or write a variable value.",
                 synopsis=("set varName ?newValue?",),

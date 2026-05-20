@@ -32,6 +32,7 @@ class InfoCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="info",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Information about the state of the Tcl interpreter",
                 synopsis=("info option ?arg arg ...?",),

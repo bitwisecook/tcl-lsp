@@ -21,6 +21,8 @@ class ProcCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="proc",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             never_inline_body=True,
             hover=HoverSnippet(

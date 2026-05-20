@@ -30,6 +30,8 @@ class AppendCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="append",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Append to variable",
                 synopsis=("append varName ?value value value ...?",),

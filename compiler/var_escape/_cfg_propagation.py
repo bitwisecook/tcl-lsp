@@ -47,11 +47,11 @@ from ._info_subcommands import (
 )
 from ._propagation import (
     _CMD_SUBST_HEAD_RE,
-    _FRAMELESS_RUNTIME_COMMANDS,
     _NAME_FIRST_COMMANDS,
     _array_element_array_name,
     _is_dynamic_name,
     _is_dynamic_token,
+    _is_frameless_runtime,
     _normalise_cmd_subst_head,
     _scan_value_for_info_hazards,
 )
@@ -259,7 +259,7 @@ def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> Non
     if "[" in value:
         for match in _CMD_SUBST_HEAD_RE.finditer(value):
             head = _normalise_cmd_subst_head(match.group(1))
-            if head not in _FRAMELESS_RUNTIME_COMMANDS:
+            if not _is_frameless_runtime(head):
                 state.record_fallback()
                 # Also record the embedded command head as a direct
                 # callee so the interprocedural pass can propagate
@@ -659,7 +659,7 @@ def _handle_barrier(
 def _handle_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     cmd = call.canonical_command or call.command
     bare = cmd[2:] if cmd.startswith("::") else cmd
-    if bare not in _FRAMELESS_RUNTIME_COMMANDS:
+    if not _is_frameless_runtime(bare):
         if not bare or _is_dynamic_token(bare):
             state.record_fallback()
         else:

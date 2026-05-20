@@ -22,6 +22,9 @@ class UpvarCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="upvar",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             creates_dynamic_barrier=True,
             hover=HoverSnippet(

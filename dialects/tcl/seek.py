@@ -49,6 +49,7 @@ class SeekCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="seek",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Set the access position for a channel.",

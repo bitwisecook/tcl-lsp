@@ -30,6 +30,7 @@ class JoinCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="join",
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Create a string by joining together list elements",
                 synopsis=("join list ?joinString?",),

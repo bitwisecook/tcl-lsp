@@ -60,6 +60,7 @@ class RegsubCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="regsub",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Perform substitutions based on regular expression matching.",
                 synopsis=("regsub ?switches? exp string subSpec ?varName?",),

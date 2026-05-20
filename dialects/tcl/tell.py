@@ -30,6 +30,7 @@ class TellCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="tell",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Return current access position for an open channel",

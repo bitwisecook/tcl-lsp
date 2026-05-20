@@ -29,6 +29,8 @@ class ApplyCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="apply",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             hover=HoverSnippet(
                 summary="Apply an anonymous function",

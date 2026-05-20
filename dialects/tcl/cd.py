@@ -30,6 +30,7 @@ class CdCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="cd",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Change working directory",

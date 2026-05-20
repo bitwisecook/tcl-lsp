@@ -30,6 +30,8 @@ class LrangeCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lrange",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Return one or more adjacent elements from a list",
                 synopsis=("lrange list first last",),

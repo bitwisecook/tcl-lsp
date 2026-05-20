@@ -32,6 +32,8 @@ class ArrayCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="array",
+            byte_compiled=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Manipulate array variables",
                 synopsis=("array option arrayName ?arg arg ...?",),

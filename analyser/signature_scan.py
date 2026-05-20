@@ -38,6 +38,7 @@ from analyser.semantic_model import (
     SourceTarget,
 )
 from compiler.parsing.command_segmenter import segment_commands
+from compiler.registry import REGISTRY
 from shared.ranges import range_from_token
 from shared.tokens import Token, TokenType
 
@@ -543,39 +544,13 @@ def _handle_try(
             i += 1
 
 
-_FACTORY_SKIP_HEADS = frozenset(
+# Heads matching the ``HEAD NAME BRACED BRACED`` shape that aren't
+# proc-factory wrappers.  The registered commands carry the
+# ``not_proc_factory`` trait (queried below); these four are TclOO/Itcl
+# definition-context keywords that aren't registered commands, so they
+# stay as a small residual constant here.
+_FACTORY_SKIP_RESIDUAL = frozenset(
     {
-        # Commands that incidentally take the shape ``HEAD NAME BRACED BRACED``
-        # but definitely aren't proc factories — skip by name so they do not
-        # pollute the candidate list.
-        "proc",
-        "namespace",
-        "if",
-        "switch",
-        "while",
-        "for",
-        "foreach",
-        "try",
-        "catch",
-        "eval",
-        "apply",
-        "expr",
-        "uplevel",
-        "upvar",
-        "variable",
-        "set",
-        "lappend",
-        "dict",
-        "array",
-        "string",
-        "list",
-        "lindex",
-        "package",
-        "source",
-        "interp",
-        "oo::class",
-        "oo::define",
-        "oo::objdefine",
         "method",
         "classmethod",
         "itcl::class",
@@ -601,7 +576,7 @@ def _maybe_record_factory_candidate(
     """
     if len(texts) != 4:
         return
-    if head in _FACTORY_SKIP_HEADS:
+    if head in _FACTORY_SKIP_RESIDUAL or REGISTRY.is_not_proc_factory(head):
         return
     # Name argument must be a plain word — variable and command
     # substitutions mean the created proc has a runtime-computed name we

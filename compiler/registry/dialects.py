@@ -42,6 +42,17 @@ def is_irules_dialect(dialect: str | None) -> bool:
     return dialect in IRULES_DIALECT_NAMES
 
 
+# F5 dialects whose ensemble commands are fixed — no user-added
+# subcommands — so the minifier can abbreviate ensemble subcommands to
+# their minimum unambiguous prefix.
+FIXED_ENSEMBLE_DIALECTS: frozenset[str] = frozenset({"f5-irules", "f5-iapps", "f5-bigip"})
+
+
+def has_fixed_ensembles(dialect: str | None) -> bool:
+    """Return True if *dialect* guarantees fixed (non-extensible) ensembles."""
+    return dialect in FIXED_ENSEMBLE_DIALECTS
+
+
 # Runtime Tcl version that each dialect is based on.  Used by
 # ``dialects_since()`` to resolve version-dependent behaviour such as
 # ``incr`` safely initialising an uninitialised variable (8.5+).

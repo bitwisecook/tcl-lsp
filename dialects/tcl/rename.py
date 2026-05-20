@@ -23,6 +23,7 @@ class RenameCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="rename",
+            byte_compiled=True,
             is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(

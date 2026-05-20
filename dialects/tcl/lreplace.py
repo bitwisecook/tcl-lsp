@@ -30,6 +30,8 @@ class LreplaceCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lreplace",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Replace elements in a list with new elements",
                 synopsis=("lreplace list first last ?element element ...?",),

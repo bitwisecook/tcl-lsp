@@ -34,6 +34,8 @@ class InterpCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="interp",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(

@@ -29,6 +29,7 @@ class UpdateCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="update",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Process pending events and idle callbacks",

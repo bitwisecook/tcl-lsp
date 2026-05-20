@@ -21,6 +21,8 @@ class ReturnCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="return",
+            byte_compiled=True,
+            frameless_runtime=True,
             is_language_keyword=True,
             needs_start_cmd=True,
             terminates_block=True,

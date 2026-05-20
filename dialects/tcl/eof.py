@@ -30,6 +30,7 @@ class EofCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="eof",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Check for end of file condition on channel",

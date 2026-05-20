@@ -647,6 +647,12 @@ class CommandSpec:
     is_irules_event_handler: bool = False  # when
     is_unnormalized_http_getter: bool = False  # HTTP::path, HTTP::uri, HTTP::query
 
+    # Command-classification traits sourced by tooling instead of
+    # consumer-local name lists (single source of truth = the spec).
+    byte_compiled: bool = False  # core builtin the minifier must not $-alias
+    not_proc_factory: bool = False  # HEAD NAME BRACED BRACED shape, not a proc factory
+    frameless_runtime: bool = False  # codegen always uses a runtime helper; no callee frame
+
     # Purity and CSE traits for compiler/gvn.py.
     pure: bool = False
     cse_candidate: bool = False

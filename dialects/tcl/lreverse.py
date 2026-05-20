@@ -30,6 +30,7 @@ class LreverseCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lreverse",
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Reverse the order of a list",
                 synopsis=("lreverse list",),

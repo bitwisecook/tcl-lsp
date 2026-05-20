@@ -22,6 +22,7 @@ class ThrowCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="throw",
+            byte_compiled=True,
             is_language_keyword=True,
             terminates_block=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),

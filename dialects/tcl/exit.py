@@ -22,6 +22,7 @@ class ExitCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="exit",
+            byte_compiled=True,
             terminates_block=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(

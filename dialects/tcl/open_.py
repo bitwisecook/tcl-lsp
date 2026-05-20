@@ -64,6 +64,7 @@ class OpenCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="open",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Open a file-based or command pipeline channel.",

@@ -23,6 +23,8 @@ class UplevelCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="uplevel",
+            byte_compiled=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             creates_dynamic_barrier=True,
             unsafe=True,

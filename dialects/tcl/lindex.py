@@ -30,6 +30,9 @@ class LindexCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lindex",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             hover=HoverSnippet(
                 summary="Retrieve an element from a list",
                 synopsis=("lindex list ?index ...?",),

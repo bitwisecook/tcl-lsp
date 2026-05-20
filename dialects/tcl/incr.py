@@ -24,6 +24,8 @@ class IncrCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="incr",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Increment the value of a variable",
                 synopsis=("incr varName ?increment?",),

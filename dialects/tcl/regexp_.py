@@ -49,6 +49,7 @@ class RegexpCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="regexp",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Match a regular expression against a string.",
                 synopsis=("regexp ?switches? exp string ?matchVar? ?subMatchVar ...?",),

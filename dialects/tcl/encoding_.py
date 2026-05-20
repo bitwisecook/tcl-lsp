@@ -66,6 +66,7 @@ class EncodingCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="encoding",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Convert between character encodings.",
                 synopsis=(

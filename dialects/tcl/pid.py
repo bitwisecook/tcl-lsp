@@ -23,6 +23,7 @@ class PidCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="pid",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Retrieve process identifiers",

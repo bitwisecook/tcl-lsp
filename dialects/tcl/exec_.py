@@ -27,6 +27,7 @@ class ExecCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="exec",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             forms=(
                 FormSpec(

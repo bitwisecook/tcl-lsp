@@ -31,6 +31,7 @@ class AfterCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="after",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Execute a command after a time delay",
                 synopsis=(

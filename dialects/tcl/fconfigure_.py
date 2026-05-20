@@ -30,6 +30,7 @@ class FconfigureCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="fconfigure",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Set and get options on a channel.",

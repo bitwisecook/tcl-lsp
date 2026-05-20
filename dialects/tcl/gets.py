@@ -31,6 +31,7 @@ class GetsCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="gets",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Read a line from a channel",

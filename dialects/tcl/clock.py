@@ -130,6 +130,7 @@ class ClockCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="clock",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Obtain and manipulate dates and times.",
                 synopsis=(

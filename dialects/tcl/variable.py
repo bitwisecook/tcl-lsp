@@ -22,6 +22,9 @@ class VariableCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="variable",
+            byte_compiled=True,
+            frameless_runtime=True,
+            not_proc_factory=True,
             is_language_keyword=True,
             hover=HoverSnippet(
                 summary="create and initialize a namespace variable",

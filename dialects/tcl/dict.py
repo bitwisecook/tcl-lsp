@@ -67,6 +67,8 @@ class DictCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="dict",
+            byte_compiled=True,
+            not_proc_factory=True,
             dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
             never_inline_body=True,
             hover=HoverSnippet(

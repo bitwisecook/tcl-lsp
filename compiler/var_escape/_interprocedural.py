@@ -224,7 +224,7 @@ def solve_interprocedural_escape(
     # Iterate until stable.  Bounded by len(summaries) iterations.
     from dataclasses import replace as _replace
 
-    from ._propagation import _FRAMELESS_RUNTIME_COMMANDS
+    from ._propagation import _is_frameless_runtime
 
     changed = True
     while changed:
@@ -243,7 +243,7 @@ def solve_interprocedural_escape(
                 callee_summary = result.get(callee)
                 if callee_summary is None:
                     bare = callee[2:] if callee.startswith("::") else callee
-                    if bare in _FRAMELESS_RUNTIME_COMMANDS:
+                    if _is_frameless_runtime(bare):
                         continue
                     result[qname] = _replace(summary, pure_leaf=False)
                     changed = True

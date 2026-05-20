@@ -28,6 +28,7 @@ class CloseCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="close",
+            byte_compiled=True,
             hover=HoverSnippet(
                 summary="Close a channel.",
                 synopsis=("close channelId ?r(ead)|w(rite)?",),

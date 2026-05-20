@@ -22,6 +22,7 @@ class LassignCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="lassign",
+            frameless_runtime=True,
             dialects=frozenset({"tcl8.5", "tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
                 summary="Assign list elements to variables",

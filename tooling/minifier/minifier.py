@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from typing import Literal, overload
 
 from compiler.parsing.lexer import TclLexer
-from compiler.registry.dialects import is_irules_dialect
+from compiler.registry.dialects import has_fixed_ensembles, is_irules_dialect
 from compiler.registry.runtime import (
     body_arg_indices,
     expr_arg_indices,
@@ -995,9 +995,6 @@ for _cmd, _subs in _SUBCMD_ABBREVIATIONS.items():
         if len(_abbr) >= len(_full):
             del _subs[_full]
 
-# Dialects where ensemble commands are fixed (no user-added subcommands).
-_FIXED_ENSEMBLE_DIALECTS = frozenset({"f5-irules", "f5-iapps", "f5-bigip"})
-
 
 def _abbreviated_subcommand(
     command_name: str,
@@ -1005,7 +1002,7 @@ def _abbreviated_subcommand(
     dialect: str | None,
 ) -> str:
     """Return abbreviated subcommand text when safe for the active dialect."""
-    if dialect not in _FIXED_ENSEMBLE_DIALECTS:
+    if not has_fixed_ensembles(dialect):
         return subcommand_name
     subs = _SUBCMD_ABBREVIATIONS.get(command_name)
     if not subs:
@@ -1031,93 +1028,17 @@ def _alias_repeated_commands(source: str) -> tuple[str, dict[str, str]]:
     except Exception:
         return source, {}
 
-    # Collect all command invocations from the semantic model.
-    # Skip Tcl builtins that are byte-compiled specially and would break if
-    # invoked through a variable reference.
-    _BUILTIN_SKIP = {
-        "set",
-        "unset",
-        "proc",
-        "if",
-        "else",
-        "elseif",
-        "while",
-        "for",
-        "foreach",
-        "switch",
-        "return",
-        "break",
-        "continue",
-        "expr",
-        "catch",
-        "try",
-        "throw",
-        "package",
-        "namespace",
-        "upvar",
-        "uplevel",
-        "variable",
-        "global",
-        "append",
-        "lappend",
-        "incr",
-        "info",
-        "string",
-        "list",
-        "llength",
-        "lindex",
-        "lrange",
-        "lsort",
-        "lsearch",
-        "lreplace",
-        "linsert",
-        "dict",
-        "array",
-        "regexp",
-        "regsub",
-        "scan",
-        "format",
-        "open",
-        "close",
-        "read",
-        "gets",
-        "puts",
-        "eof",
-        "flush",
-        "seek",
-        "tell",
-        "fconfigure",
-        "fcopy",
-        "fileevent",
-        "socket",
-        "after",
-        "update",
-        "vwait",
-        "rename",
-        "source",
-        "eval",
-        "apply",
-        "tailcall",
-        "error",
-        "cd",
-        "pwd",
-        "file",
-        "glob",
-        "clock",
-        "binary",
-        "encoding",
-        "interp",
-        "load",
-        "exit",
-        "pid",
-        "exec",
-        "chan",
-    }
+    # Collect all command invocations from the semantic model.  Skip Tcl
+    # builtins the bytecode compiler special-cases: invoking them through a
+    # variable alias would break.  Sourced from the registry's
+    # ``byte_compiled`` trait rather than a local name list.
+    from compiler.registry import REGISTRY
+
     cmd_uses: dict[str, list[int]] = {}
     for inv in analysis.command_invocations:
         name = inv.name
-        # Skip very short names and Tcl builtins.
-        if len(name) <= 2 or name in _BUILTIN_SKIP:
+        # Skip very short names and byte-compiled builtins.
+        if len(name) <= 2 or REGISTRY.is_byte_compiled(name):
             continue
         cmd_uses.setdefault(name, []).append(inv.range.start.offset)
 

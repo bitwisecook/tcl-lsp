@@ -30,6 +30,7 @@ class FlushCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="flush",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Flush buffered output for a channel",

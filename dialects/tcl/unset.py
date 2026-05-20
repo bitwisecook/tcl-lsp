@@ -29,6 +29,8 @@ class UnsetCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="unset",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Delete variables",
                 synopsis=("unset ?-nocomplain? ?--? ?name name name ...?",),

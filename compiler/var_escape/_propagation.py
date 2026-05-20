@@ -65,46 +65,14 @@ _NAME_FIRST_COMMANDS: frozenset[str] = frozenset({"set", "incr", "append", "lapp
 # line primitives with no ``$var`` resolution needed at the callee.
 # Keep this list audited: adding a command that secretly falls back
 # will break eval-inside-proc semantics in escape-free procs.
-_FRAMELESS_RUNTIME_COMMANDS: frozenset[str] = frozenset(
-    {
-        # List primitives
-        "list",
-        "lindex",
-        "lrange",
-        "linsert",
-        "llength",
-        "lsort",
-        "lsearch",
-        "lappend",
-        "lreverse",
-        "lreplace",
-        "lrepeat",
-        "lassign",
-        "concat",
-        # String primitives
-        "split",
-        "join",
-        "string",
-        # Arithmetic wrappers
-        "expr",
-        # Locally-handled scope declarations — no runtime frame needed.
-        "global",
-        "variable",
-        "upvar",
-        "namespace",
-        # Self-assignment shapes already covered by IRAssign* / IRIncr.
-        "set",
-        "incr",
-        "append",
-        "unset",
-        # I/O and diagnostics
-        "puts",
-        "return",
-        "error",
-        "continue",
-        "break",
-    }
-)
+# Frameless-runtime commands (codegen always uses a dedicated runtime
+# helper / structured node, never an eval fallback, so no callee frame is
+# needed) are sourced from the registry's ``frameless_runtime`` trait
+# rather than a module-local allow-list.
+def _is_frameless_runtime(name: str) -> bool:
+    from compiler.registry import REGISTRY
+
+    return REGISTRY.is_frameless_runtime(name)
 
 
 def _is_literal_name(arg: str) -> bool:
@@ -917,7 +885,7 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # forms qualify (``::puts`` and ``puts`` both resolve to the
     # same global builtin).
     bare_cmd = canonical[2:] if canonical.startswith("::") else canonical
-    if bare_cmd not in _FRAMELESS_RUNTIME_COMMANDS:
+    if not _is_frameless_runtime(bare_cmd):
         # A dynamic command word can't be resolved interprocedurally —
         # treat it as a definite fallback.  Static command words
         # (bare names or ``::``-qualified identifiers) go into the
@@ -1103,7 +1071,7 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
     if "[" in value:
         for match in _CMD_SUBST_HEAD_RE.finditer(value):
             head = _normalise_cmd_subst_head(match.group(1))
-            if head not in _FRAMELESS_RUNTIME_COMMANDS:
+            if not _is_frameless_runtime(head):
                 state.record_fallback()
                 if head and not _is_dynamic_token(head):
                     state.record_callee(head)

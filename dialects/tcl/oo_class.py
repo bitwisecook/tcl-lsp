@@ -41,6 +41,7 @@ class OoClassCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="oo::class",
+            not_proc_factory=True,
             is_language_keyword=True,
             is_oo_metaclass=True,
             dialects=frozenset({"tcl8.6", "tcl9.0"}),

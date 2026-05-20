@@ -30,6 +30,8 @@ class LlengthCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="llength",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Count the number of elements in a list",
                 synopsis=("llength list",),

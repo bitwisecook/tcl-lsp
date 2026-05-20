@@ -31,6 +31,7 @@ class LoadCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="load",
+            byte_compiled=True,
             dialects=DIALECTS_EXCEPT_IRULES,
             hover=HoverSnippet(
                 summary="Load machine code and initialize new commands",

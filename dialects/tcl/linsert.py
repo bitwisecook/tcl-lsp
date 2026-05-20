@@ -30,6 +30,8 @@ class LinsertCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="linsert",
+            byte_compiled=True,
+            frameless_runtime=True,
             hover=HoverSnippet(
                 summary="Insert elements into a list",
                 synopsis=("linsert list index ?element element ...?",),
