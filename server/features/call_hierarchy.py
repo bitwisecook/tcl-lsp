@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from lsprotocol import types
 
 from analyser import analyse
@@ -120,32 +122,30 @@ def _find_containing_proc(
     return None
 
 
-def incoming_calls(
+def resolve_call_target(
     item: types.CallHierarchyItem,
-    source: str,
+    analysis: AnalysisResult,
+) -> ProcDef | None:
+    """Resolve the ``CallHierarchyItem`` to its defining ``ProcDef``."""
+    for _qname, proc_def in analysis.all_procs.items():
+        if proc_def.name == item.name:
+            return proc_def
+    return None
+
+
+def _incoming_calls_in_document(
+    target_proc: ProcDef,
+    analysis: AnalysisResult,
     uri: str,
-    analysis: AnalysisResult | None = None,
 ) -> list[types.CallHierarchyIncomingCall]:
-    """Find all callers of the given proc."""
-    if analysis is None:
-        analysis = analyse(source)
-
-    # Find the target proc
-    target_name = item.name
-    target_proc: ProcDef | None = None
-    for qname, proc_def in analysis.all_procs.items():
-        if proc_def.name == target_name:
-            target_proc = proc_def
-            break
-    if target_proc is None:
-        return []
-
-    # Find all call sites
+    """Incoming-call entries for *target_proc* found within one document."""
     call_sites = find_proc_call_sites(
         target_proc.name,
         target_proc.qualified_name,
         analysis,
     )
+    if not call_sites:
+        return []
 
     # Group by containing proc
     calls_by_proc: dict[str, list[types.Range]] = {}
@@ -185,6 +185,38 @@ def incoming_calls(
                 from_ranges=ranges,
             )
         )
+
+    return results
+
+
+def incoming_calls(
+    item: types.CallHierarchyItem,
+    source: str,
+    uri: str,
+    analysis: AnalysisResult | None = None,
+    *,
+    extra_documents: Iterable[tuple[str, AnalysisResult]] | None = None,
+) -> list[types.CallHierarchyIncomingCall]:
+    """Find all callers of the given proc.
+
+    *extra_documents* supplies ``(uri, analysis)`` pairs for other
+    workspace files (indexed but not necessarily open) so that callers
+    living in files other than the one defining the proc are included,
+    not just callers in the open buffer.
+    """
+    if analysis is None:
+        analysis = analyse(source)
+
+    target_proc = resolve_call_target(item, analysis)
+    if target_proc is None:
+        return []
+
+    results = _incoming_calls_in_document(target_proc, analysis, uri)
+    if extra_documents:
+        for other_uri, other_analysis in extra_documents:
+            if other_uri == uri:
+                continue
+            results.extend(_incoming_calls_in_document(target_proc, other_analysis, other_uri))
 
     return results
 

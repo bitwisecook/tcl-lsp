@@ -22,6 +22,17 @@ class TestWorkspaceIndex:
         assert entries[0].proc is not None
         assert entries[0].proc.name == "greet"
 
+    def test_document_uris_and_indexed_analysis(self):
+        idx = WorkspaceIndex()
+        result = analyse("proc greet {} { return }\ngreet\n")
+        idx.update("file:///a.tcl", result)
+        assert idx.document_uris() == ["file:///a.tcl"]
+        cached = idx.indexed_analysis("file:///a.tcl")
+        assert cached is not None
+        # command_invocations is retained even on lightweight entries.
+        assert any(inv.name == "greet" for inv in cached.command_invocations)
+        assert idx.indexed_analysis("file:///missing.tcl") is None
+
     def test_find_by_qualified_name(self):
         idx = WorkspaceIndex()
         result = analyse("proc greet {name} { puts $name }")

@@ -287,6 +287,21 @@ class WorkspaceIndex:
             names.update(self._irules_global_procs.keys())
             return list(names)
 
+    def document_uris(self) -> list[str]:
+        """Return the URIs of every indexed document (open and background)."""
+        with self._lock:
+            return list(self._per_uri.keys())
+
+    def indexed_analysis(self, uri: str) -> AnalysisResult | None:
+        """Return the cached analysis for *uri*, or ``None`` if unindexed.
+
+        Background-indexed documents hold a ``for_index()`` analysis
+        (cross-file fields only, e.g. ``command_invocations``); open
+        documents hold the full analysis.
+        """
+        with self._lock:
+            return self._per_uri.get(uri)
+
     def command_usage_counts(self) -> dict[str, int]:
         """Return workspace-wide invocation counts keyed by command name."""
         with self._lock:

@@ -1059,6 +1059,58 @@ def on_prepare_call_hierarchy(
     )
 
 
+def _cross_document_incoming(
+    item: types.CallHierarchyItem,
+    uri: str,
+    analysis: AnalysisResult | None,
+) -> list[tuple[str, AnalysisResult]]:
+    """Other workspace documents whose callers should join the result.
+
+    The folder scan indexes every workspace file, but incoming-call
+    discovery would otherwise only see the open buffer.  Each indexed
+    document keeps a lightweight ``command_invocations`` list, so we use
+    that to cheaply pre-filter to the files that actually call the
+    target, then produce a *full* analysis for just those — the open
+    buffer's analysis when the file is open, otherwise a fresh analysis
+    of its on-disk source — so callers can be grouped by containing proc.
+    """
+    if analysis is None:
+        return []
+    from pathlib import Path
+
+    from analyser import analyse
+    from server.workspace.scanner import uri_to_path
+
+    from .features.call_hierarchy import resolve_call_target
+
+    target = resolve_call_target(item, analysis)
+    if target is None:
+        return []
+
+    extra: list[tuple[str, AnalysisResult]] = []
+    for other_uri in workspace_index.document_uris():
+        if other_uri == uri:
+            continue
+        cached = workspace_index.indexed_analysis(other_uri)
+        if cached is None:
+            continue
+        if not find_proc_call_sites(target.name, target.qualified_name, cached):
+            continue
+        other_state = workspace_state.get(other_uri)
+        if other_state is not None and other_state.analysis is not None:
+            extra.append((other_uri, other_state.analysis))
+            continue
+        path = uri_to_path(other_uri)
+        if not path:
+            continue
+        try:
+            other_source = Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        extra.append((other_uri, analyse(other_source)))
+    return extra
+
+
 @server.feature(types.CALL_HIERARCHY_INCOMING_CALLS)
 @_state.scoped_to_doc
 def on_incoming_calls(
@@ -1071,7 +1123,8 @@ def on_incoming_calls(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
-    return get_incoming_calls(item, source, uri, analysis=analysis)
+    extra = _cross_document_incoming(item, uri, analysis)
+    return get_incoming_calls(item, source, uri, analysis=analysis, extra_documents=extra)
 
 
 @server.feature(types.CALL_HIERARCHY_OUTGOING_CALLS)
