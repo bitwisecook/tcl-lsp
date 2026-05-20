@@ -42,6 +42,7 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+use tcl_lsp_core::workspace_index as core_workspace_index;
 // type_hierarchy core provider lands when tower-lsp's
 // LanguageServer trait exposes the type-hierarchy methods.
 // Module is registered in `tcl_lsp_core` for downstream
@@ -164,6 +165,12 @@ pub struct Backend {
     /// circuit when nothing changed.  Invalidated on
     /// `did_change` / `did_close`.
     semantic_tokens_cache: Mutex<HashMap<Url, SemanticTokensEntry>>,
+    /// Cross-document proc / class definition index, maintained
+    /// incrementally as documents open / change / close.  Lets
+    /// completion enumerate procs from sibling files and
+    /// (later) cross-document go-to-definition resolve symbols
+    /// defined elsewhere.
+    workspace_index: Mutex<core_workspace_index::WorkspaceIndex>,
 }
 
 /// Cached semantic-tokens result keyed on the URI.
@@ -285,6 +292,7 @@ impl Backend {
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
+            workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
         }
     }
 
@@ -553,6 +561,14 @@ impl Backend {
                 // Cache the analysis so the per-method
                 // handlers don't have to re-run it on every
                 // request.
+                {
+                    // Refresh the cross-document workspace index
+                    // for this URI (remove stale entries, then
+                    // re-add the fresh definitions).
+                    let mut index = self.workspace_index.lock().await;
+                    index.remove_document(uri.as_str());
+                    index.add_document(uri.as_str(), &analysis);
+                }
                 self.analyses.lock().await.insert(uri.clone(), analysis);
                 self.client.publish_diagnostics(uri, diags, None).await;
             }
@@ -676,6 +692,10 @@ impl LanguageServer for Backend {
         let uri = &params.text_document.uri;
         self.documents.lock().await.remove(uri);
         self.analyses.lock().await.remove(uri);
+        self.workspace_index
+            .lock()
+            .await
+            .remove_document(uri.as_str());
         self.hover_cache.lock().await.invalidate_uri(uri);
         self.semantic_tokens_cache.lock().await.remove(uri);
         // Clear any previously-published diagnostics so the
@@ -730,6 +750,11 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        // Snapshot the cross-document index so the worker can
+        // enumerate procs from sibling files.  Cloning is the
+        // price of moving it into `spawn_blocking`; the index
+        // holds only definition metadata, not document text.
+        let workspace = self.workspace_index.lock().await.clone();
         // Pure-CPU work; spawn_blocking off the LSP event loop.
         let items = tokio::task::spawn_blocking(move || {
             core_completion::completions(
@@ -738,6 +763,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &analysis,
                 Some(&registry),
+                Some(&workspace),
             )
         })
         .await
@@ -2361,6 +2387,7 @@ mod tests {
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
+            workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
         }
     }
 

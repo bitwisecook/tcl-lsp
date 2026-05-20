@@ -24,6 +24,13 @@
 //! slot (e.g. `string is <class>`), the matching character
 //! classes complete at that argument with `EnumValue` kind.
 //!
+//! Workspace-wide proc enumeration has landed: when the caller
+//! threads a [`crate::workspace_index::WorkspaceIndex`], procs
+//! defined in *other* analysed documents surface in the
+//! command/proc-completion fallback (deduped by label against
+//! the local set, sorted after local procs / built-ins via a
+//! `C0_…` sort key, detail tagged `(workspace)`).
+//!
 //! What is *still deferred* (planned as further
 //! `S-completion-rich` follow-ups):
 //!
@@ -120,6 +127,7 @@ pub fn completions(
     character: u32,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
 ) -> Vec<CompletionItem> {
     if let Some((trigger, partial)) = variable_trigger(source, line, character) {
         return variable_completions(&analysis.global_scope, &partial, trigger);
@@ -194,7 +202,48 @@ pub fn completions(
     if let Some(registry) = registry {
         items.extend(builtin_completions(registry, &partial, &usage));
     }
+    // Workspace-wide proc enumeration: surface procs defined in
+    // *other* analysed documents that aren't already in the
+    // result.  Deduped by label against the current set so the
+    // current document's procs (already present above) and
+    // any same-named workspace proc don't double up.
+    if let Some(index) = workspace {
+        let present: std::collections::HashSet<String> =
+            items.iter().map(|i| i.label.clone()).collect();
+        let mut ws: Vec<&crate::workspace_index::WorkspaceProc> =
+            index.procs_matching(&partial, "");
+        // Stable, name-sorted order so cross-doc results don't
+        // jitter between requests.
+        ws.sort_unstable_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+        let mut seen_ws: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for proc in ws {
+            if present.contains(&proc.name) || !seen_ws.insert(proc.name.clone()) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: proc.name.clone(),
+                insert_text: proc.qualified_name.clone(),
+                kind: CompletionKind::Function,
+                detail: Some(workspace_proc_detail(proc)),
+                // Sort cross-document procs after local procs
+                // (`A…`) and built-ins (`B…`): `C0_<name>`.
+                sort_text: Some(format!("C0_{}", proc.name)),
+            });
+        }
+    }
     items
+}
+
+/// Detail line for a workspace (cross-document) proc
+/// completion — a param-count summary plus a marker so the
+/// user can tell it comes from another file.
+fn workspace_proc_detail(proc: &crate::workspace_index::WorkspaceProc) -> String {
+    let params = if proc.param_count == 1 {
+        "1 param".to_string()
+    } else {
+        format!("{} params", proc.param_count)
+    };
+    format!("{params} (workspace)")
 }
 
 /// Variable-trigger detection — `$prefix` or `${prefix}`.
@@ -643,7 +692,7 @@ mod tests {
         let src = "set apple 1\nset banana 2\nset $\n";
         let analysis = analyse(src);
         // Cursor after `$` on the third line.
-        let items = completions(src, 2, 5, &analysis, None);
+        let items = completions(src, 2, 5, &analysis, None, None);
         assert!(!items.is_empty(), "expected variable completions");
         assert_eq!(items[0].kind, CompletionKind::Variable);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -659,7 +708,7 @@ mod tests {
     fn variable_completion_filters_by_partial() {
         let src = "set apple 1\nset banana 2\nset $b\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 6, &analysis, None);
+        let items = completions(src, 2, 6, &analysis, None, None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$banana"]);
     }
@@ -669,7 +718,7 @@ mod tests {
         let src = "proc greet {} {}\nproc shout {} {}\ng\n";
         let analysis = analyse(src);
         // Cursor right after `g` on third line.
-        let items = completions(src, 2, 1, &analysis, None);
+        let items = completions(src, 2, 1, &analysis, None, None);
         assert_eq!(items.len(), 1, "{items:?}");
         assert_eq!(items[0].kind, CompletionKind::Function);
         assert_eq!(items[0].label, "greet");
@@ -703,7 +752,7 @@ mod tests {
         // calls).
         let src = "proc greet {} {}\nproc shout {} {}\ngreet\ngreet\ngreet\n\n";
         let analysis = analyse(src);
-        let items = completions(src, 5, 0, &analysis, None);
+        let items = completions(src, 5, 0, &analysis, None, None);
         let greet = items
             .iter()
             .find(|i| i.label == "greet")
@@ -730,7 +779,7 @@ mod tests {
     fn empty_partial_lists_all_procs() {
         let src = "proc alpha {} {}\nproc beta {} {}\n\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 0, &analysis, None);
+        let items = completions(src, 2, 0, &analysis, None, None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alpha"));
         assert!(labels.contains(&"beta"));
@@ -751,7 +800,7 @@ mod tests {
         let src = "pu\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 2, &analysis, Some(&registry));
+        let items = completions(src, 0, 2, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"puts"),
@@ -766,7 +815,7 @@ mod tests {
         let src = "whi\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 3, &analysis, Some(&registry));
+        let items = completions(src, 0, 3, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"while"),
@@ -786,7 +835,7 @@ mod tests {
         let src = "+\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 1, &analysis, Some(&registry));
+        let items = completions(src, 0, 1, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for op in &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="] {
             assert!(
@@ -802,7 +851,7 @@ mod tests {
         // minimal port's behaviour — proc-name completion alone.
         let src = "proc helper {} {}\nhe\n";
         let analysis = analyse(src);
-        let items_no_registry = completions(src, 1, 2, &analysis, None);
+        let items_no_registry = completions(src, 1, 2, &analysis, None, None);
         let labels_no_registry: Vec<&str> =
             items_no_registry.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -820,7 +869,7 @@ mod tests {
         let src = "proc parade {} {}\npar\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 3, &analysis, Some(&registry));
+        let items = completions(src, 1, 3, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"parade"),
@@ -843,7 +892,7 @@ mod tests {
         let src = "set apple 1\nset $par\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 8, &analysis, Some(&registry));
+        let items = completions(src, 1, 8, &analysis, Some(&registry), None);
         // Only variable completions allowed here.
         for it in &items {
             assert_eq!(
@@ -869,7 +918,7 @@ mod tests {
         let src = "string l\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 8, &analysis, Some(&registry));
+        let items = completions(src, 0, 8, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"length"),
@@ -890,7 +939,7 @@ mod tests {
         let src = "string \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // `string` has at minimum `length`, `match`, `range`,
         // `tolower`, `toupper` across all dialects.
@@ -912,7 +961,7 @@ mod tests {
         let src = "string length f\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Some f-prefixed command should surface (foreach,
         // format, file…), confirming we fell through.
@@ -936,7 +985,7 @@ mod tests {
         let src = "proc helper {} {}\nputs hel\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 8, &analysis, Some(&registry));
+        let items = completions(src, 1, 8, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // The user proc `helper` should surface (fallback path).
         assert!(
@@ -959,7 +1008,7 @@ mod tests {
         let src = "lsearch -n\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 10, &analysis, Some(&registry));
+        let items = completions(src, 0, 10, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.iter().any(|l| l.starts_with("-n")),
@@ -979,7 +1028,7 @@ mod tests {
         let src = "lsearch -\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 9, &analysis, Some(&registry));
+        let items = completions(src, 0, 9, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Every result must start with `-`.
         for l in &labels {
@@ -1011,7 +1060,7 @@ mod tests {
         let src = "when HT\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"HTTP_REQUEST"),
@@ -1028,7 +1077,7 @@ mod tests {
         let src = "when CL\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None);
         assert!(
             items
                 .iter()
@@ -1045,7 +1094,7 @@ mod tests {
         let src = "when HT\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 7, &analysis, Some(&registry));
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"HTTP_REQUEST"),
@@ -1060,7 +1109,7 @@ mod tests {
         let src = "when HTTP_REQUEST f\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 19, &analysis, Some(&registry));
+        let items = completions(src, 0, 19, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
@@ -1084,7 +1133,7 @@ mod tests {
         let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 3, 7, &analysis, Some(&registry));
+        let items = completions(src, 3, 7, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"helper") && labels.contains(&"help_inner"),
@@ -1112,7 +1161,7 @@ mod tests {
         let src = "proc helper {} {}\ncall help\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 9, &analysis, Some(&registry));
+        let items = completions(src, 1, 9, &analysis, Some(&registry), None);
         // The user proc still appears via the fallback path.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -1129,7 +1178,7 @@ mod tests {
         let src = "proc parade {} {}\ncall p\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 1, 6, &analysis, Some(&registry));
+        let items = completions(src, 1, 6, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"parade"), "{labels:?}");
         assert!(
@@ -1146,7 +1195,7 @@ mod tests {
         let src = "proc helper {} {}\ncall helper e\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 1, 14, &analysis, Some(&registry));
+        let items = completions(src, 1, 14, &analysis, Some(&registry), None);
         // Plain fallback fires — any e-prefixed builtin
         // (`eval`, `exec`, `expr`, `error`…) should surface.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -1165,7 +1214,7 @@ mod tests {
         let src = "string is a\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 11, &analysis, Some(&registry));
+        let items = completions(src, 0, 11, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alnum"), "{labels:?}");
         assert!(labels.contains(&"alpha"), "{labels:?}");
@@ -1185,7 +1234,7 @@ mod tests {
         let src = "string is \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 10, &analysis, Some(&registry));
+        let items = completions(src, 0, 10, &analysis, Some(&registry), None);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"boolean"), "{labels:?}");
         assert!(labels.contains(&"wordchar"), "{labels:?}");
@@ -1204,7 +1253,7 @@ mod tests {
         let src = "string is alnum\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None);
         let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
         assert!(
             alnum
@@ -1224,10 +1273,62 @@ mod tests {
         let src = "string length x\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry));
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None);
         assert!(
             items.iter().all(|i| i.kind != CompletionKind::EnumValue),
             "no enum-value completions expected; got {items:?}",
         );
+    }
+
+    // -- workspace-index: cross-document proc completion ------------
+
+    #[test]
+    fn workspace_procs_surface_in_completion() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Current doc defines `local_proc`; a sibling doc
+        // defines `shared_helper`.  Completing `s` should
+        // surface the cross-document proc.
+        let cur_src = "proc local_proc {} {}\ns\n";
+        let cur = analyse(cur_src);
+        let other = analyse("proc shared_helper {} {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///cur.tcl", &cur),
+            ("file:///other.tcl", &other),
+        ]);
+        let items = completions(cur_src, 1, 1, &cur, None, Some(&index));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"shared_helper"),
+            "expected cross-doc proc; got {labels:?}",
+        );
+        // It's tagged as a workspace proc in the detail.
+        let helper = items.iter().find(|i| i.label == "shared_helper").unwrap();
+        assert!(
+            helper.detail.as_deref().unwrap_or("").contains("workspace"),
+            "{helper:?}",
+        );
+        assert!(helper.sort_text.as_deref().unwrap_or("").starts_with("C0_"));
+    }
+
+    #[test]
+    fn workspace_procs_do_not_duplicate_local_procs() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Both the current doc and the index contain `greet`.
+        // The result must list `greet` once (the local entry).
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let index = WorkspaceIndex::from_documents([("file:///cur.tcl", &cur)]);
+        let items = completions(cur_src, 1, 2, &cur, None, Some(&index));
+        let count = items.iter().filter(|i| i.label == "greet").count();
+        assert_eq!(count, 1, "{items:?}");
+    }
+
+    #[test]
+    fn workspace_none_keeps_single_doc_behaviour() {
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let items = completions(cur_src, 1, 2, &cur, None, None);
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"], "{labels:?}");
     }
 }
