@@ -6,6 +6,8 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsp.features.signature_help import get_signature_help
@@ -114,10 +116,15 @@ class TestSignatureHelpDocumentation:
 
 
 class TestSignatureHelpSubcommands:
+    @pytest.mark.xfail(
+        reason="ensemble subcommand signature help (e.g. 'string length') is not "
+        "yet provided — only the top-level 'string option arg' signature is",
+        strict=False,
+    )
     def test_string_length(self):
         source = "string length "
         # Cursor after "string length " (col 14)
         result = get_signature_help(source, 0, 14)
-        if result is not None:
-            # Should show the string length signature
-            assert any("string" in sig.label for sig in result.signatures)
+        # Should show the string length subcommand signature (currently None).
+        assert result is not None
+        assert any("string" in sig.label for sig in result.signatures)
