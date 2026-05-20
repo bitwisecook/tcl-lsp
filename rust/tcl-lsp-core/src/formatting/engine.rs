@@ -1090,7 +1090,12 @@ fn reconstruct_switch(
 
 /// Format a Tcl script body at the given indent level.  The core
 /// recursive function.  Mirrors `format_body`.
-fn format_body(
+/// Format a script body at `indent_level`, applying every engine
+/// rule (comments, switch bodies, recursion, long-line wrapping, …).
+/// [`format_tcl`] calls this at level 0 for a whole document; range
+/// formatting calls it for a line slice at the slice's brace depth so
+/// both paths share identical layout rules.
+pub(crate) fn format_body(
     source: &str,
     config: &FormatterConfig,
     registry: &CommandRegistry,

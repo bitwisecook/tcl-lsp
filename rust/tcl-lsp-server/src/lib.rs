@@ -2230,7 +2230,13 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let edits = core_formatting::range_formatting(&doc.text, range);
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let edits = core_formatting::range_formatting(
+            &doc.text,
+            range,
+            &core_formatting::FormatterConfig::default(),
+            &registry,
+        );
         if edits.is_empty() {
             return Ok(None);
         }
