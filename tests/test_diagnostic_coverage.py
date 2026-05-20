@@ -38,6 +38,7 @@ class Case:
     contains: bool = False  # expected is a substring of a covering construct
     bigip: bool = False  # source is a BIG-IP .conf — use the bigip validator
     iapp: bool = False  # source is an APL presentation — use the iApp validator
+    analyse_raw: bool = False  # internal code — read raw analyser diagnostics
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class FiresCase:
     dialect: str | None = None
     bigip: bool = False
     iapp: bool = False
+    analyse_raw: bool = False
 
 
 def _covered(source: str, r: Any) -> str:
@@ -63,7 +65,12 @@ def _covered(source: str, r: Any) -> str:
 
 
 def _run(
-    source: str, dialect: str | None, xc: bool, bigip: bool = False, iapp: bool = False
+    source: str,
+    dialect: str | None,
+    xc: bool,
+    bigip: bool = False,
+    iapp: bool = False,
+    analyse_raw: bool = False,
 ) -> list[Any]:
     if bigip:
         from core.bigip.diagnostics import get_bigip_diagnostics
@@ -76,6 +83,15 @@ def _run(
 
         with dialect_scope("f5-iapps"):
             return validate_iapp_presentation(parse_apl(source))
+    if analyse_raw:
+        # Internal diagnostics are filtered out of get_diagnostics; read them
+        # straight off the analyser result instead.
+        from core.analysis import analyse
+
+        if dialect is not None:
+            with dialect_scope(dialect):
+                return list(analyse(source).diagnostics)
+        return list(analyse(source).diagnostics)
     if dialect is not None:
         with dialect_scope(dialect):
             return get_diagnostics(source, xc_diagnostics_enabled=xc)
@@ -89,10 +105,11 @@ def _matches(
     xc: bool = False,
     bigip: bool = False,
     iapp: bool = False,
+    analyse_raw: bool = False,
 ) -> list[Any]:
     return [
         d
-        for d in _run(source, dialect, xc, bigip, iapp)
+        for d in _run(source, dialect, xc, bigip, iapp, analyse_raw)
         if (d.code if isinstance(d.code, str) else str(d.code)) == code
     ]
 
@@ -643,8 +660,7 @@ RANGE_FIXME: dict[str, FiresCase] = {
     ),
     # Stub expr-func shadows builtin function: same leading-`#` range issue.
     "W117": FiresCase(
-        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sin 1\n"
-        "# tcl-lsp: stubs-end\nset x 1\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sin 1\n# tcl-lsp: stubs-end\nset x 1\n",
         "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sizeof 1\n"
         "# tcl-lsp: stubs-end\nset x 1\n",
     ),
@@ -720,6 +736,20 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "ltm data-group internal /Common/dg {\ntype ip\nrecords {\n10.1.1.1/32 { }\n}\n}\n",
         bigip=True,
     ),
+    # Hardcoded credential (internal diagnostic): range drops the closing
+    # quote of the literal secret.
+    "W310": FiresCase(
+        'http::geturl $url -password "s3cret"\n',
+        "http::geturl $url -password $pw\n",
+        analyse_raw=True,
+    ),
+    # Unsafe channel encoding mismatch (internal diagnostic): range uses the
+    # analyser's inclusive-end span, which the LSP layer normalises.
+    "W311": FiresCase(
+        "fconfigure $fd -encoding binary -translation auto\n",
+        "fconfigure $fd -encoding binary -translation binary\n",
+        analyse_raw=True,
+    ),
 }
 
 # ── no trigger fixture yet (dialect/context-specific) ─────────────────
@@ -770,8 +800,6 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
         "W132",
         "W133",
         "W134",
-        "W310",
-        "W311",
         "XC200",
     }
 )
@@ -800,7 +828,9 @@ def test_every_code_is_classified_exactly_once():
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_fires_with_exact_range(code):
     case = FIXTURES[code]
-    matches = _matches(case.source, code, case.dialect, case.xc, case.bigip, case.iapp)
+    matches = _matches(
+        case.source, code, case.dialect, case.xc, case.bigip, case.iapp, case.analyse_raw
+    )
     assert matches, f"{code} did not fire on {case.source!r}"
     covered = {_covered(case.source, d.range) for d in matches}
     if case.contains:
@@ -816,17 +846,27 @@ def test_fixture_fires_with_exact_range(code):
 @pytest.mark.parametrize("code", sorted(FIXTURES))
 def test_fixture_no_false_positive(code):
     case = FIXTURES[code]
-    assert not _matches(case.clean, code, case.dialect, case.xc, case.bigip, case.iapp), (
-        f"{code} should not fire on clean {case.clean!r}"
-    )
+    assert not _matches(
+        case.clean, code, case.dialect, case.xc, case.bigip, case.iapp, case.analyse_raw
+    ), f"{code} should not fire on clean {case.clean!r}"
 
 
 @pytest.mark.parametrize("code", sorted(RANGE_FIXME))
 def test_range_fixme_fires_and_is_clean(code):
     case = RANGE_FIXME[code]
-    assert _matches(case.source, code, case.dialect, bigip=case.bigip, iapp=case.iapp), (
-        f"{code} did not fire on {case.source!r}"
-    )
-    assert not _matches(case.clean, code, case.dialect, bigip=case.bigip, iapp=case.iapp), (
-        f"{code} should not fire on clean {case.clean!r}"
-    )
+    assert _matches(
+        case.source,
+        code,
+        case.dialect,
+        bigip=case.bigip,
+        iapp=case.iapp,
+        analyse_raw=case.analyse_raw,
+    ), f"{code} did not fire on {case.source!r}"
+    assert not _matches(
+        case.clean,
+        code,
+        case.dialect,
+        bigip=case.bigip,
+        iapp=case.iapp,
+        analyse_raw=case.analyse_raw,
+    ), f"{code} should not fire on clean {case.clean!r}"
