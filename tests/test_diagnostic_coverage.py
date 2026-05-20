@@ -18,9 +18,9 @@ only ever shrink as codes graduate into ``FIXTURES``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
-from lsprotocol import types
 
 import core.common.codes_all  # noqa: F401 — registers every code
 from core.common.codes import all_codes
@@ -47,7 +47,7 @@ class FiresCase:
     bigip: bool = False
 
 
-def _covered(source: str, r: types.Range) -> str:
+def _covered(source: str, r: Any) -> str:
     lines = source.split("\n")
     if r.start.line == r.end.line:
         return lines[r.start.line][r.start.character : r.end.character]
@@ -60,9 +60,7 @@ def _covered(source: str, r: types.Range) -> str:
     )
 
 
-def _run(
-    source: str, dialect: str | None, xc: bool, bigip: bool = False
-) -> list[types.Diagnostic]:
+def _run(source: str, dialect: str | None, xc: bool, bigip: bool = False) -> list[Any]:
     if bigip:
         from core.bigip.diagnostics import get_bigip_diagnostics
         from core.bigip.parser import parse_bigip_conf
@@ -80,7 +78,7 @@ def _matches(
     dialect: str | None = None,
     xc: bool = False,
     bigip: bool = False,
-) -> list[types.Diagnostic]:
+) -> list[Any]:
     return [
         d
         for d in _run(source, dialect, xc, bigip)
