@@ -7,8 +7,12 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 from lsprotocol import types
+
+if TYPE_CHECKING:
+    from analyser.semantic_model import AnalysisResult
 from pygls.lsp.server import LanguageServer
 
 import server._codes_init  # noqa: F401  # trigger all code registrations
@@ -667,30 +671,57 @@ def on_definition(
     col = params.position.character
     word = find_word_at_position(source, line, col)
     if word:
-        # Prefer fully-qualified names synthesised from this file's
-        # ``namespace import`` (and tcllib ``X::import`` wrapper)
-        # declarations — that's how Tcl itself would resolve the call
-        # at runtime.  Only fall through to a tail-name search when no
-        # import rewrites produce a hit.
-        if analysis is not None and analysis.namespace_imports:
-            from analyser.namespace_imports import rewrite_via_imports
+        # The cross-document proc fallback must only fire when the cursor
+        # sits on a command head (a call site), matching the in-document
+        # provider.  Otherwise an argument word that happens to collide
+        # with a sibling proc/class name in another file produces a
+        # false-positive jump (e.g. ``set foo 1`` jumping to a proc
+        # ``foo`` elsewhere).
+        if _position_is_command_head(analysis, line, col):
+            # Prefer fully-qualified names synthesised from this file's
+            # ``namespace import`` (and tcllib ``X::import`` wrapper)
+            # declarations — that's how Tcl itself would resolve the call
+            # at runtime.  Only fall through to a tail-name search when no
+            # import rewrites produce a hit.
+            if analysis is not None and analysis.namespace_imports:
+                from analyser.namespace_imports import rewrite_via_imports
 
-            for candidate in rewrite_via_imports(word, analysis.namespace_imports):
-                for entry in workspace_index.find_proc(candidate):
-                    if entry.proc and entry.proc.qualified_name == candidate:
+                for candidate in rewrite_via_imports(word, analysis.namespace_imports):
+                    for entry in workspace_index.find_proc(candidate):
+                        if entry.proc and entry.proc.qualified_name == candidate:
+                            locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
+            if not locations:
+                entries = workspace_index.find_proc(word)
+                for entry in entries:
+                    if entry.proc:
                         locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
-        if not locations:
-            entries = workspace_index.find_proc(word)
-            for entry in entries:
-                if entry.proc:
-                    locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
-        # Try cross-file RULE_INIT variables (e.g. $::varname)
+        # Cross-file RULE_INIT variables (e.g. ``$::varname``) are
+        # variable references, not command heads, so they're resolved
+        # independently of the command-head gate above.
         if not locations and word.startswith("::"):
             var_entries = workspace_index.find_rule_init_var(word)
             for ve in var_entries:
                 locations.append(to_lsp_location(ve.source_uri, ve.definition_range))
 
     return locations
+
+
+def _position_is_command_head(
+    analysis: AnalysisResult | None,
+    line: int,
+    col: int,
+) -> bool:
+    """Whether the cursor sits on a command head (call site).
+
+    Uses the analyser's ``command_invocations`` — each records the span
+    of a command word — so the cross-document definition fallback only
+    treats genuine call sites as proc references.
+    """
+    if analysis is None:
+        return False
+    from shared.position import position_in_range
+
+    return any(position_in_range(line, col, inv.range) for inv in analysis.command_invocations)
 
 
 # Go to type definition
