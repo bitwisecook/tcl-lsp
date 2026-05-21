@@ -191,17 +191,32 @@ def find_var_at_position(
     if line >= len(lines):
         return None
     line_text = lines[line]
+    n = len(line_text)
+    pos = min(character, n)
 
-    pos = min(character, len(line_text))
+    # Braced form ``${name}`` (name may contain ``::`` and ``()``).  The
+    # backward word-scan below stops at ``{``/``}``, so the braced form is
+    # handled first: find a ``${`` at or before the cursor whose matching
+    # ``}`` lies at or after it.
+    open_idx = line_text.rfind("${", 0, pos + 1)
+    if open_idx != -1:
+        close_idx = line_text.find("}", open_idx + 2)
+        if close_idx != -1 and open_idx <= pos <= close_idx:
+            braced = line_text[open_idx + 2 : close_idx]
+            if braced:
+                # ``${arr(k)}`` references the array variable ``arr``.
+                paren = braced.find("(")
+                return braced[:paren] if paren != -1 else braced
+
     while pos > 0 and line_text[pos - 1] not in ' \t\n;{}[]"':
         pos -= 1
     if pos > 0 and line_text[pos - 1] == "$":
         pos -= 1
 
-    if pos < len(line_text) and line_text[pos] == "$":
+    if pos < n and line_text[pos] == "$":
         start = pos + 1
         end = start
-        while end < len(line_text) and (line_text[end].isalnum() or line_text[end] in "_:"):
+        while end < n and (line_text[end].isalnum() or line_text[end] in "_:"):
             end += 1
         var_name = line_text[start:end]
         if var_name:

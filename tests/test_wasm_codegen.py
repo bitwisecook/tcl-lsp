@@ -501,9 +501,9 @@ def test_global_emits_nothing():
 
     module = _compile("proc f {} { global x; return 1 }\n")
     proc_funcs = [f for f in module.functions if f.name != "::top"]
-    if proc_funcs:
-        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
-        assert nop_count == 0
+    assert proc_funcs, "expected proc ::f to be compiled"
+    nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+    assert nop_count == 0
 
 
 # Proc call codegen

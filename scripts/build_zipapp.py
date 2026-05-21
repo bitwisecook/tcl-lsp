@@ -408,6 +408,28 @@ def build_wasm(version: str, output: Path) -> None:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
 
+        # Bundle the Zig runtime WASM variants so the compiler can link
+        # and emit a runnable binary without a source checkout.  The
+        # resolver in core/compiler/codegen/wasm/extensions.py reads them
+        # from this subpackage when the dev build tree is unavailable.
+        runtime_bin = ROOT / "runtime" / "zig" / "zig-out" / "bin"
+        runtime_dst = stage / "core" / "_wasm_runtime"
+        runtime_dst.mkdir(parents=True, exist_ok=True)
+        (runtime_dst / "__init__.py").write_text(
+            '"""Bundled Zig runtime WASM artifacts (zipapp only)."""\n'
+        )
+        runtime_wasms = ["tcl_runtime.wasm", "tcl_runtime_with_tcltest.wasm"]
+        for name in runtime_wasms:
+            src = runtime_bin / name
+            if not src.is_file():
+                msg = (
+                    f"build_wasm: runtime artifact {src} missing — "
+                    f"build it via `cd runtime/zig && zig build` "
+                    f"(the Makefile zipapp-wasm target depends on this)."
+                )
+                raise FileNotFoundError(msg)
+            shutil.copy2(src, runtime_dst / name)
+
         # Copy explorer/ package (only wasm_cli.py needed, but include all)
         shutil.copytree(
             ROOT / "explorer",

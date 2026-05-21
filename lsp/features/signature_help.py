@@ -162,6 +162,22 @@ def _builtin_signature_help(
                             parameters=params,
                         )
                     )
+
+        # Fallback: the per-subcommand spec carries its own synopsis (e.g.
+        # ``string length string``) even when the parent command exposes only
+        # the generic ``string option arg`` form.
+        if not signatures:
+            subcmd_spec = (spec.subcommands or {}).get(subcmd)
+            syn = getattr(subcmd_spec, "synopsis", None) if subcmd_spec else None
+            if syn:
+                detail = getattr(subcmd_spec, "detail", None)
+                signatures.append(
+                    types.SignatureInformation(
+                        label=syn,
+                        documentation=detail or doc,
+                        parameters=_parse_synopsis_params(syn, skip_tokens=2),
+                    )
+                )
     else:
         # Non-subcommand: use all forms / hover synopsis
         doc = _signature_documentation(spec)

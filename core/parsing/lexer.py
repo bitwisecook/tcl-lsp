@@ -1162,3 +1162,24 @@ class TclLexer:
                 break
             tokens.append(tok)
         return tokens
+
+
+def is_simple_scalar_var_word(text: str) -> bool:
+    """Return ``True`` when *text* is exactly one ``$var`` / ``${var}`` scalar
+    variable reference (no array index), named with the conventional shape.
+
+    Token-based replacement for the simple-var-word regexes: it follows
+    Tcl's real variable-name rules (only ``::`` is a namespace separator, a
+    lone ``:`` ends the name), so it is stricter than the old regex on
+    malformed input and identical on valid input.
+    """
+    lexer = TclLexer(text)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
+        return False
+    name = tok.text
+    if text not in (f"${name}", f"${{{name}}}"):
+        return False
+    if not name or not (name[0].isalpha() or name[0] == "_"):
+        return False
+    return all(ch.isalnum() or ch in "_:" for ch in name)

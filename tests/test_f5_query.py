@@ -76,8 +76,13 @@ when HTTP_REQUEST {
 
 
 def test_parser_accepts_every_cookbook_example():
-    for example in list_examples():
-        parse_query(example.query)
+    examples = list(list_examples())
+    assert examples, "no cookbook examples registered"
+    for example in examples:
+        program = parse_query(example.query)
+        # Every example must parse to a program with at least one statement,
+        # not merely "not raise".
+        assert program.statements, example.query
 
 
 def test_parser_rejects_assignment_with_non_path_lhs():
@@ -86,11 +91,15 @@ def test_parser_rejects_assignment_with_non_path_lhs():
 
 
 def test_parser_accepts_pipeline_assignment():
-    parse_query('.ltm.virtual[] | .destination |= ip("10.0.0.0/24", .)')
+    program = parse_query('.ltm.virtual[] | .destination |= ip("10.0.0.0/24", .)')
+    # A single piped update statement.
+    assert len(program.statements) == 1
 
 
 def test_parser_accepts_semicolon_statements():
-    parse_query(".ltm.virtual[].name ; .ltm.pool[].name")
+    program = parse_query(".ltm.virtual[].name ; .ltm.pool[].name")
+    # The semicolon separates two independent statements.
+    assert len(program.statements) == 2
 
 
 # ---------------------------------------------------------------------------

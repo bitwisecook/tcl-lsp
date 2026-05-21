@@ -2386,5 +2386,5 @@ when HTTP_REQUEST {
         paths = _extract_test_paths(source)
         # log is normally low priority, but HTTP::uri in condition elevates to normal
         log_path = next((p for p in paths if p["action"]["command"] == "log"), None)
-        if log_path:
-            assert log_path["priority"] in ("normal", "high")
+        assert log_path is not None, "expected a log action path"
+        assert log_path["priority"] in ("normal", "high")

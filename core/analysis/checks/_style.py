@@ -13,7 +13,12 @@ from ...commands.registry.runtime import (
 )
 from ...common.codes import diag
 from ...common.dialect import active_dialect
-from ...common.ranges import position_from_relative, range_from_token, range_from_tokens
+from ...common.ranges import (
+    position_from_relative,
+    range_from_token,
+    range_from_tokens,
+    widen_range_for_closer,
+)
 from ...compiler.expr_ast import (
     BinOp,
     ExprBinary,
@@ -25,6 +30,7 @@ from ...compiler.expr_ast import (
     ExprUnary,
 )
 from ...parsing.expr_parser import parse_expr
+from ...parsing.lexer import TclLexer
 from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
@@ -877,16 +883,38 @@ def check_string_compare_in_expr(
         if len(matched_ops) >= total_eq_ne:
             fixed = _rewrite_string_compare_ops(text)
             if fixed != text:
+                # ``text`` for a braced/quoted ``if``/``while`` condition is the
+                # delimiter-free word content, so the fix range must exclude the
+                # opening delimiter — otherwise the rewrite eats the ``{`` and
+                # leaves a dangling ``}``.  (For ``expr`` the slice already
+                # includes the opener, so it is left as-is.)
+                fix_range = range_for_fix
+                opener_off = tok.start.offset
+                if (
+                    cmd_name != "expr"
+                    and 0 <= opener_off < len(source)
+                    and source[opener_off] in '{"'
+                ):
+                    fix_range = Range(
+                        start=SourcePosition(
+                            line=tok.start.line,
+                            character=tok.start.character + 1,
+                            offset=opener_off + 1,
+                        ),
+                        end=tok.end,
+                    )
                 fixes = (
                     CodeFix(
-                        range=range_for_fix,
+                        range=fix_range,
                         new_text=fixed,
                         description=f"Use '{replacement}' for string comparison",
                     ),
                 )
+        # The squiggle covers the whole braced expression (including the
+        # closing brace the lexer omits); the code fix keeps its own range.
         diagnostics.append(
             Diagnostic(
-                range=range_for_fix,
+                range=widen_range_for_closer(source, range_for_fix),
                 message=(
                     f"Use '{replacement}' instead of '{op}' for string "
                     f"comparison in expressions to avoid ambiguous "
@@ -1439,7 +1467,25 @@ def check_loop_bound_inequality(
 
 # W114: Redundant nested [expr]
 
-_NESTED_EXPR_RE = re.compile(r"\[\s*expr\s")
+
+def _find_nested_expr_subst(text: str) -> tuple[int, int] | None:
+    """Return ``(start, end)`` offsets of the first top-level ``[expr ...]``
+    command substitution in *text*, end inclusive of the closing ``]``.
+
+    Token-based: scans for a command-substitution token whose inner command
+    is ``expr``; the lexer handles bracket nesting, so a deeper ``[expr ...]``
+    inside another command is not mistaken for a redundant nested expr.
+    """
+    lexer = TclLexer(text)
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            return None
+        if tok.type is TokenType.CMD:
+            inner = tok.text.lstrip()
+            first = inner.split(None, 1)[0] if inner else ""
+            if first == "expr":
+                return tok.start.offset, tok.end.offset + 1
 
 
 @diag("W114", "Redundant nested `[expr {...}]` — already in expression context.", section="warning")
@@ -1465,21 +1511,17 @@ def check_redundant_expr(
         if idx >= len(args) or idx >= len(arg_tokens):
             continue
         text = args[idx]
-        m = _NESTED_EXPR_RE.search(text)
-        if m is None:
+        # Find a nested ``[expr ...]`` command substitution at the top level of
+        # the expression text via the tokeniser.  A bracketed expr nested
+        # inside another command (``[foo [expr ...]]``) is *not* in an
+        # expression context, so the lexer's top-level scan correctly skips it.
+        nested = _find_nested_expr_subst(text)
+        if nested is None:
             continue
+        cmd_start, cmd_end = nested
         tok = arg_tokens[idx]
-        start = _pos_in_cmd_text(tok, m.start())
-        # Find the matching closing ']' for the range end.
-        depth = 1
-        end_idx = m.end()
-        while end_idx < len(text) and depth > 0:
-            if text[end_idx] == "[":
-                depth += 1
-            elif text[end_idx] == "]":
-                depth -= 1
-            end_idx += 1
-        end = _pos_in_cmd_text(tok, end_idx - 1)
+        start = _pos_in_cmd_text(tok, cmd_start)
+        end = _pos_in_cmd_text(tok, cmd_end)
         diagnostics.append(
             Diagnostic(
                 range=Range(start=start, end=end),

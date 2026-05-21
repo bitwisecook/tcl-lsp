@@ -13,19 +13,108 @@ import re
 
 from ...commands.registry import REGISTRY
 from ...common.codes import diag
+from ...common.document_buffer import DocumentBuffer
+from ...common.naming import normalise_var_name
 from ...compiler.ir import (
     IRAssignConst,
     IRAssignValue,
     IRStatement,
 )
 from ...parsing.argv import widen_argv_tokens_to_word_spans
-from ...parsing.tokens import Token
+from ...parsing.command_segmenter import segment_commands
+from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     _NOQA_ALL,
     ParamDef,
+    Range,
 )
 
 log = logging.getLogger(__name__)
+
+_WORD_CLOSERS = {'"': '"', "{": "}", "[": "]"}
+
+
+def _inclusive_word_end(source: str, tok_type: TokenType, start_off: int, end_off: int) -> int:
+    """Inclusive offset of a word's last character in whole *source*.
+
+    Internal ``Range`` ends are inclusive (the LSP layer makes them
+    exclusive).  ``Token.end.offset`` points at the last *content* character;
+    widen by one to swallow the closing delimiter the lexer omits from
+    braced/quoted/bracketed words (and the ``}`` of a ``${var}``).  The check
+    runs against the full source so a truncated statement span — which itself
+    may drop the closer — does not hide it."""
+    if tok_type in (TokenType.STR, TokenType.CMD, TokenType.ESC):
+        if 0 <= start_off < len(source):
+            closer = _WORD_CLOSERS.get(source[start_off])
+            if closer and end_off + 1 < len(source) and source[end_off + 1] == closer:
+                return end_off + 1
+    elif (
+        tok_type is TokenType.VAR
+        and source[start_off : start_off + 2] == "${"
+        and end_off + 1 < len(source)
+        and source[end_off + 1] == "}"
+    ):
+        return end_off + 1
+    return end_off
+
+
+def narrow_to_variable(
+    source: str,
+    buffer: DocumentBuffer,
+    stmt_range: Range,
+    *,
+    variable: str,
+    kind: str,
+) -> Range | None:
+    """Narrow a whole-statement range to the token that concerns *variable*.
+
+    Re-segments the statement's own source span (so the work is token-based,
+    not text scanning) and locates:
+
+    - ``"assigned_name"`` — the assignment target (second word of ``set`` etc.);
+    - ``"read_var"`` — the ``$var`` reference being read;
+    - ``"named_arg"`` — a bareword argument naming the variable (``unset x``).
+
+    Returns *None* when the token cannot be located, so callers fall back to
+    the statement range rather than emitting a worse one.
+    """
+    base = stmt_range.start.offset
+    seg = source[base : stmt_range.end.offset + 1]
+    cmds = segment_commands(seg)
+    if not cmds or not cmds[0].argv:
+        return None
+    cmd = cmds[0]
+
+    tok: Token | None = None
+    if kind == "assigned_name":
+        if len(cmd.argv) >= 2:
+            tok = cmd.argv[1]
+    elif kind == "read_var":
+        target = normalise_var_name(variable)
+        tok = next(
+            (
+                t
+                for t in cmd.all_tokens
+                if t.type is TokenType.VAR and normalise_var_name(t.text) == target
+            ),
+            None,
+        )
+    elif kind == "named_arg":
+        target = normalise_var_name(variable)
+        tok = next(
+            (t for t in cmd.argv[1:] if normalise_var_name(t.text) == target),
+            None,
+        )
+    if tok is None:
+        return None
+
+    start_off = base + tok.start.offset
+    end_off = _inclusive_word_end(source, tok.type, start_off, base + tok.end.offset)
+    return Range(
+        start=buffer.offset_to_position(start_off),
+        end=buffer.offset_to_position(end_off),
+    )
+
 
 # iRules commands that are only valid at the top level of an iRule script.
 # Derived from ``irules_top_level_only`` on CommandSpec at first use.

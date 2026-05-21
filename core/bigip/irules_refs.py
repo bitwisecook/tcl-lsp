@@ -350,9 +350,18 @@ def extract_irules_object_references(
     parent and is widened to "overdefined" when a re-assignment from a
     non-literal source (e.g. ``set p [HTTP::host]``) makes the binding
     unsafe to trust.
+
+    Command recognition (``pool`` / ``class`` / ``snatpool`` / ...) is
+    dialect-driven, so this iRules-specific scan pins the iRules dialect
+    for its duration rather than depending on whatever dialect happens to
+    be active in the caller — otherwise it silently returns nothing when
+    invoked outside an iRules context.
     """
+    from core.common.dialect import dialect_scope
+
     refs: list[IrulesObjectReference] = []
-    _walk_irules_commands(source, refs, body_token=body_token, rule_module=rule_module)
+    with dialect_scope("f5-irules"):
+        _walk_irules_commands(source, refs, body_token=body_token, rule_module=rule_module)
     refs.sort(
         key=lambda ref: (
             ref.range.start.line,

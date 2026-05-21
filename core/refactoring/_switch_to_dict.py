@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
-import re
-
+from ..parsing.command_segmenter import segment_commands
 from . import RefactoringEdit, RefactoringResult
-from ._spans import command_replacement_range, find_command_at
+from ._spans import command_replacement_range, find_command_at, token_end_offset
 
-_SET_RESULT_RE = re.compile(r"^\s*set\s+(\S+)\s+(.+?)\s*$", re.DOTALL)
-_RETURN_RESULT_RE = re.compile(r"^\s*return\s+(.+?)\s*$", re.DOTALL)
+
+def _parse_branch_assignment(body_text: str) -> tuple[str, str, str] | None:
+    """Parse a single-command switch branch body via the tokeniser.
+
+    Returns ``("set", var, raw_value)`` for ``set var value``,
+    ``("return", "", raw_value)`` for ``return value``, else ``None``.  The
+    value keeps its original source span (quotes/braces intact) so the
+    generated dict preserves the literal exactly.
+    """
+    commands = segment_commands(body_text)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    cmd = commands[0]
+
+    def raw(index: int) -> str:
+        tok = cmd.argv[index]
+        return body_text[tok.start.offset : token_end_offset(body_text, tok)]
+
+    if cmd.texts[0] == "set" and len(cmd.texts) == 3:
+        return ("set", cmd.texts[1], raw(2))
+    if cmd.texts[0] == "return" and len(cmd.texts) == 2:
+        return ("return", "", raw(1))
+    return None
 
 
 def switch_to_dict(
@@ -83,11 +103,11 @@ def switch_to_dict(
         if body_text == "-":
             return None
 
+        parsed = _parse_branch_assignment(body_text)
+
         # Try ``set var value``.
-        m = _SET_RESULT_RE.match(body_text)
-        if m:
-            var = m.group(1)
-            value = m.group(2).strip()
+        if parsed is not None and parsed[0] == "set":
+            var, value = parsed[1], parsed[2]
             if target_var is None:
                 target_var = var
                 use_return = False
@@ -100,9 +120,8 @@ def switch_to_dict(
             continue
 
         # Try ``return value``.
-        m = _RETURN_RESULT_RE.match(body_text)
-        if m:
-            value = m.group(1).strip()
+        if parsed is not None and parsed[0] == "return":
+            value = parsed[2]
             if target_var is None:
                 target_var = "__return__"
                 use_return = True

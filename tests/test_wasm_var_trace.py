@@ -156,8 +156,10 @@ class TestExtAliasResolutionRobustness:
         # Reference Tcl 9: an ``upvar`` alias goes stale once the
         # caller frame pops; subsequent writes should be a no-op or
         # raise a "no such variable" error — they must not fault the
-        # interpreter.  Pin the no-trap contract.
-        _run_and_read_global(
+        # interpreter.  Pin the no-trap contract *and* the value: inner's
+        # ``set alias 7`` writes through to outer's ``x`` while the frame is
+        # live, so outer returns 7.
+        result = _run_and_read_global(
             """\
 proc inner {} { upvar 1 x alias; set alias 7 ; return $alias }
 proc outer {} { set x {} ; inner ; return $x }
@@ -165,6 +167,7 @@ set ::result [outer]
 """,
             "::result",
         )
+        assert result == b"7"
 
     def test_namespaced_array_via_upvar_does_not_trap(self):
         result = _run_and_read_global(

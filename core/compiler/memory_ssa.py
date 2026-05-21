@@ -300,7 +300,13 @@ def compute_aliases(ssa: SSAFunction) -> list[AliasSet]:
             # upvar / namespace upvar
             for caller_var, local_var in _detect_upvar(stmt):
                 upvar_loc = MemoryLocation(MemoryLocationKind.UPVAR, local_var, caller_var)
-                caller_loc = MemoryLocation(MemoryLocationKind.UPVAR, caller_var, local_var)
+                # The caller-side node is keyed on the caller variable alone
+                # (empty qualifier) so that two aliases of the *same* caller
+                # var — ``upvar 1 x a; upvar 1 x b`` — share this node and
+                # union-find merges ``a`` and ``b`` into one set. Encoding the
+                # local name in the qualifier here would make each pair's
+                # caller node distinct and silently break transitive merging.
+                caller_loc = MemoryLocation(MemoryLocationKind.UPVAR, caller_var, "")
                 union(upvar_loc, caller_loc, "upvar")
 
             # global
