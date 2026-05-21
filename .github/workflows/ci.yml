@@ -716,7 +716,7 @@ jobs:
       - name: Build JetBrains plugin
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
-        run: make jetbrains
+        run: make build-editor-jetbrains
 
       - uses: ./.github/actions/sign-and-upload
         with:
@@ -747,7 +747,7 @@ jobs:
       - uses: ./.github/actions/setup-build
 
       - name: Build Sublime Text package
-        run: make sublime
+        run: make build-editor-sublime
 
       - name: Smoke-test Sublime package
         run: |
@@ -803,7 +803,7 @@ jobs:
           components: clippy, rustfmt
 
       - name: Build Zed extension
-        run: make zed
+        run: make build-editor-zed
 
       - name: Smoke-test Zed archive
         run: |

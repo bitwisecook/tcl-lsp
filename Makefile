@@ -7,7 +7,7 @@
 #   make check-all     Pre-push gate — full lint+typecheck across all languages.
 #   make test-slow     Pre-PR gate — comprehensive (everything).
 #   make prep-pr       Fast pre-PR gate — format + codegen + lint + test-py.
-#   make vsix          Build the VS Code .vsix (runs tests first).
+#   make build-editor-vsix          Build the VS Code .vsix (runs tests first).
 #   make zipapps       Build every zipapp.
 #   make release       Build every release artefact.
 #
@@ -171,8 +171,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: zipapps zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
 .PHONY: smoke-zipapps smoke-vsix
 # Packaging + publish + release
-.PHONY: vsix verify-vsix install package-vsix publish-vsix
-.PHONY: jetbrains publish-jetbrains sublime publish-sublime zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
+.PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-codeql-gate release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
@@ -191,7 +191,9 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-vsix: lint test compile verify-vsix ## Build the .vsix (tests must pass first)
+build-editors: build-editor-vsix build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
+
+build-editor-vsix: lint test compile verify-vsix ## Build the .vsix (tests must pass first)
 install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
@@ -1223,7 +1225,7 @@ package-vsix: compile $(VSIX_FILE) verify-vsix ## Package VSIX (skip lint/test, 
 JB_DIR     := $(ROOT)editors/jetbrains
 JB_PLUGIN  := $(BUILD_DIR)/tcl-lsp-jetbrains-$(VERSION).zip
 
-jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
+build-editor-jetbrains: $(JB_PLUGIN) ## Build JetBrains plugin (.zip)
 
 $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building JetBrains plugin"
@@ -1257,7 +1259,7 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
 
-publish-jetbrains: verify-test-slow-stamp jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
+publish-jetbrains: verify-test-slow-stamp build-editor-jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
 	@echo "==> Resolving JetBrains Marketplace credentials"
 	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/release/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
@@ -1269,7 +1271,7 @@ publish-jetbrains: verify-test-slow-stamp jetbrains ## Publish JetBrains plugin 
 ST_DIR      := $(ROOT)editors/sublime-text
 ST_PACKAGE  := $(BUILD_DIR)/tcl-lsp-sublime-$(VERSION).sublime-package
 
-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
+build-editor-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
 $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@echo "==> Building Sublime Text package"
@@ -1291,7 +1293,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: verify-test-slow-stamp sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
+publish-sublime: verify-test-slow-stamp build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/release/publish_sublime.sh
 
 # Zed extension
@@ -1301,7 +1303,7 @@ ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
 ZED_BUNDLED := $(ZED_DIR)/bundled
 
-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
+build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
 $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building LSP + MCP server zipapps for bundling"
@@ -1336,7 +1338,7 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
-publish-zed: verify-test-slow-stamp zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
+publish-zed: verify-test-slow-stamp build-editor-zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
 	@bash $(ROOT)scripts/release/publish_zed.sh
 
 # Release

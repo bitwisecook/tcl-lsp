@@ -17,7 +17,7 @@
 # Flow per release
 # ----------------
 #   1. Resolve the current tag (HEAD must be at v<X.Y.Z>).
-#   2. Confirm `make sublime` ran (build/sublime-stage exists).
+#   2. Confirm `make build-editor-sublime` ran (build/sublime-stage exists).
 #   3. (Best-effort) confirm the GitHub Release on the main repo carries
 #      the .sublime-package asset.
 #   4. Clone or refresh the mirror at $HOME/.cache/tcl-lsp/sublime-mirror.
@@ -55,9 +55,9 @@ if [ -z "$TAG" ]; then
 fi
 VERSION="${TAG#v}"
 
-# 2. Verify make sublime has run.
+# 2. Verify make build-editor-sublime has run.
 if [ ! -d "$STAGE_DIR" ]; then
-    echo "error: $STAGE_DIR not found — run 'make sublime' first."
+    echo "error: $STAGE_DIR not found — run 'make build-editor-sublime' first."
     exit 1
 fi
 
