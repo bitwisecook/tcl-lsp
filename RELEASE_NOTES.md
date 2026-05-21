@@ -46,6 +46,15 @@
   bridge object whose `postMessage` queues requests until the Kotlin
   host installs `window.__tcllspBridge`, at which point the queue is
   drained.
+- **JetBrains: Compiler Explorer source push no longer races the EDT.**
+  Even with the JCEF bridge in place, the explorer could stay on
+  "Waiting for source from editor..." when it was opened while a Tcl
+  file was already the active tab: the initial push ran from the JCEF
+  `onLoadEnd` callback thread and read `selectedTextEditor` off the
+  EDT, so it silently produced nothing and no editor event ever fired
+  to retry. The push now hops to the EDT, and the panel also listens
+  for `selectionChanged` so switching between already-open tabs
+  recompiles.
 - **JetBrains: bundle LSP server outside the plugin jar.** v1.10.6
   shipped the source-level W105 quick-fix that preserves `$` in
   variable references (`$script` → `{$script}`), but users running the
@@ -102,6 +111,12 @@
 
 ## Improvements
 
+- **"Open In Tcl Compiler Explorer" context-menu entry.** Both editor
+  plugins now expose the Compiler Explorer from a right-click. JetBrains
+  adds an "Open In Tcl Compiler Explorer" action to the editor and
+  project-view popups that reveals the tool window and pushes the file;
+  VS Code's existing entry is renamed to "Open in Tcl Compiler Explorer"
+  to match.
 - **`mathop` operators delegate to `tcl_arith` helpers.** The
   `::tcl::mathop` namespace no longer duplicates arithmetic; every
   operator now routes through the shared `tcl_arith` paths, bringing

@@ -60,7 +60,7 @@ The full-featured extension, distributed as a `.vsix`, bundles the LSP server
 and provides the richest integration.
 
 **25+ commands** including: Restart Server, Select Dialect, Apply Safe Quick
-Fixes, Apply All Optimisations, Open Compiler Explorer, Open Tk Preview,
+Fixes, Apply All Optimisations, Open in Tcl Compiler Explorer, Open Tk Preview,
 Format Document, Minify Document, Insert iRule Event Skeleton, Scaffold Tcl
 Package Starter, Insert `package require`, Run Runtime Validation, Translate
 iRule to F5 XC, Extract iRule from Config, Escape/Unescape Selection, Base64

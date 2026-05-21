@@ -1,7 +1,11 @@
 package com.tcllsp.jetbrains
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -17,7 +21,6 @@ import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.cef.browser.CefBrowser
 import org.cef.handler.CefLoadHandlerAdapter
 import java.util.concurrent.CompletableFuture
-import javax.swing.Timer
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.CompilerExplorer")
 
@@ -32,14 +35,15 @@ class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun shouldBeAvailable(project: Project): Boolean = true
 }
 
-private class CompilerExplorerPanel(private val project: Project) {
+internal class CompilerExplorerPanel(private val project: Project) {
 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
-    private var debounceTimer: Timer? = null
     private var lastSource: String = ""
 
     init {
+        project.service<CompilerExplorerService>().register(this)
+
         // Set up JS → Kotlin bridge
         jsQuery.addHandler { message ->
             handleJsMessage(message)
@@ -63,20 +67,28 @@ private class CompilerExplorerPanel(private val project: Project) {
                     """.trimIndent()
                     cefBrowser?.executeJavaScript(bridgeJs, "", 0)
 
-                    // Push initial source
-                    pushSourceFromActiveEditor()
+                    // Push initial source. onLoadEnd runs on a JCEF thread, so
+                    // the editor read must hop to the EDT — see pushFromActiveEditor.
+                    pushFromActiveEditor()
                 }
             }
         }, browser.cefBrowser)
 
         browser.loadHTML(getCompilerExplorerHtml())
 
-        // Listen for file editor changes
+        // Listen for file editor changes. fileOpened covers newly opened files;
+        // selectionChanged covers switching between already-open tabs (including
+        // the common case where the explorer is opened while a Tcl file is
+        // already the active tab and no fileOpened event ever fires).
         project.messageBus.connect().subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
             object : FileEditorManagerListener {
                 override fun fileOpened(source: FileEditorManager, file: VirtualFile) {
-                    pushSourceFromActiveEditor()
+                    pushFromActiveEditor()
+                }
+
+                override fun selectionChanged(event: FileEditorManagerEvent) {
+                    pushFromActiveEditor()
                 }
 
                 override fun fileClosed(source: FileEditorManager, file: VirtualFile) {}
@@ -84,14 +96,36 @@ private class CompilerExplorerPanel(private val project: Project) {
         )
     }
 
-    private fun pushSourceFromActiveEditor() {
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
-        val document = editor.document
-        val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull() ?: return
-        if (!TclFileType.isSupported(file)) return
+    /**
+     * Read the active editor's Tcl source and push it to the webview.
+     *
+     * Editor access (`selectedTextEditor`, document text) is only valid on the
+     * EDT, but this is invoked both from the EDT (editor listeners) and from a
+     * JCEF callback thread (`onLoadEnd`). Hopping through `invokeLater`
+     * normalises that — without it the initial load-time push silently fails
+     * off-EDT and the IR pane stays stuck on "Waiting for source from editor...".
+     */
+    fun pushFromActiveEditor(force: Boolean = false) {
+        ApplicationManager.getApplication().invokeLater {
+            val manager = FileEditorManager.getInstance(project)
+            val editor = manager.selectedTextEditor ?: return@invokeLater
+            val file = manager.selectedFiles.firstOrNull() ?: return@invokeLater
+            if (!TclFileType.isSupported(file)) return@invokeLater
+            dispatchSource(editor.document.text, force)
+        }
+    }
 
-        val source = document.text
-        if (source == lastSource) return
+    /** Push a specific file's source, used by the "Open In" action. */
+    fun pushFile(file: VirtualFile, force: Boolean = true) {
+        ApplicationManager.getApplication().invokeLater {
+            if (!TclFileType.isSupported(file)) return@invokeLater
+            val document = FileDocumentManager.getInstance().getDocument(file) ?: return@invokeLater
+            dispatchSource(document.text, force)
+        }
+    }
+
+    private fun dispatchSource(source: String, force: Boolean) {
+        if (!force && source == lastSource) return
         lastSource = source
 
         val dialect = TclLspSettings.getInstance().dialect
@@ -188,20 +222,19 @@ private class CompilerExplorerPanel(private val project: Project) {
 
     private fun highlightSourceRange(startOffset: Int, endOffset: Int) {
         // Highlight in the main editor — run on EDT
-        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+        ApplicationManager.getApplication().invokeLater {
             val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
             val document = editor.document
             if (startOffset < 0 || endOffset > document.textLength) return@invokeLater
 
             val startPos = editor.offsetToLogicalPosition(startOffset)
-            val endPos = editor.offsetToLogicalPosition(endOffset)
             editor.selectionModel.setSelection(startOffset, endOffset)
             editor.scrollingModel.scrollTo(startPos, com.intellij.openapi.editor.ScrollType.CENTER_UP)
         }
     }
 
     private fun clearSourceHighlight() {
-        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+        ApplicationManager.getApplication().invokeLater {
             val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
             editor.selectionModel.removeSelection()
         }

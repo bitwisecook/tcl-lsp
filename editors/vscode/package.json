@@ -375,7 +375,7 @@
       },
       {
         "command": "tclLsp.openCompilerExplorer",
-        "title": "Open Compiler Explorer",
+        "title": "Open in Tcl Compiler Explorer",
         "category": "Tcl"
       },
       {
