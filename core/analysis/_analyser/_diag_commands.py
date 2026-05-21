@@ -56,9 +56,9 @@ class _AnalyserDiagCommandsMixin(_Base):
         registry_names = frozenset(REGISTRY.command_names(dialect)) | frozenset(
             active_extra_commands()
         )
-        stub_names = frozenset(
-            s.name for s in self.result.stub_commands
-        ) | frozenset(s.name for s in ambient_cmd_stubs())
+        stub_names = frozenset(s.name for s in self.result.stub_commands) | frozenset(
+            s.name for s in ambient_cmd_stubs()
+        )
 
         proc_tail_names: set[str] = set()
         for qname in self.result.all_procs:

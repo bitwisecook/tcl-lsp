@@ -99,8 +99,8 @@ if TYPE_CHECKING:
 # and the compile cache fingerprint, but NOT the per-file shadow check
 # (W116/W117) — their ``range`` points into a different document, so
 # attaching diagnostics to the file under analysis would be wrong.
-_ambient_cmd_stubs_var: contextvars.ContextVar[tuple[StubCommandDef, ...]] = (
-    contextvars.ContextVar("tcl_lsp_ambient_cmd_stubs", default=())
+_ambient_cmd_stubs_var: contextvars.ContextVar[tuple[StubCommandDef, ...]] = contextvars.ContextVar(
+    "tcl_lsp_ambient_cmd_stubs", default=()
 )
 
 
@@ -131,6 +131,7 @@ def set_ambient_stubs(cmd_stubs: "Iterable[StubCommandDef]") -> None:
     parent process and re-establish per-request state on every call (the
     same pattern as ``configure_signatures``)."""
     _ambient_cmd_stubs_var.set(tuple(cmd_stubs))
+
 
 _VALID_ROLES: frozenset[str] = frozenset(
     {"body", "expr", "var", "var_read", "name", "pattern", "channel", "value"}

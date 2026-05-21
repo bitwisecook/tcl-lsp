@@ -2386,10 +2386,9 @@ class _Lowerer:
             case "foreach":
                 return self._lower_foreach(cmd, namespace=namespace)
 
-            case "foreach_in_collection" if (
-                REGISTRY.get(cmd_name, _active_dialect()) is not None
-                or is_loop_command(cmd_name, args)
-            ):
+            case "foreach_in_collection" if REGISTRY.get(
+                cmd_name, _active_dialect()
+            ) is not None or is_loop_command(cmd_name, args):
                 # Lower as a loop when the command is enabled in the active
                 # dialect or declared as a ``-loop`` stub.  Enforce exact
                 # arity so incorrect arg counts produce IRBarrier and get

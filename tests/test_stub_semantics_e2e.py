@@ -306,9 +306,7 @@ class TestExternalStubDiscovery:
 
         git = tmp_path / ".git"
         git.mkdir()
-        (git / "ignored.tcl.stubs").write_text(
-            "stub should_not_load {x}\n", encoding="utf-8"
-        )
+        (git / "ignored.tcl.stubs").write_text("stub should_not_load {x}\n", encoding="utf-8")
 
         monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
         _discover_workspace_stubs([str(tmp_path)], [])
@@ -320,11 +318,7 @@ class TestExternalStubDiscovery:
 class TestShippedSampleIsClean:
     def test_inline_example_sample_has_no_diagnostics(self):
         sample = (
-            Path(__file__).resolve().parent.parent
-            / "samples"
-            / "dialect_stubs_inline_example.tcl"
+            Path(__file__).resolve().parent.parent / "samples" / "dialect_stubs_inline_example.tcl"
         )
         result = analyse(sample.read_text(encoding="utf-8"))
-        assert result.diagnostics == [], [
-            (d.code, d.message) for d in result.diagnostics
-        ]
+        assert result.diagnostics == [], [(d.code, d.message) for d in result.diagnostics]
