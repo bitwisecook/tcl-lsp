@@ -3,7 +3,7 @@
 # 'scripts/test-slow-stamp.sh check'.  Only 'fingerprint' is gated on;
 # describe/head/date are informational (they change when this stamp is
 # committed, so they cannot be compared).
-describe=27296dd-dirty
-head=27296dd04c04170cfc83c105e29f9054ec0e6e9f
-date=2026-05-21T14:58:31Z
-fingerprint=cb6dc033d3f5f99655b01044f1ecd7877c870f9874eb2da212218660a5043b72
+describe=7752024-dirty
+head=77520246473ec04c86795db333645f94b5ea4a7e
+date=2026-05-21T14:26:18Z
+fingerprint=3127e08f82bfe7d630d3bd0bfb1b960dc0b1e338d19955a74134d93a9c06efa1

@@ -44,6 +44,12 @@ diagnostic_scheduler = DiagnosticScheduler()
 _per_folder_feature_configs: dict[str, FeatureConfig] = {}
 _per_folder_formatter_configs: dict[str, FormatterConfig] = {}
 
+# Workspace-level command stubs discovered from external ``.tcl.stubs``
+# files at workspace init.  Applied to every analysed document so the
+# analyser understands EDA / dialect commands the same way it does for
+# inline ``# tcl-lsp: stub`` blocks.  Empty when no stub files exist.
+workspace_stub_commands: list = []
+
 # Per-folder PackageResolver instances (issue #407).  When a workspace
 # folder defines its own ``tclLsp.libraryPaths`` the lazily-built resolver
 # in this map is configured with those paths plus the workspace_roots; the
