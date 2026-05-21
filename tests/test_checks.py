@@ -3136,3 +3136,33 @@ class TestStructuralBodyDoesNotLeakIntoOuterScope:
 
     def test_uri_register_body_does_not_leak(self):
         self._assert_outer_diagnostics_fire("uri::register demo { puts $x; set y 1; set p 2 }")
+
+
+class TestSwitchSubjectCountsAsParamUse:
+    """Issue #471 — a parameter read only as a ``switch`` subject must not
+    be reported as an unused parameter (W214).
+
+    An exact ``switch -- $col {...}`` lowers to a chain of CFG branch
+    conditions whose subject is preserved as an ``ExprRaw`` node; the read
+    of ``col`` must still be recognised as a use.
+    """
+
+    def test_switch_subject_param_not_unused(self):
+        source = (
+            "proc editStartCmd {tbl row col text} {\n"
+            "    switch -- $col {\n"
+            "        1 { set combList columns }\n"
+            "        default { return $text }\n"
+            "    }\n"
+            "    return $combList\n"
+            "}\n"
+        )
+        result = analyse(source)
+        unused = {
+            d.message.split("'")[1]
+            for d in result.diagnostics
+            if d.code == "W214"
+        }
+        assert "col" not in unused, f"col wrongly flagged unused; got {sorted(unused)}"
+        # ``row`` is genuinely unused — the check still fires for it.
+        assert "row" in unused, f"expected row to be unused; got {sorted(unused)}"
