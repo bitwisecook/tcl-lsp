@@ -1352,24 +1352,37 @@ def _scan_needed_imports(
             case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
                 if mode == "glob":
                     needed.add("tcl_string_match")
+                elif mode == "regexp":
+                    # No WASM regex matcher: the regexp switch is
+                    # re-invoked *wholesale* through the runtime via the
+                    # eval fallback (see _emit_statement's IRSwitch case).
+                    # Neither the subject nor the arm bodies are emitted
+                    # as WASM, so only the eval/flow imports an IRBarrier
+                    # needs are required — skip scanning the subject and
+                    # bodies to avoid pulling in unused imports.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_catch_has_error")
+                    needed.add("tcl_flow_check_return")
+                    needed.add("tcl_flow_take_return")
                 else:
                     needed.add("tcl_string_equal")
-                # The subject may be a command substitution or
-                # interpolated string — scan it so the codegen's
-                # ``_emit_value`` call in ``_emit_str_value``
-                # (which now routes ``ExprRaw`` through the full
-                # value-emitter) can reach ``tcl_append`` /
-                # ``tcl_list_length`` / etc.  Without this the
-                # interpolation emitter degrades to
-                # ``_emit_obj_literal`` and the subject compares
-                # against its raw source text rather than its
-                # runtime value.
-                _scan_value(subject)
-                for arm in arms:
-                    if arm.body:
-                        _scan_script(arm.body)
-                if default_body:
-                    _scan_script(default_body)
+                if mode != "regexp":
+                    # The subject may be a command substitution or
+                    # interpolated string — scan it so the codegen's
+                    # ``_emit_value`` call in ``_emit_str_value``
+                    # (which now routes ``ExprRaw`` through the full
+                    # value-emitter) can reach ``tcl_append`` /
+                    # ``tcl_list_length`` / etc.  Without this the
+                    # interpolation emitter degrades to
+                    # ``_emit_obj_literal`` and the subject compares
+                    # against its raw source text rather than its
+                    # runtime value.
+                    _scan_value(subject)
+                    for arm in arms:
+                        if arm.body:
+                            _scan_script(arm.body)
+                    if default_body:
+                        _scan_script(default_body)
             case IRCatch(body=body):
                 needed.add("tcl_catch_enter")
                 needed.add("tcl_catch_leave")
