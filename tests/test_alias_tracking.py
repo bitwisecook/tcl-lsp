@@ -245,6 +245,7 @@ class TestRenameAlias:
         line, char = _pos(self.SOURCE, "$alias_x")
         edit = get_rename_edits(self.SOURCE, TEST_URI, line, char + 1, "renamed")
         assert edit is not None
+        assert edit.changes is not None
         new_texts = [e.new_text for e in edit.changes[TEST_URI]]
         # The declaration + ``set`` write rename to the bare name; the ``$``
         # read keeps its sigil.
@@ -255,6 +256,7 @@ class TestRenameAlias:
         line, char = _pos(self.SOURCE, "$alias_x")
         edit = get_rename_edits(self.SOURCE, TEST_URI, line, char + 1, "renamed")
         assert edit is not None
+        assert edit.changes is not None
         # No edit may land on line 5 where ``caller_x`` is defined: the caller
         # variable has a different name and must be left intact.
         assert all(e.range.start.line != 5 for e in edit.changes[TEST_URI])
