@@ -568,6 +568,36 @@ setup_python_venv() {
     echo "session-start: venv ready (VIRTUAL_ENV=${VIRTUAL_ENV:-unset})"
 }
 
+# ---------------------------------------------------------------------------
+# 8. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
+#
+# ensure-test-deps builds tclsh9.0 with ``--disable-shared`` and installs
+# only the ``tclsh`` binary (no ``make install``), so the script library
+# is never laid down at the binary's compiled-in prefix.  Exporting
+# TCL_LIBRARY to the source ``library/`` lets the moved binary find
+# init.tcl etc.  Verified harmless to tclsh8.6 — Tcl falls back to its
+# own bootstrap when the pointed-at library version mismatches.
+# ---------------------------------------------------------------------------
+setup_tcl_library() {
+    local tcl_lib="${REPO_ROOT}/tmp/tcl9.0.3/library"
+    if [ ! -f "${tcl_lib}/init.tcl" ]; then
+        echo "session-start: Tcl 9 library not found at ${tcl_lib} — skipping TCL_LIBRARY" >&2
+        return 0
+    fi
+
+    export TCL_LIBRARY="$tcl_lib"
+
+    local marker="# tcl-lsp: point TCL_LIBRARY at the fetched Tcl 9 library"
+    if [ -n "${HOME:-}" ] && ! grep -qsF "$marker" "${HOME}/.bashrc" 2>/dev/null; then
+        {
+            printf '\n%s\n' "$marker"
+            printf 'export TCL_LIBRARY="%s"\n' "$tcl_lib"
+        } >> "${HOME}/.bashrc"
+        echo "session-start: TCL_LIBRARY export added to ~/.bashrc"
+    fi
+    echo "session-start: TCL_LIBRARY=${TCL_LIBRARY}"
+}
+
 install_zig
 install_wasmtime
 install_binaryen
@@ -577,5 +607,6 @@ install_tcllib
 install_tcl_regex
 install_remaining_test_deps
 setup_python_venv
+setup_tcl_library
 
 echo "session-start: done"
