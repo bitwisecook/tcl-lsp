@@ -219,6 +219,8 @@ class TestSchedulerCancellation:
         """Cancelling a URI with no pending task should be a no-op."""
         scheduler = DiagnosticScheduler()
         scheduler.cancel("file:///nonexistent.tcl")  # Should not raise
+        # No phantom pending entry is created by cancelling an unknown URI.
+        assert scheduler._pending == {}
 
     def test_cancel_all(self):
         """cancel_all should stop all pending tasks."""
