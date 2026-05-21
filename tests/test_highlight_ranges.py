@@ -30,6 +30,14 @@ from __future__ import annotations
 
 import pytest
 
+from core.analysis.semantic_model import Range
+from core.common.ranges import (
+    range_from_word_token,
+    reset_highlight_source,
+    set_highlight_source,
+    widen_for_highlight,
+)
+from core.parsing.tokens import SourcePosition, Token, TokenType
 from explorer.pipeline import run_pipeline
 from explorer.serialise import serialise_result
 
@@ -228,3 +236,91 @@ class TestMultiRangeHighlights:
                 f"branch span not well-formed: {_covered(source, rd)!r}"
             )
         assert _disjoint_and_ordered(spans), "branch spans overlap"
+
+
+# ── unit tests for the range helpers underpinning the fix ──────────────
+
+
+def _pos(offset: int, *, line: int = 0, character: int | None = None) -> SourcePosition:
+    return SourcePosition(
+        line=line, character=offset if character is None else character, offset=offset
+    )
+
+
+def _word_token(ttype: TokenType, text: str, start: int, end: int) -> Token:
+    return Token(type=ttype, text=text, start=_pos(start), end=_pos(end))
+
+
+class TestRangeFromWordToken:
+    def test_str_token_includes_closing_brace(self):
+        # `{$condition}` at offsets 0..11: the STR token spans 0..10 (the `{`
+        # through the last inner char), and the closer is one past the end.
+        tok = _word_token(TokenType.STR, "$condition", start=0, end=10)
+        r = range_from_word_token(tok)
+        assert (r.start.offset, r.end.offset) == (0, 11)
+
+    def test_cmd_token_includes_closing_bracket(self):
+        tok = _word_token(TokenType.CMD, "expr {$z + 1}", start=0, end=13)
+        r = range_from_word_token(tok)
+        assert r.end.offset == 14
+
+    def test_plain_word_token_unchanged(self):
+        tok = _word_token(TokenType.ESC, "set", start=0, end=2)
+        r = range_from_word_token(tok)
+        assert (r.start.offset, r.end.offset) == (0, 2)
+
+    def test_var_token_unchanged(self):
+        tok = _word_token(TokenType.VAR, "x", start=0, end=1)
+        r = range_from_word_token(tok)
+        assert r.end.offset == 1
+
+
+class TestWidenForHighlight:
+    def test_no_op_without_source(self):
+        r = Range(start=_pos(3), end=_pos(13))
+        assert widen_for_highlight(r) is r
+
+    def test_widens_braced_word_when_source_set(self):
+        source = "if {$condition} {body}\n"
+        r = Range(start=_pos(3), end=_pos(13))  # `{$condition` (closer at 14)
+        token = set_highlight_source(source)
+        try:
+            widened = widen_for_highlight(r)
+        finally:
+            reset_highlight_source(token)
+        assert widened.end.offset == 14
+        assert source[r.start.offset : widened.end.offset + 1] == "{$condition}"
+
+    def test_does_not_widen_non_delimiter_span(self):
+        source = "set x 1\n"
+        r = Range(start=_pos(0), end=_pos(2))  # `set`
+        token = set_highlight_source(source)
+        try:
+            assert widen_for_highlight(r).end.offset == 2
+        finally:
+            reset_highlight_source(token)
+
+
+class TestRangeDictConversion:
+    def test_inclusive_to_exclusive_end(self):
+        # Without a highlight source, range_dict still converts the inclusive
+        # semantic-model end to the exclusive end the front-end slices with.
+        from explorer.formatters import range_dict
+
+        rd = range_dict(Range(start=_pos(0), end=_pos(2)))
+        assert rd["startOffset"] == 0
+        assert rd["endOffset"] == 3
+        assert rd["endCol"] == 3
+
+    def test_widens_and_converts_with_source(self):
+        from explorer.formatters import range_dict
+
+        source = "if {$condition} {body}\n"
+        token = set_highlight_source(source)
+        try:
+            rd = range_dict(Range(start=_pos(3), end=_pos(13)))
+        finally:
+            reset_highlight_source(token)
+        # widened to the closer (14, inclusive) then +1 for exclusive end.
+        assert rd["endOffset"] == 15
+        assert source[rd["startOffset"] : rd["endOffset"]] == "{$condition}"
