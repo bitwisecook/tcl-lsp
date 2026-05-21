@@ -37,6 +37,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — stale incremental cache produces wrong diagnostics.
 - [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or
   hover ranges point at the wrong span.
+- [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
+  — a highlight over a braced word covers `{$condition` instead of
+  `{$condition}`, dropping the closing delimiter.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
