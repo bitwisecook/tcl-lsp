@@ -898,7 +898,7 @@ mod tests {
         assert!(!edits.is_empty(), "expected array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
-            texts.iter().any(|t| *t == "$data(0)"),
+            texts.contains(&"$data(0)"),
             "reference edit must preserve the array index, got {texts:?}",
         );
     }
@@ -914,7 +914,7 @@ mod tests {
         assert!(!edits.is_empty(), "expected braced array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
-            texts.iter().any(|t| *t == "${data(0)}"),
+            texts.contains(&"${data(0)}"),
             "braced reference edit must preserve the array index, got {texts:?}",
         );
     }
