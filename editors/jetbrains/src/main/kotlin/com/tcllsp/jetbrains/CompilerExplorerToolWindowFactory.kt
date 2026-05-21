@@ -14,7 +14,9 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerManager
+import com.intellij.platform.lsp.api.LspServerState
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
@@ -22,9 +24,12 @@ import com.intellij.ui.jcef.JBCefJSQuery
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.cef.browser.CefBrowser
 import org.cef.handler.CefLoadHandlerAdapter
-import java.util.concurrent.CompletableFuture
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.CompilerExplorer")
+
+/** How long [CompilerExplorerPanel.awaitRunningServer] waits for the lazily
+ *  started Tcl LSP server to reach Running before giving up. */
+private const val SERVER_WAIT_TIMEOUT_MS = 10_000L
 
 class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
 
@@ -212,18 +217,66 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         }
     }
 
+    /**
+     * Resolve a running Tcl LSP server, kicking it and waiting briefly if one
+     * isn't ready yet. Returns null only after a real timeout.
+     *
+     * The LSP server starts lazily on the first Tcl editor (see
+     * [TclLspServerSupportProvider]). When the explorer tool window is restored
+     * on IDE startup it pushes its first compile before that server has
+     * finished initialising, which previously surfaced a spurious "LSP server
+     * not running" error in the output pane. Poll for a Running server instead;
+     * this runs on the [runCompile] background thread, so the sleep is safe.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun awaitRunningServer(timeoutMs: Long = SERVER_WAIT_TIMEOUT_MS): LspServer? {
+        val manager = LspServerManager.getInstance(project)
+        fun running(): LspServer? =
+            manager.getServersForProvider(TclLspServerSupportProvider::class.java)
+                .firstOrNull { it.state == LspServerState.Running }
+
+        running()?.let { return it }
+
+        // Kick the lazily-started server before the clock starts, so a busy EDT
+        // during startup can't eat the timeout budget before the start request
+        // even runs. invokeAndWait is safe here: this runs on a pooled thread,
+        // never the EDT, so it can't deadlock against the dispatch it waits on.
+        ApplicationManager.getApplication().invokeAndWait {
+            manager.startServersIfNeeded(TclLspServerSupportProvider::class.java)
+        }
+
+        // Monotonic clock: a wall-clock adjustment must not distort the wait.
+        val deadlineNanos = System.nanoTime() + timeoutMs * 1_000_000
+        while (System.nanoTime() < deadlineNanos) {
+            if (project.isDisposed) return null
+            try {
+                Thread.sleep(150)
+            } catch (e: InterruptedException) {
+                // Preserve cancellation semantics for the pooled-thread task.
+                Thread.currentThread().interrupt()
+                return null
+            }
+            running()?.let { return it }
+        }
+        return null
+    }
+
     private fun runCompile(source: String, dialect: String) {
-        CompletableFuture.runAsync {
+        // IntelliJ's pooled executor rather than the FJP common pool: the
+        // awaitRunningServer wait can block this task for several seconds, which
+        // would otherwise starve unrelated common-pool work.
+        ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 sendStatusToWebview("compiling")
 
-                @Suppress("UnstableApiUsage")
-                val servers = LspServerManager.getInstance(project)
-                    .getServersForProvider(TclLspServerSupportProvider::class.java)
-                val server = servers.firstOrNull()
+                val server = awaitRunningServer()
                 if (server == null) {
-                    sendErrorToWebview("LSP server not running")
-                    return@runAsync
+                    sendErrorToWebview(
+                        "Tcl LSP server did not become ready within " +
+                            "${SERVER_WAIT_TIMEOUT_MS / 1000}s — it may still be " +
+                            "starting up, or be disabled or not installed."
+                    )
+                    return@executeOnPooledThread
                 }
 
                 val result = server.sendRequestSync { lsp4j ->
