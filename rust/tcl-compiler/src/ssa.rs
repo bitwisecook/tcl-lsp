@@ -259,46 +259,6 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
     dom
 }
 
-/// Iterative reverse-postorder over the blocks reachable from the
-/// entry, returning block names with the entry first.
-///
-/// Equivalent to [`cfg::Function::reverse_postorder`] but uses an
-/// explicit work stack instead of recursion, so it can't overflow the
-/// thread stack on a degenerate CFG (e.g. the single ~70k-line proc in
-/// machine-generated dispatch tables, whose CFG is tens of thousands
-/// of blocks deep).
-fn reverse_postorder_iter(func: &cfg::Function) -> Vec<String> {
-    let mut postorder: Vec<String> = Vec::new();
-    let mut visited: HashSet<String> = HashSet::new();
-    // Each stack frame: (block name, index of the next successor to
-    // visit). A frame is popped to postorder once all its successors
-    // have been pushed.
-    let mut stack: Vec<(String, usize)> = Vec::new();
-    if func.blocks.contains_key(&func.entry) {
-        visited.insert(func.entry.clone());
-        stack.push((func.entry.clone(), 0));
-    }
-    while let Some((name, succ_idx)) = stack.last().cloned() {
-        let succs: Vec<String> = func
-            .blocks
-            .get(&name)
-            .map(|b| b.successors().into_iter().map(str::to_owned).collect())
-            .unwrap_or_default();
-        if succ_idx < succs.len() {
-            stack.last_mut().unwrap().1 += 1;
-            let next = &succs[succ_idx];
-            if visited.insert(next.clone()) {
-                stack.push((next.clone(), 0));
-            }
-        } else {
-            postorder.push(name);
-            stack.pop();
-        }
-    }
-    postorder.reverse();
-    postorder
-}
-
 /// Compute immediate dominators directly via the Cooper-Harvey-Kennedy
 /// "A Simple, Fast Dominance Algorithm".
 ///
@@ -316,7 +276,8 @@ fn reverse_postorder_iter(func: &cfg::Function) -> Vec<String> {
 pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<String>> {
     const UNDEF: usize = usize::MAX;
 
-    let rpo = reverse_postorder_iter(func);
+    // Shared iterative RPO — see `cfg::Function::reverse_postorder`.
+    let rpo = func.reverse_postorder();
     let mut out: HashMap<String, Option<String>> = HashMap::new();
     for name in func.blocks.keys() {
         out.insert(name.clone(), None);

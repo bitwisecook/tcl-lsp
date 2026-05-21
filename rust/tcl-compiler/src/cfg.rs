@@ -218,31 +218,48 @@ impl Function {
     /// RPO is the standard traversal order for forward dataflow
     /// analyses: every block is visited after all its non-back-edge
     /// predecessors.
+    ///
+    /// Implemented with an explicit work stack rather than recursion so
+    /// it cannot overflow the thread stack on a degenerate CFG — a
+    /// single huge proc (e.g. a machine-generated multi-thousand-branch
+    /// dispatch table) lowers to a block chain tens of thousands deep,
+    /// which a recursive DFS overflows at the common 2 MB worker-thread
+    /// stack size. This is the one shared RPO used by every CFG/SSA
+    /// pass (dominators, SCCP, type / taint / rendered-property
+    /// propagation, GVN, `cfg_order`), so keeping it iterative keeps
+    /// all of them bounded.
     #[must_use]
     pub fn reverse_postorder(&self) -> Vec<String> {
-        let mut visited = HashSet::new();
-        let mut postorder = Vec::new();
-        self.dfs_postorder(&self.entry, &mut visited, &mut postorder);
-        postorder.reverse();
-        postorder
-    }
-
-    /// Depth-first postorder traversal helper.
-    fn dfs_postorder(
-        &self,
-        name: &str,
-        visited: &mut HashSet<String>,
-        postorder: &mut Vec<String>,
-    ) {
-        if !visited.insert(name.to_owned()) {
-            return;
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut postorder: Vec<String> = Vec::new();
+        // Each frame is (block name, index of the next successor to
+        // visit); a frame moves to `postorder` once all its successors
+        // have been pushed — yielding the same order as the recursive
+        // post-order DFS, then reversed.
+        let mut stack: Vec<(String, usize)> = Vec::new();
+        if self.blocks.contains_key(&self.entry) {
+            visited.insert(self.entry.clone());
+            stack.push((self.entry.clone(), 0));
         }
-        if let Some(block) = self.blocks.get(name) {
-            for succ in block.successors() {
-                self.dfs_postorder(succ, visited, postorder);
+        while let Some((name, succ_idx)) = stack.last().cloned() {
+            let succs: Vec<String> = self
+                .blocks
+                .get(&name)
+                .map(|b| b.successors().into_iter().map(str::to_owned).collect())
+                .unwrap_or_default();
+            if succ_idx < succs.len() {
+                stack.last_mut().unwrap().1 += 1;
+                let next = &succs[succ_idx];
+                if visited.insert(next.clone()) {
+                    stack.push((next.clone(), 0));
+                }
+            } else {
+                postorder.push(name);
+                stack.pop();
             }
         }
-        postorder.push(name.to_owned());
+        postorder.reverse();
+        postorder
     }
 }
 
