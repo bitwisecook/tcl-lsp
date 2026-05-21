@@ -24,9 +24,12 @@ import com.intellij.ui.jcef.JBCefJSQuery
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.cef.browser.CefBrowser
 import org.cef.handler.CefLoadHandlerAdapter
-import java.util.concurrent.CompletableFuture
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.CompilerExplorer")
+
+/** How long [CompilerExplorerPanel.awaitRunningServer] waits for the lazily
+ *  started Tcl LSP server to reach Running before giving up. */
+private const val SERVER_WAIT_TIMEOUT_MS = 10_000L
 
 class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
 
@@ -226,7 +229,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
      * this runs on the [runCompile] background thread, so the sleep is safe.
      */
     @Suppress("UnstableApiUsage")
-    private fun awaitRunningServer(timeoutMs: Long = 10_000): LspServer? {
+    private fun awaitRunningServer(timeoutMs: Long = SERVER_WAIT_TIMEOUT_MS): LspServer? {
         val manager = LspServerManager.getInstance(project)
         fun running(): LspServer? =
             manager.getServersForProvider(TclLspServerSupportProvider::class.java)
@@ -234,27 +237,46 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
 
         running()?.let { return it }
 
-        ApplicationManager.getApplication().invokeLater {
+        // Kick the lazily-started server before the clock starts, so a busy EDT
+        // during startup can't eat the timeout budget before the start request
+        // even runs. invokeAndWait is safe here: this runs on a pooled thread,
+        // never the EDT, so it can't deadlock against the dispatch it waits on.
+        ApplicationManager.getApplication().invokeAndWait {
             manager.startServersIfNeeded(TclLspServerSupportProvider::class.java)
         }
 
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            Thread.sleep(150)
+        // Monotonic clock: a wall-clock adjustment must not distort the wait.
+        val deadlineNanos = System.nanoTime() + timeoutMs * 1_000_000
+        while (System.nanoTime() < deadlineNanos) {
+            if (project.isDisposed) return null
+            try {
+                Thread.sleep(150)
+            } catch (e: InterruptedException) {
+                // Preserve cancellation semantics for the pooled-thread task.
+                Thread.currentThread().interrupt()
+                return null
+            }
             running()?.let { return it }
         }
         return null
     }
 
     private fun runCompile(source: String, dialect: String) {
-        CompletableFuture.runAsync {
+        // IntelliJ's pooled executor rather than the FJP common pool: the
+        // awaitRunningServer wait can block this task for several seconds, which
+        // would otherwise starve unrelated common-pool work.
+        ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 sendStatusToWebview("compiling")
 
                 val server = awaitRunningServer()
                 if (server == null) {
-                    sendErrorToWebview("LSP server not running")
-                    return@runAsync
+                    sendErrorToWebview(
+                        "Tcl LSP server did not become ready within " +
+                            "${SERVER_WAIT_TIMEOUT_MS / 1000}s — it may still be " +
+                            "starting up, or be disabled or not installed."
+                    )
+                    return@executeOnPooledThread
                 }
 
                 val result = server.sendRequestSync { lsp4j ->
