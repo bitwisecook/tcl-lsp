@@ -180,26 +180,29 @@ class TestSharedTraversal:
             assert order[0] == cfg.entry
 
     def test_reverse_postorder_respects_non_back_edges(self):
-        # Every reachable block appears after its non-back-edge
-        # predecessors.  We approximate "back edge" as an edge whose
-        # target precedes the source in RPO; all forward edges must be
-        # ordered pred-before-succ.
+        # A valid RPO places every block before all of its successors
+        # except across *back edges* (loop-closing edges).  In a reducible
+        # CFG a back edge is exactly one whose target dominates its source,
+        # so identify back edges via the dominance relation and require
+        # strict predecessor-before-successor ordering for every other edge.
         from core.compiler.cfg import _block_successors
 
         for cfg in self._cfgs():
             order = cfg.reverse_postorder()
             pos = {bn: i for i, bn in enumerate(order)}
             reachable = _reachable_blocks(cfg)
-            # Count forward vs back edges; a valid RPO has every edge
-            # either forward (pred < succ) or a genuine back edge into an
-            # ancestor.  At minimum the entry has no incoming forward edge.
+            preds = _predecessors(cfg)
+            dom = _dominators(cfg, reachable, preds)
             for bn in reachable:
                 for succ in _block_successors(cfg.blocks[bn].terminator):
                     if succ not in reachable:
                         continue
-                    # forward edge ⇒ predecessor strictly earlier.
-                    if pos[succ] > pos[bn]:
-                        assert pos[bn] < pos[succ]
+                    # Back edge (succ dominates bn) closes a loop, so RPO is
+                    # permitted to place succ earlier.  Every non-back edge
+                    # must order the predecessor strictly before the successor.
+                    if succ in dom[bn]:
+                        continue
+                    assert pos[bn] < pos[succ], (bn, succ, order)
 
     def test_compute_idom_fast_matches_reference(self):
         # The production CHK path must produce exactly the same idom map
