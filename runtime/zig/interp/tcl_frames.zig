@@ -1721,6 +1721,24 @@ fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
 /// Read variable *name* from the frame at *abs_depth* (1-indexed).
 /// Follows aliases within that frame.  *fallback_name* is the local name
 /// used to look up same-name ALIAS_GLOBAL entries.
+/// Fire a target frame's proc-local variable trace that was reached
+/// through an ``upvar`` alias.  The trace record lives in the target
+/// frame (``abs_depth``) under ``target_name``, but reference Tcl
+/// reports the *alias* name used at the access site (``report_name``)
+/// to the callback — see tcltest upvar-5.1 / 5.2 / 5.3.  The callback
+/// is dispatched from the *current* (accessing) frame, so a ``uplevel
+/// info vars`` inside it observes the accessing proc's locals.  No-op
+/// when the target frame has no traces installed (the hot path).
+fn fire_frame_alias_trace(abs_depth: u32, target_name: i32, report_name: i32, op: u32, op_char: u8) void {
+    if (abs_depth == 0 or abs_depth > frame_depth) return;
+    const head = frame_trace_heads[abs_depth - 1];
+    if (head == 0) return;
+    const tcl_var_trace = @import("tcl_var_trace.zig");
+    const tn = obj_ensure_string(target_name);
+    const rn = obj_ensure_string(report_name);
+    tcl_var_trace.fire_in_list_as(head, tn.ptr, tn.len, rn.ptr, rn.len, op, op_char);
+}
+
 fn frame_get_at_depth(abs_depth: u32, name: i32, fallback_name: i32) i32 {
     if (abs_depth == 0) return globals.global_get(name);
     if (frame_at_depth(abs_depth)) |base| {
@@ -1730,6 +1748,14 @@ fn frame_get_at_depth(abs_depth: u32, name: i32, fallback_name: i32) i32 {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
             if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), fallback_name);
+            // A read through an ``upvar`` alias must fire the target
+            // variable's READ trace, reporting the alias name.  The
+            // callback may mutate the slot, so re-read afterwards.
+            const tcl_var_trace = @import("tcl_var_trace.zig");
+            if (frame_trace_heads[abs_depth - 1] != 0) {
+                fire_frame_alias_trace(abs_depth, name, fallback_name, tcl_var_trace.OP_READ, 'r');
+                return read_i32(bucket + OFF_VALUE);
+            }
             return v;
         }
     }
@@ -1756,6 +1782,24 @@ fn frame_set_at_depth(abs_depth: u32, name: i32, fallback_name: i32, value: i32)
                 return;
             }
             write_i32(bucket + OFF_VALUE, value);
+            // A write / unset through an ``upvar`` alias must fire the
+            // target variable's WRITE / UNSET trace, reporting the
+            // alias name and dispatching from the accessing frame.
+            // ``value == 0`` is the in-runtime unset signal (matches
+            // ``var_set(name, 0)`` from ``unset NAME``).
+            const tcl_var_trace = @import("tcl_var_trace.zig");
+            if (value == 0) {
+                fire_frame_alias_trace(abs_depth, name, fallback_name, tcl_var_trace.OP_UNSET, 'u');
+                // Reference Tcl removes the target variable and all its
+                // traces at unset time, so the owning frame's teardown
+                // drain must not re-fire a stale unset callback.  Drop
+                // the target name's trace records now (upvar-5.3).
+                if (abs_depth >= 1 and abs_depth <= frame_depth and frame_trace_heads[abs_depth - 1] != 0) {
+                    tcl_var_trace.remove_all_in_list(&frame_trace_heads[abs_depth - 1], sn.ptr, sn.len);
+                }
+            } else {
+                fire_frame_alias_trace(abs_depth, name, fallback_name, tcl_var_trace.OP_WRITE, 'w');
+            }
             return;
         }
         frame_insert(base, sn.ptr, sn.len, hash, value);
