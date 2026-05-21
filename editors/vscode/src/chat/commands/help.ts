@@ -246,7 +246,10 @@ function editorCommandsSection(): HelpSection {
       { name: "Select Dialect", description: "Switch between Tcl versions and iRules" },
       { name: "Apply All Optimisations", description: "Apply optimiser suggestions (Ctrl+Alt+O)" },
       { name: "Apply Safe Quick Fixes", description: "Apply all safe fixes at once" },
-      { name: "Open in Tcl Compiler Explorer", description: "Interactive bytecode explorer (Ctrl+Alt+E)" },
+      {
+        name: "Open in Tcl Compiler Explorer",
+        description: "Interactive bytecode explorer (Ctrl+Alt+E)",
+      },
       { name: "Open Tk Preview", description: "Live Tk GUI preview pane" },
       { name: "Insert iRule Event Skeleton", description: "Pick events and generate skeleton" },
       { name: "Insert Tcl Template Snippet", description: "Built-in templates" },
