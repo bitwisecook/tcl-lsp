@@ -1111,6 +1111,28 @@ class TestNamespaceShadowedArity:
         assert len(diags) == 1
         assert diags[0].code == "E003"
 
+    def test_top_level_call_before_definition_still_checked(self):
+        # A global call resolves to the builtin when it textually precedes
+        # the shadowing proc — script load runs in order, so suppression
+        # must respect definition order.
+        source = "close x y z\nproc close {a b c d} {}\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_conditionally_defined_proc_does_not_suppress(self):
+        # A proc defined only inside a conditional is not statically known
+        # to exist, so the builtin arity check must still fire.
+        source = "if {$x} { proc close {a b c d} {} }\nclose x y z\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_top_level_call_after_definition_is_suppressed(self):
+        # Once the proc is defined, a later global call resolves to it.
+        source = "proc close {a b c} {}\nclose x y z\n"
+        assert self._arity_codes(source) == []
+
     def test_websocket_close_no_false_positive(self):
         # Real-world shape: ``::websocket::close`` takes 3 args and is called
         # as a bare ``close`` from procs in the same namespace.
