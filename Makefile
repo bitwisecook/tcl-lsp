@@ -65,6 +65,15 @@ OUT_DIR  := $(EXT_DIR)/out
 EXPLORER_DIR    := $(ROOT)explorer
 EXPLORER_STATIC := $(EXPLORER_DIR)/static
 
+# Zig runtime WASM — single source of truth for the artifact path and
+# its sources.  Listing every .zig as a prerequisite of the artifact
+# means any runtime source change forces a rebuild via Make, instead of
+# the stale binary silently surviving (core.runtime_wasm only builds
+# when the file is *missing*).
+RUNTIME_ZIG_DIR  := $(ROOT)runtime/zig
+RUNTIME_WASM     := $(RUNTIME_ZIG_DIR)/zig-out/bin/tcl_runtime.wasm
+RUNTIME_ZIG_SRCS := $(shell find $(RUNTIME_ZIG_DIR) -name '*.zig' -not -path '*/zig-out/*' -not -path '*/.zig-cache/*') $(wildcard $(RUNTIME_ZIG_DIR)/build.zig.zon)
+
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
 KCS_DB     := core/help/kcs_help.db
@@ -136,7 +145,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-wasm test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -219,9 +228,13 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ensure-python-test-deps ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
+
+test-wasm: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the WASM codegen/runtime test suite (rebuilds the Zig runtime if its sources changed)
+	@echo "==> Running WASM tests against the Zig runtime"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_wasm_*.py -q -n 4
 
 test-tclpkg: $(UV_STAMP) ensure-tcl-deps ## Run tclpkg package manager tests only
 	@echo "==> Running tclpkg tests"
@@ -1111,7 +1124,7 @@ $(ZIPAPP_MCP): $(PY_SRCS) $(BUILD_INFO)
 
 zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
 
-$(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO)
+$(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO) $(RUNTIME_WASM)
 	@echo "==> Building WASM compiler zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py wasm \
 		--version $(VERSION) \
@@ -1336,6 +1349,7 @@ clean-screenshots: ## Remove captured screenshots
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
+	rm -rf $(RUNTIME_ZIG_DIR)/zig-out
 	rm -f  $(BUILD_INFO)
 	rm -f  $(BUILD_INFO_JSON)
 	rm -f  $(KCS_DB)
@@ -1353,10 +1367,17 @@ distclean: clean ## Remove build artifacts and node_modules
 # below provide a scriptable entry-point and the leak-check variant
 # used by S0.2.
 
-.PHONY: build-runtime build-runtime-leakcheck
+.PHONY: build-wasm-runtime build-runtime-leakcheck
 
-build-runtime: ## Build runtime/zig (default debug build) → tcl_runtime.wasm
-	cd runtime/zig && zig build
+build-wasm-runtime: $(RUNTIME_WASM) ## Build runtime/zig (default debug build) → tcl_runtime.wasm
+
+# Real-file rule: rebuild only when a .zig source (or build.zig.zon) is
+# newer than the artifact.  Everything that consumes the runtime WASM
+# depends on this target so a stale binary can never survive a source
+# change.
+$(RUNTIME_WASM): $(RUNTIME_ZIG_SRCS)
+	@echo "==> Building Zig runtime WASM (sources changed)"
+	cd $(RUNTIME_ZIG_DIR) && zig build
 
 build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
 	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true
