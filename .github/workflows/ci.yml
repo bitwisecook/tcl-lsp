@@ -1076,6 +1076,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Zig (needed for runtime auto-build)
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+          use-cache: true
+
+      - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
+        run: bash scripts/fetch_tcl_regex.sh
+
       - name: Sync Python environment
         run: uv sync --extra dev
 
