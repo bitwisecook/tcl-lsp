@@ -154,7 +154,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust test-vm test-opt test-fuzz fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust test-vm test-opt test-fuzz test-fuzz-full fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -847,9 +847,13 @@ test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
 	@echo "==> Running optimiser coverage tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_optimiser_coverage.py tests/test_optimiser_vm_equivalence.py -v
 
-test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (FUZZ_ITERATIONS=N to control size)
+test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (generator + campaign + corpus; FUZZ_ITERATIONS=N for campaign size). Skips the saved-findings sweep — use test-fuzz-full.
 	@echo "==> Running differential fuzz tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
+
+test-fuzz-full: $(UV_STAMP) ## test-fuzz PLUS the full saved-findings regression sweep (hundreds of differential runs vs tclsh)
+	@echo "==> Running differential fuzz tests + full saved-findings sweep"
+	cd $(ROOT) && FUZZ_FULL=1 $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"

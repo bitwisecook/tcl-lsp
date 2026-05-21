@@ -2,15 +2,20 @@
 
 Run with::
 
-    uv run pytest fuzzing/tests/test_fuzz_differential.py -v
-    uv run pytest fuzzing/tests/test_fuzz_differential.py -v -k campaign  # full campaign
-    uv run pytest fuzzing/tests/test_fuzz_differential.py -v -k regression  # saved findings only
+    make test-fuzz        # generator + optimiser-equiv + campaign + corpus
+    make test-fuzz-full   # the above plus the full saved-findings sweep
+    uv run pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
+    uv run pytest tooling/fuzzing/tests/test_fuzz_differential.py -v -k campaign
 
 The ``FUZZ_ITERATIONS`` environment variable controls campaign size
-(default: 200 in CI, override with e.g. ``FUZZ_ITERATIONS=5000``).
+(default: 200, override with e.g. ``FUZZ_ITERATIONS=5000``).
 
 The ``FUZZ_SEED`` environment variable pins the base seed for
 reproducibility.
+
+``FUZZ_FULL=1`` enables the saved-findings regression sweep
+(``TestRegressions`` — hundreds of differential runs against ``tclsh``);
+it is skipped by default so routine runs stay fast.
 """
 
 from __future__ import annotations
@@ -40,6 +45,16 @@ def _iterations() -> int:
 def _base_seed() -> int | None:
     val = os.environ.get("FUZZ_SEED")
     return int(val) if val else None
+
+
+def _full_enabled() -> bool:
+    """Whether the full saved-findings regression sweep runs.
+
+    The sweep re-runs every saved finding (~hundreds of differential runs
+    against ``tclsh``), which is too slow for routine ``make test-fuzz``.
+    It is opt-in via ``FUZZ_FULL`` (``make test-fuzz-full``).
+    """
+    return bool(os.environ.get("FUZZ_FULL"))
 
 
 # Smoke test: generator produces valid-looking Tcl
@@ -157,8 +172,13 @@ class TestFuzzCampaign:
 
 
 def _find_saved_findings() -> list[Path]:
-    """Collect .tcl files from the findings directory."""
-    if not _FINDINGS_DIR.is_dir():
+    """Collect .tcl files from the findings directory.
+
+    Gated on ``FUZZ_FULL`` (``make test-fuzz-full``): routine
+    ``make test-fuzz`` collects none, so the ~hundreds-of-cases sweep
+    against ``tclsh`` doesn't dominate (or time out) the run.
+    """
+    if not _full_enabled() or not _FINDINGS_DIR.is_dir():
         return []
     return sorted(_FINDINGS_DIR.glob("*.tcl"))
 
