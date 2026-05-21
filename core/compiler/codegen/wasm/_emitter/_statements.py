@@ -1882,6 +1882,29 @@ class _WasmEmitterStmtMixin(_Base):
             # ``info level 0`` argv0 — see
             # :meth:`_emit_prepare_pending_argv0`.
             argv0_local = self._emit_prepare_pending_argv0(command)
+
+            def _was_braced(call_arg_idx: int) -> bool:
+                """True if the call-site word at *call_arg_idx* was braced.
+
+                Mirrors ``_emit_cmd_proc_call``'s probe.  Without it, a
+                braced literal arg (``q {puts "$x $y"}``) reaches
+                ``_emit_value`` as a plain string and its embedded ``$x``
+                / ``[...]`` get substituted — wrong, since braces suppress
+                all substitution.  This path is the catch-body /
+                implicit-return tail; the statement path already passes
+                ``was_braced``."""
+                if tokens is None or tokens.argv is None:
+                    return False
+                tok_idx = call_arg_idx + 1
+                if tok_idx >= len(tokens.argv):
+                    return False
+                if tokens.single_token_word is not None:
+                    if tok_idx >= len(tokens.single_token_word):
+                        return False
+                    if not tokens.single_token_word[tok_idx]:
+                        return False
+                return tokens.argv[tok_idx].type == TokenType.STR
+
             if has_args_tail and n_params > 0:
                 # Variadic proc — pack call-site args past the fixed
                 # positionals into a single list TclObj for the
@@ -1893,14 +1916,17 @@ class _WasmEmitterStmtMixin(_Base):
                 # ``_emit_command_subst_value`` (value context).
                 fixed = n_params - 1
                 for i in range(min(fixed, len(args))):
-                    self._emit_value(args[i])
+                    self._emit_value(args[i], was_braced=_was_braced(i))
                 for _slot in range(len(args), fixed):
                     self._emit_i32_const(0)
-                self._emit_args_list(tuple(args[fixed:]))
+                self._emit_args_list(
+                    tuple(args[fixed:]),
+                    was_braced_fn=lambda i, base=fixed: _was_braced(base + i),
+                )
             else:
                 # Push exactly n_params args (truncate surplus, pad missing)
                 for i in range(min(n_params, len(args))):
-                    self._emit_value(args[i])
+                    self._emit_value(args[i], was_braced=_was_braced(i))
                 for _ in range(n_params - len(args)):
                     self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)

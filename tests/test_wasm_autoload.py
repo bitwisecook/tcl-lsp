@@ -133,6 +133,42 @@ class TestStdlibPrelude:
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "a(x) = 1\na(y) = 22\n"
 
+    def test_opt_package_bundled_runs_without_tcl_library(self, tmp_path):
+        """``package require opt`` resolves through the package's
+        ``pkgIndex.tcl`` (``source``-style ``ifneeded``) — the compiler
+        bundles ``optparse.tcl`` and its transitive ``::tcl::Opt*``
+        helpers, so the option-parsing proc it defines runs entirely
+        self-contained with no run-time library."""
+        src = (
+            "package require opt\n"
+            "::tcl::OptProc seethrough {\n"
+            '    {-a -int 1 "first option"}\n'
+            '    {-b -int 2 "second option"}\n'
+            "} {\n"
+            '    puts "a=$a b=$b"\n'
+            "}\n"
+            "seethrough -a 10 -b 20\n"
+            "seethrough\n"
+        )
+        wasm = self._link(src, tmp_path, with_library=True)
+        # No TCL_LIBRARY, no preopen — opt is compiled into the bundle.
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "a=10 b=20\na=1 b=2\n"
+
+    def test_package_require_not_bundled_without_library(self, tmp_path, monkeypatch):
+        """With no library the package source can't be discovered, so an
+        opt command still errors — proving the compile-time bundling, not
+        a runtime fallback, is what resolved it above."""
+        monkeypatch.delenv("TCL_LIBRARY", raising=False)
+        src = (
+            "package require opt\n"
+            "set rc [catch {::tcl::OptProc f {} {}} m]\n"
+            'puts "rc=$rc"\n'
+        )
+        wasm = self._link(src, tmp_path, with_library=False)
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=1\n"
+
     def test_non_allowlisted_command_not_bundled_by_default(self, tmp_path, monkeypatch):
         """A library command outside the validated allowlist is not
         bundled by default (it would fall back to the runtime
@@ -247,3 +283,49 @@ class TestStdlibPreludePruning:
         module = lower_to_ir("puts [foo]\n")
         apply_stdlib_prelude(module, lib, allowlist=None)
         assert "::foo" in module.procedures
+
+
+class TestPackageRequireBundling:
+    """``package require NAME`` bundles the package's ``source``-style
+    ``pkgIndex.tcl`` entry at compile time.  Synthetic library so the
+    discovery + bundling logic is exercised without the real Tcl tree."""
+
+    def _make_lib(self, tmp_path):
+        lib = tmp_path / "lib"
+        (lib / "mypkg").mkdir(parents=True)
+        (lib / "mypkg" / "mypkg.tcl").write_text(
+            "proc ::mypkg::hello {} { return hi }\n"
+            "proc ::mypkg::unused {} { return nope }\n"
+        )
+        (lib / "mypkg" / "pkgIndex.tcl").write_text(
+            "package ifneeded mypkg 1.0 "
+            "[list source -encoding utf-8 [file join $dir mypkg.tcl]]\n"
+        )
+        return lib
+
+    def _bundled(self, src, lib):
+        from core.compiler.lowering import lower_to_ir
+        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+
+        module = lower_to_ir(src)
+        before = set(module.procedures)
+        apply_stdlib_prelude(module, lib, allowlist=None)
+        return module, sorted(q.lstrip(":") for q in (set(module.procedures) - before))
+
+    def test_required_package_source_is_bundled(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        _, bundled = self._bundled("package require mypkg\nputs [::mypkg::hello]\n", lib)
+        assert "mypkg::hello" in bundled
+
+    def test_dynamic_package_name_not_bundled(self, tmp_path):
+        """``package require $name`` is a run-time computation — the
+        compiler can't see the name, so nothing is bundled (the runtime
+        package machinery handles it)."""
+        lib = self._make_lib(tmp_path)
+        _, bundled = self._bundled("set name mypkg\npackage require $name\n", lib)
+        assert bundled == []
+
+    def test_no_require_means_no_bundle(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        _, bundled = self._bundled("puts hello\n", lib)
+        assert bundled == []

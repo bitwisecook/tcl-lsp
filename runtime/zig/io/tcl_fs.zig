@@ -1363,6 +1363,100 @@ pub fn tcl_cmd_glob(pattern: i32) i32 {
     return acc;
 }
 
+/// Recursive multi-segment glob.  Matches ``pattern`` (a byte slice
+/// that may contain ``/`` separators) against the directory tree rooted
+/// at the NUL-terminated path ``base`` (``base_len`` excludes the NUL),
+/// appending full matching paths (``base/.../match``) to the Tcl list
+/// ``acc_in``.  Each segment is matched against ``readdir`` entries via
+/// ``fnmatch_basename``; non-final segments recurse into matching
+/// sub-directories.  Powers ``glob -directory DIR -join * pkgIndex.tcl``
+/// — the package-discovery walk ``tclPkgUnknown`` uses to load the
+/// stdlib (opt / msgcat / http / …) from ``TCL_LIBRARY``.
+fn glob_rec(acc_in: i32, base: [*:0]const u8, base_len: u32, pattern: []const u8, strip_len: u32) i32 {
+    var acc = acc_in;
+    var slash: u32 = @intCast(pattern.len);
+    {
+        var i: u32 = 0;
+        while (i < pattern.len) : (i += 1) {
+            if (pattern[i] == '/') {
+                slash = i;
+                break;
+            }
+        }
+    }
+    const seg: []const u8 = pattern[0..slash];
+    const is_last = slash >= pattern.len;
+    const rest: []const u8 = if (is_last) pattern[0..0] else pattern[slash + 1 ..];
+
+    const dir_handle = opendir(base);
+    if (dir_handle == null) return acc;
+    while (true) {
+        const ent = readdir(dir_handle.?);
+        if (ent == null) break;
+        const ent_addr: u32 = @intFromPtr(ent.?);
+        const name_ptr: [*]const u8 = @ptrFromInt(ent_addr + DIRENT_OFF_NAME);
+        var nlen: u32 = 0;
+        while (name_ptr[nlen] != 0) : (nlen += 1) {}
+        if (nlen == 0) continue;
+        // Skip ``.`` / ``..`` unless the segment explicitly begins with ``.``.
+        if (name_ptr[0] == '.' and (seg.len == 0 or seg[0] != '.')) continue;
+        if (!fnmatch_basename(seg.ptr, @intCast(seg.len), name_ptr, nlen)) continue;
+        const child_len: u32 = base_len + 1 + nlen;
+        const cbuf = obj.alloc(child_len + 1);
+        if (cbuf == 0) {
+            _ = closedir(dir_handle.?);
+            return acc;
+        }
+        const cp: [*]u8 = @ptrFromInt(cbuf);
+        var k: u32 = 0;
+        while (k < base_len) : (k += 1) cp[k] = base[k];
+        cp[base_len] = '/';
+        var j: u32 = 0;
+        while (j < nlen) : (j += 1) cp[base_len + 1 + j] = name_ptr[j];
+        cp[child_len] = 0;
+        if (is_last) {
+            // ``strip_len`` > 0 selects ``-tails`` output: append the
+            // path relative to the original ``-directory`` (i.e. with
+            // the directory prefix and its slash removed).
+            if (strip_len != 0 and child_len > strip_len) {
+                acc = list_append(acc, cbuf + strip_len, child_len - strip_len);
+            } else {
+                acc = list_append(acc, cbuf, child_len);
+            }
+        } else {
+            acc = glob_rec(acc, @ptrCast(cp), child_len, rest, strip_len);
+        }
+    }
+    _ = closedir(dir_handle.?);
+    return acc;
+}
+
+/// ``glob -directory DIR ?-join? ?-tails? PATTERN`` core.  Globs
+/// ``pattern`` (already joined when ``-join`` was given) relative to
+/// ``dir``.  Returns a Tcl list of full paths, or — when ``tails`` is
+/// set — paths relative to ``dir``.  Capability-gated like
+/// :func:`tcl_cmd_glob`.
+pub fn tcl_cmd_glob_dir(dir_obj: i32, pattern_obj: i32, tails: bool) i32 {
+    if (!caps.check(caps.CAP_FS_GLOB, "glob", "FS_GLOB")) return 0;
+    const d = obj_ensure_string(dir_obj);
+    const p = obj_ensure_string(pattern_obj);
+    if (d.len == 0) {
+        // No directory → behave like the bare ``glob pattern`` path.
+        return tcl_cmd_glob(pattern_obj);
+    }
+    // NUL-terminate the base directory.
+    const base = obj.alloc(d.len + 1);
+    if (base == 0) return obj_new_string(0, 0);
+    const bp: [*]u8 = @ptrFromInt(base);
+    var i: u32 = 0;
+    const dpb: [*]const u8 = @ptrFromInt(d.ptr);
+    while (i < d.len) : (i += 1) bp[i] = dpb[i];
+    bp[d.len] = 0;
+    const pat: []const u8 = (@as([*]const u8, @ptrFromInt(p.ptr)))[0..p.len];
+    const strip_len: u32 = if (tails) d.len + 1 else 0;
+    return glob_rec(obj_new_string(0, 0), @ptrCast(bp), d.len, pat, strip_len);
+}
+
 /// ``file link ?-type? linkName target`` — create a link.  Tcl's
 /// full command accepts ``-symbolic`` / ``-hard`` and arg order
 /// ``linkName target``.  Our 3-arg export has arg1=linkName,

@@ -147,3 +147,36 @@ class TestErrorRecursionLimit:
         # diagnostic, not whatever leaked through from the wasm trap.
         assert lines[0] == "1"
         assert "too many nested evaluations" in lines[1]
+
+
+class TestCatchBracedArgToProc:
+    """A braced argument to a user proc inside a ``catch`` (or any
+    implicit-return / tail position) must keep its literal bytes — braces
+    suppress all substitution.  Previously ``_emit_call_stmt_tail`` pushed
+    the arg through ``_emit_value`` without the ``was_braced`` flag the
+    statement path uses, so ``catch {q {puts "$x $y"}} m`` re-substituted
+    the brace-protected ``$x`` / ``$y`` and trapped under
+    ``can't read "y": no such variable``.  This is the contract opt's
+    ``::tcl::OptProc`` (``uplevel 1 [list ::proc ... "...$body"]`` wrapped
+    in the caller's catch) depends on.
+    """
+
+    def test_catch_braced_dollar_arg_not_substituted(self) -> None:
+        src = (
+            "proc q {a} { return $a }\n"
+            'catch {q {puts "$x $y"}} m\n'
+            'puts "m=$m"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == 'm=puts "$x $y"'
+
+    def test_catch_braced_arg_after_leading_stmt(self) -> None:
+        # The proc call is the *last* (captured) statement of a
+        # multi-statement catch body — the keep-result tail path.
+        src = (
+            "proc q {a} { return $a }\n"
+            'catch {set zz 1\nq {puts "$x $y"}} m\n'
+            'puts "m=$m"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == 'm=puts "$x $y"'
