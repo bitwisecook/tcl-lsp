@@ -1213,7 +1213,12 @@ class _WasmEmitterStmtMixin(_Base):
             # into a child interp.  The other ``package`` subcommands are
             # genuine no-ops under WASM, but ifneeded must route through
             # the interpreter's ``eval_package`` store/lookup.
-            if canonical_command == "::package" and args and args[0] == "ifneeded" and len(args) >= 3:
+            if (
+                canonical_command == "::package"
+                and args
+                and args[0] == "ifneeded"
+                and len(args) >= 3
+            ):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
@@ -1842,7 +1847,12 @@ class _WasmEmitterStmtMixin(_Base):
             # loadable-package registry lookup tcltest does to fetch a
             # child interp's load script.  Route through eval_package so
             # the stored script is returned rather than a null TclObj.
-            if canonical_command == "::package" and args and args[0] == "ifneeded" and len(args) >= 3:
+            if (
+                canonical_command == "::package"
+                and args
+                and args[0] == "ifneeded"
+                and len(args) >= 3
+            ):
                 self._emit_eval_fallback(command, args)
                 return
             self._emit_i32_const(0)
