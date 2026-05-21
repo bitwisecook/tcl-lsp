@@ -54,6 +54,51 @@
   re-extracted when the temp file was missing. The pyz now lives at
   the plugin install root (next to `lib/`), so Python executes it
   directly — no temp-dir cache, no upgrade-time invalidation.
+- **Refactor edits no longer corrupt source.** Applying refactors
+  through the real editor surfaced three transformation bugs: *extract
+  variable* on a bare operator expression emitted an invalid
+  `set result $a * $b` (now wrapped in `[expr { ... }]`); *inline
+  variable* into a quoted string produced broken nested quotes like
+  `"hello "world""` (now splices the unquoted content, and refuses an
+  unsafe space-splitting concatenation); and *inline proc* dropped
+  structural body braces (`expr {$x * 2}` collapsed to `expr $x * 2`,
+  now substitutes into the raw body span). Inline variable was also
+  rewritten to decide the reference context from tokens rather than
+  regex, so `${name}` braced references with trailing text and uses
+  inside nested bodies now rewrite correctly.
+- **`extract proc` overlapping-edit fix.** Extracting from the top of
+  the file emitted a zero-width insert and a replace sharing the same
+  offset (a client-order-dependent overlapping edit); the two are now
+  merged into a single edit.
+- **W110 quick-fix brace mangling.** The string-comparison fix
+  (`==`/`!=` → `eq`/`ne`) rewrote `{$x == "foo"` to brace-free text,
+  producing the broken `if $x eq "foo"} ...`. The fix range is now
+  content-aligned for braced `if`/`while` conditions, preserving the
+  braces.
+- **`${name}` references resolve for navigation and rename.** Go-to-
+  references and rename did not work from a braced `${name}` reference
+  (the backward word-scan stopped at the brace); the braced form,
+  including `${arr(k)}`, now resolves correctly.
+- **Rename rewrites bareword write sites.** Writes to an
+  already-defined variable via `incr`/`append`/`lappend` or a repeated
+  `set` were never recorded as references, so find-references and
+  rename missed them. Rename now rewrites every occurrence —
+  definition, `$`-reads, `${}`-reads, and bareword writes — across all
+  variable forms.
+- **Namespace-qualified variable reads resolve.** A read of `$ns::v` /
+  `$::ns::v` / `$a::b::v` now resolves to the variable defined in the
+  target `namespace eval` block for references and rename, across
+  relative, absolute, and nested namespace paths.
+- **Nested-namespace proc qualification.** A proc inside
+  `namespace eval a { namespace eval b { ... } }` was qualified using
+  only the innermost namespace (`::b::proc`), breaking call-hierarchy
+  and reference links for `a::b::proc`; qualified names now use the
+  full namespace path. Call hierarchy also no longer cross-links
+  same-named procs in sibling namespaces.
+- **Class references in `superclass`/`mixin` declarations.** Find-
+  references and rename for a class now span its uses in other classes'
+  `superclass`/`mixin` declarations (both `oo::class create` bodies and
+  `oo::define` forms), not just its definition and constructor calls.
 
 ## Improvements
 
@@ -62,9 +107,33 @@
   operator now routes through the shared `tcl_arith` paths, bringing
   operator semantics into line with `expr` and shrinking the divergence
   surface between the two.
+- **Sharper diagnostic ranges.** A sweep narrowed many diagnostics from
+  the whole statement to the exact offending token, so squiggles point
+  at the real problem: the variable-lifecycle codes (W210 read-before-
+  set, W211 set-but-unused, W213 unset-may-not-exist, W220 dead store),
+  W001 (unknown subcommand), W302 (catch without result), the taint
+  sinks (T100/T101, W101/W102, W309/W312, IRULE3001/3002), and others.
+  Braced-context codes (W110 string comparison, W240/W241/W242 loop
+  conditions, W309 `subst`) now include the closing brace/bracket the
+  lexer omits rather than dropping it.
 
 ## Internal
 
+- **Tokeniser-based parsing replaces ad-hoc regexes.** A robustness
+  sweep replaced hand-rolled regular expressions with the shared lexer
+  across the refactoring and analysis paths — `switch`→`dict` and
+  `extract-datagroup` arm bodies, tail-call (O121) rewriting, SCCP
+  command-substitution folding, redundant-`expr` (W114) detection,
+  minifier array-member splitting, and the simple-variable-name checks
+  in `proc_arg_traits`, `static_loops`, and `interprocedural`. Behaviour
+  is unchanged on valid input and more correct on malformed input (e.g.
+  the old regexes wrongly accepted single-colon names). Dead regexes
+  were removed.
+- **Diagnostic range-coverage enforcement framework.** All registered
+  diagnostic codes are now partitioned into verified-range fixtures,
+  a shrinking backlog, and not-yet-covered buckets, with a partition
+  test that fails if any code is unclassified — so new codes cannot
+  ship without range scrutiny.
 - **Double-free sub-bucket counters in the leak-check runtime.**
   `leak_sweep` and the diff tooling now classify double-free events
   into sub-buckets and capture pending sample data, making
