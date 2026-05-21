@@ -852,12 +852,26 @@ pub const DEFERRED_INIT_SCRIPT: []const u8 =
 /// If *target* is a trusted child still awaiting its deferred
 /// ``Tcl_Init``, clear the bit and return the bootstrap script bytes to
 /// prepend to the caller's eval script; otherwise return ``null``.
-pub fn take_deferred_init(target: u32) ?[]const u8 {
-    if (target == 0) return null;
+pub fn run_deferred_init(target: u32) void {
+    if (target == 0) return;
     const t: *Interp = @ptrFromInt(target);
-    if ((t.flags & INTERP_NEEDS_INIT) == 0) return null;
+    if ((t.flags & INTERP_NEEDS_INIT) == 0) return;
     t.flags &= ~INTERP_NEEDS_INIT;
-    return DEFERRED_INIT_SCRIPT;
+    // Run init.tcl as its own complete enter / eval / leave cycle —
+    // separate from (and before) the caller's eval script.  Sourcing it
+    // inline with the user script (e.g. tcltest's own ``source``) leaves
+    // init.tcl half-applied; a standalone cycle registers and persists
+    // its procs the same way a top-level ``interp eval child {source
+    // init.tcl}`` does.  The bit is cleared first so init.tcl's own
+    // nested evals don't re-enter this path.
+    const ti = @import("tcl_interp.zig");
+    const frames = @import("tcl_frames.zig");
+    const save = enter(target);
+    defer leave(save);
+    // Run init.tcl at the child's global frame (see eval_interp_eval).
+    const frame_saved = frames.frame_depth_stash(@intCast(frames.frame_depth));
+    defer frames.frame_depth_restore(frame_saved);
+    _ = ti.eval_script(@intFromPtr(DEFERRED_INIT_SCRIPT.ptr), @intCast(DEFERRED_INIT_SCRIPT.len));
 }
 
 /// Persist the live array directory into ``from``'s ``Interp`` slot

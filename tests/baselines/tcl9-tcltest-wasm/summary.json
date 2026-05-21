@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T14:39:24Z",
+  "generated_at": "2026-05-21T19:39:14Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -24,8 +24,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 11,
-      "passed_min": 75,
+      "failed_max": 9,
+      "passed_min": 77,
       "skipped": 60,
       "total": 146
     },
@@ -105,8 +105,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 173,
-      "passed_min": 136,
+      "failed_max": 3,
+      "passed_min": 306,
       "skipped": 8,
       "total": 317
     },
@@ -123,8 +123,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 77,
+      "failed_max": 1,
+      "passed_min": 79,
       "skipped": 77,
       "total": 157
     },
@@ -132,17 +132,17 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 19,
-      "passed_min": 1099,
-      "skipped": 1050,
+      "failed_max": 26,
+      "passed_min": 2118,
+      "skipped": 24,
       "total": 2168
     },
     "expr-old": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 5,
-      "passed_min": 432,
+      "failed_max": 0,
+      "passed_min": 437,
       "skipped": 24,
       "total": 461
     },
@@ -165,11 +165,11 @@
       "total": 9
     },
     "foreach": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 42,
+      "failed_max": 0,
+      "passed_min": 43,
       "skipped": 0,
       "total": 43
     },
@@ -222,17 +222,17 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 58,
-      "passed_min": 228,
+      "failed_max": 57,
+      "passed_min": 229,
       "skipped": 1,
       "total": 287
     },
     "join": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 9,
+      "failed_max": 0,
+      "passed_min": 10,
       "skipped": 0,
       "total": 10
     },
@@ -357,8 +357,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 29,
-      "passed_min": 356,
+      "failed_max": 2,
+      "passed_min": 383,
       "skipped": 0,
       "total": 385
     },
@@ -384,8 +384,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 19,
-      "passed_min": 107,
+      "failed_max": 17,
+      "passed_min": 109,
       "skipped": 0,
       "total": 126
     },
@@ -411,8 +411,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 9,
-      "passed_min": 149,
+      "failed_max": 69,
+      "passed_min": 89,
       "skipped": 0,
       "total": 158
     },
@@ -429,8 +429,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 32,
-      "passed_min": 42,
+      "failed_max": 29,
+      "passed_min": 45,
       "skipped": 0,
       "total": 74
     },
@@ -525,11 +525,11 @@
       "total": 63
     },
     "switch": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 29,
-      "passed_min": 84,
+      "failed_max": 0,
+      "passed_min": 113,
       "skipped": 0,
       "total": 113
     },
@@ -552,7 +552,7 @@
       "total": 7
     },
     "uplevel": {
-      "bucket": "W-clean",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
       "failed_max": 0,
@@ -561,7 +561,7 @@
       "total": 57
     },
     "upvar": {
-      "bucket": "W-clean",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
       "failed_max": 0,
@@ -573,9 +573,9 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 56,
-      "passed_min": 254,
-      "skipped": 152,
+      "failed_max": 115,
+      "passed_min": 318,
+      "skipped": 29,
       "total": 462
     },
     "var": {
@@ -597,11 +597,11 @@
       "total": 46
     },
     "while-old": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 12,
+      "failed_max": 0,
+      "passed_min": 15,
       "skipped": 0,
       "total": 15
     },

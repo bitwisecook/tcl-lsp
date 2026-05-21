@@ -170,6 +170,37 @@ const StringOp = struct {
 /// regular ``expr_or`` pipeline (which itself recurses back into
 /// ``eval_expr_str`` for each side, picking up the string-op fix
 /// where it actually applies).
+/// Advance past a ``$variable`` reference starting at ``src[start] == '$'``,
+/// returning the index of its last byte (so a scanner's ``i += 1`` steps
+/// onto the next unconsumed byte).  Operator scanners must skip these so
+/// the ``::`` in ``$ns::v`` isn't read as a ternary ``:`` and the ``eq``
+/// in ``$equal`` isn't read as the string operator.  Handles ``$name``,
+/// ``$::ns::name``, ``${braced}``, and a trailing ``(index)`` array key.
+fn skip_dollar_ref(src: [*]const u8, len: u32, start: u32) u32 {
+    var i: u32 = start + 1;
+    if (i < len and src[i] == '{') {
+        i += 1;
+        while (i < len and src[i] != '}') i += 1;
+        return if (i < len) i else len - 1;
+    }
+    while (i < len and ((src[i] >= 'a' and src[i] <= 'z') or
+        (src[i] >= 'A' and src[i] <= 'Z') or
+        (src[i] >= '0' and src[i] <= '9') or src[i] == '_' or
+        (src[i] == ':' and i + 1 < len and src[i + 1] == ':')))
+    {
+        if (src[i] == ':') i += 2 else i += 1;
+    }
+    if (i < len and src[i] == '(') {
+        var d: u32 = 1;
+        i += 1;
+        while (i < len and d > 0) : (i += 1) {
+            if (src[i] == '(') d += 1 else if (src[i] == ')') d -= 1;
+        }
+        if (i > 0) i -= 1;
+    }
+    return if (i > start) i - 1 else start;
+}
+
 /// Walk *src*[rest_start..len] looking for a lower-precedence boolean
 /// or ternary operator that would override the candidate ``==``/``!=``.
 /// Returns true when no such operator is present (so the equality
@@ -180,6 +211,10 @@ fn eq_op_is_top_level(src: [*]const u8, len: u32, rest_start: u32) bool {
     var i: u32 = rest_start;
     while (i < len) : (i += 1) {
         const c = src[i];
+        if (c == '$') {
+            i = skip_dollar_ref(src, len, i);
+            continue;
+        }
         if (c == '"') {
             i += 1;
             while (i < len and src[i] != '"') {
@@ -238,6 +273,13 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
     var i: u32 = 0;
     while (i < len) : (i += 1) {
         const c = src[i];
+        // Skip ``$var`` references so the ``::`` in ``$ns::v`` isn't read
+        // as a ternary ``:`` (which would bail before the real operator)
+        // and ``$equal`` doesn't self-match its ``eq`` substring.
+        if (c == '$') {
+            i = skip_dollar_ref(src, len, i);
+            continue;
+        }
         // Skip nested constructs so an inner ``eq`` doesn't get picked.
         if (c == '"') {
             i += 1;
@@ -1166,9 +1208,15 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         const vs = pos.*;
         while (pos.* < len and ((src[pos.*] >= 'a' and src[pos.*] <= 'z') or
             (src[pos.*] >= 'A' and src[pos.*] <= 'Z') or
-            (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
+            (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_' or
+            // ``::`` namespace separators are part of the variable name —
+            // ``$::v`` / ``$ns::v`` must read the qualified global, not
+            // stop at the first colon and resolve an empty name to 0.
+            (src[pos.*] == ':' and pos.* + 1 < len and src[pos.* + 1] == ':')))
         {
-            pos.* += 1;
+            // Consume both colons of a ``::`` separator in one step so a
+            // trailing single ``:`` (not a separator) still terminates.
+            if (src[pos.*] == ':') pos.* += 2 else pos.* += 1;
         }
         const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
         // Issue #303 — release the per-atom name temp.
@@ -4902,17 +4950,15 @@ fn eval_interp_eval(words: []const i32) i32 {
     const target_interp = interp_impl.resolve_interp_path(words[2]);
     if (target_interp == 0) return 0;
 
-    // On the child's first eval, prepend its deferred Tcl_Init bootstrap
-    // (init.tcl source) so it runs at the same eval depth as the user
-    // script — the only depth at which init.tcl's proc definitions
-    // register and persist.  ``null`` for already-initialised interps
-    // and for children that never opted in (parent without init.tcl).
-    const init_prefix: ?[]const u8 = interp_reg.take_deferred_init(target_interp);
+    // On the child's first eval, run its deferred Tcl_Init (init.tcl
+    // source) as a complete, separate eval cycle before the user script,
+    // giving trusted children the auto-loading machinery the way C Tcl's
+    // ChildCreate does.  No-op for already-initialised interps and for
+    // children that never opted in (parent without init.tcl).
+    interp_reg.run_deferred_init(target_interp);
 
-    // Concatenate words[3..] with single-space separator, after the
-    // optional init prefix.
+    // Concatenate words[3..] with single-space separator.
     var total: u32 = 0;
-    if (init_prefix) |pfx| total += @as(u32, @intCast(pfx.len));
     var k: u32 = 3;
     while (k < words.len) : (k += 1) {
         total += @as(u32, @intCast(obj_ensure_string(words[k]).len));
@@ -4928,12 +4974,6 @@ fn eval_interp_eval(words: []const i32) i32 {
     // eval child …`` call doesn't leak ``total`` bytes of slab.
     defer if (total > 0) obj_mod.free_sized(script_ptr, total);
     var off: u32 = 0;
-    if (init_prefix) |pfx| {
-        if (pfx.len > 0) {
-            memcpy(script_ptr + off, @intFromPtr(pfx.ptr), @intCast(pfx.len));
-            off += @intCast(pfx.len);
-        }
-    }
     k = 3;
     while (k < words.len) : (k += 1) {
         const s = obj_ensure_string(words[k]);
@@ -4973,7 +5013,16 @@ fn eval_interp_eval(words: []const i32) i32 {
         .prev_root_addr = tcl_ns.root_addr,
         .prev_current_ns = tcl_ns.current_ns,
     };
+    // A child interp has its own call stack: ``interp eval child {…}``
+    // runs at the child's *global* frame regardless of the caller's
+    // depth.  Park the caller's frames (frame_depth → 0) so unqualified
+    // variables and arrays at the child script's top level resolve as
+    // globals, not as locals of whatever parent proc invoked the eval.
+    // Mirrors C Tcl's per-interp call stack (``ChildEval`` runs the
+    // script in the child, not a continuation of the parent's frame).
+    const frame_saved: i32 = if (swapped) frames.frame_depth_stash(@intCast(frames.frame_depth)) else 0;
     const result = if (off > 0) eval_script(script_ptr, off) else 0;
+    if (swapped) frames.frame_depth_restore(frame_saved);
     interp_reg.leave(save);
 
     // ``ChildEval`` (tclInterp.c) wraps the child eval in
