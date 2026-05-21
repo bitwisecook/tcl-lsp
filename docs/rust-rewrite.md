@@ -1011,14 +1011,16 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
-Re-audited: 2026-05-21 against `origin/main`@`cbe3bcc7` (prior
-anchor `01d83642`). +26 `main` commits; almost all out of scope
+Re-audited: 2026-05-21 against `origin/main`@`7d8a4d8f` (prior
+anchor `01d83642`). +27 `main` commits; almost all out of scope
 (Zig/WASM runtime + emitter, JetBrains/explorer front-end, CI /
 release / CodeQL). New in-scope rows captured in the
 **SYNC-MAY21 family** below: #470 (range closing-delimiter
 widening), #468 (`-loop` / external `.tcl.stubs`), #460 (E003
 leading-option false positives), #464 (analyser diagnostic-range
-fixes). #461 (array-index rename) already landed on the Rust side.
+fixes). #461 (array-index rename) already landed on the Rust side;
+#469 (stdlib-prelude bundling) deferred to the codegen/`tcl-vm`
+workstream.
 
 Refreshed: 2026-05-19 (chunk-log + queue reconciliation
 after the SYNC-MAY26 family + SYNC-JUN-FRAME356-population +
@@ -1156,9 +1158,9 @@ it from the **Outstanding** rows it absorbs.
 
 ## SYNC-MAY21 family — main audit (2026-05-21)
 
-Re-audited `origin/main`@`cbe3bcc7` against the prior anchor
+Re-audited `origin/main`@`7d8a4d8f` against the prior anchor
 `origin/main`@`01d83642` (the 2026-05-19 refresh point). `main`
-landed **26** commits since then. The histories still diverge
+landed **27** commits since then. The histories still diverge
 fully (no merge-base), so this is the per-file audit, not a git
 rebase.
 
@@ -1173,7 +1175,9 @@ and skip), grouped by exit point:
   refcount leaks), #456 (mathop → `tcl_arith` delegation), #457
   (`return -code break/continue` through compiled proc calls),
   #439 (`fire_in_list` trace double-free), #462 (`zig fmt`), #444
-  (double-free counters / sample capture).
+  (double-free counters / sample capture), #469 (`uplevel -0`
+  signed-level parsing + variable traces through `upvar` aliases —
+  all in the Zig interp / WASM emitter).
 - **Editors / JetBrains / explorer front-end** — #448, #450,
   #467, #260-era plugin fixes, and the explorer-serialiser half of
   #470.
@@ -1181,6 +1185,13 @@ and skip), grouped by exit point:
   alert fixes), #442 / #463 / #465 (release notes), #466 + #073
   (CI Zig setup), #459 / #076 (build-artefact ignores), #446
   (`RedactReport` field rename — redaction isn't ported).
+
+**Forward dependency (not yet actionable):** #469 also adds
+`core/compiler/stdlib_prelude.py` (a 502-line bundle of stdlib proc
+definitions wired into `wasm_link` at compile time). There is no
+Rust codegen/VM mirror to attach it to today, but an equivalent
+stdlib prelude will be needed when bytecode **codegen** completes
+and **`tcl-vm`** lands — track it there, not as a standalone row.
 
 In-scope rows (mirror these into the Rust workstream):
 
