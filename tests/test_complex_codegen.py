@@ -481,8 +481,10 @@ proc match {s} {
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::match"]
         has_barrier = any(
-            any(isinstance(s, IRBarrier) and "switch -regexp" in (s.reason or "")
-                for s in b.statements)
+            any(
+                isinstance(s, IRBarrier) and "switch -regexp" in (s.reason or "")
+                for s in b.statements
+            )
             for b in proc_cfg.blocks.values()
         )
         assert not has_barrier, "-regexp should no longer lower to IRBarrier"

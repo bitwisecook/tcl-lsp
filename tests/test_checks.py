@@ -3158,20 +3158,14 @@ class TestSwitchSubjectCountsAsParamUse:
             "}\n"
         )
         result = analyse(source)
-        unused = {
-            d.message.split("'")[1]
-            for d in result.diagnostics
-            if d.code == "W214"
-        }
+        unused = {d.message.split("'")[1] for d in result.diagnostics if d.code == "W214"}
         assert "col" not in unused, f"col wrongly flagged unused; got {sorted(unused)}"
         # ``row`` is genuinely unused — the check still fires for it.
         assert "row" in unused, f"expected row to be unused; got {sorted(unused)}"
 
     @staticmethod
     def _w214(source: str) -> set[str]:
-        return {
-            d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"
-        }
+        return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
 
     def test_glob_switch_subject_and_body_reads(self):
         # -glob / -regexp / fallthrough switches are kept as an IRSwitch
