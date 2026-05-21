@@ -3742,7 +3742,14 @@ fn eval_proc_call(words: []const i32) i32 {
         // path ignored the loader's error and overwrote it with
         // ``invalid command name`` in ``error_unknown_command``
         // below, hiding the real failure.
-        const loaded_name = try_auto_index_load(words[0]);
+        var loaded_name = try_auto_index_load(words[0]);
+        if (loaded_name == 0 and result_mod.snapshot(0).code != .ERROR) {
+            // Not in ``::auto_index`` yet — populate it from the
+            // standard library's ``tclIndex`` (via ``$TCL_LIBRARY``)
+            // once, then retry.  No-op when ``TCL_LIBRARY`` is unset.
+            ensure_stdlib_index_loaded();
+            loaded_name = try_auto_index_load(words[0]);
+        }
         if (result_mod.snapshot(0).code == .ERROR) {
             // Loader script raised; ``error_msg`` already holds the
             // user-facing message.  Drop any retained ``loaded_name``
@@ -3832,6 +3839,78 @@ fn eval_proc_call(words: []const i32) i32 {
 /// namespace for the namespaced probe — for ``interp alias``
 /// dispatches that's the global root (TCL_EVAL_INVOKE), so only the
 /// bare entry can match (parse-8.12).
+var stdlib_index_loaded: bool = false;
+
+extern fn getenv(name: [*:0]const u8) ?[*:0]const u8;
+
+/// Lazily populate ``::auto_index`` from the standard library's
+/// ``tclIndex``, located via the ``TCL_LIBRARY`` environment variable.
+/// Runs once, the first time a command misses both the proc registry
+/// and ``::auto_index`` — mirroring Tcl's ``unknown`` → ``auto_load``
+/// path without shipping ``init.tcl``.
+///
+/// We do NOT port the standard library: the runtime is pointed at the
+/// real on-disk library (preopened under WASI) and sources its index
+/// plus the per-command files it references on demand.  The bootstrap
+/// sets ``dir`` (the variable the index entries interpolate) and
+/// injects a thin ``::tcl::Pkg::source`` shim — the loader the real
+/// Tcl 9 ``tclIndex`` entries name — over the builtin ``source``.
+///
+/// No-op when ``TCL_LIBRARY`` is unset (every non-stdlib script), so it
+/// cannot perturb existing behaviour.  Any error from sourcing the
+/// index is swallowed (a missing / broken library must not become the
+/// caller's unknown-command diagnostic) — the surrounding flow state is
+/// saved and restored across the load.
+fn ensure_stdlib_index_loaded() void {
+    if (stdlib_index_loaded) return;
+    stdlib_index_loaded = true;
+    const lib_c = getenv("TCL_LIBRARY") orelse return;
+    var lib_len: u32 = 0;
+    while (lib_c[lib_len] != 0) : (lib_len += 1) {}
+    if (lib_len == 0) return;
+    const lib_p: [*]const u8 = @ptrCast(lib_c);
+    const part1: []const u8 = "set dir {";
+    // The shim must source at the GLOBAL scope.  A bare ``source`` in
+    // its own body would resolve to this proc (namespace ``::tcl::Pkg``)
+    // and recurse; even ``::source`` run in the proc's own frame would
+    // define the loaded procs in ``::tcl::Pkg`` rather than ``::``.
+    // ``uplevel #0`` runs the real ``::source`` at the global frame so
+    // autoloaded procs land where callers expect them.
+    const part2: []const u8 = "}\nproc ::tcl::Pkg::source {file args} {uplevel #0 [list ::source $file]}\nsource {";
+    const part3: []const u8 = "/tclIndex}\n";
+    const total: u32 = @as(u32, @intCast(part1.len)) + lib_len +
+        @as(u32, @intCast(part2.len)) + lib_len + @as(u32, @intCast(part3.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    defer obj_mod.free_sized(buf, total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (part1) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (0..lib_len) |i| {
+        dst[off] = lib_p[i];
+        off += 1;
+    }
+    for (part2) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (0..lib_len) |i| {
+        dst[off] = lib_p[i];
+        off += 1;
+    }
+    for (part3) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const saved = result_mod.signal_save_and_clear();
+    const r = eval_script(buf, total);
+    if (r != 0) obj_mod.tcl_obj_release(r);
+    result_mod.signal_restore(saved);
+}
+
 fn try_auto_index_load(cmd_obj: i32) i32 {
     if (cmd_obj == 0) return 0;
     const cmd_s = obj_ensure_string(cmd_obj);

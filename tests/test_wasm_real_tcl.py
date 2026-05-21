@@ -183,6 +183,7 @@ def _run_wasm(
     memory_size: int | None = None,
     capabilities: int = 0,
     host_spawn=None,
+    env: dict[str, str] | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -232,6 +233,12 @@ def _run_wasm(
         deadline_value = _epoch_count + 1
         store.set_epoch_deadline(deadline_value)
     wasi_config = wasmtime.WasiConfig()
+
+    if env:
+        # Expose host-supplied environment variables to the guest via
+        # WASI ``environ_get`` (so the runtime's ``getenv`` sees them —
+        # e.g. ``TCL_LIBRARY`` driving the stdlib auto-loader).
+        wasi_config.env = list(env.items())
 
     stdout_path = None
     if capture_stdout:
