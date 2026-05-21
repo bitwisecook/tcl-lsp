@@ -1256,6 +1256,24 @@ the `-loop` stub form, plus the `tcl-registry` signature side.
 Classify: in-scope, **structural** → promote to a numbered chunk
 when the analyser-core port (C41) reaches diagnostics.
 
+**Verified Rust state (2026-05-21, branch
+`claude/tcl-lsp-rust-rewrite-lNRRS`).** The inline `-loop` stub
+*flag* is **already present**: `tcl-registry::stub_overlay`
+declares `StubSigFlags::LOOP` (bit 1) and the analyser parses /
+carries it onto each `StubSig`. What #468 actually adds on top of
+the flag is **structural and still blocked**:
+(1) routing a `-loop` stub call through real loop *lowering* (the
+Python `_lower_stub_loop`) so the loop variable stays defined and
+the body is analysed in iteration order — the Rust lowering's
+structured-hook dispatch doesn't yet consult the stub overlay for a
+loop shape; (2) external `.tcl.stubs` *file* ingestion + the ambient
+(cross-file) stub scope + bounded workspace discovery + the
+W002/W123 interplay + cache-fingerprint merge + subprocess-pool
+forwarding — none of which has a Rust home yet (workspace stub
+discovery lives in the not-yet-ported LSP-server/workspace-state
+layer). Net: the overlay data model is ready; the loop-lowering and
+workspace-ingestion consumers ride with C41 / the `S*` server port.
+
 ### SYNC-MAY21-3 — E003 false positives: switches before positional args (#460 / #455)
 
 `_with_roles` dropped a command's declared `leading_options` when
@@ -1270,6 +1288,26 @@ merge + dialect-scoped switch filtering in `tcl-registry`, and the
 E003 arity check (`compiler_checks` / analyser arity validation).
 Classify: in-scope, low-touch.
 
+**Verified Rust state (2026-05-21, branch
+`claude/tcl-lsp-rust-rewrite-lNRRS`) — reclassify as blocked.** The
+"low-touch" estimate assumed the consuming machinery existed; it
+does not. The Rust analyser has **no general arity emitter at all**
+— there is no `E003` "too many arguments" check (and no live
+`E001`/`E002` either; the only `E002` occurrences are manually
+constructed test fixtures exercising the E101 de-dup pass). The
+signature side is likewise absent: `analyser::dispatch::CommandSig`
+carries only `arity` + `arg_roles` (no `leading_options`); there is
+no `_with_roles` role-hint merge and no `switch_names` / declared-
+option set in `tcl-registry` (`signature_for_command` already
+dialect-filters *subcommands*, but never computes a leading-option
+set for arity counting). Because the check itself isn't ported, the
+false positive **cannot occur today** — there is nothing to fix.
+The whole row (option-aware arity counting + dialect-scoped switch
+filtering + the `leading_options` preservation on role-hint merge)
+should land *as part of* the C41 arity-check port, not as a
+standalone mirror; building the `leading_options` plumbing ahead of
+its only consumer would be dead infrastructure. Promote to C41.
+
 ### SYNC-MAY21-4 — Analyser diagnostic-range coverage + product fixes (#464)
 
 Test-suite hardening for diagnostic-range coverage surfaced real
@@ -1280,6 +1318,15 @@ tests exposed). **Rust mirror:** fold into the in-progress
 analyser-core port (C41) — diagnostic spans plus the specific
 lifecycle/scope fixes. Classify: in-scope, medium; tracked under
 C41.
+
+**Verified Rust state (2026-05-21) — confirmed blocked on C41.**
+The Python fixes here are spread across var-lifecycle / OO / proc /
+scope checks (`_diag_var_lifecycle`, `_oo`, `_proc`, `_scope`)
+whose Rust equivalents are exactly the analyser-core surface still
+being ported under C41 — the var-lifecycle and scope-accuracy
+emitters are not yet live in `tcl-compiler::analyser`. No standalone
+mirror is possible; the diagnostic-range fixes attach to each check
+as it lands in C41.
 
 ### SYNC-MAY21-5 — Preserve array indices when renaming base variables (#461)
 
