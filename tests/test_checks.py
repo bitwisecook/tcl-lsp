@@ -3136,3 +3136,90 @@ class TestStructuralBodyDoesNotLeakIntoOuterScope:
 
     def test_uri_register_body_does_not_leak(self):
         self._assert_outer_diagnostics_fire("uri::register demo { puts $x; set y 1; set p 2 }")
+
+
+class TestSwitchSubjectCountsAsParamUse:
+    """Issue #471 — a parameter read only as a ``switch`` subject must not
+    be reported as an unused parameter (W214).
+
+    An exact ``switch -- $col {...}`` lowers to a chain of CFG branch
+    conditions whose subject is preserved as an ``ExprRaw`` node; the read
+    of ``col`` must still be recognised as a use.
+    """
+
+    def test_switch_subject_param_not_unused(self):
+        source = (
+            "proc editStartCmd {tbl row col text} {\n"
+            "    switch -- $col {\n"
+            "        1 { set combList columns }\n"
+            "        default { return $text }\n"
+            "    }\n"
+            "    return $combList\n"
+            "}\n"
+        )
+        result = analyse(source)
+        unused = {d.message.split("'")[1] for d in result.diagnostics if d.code == "W214"}
+        assert "col" not in unused, f"col wrongly flagged unused; got {sorted(unused)}"
+        # ``row`` is genuinely unused — the check still fires for it.
+        assert "row" in unused, f"expected row to be unused; got {sorted(unused)}"
+
+    @staticmethod
+    def _w214(source: str) -> set[str]:
+        return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
+
+    def test_glob_switch_subject_and_body_reads(self):
+        # -glob and fallthrough switches are kept as an IRSwitch statement
+        # (never lowered into CFG branches), so the subject and arm-body
+        # reads must be recovered from the structured form.  (-regexp is a
+        # barrier handled separately — see PR #474.)
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_fallthrough_switch_body_reads(self):
+        source = (
+            "proc p {col text} {\n"
+            "    switch -- $col {\n"
+            "        a -\n"
+            "        b { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_nested_control_flow_in_switch_arm_read(self):
+        # Reads buried in nested if/loop bodies inside an un-lowered switch
+        # arm must still be discovered.
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { if {1} { foreach x {1 2} { puts $text } } }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "text" not in self._w214(source)
+
+    def test_arm_local_set_then_read_no_read_before_set(self):
+        # A temporary set then read *inside* an arm is arm-local; collecting
+        # its read onto the outer IRSwitch must not surface as W210
+        # read-before-set (the outer statement has no view of the arm's def).
+        source = (
+            "proc p {x} {\n"
+            "    switch -glob -- $x {\n"
+            "        a* { set tmp 1; puts $tmp }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        codes = {d.code for d in analyse(source).diagnostics}
+        assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"
