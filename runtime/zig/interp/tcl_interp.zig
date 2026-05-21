@@ -4083,6 +4083,81 @@ fn build_invocation_list(words: []const i32) i32 {
     return obj_new_string_take(buf, off, total);
 }
 
+/// Raise ``wrong # args: should be "<name> <params>"`` for an
+/// interpreted proc called with fewer args than its required (no-
+/// default) parameters.  Mirrors C Tcl's ``ProcWrongNumArgs``: a
+/// defaulted parameter renders as ``?name?``, a trailing ``args``
+/// parameter as ``?arg ...?``, and a required parameter as its bare
+/// name.  ``invoked_name`` is the word the caller used (``words[0]``)
+/// so the message echoes the spelling at the call site.
+fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const inv = obj_ensure_string(invoked_name);
+    const ps = obj_ensure_string(params_obj);
+    const prefix = "wrong # args: should be \"";
+    var pcap: u32 = 0;
+    var i: u32 = 0;
+    while (i < n_params) : (i += 1) {
+        const pe = list_element_at(ps.ptr, ps.len, @intCast(i));
+        pcap += pe.len + 12;
+    }
+    const total: u32 = @as(u32, @intCast(prefix.len)) + inv.len + pcap + 1;
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    var off: u32 = 0;
+    for (prefix) |c| {
+        @as([*]u8, @ptrFromInt(buf + off))[0] = c;
+        off += 1;
+    }
+    if (inv.len > 0) {
+        memcpy(buf + off, inv.ptr, inv.len);
+        off += inv.len;
+    }
+    i = 0;
+    while (i < n_params) : (i += 1) {
+        @as([*]u8, @ptrFromInt(buf + off))[0] = ' ';
+        off += 1;
+        const pe = list_element_at(ps.ptr, ps.len, @intCast(i));
+        const pptr = ps.ptr + pe.start;
+        const plen = pe.len;
+        const sub_n = list_count_elements(pptr, plen);
+        var nptr = pptr;
+        var nlen = plen;
+        if (sub_n == 2) {
+            const ne = list_element_at(pptr, plen, 0);
+            nptr = pptr + ne.start;
+            nlen = ne.len;
+        }
+        const np: [*]const u8 = @ptrFromInt(nptr);
+        const is_args = (i == n_params - 1) and nlen == 4 and
+            np[0] == 'a' and np[1] == 'r' and np[2] == 'g' and np[3] == 's';
+        if (sub_n == 2) {
+            @as([*]u8, @ptrFromInt(buf + off))[0] = '?';
+            off += 1;
+            memcpy(buf + off, nptr, nlen);
+            off += nlen;
+            @as([*]u8, @ptrFromInt(buf + off))[0] = '?';
+            off += 1;
+        } else if (is_args) {
+            const lit = "?arg ...?";
+            for (lit) |c| {
+                @as([*]u8, @ptrFromInt(buf + off))[0] = c;
+                off += 1;
+            }
+        } else {
+            memcpy(buf + off, nptr, nlen);
+            off += nlen;
+        }
+    }
+    @as([*]u8, @ptrFromInt(buf + off))[0] = '"';
+    off += 1;
+    const msg = obj_mod.obj_new_string_take(buf, off, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// Internal: dispatch once the proc bucket is already resolved.
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
@@ -4465,14 +4540,15 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                     // omitted this positional arg.
                     _ = frames.local_set(param_name, param_default);
                 } else {
-                    // No default and no caller-supplied value —
-                    // reference Tcl raises ``wrong # args`` here, but
-                    // legacy tests (and our own existing baselines)
-                    // rely on the lenient empty-default behaviour, so
-                    // keep that for the no-default case.
-                    const empty = obj_new_string(0, 0);
-                    _ = frames.local_set(param_name, empty);
-                    obj_mod.tcl_obj_release(empty);
+                    // No default and no caller-supplied value: reference
+                    // Tcl raises ``wrong # args: should be "name a ?b?"``
+                    // (``TclObjInterpProc`` → ``ProcWrongNumArgs``).
+                    // init-2.x and many tcltest cases assert this exact
+                    // message; bind-empty would silently run the body
+                    // with an empty required argument instead.
+                    raise_proc_wrong_args(words[0], params_obj, n_params);
+                    frames.frame_pop();
+                    return 0;
                 }
             }
         }
@@ -5008,11 +5084,6 @@ fn eval_interp_eval(words: []const i32) i32 {
     // paths use.  Procs cached by ``proc_lookup`` are keyed on
     // (ns, ...) so the LRU doesn't cross-pollute between interps.
     const swapped = target_interp != interp_reg.interp_current();
-    const save = if (swapped) interp_reg.enter(target_interp) else interp_reg.EnterSave{
-        .prev_interp = interp_reg.current_interp,
-        .prev_root_addr = tcl_ns.root_addr,
-        .prev_current_ns = tcl_ns.current_ns,
-    };
     // A child interp has its own call stack: ``interp eval child {…}``
     // runs at the child's *global* frame regardless of the caller's
     // depth.  Park the caller's frames (frame_depth → 0) so unqualified
@@ -5020,10 +5091,25 @@ fn eval_interp_eval(words: []const i32) i32 {
     // globals, not as locals of whatever parent proc invoked the eval.
     // Mirrors C Tcl's per-interp call stack (``ChildEval`` runs the
     // script in the child, not a continuation of the parent's frame).
+    //
+    // Order matters: stash *before* :func:`enter`.  ``frame_depth_stash``
+    // re-points ``current_ns`` at the parked top frame's caller-ns (its
+    // uplevel contract); doing it after ``enter`` would clobber the
+    // child-root context ``enter`` installs, leaving the child script
+    // running in the *parent's* namespace (observed as tcltest's
+    // ``ConstraintInitializer`` failing when the child is loaded from a
+    // ``::tcltest``-namespace proc).  ``enter`` after the stash restores
+    // ``current_ns = 0`` / ``root_addr = child``; ``leave`` then
+    // ``frame_depth_restore`` unwind in the reverse order.
     const frame_saved: i32 = if (swapped) frames.frame_depth_stash(@intCast(frames.frame_depth)) else 0;
+    const save = if (swapped) interp_reg.enter(target_interp) else interp_reg.EnterSave{
+        .prev_interp = interp_reg.current_interp,
+        .prev_root_addr = tcl_ns.root_addr,
+        .prev_current_ns = tcl_ns.current_ns,
+    };
     const result = if (off > 0) eval_script(script_ptr, off) else 0;
-    if (swapped) frames.frame_depth_restore(frame_saved);
     interp_reg.leave(save);
+    if (swapped) frames.frame_depth_restore(frame_saved);
 
     // ``ChildEval`` (tclInterp.c) wraps the child eval in
     // ``Tcl_EvalObjEx`` which calls ``TclUpdateReturnInfo`` when the

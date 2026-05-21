@@ -866,11 +866,14 @@ pub fn run_deferred_init(target: u32) void {
     // nested evals don't re-enter this path.
     const ti = @import("tcl_interp.zig");
     const frames = @import("tcl_frames.zig");
-    const save = enter(target);
-    defer leave(save);
-    // Run init.tcl at the child's global frame (see eval_interp_eval).
+    // Stash before enter (see eval_interp_eval): the stash re-points
+    // current_ns at the caller's frame ns, so enter must run after it to
+    // install the child-root context.  Unwind in reverse: leave, then
+    // restore.
     const frame_saved = frames.frame_depth_stash(@intCast(frames.frame_depth));
     defer frames.frame_depth_restore(frame_saved);
+    const save = enter(target);
+    defer leave(save);
     _ = ti.eval_script(@intFromPtr(DEFERRED_INIT_SCRIPT.ptr), @intCast(DEFERRED_INIT_SCRIPT.len));
 }
 
