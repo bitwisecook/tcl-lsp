@@ -856,9 +856,16 @@ def _sccp(
     executable_blocks: set[str] = {cfg.entry} if cfg.entry in cfg.blocks else set()
     executable_edges: set[tuple[str, str]] = set()
     values: dict[SSAValueKey, LatticeValue] = {}
+    # Keys whose current value is not yet OVERDEFINED.  A barrier widens
+    # every tracked value to OVERDEFINED; tracking the live set lets each
+    # barrier visit touch only the not-yet-widened keys instead of
+    # re-scanning the whole ``values`` map on every fixpoint pass.
+    non_overdefined: set[SSAValueKey] = set()
     if param_constants:
         for key, lv in param_constants.items():
             values[key] = lv
+            if lv.kind is not LatticeKind.OVERDEFINED:
+                non_overdefined.add(key)
     order = cfg.reverse_postorder()
 
     def set_value(key: SSAValueKey, candidate: LatticeValue) -> bool:
@@ -866,6 +873,10 @@ def _sccp(
         merged = _join(old, candidate)
         if merged != old:
             values[key] = merged
+            if merged.kind is LatticeKind.OVERDEFINED:
+                non_overdefined.discard(key)
+            else:
+                non_overdefined.add(key)
             return True
         return False
 
@@ -895,10 +906,13 @@ def _sccp(
             for s in ssa_block.statements:
                 if isinstance(s.statement, IRBarrier):
                     # Barriers can modify any variable — widen all
-                    # currently-tracked values to OVERDEFINED.
-                    for key in list(values):
-                        if set_value(key, OVERDEFINED):
-                            changed = True
+                    # currently-tracked values to OVERDEFINED.  Only the
+                    # not-yet-widened keys need touching.
+                    if non_overdefined:
+                        for key in non_overdefined:
+                            values[key] = OVERDEFINED
+                        non_overdefined.clear()
+                        changed = True
                     continue
                 for var, ver in s.defs.items():
                     val = _evaluate_def(s.statement, s, values)
