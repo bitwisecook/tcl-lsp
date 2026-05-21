@@ -901,10 +901,13 @@ Consider capturing the result: catch {\u{2026}} result"
         }
 
         let positional_any_expand = (positional_start..args.len()).any(expanded);
-        // E003 lower bound: non-expanded positional words.  E002
-        // upper bound: the full positional count (only meaningful
-        // when no expansion is present — an unresolved expansion
-        // makes the upper bound unbounded, so E002 can't fire).
+        // `nargs_min` is the *lower bound* on the positional-argument
+        // count: the non-expanded words, since each `{*}` word
+        // contributes 0..N more at runtime.  E003 ("too many") fires
+        // when even this lower bound exceeds `max`.  E002 ("too few")
+        // needs an *upper bound* on the count, which becomes unbounded
+        // once any `{*}` expansion is present — so E002 only fires when
+        // there is no expansion and the count is therefore exact.
         let nargs_min = if positional_any_expand {
             (positional_start..args.len())
                 .filter(|&i| !expanded(i))

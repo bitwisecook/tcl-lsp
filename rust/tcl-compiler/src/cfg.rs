@@ -230,32 +230,53 @@ impl Function {
     /// all of them bounded.
     #[must_use]
     pub fn reverse_postorder(&self) -> Vec<String> {
+        // Each frame caches the block's successor list — computed once
+        // when the frame is pushed — alongside the index of the next
+        // successor to visit, so advancing through them doesn't
+        // recompute/reallocate the list on every loop iteration (which
+        // matters on the large CFGs this iterative form exists to make
+        // safe). A frame moves to `postorder` once all its successors
+        // have been pushed — the recursive post-order DFS order,
+        // reversed.
+        struct Frame {
+            name: String,
+            succs: Vec<String>,
+            idx: usize,
+        }
+        let succs_of = |name: &str| -> Vec<String> {
+            self.blocks
+                .get(name)
+                .map(|b| b.successors().into_iter().map(str::to_owned).collect())
+                .unwrap_or_default()
+        };
+
         let mut visited: HashSet<String> = HashSet::new();
         let mut postorder: Vec<String> = Vec::new();
-        // Each frame is (block name, index of the next successor to
-        // visit); a frame moves to `postorder` once all its successors
-        // have been pushed — yielding the same order as the recursive
-        // post-order DFS, then reversed.
-        let mut stack: Vec<(String, usize)> = Vec::new();
+        let mut stack: Vec<Frame> = Vec::new();
         if self.blocks.contains_key(&self.entry) {
             visited.insert(self.entry.clone());
-            stack.push((self.entry.clone(), 0));
+            stack.push(Frame {
+                name: self.entry.clone(),
+                succs: succs_of(&self.entry),
+                idx: 0,
+            });
         }
-        while let Some((name, succ_idx)) = stack.last().cloned() {
-            let succs: Vec<String> = self
-                .blocks
-                .get(&name)
-                .map(|b| b.successors().into_iter().map(str::to_owned).collect())
-                .unwrap_or_default();
-            if succ_idx < succs.len() {
-                stack.last_mut().unwrap().1 += 1;
-                let next = &succs[succ_idx];
+        while let Some(frame) = stack.last_mut() {
+            if frame.idx < frame.succs.len() {
+                let next = frame.succs[frame.idx].clone();
+                frame.idx += 1;
                 if visited.insert(next.clone()) {
-                    stack.push((next.clone(), 0));
+                    let succs = succs_of(&next);
+                    stack.push(Frame {
+                        name: next,
+                        succs,
+                        idx: 0,
+                    });
                 }
             } else {
-                postorder.push(name);
+                let name = std::mem::take(&mut frame.name);
                 stack.pop();
+                postorder.push(name);
             }
         }
         postorder.reverse();
