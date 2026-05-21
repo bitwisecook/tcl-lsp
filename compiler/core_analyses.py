@@ -1149,7 +1149,7 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
     (W220) or set-but-never-used variable (W211), nor eliminated by DCE,
     even when the local analysis sees no local read.
 
-    Uses the shared :mod:`core.analysis.var_scoping` grammar so every alias
+    Uses the shared :mod:`compiler.var_scoping` grammar so every alias
     form is recognised identically to memory-SSA alias detection — a single
     source of truth rather than ad-hoc command-name matching (which misses
     ``namespace upvar``, whose IR command is just ``namespace``).

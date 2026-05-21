@@ -1,7 +1,7 @@
 """CLI tool for compiling Tcl scripts to WebAssembly.
 
 Usage:
-    python -m explorer.wasm_cli [OPTIONS] [FILE]
+    python -m tooling.wasm.main [OPTIONS] [FILE]
 
 Options:
     --source TEXT       Tcl source code (instead of file)
@@ -12,20 +12,20 @@ Options:
 
 Examples:
     # Compile to WAT (human-readable), non-optimised
-    python -m explorer.wasm_cli script.tcl --format wat
+    python -m tooling.wasm.main script.tcl --format wat
 
     # Compile to WAT, optimised
-    python -m explorer.wasm_cli script.tcl --format wat --optimise
+    python -m tooling.wasm.main script.tcl --format wat --optimise
 
     # Compile to WASM binary
-    python -m explorer.wasm_cli script.tcl --format wasm -o output.wasm
+    python -m tooling.wasm.main script.tcl --format wasm -o output.wasm
 
     # Compile + link the runtime into a self-contained, runnable binary
-    python -m explorer.wasm_cli script.tcl --link -o output.wasm
+    python -m tooling.wasm.main script.tcl --link -o output.wasm
     wasmtime output.wasm   # (host must define env.host_spawn / WASI)
 
     # Compare optimised vs non-optimised
-    python -m explorer.wasm_cli --source 'set x [expr {1 + 2}]' --format both
+    python -m tooling.wasm.main --source 'set x [expr {1 + 2}]' --format both
 """
 
 from __future__ import annotations

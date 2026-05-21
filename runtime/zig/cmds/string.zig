@@ -23,7 +23,7 @@ pub const registration = reg.CmdEntry{
     .handler = &eval,
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/string.py``.
+// Sub-command arities — mirrors ``dialects/tcl/string.py``.
 // Cross-checked against C Tcl 9.0 ``tclCmdMZ.c`` every ``String*Cmd``
 // (``StringCmpOpts`` for compare/equal; the remainder have direct
 // ``if (objc != N)`` / ``objc < A || objc > B`` checks).

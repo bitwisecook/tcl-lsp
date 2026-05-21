@@ -20,7 +20,7 @@ pub const registration = reg.CmdEntry{
     .handler = &eval,
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/array.py``.
+// Sub-command arities — mirrors ``dialects/tcl/array.py``.
 // Arity counts args *after* the sub-command name, cross-checked against
 // C Tcl 9.0 by ``scripts/check_wasm_command_parity.py``.
 pub const subcommands: []const reg.SubEntry = &.{

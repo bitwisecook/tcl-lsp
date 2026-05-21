@@ -1,7 +1,7 @@
 """S4.1 — inlining-eligibility policy.
 
-For every :class:`~core.compiler.ir.IRProcedure` in an
-:class:`~core.compiler.ir.IRModule`, decide whether the inliner is
+For every :class:`~compiler.ir.IRProcedure` in an
+:class:`~compiler.ir.IRModule`, decide whether the inliner is
 allowed (and willing) to splice the body into a caller in the next
 stage S4.2.  The output is purely metadata — this module never
 mutates the IR shape, only the per-proc ``inline_decision`` and

@@ -1,4 +1,4 @@
-"""Entry point for ``python -m vm``."""
+"""Entry point for ``python -m tooling.vm``."""
 
 from __future__ import annotations
 

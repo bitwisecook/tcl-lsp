@@ -278,8 +278,8 @@ def _expr_key(expr) -> tuple | None:
 
 def _expr_text(expr) -> str | None:
     """Render ``expr`` to a stable string for hashing.  Returns
-    ``None`` if the tree contains an :class:`~core.compiler.expr_ast.ExprCommand`
-    or :class:`~core.compiler.expr_ast.ExprRaw` — both have side
+    ``None`` if the tree contains an :class:`~compiler.expr_ast.ExprCommand`
+    or :class:`~compiler.expr_ast.ExprRaw` — both have side
     effects or unknown semantics that GVN can't safely cache.
     """
     from ..expr_ast import (

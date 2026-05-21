@@ -1365,19 +1365,19 @@ rewrites, shimmer warnings, taint analysis, and bytecode.
 
 ```sh
 # Full exploration of a Tcl file
-uv run python -m explorer script.tcl
+uv run python -m tooling.explorer script.tcl
 
 # Focus on optimiser rewrites only
-uv run python -m explorer script.tcl --show opt
+uv run python -m tooling.explorer script.tcl --show opt
 
 # Inline source with optimised output
-uv run python -m explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+uv run python -m tooling.explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
 
 # Show only IR and CFG
-uv run python -m explorer script.tcl --show ir,cfg
+uv run python -m tooling.explorer script.tcl --show ir,cfg
 
 # iRules dialect with flow analysis
-uv run python -m explorer irule.tcl --dialect bigip --show irules
+uv run python -m tooling.explorer irule.tcl --dialect bigip --show irules
 ```
 
 Available views: `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
@@ -1455,16 +1455,16 @@ against Tcl 9.0.3 native test suites.
 
 ```sh
 # Execute a script
-uv run python -m vm script.tcl arg1 arg2
+uv run python -m tooling.vm script.tcl arg1 arg2
 
 # Interactive REPL
-uv run python -m vm
+uv run python -m tooling.vm
 
 # Inline evaluation
-uv run python -m vm -e 'puts [expr {6 * 7}]'
+uv run python -m tooling.vm -e 'puts [expr {6 * 7}]'
 
 # Show bytecode disassembly without executing
-uv run python -m vm --disassemble script.tcl
+uv run python -m tooling.vm --disassemble script.tcl
 ```
 
 ### Tcl debugger

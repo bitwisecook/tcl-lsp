@@ -437,7 +437,7 @@ class WasmModule:
         - any explorer label attached by the emitter
           (``"foreach"``, ``"if"``, ``"catch body"``, …).
 
-        The shape matches what ``explorer/serialise.py`` ships to the
+        The shape matches what ``tooling/cli/serialise.py`` ships to the
         frontend.  Indices into the returned instruction list are
         stable, so the UI can cross-link a branch instruction to its
         matching block/loop/if open/close.
@@ -738,7 +738,7 @@ def _decode_leb128_signed(data: bytes) -> int:
 def _range_to_explorer_dict(rng: Range | None) -> dict | None:
     """Serialise a Range for the explorer frontend.
 
-    Mirrors ``explorer.formatters.range_dict``: widen a braced/quoted word's
+    Mirrors ``tooling.cli.formatters.range_dict``: widen a braced/quoted word's
     range to its closing delimiter against the active highlight source, then
     convert the *inclusive* semantic-model end to the *exclusive* end the
     front-end slices with (add one).

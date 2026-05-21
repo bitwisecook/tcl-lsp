@@ -1,13 +1,13 @@
 """S4.2 — IR-level inlining.
 
 The catalogue stage (:mod:`compiler.inlining.decision`) tags
-each :class:`~core.compiler.ir.IRProcedure` with an
-:class:`~core.compiler.ir.InlineDecision`.  This module consumes
+each :class:`~compiler.ir.IRProcedure` with an
+:class:`~compiler.ir.InlineDecision`.  This module consumes
 those tags and rewrites the IR module so the marked calls
 disappear before codegen.
 
 The pass handles four progressively-larger shapes of statement-
-position :class:`~core.compiler.ir.IRCall`:
+position :class:`~compiler.ir.IRCall`:
 
 **v0 — empty-body splice.**  Proc with zero body statements; the
 call vanishes entirely.
@@ -46,7 +46,7 @@ through every reachable call being spliced are dropped from
 ``proc_register_compiled`` calls likewise vanish, shrinking
 the WASM binary.
 
-The pass returns a new :class:`~core.compiler.ir.IRModule`; the
+The pass returns a new :class:`~compiler.ir.IRModule`; the
 input module is left untouched (every IR node is frozen, so
 rebuilding via :func:`dataclasses.replace` is the only option).
 """

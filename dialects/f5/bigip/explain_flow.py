@@ -1930,7 +1930,7 @@ def compute_explain_flow(
     `:np` capture).
 
     *configs* is the dict produced by
-    :func:`explorer.verbs.f5._paths.load_paths`; the first config whose
+    :func:`tooling.f5.verbs._paths.load_paths`; the first config whose
     virtual-server set matches a session's destination wins.
 
     *keylog_path* — when set and tshark is available, passed through

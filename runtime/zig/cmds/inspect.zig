@@ -397,7 +397,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // ``info <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/info.py``.  Cross-checked against
+// ``dialects/tcl/info.py``.  Cross-checked against
 // ``generic/tclCmdIL.c`` (most handlers enforce ``objc != N`` or
 // ``objc < A || objc > B`` directly; the ``TclCompileBasic*ArgCmd``
 // entries in ``infoImplMap`` imply the arity for the remainder).
@@ -434,7 +434,7 @@ pub const info_subcommands: []const reg.SubEntry = &.{
 };
 
 // ``trace <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/trace.py``.
+// ``dialects/tcl/trace.py``.
 pub const trace_subcommands: []const reg.SubEntry = &.{
     .{ .name = "add", .arity_min = 4, .arity_max = 4, .handler = &eval_trace },
     .{ .name = "info", .arity_min = 2, .arity_max = 2, .handler = &eval_trace },

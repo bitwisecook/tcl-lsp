@@ -11,7 +11,7 @@ from ._base import register
 
 _SOURCE = "Tcl stdlib auto-loaded utility"
 
-# NOTE: parray is already registered in core/commands/registry/tcl/parray.py
+# NOTE: parray is already registered in dialects/tcl/parray.py
 # so we do not re-register it here.
 
 

@@ -31,7 +31,7 @@ def word_piece(tok: Token) -> str:
         # Detect braced ``${...}`` vs bare ``$name`` form from the
         # token span.  ``Token.end.offset`` is the position of the
         # *last* source byte covered by the token (inclusive — see
-        # ``core/parsing/lexer.py``); ``tok.text`` excludes the
+        # ``compiler/parsing/lexer.py``); ``tok.text`` excludes the
         # leading ``$`` for bare and excludes both braces for
         # ``${…}``.  Net delta is 0 for bare and 1 for braced
         # (the leading ``$`` and the closing ``}`` cancel against

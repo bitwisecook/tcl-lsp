@@ -4,7 +4,7 @@
     {
       "name": "compiler-explorer",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "tcl-lsp/explorer/static"],
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "tcl-lsp/tooling/explorer/static"],
       "port": 8080
     }
   ]

@@ -114,7 +114,7 @@ make refresh-tcl9-vm-core-baseline
 python scripts/dev/run_tcl9_vm_core.py --stems parse basic info string set --no-baseline
 
 # Reproduce one stem in isolation, in a real CLI process:
-python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test
+python -m tooling.vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test
 
 # Run the gate explicitly (same as `make test-tcl9-vm-core`):
 RUN_VM_TCL9_CORE=1 uv run pytest tests/test_vm_tcl9_core_baseline.py -q
@@ -200,7 +200,7 @@ how a future reviewer can tell whether to revisit the classification.
    Start with Tier 1 (B0-host-exception) — they unblock the most tests
    per fix.
 2. **Reproduce in isolation.**
-   `python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test`
+   `python -m tooling.vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test`
    should reproduce the crash with the same `crash_type` /
    `crash_msg`.
 3. **Read the upstream contract.** The C source under

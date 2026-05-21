@@ -1,8 +1,8 @@
 """F5-specific CLI verbs for the ``f5`` command.
 
-Verbs here use the verb registry in :mod:`explorer.verbs.f5._registry`,
+Verbs here use the verb registry in :mod:`tooling.f5.verbs._registry`,
 which is independent of the ``tcl`` / ``irule`` registry under
-:mod:`explorer.verbs._registry`.
+:mod:`tooling.tcl.verbs._registry`.
 """
 
 

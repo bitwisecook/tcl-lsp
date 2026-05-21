@@ -863,7 +863,7 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "binary", .arity_min = 1, .arity_max = null, .handler = &eval_binary },
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/binary.py``.
+// Sub-command arities — mirrors ``dialects/tcl/binary.py``.
 // Cross-checked against C Tcl 9.0 ``tclBinary.c``.
 pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "decode", .arity_min = 2, .arity_max = null, .handler = &eval_binary },

@@ -697,7 +697,7 @@ class CommandSpec:
     # WASM runtime dispatch metadata — when set, the WASM codegen
     # auto-registers a hook that emits a call to the named runtime
     # import.  Replaces the ``_CMD_RUNTIME`` shadow table in
-    # ``core/compiler/codegen/wasm/_imports.py``.
+    # ``compiler/codegen/wasm/_imports.py``.
     wasm_runtime_import: WasmRuntimeImport | None = None
 
     # WASM codegen flag — when ``True`` the command produces no value

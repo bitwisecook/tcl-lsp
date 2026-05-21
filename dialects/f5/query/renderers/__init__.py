@@ -11,7 +11,7 @@ Registering a renderer
 ----------------------
 
 Renderers self-register on import with the :func:`renderer` decorator,
-the same shape used by ``@verb`` in :mod:`explorer.verbs.f5._registry`
+the same shape used by ``@verb`` in :mod:`tooling.f5.verbs._registry`
 and ``@_register`` in :mod:`dialects.f5.query.builtins`:
 
 .. code-block:: python

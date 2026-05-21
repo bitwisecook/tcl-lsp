@@ -6,7 +6,7 @@ Otherwise it stays ``LOCAL`` and the WASM codegen keeps it in a WASM local
 slot.
 
 The public entry point is :func:`analyse_var_escape`, which consumes a
-:class:`~core.compiler.compilation_unit.CompilationUnit` and produces a map
+:class:`~compiler.compilation_unit.CompilationUnit` and produces a map
 from qualified proc name to :class:`ProcEscapeSummary`.
 """
 

@@ -574,7 +574,7 @@ def check_exec_not_captured(
     return []
 
 
-# W201: Moved to core/compiler/taint/_path_concat.py (taint-system integration).
+# W201: Moved to compiler/taint/_path_concat.py (taint-system integration).
 
 
 # W304: Missing option terminator (--) on option-bearing commands

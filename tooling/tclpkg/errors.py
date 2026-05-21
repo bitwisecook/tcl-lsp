@@ -1,7 +1,7 @@
 """Exception hierarchy for the ``tclpkg`` package manager.
 
 These exceptions are raised by the library and propagate through the
-CLI verb handlers.  They bubble up to ``explorer.tcl_cli.main()`` where
+CLI verb handlers.  They bubble up to ``tooling.tcl.main.main()`` where
 the existing ``except Exception`` clause prints the message to stderr
 and returns exit code 2 — the same behaviour as the surrounding ``tcl``
 CLI verbs so users get a consistent experience.

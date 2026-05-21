@@ -36,7 +36,7 @@ from .substitution import backslash_subst
 # Character classes used for bare ``$name`` scanning.  Tcl's
 # variable-name parser accepts ASCII alphanumerics plus underscore;
 # anything else terminates the name.  We keep to the ASCII subset
-# here to match the tokeniser in ``core/parsing/lexer.py``.
+# here to match the tokeniser in ``compiler/parsing/lexer.py``.
 _NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
 

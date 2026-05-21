@@ -8,7 +8,7 @@ library, we can do better: read the ``.tcl`` file off the host once,
 lower it to IR, and splice its procedures into the module so they
 compile to WASM functions and the bundle is self-contained.
 
-This mirrors :mod:`core.compiler.source_inliner` (which inlines explicit
+This mirrors :mod:`compiler.source_inliner` (which inlines explicit
 ``source LITERAL`` calls) but is *reference-driven*: the trigger is a
 call to a command that the library's ``tclIndex`` maps to a file.  Only
 files for commands actually referenced (transitively) are pulled in, so
@@ -18,8 +18,8 @@ library.
 Anything not statically resolvable — dynamic command names (``$cmd`` /
 ``eval``), or a library file that fails to lower — is left untouched and
 falls back to the runtime ``TCL_LIBRARY`` auto-loader.  The pass runs
-after :func:`core.compiler.lowering.lower_to_ir` and before
-:func:`core.compiler.cfg.build_cfg`.
+after :func:`compiler.lowering.lower_to_ir` and before
+:func:`compiler.cfg.build_cfg`.
 """
 
 from __future__ import annotations
@@ -493,7 +493,7 @@ def apply_stdlib_prelude_auto(
     This is the default-on entry point: bundling happens whenever a
     standard library is discoverable (explicit path or ``TCL_LIBRARY``),
     and is a no-op otherwise.  Shared by the compile-time linker
-    (:func:`core.compiler.codegen.wasm_link`) and the WASM CLI so both
+    (:func:`compiler.codegen.wasm.link`) and the WASM CLI so both
     pick up the same behaviour.
     """
     effective = library_dir if library_dir is not None else os.environ.get("TCL_LIBRARY")

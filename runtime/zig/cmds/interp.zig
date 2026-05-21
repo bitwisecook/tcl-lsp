@@ -19,7 +19,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // Sub-command arities for ``interp`` — mirrors
-// ``core/commands/registry/tcl/interp.py``.  ``rename`` has no
+// ``dialects/tcl/interp.py``.  ``rename`` has no
 // sub-commands.  Named table so ``parse_zig_builtins`` attributes
 // these to ``interp`` only, not to ``rename``.
 pub const interp_subcommands: []const reg.SubEntry = &.{

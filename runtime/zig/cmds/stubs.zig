@@ -242,7 +242,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // ``clock <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/clock.py``.  Cross-checked against
+// ``dialects/tcl/clock.py``.  Cross-checked against
 // C Tcl 9.0 ``generic/tclClock.c`` + ``tclClockFmt.c`` (ensemble
 // implementations invoke ``Tcl_WrongNumArgs`` on bad arg counts).
 pub const clock_subcommands: []const reg.SubEntry = &.{
@@ -256,7 +256,7 @@ pub const clock_subcommands: []const reg.SubEntry = &.{
 };
 
 // ``package <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/package.py``.  Cross-checked against
+// ``dialects/tcl/package.py``.  Cross-checked against
 // C Tcl 9.0 ``generic/tclPkg.c``.
 pub const package_subcommands: []const reg.SubEntry = &.{
     .{ .name = "files", .arity_min = 1, .arity_max = 1, .handler = &eval_package },

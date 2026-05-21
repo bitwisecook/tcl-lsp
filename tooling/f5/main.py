@@ -1,12 +1,12 @@
 """Command-line entry point for the ``f5`` CLI.
 
-This is a separate top-level CLI from :mod:`explorer.tcl_cli`.  Its
-verb registry lives in :mod:`explorer.verbs.f5`, which is decoupled
-from the ``tcl`` / ``irule`` registry under :mod:`explorer.verbs`.
+This is a separate top-level CLI from :mod:`tooling.tcl.main`.  Its
+verb registry lives in :mod:`tooling.f5.verbs`, which is decoupled
+from the ``tcl`` / ``irule`` registry under :mod:`tooling.tcl.verbs`.
 
 Run as::
 
-    python -m explorer.f5_cli cleanup samples/bigip/bigip.conf
+    python -m tooling.f5.main cleanup samples/bigip/bigip.conf
 
 Or, once the ``f5`` console-script entry is wired up by the zipapp
 build, simply::

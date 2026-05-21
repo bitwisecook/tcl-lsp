@@ -1,6 +1,6 @@
 """Verb registry for the ``f5`` CLI.
 
-Mirrors :mod:`explorer.verbs._registry` but keeps the f5 verb list in
+Mirrors :mod:`tooling.tcl.verbs._registry` but keeps the f5 verb list in
 its own module-global so ``f5`` and ``tcl`` / ``irule`` brief-help
 output do not bleed into one another.  The two registries are
 intentionally decoupled — refactoring one must not require changing

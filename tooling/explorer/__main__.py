@@ -1,4 +1,4 @@
-"""Entry point for ``python -m explorer`` and the CLI zipapp."""
+"""Entry point for ``python -m tooling.explorer`` and the CLI zipapp."""
 
 from __future__ import annotations
 

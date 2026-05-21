@@ -5,7 +5,7 @@ literal path separator (``/`` or ``\``) and a variable or path-returning
 command result.
 
 Detection uses the **Rendered Value Properties** pass
-(``core/compiler/rendered_properties.py``) which computes string content
+(``compiler/rendered_properties.py``) which computes string content
 properties (``HAS_FORWARD_SLASH``, ``HAS_INTERPOLATION``, etc.) for
 every SSA value after Tcl escape rendering via ``backslash_subst()``.
 This means escape sequences like ``\n``, ``\t``, ``\xNN`` are correctly

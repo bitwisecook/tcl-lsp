@@ -137,7 +137,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // No ``pub export fn tcl_cmd_exec`` — the Python registry
-// (``core/commands/registry/tcl/exec_.py``) deliberately omits a
+// (``dialects/tcl/exec_.py``) deliberately omits a
 // ``wasm_runtime_import`` because the codegen's single-arg
 // truncation would silently drop trailing argv words on a multi-arg
 // ``exec``.  Every call routes through the eval-fallback into

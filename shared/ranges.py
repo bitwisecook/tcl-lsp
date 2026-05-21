@@ -21,7 +21,7 @@ def _closer_position(end: SourcePosition, last_inner_char: str) -> SourcePositio
     inside the word).  When it is a newline the closer sits at column 0 of the
     next line, so the line/column must advance accordingly — keeping them
     consistent with ``offset`` for line/column-based consumers such as
-    :func:`core.common.lsp.to_lsp_range`.
+    :func:`server._lsp_conv.to_lsp_range`.
     """
     if last_inner_char in ("\n", "\r"):
         return SourcePosition(line=end.line + 1, character=0, offset=end.offset + 1)

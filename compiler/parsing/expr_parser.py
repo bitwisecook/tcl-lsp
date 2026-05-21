@@ -1,8 +1,8 @@
 """Pratt parser for Tcl [expr] expressions.
 
-Builds a structured :class:`~core.compiler.expr_ast.ExprNode` tree from
+Builds a structured :class:`~compiler.expr_ast.ExprNode` tree from
 the flat token list produced by :func:`tokenise_expr`.  Falls back to
-:class:`~core.compiler.expr_ast.ExprRaw` on any parse error, ensuring
+:class:`~compiler.expr_ast.ExprRaw` on any parse error, ensuring
 the compiler pipeline never crashes on malformed expressions.
 
 Tcl expression precedence (low → high), following the Tcl man page:

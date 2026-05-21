@@ -344,7 +344,7 @@ comptime {
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
     // a silent wrong answer.  Imports of these are wired up in
-    // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
+    // compiler/codegen/wasm/_imports.py's ``_RUNTIME_IMPORTS``; the
     // comptime references here ensure the linker keeps them.
     // Channel commands with real WASI-backed implementations live
     // in tcl_chan.zig; only flush / chan / fileevent / socket remain

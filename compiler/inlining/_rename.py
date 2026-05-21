@@ -3,7 +3,7 @@
 When a callee's body is spliced into a caller's IR, the callee's
 parameter and local names must be rewritten so they don't
 collide with the caller's locals.  This module walks every
-:class:`~core.compiler.ir.IRStatement` shape and produces a
+:class:`~compiler.ir.IRStatement` shape and produces a
 clone with the rename map applied to:
 
 * ``name`` fields on every :class:`IRAssign*` / :class:`IRIncr` /
@@ -16,7 +16,7 @@ clone with the rename map applied to:
   ``IRCall.args``, ``IRReturn.value``, ``IRSwitch.subject``,
   etc.);
 
-* every :class:`~core.compiler.expr_ast.ExprVar` node in
+* every :class:`~compiler.expr_ast.ExprVar` node in
   embedded expression ASTs (``IRAssignExpr.expr``,
   :class:`IRIf` / :class:`IRFor` / :class:`IRWhile`
   conditions, :class:`IRReturn.expr`, :class:`IRExprEval.expr`).
@@ -439,7 +439,7 @@ def _rewrite_value_string(text: str, rename: dict[str, str]) -> str:
 
 
 def _rewrite_expr(node, rename: dict[str, str]):
-    """Walk an :class:`~core.compiler.expr_ast.ExprNode` tree and
+    """Walk an :class:`~compiler.expr_ast.ExprNode` tree and
     return a clone with ``rename`` applied to every ``ExprVar``
     name."""
     if isinstance(node, ExprVar):

@@ -23,7 +23,7 @@ pub const registration = reg.CmdEntry{
     .handler = &eval,
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/dict.py``.
+// Sub-command arities — mirrors ``dialects/tcl/dict.py``.
 // Cross-checked against C Tcl 9.0 ``tclDictObj.c`` (every
 // ``Tcl_WrongNumArgs`` call in every ``Dict*Cmd`` handler).
 pub const subcommands: []const reg.SubEntry = &.{

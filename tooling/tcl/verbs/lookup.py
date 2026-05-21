@@ -1,7 +1,7 @@
 """Reference-lookup verbs: command-info, help.
 
 iRules-specific lookup verbs (``event-order``, ``event-info``) live on the
-``f5`` CLI under :mod:`explorer.verbs.f5.irule` instead.
+``f5`` CLI under :mod:`tooling.f5.verbs.irule` instead.
 """
 
 from __future__ import annotations

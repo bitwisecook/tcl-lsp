@@ -192,12 +192,12 @@ def range_dict(r: Range) -> dict:
 
     * A braced/quoted/bracketed word's range stops on the last *inner*
       character (the closer is excluded by convention).  When the document
-      source is known (set via ``core.common.ranges.set_highlight_source``),
+      source is known (set via ``shared.ranges.set_highlight_source``),
       widen the range to cover the closing ``}`` / ``"`` / ``]`` so
       ``{$condition}`` is not highlighted as ``{$conditi``.
     * The semantic-model :class:`Range` end is *inclusive*; the front-end
       slices ``src.substring(startOffset, endOffset)`` with an *exclusive*
-      end (matching :func:`core.common.lsp.to_lsp_range`), so add one to the
+      end (matching :func:`server._lsp_conv.to_lsp_range`), so add one to the
       end position.
     """
     r = widen_for_highlight(r)

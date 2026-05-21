@@ -2,7 +2,7 @@
 
 The package owns the inliner's policy and mechanism.  The policy
 (``decision``) tags every ``IRProcedure`` with an
-:class:`~core.compiler.ir.InlineDecision` after var-escape analysis
+:class:`~compiler.ir.InlineDecision` after var-escape analysis
 has computed ``pure_leaf``.  The mechanism (added in S4.2) walks the
 IR module post-lowering and substitutes callee bodies into caller
 ``IRBlock`` s where the tag is ``ALWAYS`` or ``IF_SINGLE_CALL``.

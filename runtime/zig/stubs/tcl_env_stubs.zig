@@ -4,7 +4,7 @@
 // ``unsupported command: <name>``.
 //
 // ``namespace eval`` is handled by the compiler directly (see
-// core/compiler/lowering_hooks) so it is not stubbed here — only
+// compiler/lowering_hooks) so it is not stubbed here — only
 // the other ``namespace`` subcommands route through this file.
 // Similarly ``info exists`` and a handful of ``info`` subcommands
 // are real runtime functions in ``tcl_cmd_info.zig``; the

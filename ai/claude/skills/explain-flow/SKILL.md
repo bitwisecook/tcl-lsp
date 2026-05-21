@@ -40,7 +40,7 @@ JSON dict per session, not the raw per-flow dump.
 The Python that produces this output lives in
 `dialects/f5/bigip/explain_flow.py` and is shared by both the MCP tool
 (`ai/mcp/tcl_mcp_server.py`) and the CLI verb
-(`tooling/explorer/verbs/f5/explain_flow.py`) — there is one source of truth.
+(`tooling/f5/verbs/explain_flow.py`) — there is one source of truth.
 
 ## How to invoke (low-bloat, MCP-first)
 
@@ -72,16 +72,16 @@ and uses fewer tokens than JSON for the same information:
 
 ```bash
 # Text report (recommended for context efficiency)
-python3 -m explorer.f5_cli explain-flow capture.pcap bigip.conf
+python3 -m tooling.f5.main explain-flow capture.pcap bigip.conf
 
 # Tighten event bodies — equivalent of MCP max_event_body_lines
-python3 -m explorer.f5_cli explain-flow --max-event-lines 8 capture.pcap bigip.conf
+python3 -m tooling.f5.main explain-flow --max-event-lines 8 capture.pcap bigip.conf
 
 # Just event names, no Tcl bodies at all
-python3 -m explorer.f5_cli explain-flow --no-event-bodies capture.pcap bigip.conf
+python3 -m tooling.f5.main explain-flow --no-event-bodies capture.pcap bigip.conf
 
 # Scope to one flow via tshark display filter
-python3 -m explorer.f5_cli explain-flow \
+python3 -m tooling.f5.main explain-flow \
     --tshark-filter 'host 10.0.0.5 and tcp.port == 443' \
     capture.pcap bigip.conf
 ```

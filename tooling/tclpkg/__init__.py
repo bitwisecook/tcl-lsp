@@ -1,7 +1,7 @@
 """Tcl package manager and virtual-environment system.
 
 ``tclpkg`` is a deterministic, MVS-based dependency manager for Tcl
-projects, integrated into the ``tcl`` CLI at ``explorer/tcl_cli.py``.  It
+projects, integrated into the ``tcl`` CLI at ``tooling/tcl/main.py``.  It
 evaluates a ``tclpkg.tcl`` manifest in a sandboxed Tcl interpreter,
 resolves the dependency graph using Go-style Minimum Version Selection,
 fetches packages into a content-addressable cache keyed by SHA-256, and
