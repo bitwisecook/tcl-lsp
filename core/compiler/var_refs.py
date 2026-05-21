@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
 from ..common.naming import normalise_var_name
 from ..parsing.lexer import TclLexer
-from ..parsing.tokens import TokenType
+from ..parsing.tokens import Token, TokenType
 
 _DEFAULT_CACHE_SIZE = 512
 
@@ -80,12 +80,12 @@ class VarReferenceScanner:
     def _scan_script_uncached(self, source: str) -> frozenset[str]:
         """Scan without cache — called on cache miss."""
         vars_found: set[str] = set()
-        lexer = TclLexer(source)
+        # Tokenise once and share the token stream across the variable,
+        # var-read-role, and script-role scans below — each of those
+        # previously built its own ``TclLexer`` over the same source.
+        tokens = TclLexer(source).tokenise_all()
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
+        for tok in tokens:
             if tok.type is TokenType.VAR:
                 name = normalise_var_name(tok.text)
                 if name:
@@ -94,15 +94,16 @@ class VarReferenceScanner:
                 vars_found |= self.scan_script(tok.text)
 
         if self._options.include_var_read_roles:
-            vars_found |= self._scan_var_read_role_names(source)
+            vars_found |= self._scan_var_read_role_names(tokens)
 
         if self._options.recurse_into_script_roles:
-            vars_found |= self._scan_script_role_args(source)
+            vars_found |= self._scan_script_role_args(tokens)
 
         return frozenset(vars_found)
 
-    def _scan_script_role_args(self, source: str) -> set[str]:
-        """Walk *source* command-by-command and recurse into BODY/EXPR args.
+    def _scan_script_role_args(self, tokens: list[Token]) -> set[str]:
+        """Walk a pre-tokenised script command-by-command, recursing into
+        BODY/EXPR args.
 
         Only argument positions registered as ``ArgRole.BODY`` (Tcl scripts)
         or ``ArgRole.EXPR`` (expressions) are descended into.  Plain braced
@@ -110,7 +111,6 @@ class VarReferenceScanner:
         for literals like ``set msg {$unused}``.
         """
         result: set[str] = set()
-        lexer = TclLexer(source)
         words: list[str] = []
         prev_type = TokenType.EOL
 
@@ -134,7 +134,7 @@ class VarReferenceScanner:
                 if inner:
                     result.update(self.scan_script(inner))
 
-        for tok in lexer.tokenise_all():
+        for tok in tokens:
             if tok.type in (TokenType.EOL, TokenType.EOF):
                 flush_command()
                 words = []
@@ -164,9 +164,8 @@ class VarReferenceScanner:
         flush_command()
         return result
 
-    def _scan_var_read_role_names(self, source: str) -> set[str]:
+    def _scan_var_read_role_names(self, tokens: list[Token]) -> set[str]:
         result: set[str] = set()
-        lexer = TclLexer(source)
         words: list[str] = []
         prev_type = TokenType.EOL
 
@@ -181,7 +180,7 @@ class VarReferenceScanner:
                     if name:
                         result.add(name)
 
-        for tok in lexer.tokenise_all():
+        for tok in tokens:
             if tok.type in (TokenType.EOL, TokenType.EOF):
                 flush_command()
                 words = []

@@ -180,18 +180,21 @@ _PATTERN_CHECKS: list[tuple[frozenset[str], _CheckFn]] = [
 ]
 
 _targeted_checks: dict[str, list[_CheckFn]] = {}
-_targeted_checks_spec_count: int = -1
+_targeted_checks_generation: int = -1
 
 
 def _get_targeted_checks() -> dict[str, list[_CheckFn]]:
     """Return the targeted check map, rebuilding if the registry has changed.
 
     The registry lazily loads dialect packs (e.g. iRules, EDA), so the
-    targeted check map must be rebuilt whenever the spec count changes.
+    targeted check map must be rebuilt whenever the spec set changes.  The
+    registry's ``generation`` counter advances on every such change, so
+    comparing it is O(1) — far cheaper than re-summing the spec table on
+    every command (this runs once per command analysed).
     """
-    global _targeted_checks, _targeted_checks_spec_count
-    current = sum(len(v) for v in REGISTRY.specs_by_name.values())
-    if current != _targeted_checks_spec_count:
+    global _targeted_checks, _targeted_checks_generation
+    current = REGISTRY.generation
+    if current != _targeted_checks_generation:
         checks: dict[str, list[_CheckFn]] = defaultdict(list)
         for trait, check in _TRAIT_CHECK_MAP:
             for cmd in REGISTRY.check_trait_commands(trait):
@@ -200,7 +203,7 @@ def _get_targeted_checks() -> dict[str, list[_CheckFn]]:
             for cmd in cmds:
                 checks[cmd].append(check)
         _targeted_checks = dict(checks)
-        _targeted_checks_spec_count = current
+        _targeted_checks_generation = current
     return _targeted_checks
 
 

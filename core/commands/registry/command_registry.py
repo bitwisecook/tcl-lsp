@@ -188,6 +188,11 @@ class CommandRegistry:
     # Loader keys that have already been applied to this registry.
     _loaded_loaders: set[str] = field(default_factory=set, init=False, repr=False)
 
+    # Monotonic counter bumped whenever ``specs_by_name`` gains specs (a
+    # dialect pack loads).  Lets consumers detect spec changes in O(1)
+    # instead of re-summing the whole spec table on every lookup.
+    generation: int = field(default=0, init=False, repr=False)
+
     # Serialises dialect loading so concurrent threads cannot double-merge.
     _load_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -304,6 +309,7 @@ class CommandRegistry:
                     self._command_to_required_package[spec.name] = spec.required_package
 
             # Invalidate all derived caches.
+            self.generation += 1
             self._trait_indexes = self._build_trait_indexes()
             self._command_names_cache.clear()
             self._event_command_cache.clear()
