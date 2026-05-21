@@ -251,6 +251,15 @@ def _word_token(ttype: TokenType, text: str, start: int, end: int) -> Token:
     return Token(type=ttype, text=text, start=_pos(start), end=_pos(end))
 
 
+def _offset_of(source: str, line: int, character: int) -> int:
+    """Resolve a (line, character) position to an absolute offset in source."""
+    line_starts = [0]
+    for i, ch in enumerate(source):
+        if ch == "\n":
+            line_starts.append(i + 1)
+    return line_starts[line] + character
+
+
 class TestRangeFromWordToken:
     def test_str_token_includes_closing_brace(self):
         # `{$condition}` at offsets 0..11: the STR token spans 0..10 (the `{`
@@ -273,6 +282,22 @@ class TestRangeFromWordToken:
         tok = _word_token(TokenType.VAR, "x", start=0, end=1)
         r = range_from_word_token(tok)
         assert r.end.offset == 1
+
+    def test_multiline_body_closer_advances_line_and_column(self):
+        # `{\n  set x 1\n}` — the closing `}` is on the next line at column 0,
+        # so the widened end's line/column must stay consistent with offset.
+        source = "if {$a} {\n  set x 1\n}\n"
+        # The body STR token: `{` at offset 8, inner ends on the `\n` at 19.
+        tok = Token(
+            type=TokenType.STR,
+            text="\n  set x 1\n",
+            start=SourcePosition(line=0, character=8, offset=8),
+            end=SourcePosition(line=1, character=9, offset=19),
+        )
+        r = range_from_word_token(tok)
+        assert source[r.end.offset] == "}"
+        assert _offset_of(source, r.end.line, r.end.character) == r.end.offset
+        assert (r.end.line, r.end.character) == (2, 0)
 
 
 class TestWidenForHighlight:
@@ -299,6 +324,21 @@ class TestWidenForHighlight:
             assert widen_for_highlight(r).end.offset == 2
         finally:
             reset_highlight_source(token)
+
+    def test_multiline_closer_keeps_line_column_consistent(self):
+        # Closer on the next line: offset and line/column must agree.
+        source = "if {$a} {\n  set x 1\n}\n"
+        r = Range(
+            start=SourcePosition(line=0, character=8, offset=8),  # `{`
+            end=SourcePosition(line=1, character=9, offset=19),  # the `\n`
+        )
+        token = set_highlight_source(source)
+        try:
+            widened = widen_for_highlight(r)
+        finally:
+            reset_highlight_source(token)
+        assert source[widened.end.offset] == "}"
+        assert _offset_of(source, widened.end.line, widened.end.character) == widened.end.offset
 
 
 class TestRangeDictConversion:

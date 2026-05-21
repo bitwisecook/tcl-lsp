@@ -14,6 +14,20 @@ def range_from_token(tok: Token) -> Range:
     return Range(start=tok.start, end=tok.end)
 
 
+def _closer_position(end: SourcePosition, last_inner_char: str) -> SourcePosition:
+    """Position of the closing delimiter one character past *end*.
+
+    *last_inner_char* is the character at ``end.offset`` (the last character
+    inside the word).  When it is a newline the closer sits at column 0 of the
+    next line, so the line/column must advance accordingly — keeping them
+    consistent with ``offset`` for line/column-based consumers such as
+    :func:`core.common.lsp.to_lsp_range`.
+    """
+    if last_inner_char in ("\n", "\r"):
+        return SourcePosition(line=end.line + 1, character=0, offset=end.offset + 1)
+    return SourcePosition(line=end.line, character=end.character + 1, offset=end.offset + 1)
+
+
 def range_from_word_token(tok: Token) -> Range:
     """Range covering a full word token, *including* its closing delimiter.
 
@@ -27,16 +41,13 @@ def range_from_word_token(tok: Token) -> Range:
     The closer width comes from the token's *type*, so the span is derived
     straight from the token tree with no source slicing — which is what lets it
     work for tokens whose offsets are absolute but whose surrounding source
-    string is only a substring (nested ``proc`` / loop bodies).  ``offset`` is
-    always correct; ``character`` assumes a same-line closer, matching
-    :func:`widen_range_for_closer`.
+    string is only a substring (nested ``proc`` / loop bodies).  When the
+    closer falls on the next line (a multi-line braced body whose last inner
+    character is a newline), the line/column advance with the offset.
     """
     if tok.type in (TokenType.STR, TokenType.CMD):
-        end = tok.end
-        return Range(
-            start=tok.start,
-            end=SourcePosition(line=end.line, character=end.character + 1, offset=end.offset + 1),
-        )
+        last_inner = tok.text[-1] if tok.text else ""
+        return Range(start=tok.start, end=_closer_position(tok.end, last_inner))
     return Range(start=tok.start, end=tok.end)
 
 
@@ -55,8 +66,9 @@ def widen_range_for_closer(source: str, range_: Range) -> Range:
     braced/quoted/bracketed word, so a range built from such a token stops one
     character short.  When *range_* opens with one of those delimiters and the
     matching closer immediately follows its (inclusive) end, return a range
-    extended to cover the closer; otherwise return *range_* unchanged.  Only
-    same-line closers are widened, so a multi-line ``{ ... \\n}`` is left alone.
+    extended to cover the closer; otherwise return *range_* unchanged.  When the
+    closer falls on the next line (a multi-line ``{ ... \\n}``), the line/column
+    of the extended end advance with the offset so the two stay consistent.
     """
     start_off = range_.start.offset
     if not (0 <= start_off < len(source)):
@@ -64,10 +76,8 @@ def widen_range_for_closer(source: str, range_: Range) -> Range:
     closer = _RANGE_CLOSERS.get(source[start_off])
     end = range_.end
     if closer and end.offset + 1 < len(source) and source[end.offset + 1] == closer:
-        return Range(
-            start=range_.start,
-            end=SourcePosition(line=end.line, character=end.character + 1, offset=end.offset + 1),
-        )
+        last_inner = source[end.offset] if 0 <= end.offset < len(source) else ""
+        return Range(start=range_.start, end=_closer_position(end, last_inner))
     return range_
 
 
