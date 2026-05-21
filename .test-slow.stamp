@@ -1,6 +1,9 @@
 # tcl-lsp test-slow stamp — DO NOT EDIT BY HAND.
-# DELIBERATELY BROKEN to demonstrate the CI PR gate failing.
-describe=BROKEN-on-purpose
-head=0000000000000000000000000000000000000000
-date=1970-01-01T00:00:00Z
-fingerprint=0000000000000000000000000000000000000000000000000000000000000000
+# Written by 'make test-slow' on success; verified in CI via
+# 'scripts/test-slow-stamp.sh check'.  Only 'fingerprint' is gated on;
+# describe/head/date are informational (they change when this stamp is
+# committed, so they cannot be compared).
+describe=v1.10.6-126-g8921207c-dirty
+head=8921207ce2ff6e8cced628346b4898dd6a856dd0
+date=2026-05-21T09:57:21Z
+fingerprint=a91e6d48e28402de6c3b96194d9e13f79d8334d3d76246288ac9a4c28fe8adc8
