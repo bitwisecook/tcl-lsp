@@ -37,7 +37,7 @@ from .ir import (
     IRCall,
     IRIncr,
 )
-from .ssa import SSAFunction, SSAStatement, SSAValueKey
+from .ssa import SSAFunction, SSAStatement, SSAValueKey, value_use_blocks
 from .value_shapes import is_pure_var_ref, parse_command_substitution
 
 
@@ -414,54 +414,64 @@ def rendered_properties_propagation(
     # Forward dataflow over the shared reverse-postorder.
     order = cfg.reverse_postorder()
 
+    # Forward dataflow worklist: when a value's properties change,
+    # re-enqueue only the blocks that read it instead of re-scanning
+    # every block each pass.
+    deps = value_use_blocks(ssa)
+    changed_keys: list[SSAValueKey] = []
+
     def set_props(key: SSAValueKey, candidate: RenderedValueProps) -> bool:
         old = props.get(key, _BOTTOM)
         merged = rendered_join(old, candidate)
         if merged != old:
             props[key] = merged
+            changed_keys.append(key)
             return True
         return False
 
-    changed = True
-    while changed:
-        changed = False
-        for bn in order:
-            if bn not in executable_blocks:
-                continue
-            ssa_block = ssa.blocks.get(bn)
-            if ssa_block is None:
-                continue
+    worklist: list[str] = [bn for bn in order if bn in executable_blocks]
+    queued: set[str] = set(worklist)
+    while worklist:
+        bn = worklist.pop()
+        queued.discard(bn)
+        ssa_block = ssa.blocks.get(bn)
+        if ssa_block is None:
+            continue
+        changed_keys.clear()
 
-            # Phi nodes.
-            incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
-            for phi in ssa_block.phis:
-                if bn == cfg.entry:
+        # Phi nodes.
+        incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
+        for phi in ssa_block.phis:
+            if bn == cfg.entry:
+                continue
+            if not incoming_exec_preds:
+                continue
+            phi_props = _BOTTOM
+            for pred in incoming_exec_preds:
+                incoming_ver = phi.incoming.get(pred, 0)
+                if incoming_ver <= 0:
                     continue
-                if not incoming_exec_preds:
-                    continue
-                phi_props = _BOTTOM
-                for pred in incoming_exec_preds:
-                    incoming_ver = phi.incoming.get(pred, 0)
-                    if incoming_ver <= 0:
-                        continue
-                    phi_props = rendered_join(
-                        phi_props,
-                        props.get((phi.name, incoming_ver), _BOTTOM),
-                    )
-                if set_props((phi.name, phi.version), phi_props):
-                    changed = True
+                phi_props = rendered_join(
+                    phi_props,
+                    props.get((phi.name, incoming_ver), _BOTTOM),
+                )
+            set_props((phi.name, phi.version), phi_props)
 
-            # Statements.
-            for s in ssa_block.statements:
-                stmt = s.statement
-                if isinstance(stmt, IRBarrier):
-                    for var, ver in s.defs.items():
-                        if set_props((var, ver), _TOP):
-                            changed = True
-                    continue
+        # Statements.
+        for s in ssa_block.statements:
+            stmt = s.statement
+            if isinstance(stmt, IRBarrier):
                 for var, ver in s.defs.items():
-                    inferred = _evaluate_rendered_def(stmt, s, props)
-                    if set_props((var, ver), inferred):
-                        changed = True
+                    set_props((var, ver), _TOP)
+                continue
+            for var, ver in s.defs.items():
+                inferred = _evaluate_rendered_def(stmt, s, props)
+                set_props((var, ver), inferred)
+
+        for key in changed_keys:
+            for ub in deps.get(key, ()):
+                if ub in executable_blocks and ub not in queued:
+                    worklist.append(ub)
+                    queued.add(ub)
 
     return props

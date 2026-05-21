@@ -349,6 +349,30 @@ class SSAFunction:
     dominator_tree: dict[BlockName, tuple[BlockName, ...]]
 
 
+def value_use_blocks(ssa: SSAFunction) -> dict[SSAValueKey, set[BlockName]]:
+    """Map each SSA value ``(name, version)`` to the blocks that read it.
+
+    A reader is any block whose phi nodes take that version on an incoming
+    edge, or whose statements use it.  Forward dataflow worklists
+    (SCCP, type / rendered-property / taint propagation) use this to
+    re-enqueue exactly the blocks affected when a value's lattice entry
+    changes, instead of re-scanning every block on every fixpoint pass.
+
+    Terminator (branch/return) uses are not included — passes that read
+    values in a terminator add those dependencies themselves.
+    """
+    deps: dict[SSAValueKey, set[BlockName]] = {}
+    for bn, block in ssa.blocks.items():
+        for phi in block.phis:
+            for inc_ver in phi.incoming.values():
+                if inc_ver > 0:
+                    deps.setdefault((phi.name, inc_ver), set()).add(bn)
+        for s in block.statements:
+            for name, ver in s.uses.items():
+                deps.setdefault((name, ver), set()).add(bn)
+    return deps
+
+
 def _reachable_blocks(cfg: CFGFunction) -> set[str]:
     seen: set[str] = set()
     stack = [cfg.entry]

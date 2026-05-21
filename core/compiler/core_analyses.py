@@ -69,7 +69,7 @@ from .ir import (
     IRStatement,
 )
 from .lowering import lower_to_ir
-from .ssa import SSAFunction, SSAStatement, SSAValueKey, build_ssa
+from .ssa import SSAFunction, SSAStatement, SSAValueKey, build_ssa, value_use_blocks
 from .static_loops import (
     evaluate_expr_with_constants,
     summarise_static_for_ir,
@@ -880,6 +880,16 @@ def _sccp(
             return True
         return False
 
+    # SCCP keeps the round-robin RPO sweep (no sparse worklist): it marks
+    # CFG edges executable as it goes and never un-marks them, so an
+    # undetermined branch (decision ``None``) conservatively marks BOTH
+    # targets.  The RPO sweep resolves a condition's value before the
+    # branch is visited, so the pessimistic both-edge marking is avoided;
+    # a value-driven worklist could visit the branch first (in a
+    # different order), permanently mark both edges, and lose precision
+    # (e.g. a constant condition no longer detected as always-false).
+    # The other propagations read this fixed executable set and only join
+    # values, so their worklists are order-independent.
     changed = True
     while changed:
         changed = False
@@ -929,13 +939,7 @@ def _sccp(
                         executable_blocks.add(target)
                         changed = True
                 case CFGBranch(condition=condition, true_target=tt, false_target=ft):
-                    decision = _evaluate_branch_decision(
-                        cfg,
-                        ssa,
-                        bn,
-                        condition,
-                        values,
-                    )
+                    decision = _evaluate_branch_decision(cfg, ssa, bn, condition, values)
                     if decision is True:
                         targets = (tt,)
                     elif decision is False:
@@ -1036,37 +1040,49 @@ def _liveness(
     live_in: dict[str, set[SSAValueKey]] = {bn: set() for bn in cfg.blocks}
     live_out: dict[str, set[SSAValueKey]] = {bn: set() for bn in cfg.blocks}
     order = list(reversed(cfg.reverse_postorder()))
+    preds = _compute_predecessors(cfg)
 
-    changed = True
-    while changed:
-        changed = False
-        for bn in order:
-            match cfg.blocks[bn].terminator:
-                case CFGGoto(target=target):
-                    succs = (target,)
-                case CFGBranch(true_target=tt, false_target=ft):
-                    succs = (tt, ft)
-                case _:
-                    succs = ()
+    # Backward dataflow worklist: a block's live_out is built from its
+    # successors' live_in, so when live_in[bn] changes only bn's
+    # predecessors need recomputing — re-enqueue those instead of
+    # re-scanning every block each pass.
+    worklist: list[str] = list(order)
+    queued: set[str] = set(worklist)
+    yield_counter = 0
+    while worklist:
+        bn = worklist.pop()
+        queued.discard(bn)
+        match cfg.blocks[bn].terminator:
+            case CFGGoto(target=target):
+                succs = (target,)
+            case CFGBranch(true_target=tt, false_target=ft):
+                succs = (tt, ft)
+            case _:
+                succs = ()
 
-            out: set[SSAValueKey] = set()
-            for succ in succs:
-                if succ not in cfg.blocks:
-                    continue
-                edge_live = set(live_in[succ])
-                for phi in ssa.blocks[succ].phis:
-                    edge_live.discard((phi.name, phi.version))
-                    incoming = phi.incoming.get(bn, 0)
-                    if incoming > 0:
-                        edge_live.add((phi.name, incoming))
-                out |= edge_live
+        out: set[SSAValueKey] = set()
+        for succ in succs:
+            if succ not in cfg.blocks:
+                continue
+            edge_live = set(live_in[succ])
+            for phi in ssa.blocks[succ].phis:
+                edge_live.discard((phi.name, phi.version))
+                incoming = phi.incoming.get(bn, 0)
+                if incoming > 0:
+                    edge_live.add((phi.name, incoming))
+            out |= edge_live
 
-            new_in = use[bn] | (out - defs[bn])
-            if new_in != live_in[bn] or out != live_out[bn]:
-                live_in[bn] = new_in
-                live_out[bn] = out
-                changed = True
-        time.sleep(0)  # Yield GIL between fixed-point iterations
+        new_in = use[bn] | (out - defs[bn])
+        live_out[bn] = out
+        if new_in != live_in[bn]:
+            live_in[bn] = new_in
+            for p in preds.get(bn, set()):
+                if p not in queued:
+                    worklist.append(p)
+                    queued.add(p)
+        yield_counter += 1
+        if yield_counter % 256 == 0:
+            time.sleep(0)  # Yield GIL periodically
 
     return live_in, live_out
 
@@ -1590,58 +1606,70 @@ def _type_propagation(
 
     types: dict[SSAValueKey, TypeLattice] = {}
     order = cfg.reverse_postorder()
+    # Forward dataflow worklist: when a value's type changes, re-enqueue
+    # only the blocks that read it (precomputed def→use map) instead of
+    # re-scanning every block each pass.
+    deps = value_use_blocks(ssa)
+    changed_keys: list[SSAValueKey] = []
 
     def set_type(key: SSAValueKey, candidate: TypeLattice) -> bool:
         old = types.get(key, _TYPE_UNKNOWN)
         merged = type_join(old, candidate)
         if merged != old:
             types[key] = merged
+            changed_keys.append(key)
             return True
         return False
 
-    changed = True
-    while changed:
-        changed = False
-        for bn in order:
-            if bn not in executable_blocks:
-                continue
-            ssa_block = ssa.blocks.get(bn)
-            if ssa_block is None:
-                continue
+    worklist: list[str] = [bn for bn in order if bn in executable_blocks]
+    queued: set[str] = set(worklist)
+    yield_counter = 0
+    while worklist:
+        bn = worklist.pop()
+        queued.discard(bn)
+        ssa_block = ssa.blocks.get(bn)
+        if ssa_block is None:
+            continue
+        changed_keys.clear()
 
-            # Phi nodes
-            incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
-            for phi in ssa_block.phis:
-                if bn == cfg.entry:
+        # Phi nodes
+        incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
+        for phi in ssa_block.phis:
+            if bn == cfg.entry:
+                continue
+            if not incoming_exec_preds:
+                continue
+            phi_type = _TYPE_UNKNOWN
+            for pred in incoming_exec_preds:
+                incoming_ver = phi.incoming.get(pred, 0)
+                if incoming_ver <= 0:
                     continue
-                if not incoming_exec_preds:
-                    continue
-                phi_type = _TYPE_UNKNOWN
-                for pred in incoming_exec_preds:
-                    incoming_ver = phi.incoming.get(pred, 0)
-                    if incoming_ver <= 0:
-                        continue
-                    phi_type = type_join(
-                        phi_type,
-                        types.get((phi.name, incoming_ver), _TYPE_UNKNOWN),
-                    )
-                if set_type((phi.name, phi.version), phi_type):
-                    changed = True
+                phi_type = type_join(
+                    phi_type,
+                    types.get((phi.name, incoming_ver), _TYPE_UNKNOWN),
+                )
+            set_type((phi.name, phi.version), phi_type)
 
-            # Statements
-            for s in ssa_block.statements:
-                stmt = s.statement
-                if isinstance(stmt, IRBarrier):
-                    # Barriers widen all defs to OVERDEFINED
-                    for var, ver in s.defs.items():
-                        if set_type((var, ver), _TYPE_OVERDEFINED):
-                            changed = True
-                    continue
+        # Statements
+        for s in ssa_block.statements:
+            stmt = s.statement
+            if isinstance(stmt, IRBarrier):
+                # Barriers widen all defs to OVERDEFINED
                 for var, ver in s.defs.items():
-                    inferred = _evaluate_type_def(stmt, s, values, types, known_classes)
-                    if set_type((var, ver), inferred):
-                        changed = True
-        time.sleep(0)  # Yield GIL between fixed-point iterations
+                    set_type((var, ver), _TYPE_OVERDEFINED)
+                continue
+            for var, ver in s.defs.items():
+                inferred = _evaluate_type_def(stmt, s, values, types, known_classes)
+                set_type((var, ver), inferred)
+
+        for key in changed_keys:
+            for ub in deps.get(key, ()):
+                if ub in executable_blocks and ub not in queued:
+                    worklist.append(ub)
+                    queued.add(ub)
+        yield_counter += 1
+        if yield_counter % 256 == 0:
+            time.sleep(0)  # Yield GIL periodically
 
     return types
 

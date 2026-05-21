@@ -23,7 +23,7 @@ from ..ir import (
     IRCall,
     IRIncr,
 )
-from ..ssa import SSAFunction, SSAValueKey
+from ..ssa import SSAFunction, SSAValueKey, value_use_blocks
 from ..value_shapes import is_pure_var_ref, parse_command_substitution
 from ._lattice import (
     _TAINTED,
@@ -531,23 +531,41 @@ def taint_propagation(
     # Forward dataflow over the shared reverse-postorder.
     order = cfg.reverse_postorder()
 
+    # Forward dataflow worklist: a value's change re-enqueues only the
+    # blocks that read it (precomputed def→use map) instead of re-scanning
+    # every block each pass.  The alias closure stays a whole-function
+    # step run between worklist drains until both reach a fixpoint.
+    deps = value_use_blocks(ssa)
+    changed_keys: list[SSAValueKey] = []
+
     def set_taint(key: SSAValueKey, candidate: TaintLattice) -> bool:
         old = taints.get(key, _UNTAINTED)
         merged = taint_join(old, candidate)
         if merged != old:
             taints[key] = merged
+            changed_keys.append(key)
             return True
         return False
 
-    changed = True
-    while changed:
-        changed = False
-        for bn in order:
-            if bn not in executable_blocks:
-                continue
+    worklist: list[str] = [bn for bn in order if bn in executable_blocks]
+    queued: set[str] = set(worklist)
+
+    def enqueue_readers() -> None:
+        for key in changed_keys:
+            for ub in deps.get(key, ()):
+                if ub in executable_blocks and ub not in queued:
+                    worklist.append(ub)
+                    queued.add(ub)
+
+    work_pending = True
+    while work_pending:
+        while worklist:
+            bn = worklist.pop()
+            queued.discard(bn)
             ssa_block = ssa.blocks.get(bn)
             if ssa_block is None:
                 continue
+            changed_keys.clear()
 
             # Phi nodes
             incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
@@ -565,8 +583,7 @@ def taint_propagation(
                         phi_taint,
                         taints.get((phi.name, incoming_ver), _UNTAINTED),
                     )
-                if set_taint((phi.name, phi.version), phi_taint):
-                    changed = True
+                set_taint((phi.name, phi.version), phi_taint)
 
             # Statements
             for s in ssa_block.statements:
@@ -574,8 +591,7 @@ def taint_propagation(
                 if isinstance(stmt, IRBarrier):
                     # Barriers conservatively taint all defs.
                     for var, ver in s.defs.items():
-                        if set_taint((var, ver), _TAINTED):
-                            changed = True
+                        set_taint((var, ver), _TAINTED)
                     continue
                 for var, ver in s.defs.items():
                     inferred = _evaluate_taint_def(
@@ -585,12 +601,16 @@ def taint_propagation(
                         caller_qname=cfg.name,
                         call_return_provider=call_return_provider,
                     )
-                    if set_taint((var, ver), inferred):
-                        changed = True
+                    set_taint((var, ver), inferred)
 
-        # Alias closure: share taint across names that alias the same storage.
+            enqueue_readers()
+
+        # Alias closure: share taint across names that alias the same
+        # storage.  Run once the per-block worklist drains; if it taints
+        # new values, re-enqueue their readers and drain again.
+        work_pending = False
         if alias_groups:
-            # Snapshot the per-group taint, then broadcast it to every member.
+            changed_keys.clear()
             for group in alias_groups:
                 group_taint = _UNTAINTED
                 for (name, _ver), t in taints.items():
@@ -603,7 +623,13 @@ def taint_propagation(
                 # by its own ``upvar`` declaration) observes it.
                 for name in group:
                     for ver in member_versions.get(name, (0,)):
-                        if set_taint((name, ver), group_taint):
-                            changed = True
+                        set_taint((name, ver), group_taint)
+            if changed_keys:
+                # The closure changed taint — re-enqueue any readers and
+                # loop so the worklist drains and the closure runs again
+                # (it reads every taint, so overlapping groups may still
+                # be propagating).
+                enqueue_readers()
+                work_pending = True
 
     return taints
