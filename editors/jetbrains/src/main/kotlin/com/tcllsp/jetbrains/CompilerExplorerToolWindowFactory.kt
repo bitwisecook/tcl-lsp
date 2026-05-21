@@ -14,7 +14,9 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerManager
+import com.intellij.platform.lsp.api.LspServerState
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
@@ -212,15 +214,44 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         }
     }
 
+    /**
+     * Resolve a running Tcl LSP server, kicking it and waiting briefly if one
+     * isn't ready yet. Returns null only after a real timeout.
+     *
+     * The LSP server starts lazily on the first Tcl editor (see
+     * [TclLspServerSupportProvider]). When the explorer tool window is restored
+     * on IDE startup it pushes its first compile before that server has
+     * finished initialising, which previously surfaced a spurious "LSP server
+     * not running" error in the output pane. Poll for a Running server instead;
+     * this runs on the [runCompile] background thread, so the sleep is safe.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun awaitRunningServer(timeoutMs: Long = 10_000): LspServer? {
+        val manager = LspServerManager.getInstance(project)
+        fun running(): LspServer? =
+            manager.getServersForProvider(TclLspServerSupportProvider::class.java)
+                .firstOrNull { it.state == LspServerState.Running }
+
+        running()?.let { return it }
+
+        ApplicationManager.getApplication().invokeLater {
+            manager.startServersIfNeeded(TclLspServerSupportProvider::class.java)
+        }
+
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            Thread.sleep(150)
+            running()?.let { return it }
+        }
+        return null
+    }
+
     private fun runCompile(source: String, dialect: String) {
         CompletableFuture.runAsync {
             try {
                 sendStatusToWebview("compiling")
 
-                @Suppress("UnstableApiUsage")
-                val servers = LspServerManager.getInstance(project)
-                    .getServersForProvider(TclLspServerSupportProvider::class.java)
-                val server = servers.firstOrNull()
+                val server = awaitRunningServer()
                 if (server == null) {
                     sendErrorToWebview("LSP server not running")
                     return@runAsync
