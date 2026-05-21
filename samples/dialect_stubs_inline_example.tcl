@@ -15,6 +15,7 @@
 # Now the LSP understands these commands
 set all_cells [get_cells -hierarchical *]
 set count [sizeof_collection $all_cells]
+puts "Found $count cells"
 
 foreach_in_collection cell $all_cells {
     set name [get_attribute $cell full_name]

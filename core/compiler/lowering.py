@@ -21,7 +21,7 @@ from typing import cast
 
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
-from ..commands.registry.runtime import ArgRole, arg_indices_for_role
+from ..commands.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
 from ..common.alias import (
     detect_interp_alias,
 )
@@ -2345,10 +2345,14 @@ class _Lowerer:
             case "foreach":
                 return self._lower_foreach(cmd, namespace=namespace)
 
-            case "foreach_in_collection" if REGISTRY.get(cmd_name, _active_dialect()) is not None:
-                # Only lower as a loop when enabled in the active dialect.
-                # Enforce exact arity so incorrect arg counts produce
-                # IRBarrier and get caught by generic arity checks (E002/E003).
+            case "foreach_in_collection" if (
+                REGISTRY.get(cmd_name, _active_dialect()) is not None
+                or is_loop_command(cmd_name, args)
+            ):
+                # Lower as a loop when the command is enabled in the active
+                # dialect or declared as a ``-loop`` stub.  Enforce exact
+                # arity so incorrect arg counts produce IRBarrier and get
+                # caught by generic arity checks (E002/E003).
                 if len(args) != 3:
                     return IRBarrier(
                         range=cmd.range,
@@ -2403,6 +2407,19 @@ class _Lowerer:
                 var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)
                 var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
                 if body_indices:
+                    # A ``-loop`` stub with a trailing body and a
+                    # foreach-shaped argument list (``var collection body``)
+                    # is modelled as a real loop: the loop variables stay
+                    # defined and the body is analysed in iteration order,
+                    # rather than collapsing to an opaque barrier.
+                    if (
+                        prepend_n == 0
+                        and len(args) >= 3
+                        and len(args) % 2 == 1
+                        and (len(args) - 1) in body_indices
+                        and is_loop_command(role_cmd, role_args)
+                    ):
+                        return self._lower_foreach(cmd, namespace=namespace)
                     return IRBarrier(
                         range=cmd.range,
                         reason="unsupported body command",

@@ -844,7 +844,7 @@ def stub_to_command_sig(stub: "StubCommandDef") -> CommandSig:
             static_roles[idx] = frozenset({role})
 
     if not has_optional:
-        return CommandSig(arity=arity, arg_roles=static_roles)
+        return CommandSig(arity=arity, arg_roles=static_roles, loop=stub.loop)
 
     # Build a dynamic resolver that walks the actual argument list and
     # decides which optional slots are filled (left-to-right).
@@ -875,7 +875,9 @@ def stub_to_command_sig(stub: "StubCommandDef") -> CommandSig:
             actual_idx += 1
         return result
 
-    return CommandSig(arity=arity, arg_roles=static_roles, arg_role_resolver=_resolver)
+    return CommandSig(
+        arity=arity, arg_roles=static_roles, arg_role_resolver=_resolver, loop=stub.loop
+    )
 
 
 def signatures_from_stubs(
@@ -1508,6 +1510,43 @@ def arg_indices_for_roles(
 def body_arg_indices(command: str, args: list[str]) -> set[int]:
     """Return BODY argument indices for *command* given args after command name."""
     return arg_indices_for_role(command, args, ArgRole.BODY)
+
+
+def command_is_stubbed(command: str) -> bool:
+    """Return ``True`` when *command* is declared by an active stub overlay.
+
+    Consults the in-scope inline/file stub signatures (see
+    :func:`stub_signature_scope`).  Both the bare (``redirect``) and
+    fully-qualified (``::redirect``) spellings are checked, mirroring how
+    :func:`signatures_from_stubs` registers each name.
+    """
+    stubs = _stub_signatures_var.get()
+    if not stubs:
+        return False
+    bare = command.lstrip(":")
+    return bare in stubs or f"::{bare}" in stubs
+
+
+def is_loop_command(command: str, args: list[str]) -> bool:
+    """Return ``True`` when *command* has a loop-body signature.
+
+    Currently driven by ``-loop`` stub declarations: the overlay
+    :class:`CommandSig` carries ``loop=True`` so the lowering pass can
+    model the body as an iterated block rather than an opaque barrier.
+    """
+    sig = SIGNATURES.get(command)
+    if sig is None:
+        canonical = _canonicalise_command_name(command)
+        if canonical != command:
+            sig = SIGNATURES.get(canonical)
+    if isinstance(sig, SubcommandSig):
+        if not args:
+            return False
+        sub = sig.subcommands.get(args[0])
+        return bool(sub is not None and sub.loop)
+    if isinstance(sig, CommandSig):
+        return sig.loop
+    return False
 
 
 def expr_arg_indices(command: str, args: list[str]) -> set[int]:
