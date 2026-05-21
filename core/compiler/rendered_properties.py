@@ -411,25 +411,8 @@ def rendered_properties_propagation(
 
     props: dict[SSAValueKey, RenderedValueProps] = {}
 
-    # DFS traversal order.
-    seen: set[str] = set()
-    order: list[str] = []
-    stack = [cfg.entry]
-    while stack:
-        _bn = stack.pop()
-        if _bn in seen or _bn not in cfg.blocks:
-            continue
-        seen.add(_bn)
-        order.append(_bn)
-        match cfg.blocks[_bn].terminator:
-            case CFGGoto(target=_t):
-                _s_list = [_t]
-            case CFGBranch(true_target=_tt, false_target=_ft):
-                _s_list = [_tt, _ft]
-            case _:
-                _s_list = []
-        for _s in reversed(_s_list):
-            stack.append(_s)
+    # Forward dataflow over the shared reverse-postorder.
+    order = cfg.reverse_postorder()
 
     def set_props(key: SSAValueKey, candidate: RenderedValueProps) -> bool:
         old = props.get(key, _BOTTOM)

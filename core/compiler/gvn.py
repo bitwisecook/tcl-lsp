@@ -567,28 +567,6 @@ def _cfg_predecessors(
     return preds
 
 
-def _cfg_order(cfg: CFGFunction, executable: set[BlockName]) -> list[BlockName]:
-    """Return a stable forward traversal order for executable blocks."""
-    seen: set[BlockName] = set()
-    order: list[BlockName] = []
-    stack: list[BlockName] = [cfg.entry]
-
-    while stack:
-        bn = stack.pop()
-        if bn in seen or bn not in executable:
-            continue
-        seen.add(bn)
-        order.append(bn)
-        succs = [s for s in _cfg_successors(cfg, bn) if s in executable]
-        for succ in reversed(succs):
-            stack.append(succ)
-
-    for bn in cfg.blocks:
-        if bn in executable and bn not in seen:
-            order.append(bn)
-    return order
-
-
 def _collect_function_occurrence_events(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -690,7 +668,7 @@ def _find_partial_redundancies(
 
     universe: set[ExprKey] = {occ.key for occ in all_occurrences}
     preds = _cfg_predecessors(cfg, executable)
-    order = _cfg_order(cfg, executable)
+    order = [bn for bn in cfg.reverse_postorder() if bn in executable]
 
     may_in: dict[BlockName, set[ExprKey]] = {bn: set() for bn in executable}
     may_out: dict[BlockName, set[ExprKey]] = {bn: set() for bn in executable}

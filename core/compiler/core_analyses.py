@@ -293,31 +293,6 @@ def _compute_predecessors(cfg: CFGFunction) -> dict[str, set[str]]:
     return preds
 
 
-def _cfg_order(cfg: CFGFunction) -> list[str]:
-    seen: set[str] = set()
-    order: list[str] = []
-    stack = [cfg.entry]
-    while stack:
-        bn = stack.pop()
-        if bn in seen or bn not in cfg.blocks:
-            continue
-        seen.add(bn)
-        order.append(bn)
-        match cfg.blocks[bn].terminator:
-            case CFGGoto(target=target):
-                succs = [target]
-            case CFGBranch(true_target=tt, false_target=ft):
-                succs = [tt, ft]
-            case _:
-                succs = []
-        for succ in reversed(succs):
-            stack.append(succ)
-    for bn in cfg.blocks:
-        if bn not in seen:
-            order.append(bn)
-    return order
-
-
 def _parse_literal_value(text: str) -> int | str:
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
@@ -884,7 +859,7 @@ def _sccp(
     if param_constants:
         for key, lv in param_constants.items():
             values[key] = lv
-    order = _cfg_order(cfg)
+    order = cfg.reverse_postorder()
 
     def set_value(key: SSAValueKey, candidate: LatticeValue) -> bool:
         old = values.get(key, UNKNOWN)
@@ -1046,7 +1021,7 @@ def _liveness(
     use, defs = _block_use_def(cfg, ssa)
     live_in: dict[str, set[SSAValueKey]] = {bn: set() for bn in cfg.blocks}
     live_out: dict[str, set[SSAValueKey]] = {bn: set() for bn in cfg.blocks}
-    order = list(reversed(_cfg_order(cfg)))
+    order = list(reversed(cfg.reverse_postorder()))
 
     changed = True
     while changed:
@@ -1327,7 +1302,7 @@ def _read_before_set(
     reported: set[str] = set()
     result: list[ReadBeforeSet] = []
 
-    order = _cfg_order(cfg)
+    order = cfg.reverse_postorder()
     for bn in order:
         if bn not in considered:
             continue
@@ -1403,7 +1378,7 @@ def _unused_variables(
     reported: set[str] = set()
     result: list[UnusedVariable] = []
 
-    order = _cfg_order(cfg)
+    order = cfg.reverse_postorder()
     for bn in order:
         if bn not in considered:
             continue
@@ -1600,7 +1575,7 @@ def _type_propagation(
     preds = _compute_predecessors(cfg)
 
     types: dict[SSAValueKey, TypeLattice] = {}
-    order = _cfg_order(cfg)
+    order = cfg.reverse_postorder()
 
     def set_type(key: SSAValueKey, candidate: TypeLattice) -> bool:
         old = types.get(key, _TYPE_UNKNOWN)

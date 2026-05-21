@@ -528,25 +528,8 @@ def taint_propagation(
                     if name in member_versions:
                         member_versions[name].add(ver)
 
-    # Compute traversal order (DFS over CFG, same algorithm as core_analyses).
-    _seen: set[str] = set()
-    order: list[str] = []
-    _stack = [cfg.entry]
-    while _stack:
-        _bn = _stack.pop()
-        if _bn in _seen or _bn not in cfg.blocks:
-            continue
-        _seen.add(_bn)
-        order.append(_bn)
-        match cfg.blocks[_bn].terminator:
-            case CFGGoto(target=_t):
-                _s_list = [_t]
-            case CFGBranch(true_target=_tt, false_target=_ft):
-                _s_list = [_tt, _ft]
-            case _:
-                _s_list = []
-        for _s in reversed(_s_list):
-            _stack.append(_s)
+    # Forward dataflow over the shared reverse-postorder.
+    order = cfg.reverse_postorder()
 
     def set_taint(key: SSAValueKey, candidate: TaintLattice) -> bool:
         old = taints.get(key, _UNTAINTED)

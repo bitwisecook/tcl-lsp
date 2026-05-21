@@ -773,12 +773,13 @@ def _scan_local_facts(
 
 
 def _compute_param_dependencies(
+    cfg: CFGFunction,
     ssa: SSAFunction,
     params: tuple[str, ...],
 ) -> dict[SSAValueKey, frozenset[str]]:
     param_set = set(params)
     deps: dict[SSAValueKey, set[str]] = {}
-    order = list(ssa.blocks.keys())
+    order = cfg.reverse_postorder()
 
     changed = True
     while changed:
@@ -992,7 +993,7 @@ def _summarise_proc_local(
             if facts.writes_global:
                 break
 
-    param_deps = _compute_param_dependencies(ssa, proc.params)
+    param_deps = _compute_param_dependencies(cfg, ssa, proc.params)
     return_infos = _collect_return_infos(
         cfg,
         ssa,

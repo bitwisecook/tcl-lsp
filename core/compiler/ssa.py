@@ -402,6 +402,68 @@ def _dominators(
     return dom
 
 
+def _compute_idom_fast(
+    cfg: CFGFunction,
+    reachable: set[str],
+    preds: dict[str, set[str]],
+) -> dict[str, str | None]:
+    """Immediate dominators via Cooper-Harvey-Kennedy.
+
+    Computes idom directly over reverse-postorder indices with the
+    walk-up ``intersect`` — O(N) memory, no per-block dominator sets.
+    The naive set-based fixpoint (:func:`_dominators` /
+    :func:`_immediate_dominators`, retained for cross-validation) is
+    O(N²) memory / ~O(N³) time and OOMs on a single huge generated proc
+    that lowers to tens of thousands of CFG blocks.
+
+    Result shape matches the set-based path exactly: entry → ``None``,
+    unreachable → ``None``, otherwise the immediate-dominator block.
+
+    Reference: ``compute_idom_fast`` in ``rust/tcl-compiler/src/ssa.rs``.
+    """
+    out: dict[str, str | None] = {bn: None for bn in cfg.blocks}
+    # Pure reachable RPO (entry == index 0): reverse_postorder lists
+    # reachable blocks first in true RPO, so filtering drops only the
+    # unreachable tail.
+    rpo = [bn for bn in cfg.reverse_postorder() if bn in reachable]
+    if not rpo:
+        return out
+    rpo_index = {bn: i for i, bn in enumerate(rpo)}
+    undef = -1
+    idom = [undef] * len(rpo)
+    idom[0] = 0  # entry dominates itself (sentinel for the walk-up)
+
+    def intersect(a: int, b: int) -> int:
+        # Walk both nodes up the idom tree until they meet; a dominator
+        # always has a strictly smaller RPO index.
+        while a != b:
+            while a > b:
+                a = idom[a]
+            while b > a:
+                b = idom[b]
+        return a
+
+    changed = True
+    while changed:
+        changed = False
+        # Process in RPO order (skipping the entry) so each block sees
+        # already-processed predecessors.
+        for i in range(1, len(rpo)):
+            new_idom = undef
+            for p in preds.get(rpo[i], set()):
+                pi = rpo_index.get(p)
+                if pi is None or idom[pi] == undef:
+                    continue  # unreachable / not yet processed this pass
+                new_idom = pi if new_idom == undef else intersect(pi, new_idom)
+            if new_idom != undef and idom[i] != new_idom:
+                idom[i] = new_idom
+                changed = True
+
+    for i, bn in enumerate(rpo):
+        out[bn] = None if i == 0 or idom[i] == undef else rpo[idom[i]]
+    return out
+
+
 def _immediate_dominators(
     cfg: CFGFunction,
     reachable: set[str],
@@ -486,8 +548,7 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
     """Build SSA with dominator-based phi placement and renaming."""
     reachable = _reachable_blocks(cfg)
     preds = _predecessors(cfg)
-    dom = _dominators(cfg, reachable, preds)
-    idom = _immediate_dominators(cfg, reachable, dom)
+    idom = _compute_idom_fast(cfg, reachable, preds)
     df = _dominance_frontier(cfg, reachable, preds, idom)
     tree = _dom_tree(idom)
     phi_vars = _phi_vars(cfg, reachable, df)
@@ -511,57 +572,75 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
     exit_versions: dict[str, dict[str, int]] = {bn: {} for bn in cfg.blocks}
     stmt_infos: dict[str, list[SSAStatement]] = {bn: [] for bn in cfg.blocks}
 
-    def rename(bn: str) -> None:
-        pushed_in_block: list[str] = []
+    # Rename walk over the dominator tree.  Iterative with an explicit
+    # stack rather than recursion: a long block chain ⇒ deep dominator
+    # tree, which a recursive descent overflows at the common 2 MB
+    # worker-thread stack.  Each frame is processed in two phases —
+    # ``_ENTER`` does the per-block work (phis, statements, successor phi
+    # edges), then ``_CHILDREN`` walks the dominator-tree children and,
+    # once exhausted, pops the versions this block pushed.
+    _ENTER, _CHILDREN = 0, 1
+    work: list[list] = []
+    if cfg.entry in cfg.blocks:
+        work.append([cfg.entry, 0, [], _ENTER])
 
-        for var in sorted(phi_vars.get(bn, set())):
-            ver = push_new(var)
-            pushed_in_block.append(var)
-            phi_versions[bn][var] = ver
-            phi_incoming[bn].setdefault(var, {})
+    while work:
+        frame = work[-1]
+        bn = frame[0]
+        if frame[3] == _ENTER:
+            pushed_in_block: list[str] = frame[2]
 
-        visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
-        entry_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
-
-        for stmt in cfg.blocks[bn].statements:
-            uses_map: dict[str, int] = {}
-            for var in _uses(stmt):
-                uses_map[var] = top(var)
-
-            defs_map: dict[str, int] = {}
-            for var in _defs(stmt):
+            for var in sorted(phi_vars.get(bn, set())):
                 ver = push_new(var)
                 pushed_in_block.append(var)
-                defs_map[var] = ver
+                phi_versions[bn][var] = ver
+                phi_incoming[bn].setdefault(var, {})
 
-            stmt_infos[bn].append(
-                SSAStatement(
-                    statement=stmt,
-                    uses=uses_map,
-                    defs=defs_map,
+            visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
+            entry_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
+
+            for stmt in cfg.blocks[bn].statements:
+                uses_map: dict[str, int] = {}
+                for var in _uses(stmt):
+                    uses_map[var] = top(var)
+
+                defs_map: dict[str, int] = {}
+                for var in _defs(stmt):
+                    ver = push_new(var)
+                    pushed_in_block.append(var)
+                    defs_map[var] = ver
+
+                stmt_infos[bn].append(
+                    SSAStatement(
+                        statement=stmt,
+                        uses=uses_map,
+                        defs=defs_map,
+                    )
                 )
-            )
 
-        visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
-        exit_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
+            visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
+            exit_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
 
-        for succ in _successors(cfg.blocks[bn].terminator):
-            if succ not in cfg.blocks:
-                continue
-            for var in sorted(phi_vars.get(succ, set())):
-                phi_incoming[succ].setdefault(var, {})
-                phi_incoming[succ][var][bn] = top(var)
+            for succ in _successors(cfg.blocks[bn].terminator):
+                if succ not in cfg.blocks:
+                    continue
+                for var in sorted(phi_vars.get(succ, set())):
+                    phi_incoming[succ].setdefault(var, {})
+                    phi_incoming[succ][var][bn] = top(var)
 
-        for child in tree.get(bn, []):
-            rename(child)
-
-        for var in reversed(pushed_in_block):
-            stacks[var].pop()
-            if not stacks[var]:
-                del stacks[var]
-
-    if cfg.entry in cfg.blocks:
-        rename(cfg.entry)
+            frame[3] = _CHILDREN
+        else:
+            children = tree.get(bn, [])
+            if frame[1] < len(children):
+                child = children[frame[1]]
+                frame[1] += 1
+                work.append([child, 0, [], _ENTER])
+            else:
+                for var in reversed(frame[2]):
+                    stacks[var].pop()
+                    if not stacks[var]:
+                        del stacks[var]
+                work.pop()
 
     ssa_blocks: dict[str, SSABlock] = {}
     for bn, block in cfg.blocks.items():
