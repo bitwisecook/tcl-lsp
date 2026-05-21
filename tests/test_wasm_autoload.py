@@ -92,10 +92,25 @@ class TestStdlibPrelude:
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "a(alpha) = 1\na(beta)  = 22\na(gamma) = 333\n"
 
-    def test_prelude_is_opt_in(self, tmp_path):
-        """Without ``library_dir`` the prelude is a no-op, so an
-        unbundled ``parray`` (no ``TCL_LIBRARY`` either) still errors —
-        proving the bundling, not some fallback, is what resolved it."""
+    def test_word_commands_bundle_in_substitutions(self, tmp_path):
+        """word.tcl commands are referenced inside ``[...]`` (they return
+        values) and depend on init-time globals the file itself sets;
+        bundling captures both, so they run self-contained and match the
+        reference output."""
+        wasm = self._link(
+            'puts [tcl_endOfWord "hello world" 0]\n'
+            'puts [tcl_startOfNextWord "hello world" 0]\n',
+            tmp_path,
+            with_library=True,
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "5\n6\n"
+
+    def test_no_library_means_no_bundle(self, tmp_path, monkeypatch):
+        """With no library (no param, no compile-time ``TCL_LIBRARY``)
+        the prelude is a no-op, so an unbundled ``parray`` still errors —
+        proving the bundling, not a fallback, is what resolved it."""
+        monkeypatch.delenv("TCL_LIBRARY", raising=False)
         wasm = self._link(
             "array set a {x 1}\nset rc [catch {parray a} m]\nputs \"rc=$rc\"\n",
             tmp_path,
@@ -104,9 +119,35 @@ class TestStdlibPrelude:
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=1\n"
 
-    def test_only_referenced_files_are_bundled(self, tmp_path):
-        """A program that references no autoloadable command pulls in
+    def test_default_on_via_compile_time_tcl_library_env(self, tmp_path, monkeypatch):
+        """With no explicit ``library_dir`` but ``TCL_LIBRARY`` set in the
+        *compile-time* environment, bundling is on by default — and the
+        resulting binary still runs with no run-time library."""
+        monkeypatch.setenv("TCL_LIBRARY", str(_TCL_LIBRARY))
+        wasm = self._link(
+            "array set a {x 1 y 22}\nparray a\n", tmp_path, with_library=False
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "a(x) = 1\na(y) = 22\n"
+
+    def test_non_allowlisted_command_not_bundled_by_default(self, tmp_path, monkeypatch):
+        """A library command outside the validated allowlist is not
+        bundled by default (it would fall back to the runtime
+        auto-loader), so without a run-time library it still errors."""
+        monkeypatch.delenv("TCL_LIBRARY", raising=False)
+        # ``history`` is autoloadable but not on the validated allowlist.
+        wasm = self._link(
+            "set rc [catch {history info} m]\nputs \"rc=$rc\"\n",
+            tmp_path,
+            with_library=True,
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=1\n"
+
+    def test_only_referenced_files_are_bundled(self, tmp_path, monkeypatch):
+        """A program that references no bundleable command pulls in
         nothing — bundle size matches the no-library build."""
+        monkeypatch.delenv("TCL_LIBRARY", raising=False)
         src = "puts hello\n"
         with_lib = self._link(src, tmp_path, with_library=True)
         without = self._link(src, tmp_path, with_library=False)

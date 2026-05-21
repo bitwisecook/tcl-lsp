@@ -24,6 +24,7 @@ after :func:`core.compiler.lowering.lower_to_ir` and before
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -41,6 +42,27 @@ from .ir import (
     IRTry,
     IRUpFrame,
     IRWhile,
+)
+
+# Standard-library commands verified to bundle *and run* correctly when
+# compiled into the WASM module (output matches reference tclsh 8.6/9.0).
+# Only these seed compile-time bundling by default; everything else
+# falls back to the runtime ``TCL_LIBRARY`` auto-loader.  "Compiles" is
+# not enough — some library procs depend on init-time state set
+# elsewhere in the bootstrap — so this list grows only as commands are
+# differentially validated (see ``tests/test_wasm_autoload.py``).
+# Transitive helpers a listed command pulls in (e.g. word.tcl's
+# ``::tcl::UpdateWordBreakREs``) come along automatically and need not
+# be listed.
+DEFAULT_STDLIB_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "parray",
+        "tcl_endOfWord",
+        "tcl_startOfNextWord",
+        "tcl_startOfPreviousWord",
+        "tcl_wordBreakAfter",
+        "tcl_wordBreakBefore",
+    }
 )
 
 # ``set auto_index(NAME) [list <loader> [file join $dir FILE]]`` — the
@@ -73,12 +95,59 @@ def _parse_tcl_index(library_dir: Path) -> dict[str, str]:
     return mapping
 
 
+def _script_command_names(script_text: str, out: set[str]) -> None:
+    """Collect the command name of each command in *script_text* and
+    recurse into any ``[...]`` substitutions it contains.
+
+    ``script_text`` is treated as a Tcl *script*: the first word of each
+    command (after a command boundary) is a command name.  Used for the
+    bodies of command substitutions, where the leading word genuinely is
+    a command.
+    """
+    from core.parsing.lexer import TclLexer
+    from core.parsing.tokens import TokenType
+
+    at_cmd_start = True
+    for tok in TclLexer(script_text).tokenise_all():
+        ttype = tok.type
+        if ttype in (TokenType.EOL,):
+            at_cmd_start = True
+        elif ttype == TokenType.SEP:
+            # Leading whitespace before the command word doesn't end the
+            # command-start state.
+            continue
+        elif ttype == TokenType.COMMENT:
+            continue
+        else:
+            if at_cmd_start and ttype in (TokenType.ESC, TokenType.STR):
+                out.add(tok.text)
+            at_cmd_start = False
+            if ttype == TokenType.CMD:
+                _script_command_names(tok.text, out)
+
+
+def _subst_commands(word_text: str, out: set[str]) -> None:
+    """Collect command names from ``[...]`` substitutions inside a *word*.
+
+    The word's own bare text is NOT a command (e.g. ``lappend l foo``'s
+    ``foo`` is data) — only the contents of command substitutions are.
+    """
+    from core.parsing.lexer import TclLexer
+    from core.parsing.tokens import TokenType
+
+    for tok in TclLexer(word_text).tokenise_all():
+        if tok.type == TokenType.CMD:
+            _script_command_names(tok.text, out)
+
+
 def _collect_commands(script: IRScript, out: set[str]) -> None:
     """Collect every command name invoked anywhere in *script*.
 
-    Records both the surface ``command`` and the resolved
-    ``canonical_command`` so a call written as ``parray`` and one written
-    as ``::parray`` both match the index map.
+    Records statement-level commands (both the surface ``command`` and
+    the resolved ``canonical_command`` so ``parray`` and ``::parray``
+    both match), plus commands embedded in ``[...]`` substitutions inside
+    call arguments and value assignments — the dominant case for
+    library procs that return values (``set i [tcl_endOfWord ...]``).
     """
     for stmt in script.statements:
         if isinstance(stmt, IRCall):
@@ -86,6 +155,12 @@ def _collect_commands(script: IRScript, out: set[str]) -> None:
                 out.add(stmt.command)
             if stmt.canonical_command:
                 out.add(stmt.canonical_command)
+            for arg in stmt.args:
+                _subst_commands(arg, out)
+        else:
+            value = getattr(stmt, "value", None)
+            if isinstance(value, str):
+                _subst_commands(value, out)
         _recurse_bodies(stmt, out)
 
 
@@ -138,6 +213,7 @@ def apply_stdlib_prelude(
     library_dir: str | Path,
     *,
     max_files: int = 64,
+    allowlist: frozenset[str] | None = DEFAULT_STDLIB_ALLOWLIST,
 ) -> IRModule:
     """Bundle the library files for stdlib commands *module* references.
 
@@ -146,9 +222,16 @@ def apply_stdlib_prelude(
     is transitive — a bundled proc that calls another library command
     pulls that file in too — to a fixpoint, capped at *max_files*.
 
+    *allowlist* gates which *referenced* commands seed bundling: only
+    commands in it (default :data:`DEFAULT_STDLIB_ALLOWLIST`, the
+    differentially-validated set) are bundled from the user's module.
+    Pass ``None`` to bundle every referenced command (power / validation
+    use).  Transitive helpers a seeded command pulls in are never gated
+    — they're part of that command's verified closure.
+
     A no-op (returns *module* unchanged) when *library_dir* has no
-    ``tclIndex`` or references nothing autoloadable, so callers can pass
-    a missing path harmlessly.
+    ``tclIndex`` or references nothing bundleable, so callers can pass a
+    missing path harmlessly.
     """
     lib = Path(library_dir)
     mapping = _parse_tcl_index(lib)
@@ -158,11 +241,14 @@ def apply_stdlib_prelude(
     bundled_files: set[str] = set()
     seen_commands: set[str] = set()
 
-    # Seed the worklist with commands referenced by the user's module.
+    # Seed the worklist with commands referenced by the user's module,
+    # gated by the allowlist (transitive deps added later are not gated).
     pending: set[str] = set()
     _collect_commands(module.top_level, pending)
     for proc in list(module.procedures.values()):
         _collect_commands(proc.body, pending)
+    if allowlist is not None:
+        pending = {n for n in pending if n in allowlist or n.lstrip(":") in allowlist}
 
     from .lowering import lower_to_ir
 
@@ -215,3 +301,25 @@ def apply_stdlib_prelude(
         pending |= new_cmds - seen_commands
 
     return module
+
+
+def apply_stdlib_prelude_auto(
+    module: IRModule,
+    library_dir: str | Path | None = None,
+    *,
+    allowlist: frozenset[str] | None = DEFAULT_STDLIB_ALLOWLIST,
+) -> IRModule:
+    """Apply :func:`apply_stdlib_prelude`, resolving the library directory
+    from the compile-time ``TCL_LIBRARY`` env var when *library_dir* is
+    not given.
+
+    This is the default-on entry point: bundling happens whenever a
+    standard library is discoverable (explicit path or ``TCL_LIBRARY``),
+    and is a no-op otherwise.  Shared by the compile-time linker
+    (:func:`core.compiler.codegen.wasm_link`) and the WASM CLI so both
+    pick up the same behaviour.
+    """
+    effective = library_dir if library_dir is not None else os.environ.get("TCL_LIBRARY")
+    if not effective:
+        return module
+    return apply_stdlib_prelude(module, effective, allowlist=allowlist)

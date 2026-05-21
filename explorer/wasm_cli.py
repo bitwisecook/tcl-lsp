@@ -48,6 +48,7 @@ def compile_tcl_to_wasm(
     source: str,
     *,
     optimise: bool = False,
+    library_dir: str | None = None,
 ) -> WasmModule:
     """Compile Tcl source to a WASM module.
 
@@ -55,6 +56,10 @@ def compile_tcl_to_wasm(
         source: Tcl source code.
         optimise: Enable optimisation passes (constant folding,
             peephole optimisation, dead-code elimination).
+        library_dir: Standard-library directory to bundle referenced
+            stdlib procs from at compile time.  Defaults to the
+            ``TCL_LIBRARY`` env var; a no-op when neither is available
+            (stdlib procs then resolve via the runtime auto-loader).
 
     Returns:
         A ``WasmModule`` ready for serialisation.
@@ -63,7 +68,10 @@ def compile_tcl_to_wasm(
     :func:`link_tcl_to_wasm` to fold in the runtime and get a binary
     that instantiates standalone.
     """
+    from core.compiler.stdlib_prelude import apply_stdlib_prelude_auto
+
     ir_module = lower_to_ir(source)
+    ir_module = apply_stdlib_prelude_auto(ir_module, library_dir)
     cfg_module = build_cfg(ir_module)
     return wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
 
@@ -72,6 +80,7 @@ def link_tcl_to_wasm(
     source: str,
     *,
     optimise: bool = False,
+    library_dir: str | None = None,
 ) -> bytes:
     """Compile *and link* Tcl source into a self-contained ``.wasm``.
 
@@ -89,8 +98,10 @@ def link_tcl_to_wasm(
     # extension-manifest dependency.
     from core.compiler.codegen.wasm._bundle import bundle_wasm
     from core.compiler.codegen.wasm.extensions import runtime_path_for
+    from core.compiler.stdlib_prelude import apply_stdlib_prelude_auto
 
     ir_module = lower_to_ir(source)
+    ir_module = apply_stdlib_prelude_auto(ir_module, library_dir)
     cfg_module = build_cfg(ir_module)
     module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
     return bundle_wasm(module.to_bytes(), runtime_path=runtime_path_for(ir_module))
@@ -147,6 +158,16 @@ def main() -> int:
             "output; requires Binaryen wasm-merge/wasm-opt on PATH)"
         ),
     )
+    parser.add_argument(
+        "--tcl-library",
+        default=None,
+        help=(
+            "Standard-library directory to bundle referenced stdlib procs "
+            "(e.g. parray) from at compile time, so the binary is "
+            "self-contained. Defaults to the TCL_LIBRARY env var; if "
+            "unset, stdlib procs resolve via the runtime auto-loader."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -163,7 +184,7 @@ def main() -> int:
 
     # Linked binary: fold in the runtime and emit a runnable module.
     if args.link:
-        linked = link_tcl_to_wasm(source, optimise=args.optimise)
+        linked = link_tcl_to_wasm(source, optimise=args.optimise, library_dir=args.tcl_library)
         out_path = args.output or "out.wasm"
         Path(out_path).write_bytes(linked)
         opt_label = "optimised" if args.optimise else "non-optimised"
@@ -174,7 +195,7 @@ def main() -> int:
         return 0
 
     # Compile
-    module = compile_tcl_to_wasm(source, optimise=args.optimise)
+    module = compile_tcl_to_wasm(source, optimise=args.optimise, library_dir=args.tcl_library)
 
     opt_label = "optimised" if args.optimise else "non-optimised"
 
@@ -207,8 +228,8 @@ def main() -> int:
 
     if args.format == "both":
         # Also show comparison info
-        module_no_opt = compile_tcl_to_wasm(source, optimise=False)
-        module_opt = compile_tcl_to_wasm(source, optimise=True)
+        module_no_opt = compile_tcl_to_wasm(source, optimise=False, library_dir=args.tcl_library)
+        module_opt = compile_tcl_to_wasm(source, optimise=True, library_dir=args.tcl_library)
 
         no_opt_size = len(module_no_opt.to_bytes())
         opt_size = len(module_opt.to_bytes())

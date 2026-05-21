@@ -444,10 +444,10 @@ def _link_to_ir(
     # Bundle referenced standard-library procedures at compile time so
     # they compile to WASM functions and the binary is self-contained,
     # rather than auto-loading them from ``TCL_LIBRARY`` at run time.
-    # Opt-in: skipped entirely when no ``library_dir`` is supplied.
-    if library_dir is not None:
-        from ..stdlib_prelude import apply_stdlib_prelude  # noqa: PLC0415
+    # Default-on: explicit ``library_dir`` wins, else the compile-time
+    # ``TCL_LIBRARY`` env var; a no-op when neither is set, with stdlib
+    # procs then resolving via the runtime auto-loader.  Only the
+    # validated allowlist is bundled by default.
+    from ..stdlib_prelude import apply_stdlib_prelude_auto  # noqa: PLC0415
 
-        merged = apply_stdlib_prelude(merged, library_dir)
-
-    return merged
+    return apply_stdlib_prelude_auto(merged, library_dir)
