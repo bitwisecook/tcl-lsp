@@ -484,8 +484,7 @@ proc match {s} {
         )
         assert not has_barrier, "-regexp should no longer lower to IRBarrier"
         has_switch = any(
-            any(s.__class__.__name__ == "IRSwitch" for s in b.statements)
-            for b in proc_cfg.blocks.values()
+            any(isinstance(s, IRSwitch) for s in b.statements) for b in proc_cfg.blocks.values()
         )
         assert has_switch, "-regexp should keep IRSwitch for inline codegen"
 
