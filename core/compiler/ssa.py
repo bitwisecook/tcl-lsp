@@ -40,10 +40,18 @@ from .ir import (
     IRAssignValue,
     IRBarrier,
     IRCall,
+    IRCatch,
     IRExprEval,
+    IRFor,
+    IRForeach,
+    IRIf,
     IRIncr,
     IRReturn,
+    IRScript,
     IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
 )
 from .var_refs import VarReferenceScanner, VarScanOptions
 
@@ -195,6 +203,78 @@ def _structural_body_indices(
     }
 
 
+def _switch_reads(stmt: IRSwitch) -> set[str]:
+    """Collect every variable read by a non-lowered ``switch``.
+
+    ``-glob`` and fallthrough ``-exact`` switches are kept as an
+    ``IRSwitch`` statement rather than lowered into CFG branches/blocks
+    (their shared-body topology can't be expressed as structured control
+    flow).  The subject word and the arm/default bodies therefore never
+    contribute reads to the enclosing function's dataflow, so we gather
+    them here — otherwise a parameter read only as a switch subject or
+    only inside an arm body would be reported unused (W214) and similar
+    false positives would fire (issue #471).
+    """
+    reads: set[str] = set()
+    reads |= _vars_in_word(stmt.subject)
+    for arm in stmt.arms:
+        reads |= _vars_in_word(arm.pattern)
+        if arm.body is not None:
+            reads |= _reads_in_ir_script(arm.body)
+    if stmt.default_body is not None:
+        reads |= _reads_in_ir_script(stmt.default_body)
+    return reads
+
+
+def _reads_in_ir_script(script: IRScript) -> set[str]:
+    """Recursively collect variable reads from an un-lowered IR script."""
+    reads: set[str] = set()
+    for stmt in script.statements:
+        reads |= _reads_in_ir_stmt(stmt)
+    return reads
+
+
+def _reads_in_ir_stmt(stmt: IRStatement) -> set[str]:
+    """Variable reads of a single statement, recursing into nested bodies.
+
+    Leaf reads come from :func:`_uses`; structured statements (``if``,
+    loops, ``catch``/``try``, nested ``switch``) are not lowered when they
+    live inside an un-lowered switch arm, so their conditions and
+    sub-scripts must be walked here.
+    """
+    reads = set(_uses(stmt))
+    match stmt:
+        case IRIf(clauses=clauses, else_body=else_body):
+            for clause in clauses:
+                reads |= _vars_in_expr(clause.condition)
+                reads |= _reads_in_ir_script(clause.body)
+            if else_body is not None:
+                reads |= _reads_in_ir_script(else_body)
+        case IRWhile(condition=condition, body=body):
+            reads |= _vars_in_expr(condition)
+            reads |= _reads_in_ir_script(body)
+        case IRFor(init=init, condition=condition, next=next_clause, body=body):
+            reads |= _reads_in_ir_script(init)
+            reads |= _vars_in_expr(condition)
+            reads |= _reads_in_ir_script(next_clause)
+            reads |= _reads_in_ir_script(body)
+        case IRForeach(iterators=iterators, body=body):
+            for _var_names, list_arg in iterators:
+                reads |= _vars_in_word(list_arg)
+            reads |= _reads_in_ir_script(body)
+        case IRCatch(body=body):
+            reads |= _reads_in_ir_script(body)
+        case IRTry(body=body, handlers=handlers, finally_body=finally_body):
+            reads |= _reads_in_ir_script(body)
+            for handler in handlers:
+                reads |= _reads_in_ir_script(handler.body)
+            if finally_body is not None:
+                reads |= _reads_in_ir_script(finally_body)
+        case IRSwitch():
+            reads |= _switch_reads(stmt)
+    return reads
+
+
 def _uses(stmt: IRStatement) -> tuple[str, ...]:
     vars_found: set[str] = set()
     reads_own_def: set[str] = set()
@@ -237,6 +317,8 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 for name in call_defs:
                     vars_found.add(name)
                     reads_own_def.add(name)
+        case IRSwitch():
+            vars_found |= _switch_reads(stmt)
         case IRReturn(value=value, expr=expr):
             if value is not None:
                 vars_found |= _vars_in_word(value)

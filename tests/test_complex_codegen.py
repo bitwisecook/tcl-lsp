@@ -461,8 +461,13 @@ proc ext {filename} {
         )
         assert has_switch, "-glob should keep IRSwitch for inline codegen"
 
-    def test_switch_regexp_becomes_barrier(self):
-        """Switch -regexp compiles as a barrier."""
+    def test_switch_regexp_keeps_irswitch(self):
+        """Switch -regexp stays an IRSwitch (like -glob), not a barrier.
+
+        Keeping the structured form lets the codegen emit a generic
+        ``switch`` invokeStk call *and* lets SSA recover the subject and
+        arm-body variable reads (issue #471 follow-up).
+        """
         source = """\
 proc match {s} {
     switch -regexp $s {
@@ -476,10 +481,16 @@ proc match {s} {
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::match"]
         has_barrier = any(
-            any(isinstance(s, IRBarrier) and "switch -regexp" in s.reason for s in b.statements)
+            any(isinstance(s, IRBarrier) and "switch -regexp" in (s.reason or "")
+                for s in b.statements)
             for b in proc_cfg.blocks.values()
         )
-        assert has_barrier
+        assert not has_barrier, "-regexp should no longer lower to IRBarrier"
+        has_switch = any(
+            any(s.__class__.__name__ == "IRSwitch" for s in b.statements)
+            for b in proc_cfg.blocks.values()
+        )
+        assert has_switch, "-regexp should keep IRSwitch for inline codegen"
 
     def test_switch_many_arms(self):
         """Switch with many arms creates a dispatch mechanism."""

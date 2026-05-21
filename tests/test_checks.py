@@ -3166,3 +3166,62 @@ class TestSwitchSubjectCountsAsParamUse:
         assert "col" not in unused, f"col wrongly flagged unused; got {sorted(unused)}"
         # ``row`` is genuinely unused — the check still fires for it.
         assert "row" in unused, f"expected row to be unused; got {sorted(unused)}"
+
+    @staticmethod
+    def _w214(source: str) -> set[str]:
+        return {
+            d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"
+        }
+
+    def test_glob_switch_subject_and_body_reads(self):
+        # -glob / -regexp / fallthrough switches are kept as an IRSwitch
+        # statement (never lowered into CFG branches), so the subject and
+        # arm-body reads must be recovered from the structured form.
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_regexp_switch_subject_and_body_reads(self):
+        source = (
+            "proc p {col text} {\n"
+            "    switch -regexp -- $col {\n"
+            "        {^a} { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_fallthrough_switch_body_reads(self):
+        source = (
+            "proc p {col text} {\n"
+            "    switch -- $col {\n"
+            "        a -\n"
+            "        b { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_nested_control_flow_in_switch_arm_read(self):
+        # Reads buried in nested if/loop bodies inside an un-lowered switch
+        # arm must still be discovered.
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { if {1} { foreach x {1 2} { puts $text } } }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "text" not in self._w214(source)
