@@ -153,7 +153,7 @@ pub fn eval_expr_str(ptr: u32, len: u32) i64 {
 /// position lets the caller split the expression text into LHS / RHS
 /// substrings.
 const StringOp = struct {
-    kind: enum { eq, ne, in_, ni, eq_eq, ne_eq },
+    kind: enum { eq, ne, in_, ni, eq_eq, ne_eq, lt, gt, le, ge },
     /// First byte of the operator keyword in the expression text.
     start: u32,
     /// Byte length of the keyword (2 for all four operators).
@@ -357,6 +357,24 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
                 .op_len = 2,
             };
         }
+        // ``< > <= >=`` relational operators: Tcl 9 compares numerically
+        // when both operands parse as numbers, else lexicographically.
+        // The legacy i64 ``expr_add`` path raises on non-numeric operands
+        // (``$c < "\x7F"`` in tcltest's ``Asciify``), so dispatch through
+        // ``eval_string_expr`` here.  Exclude the ``<<`` / ``>>`` shift
+        // operators (those stay numeric in ``expr_add``).  Same
+        // lower-precedence guard as the equality branch.
+        if ((c == '<' or c == '>') and !(i + 1 < len and src[i + 1] == c)) {
+            const two = i + 1 < len and src[i + 1] == '=';
+            const op_len: u32 = if (two) 2 else 1;
+            if (!eq_op_is_top_level(src, len, i + op_len)) {
+                continue;
+            }
+            if (c == '<') {
+                return .{ .kind = if (two) .le else .lt, .start = i, .op_len = op_len };
+            }
+            return .{ .kind = if (two) .ge else .gt, .start = i, .op_len = op_len };
+        }
         if (c == '+' or c == '-' or c == '*' or c == '/' or c == '%') return null;
         // String operator must be surrounded by whitespace on both
         // sides — otherwise a variable name like ``$equal`` would
@@ -474,6 +492,25 @@ fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
             const eq_flag = obj_mod.obj_get_int(eq_obj);
             obj_mod.tcl_obj_release(eq_obj);
             result = if (op.kind == .eq_eq) eq_flag else (1 - eq_flag);
+        },
+        .lt, .gt, .le, .ge => {
+            // Tcl 9 ``< > <= >=``: numeric compare when both operands
+            // parse as numbers, else lexicographic string compare.
+            // ``tcl_expr_order_cmp`` returns -1 / 0 / 1 with exactly
+            // those semantics — the legacy ``expr_add`` i64 path instead
+            // raised ``cannot use non-numeric string as operand`` (e.g.
+            // tcltest's ``Asciify`` does ``$c < "\x7F"`` on a character).
+            const tcl_string = @import("../valtypes/tcl_string.zig");
+            const cmp_obj = tcl_string.tcl_expr_order_cmp(lhs_obj, rhs_obj);
+            const c = obj_mod.obj_get_int(cmp_obj);
+            obj_mod.tcl_obj_release(cmp_obj);
+            result = switch (op.kind) {
+                .lt => if (c < 0) @as(i64, 1) else 0,
+                .gt => if (c > 0) @as(i64, 1) else 0,
+                .le => if (c <= 0) @as(i64, 1) else 0,
+                .ge => if (c >= 0) @as(i64, 1) else 0,
+                else => unreachable,
+            };
         },
     }
     obj_mod.tcl_obj_release(lhs_obj);
