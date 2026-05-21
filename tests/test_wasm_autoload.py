@@ -69,11 +69,7 @@ class TestStdlibAutoLoad:
         tracking, which the WASM runtime does not maintain).  Sourcing the
         upstream ``parray.tcl`` this way must define ``::parray`` exactly
         as a flagless source would."""
-        out = self._run(
-            "source -nopkg /tcl-lib/parray.tcl\n"
-            "array set a {x 9}\n"
-            "parray a\n"
-        )
+        out = self._run("source -nopkg /tcl-lib/parray.tcl\narray set a {x 9}\nparray a\n")
         assert out == "a(x) = 9\n"
 
 
