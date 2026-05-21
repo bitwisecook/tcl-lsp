@@ -1352,6 +1352,15 @@ def _scan_needed_imports(
             case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
                 if mode == "glob":
                     needed.add("tcl_string_match")
+                elif mode == "regexp":
+                    # No WASM regex matcher: the regexp switch is
+                    # re-invoked through the runtime via the eval
+                    # fallback (see _emit_statement's IRSwitch case),
+                    # so it needs the same imports as an IRBarrier.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_catch_has_error")
+                    needed.add("tcl_flow_check_return")
+                    needed.add("tcl_flow_take_return")
                 else:
                     needed.add("tcl_string_equal")
                 # The subject may be a command substitution or

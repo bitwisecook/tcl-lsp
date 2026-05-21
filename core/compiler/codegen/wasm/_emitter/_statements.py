@@ -847,8 +847,21 @@ class _WasmEmitterStmtMixin(_Base):
             case IRForeach(iterators=iterators, body=body):
                 self._emit_foreach(iterators, body)
 
-            case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
-                self._emit_switch(subject, arms, default_body, mode=mode)
+            case IRSwitch(
+                subject=subject,
+                arms=arms,
+                default_body=default_body,
+                mode=mode,
+                raw_args=raw_args,
+            ):
+                if mode == "regexp":
+                    # No WASM regex matcher: re-invoke ``switch`` through
+                    # the runtime so regexp arm patterns match tclsh
+                    # rather than being compared as exact strings.
+                    self._emit_eval_fallback("switch", raw_args)
+                    self._emit(WasmOp.DROP)
+                else:
+                    self._emit_switch(subject, arms, default_body, mode=mode)
 
             case IRCatch(body=body, result_var=result_var, options_var=options_var):
                 self._emit_catch(body, result_var, options_var=options_var)

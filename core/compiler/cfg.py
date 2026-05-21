@@ -955,28 +955,19 @@ class _CFGBuilder:
         return end_block
 
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
-        # ``-regexp`` still needs a runtime regex engine pass we haven't
-        # plumbed through the CFG, so keep it as a barrier and route
-        # through the interpreter.
-        if stmt.mode == "regexp":
-            barrier = IRBarrier(
-                range=stmt.range,
-                reason="switch -regexp",
-                command="switch",
-                canonical_command="::switch",
-                args=stmt.raw_args,
-            )
-            self._block(block_name).statements.append(barrier)
-            return block_name
-        # ``-glob`` dispatch: the CFG's STR_EQ branch chain can't
-        # represent glob matching.  Keep the ``IRSwitch`` in the
-        # block's statement list so ``codegen/_statements.py`` can emit
-        # an ``invokeStk`` call matching tclsh 9.0's un-compiled approach.
+        # ``-regexp`` needs a runtime regex engine pass we haven't plumbed
+        # through the CFG, and ``-glob`` matching can't be expressed by the
+        # CFG's STR_EQ branch chain.  Both stay as an ``IRSwitch`` statement
+        # so ``codegen/_statements.py`` can emit an ``invokeStk`` call
+        # matching tclsh 9.0's un-compiled approach; keeping the structured
+        # form (rather than collapsing to an ``IRBarrier``) also lets SSA
+        # recover the subject/arm-body variable reads.
+        #
         # ``-exact`` with fallthrough arms also stays as an ``IRSwitch``
         # because the CFG's multi-predecessor shared-body topology can't
         # be lowered to valid WASM structured control flow in general;
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
-        if stmt.mode == "glob":
+        if stmt.mode in ("glob", "regexp"):
             self._block(block_name).statements.append(stmt)
             return block_name
         if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:
