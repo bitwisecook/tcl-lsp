@@ -127,6 +127,51 @@ class TestDisabledCommandStubSemantics:
         """
         assert "W002" in _codes(no_stub)
 
+    def test_stub_suppression_does_not_leak_to_other_files(self):
+        # The overlay is scoped to the analysis pass that declared it;
+        # analysing a stubbed file must not silence W002 in a later,
+        # unrelated file that calls the same command without a stub.
+        stubbed = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub redirect {?-file? target body:body}
+            # tcl-lsp: stubs-end
+            redirect -file out.rpt {set y 1}
+        """
+        analyse(textwrap.dedent(stubbed))
+        assert "W002" in _codes("redirect -file out.rpt {set y 1}\n")
+
+
+class TestBodyStubRecursion:
+    """Body args of a stub are descended into for command-level checks."""
+
+    def test_inner_command_of_non_loop_body_is_checked(self):
+        # A plain ``body:body`` stub (no -loop) is not a control-flow loop,
+        # but its body is still walked: an unknown command inside it is
+        # reported, proving the body is analysed rather than ignored.
+        src = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub redirect {?-file? target body:body}
+            # tcl-lsp: stubs-end
+            redirect -file out.rpt {
+                totally_unknown_command foo bar
+            }
+        """
+        assert any("totally_unknown_command" in m for m in _messages(src, "W123"))
+
+    def test_barrier_stub_body_is_not_silenced(self):
+        # A ``-barrier`` body executes in a dynamic scope, so a read of a
+        # variable that is never set is still surfaced — the body is not
+        # treated as an opaque region where diagnostics are dropped.
+        src = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub my_eval {script:body} -barrier
+            # tcl-lsp: stubs-end
+            my_eval {
+                puts $never_set_anywhere
+            }
+        """
+        assert any("never_set_anywhere" in m for m in _messages(src, "W210"))
+
 
 class TestShippedSampleIsClean:
     def test_inline_example_sample_has_no_diagnostics(self):
