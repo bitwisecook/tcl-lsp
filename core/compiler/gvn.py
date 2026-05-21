@@ -698,9 +698,7 @@ def _find_partial_redundancies(
 
     may_in: dict[BlockName, int] = {bn: 0 for bn in executable}
     may_out: dict[BlockName, int] = {bn: 0 for bn in executable}
-    must_in: dict[BlockName, int] = {
-        bn: (0 if bn == ssa.entry else full_mask) for bn in executable
-    }
+    must_in: dict[BlockName, int] = {bn: (0 if bn == ssa.entry else full_mask) for bn in executable}
     must_out: dict[BlockName, int] = {bn: transfer(bn, must_in[bn]) for bn in executable}
 
     changed = True

@@ -973,9 +973,7 @@ def _sccp(
                             # executable edge — a runtime-unknown value, ⊥.
                             phi_val = _join(phi_val, OVERDEFINED)
                         else:
-                            phi_val = _join(
-                                phi_val, values.get((phi.name, incoming_ver), UNKNOWN)
-                            )
+                            phi_val = _join(phi_val, values.get((phi.name, incoming_ver), UNKNOWN))
                     if set_value((phi.name, phi.version), phi_val):
                         changed = True
 

@@ -1120,9 +1120,7 @@ def analyse_interprocedural_ir(
         qname = worklist.pop()
         queued.discard(qname)
         local = local_proc_summaries[qname]
-        new_pure = local_pure_base[qname] and all(
-            pure.get(callee, False) for callee in local.calls
-        )
+        new_pure = local_pure_base[qname] and all(pure.get(callee, False) for callee in local.calls)
         if new_pure != pure[qname]:
             pure[qname] = new_pure
             for caller in callers[qname]:
