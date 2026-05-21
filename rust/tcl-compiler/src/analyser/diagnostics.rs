@@ -858,6 +858,7 @@ Consider capturing the result: catch {\u{2026}} result"
         arg_tokens: &[tcl_lexer::Token],
         arg_expand_in: &[bool],
         cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
     ) {
         use super::dispatch::{signature_for_command, CommandSignature};
         use tcl_registry::prelude::DialectSet;
@@ -923,15 +924,26 @@ Consider capturing the result: catch {\u{2026}} result"
             None => cmd_tok.span,
         };
 
-        // Collect as a *candidate* keyed by command name; the
-        // post-walk [`Self::flush_arity_diagnostics`] drops it if the
-        // name is shadowed by a user proc / class / alias / ensemble /
-        // stub (resolved against the complete tables, so definition
-        // order doesn't matter).
+        // Capture the call-site command-resolution namespace so the
+        // post-walk flush can resolve this command the Tcl way (current
+        // namespace → global) and only suppress the arity check when
+        // the call actually resolves to a user definition — not to any
+        // same-tail-named proc elsewhere in the file. Uses the proc's
+        // *defining* namespace (so `close` inside a body of
+        // `proc ::ns::x` resolves through `::ns`), not just lexical
+        // `namespace eval` nesting.
+        let ns = self.command_resolution_namespace(scope_path);
+
+        // Collect as a *candidate*; the post-walk
+        // [`Self::flush_arity_diagnostics`] drops it if the call
+        // resolves to a user proc / class / alias / ensemble / stub
+        // (resolved against the complete tables, so definition order
+        // doesn't matter).
         if !positional_any_expand && (args.len() - positional_start) < min {
             let got = args.len() - positional_start;
             self.pending_arity.push((
                 cmd_name.to_string(),
+                ns,
                 super::types::Diagnostic {
                     code: "E002".to_string(),
                     span: full_span,
@@ -945,6 +957,7 @@ Consider capturing the result: catch {\u{2026}} result"
         } else if !sig.arity.is_unlimited() && nargs_min > max {
             self.pending_arity.push((
                 cmd_name.to_string(),
+                ns,
                 super::types::Diagnostic {
                     code: "E003".to_string(),
                     span: full_span,
@@ -962,42 +975,66 @@ Consider capturing the result: catch {\u{2026}} result"
     /// collected by [`Self::emit_arity_diagnostics`].
     ///
     /// Runs after the command walk completes, when `all_procs`,
-    /// `all_classes`, `command_aliases`, `ensemble_namespaces` and
-    /// the inline stub set are fully populated.  A candidate is
-    /// dropped when its command name matches the tail of a
-    /// user-defined proc / class / alias / ensemble command, or an
-    /// inline `# tcl-lsp: stub`, because the call resolves to that
-    /// user definition rather than the builtin whose registry arity
-    /// produced the candidate — this is what prevents false E003s on
-    /// e.g. a namespace that defines `proc ::ns::close { ... }` and
-    /// then calls `close ...` with the proc's wider arity.
+    /// `all_classes`, `command_aliases`, `ensemble_namespaces` and the
+    /// inline stub set are fully populated.  A candidate is dropped
+    /// only when the call **resolves to** a user definition rather than
+    /// the builtin whose registry arity produced it — resolution
+    /// follows Tcl's rule for unqualified commands (the call-site
+    /// namespace, then global `::`), using the namespace captured at
+    /// emit time.  So `proc ::ns::close {...}` suppresses a `close`
+    /// call inside `::ns` (and a qualified `::ns::close ...`), but a
+    /// `close` call in another namespace still resolves to the builtin
+    /// and is checked.  Document-global declarations — inline
+    /// `# tcl-lsp: stub`s — suppress by bare name regardless of
+    /// namespace.
     ///
     /// Idempotent: drains `pending_arity`, so a second call is a
-    /// no-op.  Mirrors the shadowing-set construction in
-    /// [`Self::emit_unresolved_command_diagnostics`].
+    /// no-op.
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() {
             return;
         }
-        let tail = |qn: &str| -> Option<String> {
-            qn.rsplit_once("::")
-                .map(|(_, t)| t.to_string())
-                .filter(|s| !s.is_empty())
+        // Fully-qualified user-command names the calls may resolve to
+        // (procs / classes / aliases are keyed by qualified name;
+        // ensemble namespaces *are* the command name).
+        let mut user_qnames: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        user_qnames.extend(self.result.all_procs.keys().map(String::as_str));
+        user_qnames.extend(self.result.all_classes.keys().map(String::as_str));
+        user_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
+        user_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
+        // Inline stubs are document-global and unqualified.
+        let stub_names = super::utils::scan_stub_command_names(&self.source);
+
+        // Qualify an unqualified command against a namespace, mirroring
+        // `resolve_command_qualified_name` (`::` root → `::cmd`).
+        let join = |ns: &str, cmd: &str| -> String {
+            if ns == "::" {
+                format!("::{cmd}")
+            } else {
+                format!("{ns}::{cmd}")
+            }
         };
-        let mut shadowed: std::collections::HashSet<String> = std::collections::HashSet::new();
-        shadowed.extend(self.result.all_procs.keys().filter_map(|q| tail(q)));
-        shadowed.extend(self.result.all_classes.keys().filter_map(|q| tail(q)));
-        shadowed.extend(self.result.command_aliases.keys().filter_map(|q| tail(q)));
-        shadowed.extend(self.ensemble_namespaces.iter().filter_map(|q| tail(q)));
-        shadowed.extend(super::utils::scan_stub_command_names(&self.source));
-        // Bare (unqualified) proc / alias names also shadow a builtin.
-        shadowed.extend(self.result.all_procs.keys().cloned());
-        shadowed.extend(self.result.command_aliases.keys().cloned());
 
         let pending = std::mem::take(&mut self.pending_arity);
-        for (cmd_name, diag) in pending {
-            let bare = cmd_name.trim_start_matches("::");
-            if shadowed.contains(&cmd_name) || shadowed.contains(bare) {
+        for (cmd_name, ns, diag) in pending {
+            let bare = cmd_name.rsplit("::").next().unwrap_or(&cmd_name);
+            // Candidate qualified names this call could resolve to.
+            let candidates: Vec<String> = if cmd_name.contains("::") {
+                // Already qualified — absolutise like
+                // `resolve_command_qualified_name` does.
+                let abs = if cmd_name.starts_with("::") {
+                    cmd_name.clone()
+                } else {
+                    format!("::{cmd_name}")
+                };
+                vec![abs]
+            } else {
+                // Unqualified — current namespace, then global.
+                vec![join(&ns, &cmd_name), format!("::{cmd_name}")]
+            };
+            let resolves_to_user = candidates.iter().any(|c| user_qnames.contains(c.as_str()))
+                || stub_names.contains(bare);
+            if resolves_to_user {
                 continue;
             }
             self.result.diagnostics.push(diag);
@@ -4069,6 +4106,35 @@ mod tests {
             result.diagnostics
         );
         assert!(e002[0].message.contains("at least 3"));
+    }
+
+    #[test]
+    fn e003_shadow_is_namespace_scoped() {
+        // PR #472 review (Codex): a namespaced proc named `close` must
+        // NOT suppress arity checks on a *global* `close` call (which
+        // resolves to the builtin, max 2), but must suppress a `close`
+        // call inside its own namespace (which resolves to the proc).
+        let src = "proc ::ns::close {a b c d} {}\n\
+                   close x y z\n\
+                   namespace eval ::ns { close x y z }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e003: Vec<&Diagnostic> = r.diagnostics.iter().filter(|d| d.code == "E003").collect();
+        assert_eq!(
+            e003.len(),
+            1,
+            "expected exactly one E003 (the global close), got {:?}",
+            r.diagnostics
+        );
+        // The flagged call must be the top-level one, before the
+        // `namespace eval` body (both call sites share the same text).
+        let ns_eval_off = src.find("namespace eval").unwrap();
+        let span = e003[0].span;
+        assert!(
+            (span.start() as usize) < ns_eval_off,
+            "flagged the namespaced call instead of the global one: {:?}",
+            &src[span.start() as usize..span.end() as usize],
+        );
     }
 
     #[test]

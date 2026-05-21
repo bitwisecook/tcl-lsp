@@ -75,7 +75,7 @@ pub struct AnalyserSnapshot {
     /// Pending E002 / E003 arity candidates (flushed post-walk).
     /// Snapshotted with `result` so a speculative rollback discards
     /// the candidates of any rolled-back commands.
-    pub pending_arity: Vec<(String, super::types::Diagnostic)>,
+    pub pending_arity: Vec<(String, String, super::types::Diagnostic)>,
 }
 
 impl Analyser {

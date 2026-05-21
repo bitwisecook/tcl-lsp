@@ -186,14 +186,18 @@ pub struct Analyser {
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
     /// Candidate E002 / E003 arity diagnostics collected during the
-    /// command walk, paired with the command name.  Emitted in a
-    /// post-walk pass ([`Self::flush_arity_diagnostics`]) so a
-    /// command shadowed by a user-defined proc / class / alias /
-    /// ensemble / stub — which may be defined *after* its call site —
-    /// suppresses the builtin-arity check regardless of definition
-    /// order.  Mirrors Python running `_check_arity` over the
-    /// fully-resolved IR rather than inline during the walk.
-    pub pending_arity: Vec<(String, super::types::Diagnostic)>,
+    /// command walk, as `(command name, call-site namespace,
+    /// diagnostic)`.  Emitted in a post-walk pass
+    /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
+    /// to a user-defined proc / class / alias / ensemble / stub —
+    /// which may be defined *after* its call site — suppresses the
+    /// builtin-arity check regardless of definition order.  The
+    /// namespace is captured so suppression is scoped to the command
+    /// the call actually resolves to (current namespace → global),
+    /// not to every same-tail-named definition anywhere in the file.
+    /// Mirrors Python running `_check_arity` over the fully-resolved
+    /// IR rather than inline during the walk.
+    pub pending_arity: Vec<(String, String, super::types::Diagnostic)>,
 }
 
 impl Analyser {
