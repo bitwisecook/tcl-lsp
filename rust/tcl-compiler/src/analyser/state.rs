@@ -1697,25 +1697,20 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w302_anchors_at_command_range() {
-        // The W302 span runs from the catch keyword through (at
-        // least) the body argument's content, mirroring Python's
-        // ``stmt.range`` (the IRCatch's full source range).  The
-        // closing brace's inclusion depends on the lexer's
-        // ``Str``-token end convention; what matters for the LSP
-        // UX is that the span starts at ``catch`` and covers the
-        // body text rather than just the catch keyword.
+    fn analyse_w302_anchors_at_catch_keyword() {
+        // SYNC-MAY21-4 (#464): W302 highlights just the ``catch``
+        // command token — the narrowest span that identifies the
+        // issue — rather than the whole ``catch {…}`` statement
+        // (which also dropped the closing brace under the lexer's
+        // inner-end convention).
         let mut a = Analyser::new();
         let src = "catch { puts hi }\n";
         let r = a.analyse(src, "tcl");
         let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
         assert_eq!(w302.len(), 1);
         let span = w302[0].span;
-        let start = span.start() as usize;
-        let end = span.end() as usize;
-        let text = &src[start..end];
-        assert!(text.starts_with("catch"), "span starts at {text:?}");
-        assert!(text.contains("puts hi"), "span text {text:?}");
+        let text = &src[span.start() as usize..span.end() as usize];
+        assert_eq!(text, "catch", "W302 should span only the catch keyword");
     }
 
     // -- ``postpass`` chunk: W001 unknown-subcommand emitter

@@ -1354,14 +1354,28 @@ analyser-core port (C41) — diagnostic spans plus the specific
 lifecycle/scope fixes. Classify: in-scope, medium; tracked under
 C41.
 
-**Verified Rust state (2026-05-21) — confirmed blocked on C41.**
-The Python fixes here are spread across var-lifecycle / OO / proc /
-scope checks (`_diag_var_lifecycle`, `_oo`, `_proc`, `_scope`)
-whose Rust equivalents are exactly the analyser-core surface still
-being ported under C41 — the var-lifecycle and scope-accuracy
-emitters are not yet live in `tcl-compiler::analyser`. No standalone
-mirror is possible; the diagnostic-range fixes attach to each check
-as it lands in C41.
+**Partially landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** One
+concrete, already-ported piece was mirrored: **W302** (catch without
+result var) now anchors at just the `catch` command token instead of
+the whole `catch {…}` statement (which also dropped the closing brace
+under the lexer's inner-end convention) —
+`emit_w302_catch_no_result_var` uses `cmd_tok.span`; test updated to
+assert the narrow span.
+
+The remaining #464 range-narrowing is **blocked / architectural**:
+- **W210 / W211** (read-before-set, set-but-never-used) are not ported
+  to `tcl-compiler::analyser` at all — part of the var-lifecycle
+  surface still under C41.
+- **W213 / W220** *are* live but emit from the CFG/SSA pass with
+  `stmt.span()` (whole statement); narrowing them to the variable
+  token needs the target-variable token span plumbed through the IR
+  statements / SSA use-sites — an IR/lowering change, not a local
+  emitter tweak. Fold into C41.
+- The refactoring-fidelity fixes (extract-variable `[expr {…}]`
+  wrapping, token-based inline-variable, inline-proc brace
+  preservation, extract-proc edit-overlap merge) live in the
+  refactoring/code-action subsystem (`tcl-lsp-core`), a separate
+  chunk from the analyser-core port.
 
 ### SYNC-MAY21-5 — Preserve array indices when renaming base variables (#461)
 

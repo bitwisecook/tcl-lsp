@@ -667,10 +667,11 @@ numeric/string coercion."
     /// emits W302 for `IRCatch` (not `IRBarrier`) — the lowerer
     /// falls back to `IRBarrier` when the body argument is multi-token
     /// (e.g. ``catch $body``), so this Rust emit gates on
-    /// ``arg_single[0]`` to mirror that suppression.  The
-    /// diagnostic anchors at the full command span (catch keyword
-    /// through the last argument's end), matching Python's
-    /// ``stmt.range``.
+    /// ``arg_single[0]`` to mirror that suppression.  The diagnostic
+    /// anchors at just the ``catch`` command token — the narrowest
+    /// span that identifies the issue — matching the #464 narrowing
+    /// (`compiler_checks.py` now uses ``range_from_token(argv[0])``
+    /// rather than the whole-statement ``stmt.range``).
     pub(super) fn emit_w302_catch_no_result_var(
         &mut self,
         args: &[String],
@@ -691,10 +692,10 @@ numeric/string coercion."
         if arg_single.first().copied() != Some(true) {
             return;
         }
-        let Some(body_tok) = arg_tokens.first().copied() else {
+        if arg_tokens.is_empty() {
             return;
-        };
-        let span = tcl_lexer::Span::new(cmd_tok.span.start(), body_tok.span.end());
+        }
+        let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W302".to_string(),
             span,
