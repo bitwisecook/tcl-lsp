@@ -1011,6 +1011,15 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Re-audited: 2026-05-21 against `origin/main`@`cbe3bcc7` (prior
+anchor `01d83642`). +26 `main` commits; almost all out of scope
+(Zig/WASM runtime + emitter, JetBrains/explorer front-end, CI /
+release / CodeQL). New in-scope rows captured in the
+**SYNC-MAY21 family** below: #470 (range closing-delimiter
+widening), #468 (`-loop` / external `.tcl.stubs`), #460 (E003
+leading-option false positives), #464 (analyser diagnostic-range
+fixes). #461 (array-index rename) already landed on the Rust side.
+
 Refreshed: 2026-05-19 (chunk-log + queue reconciliation
 after the SYNC-MAY26 family + SYNC-JUN-FRAME356-population +
 SYNC-JUN-CFG-upvar-info + C44-irules-flow + C43-partial
@@ -1144,6 +1153,109 @@ When `main` next force-pushes a rebase point or when this list
 crosses the ~15-row threshold, open a fresh `SYNC*` family
 section in the chunk log (mirror `SYNC-MAY26`'s shape) and link
 it from the **Outstanding** rows it absorbs.
+
+## SYNC-MAY21 family — main audit (2026-05-21)
+
+Re-audited `origin/main`@`cbe3bcc7` against the prior anchor
+`origin/main`@`01d83642` (the 2026-05-19 refresh point). `main`
+landed **26** commits since then. The histories still diverge
+fully (no merge-base), so this is the per-file audit, not a git
+rebase.
+
+The large majority are **out of scope** (no Rust mirror — record
+and skip), grouped by exit point:
+
+- **Zig / WASM runtime + WASM emitter** — #443 (Tcl 9 `string`
+  semantics), #447 (`list` validation + `lsearch` bisect, all in
+  `codegen/wasm/_emitter`), #451 (alias-loop detection +
+  cross-interp upvar — entirely in the WASM emitter), #452 (expr
+  error messages + boolean context — WASM emitter), #453 (TclObj
+  refcount leaks), #456 (mathop → `tcl_arith` delegation), #457
+  (`return -code break/continue` through compiled proc calls),
+  #439 (`fire_in_list` trace double-free), #462 (`zig fmt`), #444
+  (double-free counters / sample capture).
+- **Editors / JetBrains / explorer front-end** — #448, #450,
+  #467, #260-era plugin fixes, and the explorer-serialiser half of
+  #470.
+- **CI / release / security** — #440 + #445 + #117 (CodeQL gate +
+  alert fixes), #442 / #463 / #465 (release notes), #466 + #073
+  (CI Zig setup), #459 / #076 (build-artefact ignores), #446
+  (`RedactReport` field rename — redaction isn't ported).
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-MAY21-1 — Highlight / selection ranges drop closing delimiters (#470)
+
+`main` fixed braced/quoted word ranges that dropped their closing
+`}` / `]` / `"`. Root cause is the codebase's "inner-end" range
+convention (the closer is excluded; the optimiser, SCCP,
+structure-elimination, code-sinking and minifier all rely on it),
+so the fix lives in the **consumers**, not in lowering: the
+explorer serialiser and `textDocument/selectionRange` now widen to
+the closer (`widen_range_for_closer` / `widen_for_highlight`), and
+the segmenter's whole-command range now includes its last word's
+closer via a token-tree `range_from_word_token`.
+
+This is the same convention the Rust side hit in the `${arr(idx)}`
+rename work — the lexer's `Var` token span excludes the closing
+brace. **Rust mirror:** `tcl-lsp-core::selection_range` must widen
+token ranges to the closer (it currently builds `Range(tok.start,
+tok.end)` raw); `tcl-compiler::segmenter` whole-command range
+should include the last word's closer. The audit on `main`
+confirmed hover (no range), folding (line-based), and semantic
+tokens (length-encoded) are unaffected — so scope is
+selection-range + segmenter range only. Classify: in-scope,
+low/medium. Files: `selection_range.rs`, `segmenter.rs`, the span
+→ LSP-range helpers.
+
+### SYNC-MAY21-2 — `-loop` stubs + external `.tcl.stubs` files (#468)
+
+New stub-overlay capability: ingest external `.tcl.stubs` files
+and support `-loop` stub forms. Threaded through the analyser core
+(`_analyser/_core`, `_diag_commands`), `checks/_domain`,
+`stub_comments`, `registry/{runtime,signatures}`,
+`compilation_unit`, and `lowering`. **Rust mirror:** the
+`StubOverlay` already consumed by `param_traits` /
+`resolve_arg_roles` needs the external-stub-file ingestion path and
+the `-loop` stub form, plus the `tcl-registry` signature side.
+Classify: in-scope, **structural** → promote to a numbered chunk
+when the analyser-core port (C41) reaches diagnostics.
+
+### SYNC-MAY21-3 — E003 false positives: switches before positional args (#460 / #455)
+
+`_with_roles` dropped a command's declared `leading_options` when
+merging a `CommandSig` role hint, so leading switches (`regsub
+-all`/`-line`, `vwait -variable`) were counted as positional args
+and tripped a false E003 "too many arguments". The fix also
+dialect-filters `leading_options` (`switch_names()` threaded with
+the dialect) so 9.0-only switches (`vwait -variable`, `regsub
+-command`) don't leak into 8.x signatures and get wrongly skipped
+during arity counting. **Rust mirror:** the registry role-hint
+merge + dialect-scoped switch filtering in `tcl-registry`, and the
+E003 arity check (`compiler_checks` / analyser arity validation).
+Classify: in-scope, low-touch.
+
+### SYNC-MAY21-4 — Analyser diagnostic-range coverage + product fixes (#464)
+
+Test-suite hardening for diagnostic-range coverage surfaced real
+product fixes across `_analyser/{_diag_var_lifecycle,_oo,_proc,
+_scope,_utils}` and `checks/_bounds` (diagnostic span accuracy +
+the var-lifecycle / OO / proc / scope behaviours the new range
+tests exposed). **Rust mirror:** fold into the in-progress
+analyser-core port (C41) — diagnostic spans plus the specific
+lifecycle/scope fixes. Classify: in-scope, medium; tracked under
+C41.
+
+### SYNC-MAY21-5 — Preserve array indices when renaming base variables (#461)
+
+**Already landed on the Rust side this session.** `main`'s #461
+patched `lsp/features/rename.py` to keep `$arr(idx)` indices when
+renaming the base array variable; the Rust port did the same in
+`tcl-lsp-core::rename` (`build_var_ref_replacement` preserves the
+array suffix) **and** went further to cover the braced `${arr(idx)}`
+form in both the replacement and cursor resolution
+(`hover::braced_var_around`). No action — recorded for traceability;
+Rust is at or ahead of `main` here.
 
 ## Next-up priority queue
 
