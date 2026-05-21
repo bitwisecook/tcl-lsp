@@ -145,7 +145,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-wasm test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-wasm test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps install-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -585,6 +585,15 @@ install-hooks: ## Install project git hooks (pre-push gate enforcing check-all s
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+install-test-deps: ## Install EVERYTHING test-slow needs (system tools + uv + Python venv) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
+	@echo "==> install-test-deps: installing system toolchain + uv"
+	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
+	@echo "==> install-test-deps: creating the Python venv (.venv via uv sync)"
+	@# uv may have just landed in ~/.local/bin (Astral installer) — make
+	@# sure the sync step can find it regardless of the parent PATH.
+	@PATH="$$HOME/.local/bin:$$PATH" $(MAKE) $(UV_STAMP)
+	@echo "==> install-test-deps: done — run 'make test-slow' next"
 
 ensure-python-test-deps: ## Install host deps exercised by the full Python pytest suite
 	@env \

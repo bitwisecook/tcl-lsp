@@ -54,8 +54,8 @@
 # ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``, ``SKIP_ZIG=1``,
 # ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``, ``SKIP_TCL_REGEX=1``,
 # ``SKIP_EMACS=1``, ``SKIP_XVFB=1``, ``SKIP_TSHARK=1``,
-# ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``, or
-# ``SKIP_TCLLIB=1``.
+# ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``,
+# ``SKIP_TCLLIB=1``, or ``SKIP_UV=1``.
 
 set -euo pipefail
 
@@ -118,6 +118,7 @@ INSTALLABLE_SKIP_VARS=(
     SKIP_PING
     SKIP_RGXG
     SKIP_TCLLIB
+    SKIP_UV
 )
 
 # If the caller has opted out of every installable tool, there's nothing
@@ -839,6 +840,36 @@ ensure_rgxg() {
     esac
 }
 
+# uv — the Python environment manager the whole pytest suite runs under
+# (``make test-py`` / ``test-slow`` shell out to ``uv run``).  No distro
+# packages it reliably, so on Linux we use Astral's official installer
+# (drops the binary in ~/.local/bin); macOS gets the Homebrew formula.
+ensure_uv() {
+    if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi
+    if command -v uv >/dev/null 2>&1; then
+        info "uv already on PATH ($(uv --version 2>/dev/null || echo unknown))"
+        return 0
+    fi
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        note_missing "uv (Python environment manager)"
+        return 0
+    fi
+    case "$PKG" in
+        brew)
+            run_install "uv (Homebrew)" uv
+            ;;
+        *)
+            info "Installing uv via Astral installer (~/.local/bin)"
+            if ! curl -fsSL --connect-timeout 15 --max-time 600 \
+                    https://astral.sh/uv/install.sh | sh; then
+                warn "uv install script failed"
+                note_missing "uv (Python environment manager)"
+                return 1
+            fi
+            ;;
+    esac
+}
+
 
 # ---------------------------------------------------------------- main
 
@@ -858,6 +889,7 @@ ensure_xvfb
 ensure_openssl
 ensure_ping
 ensure_rgxg
+ensure_uv
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "${#missing[@]}" -gt 0 ]; then
     echo

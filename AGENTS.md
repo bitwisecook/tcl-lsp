@@ -37,6 +37,14 @@ local machines as a no-op, so laptops are never touched. Everything listed
 here is ready before Claude starts taking instructions — **no manual
 `apt install` or curl step is required**.
 
+After the toolchains land it also installs the remaining `test-slow` host
+tools via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
+(tclsh, node, kotlinc, emacs, xvfb, tshark, …, plus `uv`), then creates the
+**single well-known Python venv** at `.venv` (`uv sync --extra dev`) and
+activates it — both for the hook and, via a guarded `~/.bashrc` line, for
+every subsequent Bash tool-call shell. So `python`/`pytest`/`ruff` resolve
+to the project environment with no per-shell `source .venv/bin/activate`.
+
 | Tool / source    | Version       | Install path                    | On `PATH` as              |
 |------------------|---------------|---------------------------------|---------------------------|
 | rsync, xz-utils  | distro        | `/usr/bin/`                     | `rsync`, `xz`             |
@@ -107,7 +115,8 @@ The project uses GNU Make. Key targets:
 | `make ci-fast`     | **Fast CI gate** — mirrors what GitHub Actions runs on every PR (~10s wall clock): Ruff + ty (full scope) + WASM parity + editor settings check + LSP end-to-end pytest subset. This is the only thing CI runs on PRs. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language (Python via Ruff + ty, TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`). On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
 | `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. On success writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`. |
-| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`. Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
+| `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (all of `ensure-test-deps` plus `uv`) **and** create the Python venv (`uv sync --extra dev`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
+| `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, `uv`, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_UV=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make capture-bytecode-refs` | Run `scripts/capture_reference_bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
 | `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
 | `make check-rust`  | Rust format check + clippy on the Zed extension and any top-level Cargo workspace. Skip with `SKIP_CHECK_RUST=1`. |

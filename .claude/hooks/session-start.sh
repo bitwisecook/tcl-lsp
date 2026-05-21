@@ -501,6 +501,73 @@ install_rust() {
     echo "session-start: rust $("$rustc_bin" --version) ready"
 }
 
+# ---------------------------------------------------------------------------
+# 6. Remaining test-slow host tools (tclsh, node, kotlinc, emacs, xvfb,
+#    tshark, openssl, ping, rgxg, uv).  Delegated to the shared
+#    cross-platform installer so there's a single source of truth; the
+#    toolchains this hook installs bespoke above (with pinned versions +
+#    checksums) are skipped to avoid double work.
+# ---------------------------------------------------------------------------
+install_remaining_test_deps() {
+    local installer="${REPO_ROOT}/scripts/dev/ensure-test-deps.sh"
+    if [ ! -f "$installer" ]; then
+        echo "session-start: ensure-test-deps.sh missing at $installer" >&2
+        return 1
+    fi
+    echo "session-start: installing remaining test-slow host tools"
+    env \
+        SKIP_ZIG=1 \
+        SKIP_WASMTIME=1 \
+        SKIP_BINARYEN=1 \
+        SKIP_RUST=1 \
+        SKIP_TCLLIB=1 \
+        SKIP_TCL_REGEX=1 \
+        bash "$installer"
+}
+
+# ---------------------------------------------------------------------------
+# 7. Python venv — create the single well-known environment (.venv at the
+#    repo root, the path uv and the Makefile already assume) and activate
+#    it for this and every subsequent shell in the session.
+# ---------------------------------------------------------------------------
+setup_python_venv() {
+    # uv was just installed by install_remaining_test_deps (Astral
+    # installer drops it in ~/.local/bin); make sure it's reachable.
+    export PATH="${HOME}/.local/bin:${PATH}"
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "session-start: uv not found after install — skipping venv setup" >&2
+        return 1
+    fi
+
+    echo "session-start: creating Python venv at ${REPO_ROOT}/.venv (uv sync)"
+    ( cd "$REPO_ROOT" && uv sync --extra dev )
+
+    local activate="${REPO_ROOT}/.venv/bin/activate"
+    if [ ! -f "$activate" ]; then
+        echo "session-start: expected venv activate script missing at $activate" >&2
+        return 1
+    fi
+
+    # Activate for the rest of this hook.
+    # shellcheck disable=SC1090
+    . "$activate"
+
+    # Persist activation for every subsequent Bash tool-call shell, which
+    # are spawned fresh from the user's profile.  Idempotent: the guard
+    # comment keeps re-runs on warm containers from stacking duplicates.
+    local marker="# tcl-lsp: auto-activate project venv"
+    if [ -n "${HOME:-}" ] && ! grep -qsF "$marker" "${HOME}/.bashrc" 2>/dev/null; then
+        {
+            printf '\n%s\n' "$marker"
+            printf 'export PATH="%s/.local/bin:$PATH"\n' "$HOME"
+            printf '[ -f "%s/.venv/bin/activate" ] && . "%s/.venv/bin/activate"\n' \
+                "$REPO_ROOT" "$REPO_ROOT"
+        } >> "${HOME}/.bashrc"
+        echo "session-start: venv auto-activation added to ~/.bashrc"
+    fi
+    echo "session-start: venv ready (VIRTUAL_ENV=${VIRTUAL_ENV:-unset})"
+}
+
 install_zig
 install_wasmtime
 install_binaryen
@@ -508,5 +575,7 @@ install_rust
 install_tcl_sources
 install_tcllib
 install_tcl_regex
+install_remaining_test_deps
+setup_python_venv
 
 echo "session-start: done"
