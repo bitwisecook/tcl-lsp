@@ -1893,13 +1893,17 @@ pub fn eval_uplevel(words: []const i32) i32 {
 
     if (w1.len > 0) {
         if (w1p[0] == '#') {
-            // ``#N`` is an ABSOLUTE target level — shift by
-            // (frame_depth - N) so the target frame becomes the
-            // active one.  Clamp to ``frame_depth`` when ``N`` is
-            // deeper than the current stack (treats as #0).
+            // ``#N`` is an ABSOLUTE target level (global is ``#0`` at
+            // runtime frame_depth 0, the first proc is ``#1`` at depth
+            // 1, …), so shift by ``frame_depth - N`` to make that frame
+            // active.  ``#N`` where ``N == frame_depth`` is the current
+            // proc's *own* frame (shift 0) — e.g. ``uplevel #1`` from a
+            // level-1 proc (uplevel-3.4).  Only a genuinely over-deep
+            // ``N > frame_depth`` clamps to the global frame (reference
+            // Tcl raises "bad level" there; we degrade leniently).
             body_start = 2;
             const level = parse_uint_bytes(w1p + 1, w1.len - 1);
-            if (level >= frames.frame_depth) {
+            if (level > frames.frame_depth) {
                 shift = @intCast(frames.frame_depth);
             } else {
                 shift = @intCast(frames.frame_depth - level);

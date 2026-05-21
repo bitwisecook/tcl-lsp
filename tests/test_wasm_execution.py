@@ -2314,6 +2314,29 @@ class TestEvalUplevel:
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=0:\n"
 
+    def test_uplevel_hashN_targets_own_frame(self):
+        """``uplevel #N`` where N is the current proc's own level targets
+        that proc's own frame (shift 0), reading its locals — not the
+        global frame (tcltest uplevel-3.4).  Covers both the interpreted
+        proc body (via ``apply``) and a compiled proc."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        # Interpreted lambda body: apply runs at level 1, so `uplevel #1`
+        # is the lambda's own frame.
+        wasm = _compile_tcl(
+            'set y zzz\nputs [apply {{} {set y 55; uplevel #1 set y}}]\n'
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "55\n"
+
+        # Compiled proc: a1 is called from the global frame (level 1), so
+        # `uplevel #1` is a1's own frame.
+        wasm2 = _compile_tcl(
+            'set y zzz\nproc a1 {} {set y 55; uplevel #1 set y}\nputs [a1]\n'
+        )
+        _, out2 = _run_wasm(wasm2, capture_stdout=True)
+        assert out2 == "55\n"
+
     def test_uplevel_negative_level_is_bad_level_error(self):
         """``uplevel -1`` (any negative magnitude) is a ``bad level``
         error, not a body word — matches reference Tcl (uplevel-4.21)."""

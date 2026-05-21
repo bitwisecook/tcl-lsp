@@ -552,11 +552,11 @@
       "total": 7
     },
     "uplevel": {
-      "bucket": "W-mixed-fail",
+      "bucket": "W-clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 56,
+      "failed_max": 0,
+      "passed_min": 57,
       "skipped": 0,
       "total": 57
     },
