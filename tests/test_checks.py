@@ -3168,25 +3168,14 @@ class TestSwitchSubjectCountsAsParamUse:
         return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
 
     def test_glob_switch_subject_and_body_reads(self):
-        # -glob / -regexp / fallthrough switches are kept as an IRSwitch
-        # statement (never lowered into CFG branches), so the subject and
-        # arm-body reads must be recovered from the structured form.
+        # -glob and fallthrough switches are kept as an IRSwitch statement
+        # (never lowered into CFG branches), so the subject and arm-body
+        # reads must be recovered from the structured form.  (-regexp is a
+        # barrier handled separately — see PR #474.)
         source = (
             "proc p {col text} {\n"
             "    switch -glob -- $col {\n"
             "        a* { return $text }\n"
-            "        default { return 0 }\n"
-            "    }\n"
-            "}\n"
-        )
-        assert "col" not in self._w214(source)
-        assert "text" not in self._w214(source)
-
-    def test_regexp_switch_subject_and_body_reads(self):
-        source = (
-            "proc p {col text} {\n"
-            "    switch -regexp -- $col {\n"
-            "        {^a} { return $text }\n"
             "        default { return 0 }\n"
             "    }\n"
             "}\n"
@@ -3219,3 +3208,18 @@ class TestSwitchSubjectCountsAsParamUse:
             "}\n"
         )
         assert "text" not in self._w214(source)
+
+    def test_arm_local_set_then_read_no_read_before_set(self):
+        # A temporary set then read *inside* an arm is arm-local; collecting
+        # its read onto the outer IRSwitch must not surface as W210
+        # read-before-set (the outer statement has no view of the arm's def).
+        source = (
+            "proc p {x} {\n"
+            "    switch -glob -- $x {\n"
+            "        a* { set tmp 1; puts $tmp }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        codes = {d.code for d in analyse(source).diagnostics}
+        assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"

@@ -31,7 +31,14 @@ from ..commands.registry.runtime import (
     scope_alias_commands,
 )
 from ..common.naming import normalise_var_name as _normalise_var_name
-from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
+from .cfg import (
+    CFGBranch,
+    CFGFunction,
+    CFGGoto,
+    CFGReturn,
+    CFGTerminator,
+    _defs_from_ir_script,
+)
 from .expr_ast import ExprNode, vars_in_expr_node
 from .ir import (
     CommandTokens,
@@ -220,10 +227,24 @@ def _switch_reads(stmt: IRSwitch) -> set[str]:
     for arm in stmt.arms:
         reads |= _vars_in_word(arm.pattern)
         if arm.body is not None:
-            reads |= _reads_in_ir_script(arm.body)
+            reads |= _free_reads_in_ir_script(arm.body)
     if stmt.default_body is not None:
-        reads |= _reads_in_ir_script(stmt.default_body)
+        reads |= _free_reads_in_ir_script(stmt.default_body)
     return reads
+
+
+def _free_reads_in_ir_script(script: IRScript) -> set[str]:
+    """Reads of variables a collapsed body consumes from the *outer* scope.
+
+    An un-lowered switch arm contributes its reads to the single enclosing
+    ``IRSwitch`` statement, which has no way to represent the arm's own
+    defs.  Subtracting the body's defs keeps arm-local temporaries
+    (``set tmp 1; puts $tmp``) from being seen as outer reads — otherwise
+    they would surface as false read-before-set (W210).  Genuine outer
+    reads (a parameter used as ``return $text``) survive because they are
+    never assigned inside the arm.
+    """
+    return _reads_in_ir_script(script) - set(_defs_from_ir_script(script))
 
 
 def _reads_in_ir_script(script: IRScript) -> set[str]:
@@ -237,10 +258,11 @@ def _reads_in_ir_script(script: IRScript) -> set[str]:
 def _reads_in_ir_stmt(stmt: IRStatement) -> set[str]:
     """Variable reads of a single statement, recursing into nested bodies.
 
-    Leaf reads come from :func:`_uses`; structured statements (``if``,
-    loops, ``catch``/``try``, nested ``switch``) are not lowered when they
-    live inside an un-lowered switch arm, so their conditions and
-    sub-scripts must be walked here.
+    Leaf reads come from :func:`_uses` (which already resolves a nested
+    ``IRSwitch`` via :func:`_switch_reads`); structured statements (``if``,
+    loops, ``catch``/``try``) are not lowered when they live inside an
+    un-lowered switch arm, so their conditions and sub-scripts must be
+    walked here.
     """
     reads = set(_uses(stmt))
     match stmt:
@@ -270,8 +292,6 @@ def _reads_in_ir_stmt(stmt: IRStatement) -> set[str]:
                 reads |= _reads_in_ir_script(handler.body)
             if finally_body is not None:
                 reads |= _reads_in_ir_script(finally_body)
-        case IRSwitch():
-            reads |= _switch_reads(stmt)
     return reads
 
 
