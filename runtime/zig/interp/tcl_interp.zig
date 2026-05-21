@@ -5159,6 +5159,23 @@ fn eval_interp_eval(words: []const i32) i32 {
         .prev_current_ns = tcl_ns.current_ns,
     };
     const result = if (off > 0) eval_script(script_ptr, off) else 0;
+    // A child error's message (``error "msg"``) is stored in
+    // ``state.error_msg`` as a *borrowed* handle into the eval script
+    // buffer (``script_ptr``), which the ``defer free_sized`` below
+    // reclaims as soon as we return.  The parent's surrounding ``catch``
+    // reads ``error_msg`` only after that free, seeing zeroed bytes.
+    // Promote it to an owned copy now, while the buffer is still live,
+    // so the message survives the interp-eval boundary intact.
+    {
+        const tcl_catch = @import("tcl_catch.zig");
+        if (tcl_catch.state.error_flag != 0 and tcl_catch.state.error_msg != 0) {
+            const em = obj_ensure_string(tcl_catch.state.error_msg);
+            if (em.len > 0) {
+                const owned = obj_mod.obj_new_string_copy(em.ptr, em.len);
+                if (owned != 0) tcl_catch.state.error_msg = owned;
+            }
+        }
+    }
     interp_reg.leave(save);
     if (swapped) frames.frame_depth_restore(frame_saved);
 
