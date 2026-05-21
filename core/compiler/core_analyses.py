@@ -880,83 +880,142 @@ def _sccp(
             return True
         return False
 
-    # SCCP keeps the round-robin RPO sweep (no sparse worklist): it marks
-    # CFG edges executable as it goes and never un-marks them, so an
-    # undetermined branch (decision ``None``) conservatively marks BOTH
-    # targets.  The RPO sweep resolves a condition's value before the
-    # branch is visited, so the pessimistic both-edge marking is avoided;
-    # a value-driven worklist could visit the branch first (in a
-    # different order), permanently mark both edges, and lose precision
-    # (e.g. a constant condition no longer detected as always-false).
-    # The other propagations read this fixed executable set and only join
-    # values, so their worklists are order-independent.
-    changed = True
-    while changed:
-        changed = False
-        for bn in order:
-            if bn not in executable_blocks:
-                continue
-            ssa_block = ssa.blocks[bn]
+    # Seed live-in roots to OVERDEFINED.  A value that is *used* but never
+    # *defined* anywhere in this function (a proc parameter, a global or
+    # namespace variable read, an upvar target) holds a runtime-unknown
+    # value, so it is ⊥, not ⊤.  Without this seeding such a root defaults
+    # to UNKNOWN, and because UNKNOWN is the join identity it silently
+    # vanishes from any phi it feeds — e.g. ``join(const 0, $runtime)``
+    # would fold to ``0`` and make a genuinely runtime condition look
+    # constant (a false-positive "always true/false" branch).
+    defined_keys: set[SSAValueKey] = set()
+    used_keys: set[SSAValueKey] = set()
+    for sblock in ssa.blocks.values():
+        for phi in sblock.phis:
+            defined_keys.add((phi.name, phi.version))
+            for inc in phi.incoming.values():
+                if inc > 0:
+                    used_keys.add((phi.name, inc))
+        for s in sblock.statements:
+            for var, ver in s.defs.items():
+                defined_keys.add((var, ver))
+            used_keys.update(s.uses.items())
+    for term_bn, term_block in cfg.blocks.items():
+        term = term_block.terminator
+        if isinstance(term, CFGBranch):
+            sb = ssa.blocks.get(term_bn)
+            if sb is not None:
+                used_keys.update(_condition_use_versions(term.condition, sb.exit_versions).items())
+    for key in used_keys - defined_keys:
+        if key not in values:
+            values[key] = OVERDEFINED
 
-            incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
-            for phi in ssa_block.phis:
-                if bn == cfg.entry:
+    def branch_targets(block_name: str, condition: ExprNode, tt: str, ft: str) -> tuple[str, ...]:
+        # Optimistic (Wegman–Zadeck) branch resolution: fold to a single
+        # edge when the condition is constant; mark BOTH arms only when it
+        # is genuinely non-constant (an OVERDEFINED operand, or
+        # all-constant but unfoldable).  While any operand is still UNKNOWN
+        # the condition may yet fold, so open NO edge and let a later pass
+        # retry — this is what detects loop-carried constant conditions
+        # instead of pessimistically opening both arms forever.  Soundness
+        # relies on every runtime-unknown input already being OVERDEFINED
+        # (live-in roots seeded above; undefined phi inputs joined as ⊥
+        # below), so a still-UNKNOWN operand genuinely means "not yet
+        # computed", never "unknowable".
+        decision = _evaluate_branch_decision(cfg, ssa, block_name, condition, values)
+        if decision is True:
+            return (tt,)
+        if decision is False:
+            return (ft,)
+        sb = ssa.blocks.get(block_name)
+        exit_versions = sb.exit_versions if sb is not None else {}
+        op_vals = [
+            values.get((n, v), UNKNOWN)
+            for n, v in _condition_use_versions(condition, exit_versions).items()
+        ]
+        if (
+            op_vals
+            and any(ov.kind is LatticeKind.UNKNOWN for ov in op_vals)
+            and not any(ov.kind is LatticeKind.OVERDEFINED for ov in op_vals)
+        ):
+            return ()
+        return (tt, ft)
+
+    # Optimistic fixpoint over the RPO sweep, followed by a finalization
+    # pass that forces both arms for any executable branch still stuck on
+    # an UNKNOWN condition (defensive: a value defined only in
+    # unreachable code could otherwise leave a successor spuriously
+    # unreachable).  ``finalizing`` is monotone, so the outer loop runs at
+    # most twice.
+    finalizing = False
+    while True:
+        changed = True
+        while changed:
+            changed = False
+            for bn in order:
+                if bn not in executable_blocks:
                     continue
-                if not incoming_exec_preds:
-                    continue
-                phi_val = UNKNOWN
-                for pred in incoming_exec_preds:
-                    incoming_ver = phi.incoming.get(pred, 0)
-                    if incoming_ver <= 0:
+                ssa_block = ssa.blocks[bn]
+
+                incoming_exec_preds = [
+                    p for p in preds.get(bn, set()) if (p, bn) in executable_edges
+                ]
+                for phi in ssa_block.phis:
+                    if bn == cfg.entry:
                         continue
-                    phi_val = _join(phi_val, values.get((phi.name, incoming_ver), UNKNOWN))
-                if set_value((phi.name, phi.version), phi_val):
-                    changed = True
-
-            for s in ssa_block.statements:
-                if isinstance(s.statement, IRBarrier):
-                    # Barriers can modify any variable — widen all
-                    # currently-tracked values to OVERDEFINED.  Only the
-                    # not-yet-widened keys need touching.
-                    if non_overdefined:
-                        for key in non_overdefined:
-                            values[key] = OVERDEFINED
-                        non_overdefined.clear()
-                        changed = True
-                    continue
-                for var, ver in s.defs.items():
-                    val = _evaluate_def(s.statement, s, values)
-                    if set_value((var, ver), val):
+                    if not incoming_exec_preds:
+                        continue
+                    phi_val = UNKNOWN
+                    for pred in incoming_exec_preds:
+                        incoming_ver = phi.incoming.get(pred, 0)
+                        if incoming_ver <= 0:
+                            # The variable is undefined / live-in on this
+                            # executable edge — a runtime-unknown value, ⊥.
+                            phi_val = _join(phi_val, OVERDEFINED)
+                        else:
+                            phi_val = _join(
+                                phi_val, values.get((phi.name, incoming_ver), UNKNOWN)
+                            )
+                    if set_value((phi.name, phi.version), phi_val):
                         changed = True
 
-            match cfg.blocks[bn].terminator:
-                case CFGGoto(target=target):
-                    edge = (bn, target)
+                for s in ssa_block.statements:
+                    if isinstance(s.statement, IRBarrier):
+                        # Barriers can modify any variable — widen all
+                        # currently-tracked values to OVERDEFINED.  Only the
+                        # not-yet-widened keys need touching.
+                        if non_overdefined:
+                            for key in non_overdefined:
+                                values[key] = OVERDEFINED
+                            non_overdefined.clear()
+                            changed = True
+                        continue
+                    for var, ver in s.defs.items():
+                        val = _evaluate_def(s.statement, s, values)
+                        if set_value((var, ver), val):
+                            changed = True
+
+                match cfg.blocks[bn].terminator:
+                    case CFGGoto(target=target):
+                        targets: tuple[str, ...] = (target,)
+                    case CFGBranch(condition=condition, true_target=tt, false_target=ft):
+                        targets = branch_targets(bn, condition, tt, ft)
+                        if not targets and finalizing:
+                            targets = (tt, ft)
+                    case _:
+                        targets = ()
+                for tgt in targets:
+                    edge = (bn, tgt)
                     if edge not in executable_edges:
                         executable_edges.add(edge)
                         changed = True
-                    if target in cfg.blocks and target not in executable_blocks:
-                        executable_blocks.add(target)
+                    if tgt in cfg.blocks and tgt not in executable_blocks:
+                        executable_blocks.add(tgt)
                         changed = True
-                case CFGBranch(condition=condition, true_target=tt, false_target=ft):
-                    decision = _evaluate_branch_decision(cfg, ssa, bn, condition, values)
-                    if decision is True:
-                        targets = (tt,)
-                    elif decision is False:
-                        targets = (ft,)
-                    else:
-                        targets = (tt, ft)
-                    for tgt in targets:
-                        edge = (bn, tgt)
-                        if edge not in executable_edges:
-                            executable_edges.add(edge)
-                            changed = True
-                        if tgt in cfg.blocks and tgt not in executable_blocks:
-                            executable_blocks.add(tgt)
-                            changed = True
-                case _:
-                    pass
-        time.sleep(0)  # Yield GIL between fixed-point iterations
+            time.sleep(0)  # Yield GIL between fixed-point iterations
+        if finalizing:
+            break
+        finalizing = True
 
     constant_branches: list[ConstantBranch] = []
     for bn in order:
