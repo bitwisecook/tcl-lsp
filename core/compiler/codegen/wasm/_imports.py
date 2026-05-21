@@ -771,6 +771,17 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # ``array_fire_op_trace(name)`` — fire any ``array``-op variable
+    # trace before a compiled ``array`` subcommand inlines its access,
+    # matching the interpreter's ``eval_array`` path (trace-5.1).  Takes
+    # the raw user-typed name so trace-registry routing agrees with
+    # ``trace add``.
+    "tcl_array_fire_op_trace": (
+        "tcl",
+        "array_fire_op_trace",
+        [ValType.I32],
+        [],
+    ),
     # Diagnostic — record the current source site so trap paths can
     # prefix stderr with ``site=<id>`` for sidecar-map resolution.
     "tcl_diag_set": ("tcl", "diag_set", [ValType.I32], []),

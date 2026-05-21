@@ -624,6 +624,11 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                             needed.add("tcl_array_set")
                 elif cmd == "array" and len(parts) > 1:
                     sub = parts[1]
+                    # Every array-access subcommand fires any ``array``-op
+                    # variable trace before the access (trace-5.1); the
+                    # compiled fast-path needs the fire helper imported.
+                    if sub in ("exists", "size", "unset", "names", "get", "set"):
+                        needed.add("tcl_array_fire_op_trace")
                     if sub == "exists":
                         needed.add("tcl_array_exists")
                     elif sub == "size":

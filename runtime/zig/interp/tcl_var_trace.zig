@@ -727,6 +727,28 @@ pub fn remove_from_list(head_addr: *u32, name: i32, ops: u32, cmd_prefix: i32) b
     return false;
 }
 
+/// Remove (and free) every trace record matching ``(name_ptr, name_len)``
+/// from the frame-local list rooted at ``head_addr``, regardless of ops
+/// or command.  Used when a variable is unset through an ``upvar``
+/// alias: reference Tcl removes the target variable *and* all its
+/// traces at unset time, so the owning frame's teardown drain must not
+/// fire a second, stale unset callback (tcltest upvar-5.3).
+pub fn remove_all_in_list(head_addr: *u32, name_ptr: u32, name_len: u32) void {
+    if (name_ptr == 0 or name_len == 0) return;
+    var prev_addr: *u32 = head_addr;
+    var cur: u32 = head_addr.*;
+    while (cur != 0) {
+        const next: u32 = @bitCast(read_i32(cur + F_OFF_NEXT));
+        if (name_bytes_match(cur, name_ptr, name_len)) {
+            prev_addr.* = next;
+            frame_trace_free(cur);
+        } else {
+            prev_addr = @ptrFromInt(cur + F_OFF_NEXT);
+        }
+        cur = next;
+    }
+}
+
 /// Return a Tcl list of ``{ops cmd}`` pairs for every trace on
 /// ``name`` in the list rooted at ``head``.  Empty list if no match.
 pub fn info_for_list(head: u32, name: i32) i32 {
@@ -779,20 +801,39 @@ pub fn fire_in_list(
     op: u32,
     op_char: u8,
 ) void {
-    if (head == 0 or name_ptr == 0 or name_len == 0) return;
+    fire_in_list_as(head, name_ptr, name_len, name_ptr, name_len, op, op_char);
+}
+
+/// Like :func:`fire_in_list`, but matches trace records against
+/// ``(match_ptr, match_len)`` while passing ``(report_ptr, report_len)``
+/// as ``name1`` to the callback.  Used when a variable is accessed
+/// through an ``upvar`` alias: the trace record lives in the target
+/// frame under the *target* name (e.g. ``c``), but reference Tcl
+/// reports the *alias* name used at the access site (e.g. ``x1``) to
+/// the callback — see tcltest upvar-5.1 / 5.2 / 5.3.
+pub fn fire_in_list_as(
+    head: u32,
+    match_ptr: u32,
+    match_len: u32,
+    report_ptr: u32,
+    report_len: u32,
+    op: u32,
+    op_char: u8,
+) void {
+    if (head == 0 or match_ptr == 0 or match_len == 0) return;
     var cur = head;
     while (cur != 0) : (cur = @bitCast(read_i32(cur + F_OFF_NEXT))) {
         const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
         if ((r_ops & op) == 0) continue;
-        if (!name_bytes_match(cur, name_ptr, name_len)) continue;
+        if (!name_bytes_match(cur, match_ptr, match_len)) continue;
         const active: u32 = @bitCast(read_i32(cur + F_OFF_ACTIVE));
         if (active != 0) continue;
         write_i32(cur + F_OFF_ACTIVE, 1);
         const cmd = read_i32(cur + F_OFF_CMD);
-        // Frame-local traces are scalars only — name1 = the local
+        // Frame-local traces are scalars only — name1 = the reported
         // name, name2 = empty (matching Tcl's ``$VAR_NAME`` pattern
         // for scalar-trace callbacks).
-        invoke_cb(cmd, name_ptr, name_len, 0, 0, op_char);
+        invoke_cb(cmd, report_ptr, report_len, 0, 0, op_char);
         write_i32(cur + F_OFF_ACTIVE, 0);
     }
 }

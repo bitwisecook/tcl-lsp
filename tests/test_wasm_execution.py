@@ -2296,6 +2296,103 @@ class TestEvalUplevel:
         )
         assert result == 99
 
+    def test_uplevel_minus_zero_is_relative_level_zero(self):
+        """``uplevel -0`` is a valid relative level 0 (current frame),
+        matching reference Tcl's ``Tcl_GetIntFromObj`` level path
+        (tcltest uplevel-4.9).  The body runs in the calling frame."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl("puts [apply {{} {uplevel -0 {expr {40 + 2}}}}]\n")
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "42\n"
+
+    def test_uplevel_minus_zero_empty_body(self):
+        """``uplevel -0 {}`` returns the empty string (tcltest uplevel-4.9)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -0 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=0:\n"
+
+    def test_uplevel_hashN_targets_own_frame(self):
+        """``uplevel #N`` where N is the current proc's own level targets
+        that proc's own frame (shift 0), reading its locals — not the
+        global frame (tcltest uplevel-3.4).  Covers both the interpreted
+        proc body (via ``apply``) and a compiled proc."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        # Interpreted lambda body: apply runs at level 1, so `uplevel #1`
+        # is the lambda's own frame.
+        wasm = _compile_tcl("set y zzz\nputs [apply {{} {set y 55; uplevel #1 set y}}]\n")
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "55\n"
+
+        # Compiled proc: a1 is called from the global frame (level 1), so
+        # `uplevel #1` is a1's own frame.
+        wasm2 = _compile_tcl("set y zzz\nproc a1 {} {set y 55; uplevel #1 set y}\nputs [a1]\n")
+        _, out2 = _run_wasm(wasm2, capture_stdout=True)
+        assert out2 == "55\n"
+
+    def test_uplevel_negative_level_is_bad_level_error(self):
+        """``uplevel -1`` (any negative magnitude) is a ``bad level``
+        error, not a body word — matches reference Tcl (uplevel-4.21)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -1 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == 'rc=1:bad level "-1"\n'
+
+    def test_uplevel_signed_based_level_is_bad_level(self):
+        """A signed based-integer level (``-0xff``) parses as an int and
+        is rejected as ``bad level`` — not treated as a body word
+        (uplevel-4.17)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -0xff {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == 'rc=1:bad level "-0xff"\n'
+
+
+class TestUpvarTopLevel:
+    """``upvar`` at the script top level (no proc frame) aliases within
+    the global scope, so writes through the alias reach the target
+    global — tcltest upvar-7.1.  The body is evaluated through the
+    interpreter (matching how tcltest runs test bodies)."""
+
+    def test_upvar_global_links_and_relinks(self):
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl(
+            "set x 44\n"
+            "set y 55\n"
+            "catch {unset uv}\n"
+            # ``eval $body`` forces interpreter dispatch (a literal body
+            # would be compiled inline, where top-level upvar isn't wired).
+            "set body {upvar #0 x uv; set uv abc; upvar 0 y uv; set uv xyzzy}\n"
+            "eval $body\n"
+            "puts [list $x $y]\n"
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "abc xyzzy\n"
+
+    def test_top_level_upvar_array_element_does_not_link_wrong_storage(self):
+        """Top-level ``upvar #0 arr(k) uv`` must NOT silently link ``uv``
+        to a scalar named ``arr(k)`` (which would diverge from the array
+        storage ``$arr(k)`` uses).  There's no frame to hold an
+        element-alias descriptor here, so the element target is left
+        unaliased rather than wrongly linked — ``arr(k)`` keeps its value."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl(
+            "set arr(k) orig\n"
+            "set body {upvar #0 arr(k) uv; set uv changed}\n"
+            "eval $body\n"
+            "puts $arr(k)\n"
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        # The array element is untouched (uv did not alias it).
+        assert out == "orig\n"
+
 
 # Global variable scoping
 

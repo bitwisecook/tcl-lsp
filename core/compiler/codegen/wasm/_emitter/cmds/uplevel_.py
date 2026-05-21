@@ -252,6 +252,17 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
     emitter._emit_uplevel_body(body_parts)
     emitter._emit_local_set(body_local)
 
+    # Mirror this proc's compiled locals into its runtime frame before
+    # the interpreter evaluates the body.  ``uplevel #N`` can target the
+    # *current* proc's own frame (e.g. ``uplevel #1`` from a level-1
+    # proc → shift 0), in which case the eval'd body reads/writes this
+    # frame's variable table — which would otherwise miss WASM-local
+    # values that were never synced (uplevel-3.4).  Done before the
+    # stash so the write lands in the still-current frame; readback
+    # after restore surfaces any changes the body made back into the
+    # WASM locals.  No-op outside a compiled proc.
+    emitter._emit_interp_boundary("eval")
+
     # Choose the right stash variant.  ``#N`` is an *absolute*
     # level — only resolvable at runtime (relative shift depends on
     # the current call depth).  ``frame_depth_stash_abs`` does the
@@ -279,6 +290,10 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
 
     emitter._emit_local_get(saved_local)
     emitter._emit_call(restore_idx)
+
+    # Pull back any frame-variable writes the body made into this
+    # proc's WASM locals (counterpart to the pre-eval sync above).
+    emitter._emit_frame_readback()
 
     emitter._emit_local_get(result_local)
 
