@@ -659,29 +659,16 @@ def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
         first = getattr(top_stmts[0], "range", None)
         last = getattr(top_stmts[-1], "range", None)
         if first is not None and last is not None:
-            top_range = {
-                "startLine": first.start.line,
-                "startCol": first.start.character,
-                "startOffset": first.start.offset,
-                "endLine": last.end.line,
-                "endCol": last.end.character,
-                "endOffset": last.end.offset,
-            }
+            from core.analysis.semantic_model import Range
+
+            top_range = range_dict(Range(start=first.start, end=last.end))
     for entry in result:
         if entry["kind"] == "top":
             entry["sourceRange"] = top_range
         else:
             ir_proc = ir_module.procedures.get(entry["name"])
             if ir_proc is not None:
-                rng = ir_proc.range
-                entry["sourceRange"] = {
-                    "startLine": rng.start.line,
-                    "startCol": rng.start.character,
-                    "startOffset": rng.start.offset,
-                    "endLine": rng.end.line,
-                    "endCol": rng.end.character,
-                    "endOffset": rng.end.offset,
-                }
+                entry["sourceRange"] = range_dict(ir_proc.range)
             else:
                 entry["sourceRange"] = None
     return result
@@ -770,9 +757,22 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
     This is the single serialisation function used by both the Flask
     endpoint and the Pyodide worker.
     """
+    from core.common.ranges import reset_highlight_source, set_highlight_source
     from core.compiler.cfg import build_cfg
 
     from .pipeline import compute_stats
+
+    # Widen braced/quoted word ranges to their closing delimiter against the
+    # document source while serialising (see ``range_dict``).
+    src_token = set_highlight_source(result.source)
+    try:
+        return _serialise_result(result, build_cfg, compute_stats)
+    finally:
+        reset_highlight_source(src_token)
+
+
+def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) -> dict:
+    from core.common.ranges import reset_highlight_source, set_highlight_source
 
     # Build CFG once for the original IR and share across asm + wasm.
     cfg_module = build_cfg(result.ir_module)
@@ -789,14 +789,19 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
             opt_ir = None
             opt_cfg = None
         if opt_ir is not None:
+            # Optimised asm/wasm ranges index into the optimised source.
+            opt_token = set_highlight_source(result.optimised_source)
             try:
-                asm_optimised = _serialise_asm(opt_ir, cfg_module=opt_cfg)
-            except Exception as exc:
-                print(f"warning: optimised asm serialisation failed: {exc}", file=sys.stderr)
-            try:
-                wasm_optimised = _serialise_wasm(opt_ir, optimise=True, cfg_module=opt_cfg)
-            except Exception as exc:
-                print(f"warning: optimised wasm serialisation failed: {exc}", file=sys.stderr)
+                try:
+                    asm_optimised = _serialise_asm(opt_ir, cfg_module=opt_cfg)
+                except Exception as exc:
+                    print(f"warning: optimised asm serialisation failed: {exc}", file=sys.stderr)
+                try:
+                    wasm_optimised = _serialise_wasm(opt_ir, optimise=True, cfg_module=opt_cfg)
+                except Exception as exc:
+                    print(f"warning: optimised wasm serialisation failed: {exc}", file=sys.stderr)
+            finally:
+                reset_highlight_source(opt_token)
 
     try:
         asm = _serialise_asm(result.ir_module, cfg_module=cfg_module)
