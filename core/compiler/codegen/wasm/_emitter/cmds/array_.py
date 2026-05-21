@@ -18,6 +18,20 @@ def _emit_array_subcmd_value(emitter, args: tuple[str, ...]) -> None:
         emitter._emit_i32_const(0)
         return
     subcmd = args[0]
+    # Fire any ``array``-op variable trace before the inlined access,
+    # matching the interpreter's ``eval_array`` (trace-5.1: ``array``
+    # traces fire for get / set / names / size / exists / unset).  The
+    # helper takes the *raw* user-typed name so trace-registry routing
+    # agrees with ``trace add``.  Only emitted for a simple literal name
+    # (the common case) — a borrowed interned literal is refcount-safe
+    # to hand to the void helper; ``$``/``[``-substituted names skip the
+    # compiled fire and still fire on the interpreter fallback path.
+    if subcmd in ("exists", "size", "unset", "names", "get", "set") and len(args) >= 2:
+        fire_idx = emitter._shared_imports.get("tcl_array_fire_op_trace")
+        name = args[1]
+        if fire_idx is not None and not any(c in name for c in "$[("):
+            emitter._emit_obj_literal(name)
+            emitter._emit_call(fire_idx)
     if subcmd == "exists" and len(args) >= 2:
         fidx = emitter._shared_imports.get("tcl_array_exists")
         if fidx is not None:
