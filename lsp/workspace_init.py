@@ -46,13 +46,18 @@ _STUB_WALK_SKIP_DIRS = frozenset(
 )
 
 
-def _discover_workspace_stubs(roots: list[str], library_paths: list[str]) -> None:
+def _discover_workspace_stubs(bases: list[str]) -> None:
     """Find and parse external ``*.tcl.stubs`` files under the workspace.
 
-    Populates :data:`lsp.state.workspace_stub_commands` so every analysed
-    document sees the declared commands (same overlay as inline
-    ``# tcl-lsp: stub`` blocks).  Best-effort: unreadable files and parse
-    failures are skipped.
+    *bases* are the directories to search — workspace roots, every
+    workspace folder (multi-root), and library paths.  Populates
+    :data:`lsp.state.workspace_stub_commands` so every analysed document
+    sees the declared commands (same overlay as inline ``# tcl-lsp: stub``
+    blocks).  Best-effort: unreadable files and parse failures are skipped.
+
+    Traversal is sorted and the discovered file list is sorted before
+    parsing, so when two files declare the same command the "last wins"
+    overlay is deterministic across platforms.
     """
     import os
 
@@ -60,20 +65,29 @@ def _discover_workspace_stubs(roots: list[str], library_paths: list[str]) -> Non
 
     seen: set[str] = set()
     stub_files: list[str] = []
-    for base in [*roots, *library_paths]:
+    capped = False
+    for base in bases:
+        if capped:
+            break
         if not base or not os.path.isdir(base):
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in _STUB_WALK_SKIP_DIRS]
-            for name in filenames:
-                if name.endswith(".tcl.stubs"):
-                    full = os.path.realpath(os.path.join(dirpath, name))
-                    if full not in seen:
-                        seen.add(full)
-                        stub_files.append(full)
-            if len(stub_files) >= _MAX_STUB_FILES:
+            # Sort in place for deterministic traversal; prune noise dirs.
+            dirnames[:] = sorted(d for d in dirnames if d not in _STUB_WALK_SKIP_DIRS)
+            for name in sorted(filenames):
+                if not name.endswith(".tcl.stubs"):
+                    continue
+                full = os.path.realpath(os.path.join(dirpath, name))
+                if full not in seen:
+                    seen.add(full)
+                    stub_files.append(full)
+                    if len(stub_files) >= _MAX_STUB_FILES:
+                        capped = True
+                        break
+            if capped:
                 break
 
+    stub_files.sort()
     cmd_stubs: list = []
     for path in stub_files:
         try:
@@ -432,7 +446,11 @@ def on_initialized(params: types.InitializedParams) -> None:
                 library_paths.append(venv_lib)
                 log.info("Auto-detected tclpkg venv lib: %s", venv_lib)
 
-    _discover_workspace_stubs(roots, library_paths)
+    # Search workspace roots, every workspace folder (multi-root), and
+    # library paths — deduped, order-preserving — so external stubs load
+    # consistently regardless of whether ``root_path`` is set.
+    stub_bases = list(dict.fromkeys([*roots, *(p for _, p in folder_paths), *library_paths]))
+    _discover_workspace_stubs(stub_bases)
 
     _state.background_scanner.configure(
         workspace_roots=roots,

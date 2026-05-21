@@ -295,7 +295,7 @@ class TestExternalStubDiscovery:
         )
 
         monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
-        _discover_workspace_stubs([str(tmp_path)], [])
+        _discover_workspace_stubs([str(tmp_path)])
 
         names = {s.name for s in state.workspace_stub_commands}
         assert {"get_cells", "get_ports"} <= names
@@ -309,10 +309,28 @@ class TestExternalStubDiscovery:
         (git / "ignored.tcl.stubs").write_text("stub should_not_load {x}\n", encoding="utf-8")
 
         monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
-        _discover_workspace_stubs([str(tmp_path)], [])
+        _discover_workspace_stubs([str(tmp_path)])
 
         names = {s.name for s in state.workspace_stub_commands}
         assert "should_not_load" not in names
+
+    def test_discovery_spans_multiple_roots(self, tmp_path, monkeypatch):
+        # Multi-root workspaces: every base directory is searched.
+        import lsp.state as state
+        from lsp.workspace_init import _discover_workspace_stubs
+
+        root_a = tmp_path / "a"
+        root_b = tmp_path / "b"
+        root_a.mkdir()
+        root_b.mkdir()
+        (root_a / "a.tcl.stubs").write_text("stub cmd_a {x}\n", encoding="utf-8")
+        (root_b / "b.tcl.stubs").write_text("stub cmd_b {x}\n", encoding="utf-8")
+
+        monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
+        _discover_workspace_stubs([str(root_a), str(root_b)])
+
+        names = {s.name for s in state.workspace_stub_commands}
+        assert {"cmd_a", "cmd_b"} <= names
 
 
 class TestShippedSampleIsClean:
