@@ -2347,6 +2347,29 @@ class TestEvalUplevel:
         assert out == 'rc=1:bad level "-1"\n'
 
 
+class TestUpvarTopLevel:
+    """``upvar`` at the script top level (no proc frame) aliases within
+    the global scope, so writes through the alias reach the target
+    global — tcltest upvar-7.1.  The body is evaluated through the
+    interpreter (matching how tcltest runs test bodies)."""
+
+    def test_upvar_global_links_and_relinks(self):
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl(
+            "set x 44\n"
+            "set y 55\n"
+            "catch {unset uv}\n"
+            # ``eval $body`` forces interpreter dispatch (a literal body
+            # would be compiled inline, where top-level upvar isn't wired).
+            "set body {upvar #0 x uv; set uv abc; upvar 0 y uv; set uv xyzzy}\n"
+            "eval $body\n"
+            "puts [list $x $y]\n"
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "abc xyzzy\n"
+
+
 # Global variable scoping
 
 

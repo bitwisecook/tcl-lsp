@@ -1831,7 +1831,14 @@ pub fn eval_upvar(words: []const i32) i32 {
     while (i + 1 < words.len) : (i += 2) {
         const other_var = words[i]; // name in the target frame
         const local_var = words[i + 1]; // alias name in the current frame
-        if (is_global or abs_target <= 0) {
+        if (frames.frame_depth == 0) {
+            // Top-level (global) ``upvar`` — no proc frame exists to
+            // hold an ALIAS_EXT descriptor, so alias within the global
+            // scope via a ``VAR_LINK`` in the root namespace's var
+            // table (upvar-7.1).  Covers both ``upvar #0`` and ``upvar
+            // 0`` at the script top level (both target globals).
+            tcl_ns.global_alias_link(local_var, other_var);
+        } else if (is_global or abs_target <= 0) {
             // #0 or level underflow → global alias
             frames.frame_alias_named(local_var, other_var);
         } else {

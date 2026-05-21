@@ -1,6 +1,6 @@
 # upvar.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '1 of 70 failed'
+# bucket = 'W-clean'
+# reason = 'all observed passed (8 skipped)'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 70
-observed_passed = 61
-observed_failed = 1
+observed_passed = 62
+observed_failed = 0
 observed_skipped = 8
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["upvar-7.1"]
+ids = []

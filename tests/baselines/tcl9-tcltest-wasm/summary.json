@@ -561,11 +561,11 @@
       "total": 57
     },
     "upvar": {
-      "bucket": "W-mixed-fail",
+      "bucket": "W-clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 61,
+      "failed_max": 0,
+      "passed_min": 62,
       "skipped": 8,
       "total": 70
     },

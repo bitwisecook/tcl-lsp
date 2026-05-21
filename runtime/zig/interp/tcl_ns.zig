@@ -909,6 +909,34 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     if (old != 0 and old != stored) obj.tcl_obj_release(@bitCast(old));
 }
 
+/// Create a global-scope ``upvar`` alias: make ``local`` a ``VAR_LINK``
+/// to the global variable ``target`` in the root namespace.  Used when
+/// ``upvar #0`` / ``upvar 0`` runs at the script top level (no proc
+/// frame), where there is no frame hash to hold an ALIAS_EXT descriptor
+/// — the link lives in the global ``Var`` table instead, and
+/// ``var_get_scalar`` / ``var_set_scalar`` chase it via
+/// ``var_resolve_link`` (tcltest upvar-7.1).  Re-aliasing an existing
+/// link simply re-points it.
+pub fn global_alias_link(local: i32, target: i32) void {
+    const ln = obj.obj_ensure_string(local);
+    const tn = obj.obj_ensure_string(target);
+    if (ln.len == 0 or ln.ptr == 0 or tn.len == 0 or tn.ptr == 0) return;
+    const lk = strip_global_prefix(ln.ptr, ln.len);
+    const tk = strip_global_prefix(tn.ptr, tn.len);
+    const target_var = ns_var_create(ns_root(), tk.ptr, tk.len);
+    if (target_var == 0) return;
+    const local_var = ns_var_create(ns_root(), lk.ptr, lk.len);
+    if (local_var == 0 or local_var == target_var) return;
+    const v: *Var = @ptrFromInt(local_var);
+    // If the slot currently holds a real scalar value (not already a
+    // link), release it before repurposing the slot as a redirect.
+    if ((v.flags & VAR_LINK) == 0 and (v.flags & VAR_ARRAY) == 0 and v.value != 0) {
+        obj.tcl_obj_release(@bitCast(v.value));
+    }
+    v.flags = (v.flags & ~VAR_ARRAY) | VAR_LINK;
+    v.value = target_var;
+}
+
 /// Promote a possibly-borrowing TclObj to an owning copy.  Mirrors
 /// :func:`tcl_procs.ensure_owned` — when the input's
 /// ``OBJ_STR_CAP == 0`` the buffer bytes belong to *someone else*
