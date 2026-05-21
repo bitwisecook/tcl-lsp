@@ -38,11 +38,29 @@ fn eval_source(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
     if (words.len == 2) return result_mod.from_globals(fs_mod.tcl_cmd_source(words[1]));
+    if (words.len == 3 and is_dash_nopkg(words[1])) {
+        // Undocumented -nopkg option (used by ::tcl::Pkg::source).  It only
+        // suppresses "package files" tracking, which the WASM runtime does
+        // not maintain, so it behaves exactly like a plain source.
+        return result_mod.from_globals(fs_mod.tcl_cmd_source(words[2]));
+    }
     if (words.len == 4 and is_dash_encoding(words[1])) {
         return result_mod.from_globals(fs_mod.tcl_cmd_source(words[3]));
     }
     stubs.raise("source: expected ?-encoding name? fileName");
     return result_mod.from_globals(0);
+}
+
+fn is_dash_nopkg(o: i32) bool {
+    if (o == 0) return false;
+    const s = obj.obj_ensure_string(o);
+    if (s.len != 6) return false;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    const lit = "-nopkg";
+    inline for (0..6) |i| {
+        if (p[i] != lit[i]) return false;
+    }
+    return true;
 }
 
 fn is_dash_encoding(o: i32) bool {

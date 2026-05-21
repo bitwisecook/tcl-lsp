@@ -62,6 +62,20 @@ class TestStdlibAutoLoad:
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=1\n"
 
+    def test_source_nopkg_behaves_like_plain_source(self):
+        """``source -nopkg fileName`` is the undocumented 3-word form the
+        real ``::tcl::Pkg::source`` (init.tcl) uses.  Tcl 9 treats it as a
+        plain source (the ``-nopkg`` flag only suppresses package-files
+        tracking, which the WASM runtime does not maintain).  Sourcing the
+        upstream ``parray.tcl`` this way must define ``::parray`` exactly
+        as a flagless source would."""
+        out = self._run(
+            "source -nopkg /tcl-lib/parray.tcl\n"
+            "array set a {x 9}\n"
+            "parray a\n"
+        )
+        assert out == "a(x) = 9\n"
+
 
 @_needs_library
 class TestStdlibPrelude:
