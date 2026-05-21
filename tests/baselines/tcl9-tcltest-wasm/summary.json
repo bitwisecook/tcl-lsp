@@ -555,8 +555,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 2,
-      "passed_min": 55,
+      "failed_max": 1,
+      "passed_min": 56,
       "skipped": 0,
       "total": 57
     },

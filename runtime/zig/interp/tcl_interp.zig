@@ -1841,6 +1841,41 @@ pub fn eval_upvar(words: []const i32) i32 {
     return 0;
 }
 
+/// Raise ``bad level "<token>"`` from the interpreter ``uplevel`` /
+/// ``upvar`` level parser, matching reference Tcl's
+/// ``TCL LOOKUP LEVEL`` error wording (tclProc.c:TclObjGetFrame).
+fn raise_bad_level(level_obj: i32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const s = obj_ensure_string(level_obj);
+    const prefix: []const u8 = "bad level \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// ``uplevel ?level? body ?body ...?``
 ///
 /// Evaluates the body in the caller's frame by temporarily adjusting
@@ -1872,6 +1907,31 @@ pub fn eval_uplevel(words: []const i32) i32 {
         } else if (w1p[0] >= '0' and w1p[0] <= '9') {
             body_start = 2;
             shift = @intCast(parse_uint_bytes(w1p, w1.len));
+        } else if (w1p[0] == '-') {
+            // Signed integer level — mirrors reference Tcl's
+            // ``Tcl_GetIntFromObj`` path (tclProc.c:TclObjGetFrame).
+            // ``-0`` is a valid relative level 0 (the current frame);
+            // any other all-decimal-digit magnitude (``-1`` …) parses
+            // to a negative integer, which reference Tcl rejects with
+            // ``bad level``.  A non-numeric or hex ``-foo`` / ``-0xff``
+            // is not a level — leave it as the body word.
+            var all_digits = w1.len >= 2;
+            var di: u32 = 1;
+            while (di < w1.len) : (di += 1) {
+                if (w1p[di] < '0' or w1p[di] > '9') {
+                    all_digits = false;
+                    break;
+                }
+            }
+            if (all_digits) {
+                if (parse_uint_bytes(w1p + 1, w1.len - 1) == 0) {
+                    body_start = 2;
+                    shift = 0;
+                } else {
+                    raise_bad_level(words[1]);
+                    return 0;
+                }
+            }
         }
         // else: not a level spec; body_start stays 1, shift stays 1
     }

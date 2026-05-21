@@ -2296,6 +2296,33 @@ class TestEvalUplevel:
         )
         assert result == 99
 
+    def test_uplevel_minus_zero_is_relative_level_zero(self):
+        """``uplevel -0`` is a valid relative level 0 (current frame),
+        matching reference Tcl's ``Tcl_GetIntFromObj`` level path
+        (tcltest uplevel-4.9).  The body runs in the calling frame."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl("puts [apply {{} {uplevel -0 {expr {40 + 2}}}}]\n")
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "42\n"
+
+    def test_uplevel_minus_zero_empty_body(self):
+        """``uplevel -0 {}`` returns the empty string (tcltest uplevel-4.9)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -0 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=0:\n"
+
+    def test_uplevel_negative_level_is_bad_level_error(self):
+        """``uplevel -1`` (any negative magnitude) is a ``bad level``
+        error, not a body word — matches reference Tcl (uplevel-4.21)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -1 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == 'rc=1:bad level "-1"\n'
+
 
 # Global variable scoping
 
