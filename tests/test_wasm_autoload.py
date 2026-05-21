@@ -63,3 +63,51 @@ class TestStdlibAutoLoad:
         )
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=1\n"
+
+
+@_needs_library
+class TestStdlibPrelude:
+    """Compile-time bundling of referenced stdlib procs (the preferred
+    path): the proc compiles to a WASM function and the binary is
+    self-contained — it runs with NO ``TCL_LIBRARY`` and no preopen.
+    """
+
+    def _link(self, tcl_src: str, tmp_path, *, with_library: bool):
+        from core.compiler.codegen.wasm_link import wasm_link
+
+        prog = tmp_path / "prog.tcl"
+        prog.write_text(tcl_src)
+        module = wasm_link(
+            prog, library_dir=str(_TCL_LIBRARY) if with_library else None
+        )
+        return module.to_bytes()
+
+    def test_parray_bundled_runs_without_tcl_library(self, tmp_path):
+        wasm = self._link(
+            "array set a {alpha 1 beta 22 gamma 333}\nparray a\n",
+            tmp_path,
+            with_library=True,
+        )
+        # No TCL_LIBRARY, no preopen — the proc is compiled into the bundle.
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "a(alpha) = 1\na(beta)  = 22\na(gamma) = 333\n"
+
+    def test_prelude_is_opt_in(self, tmp_path):
+        """Without ``library_dir`` the prelude is a no-op, so an
+        unbundled ``parray`` (no ``TCL_LIBRARY`` either) still errors —
+        proving the bundling, not some fallback, is what resolved it."""
+        wasm = self._link(
+            "array set a {x 1}\nset rc [catch {parray a} m]\nputs \"rc=$rc\"\n",
+            tmp_path,
+            with_library=False,
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=1\n"
+
+    def test_only_referenced_files_are_bundled(self, tmp_path):
+        """A program that references no autoloadable command pulls in
+        nothing — bundle size matches the no-library build."""
+        src = "puts hello\n"
+        with_lib = self._link(src, tmp_path, with_library=True)
+        without = self._link(src, tmp_path, with_library=False)
+        assert with_lib == without

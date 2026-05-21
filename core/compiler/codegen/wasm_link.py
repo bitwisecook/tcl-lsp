@@ -319,6 +319,7 @@ def wasm_link(
     search_paths: tuple[str | Path, ...] = (),
     optimise: bool = False,
     max_depth: int = 10,
+    library_dir: str | Path | None = None,
 ) -> WasmModule:
     """Compile a Tcl source file and all its ``source`` dependencies to WASM.
 
@@ -335,7 +336,9 @@ def wasm_link(
         A ``WasmModule`` containing all procedures and top-level code
         from the main file and all transitively sourced files.
     """
-    merged = _link_to_ir(main_source, search_paths=search_paths, max_depth=max_depth)
+    merged = _link_to_ir(
+        main_source, search_paths=search_paths, max_depth=max_depth, library_dir=library_dir
+    )
     cfg = build_cfg(merged)
     return wasm_codegen_module(cfg, merged, optimise=optimise)
 
@@ -347,6 +350,7 @@ def wasm_link_bundled(
     optimise: bool = False,
     max_depth: int = 10,
     runtime_path: Path | None = None,
+    library_dir: str | Path | None = None,
 ) -> bytes:
     """Compile a Tcl source file to a single bundled ``.wasm`` binary.
 
@@ -374,7 +378,9 @@ def wasm_link_bundled(
     from .wasm._bundle import bundle_wasm  # noqa: PLC0415
     from .wasm.extensions import runtime_path_for  # noqa: PLC0415
 
-    merged_ir = _link_to_ir(main_source, search_paths=search_paths, max_depth=max_depth)
+    merged_ir = _link_to_ir(
+        main_source, search_paths=search_paths, max_depth=max_depth, library_dir=library_dir
+    )
     cfg = build_cfg(merged_ir)
     user_module = wasm_codegen_module(cfg, merged_ir, optimise=optimise)
 
@@ -387,6 +393,7 @@ def _link_to_ir(
     *,
     search_paths: tuple[str | Path, ...] = (),
     max_depth: int = 10,
+    library_dir: str | Path | None = None,
 ) -> IRModule:
     """Resolve ``source`` and ``package require``, return merged IR.
 
@@ -432,4 +439,15 @@ def _link_to_ir(
                 _resolve_recursive(pkg_path.resolve(), depth + 1)
 
     _resolve_recursive(main_path, 0)
-    return merge_ir_modules(*modules)
+    merged = merge_ir_modules(*modules)
+
+    # Bundle referenced standard-library procedures at compile time so
+    # they compile to WASM functions and the binary is self-contained,
+    # rather than auto-loading them from ``TCL_LIBRARY`` at run time.
+    # Opt-in: skipped entirely when no ``library_dir`` is supplied.
+    if library_dir is not None:
+        from ..stdlib_prelude import apply_stdlib_prelude  # noqa: PLC0415
+
+        merged = apply_stdlib_prelude(merged, library_dir)
+
+    return merged
