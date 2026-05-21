@@ -84,6 +84,47 @@ class TestLoopStubSemantics:
         """
         assert any("never_set" in m for m in _messages(bad, "W210"))
 
+    def test_subcommand_loop_stub_lowers_as_loop(self):
+        # A loop declared on an ensemble subcommand (``coll foreach ...``)
+        # is found via roles, past the leading subcommand word.
+        src = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub coll foreach {varName:var collection body:body} -loop
+            # tcl-lsp: stubs-end
+            set xs {1 2 3}
+            coll foreach x $xs {
+                set n $x
+                puts $n
+            }
+        """
+        assert _codes(src) == set()
+        # And the body is still analysed: a genuine unset read fires.
+        bad = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub coll foreach {varName:var collection body:body} -loop
+            # tcl-lsp: stubs-end
+            set xs {1 2 3}
+            coll foreach x $xs {
+                puts $never_set
+            }
+        """
+        assert any("never_set" in m for m in _messages(bad, "W210"))
+
+    def test_loop_stub_with_leading_option_lowers_as_loop(self):
+        # The ``var collection body`` triple is located by role even when a
+        # leading optional flag shifts the positions (even arg count).
+        src = """\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub each_cell {?-filter? varName:var collection body:body} -loop
+            # tcl-lsp: stubs-end
+            set cells {a b c}
+            each_cell -filter cell $cells {
+                set n $cell
+                puts $n
+            }
+        """
+        assert _codes(src) == set()
+
     def test_foreach_in_collection_stub_lowers_as_loop(self):
         # The canonical EDA example: the documented foreach_in_collection
         # stub must behave like a loop regardless of the active dialect.
@@ -171,6 +212,109 @@ class TestBodyStubRecursion:
             }
         """
         assert any("never_set_anywhere" in m for m in _messages(src, "W210"))
+
+
+class TestExternalStubFiles:
+    """Stubs loaded from external ``.tcl.stubs`` files via the ambient scope."""
+
+    _SRC = """\
+        set cells [get_cells *]
+        foreach_in_collection cell $cells {
+            set name $cell
+            puts $name
+        }
+        redirect -file out.rpt {
+            set y 1
+        }
+    """
+
+    @staticmethod
+    def _write_stub_file(tmp_path):
+        from core.analysis.stub_comments import parse_stubs_file
+
+        path = tmp_path / "eda.tcl.stubs"
+        path.write_text(
+            "stub foreach_in_collection {varName:var collection body:body} -loop\n"
+            "stub get_cells {pattern:pattern} -pure\n"
+            "stub redirect {?-file? target body:body}\n",
+            encoding="utf-8",
+        )
+        cmd_stubs, _ = parse_stubs_file(path)
+        return cmd_stubs
+
+    def test_external_stubs_make_file_clean(self, tmp_path):
+        from core.analysis.stub_comments import ambient_stub_scope
+
+        cmd_stubs = self._write_stub_file(tmp_path)
+        with ambient_stub_scope(cmd_stubs):
+            assert _codes(self._SRC) == set()
+
+    def test_without_external_stubs_diagnostics_fire(self):
+        # Negative control: same source, no ambient stubs in scope.
+        codes = _codes(self._SRC)
+        assert "W002" in codes  # redirect disabled
+        assert "W210" in codes  # loop var / body not understood
+
+    def test_external_stub_scope_does_not_leak(self, tmp_path):
+        from core.analysis.stub_comments import ambient_stub_scope
+
+        cmd_stubs = self._write_stub_file(tmp_path)
+        with ambient_stub_scope(cmd_stubs):
+            assert _codes(self._SRC) == set()
+        # Outside the scope the stubs are gone again.
+        assert "W210" in _codes(self._SRC)
+
+    def test_external_stub_does_not_emit_shadow_diagnostic(self, tmp_path):
+        # An external stub's range points into the .tcl.stubs file, not the
+        # document under analysis, so it must NOT raise W116/W117 against
+        # the analysed source even when it shadows a built-in.
+        from core.analysis.stub_comments import ambient_stub_scope, parse_stubs_file
+
+        path = tmp_path / "shadow.tcl.stubs"
+        path.write_text("stub set {varName:var value}\n", encoding="utf-8")
+        cmd_stubs, _ = parse_stubs_file(path)
+        with ambient_stub_scope(cmd_stubs):
+            codes = _codes("set x 1\nputs $x\n")
+        assert "W116" not in codes
+
+
+class TestExternalStubDiscovery:
+    """Workspace init discovers and parses ``.tcl.stubs`` files."""
+
+    def test_discovery_populates_workspace_stubs(self, tmp_path, monkeypatch):
+        import lsp.state as state
+        from lsp.workspace_init import _discover_workspace_stubs
+
+        (tmp_path / "eda.tcl.stubs").write_text(
+            "stub get_cells {pattern:pattern} -pure\n", encoding="utf-8"
+        )
+        nested = tmp_path / "lib"
+        nested.mkdir()
+        (nested / "more.tcl.stubs").write_text(
+            "stub get_ports {pattern:pattern} -pure\n", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
+        _discover_workspace_stubs([str(tmp_path)], [])
+
+        names = {s.name for s in state.workspace_stub_commands}
+        assert {"get_cells", "get_ports"} <= names
+
+    def test_discovery_skips_vcs_dirs(self, tmp_path, monkeypatch):
+        import lsp.state as state
+        from lsp.workspace_init import _discover_workspace_stubs
+
+        git = tmp_path / ".git"
+        git.mkdir()
+        (git / "ignored.tcl.stubs").write_text(
+            "stub should_not_load {x}\n", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(state, "workspace_stub_commands", [], raising=False)
+        _discover_workspace_stubs([str(tmp_path)], [])
+
+        names = {s.name for s in state.workspace_stub_commands}
+        assert "should_not_load" not in names
 
 
 class TestShippedSampleIsClean:
