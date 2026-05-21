@@ -267,6 +267,45 @@ fn maybe_invalidate_searches_on_trace_install(name: i32) void {
     }
 }
 
+/// Fire any ``array``-op variable trace on *name*.  Reference Tcl
+/// invokes ``array`` traces when the variable is accessed through the
+/// ``array`` command (``array get`` / ``names`` / ``set`` / ``size`` /
+/// ``exists`` / ``unset`` / ``statistics``) — not on ordinary element
+/// reads / writes (trace-5.1 / 5.2).  The trace fires *before* the
+/// subcommand runs so the callback can lazily populate the array.
+///
+/// Routing mirrors :func:`install_var_trace` so the fire finds the
+/// record wherever ``trace add`` stored it: a bare proc-local name
+/// lives in the per-frame chain (keyed by the raw name); everything
+/// else lives in the canonical-name directory.
+pub fn fire_array_op_trace(name: i32) void {
+    if (is_local_trace_target(name)) {
+        if (frames.frame_depth > 0) {
+            const head = frames.frame_trace_heads[frames.frame_depth - 1];
+            if (head != 0) {
+                const sn = obj_ensure_string(name);
+                var_trace.fire_in_list(head, sn.ptr, sn.len, var_trace.OP_ARRAY, 'a');
+            }
+        }
+        return;
+    }
+    const canon = canonical_var_name(name);
+    const sn = obj_ensure_string(canon);
+    if (sn.ptr != 0 and sn.len != 0 and var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_ARRAY)) {
+        var_trace.fire(sn.ptr, sn.len, 0, 0, var_trace.OP_ARRAY, 'a');
+    }
+    if (canon != name and canon != 0) tcl_obj_release(canon);
+}
+
+/// Exported wrapper so the WASM codegen can fire ``array``-op traces
+/// from the compiled ``array`` fast-path (which inlines the op instead
+/// of dispatching through the interpreter's ``eval_array``).  Takes the
+/// *raw* (user-typed) array name so the registry routing in
+/// :func:`fire_array_op_trace` matches what ``trace add`` recorded.
+pub export fn array_fire_op_trace(name: i32) void {
+    fire_array_op_trace(name);
+}
+
 /// Mirror of :func:`install_var_trace` for the remove path.
 fn uninstall_var_trace(name: i32, ops: u32, cmd_prefix: i32) bool {
     if (is_local_trace_target(name)) {
