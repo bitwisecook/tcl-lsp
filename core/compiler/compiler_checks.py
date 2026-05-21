@@ -478,6 +478,43 @@ def _resolve_signature(cmd_name: str) -> CommandSig | SubcommandSig | None:
     return None
 
 
+def _defining_namespace(qualified_name: str) -> str:
+    """Return the namespace a command defined as *qualified_name* lives in.
+
+    Command resolution inside a proc body uses the proc's defining
+    namespace — the qualified name minus its final ``::``-separated
+    component (``::`` for a globally defined proc).
+    """
+    idx = qualified_name.rfind("::")
+    if idx <= 0:
+        return "::"
+    return qualified_name[:idx]
+
+
+def _resolves_to_user_command(cmd_name: str, call_ns: str, user_commands: frozenset[str]) -> bool:
+    """True when *cmd_name*, resolved from *call_ns*, names a user command.
+
+    Mirrors the analyser's ``_resolve_proc_call`` resolution order: an
+    absolute name resolves to itself; a namespace-qualified relative name
+    resolves against the global namespace; a bare name resolves against
+    the call-site namespace first, then the global namespace.  Suppression
+    of the builtin arity check is gated on this so a shadowing proc in one
+    namespace cannot silence a call that actually reaches the builtin.
+    """
+    if not cmd_name:
+        return False
+    candidates: list[str] = []
+    if cmd_name.startswith("::"):
+        candidates.append(normalise_qualified_name(cmd_name))
+    elif "::" in cmd_name:
+        candidates.append(normalise_qualified_name(f"::{cmd_name}"))
+    else:
+        if call_ns and call_ns != "::":
+            candidates.append(normalise_qualified_name(f"{call_ns}::{cmd_name}"))
+        candidates.append(normalise_qualified_name(f"::{cmd_name}"))
+    return any(c in user_commands for c in candidates)
+
+
 def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
 
@@ -487,10 +524,20 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     Only checks built-in commands against registry signatures.  User-defined
     proc-call arity is checked by the analyser which has access to full
     parameter default information via ``ProcDef``.
+
+    Builtin arity is suppressed for any call that resolves Tcl-style to a
+    user-defined command (a shadowing proc): the suppression is
+    namespace-aware so a ``proc ::ns::close`` only silences ``close`` calls
+    that actually resolve to it, not a global ``close`` that reaches the
+    builtin.
     """
     diagnostics: list[Diagnostic] = []
+    # Qualified names of every user-defined command, used to suppress the
+    # builtin arity check when a call resolves to a shadowing proc.  Mirrors
+    # the set the analyser's ``_resolve_proc_call`` consults.
+    user_commands = frozenset(ir_module.procedures.keys())
 
-    def _check_statement(stmt: IRStatement) -> None:
+    def _check_statement(stmt: IRStatement, call_ns: str) -> None:
         # W302: catch without result variable (IR-native).  Highlight just
         # the ``catch`` command word — narrowest span that identifies the
         # issue — rather than the whole ``catch {…}`` statement.
@@ -564,9 +611,11 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
                     return
                 arg_expand = list(ct.expand_word[1:])
 
-        # Built-in command arity checking
+        # Built-in command arity checking.  Skip when the call resolves to a
+        # user-defined command shadowing the builtin — that call's arity is
+        # validated against the proc's real parameter list by the analyser.
         sig = _resolve_signature(cmd_name)
-        if sig is not None:
+        if sig is not None and not _resolves_to_user_command(cmd_name, call_ns, user_commands):
             _check_arity(
                 cmd_name,
                 args,
@@ -578,13 +627,14 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
                 arg_single,
             )
 
-    def _walk_ir(script: IRScript) -> None:
+    def _walk_ir(script: IRScript, call_ns: str) -> None:
         for stmt in iter_ir_statements(script):
-            _check_statement(stmt)
+            _check_statement(stmt, call_ns)
 
-    _walk_ir(ir_module.top_level)
+    _walk_ir(ir_module.top_level, "::")
     for proc in ir_module.procedures.values():
-        _walk_ir(proc.body)
+        # A proc body resolves commands in the proc's defining namespace.
+        _walk_ir(proc.body, _defining_namespace(proc.qualified_name))
 
     return diagnostics
 
