@@ -814,6 +814,192 @@ Consider capturing the result: catch {\u{2026}} result"
         });
     }
 
+    /// **E002 / E003.** Argument-count check for simple (non-
+    /// subcommand) commands.  Mirrors `_check_simple_arity` in
+    /// `core/compiler/compiler_checks.py`: skip leading declared
+    /// option flags, then compare the positional-argument count
+    /// against the registry signature's arity bounds.
+    ///
+    /// Option skipping uses the dialect-filtered
+    /// [`CommandSig::leading_options`](super::dispatch::CommandSig::leading_options)
+    /// set, so switches introduced in a later Tcl release (e.g.
+    /// `regsub -command`, 9.0+) are only skipped under a dialect that
+    /// declares them.  This is the SYNC-MAY21-3 fix: it prevents both
+    /// the #455 false positive (declared switches counted as
+    /// positional → spurious E003) and the #460 dialect leak (9.0-only
+    /// switches skipped under 8.x).
+    ///
+    /// `arg_expand[i]` marks an argument preceded by the Tcl 8.5+
+    /// `{*}` expansion prefix.  A `{*}`-expanded word contributes an
+    /// unknown number of runtime arguments, so option skipping stops
+    /// at the first such word and the positional upper bound becomes
+    /// unbounded — only the count of *non-expanded* positional words
+    /// can still trip E003, exactly as Python does.
+    ///
+    /// **Parity gaps (documented, intentional):**
+    /// - Like Python's name-only `leading_options` skip, the *value*
+    ///   of a value-taking leading option is **not** skipped (Python's
+    ///   value-aware `skip_options` is used only for arg-role
+    ///   resolution, not arity).  See the validation note in
+    ///   `docs/rust-rewrite.md` (SYNC-MAY21-3).
+    /// - Statically-resolvable literal `{*}` expansions (`{*}{a b c}`)
+    ///   are not refined to their element count; the conservative form
+    ///   here can miss a genuine over-arity but never invents a false
+    ///   positive.
+    ///
+    /// Subcommand-dispatch commands are handled by
+    /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
+    /// per-subcommand arity is a later follow-up.
+    pub(super) fn emit_arity_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand_in: &[bool],
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        use super::dispatch::{signature_for_command, CommandSignature};
+        use tcl_registry::prelude::DialectSet;
+
+        // `arg_expand_in` is parallel to the full argv (command name at
+        // index 0); drop that slot so it lines up with `args`.
+        let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let Some(CommandSignature::Simple(sig)) =
+            signature_for_command(registry, cmd_name, dialect)
+        else {
+            // Unknown command (no signature) or a subcommand-dispatch
+            // command — neither is arity-checked here.
+            return;
+        };
+
+        let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
+
+        // Skip leading declared option flags.  Stop at the first
+        // non-option word, the option terminator `--` (consumed), or
+        // a `{*}`-expanded word (whose value can't be classified).
+        let mut positional_start = 0usize;
+        if !sig.leading_options.is_empty() {
+            for (i, arg) in args.iter().enumerate() {
+                if expanded(i) {
+                    break;
+                }
+                if sig.leading_options.contains(arg) {
+                    positional_start = i + 1;
+                    if arg == "--" {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        let positional_any_expand = (positional_start..args.len()).any(expanded);
+        // E003 lower bound: non-expanded positional words.  E002
+        // upper bound: the full positional count (only meaningful
+        // when no expansion is present — an unresolved expansion
+        // makes the upper bound unbounded, so E002 can't fire).
+        let nargs_min = if positional_any_expand {
+            (positional_start..args.len())
+                .filter(|&i| !expanded(i))
+                .count()
+        } else {
+            args.len() - positional_start
+        };
+        let min = usize::from(sig.arity.min);
+        let max = usize::from(sig.arity.max);
+
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+
+        // Collect as a *candidate* keyed by command name; the
+        // post-walk [`Self::flush_arity_diagnostics`] drops it if the
+        // name is shadowed by a user proc / class / alias / ensemble /
+        // stub (resolved against the complete tables, so definition
+        // order doesn't matter).
+        if !positional_any_expand && (args.len() - positional_start) < min {
+            let got = args.len() - positional_start;
+            self.pending_arity.push((
+                cmd_name.to_string(),
+                super::types::Diagnostic {
+                    code: "E002".to_string(),
+                    span: full_span,
+                    message: format!(
+                        "Too few arguments for '{cmd_name}': expected at least {min}, got {got}"
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                },
+            ));
+        } else if !sig.arity.is_unlimited() && nargs_min > max {
+            self.pending_arity.push((
+                cmd_name.to_string(),
+                super::types::Diagnostic {
+                    code: "E003".to_string(),
+                    span: full_span,
+                    message: format!(
+                        "Too many arguments for '{cmd_name}': expected at most {max}, got {nargs_min}"
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                },
+            ));
+        }
+    }
+
+    /// Post-walk flush of the [`Self::pending_arity`] candidates
+    /// collected by [`Self::emit_arity_diagnostics`].
+    ///
+    /// Runs after the command walk completes, when `all_procs`,
+    /// `all_classes`, `command_aliases`, `ensemble_namespaces` and
+    /// the inline stub set are fully populated.  A candidate is
+    /// dropped when its command name matches the tail of a
+    /// user-defined proc / class / alias / ensemble command, or an
+    /// inline `# tcl-lsp: stub`, because the call resolves to that
+    /// user definition rather than the builtin whose registry arity
+    /// produced the candidate — this is what prevents false E003s on
+    /// e.g. a namespace that defines `proc ::ns::close { ... }` and
+    /// then calls `close ...` with the proc's wider arity.
+    ///
+    /// Idempotent: drains `pending_arity`, so a second call is a
+    /// no-op.  Mirrors the shadowing-set construction in
+    /// [`Self::emit_unresolved_command_diagnostics`].
+    pub fn flush_arity_diagnostics(&mut self) {
+        if self.pending_arity.is_empty() {
+            return;
+        }
+        let tail = |qn: &str| -> Option<String> {
+            qn.rsplit_once("::")
+                .map(|(_, t)| t.to_string())
+                .filter(|s| !s.is_empty())
+        };
+        let mut shadowed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        shadowed.extend(self.result.all_procs.keys().filter_map(|q| tail(q)));
+        shadowed.extend(self.result.all_classes.keys().filter_map(|q| tail(q)));
+        shadowed.extend(self.result.command_aliases.keys().filter_map(|q| tail(q)));
+        shadowed.extend(self.ensemble_namespaces.iter().filter_map(|q| tail(q)));
+        shadowed.extend(super::utils::scan_stub_command_names(&self.source));
+        // Bare (unqualified) proc / alias names also shadow a builtin.
+        shadowed.extend(self.result.all_procs.keys().cloned());
+        shadowed.extend(self.result.command_aliases.keys().cloned());
+
+        let pending = std::mem::take(&mut self.pending_arity);
+        for (cmd_name, diag) in pending {
+            let bare = cmd_name.trim_start_matches("::");
+            if shadowed.contains(&cmd_name) || shadowed.contains(bare) {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
+    }
+
     /// **E004.** Emit "Malformed `if` command" / "Extra words after
     /// `else` clause" errors when an `if` invocation's structural
     /// shape doesn't match `if COND BODY ?elseif COND BODY ...?
@@ -3781,6 +3967,104 @@ mod tests {
         );
         assert!(w004[0].message.contains("-command"));
         assert!(w004[0].message.contains("regsub"));
+    }
+
+    // -- SYNC-MAY21-3 (#460 / #455): E002 / E003 arity ---------------
+
+    #[test]
+    fn e003_not_emitted_for_leading_switches() {
+        // Regression for #455: declared option flags must be skipped
+        // before counting positional args.  `regsub` (max arity 4)
+        // previously tripped a false E003 once any switch appeared.
+        // These switches exist in every supported dialect.
+        for snippet in [
+            "regsub -all -line {x} $args {} str",
+            "regsub -all {a} $b {} c",
+            "regsub -nocase -all -- $pat $s {} out",
+        ] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e003: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E003")
+                .collect();
+            assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        }
+    }
+
+    #[test]
+    fn e003_fires_on_genuine_over_arity() {
+        // 5 positional args for `regsub` (max 4) is a real error.
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub a b c d e", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_switch_options_are_dialect_filtered() {
+        // `regsub -command` is Tcl 9.0+ (TIP 463).
+        // Under 9.0 it is a real switch → skipped → 4 positional → OK.
+        let mut a = Analyser::new();
+        let r9 = a.analyse("regsub -command a b c d", "tcl9.0");
+        assert!(
+            !r9.diagnostics.iter().any(|d| d.code == "E003"),
+            "unexpected E003 under tcl9.0: {:?}",
+            r9.diagnostics
+        );
+        // Under 8.6 `-command` is unknown → counted positional →
+        // 5 > max 4 → E003 (the #460 dialect-leak guard).
+        let mut a2 = Analyser::new();
+        let r8 = a2.analyse("regsub -command a b c d", "tcl8.6");
+        assert!(
+            r8.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003 under tcl8.6, got {:?}",
+            r8.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_suppressed_by_expanded_word() {
+        // `{*}$rest` expands to an unknown count, so the expanded word
+        // is excluded from the positional lower bound: `regsub a b c d
+        // {*}$rest` has 4 non-expanded positional words (≤ max 4) and
+        // must not trip E003, whereas the same five literal words do.
+        let mut a = Analyser::new();
+        let expanded = a.analyse("regsub a b c d {*}$rest", "tcl8.6");
+        assert!(
+            !expanded.diagnostics.iter().any(|d| d.code == "E003"),
+            "expansion should suppress E003: {:?}",
+            expanded.diagnostics
+        );
+        let mut b = Analyser::new();
+        let literal = b.analyse("regsub a b c d e", "tcl8.6");
+        assert!(
+            literal.diagnostics.iter().any(|d| d.code == "E003"),
+            "control: five literal words should fire E003: {:?}",
+            literal.diagnostics
+        );
+    }
+
+    #[test]
+    fn e002_fires_on_too_few_args() {
+        // `regsub` requires at least 3 args (exp string subSpec).
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub a b", "tcl8.6");
+        let e002: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E002")
+            .collect();
+        assert!(
+            !e002.is_empty(),
+            "expected E002 for `regsub a b`, got {:?}",
+            result.diagnostics
+        );
+        assert!(e002[0].message.contains("at least 3"));
     }
 
     #[test]

@@ -101,7 +101,13 @@ impl Analyser {
                     &mut self.result.suppressed_lines,
                 );
             }
-            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+            self.process_command(
+                &cmd.texts,
+                &cmd.argv,
+                &cmd.single_token_word,
+                cmd.expand_word.as_deref().unwrap_or(&[]),
+                scope_path,
+            );
             // `S-document-highlight-rich` / `S-references-rich`
             // follow-up: record every `$var` substitution in
             // arg positions so `VarDef.references` carries the
@@ -133,14 +139,18 @@ impl Analyser {
     ///
     /// Deferred concerns (each gets its own future strip — see
     /// the module docstring): var-as-command site recording,
-    /// W125 / IRULE5005 emission, arity checks, sub-command
-    /// resolution, command-invocation recording with
-    /// resolved-qname annotation.
+    /// W125 / IRULE5005 emission, sub-command resolution,
+    /// command-invocation recording with resolved-qname annotation.
+    /// Simple-command arity (E002 / E003) lands here via
+    /// [`Self::emit_arity_diagnostics`] (SYNC-MAY21-3); the
+    /// candidates are flushed post-walk by
+    /// [`Self::flush_arity_diagnostics`].
     pub fn process_command(
         &mut self,
         argv_texts: &[String],
         arg_tokens_in: &[Token],
         single_token_word: &[bool],
+        arg_expand_in: &[bool],
         scope_path: &[usize],
     ) {
         if argv_texts.is_empty() || arg_tokens_in.is_empty() {
@@ -309,6 +319,9 @@ impl Analyser {
         // dialect set excludes the active one.  Substituted-value
         // args and `--` terminate the scan.
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+
+        // **SYNC-MAY21-3.**  E002 / E003 arity; flushed post-walk.
+        self.emit_arity_diagnostics(cmd_name, args, arg_tokens, arg_expand_in, arg_tokens_in[0]);
 
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
@@ -961,6 +974,7 @@ mod tests {
             ],
             &[true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("x"));
     }
@@ -983,6 +997,7 @@ mod tests {
             ],
             &[true, true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.all_procs.contains_key("::foo"));
     }
@@ -1004,6 +1019,7 @@ mod tests {
                 str_tok(span(19, 21)),
             ],
             &[true, true, true, true],
+            &[],
             &[],
         );
         assert_eq!(a.result.global_scope.children.len(), 1);
@@ -1028,6 +1044,7 @@ mod tests {
             ],
             &[true, true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("i"));
     }
@@ -1044,6 +1061,7 @@ mod tests {
             ],
             &[true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("x"));
         assert!(a.result.global_scope.variables.contains_key("y"));
@@ -1057,6 +1075,7 @@ mod tests {
             &[esc_tok(span(0, 18)), esc_tok(span(19, 22))],
             &[true, true],
             &[],
+            &[],
         );
         // No handler matched; no procs, vars, classes, or aliases
         // recorded. (Unknown-command diagnostic emission is C41d4.)
@@ -1067,7 +1086,7 @@ mod tests {
     #[test]
     fn process_empty_argv_is_no_op() {
         let mut a = Analyser::new();
-        a.process_command(&[], &[], &[], &[]);
+        a.process_command(&[], &[], &[], &[], &[]);
         // No panic, no state mutation.
     }
 
@@ -1092,6 +1111,7 @@ mod tests {
                 esc_tok(span(25, 28)),
             ],
             &[true, true, true, true, true, true],
+            &[],
             &[],
         );
         assert!(a.command_aliases.contains_key("::myset"));

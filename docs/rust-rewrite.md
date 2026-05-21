@@ -1288,25 +1288,60 @@ merge + dialect-scoped switch filtering in `tcl-registry`, and the
 E003 arity check (`compiler_checks` / analyser arity validation).
 Classify: in-scope, low-touch.
 
-**Verified Rust state (2026-05-21, branch
-`claude/tcl-lsp-rust-rewrite-lNRRS`) — reclassify as blocked.** The
-"low-touch" estimate assumed the consuming machinery existed; it
-does not. The Rust analyser has **no general arity emitter at all**
-— there is no `E003` "too many arguments" check (and no live
-`E001`/`E002` either; the only `E002` occurrences are manually
-constructed test fixtures exercising the E101 de-dup pass). The
-signature side is likewise absent: `analyser::dispatch::CommandSig`
-carries only `arity` + `arg_roles` (no `leading_options`); there is
-no `_with_roles` role-hint merge and no `switch_names` / declared-
-option set in `tcl-registry` (`signature_for_command` already
-dialect-filters *subcommands*, but never computes a leading-option
-set for arity counting). Because the check itself isn't ported, the
-false positive **cannot occur today** — there is nothing to fix.
-The whole row (option-aware arity counting + dialect-scoped switch
-filtering + the `leading_options` preservation on role-hint merge)
-should land *as part of* the C41 arity-check port, not as a
-standalone mirror; building the `leading_options` plumbing ahead of
-its only consumer would be dead infrastructure. Promote to C41.
+**Landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** The Rust analyser
+had **no general arity emitter at all** (no live `E001`/`E002`/`E003`
+— the only prior `E002` occurrences were test fixtures for the E101
+de-dup pass), so this row ported the simple-command arity check from
+scratch rather than mirroring a 3-line Python delta:
+
+- **`tcl-registry`:** `CommandSpec::switch_names(dialect)` mirrors
+  Python's `models.py::switch_names` — declared option names across
+  `options` + `command_forms[].options`, dialect-filtered via
+  `OptionSpec::supports_dialect`, deduped in declaration order.
+- **`analyser::dispatch`:** `CommandSig` gains `leading_options:
+  BTreeSet<String>`, populated from `switch_names(Some(dialect))` for
+  the simple branch (the SubcommandSig branch leaves it empty —
+  per-subcommand arity is a follow-up).
+- **`analyser::diagnostics`:** `emit_arity_diagnostics` mirrors
+  `_check_simple_arity` — skip leading declared options (dialect-
+  filtered), then compare the positional count to the arity bounds
+  (E002 too few / E003 too many). `{*}`-expanded words are excluded
+  from the positional lower bound (expansion threaded through
+  `process_command`), exactly as Python does.
+- **Post-walk flush + shadowing guard:** candidates are collected
+  during the walk and emitted in `flush_arity_diagnostics` (called
+  beside `emit_unresolved_command_diagnostics`), which drops any
+  command name shadowed by a user proc / class / alias / ensemble /
+  inline stub. This is **ahead of Python's inline check** and was
+  driven by validation (below): without it, a namespace that defines
+  `proc ::ns::close {...}` and calls `close ...` with the proc's
+  wider arity false-fired E003 against the *builtin* `close` arity.
+  The post-walk timing makes the guard order-independent (the proc
+  may be defined after its call site).
+
+**Validation.** Analysed the full Tcl 8.6 standard library and the
+entire tcllib 2.0 module tree with the live `tcl8.6` path:
+**0 E002/E003 false positives** in both (the 2 tcllib hits found in
+an intermediate build — both `::websocket::close` — were what
+motivated the shadowing guard, and are gone). Regression tests cover
+the #455 leading-switch cases (`regsub -all …`), #460 dialect
+filtering (`regsub -command` 9.0-only), genuine over/under-arity,
+and `{*}`-expansion suppression.
+
+**Documented parity gaps (intentional):** (1) like Python's name-only
+`leading_options`, the *value* of a value-taking leading option is
+not skipped (Python's value-aware `skip_options` is used only for
+arg-role resolution, not arity); (2) statically-resolvable literal
+`{*}` expansions are not refined to their element count — the
+conservative form can miss a genuine over-arity but never invents a
+false positive; (3) subcommand-dispatch arity is deferred (W001
+already covers unknown subcommands).
+
+**Out-of-scope finds (pre-existing, flagged):** the analyser stack-
+overflows on `tcl8.6.16/library/http/http.tcl` and hangs on a few
+tcllib files (`fumagic/filetypes.tcl`, `nettool/*`,
+`textutil/build/*/wcswidth.tcl`) — unrelated to arity (a flat
+emitter can't recurse); worth a separate investigation.
 
 ### SYNC-MAY21-4 — Analyser diagnostic-range coverage + product fixes (#464)
 
