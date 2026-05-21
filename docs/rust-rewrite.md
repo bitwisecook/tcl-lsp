@@ -1209,15 +1209,39 @@ closer via a token-tree `range_from_word_token`.
 
 This is the same convention the Rust side hit in the `${arr(idx)}`
 rename work — the lexer's `Var` token span excludes the closing
-brace. **Rust mirror:** `tcl-lsp-core::selection_range` must widen
-token ranges to the closer (it currently builds `Range(tok.start,
-tok.end)` raw); `tcl-compiler::segmenter` whole-command range
-should include the last word's closer. The audit on `main`
+brace. **Rust mirror:** `tcl-compiler::segmenter` whole-command
+range should include the last word's closer. The audit on `main`
 confirmed hover (no range), folding (line-based), and semantic
 tokens (length-encoded) are unaffected — so scope is
 selection-range + segmenter range only. Classify: in-scope,
 low/medium. Files: `selection_range.rs`, `segmenter.rs`, the span
 → LSP-range helpers.
+
+**Landed (segmenter) — `claude/tcl-lsp-rust-rewrite-lNRRS`.**
+`segmenter.rs` now derives the whole-command span via a new
+`command_span` / `widen_word_end` pair (mirroring Python's
+`_command_range` → `range_from_word_token`): the final word's
+exclusive end is extended by one byte when the last token is a
+`Str` / `Cmd` whose closer (`}` / `]`, derived from the token
+*type*) sits at `span.end()`. The single source byte at
+`span.end()` is inspected only to skip the degenerate `{}` / `[]`
+forms, whose span already covers the closer (the lexer extends
+those by one). Tests: braced / bracketed / multi-line / degenerate
+/ plain-word final words.
+
+**`selection_range` — no applicable hook (divergence noted).** The
+doc premise above ("`tcl-lsp-core::selection_range` … currently
+builds `Range(tok.start, tok.end)` raw") describes the *Python*
+structure. The Rust port diverged: its chain is word-at-cursor →
+single-line `;`-aware command-segment scan → line → enclosing
+bodies → document, and **none** of those links is built from a raw
+lexer `Str` / `Cmd` token — so none drops a closer (the line scan
+already runs to the `;` / EOL, past any closer). The closer-drop
+fix Python applies to its per-argument *token* link therefore has
+nothing to attach to until the deferred token-based command-segment
+machinery lands (tracked under `S-signature-help-rich`); when that
+strip ports the per-argument link, it must widen those token ranges
+to the closer (use a `widen_range_for_closer`-style helper).
 
 ### SYNC-MAY21-2 — `-loop` stubs + external `.tcl.stubs` files (#468)
 

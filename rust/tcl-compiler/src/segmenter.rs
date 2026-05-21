@@ -130,14 +130,46 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
     }
 }
 
-/// Compute the span covering all tokens.
-fn span_from_tokens(tokens: &[Token]) -> Span {
+/// Compute the whole-command span, widening the final word to cover its
+/// closing delimiter.
+///
+/// Mirrors `core/parsing/command_segmenter.py::_command_range`, which extends
+/// the end via `range_from_word_token`. The lexer follows an "inner-end"
+/// span convention: a braced (`{…}`) or bracketed (`[…]`) word token's
+/// `span.end()` is the *exclusive* offset of the closing `}` / `]`, so the
+/// closer itself sits one byte past the end. A command whose final word is
+/// braced (`if {$x} {body}`) would therefore drop the trailing `}` from its
+/// whole-command range. Widen the end by one byte when the last token is a
+/// `Str` / `Cmd` whose closer actually sits at `span.end()`.
+///
+/// The closer character is derived from the token *type* (Python's
+/// `range_from_word_token`); the single source byte at `span.end()` is only
+/// inspected to skip the degenerate `{}` / `[]` forms, whose span already
+/// covers the closer (the lexer extends those by one), so the byte at
+/// `span.end()` is whatever follows the word, not the closer.
+fn command_span(tokens: &[Token], source: &str) -> Span {
     if tokens.is_empty() {
         return Span::new(0, 0);
     }
     let start = tokens.first().unwrap().span.start();
-    let end = tokens.last().unwrap().span.end();
+    let end = widen_word_end(*tokens.last().unwrap(), source);
     Span::new(start, end)
+}
+
+/// Exclusive end offset of `tok` including its closing delimiter, for the
+/// braced / bracketed word forms. See [`command_span`].
+fn widen_word_end(tok: Token, source: &str) -> u32 {
+    let closer = match tok.kind {
+        TokenType::Str => b'}',
+        TokenType::Cmd => b']',
+        _ => return tok.span.end(),
+    };
+    let end = tok.span.end();
+    if source.as_bytes().get(end as usize) == Some(&closer) {
+        end + 1
+    } else {
+        end
+    }
 }
 
 /// Segment a token stream into per-command structures at EOL boundaries.
@@ -370,7 +402,7 @@ impl SegmenterState {
     fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
         if !self.argv.is_empty() {
             self.commands.push(SegmentedCommand {
-                span: span_from_tokens(&self.all_tokens),
+                span: command_span(&self.all_tokens, sm.source()),
                 argv: std::mem::take(&mut self.argv),
                 texts: std::mem::take(&mut self.texts),
                 single_token_word: std::mem::take(&mut self.single),
@@ -503,7 +535,7 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             mut last_comment,
         } = state;
         commands.push(SegmentedCommand {
-            span: span_from_tokens(&all_tokens),
+            span: command_span(&all_tokens, source),
             argv,
             texts,
             single_token_word: single,
@@ -663,6 +695,63 @@ mod tests {
     fn blank_lines_between_commands() {
         let cmds = segment_commands("set x 1\n\nset y 2");
         assert_eq!(cmds.len(), 2);
+    }
+
+    // -- SYNC-MAY21-1 (#470): whole-command range covers the last
+    //    word's closing delimiter ----------------------------------
+
+    #[test]
+    fn command_span_includes_trailing_brace() {
+        // `if {$x} {body}` — the final word is a braced body whose
+        // STR token stops on the `}`. The whole-command span must
+        // reach past the closer so consumers don't drop it.
+        let src = "if {$x} {body}";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(&src[cmds[0].span.as_range()], "if {$x} {body}");
+    }
+
+    #[test]
+    fn command_span_includes_trailing_bracket() {
+        // Final word is a command substitution `[...]`; the CMD
+        // token stops on `]`, so the span must include it.
+        let src = "set x [expr 1+2]";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(&src[cmds[0].span.as_range()], "set x [expr 1+2]");
+    }
+
+    #[test]
+    fn command_span_includes_multiline_closing_brace() {
+        // Multi-line braced body — the closer is on its own line.
+        let src = "proc f {} {\n  set x 1\n}";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        assert!(
+            src[cmds[0].span.as_range()].ends_with('}'),
+            "span text: {:?}",
+            &src[cmds[0].span.as_range()],
+        );
+    }
+
+    #[test]
+    fn command_span_unaffected_by_degenerate_empty_brace() {
+        // Degenerate `{}` already covers its closer in the token
+        // span (the lexer extends it by one), so widening must not
+        // over-reach past the `}`.
+        let src = "proc f {}";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(&src[cmds[0].span.as_range()], "proc f {}");
+    }
+
+    #[test]
+    fn command_span_unaffected_for_plain_last_word() {
+        // A bare-word final argument has no closer to widen.
+        let src = "set x 1";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(&src[cmds[0].span.as_range()], "set x 1");
     }
 }
 
