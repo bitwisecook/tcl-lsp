@@ -63,12 +63,22 @@
             factoryClass="com.tcllsp.jetbrains.CompilerExplorerToolWindowFactory"
             icon="/icons/tcl.svg"
             secondary="true"/>
+        <projectService
+            serviceImplementation="com.tcllsp.jetbrains.CompilerExplorerService"/>
 
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>
     </extensions>
 
     <actions>
+        <action id="TclLsp.OpenInCompilerExplorer"
+                class="com.tcllsp.jetbrains.actions.OpenInCompilerExplorerAction"
+                text="Open In Tcl Compiler Explorer"
+                description="Open the current Tcl/iRule file in the Tcl Compiler Explorer tool window">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
         <group id="com.tcllsp.jetbrains.Actions" text="Tcl" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 

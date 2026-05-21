@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
-from shared.ranges import range_from_tokens
+from shared.ranges import range_from_tokens, range_from_word_token
 
 from .known_commands import known_command_names
 
@@ -75,6 +75,21 @@ def _word_piece(tok: Token) -> str:
     if tok.type is TokenType.CMD:
         return f"[{tok.text}]"
     return tok.text
+
+
+def _command_range(tokens: list[Token]) -> Range:
+    """Span *tokens*, extending the last word to cover its closing delimiter.
+
+    ``range_from_tokens`` stops on the last token's inner end, so a command
+    whose final word is braced (``if {...} {body}``) would drop the closing
+    ``}``.  Widen the end via :func:`range_from_word_token`, which derives the
+    closer from the token's type — no source needed, so it stays correct for
+    nested bodies whose token offsets are absolute but whose source string is a
+    substring.
+    """
+    span = range_from_tokens(tokens)
+    last = range_from_word_token(tokens[-1])
+    return Range(start=span.start, end=last.end)
 
 
 # Minimum number of lines a suspicious STR token must span to trigger
@@ -265,7 +280,7 @@ def _segment_raw(
             if argv:
                 commands.append(
                     SegmentedCommand(
-                        range=range_from_tokens(all_tokens),
+                        range=_command_range(all_tokens),
                         argv=argv,
                         texts=texts,
                         single_token_word=single,
@@ -324,7 +339,7 @@ def _segment_raw(
     if argv:
         commands.append(
             SegmentedCommand(
-                range=range_from_tokens(all_tokens),
+                range=_command_range(all_tokens),
                 argv=argv,
                 texts=texts,
                 single_token_word=single,

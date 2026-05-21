@@ -76,23 +76,39 @@ unset x
         )
         assert result == b"unset"
 
-    @pytest.mark.skip(
-        reason="``trace add variable ARR array CMD`` whole-array fire "
-        "semantics aren't fully wired in the runtime — covered by "
-        "the upstream ``trace.test`` slice (1.7 / 1.8 / 1.9), not by "
-        "this op-word contract."
-    )
-    def test_array_trace_op_is_array(self):
+    def test_array_trace_op_fires_on_array_command(self):
+        """An ``array``-op trace fires when the variable is accessed via
+        the ``array`` command, reporting ``name1 = arr``, ``name2 = ""``,
+        ``op = array`` — matches reference Tcl (trace-5.1).  Verified
+        against tclsh 8.6 / 9.0."""
         result = _run_and_read_global(
             """\
-set ::seen ""
-proc cb {name1 name2 op} { set ::seen $op }
+set ::seen NONE
+proc cb {name1 name2 op} { set ::seen [list $name1 $name2 $op] }
+set arr(b) 2
 trace add variable arr array cb
-catch { set _ $arr(missing) }
+set _ [array get arr]
 """,
             "::seen",
         )
-        assert result == b"array"
+        assert result == b"arr {} array"
+
+    def test_array_trace_does_not_fire_on_element_access(self):
+        """An ``array``-op trace does NOT fire on ordinary element reads
+        or writes — only on ``array`` command accesses (trace-5.2).
+        Verified against tclsh 8.6 / 9.0."""
+        result = _run_and_read_global(
+            """\
+set ::seen NONE
+proc cb {name1 name2 op} { set ::seen [list $name1 $name2 $op] }
+set arr(b) 2
+trace add variable arr array cb
+set arr(a) 1
+set _ $arr(a)
+""",
+            "::seen",
+        )
+        assert result == b"NONE"
 
 
 class TestVarTraceProcLocalFires:
@@ -142,6 +158,54 @@ p
             "::seen",
         )
         assert result == b"x unset"
+
+
+class TestVarTraceThroughUpvar:
+    """A variable trace installed in one frame fires when the variable
+    is accessed through an ``upvar`` alias in a callee frame, reporting
+    the *alias* name (the name used at the access site) and dispatching
+    the callback from the accessing frame — matching reference Tcl
+    (tcltest upvar-5.1 / 5.2 / 5.3).
+    """
+
+    def test_write_trace_fires_through_upvar(self):
+        result = _run_and_read_global(
+            """\
+proc tproc {args} {global x; set x [list $args [uplevel info vars]]}
+proc p1 {a b} {set c 22; set d 33; trace add var c {read write} tproc; p2}
+proc p2 {} {upvar c x1; set x1 22}
+set x ---
+p1 foo bar
+""",
+            "::x",
+        )
+        assert result == b"{x1 {} write} x1"
+
+    def test_read_trace_fires_through_upvar(self):
+        result = _run_and_read_global(
+            """\
+proc tproc {args} {global x; set x [list $args [uplevel info vars]]}
+proc p1 {a b} {set c 22; set d 33; trace add var c {read write} tproc; p2}
+proc p2 {} {upvar c x1; set x1}
+set x ---
+p1 foo bar
+""",
+            "::x",
+        )
+        assert result == b"{x1 {} read} x1"
+
+    def test_unset_trace_fires_through_upvar_no_teardown_refire(self):
+        result = _run_and_read_global(
+            """\
+proc tproc {args} {global x; set x [list $args [uplevel info vars]]}
+proc p1 {a b} {set c 22; set d 33; trace add var c {read write unset} tproc; p2}
+proc p2 {} {upvar c x1; unset x1}
+set x ---
+p1 foo bar
+""",
+            "::x",
+        )
+        assert result == b"{x1 {} unset} x1"
 
 
 class TestExtAliasResolutionRobustness:

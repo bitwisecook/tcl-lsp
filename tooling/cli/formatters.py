@@ -25,6 +25,7 @@ from compiler.ir import (
 from compiler.registry.taint_hints import TaintColour
 from compiler.taint import TaintLattice
 from compiler.types import TypeKind, TypeLattice
+from shared.ranges import widen_for_highlight
 from shared.source_map import offset_to_line_col
 
 # LineIndex — source offset mapping
@@ -184,12 +185,27 @@ def stmt_kind(stmt: IRStatement) -> str:
 
 
 def range_dict(r: Range) -> dict:
-    """Convert Range to a JSON-serialisable dict."""
+    """Convert Range to a JSON-serialisable dict.
+
+    Two adjustments make the serialised offsets match what the front-end
+    highlights:
+
+    * A braced/quoted/bracketed word's range stops on the last *inner*
+      character (the closer is excluded by convention).  When the document
+      source is known (set via ``core.common.ranges.set_highlight_source``),
+      widen the range to cover the closing ``}`` / ``"`` / ``]`` so
+      ``{$condition}`` is not highlighted as ``{$conditi``.
+    * The semantic-model :class:`Range` end is *inclusive*; the front-end
+      slices ``src.substring(startOffset, endOffset)`` with an *exclusive*
+      end (matching :func:`core.common.lsp.to_lsp_range`), so add one to the
+      end position.
+    """
+    r = widen_for_highlight(r)
     return {
         "startLine": r.start.line,
         "startCol": r.start.character,
         "startOffset": r.start.offset,
         "endLine": r.end.line,
-        "endCol": r.end.character,
-        "endOffset": r.end.offset,
+        "endCol": r.end.character + 1,
+        "endOffset": r.end.offset + 1,
     }

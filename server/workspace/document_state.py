@@ -205,6 +205,7 @@ def _analyse_document_fresh(
     optimiser_enabled: bool = True,
     extra_commands: tuple[str, ...] = (),
     non_ascii_mode: str | None = None,
+    stub_commands: tuple = (),
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 
@@ -227,6 +228,13 @@ def _analyse_document_fresh(
         from analyser.checks._style import set_non_ascii_mode
 
         set_non_ascii_mode(non_ascii_mode)
+
+    # Re-establish workspace .tcl.stubs in this worker.  Set (not scoped):
+    # the pool reuses workers and forwards stubs on every call, mirroring
+    # configure_signatures above.
+    from compiler.registry.stub_comments import set_ambient_stubs
+
+    set_ambient_stubs(stub_commands)
 
     # The analyser gates expensive opt-in checks (W123 unresolved-command
     # suggestions, W242 loop termination, etc.) on its

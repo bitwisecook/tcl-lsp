@@ -1831,7 +1831,14 @@ pub fn eval_upvar(words: []const i32) i32 {
     while (i + 1 < words.len) : (i += 2) {
         const other_var = words[i]; // name in the target frame
         const local_var = words[i + 1]; // alias name in the current frame
-        if (is_global or abs_target <= 0) {
+        if (frames.frame_depth == 0) {
+            // Top-level (global) ``upvar`` — no proc frame exists to
+            // hold an ALIAS_EXT descriptor, so alias within the global
+            // scope via a ``VAR_LINK`` in the root namespace's var
+            // table (upvar-7.1).  Covers both ``upvar #0`` and ``upvar
+            // 0`` at the script top level (both target globals).
+            tcl_ns.global_alias_link(local_var, other_var);
+        } else if (is_global or abs_target <= 0) {
             // #0 or level underflow → global alias
             frames.frame_alias_named(local_var, other_var);
         } else {
@@ -1839,6 +1846,41 @@ pub fn eval_upvar(words: []const i32) i32 {
         }
     }
     return 0;
+}
+
+/// Raise ``bad level "<token>"`` from the interpreter ``uplevel`` /
+/// ``upvar`` level parser, matching reference Tcl's
+/// ``TCL LOOKUP LEVEL`` error wording (tclProc.c:TclObjGetFrame).
+fn raise_bad_level(level_obj: i32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const s = obj_ensure_string(level_obj);
+    const prefix: []const u8 = "bad level \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
 }
 
 /// ``uplevel ?level? body ?body ...?``
@@ -1858,13 +1900,17 @@ pub fn eval_uplevel(words: []const i32) i32 {
 
     if (w1.len > 0) {
         if (w1p[0] == '#') {
-            // ``#N`` is an ABSOLUTE target level — shift by
-            // (frame_depth - N) so the target frame becomes the
-            // active one.  Clamp to ``frame_depth`` when ``N`` is
-            // deeper than the current stack (treats as #0).
+            // ``#N`` is an ABSOLUTE target level (global is ``#0`` at
+            // runtime frame_depth 0, the first proc is ``#1`` at depth
+            // 1, …), so shift by ``frame_depth - N`` to make that frame
+            // active.  ``#N`` where ``N == frame_depth`` is the current
+            // proc's *own* frame (shift 0) — e.g. ``uplevel #1`` from a
+            // level-1 proc (uplevel-3.4).  Only a genuinely over-deep
+            // ``N > frame_depth`` clamps to the global frame (reference
+            // Tcl raises "bad level" there; we degrade leniently).
             body_start = 2;
             const level = parse_uint_bytes(w1p + 1, w1.len - 1);
-            if (level >= frames.frame_depth) {
+            if (level > frames.frame_depth) {
                 shift = @intCast(frames.frame_depth);
             } else {
                 shift = @intCast(frames.frame_depth - level);
@@ -1872,6 +1918,42 @@ pub fn eval_uplevel(words: []const i32) i32 {
         } else if (w1p[0] >= '0' and w1p[0] <= '9') {
             body_start = 2;
             shift = @intCast(parse_uint_bytes(w1p, w1.len));
+        } else if (w1p[0] == '-') {
+            // Signed integer level — mirrors reference Tcl's
+            // ``Tcl_GetIntFromObj`` path (tclProc.c:TclObjGetFrame).
+            // ``-0`` is a valid relative level 0 (the current frame);
+            // any other all-decimal-digit magnitude (``-1`` …) parses
+            // to a negative integer, which reference Tcl rejects with
+            // ``bad level``.  A non-numeric or hex ``-foo`` / ``-0xff``
+            // is not a level — leave it as the body word.
+            var all_digits = w1.len >= 2;
+            var di: u32 = 1;
+            while (di < w1.len) : (di += 1) {
+                if (w1p[di] < '0' or w1p[di] > '9') {
+                    all_digits = false;
+                    break;
+                }
+            }
+            if (all_digits) {
+                if (parse_uint_bytes(w1p + 1, w1.len - 1) == 0) {
+                    body_start = 2;
+                    shift = 0;
+                } else {
+                    raise_bad_level(words[1]);
+                    return 0;
+                }
+            } else if (w1.len >= 4 and w1p[1] == '0' and
+                (w1p[2] == 'x' or w1p[2] == 'X' or w1p[2] == 'o' or
+                    w1p[2] == 'O' or w1p[2] == 'b' or w1p[2] == 'B'))
+            {
+                // ``-0x..`` / ``-0o..`` / ``-0b..`` — a based integer
+                // literal with a leading sign.  Reference Tcl's
+                // ``Tcl_GetInt`` parses it and rejects (negative /
+                // out-of-range) with ``bad level``, rather than treating
+                // it as a body word (uplevel-4.17).
+                raise_bad_level(words[1]);
+                return 0;
+            }
         }
         // else: not a level spec; body_start stays 1, shift stays 1
     }
@@ -3671,7 +3753,14 @@ fn eval_proc_call(words: []const i32) i32 {
         // path ignored the loader's error and overwrote it with
         // ``invalid command name`` in ``error_unknown_command``
         // below, hiding the real failure.
-        const loaded_name = try_auto_index_load(words[0]);
+        var loaded_name = try_auto_index_load(words[0]);
+        if (loaded_name == 0 and result_mod.snapshot(0).code != .ERROR) {
+            // Not in ``::auto_index`` yet — populate it from the
+            // standard library's ``tclIndex`` (via ``$TCL_LIBRARY``)
+            // once, then retry.  No-op when ``TCL_LIBRARY`` is unset.
+            ensure_stdlib_index_loaded();
+            loaded_name = try_auto_index_load(words[0]);
+        }
         if (result_mod.snapshot(0).code == .ERROR) {
             // Loader script raised; ``error_msg`` already holds the
             // user-facing message.  Drop any retained ``loaded_name``
@@ -3761,6 +3850,78 @@ fn eval_proc_call(words: []const i32) i32 {
 /// namespace for the namespaced probe — for ``interp alias``
 /// dispatches that's the global root (TCL_EVAL_INVOKE), so only the
 /// bare entry can match (parse-8.12).
+var stdlib_index_loaded: bool = false;
+
+extern fn getenv(name: [*:0]const u8) ?[*:0]const u8;
+
+/// Lazily populate ``::auto_index`` from the standard library's
+/// ``tclIndex``, located via the ``TCL_LIBRARY`` environment variable.
+/// Runs once, the first time a command misses both the proc registry
+/// and ``::auto_index`` — mirroring Tcl's ``unknown`` → ``auto_load``
+/// path without shipping ``init.tcl``.
+///
+/// We do NOT port the standard library: the runtime is pointed at the
+/// real on-disk library (preopened under WASI) and sources its index
+/// plus the per-command files it references on demand.  The bootstrap
+/// sets ``dir`` (the variable the index entries interpolate) and
+/// injects a thin ``::tcl::Pkg::source`` shim — the loader the real
+/// Tcl 9 ``tclIndex`` entries name — over the builtin ``source``.
+///
+/// No-op when ``TCL_LIBRARY`` is unset (every non-stdlib script), so it
+/// cannot perturb existing behaviour.  Any error from sourcing the
+/// index is swallowed (a missing / broken library must not become the
+/// caller's unknown-command diagnostic) — the surrounding flow state is
+/// saved and restored across the load.
+fn ensure_stdlib_index_loaded() void {
+    if (stdlib_index_loaded) return;
+    stdlib_index_loaded = true;
+    const lib_c = getenv("TCL_LIBRARY") orelse return;
+    var lib_len: u32 = 0;
+    while (lib_c[lib_len] != 0) : (lib_len += 1) {}
+    if (lib_len == 0) return;
+    const lib_p: [*]const u8 = @ptrCast(lib_c);
+    const part1: []const u8 = "set dir {";
+    // The shim must source at the GLOBAL scope.  A bare ``source`` in
+    // its own body would resolve to this proc (namespace ``::tcl::Pkg``)
+    // and recurse; even ``::source`` run in the proc's own frame would
+    // define the loaded procs in ``::tcl::Pkg`` rather than ``::``.
+    // ``uplevel #0`` runs the real ``::source`` at the global frame so
+    // autoloaded procs land where callers expect them.
+    const part2: []const u8 = "}\nproc ::tcl::Pkg::source {file args} {uplevel #0 [list ::source $file]}\nsource {";
+    const part3: []const u8 = "/tclIndex}\n";
+    const total: u32 = @as(u32, @intCast(part1.len)) + lib_len +
+        @as(u32, @intCast(part2.len)) + lib_len + @as(u32, @intCast(part3.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    defer obj_mod.free_sized(buf, total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (part1) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (0..lib_len) |i| {
+        dst[off] = lib_p[i];
+        off += 1;
+    }
+    for (part2) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (0..lib_len) |i| {
+        dst[off] = lib_p[i];
+        off += 1;
+    }
+    for (part3) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const saved = result_mod.signal_save_and_clear();
+    const r = eval_script(buf, total);
+    if (r != 0) obj_mod.tcl_obj_release(r);
+    result_mod.signal_restore(saved);
+}
+
 fn try_auto_index_load(cmd_obj: i32) i32 {
     if (cmd_obj == 0) return 0;
     const cmd_s = obj_ensure_string(cmd_obj);

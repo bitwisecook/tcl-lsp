@@ -8,6 +8,7 @@ from analyser import analyse
 from analyser.semantic_model import AnalysisResult, Range, Scope
 from compiler.position_lookup import find_command_at_position, find_token_in_command
 from server._lsp_conv import to_lsp_range
+from shared.ranges import widen_range_for_closer
 
 from .symbol_resolution import find_scope_at_line, find_word_span_at_position
 
@@ -94,7 +95,12 @@ def _selection_range_for_position(
         # Token range (individual argument)
         tok = find_token_in_command(cmd, line, character)
         if tok is not None:
-            tok_range = to_lsp_range(Range(start=tok.start, end=tok.end))
+            # A braced/quoted word token's end stops on the last inner
+            # character; widen to its closing delimiter so expand-selection
+            # covers ``{$condition}``, not ``{$condition``.
+            tok_range = to_lsp_range(
+                widen_range_for_closer(source, Range(start=tok.start, end=tok.end))
+            )
             ranges.append(tok_range)
 
         # Full command range

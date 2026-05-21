@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
+from shared.ranges import widen_for_highlight
+
 from ._encoding import (
     _encode_string,
     _encode_vector,
@@ -734,16 +736,23 @@ def _decode_leb128_signed(data: bytes) -> int:
 
 
 def _range_to_explorer_dict(rng: Range | None) -> dict | None:
-    """Serialise a Range for the explorer frontend."""
+    """Serialise a Range for the explorer frontend.
+
+    Mirrors ``explorer.formatters.range_dict``: widen a braced/quoted word's
+    range to its closing delimiter against the active highlight source, then
+    convert the *inclusive* semantic-model end to the *exclusive* end the
+    front-end slices with (add one).
+    """
     if rng is None:
         return None
+    rng = widen_for_highlight(rng)
     return {
         "startLine": rng.start.line,
         "startCol": rng.start.character,
         "startOffset": rng.start.offset,
         "endLine": rng.end.line,
-        "endCol": rng.end.character,
-        "endOffset": rng.end.offset,
+        "endCol": rng.end.character + 1,
+        "endOffset": rng.end.offset + 1,
     }
 
 

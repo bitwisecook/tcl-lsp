@@ -18,7 +18,7 @@ from compiler.parsing.expr_lexer import (
 from compiler.parsing.recovery import segment_with_recovery
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
-from compiler.registry.stub_comments import scan_source_for_stubs
+from compiler.registry.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
 from shared.ranges import position_from_relative, range_from_token
 from shared.tokens import Token, TokenType
 
@@ -263,7 +263,7 @@ class _AnalyserBase:
         from compiler.registry.runtime import stub_signature_scope
 
         snapshots: list[AnalyserSnapshot] = []
-        with stub_signature_scope(self.result.stub_commands):
+        with stub_signature_scope([*self.result.stub_commands, *ambient_cmd_stubs()]):
             for cmds in chunk_commands:
                 self._analyse_commands_inner(cmds, self._current_scope, source)
                 snapshots.append(self.snapshot())
@@ -312,7 +312,7 @@ class _AnalyserBase:
         # with it in ``self.result.stub_commands``.
         from compiler.registry.runtime import stub_signature_scope
 
-        with stub_signature_scope(self.result.stub_commands):
+        with stub_signature_scope([*self.result.stub_commands, *ambient_cmd_stubs()]):
             self._analyse_commands_inner(commands, self._current_scope, source)
             if finalise:
                 self._emit_unresolved_command_diagnostics()
@@ -442,7 +442,7 @@ class _AnalyserBase:
         # the stubbed command's BODY argument see it as a script.
         from compiler.registry.runtime import stub_signature_scope
 
-        with stub_signature_scope(cmd_stubs):
+        with stub_signature_scope([*cmd_stubs, *ambient_cmd_stubs()]):
             self._analyse_body(source, self._current_scope)
             self._emit_unresolved_command_diagnostics(cu=cu)
             self._emit_variable_usage_diagnostics()

@@ -157,9 +157,10 @@ def compute_stub_fingerprint(source: str) -> int:
     with callers that omit the fingerprint argument.
     """
     from compiler.registry.runtime import signatures_from_stubs
-    from compiler.registry.stub_comments import scan_source_for_stubs
+    from compiler.registry.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
+    cmd_stubs = [*cmd_stubs, *ambient_cmd_stubs()]
     if not cmd_stubs:
         return 0
     overlay = signatures_from_stubs(cmd_stubs)
@@ -194,9 +195,10 @@ def compile_source(
     are also reused for unchanged procedures using the same key shape.
     """
     from compiler.registry.runtime import stub_signature_scope
-    from compiler.registry.stub_comments import scan_source_for_stubs
+    from compiler.registry.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
+    cmd_stubs = [*cmd_stubs, *ambient_cmd_stubs()]
     # Fingerprint the stub overlay so cached proc / interproc summaries
     # are invalidated whenever a stub is added, removed, or changed —
     # the proc body text alone is not enough because summaries depend

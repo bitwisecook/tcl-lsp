@@ -141,6 +141,19 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     const resolved_name: i32 = frames_mod.frame_resolve_array_name(words[2]);
     defer if (resolved_name != words[2]) obj_mod.tcl_obj_release(resolved_name);
+    // Fire any ``array``-op trace before the access so the callback can
+    // lazily populate the array (reference Tcl: ``array`` traces fire
+    // for get / names / set / size / exists / unset / statistics — but
+    // not for plain element reads / writes; trace-5.1 / 5.2).  The
+    // search-cursor subcommands and ``default`` don't fire.
+    if (str_eq(sp, sub_len, "get") or str_eq(sp, sub_len, "set") or
+        str_eq(sp, sub_len, "names") or str_eq(sp, sub_len, "size") or
+        str_eq(sp, sub_len, "exists") or str_eq(sp, sub_len, "unset") or
+        str_eq(sp, sub_len, "statistics"))
+    {
+        const inspect_mod = @import("inspect.zig");
+        inspect_mod.fire_array_op_trace(words[2]);
+    }
     if (rule.needs_array) {
         const exists_obj = array_mod.array_exists(resolved_name);
         if (obj_mod.obj_get_int(exists_obj) == 0) {
