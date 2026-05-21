@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from analyser.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
+from compiler.irules_static_names import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from shared.codes import default_disabled_diagnostics
 from shared.optimisation_profiles import DEFAULT_EDITOR_PROFILE, profile_to_disabled
 

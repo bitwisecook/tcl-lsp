@@ -17,10 +17,10 @@ caught in aggregate.
 Two conventions matter:
 
 * The explorer front-end slices ``src.substring(startOffset, endOffset)`` —
-  an *exclusive* end (see ``explorer/static/index.html``
+  an *exclusive* end (see ``tooling/explorer/static/index.html``
   ``highlightSourceRanges``).
 * The semantic-model :class:`Range` end is *inclusive* (see
-  :func:`shared.lsp.to_lsp_range`, which adds 1 to convert it).
+  :func:`server._lsp_conv.to_lsp_range`, which adds 1 to convert it).
 
 So a serialised ``endOffset`` is correct only when it is the exclusive end —
 the inclusive end plus one.

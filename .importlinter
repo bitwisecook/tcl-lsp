@@ -98,13 +98,6 @@ forbidden_modules =
     server
     tooling
     ai
-ignore_imports =
-    ; Two tiny helpers reachable through lazy local imports — both are
-    ; pure-data utilities the analyser also publishes for its own
-    ; diagnostics.  Carving them out instead of duplicating the
-    ; module-level cache state they piggyback on.
-    compiler.irules_flow -> analyser.irules_checks
-    compiler.taint._path_concat -> analyser.checks._helpers
 
 ; ---------------------------------------------------------------------------
 ; 3.  dialects/ may depend on shared/, compiler.registry/, compiler.parsing/,

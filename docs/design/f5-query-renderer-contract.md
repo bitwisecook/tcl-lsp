@@ -129,7 +129,7 @@ The recommended packaging shape is:
 from . import renderers  # side-effect: registers @renderer plugins
 ```
 
-The user then runs `python -c "import my_pkg; from explorer.f5_cli import main; main()"`
+The user then runs `python -c "import my_pkg; from tooling.f5.main import main; main()"`
 or ships a tiny wrapper script that imports the plugin package
 before calling into the CLI.  Entry-point discovery is deliberately
 out of scope for v1 — see the **Open questions** section.

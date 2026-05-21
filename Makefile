@@ -849,7 +849,7 @@ test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
 
 test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (FUZZ_ITERATIONS=N to control size)
 	@echo "==> Running differential fuzz tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest fuzzing/tests/test_fuzz_differential.py -v
+	cd $(ROOT) && $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
@@ -994,7 +994,7 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	cd $(EXT_DIR) && $(TSC) -p ./
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
-	@cp $(ROOT)explorer/static/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
 
 # Python environment
 

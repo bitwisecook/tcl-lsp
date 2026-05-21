@@ -125,7 +125,7 @@ def test_server_diagnostic_codes_match_registry():
     from server.settings import _ALL_DIAGNOSTIC_CODES
 
     assert _ALL_DIAGNOSTIC_CODES == diagnostic_codes(), (
-        "lsp.settings._ALL_DIAGNOSTIC_CODES does not match registry"
+        "server.settings._ALL_DIAGNOSTIC_CODES does not match registry"
     )
 
 
@@ -134,7 +134,7 @@ def test_server_optimisation_codes_match_registry():
     from server.settings import _ALL_OPTIMISATION_CODES
 
     assert _ALL_OPTIMISATION_CODES == optimisation_codes(), (
-        "lsp.settings._ALL_OPTIMISATION_CODES does not match registry"
+        "server.settings._ALL_OPTIMISATION_CODES does not match registry"
     )
 
 

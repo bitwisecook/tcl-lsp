@@ -1,4 +1,4 @@
-"""Tests for core.compiler.side_effects — command side-effect classification."""
+"""Tests for compiler.side_effects — command side-effect classification."""
 
 from __future__ import annotations
 

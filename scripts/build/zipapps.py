@@ -112,7 +112,23 @@ def _ignore_patterns(profile: Profile, package: str):
         # only the gui / gui-cdn profiles want it; everyone else ships
         # without the Pyodide payload.
         base.append("static")
-    return shutil.ignore_patterns(*base)
+    name_ignore = shutil.ignore_patterns(*base)
+    if package != "tooling":
+        return name_ignore
+
+    # The differential fuzzer's recorded findings corpus (~15 MB) and its
+    # test suite are dev-only — no zipapp ships the fuzzer — so drop them
+    # from every profile's tooling/ copy.  Path-scoped so a ``findings``
+    # or ``tests`` dir elsewhere in tooling/ is unaffected.
+    fuzz_dir = (ROOT / "tooling" / "fuzzing").resolve()
+
+    def ignore(dir: str, names: list[str]) -> set[str]:
+        ignored = set(name_ignore(dir, names))
+        if Path(dir).resolve() == fuzz_dir:
+            ignored.update(n for n in ("findings", "tests") if n in names)
+        return ignored
+
+    return ignore
 
 
 def _copy_concern_packages(stage: Path, profile: Profile) -> None:

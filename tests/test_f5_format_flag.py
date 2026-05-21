@@ -4,7 +4,7 @@ Every config-emitting verb (``extract`` is covered separately because
 its input is a UCS archive) accepts ``--format scf`` (the historical
 output, unchanged) or ``--format tmsh`` (a `tmsh create` or
 `tmsh modify` script suitable for replay).  The shared helper lives in
-:mod:`explorer.verbs.f5._emit`.
+:mod:`tooling.f5.verbs._emit`.
 """
 
 from __future__ import annotations

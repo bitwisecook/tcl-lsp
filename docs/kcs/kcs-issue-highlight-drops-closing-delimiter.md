@@ -46,12 +46,12 @@ range at the lowering layer breaks those consumers.
 
 ## File-path anchors
 
-- `core/common/ranges.py` — `widen_range_for_closer`, `range_from_word_token`, `widen_for_highlight`, `set_highlight_source`
-- `core/parsing/command_segmenter.py` — `_command_range`
-- `explorer/formatters.py` — `range_dict`
-- `explorer/serialise.py` — `serialise_result` sets the highlight source
-- `core/compiler/codegen/wasm/_ir.py` — `_range_to_explorer_dict`
-- `lsp/features/selection_range.py` — token-range widening
+- `shared/ranges.py` — `widen_range_for_closer`, `range_from_word_token`, `widen_for_highlight`, `set_highlight_source`
+- `compiler/parsing/command_segmenter.py` — `_command_range`
+- `tooling/cli/formatters.py` — `range_dict`
+- `tooling/cli/serialise.py` — `serialise_result` sets the highlight source
+- `compiler/codegen/wasm/_ir.py` — `_range_to_explorer_dict`
+- `server/features/selection_range.py` — token-range widening
 
 ## Failure modes
 

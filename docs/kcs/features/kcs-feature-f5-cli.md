@@ -13,7 +13,7 @@ reversible via a sidecar map file), and push edits back.
 
 ## Applies to
 
-`f5` CLI (zipapp + `python -m explorer.f5_cli`)
+`f5` CLI (zipapp + `python -m tooling.f5.main`)
 
 ## Question
 

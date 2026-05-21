@@ -1423,13 +1423,13 @@ Compile Tcl scripts to WebAssembly (WAT text or binary WASM format).
 
 ```sh
 # Compile to human-readable WAT
-uv run python -m explorer.wasm_cli script.tcl --format wat
+uv run python -m tooling.wasm.main script.tcl --format wat
 
 # Compile to WASM binary with optimisations
-uv run python -m explorer.wasm_cli script.tcl -O --format wasm -o out.wasm
+uv run python -m tooling.wasm.main script.tcl -O --format wasm -o out.wasm
 
 # Compare optimised vs. unoptimised output
-uv run python -m explorer.wasm_cli --source 'set x [expr {1+2}]' --format both
+uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
 ```
 
 ### Compiler explorer (web GUI)
@@ -2312,10 +2312,8 @@ source take effect on the next editor reload.
 2. Handle it in `tooling/formatter/engine.py`.
 3. Add `to_dict`/`from_dict` support if the field uses a non-primitive type.
 4. Add tests to `tests/test_formatter.py`.
-5. Keep consumers on core imports (`tooling/formatter/*`) and delete legacy
-   import paths in the same change.
-6. Run `tests/test_core_lift_consumers.py` to verify no downstream consumer is
-   importing shim modules.
+5. Import the formatter through its public API (`tooling.formatter`), then run
+   `make test` to verify.
 
 ## Configuration
 

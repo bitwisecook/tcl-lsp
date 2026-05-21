@@ -13,7 +13,7 @@ from pygls.lsp.server import LanguageServer
 
 import server.state as _state
 from analyser import analyse
-from analyser.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
+from compiler.irules_static_names import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from compiler.optimiser import optimise_source
 from compiler.registry import REGISTRY
 from compiler.registry.info import effective_event_requires

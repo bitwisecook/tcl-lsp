@@ -68,7 +68,7 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
 
 
 def test_lsp_server_allowlist_matches_catalogue() -> None:
-    """lsp.settings._ALL_OPTIMISATION_CODES matches the registry."""
+    """server.settings._ALL_OPTIMISATION_CODES matches the registry."""
     from server.settings import _ALL_OPTIMISATION_CODES
 
     codes = sorted(_ALL_OPTIMISATION_CODES)

@@ -103,6 +103,10 @@ packages = [
 exclude = [
     "tooling/explorer/static",
     "dialects/f5/bigip/data/scf_port_names.csv",
+    # Dev-only differential-fuzzer corpus (~15 MB) and its tests — never
+    # part of the shipped wheel.
+    "tooling/fuzzing/findings",
+    "tooling/fuzzing/tests",
 ]
 
 [tool.pytest.ini_options]

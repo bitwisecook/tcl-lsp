@@ -1,6 +1,6 @@
 """End-to-end test: compile + link + run a Tcl script via the WASM CLI.
 
-Drives the real ``explorer.wasm_cli`` entry point (the same code the
+Drives the real ``tooling.wasm.main`` entry point (the same code the
 ``tcl-wasm`` zipapp ships) with ``--link`` to produce a self-contained
 ``.wasm``, then instantiates that binary under ``wasmtime`` and asserts
 the program actually executes — ``puts hello`` must print ``hello``.
@@ -102,7 +102,7 @@ def test_cli_link_compiles_and_runs_puts_hello(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "explorer.wasm_cli",
+            "tooling.wasm.main",
             "--source",
             "puts hello",
             "--link",

@@ -7,6 +7,7 @@ rewrites and generate short identifier names.
 from __future__ import annotations
 
 import itertools
+import re
 import string
 from collections.abc import Iterator
 
@@ -45,3 +46,40 @@ def apply_edits(source: str, edits: list[tuple[int, int, str]]) -> str:
         seen.add(key)
         result = result[:offset] + new_text + result[offset + length :]
     return result
+
+
+# Path-join refactor helper — shared by the compiler taint pass
+# (compiler/taint/_path_concat.py) and analyser path checks.  Pure
+# string→string, no layer-specific types, so it lives in shared/.
+_SIMPLE_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SIMPLE_PATH_VAR_RE = re.compile(
+    r"^\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)$",
+)
+
+
+def build_file_join_fix(path_expr: str) -> str | None:
+    """Build a conservative ``[file join ...]`` replacement when safe."""
+    text = path_expr.strip()
+    if not text:
+        return None
+    if (text.startswith('"') and text.endswith('"')) or (
+        text.startswith("{") and text.endswith("}")
+    ):
+        text = text[1:-1]
+    if not text or any(ch in text for ch in "[];"):
+        return None
+    if " " in text:
+        return None
+
+    parts = [part for part in re.split(r"[/\\\\]+", text) if part]
+    if len(parts) < 2:
+        return None
+
+    for part in parts:
+        if _SIMPLE_PATH_VAR_RE.fullmatch(part):
+            continue
+        if _SIMPLE_PATH_SEGMENT_RE.fullmatch(part):
+            continue
+        return None
+
+    return "[file join " + " ".join(parts) + "]"

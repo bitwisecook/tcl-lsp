@@ -363,41 +363,7 @@ def _parse_subst_flags(args: list[str]) -> tuple[int | None, bool, bool, bool]:
     return template_idx, nocommands, novariables, nobackslashes
 
 
-# Regexes and constants used by _build_file_join_fix / _reconstruct_word_from_tokens
-_SIMPLE_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-_SIMPLE_PATH_VAR_RE = re.compile(
-    r"^\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)$",
-)
-
-
-def _build_file_join_fix(path_expr: str) -> str | None:
-    """Build a conservative `[file join ...]` replacement when safe."""
-    text = path_expr.strip()
-    if not text:
-        return None
-    if (text.startswith('"') and text.endswith('"')) or (
-        text.startswith("{") and text.endswith("}")
-    ):
-        text = text[1:-1]
-    if not text or any(ch in text for ch in "[];"):
-        return None
-    if " " in text:
-        return None
-
-    parts = [part for part in re.split(r"[/\\\\]+", text) if part]
-    if len(parts) < 2:
-        return None
-
-    for part in parts:
-        if _SIMPLE_PATH_VAR_RE.fullmatch(part):
-            continue
-        if _SIMPLE_PATH_SEGMENT_RE.fullmatch(part):
-            continue
-        return None
-
-    return "[file join " + " ".join(parts) + "]"
-
-
+# Regexes/constants for _reconstruct_word_from_tokens
 def _reconstruct_word_from_tokens(tokens: list[Token]) -> str:
     """Reconstruct a Tcl word from token pieces (including substitutions)."""
     pieces: list[str] = []

@@ -1282,7 +1282,7 @@ def _find_generic_static_names(
     ``upvar 1 static::debug local`` will have ``static::debug`` added to
     the call's ``defs`` by the CFG builder.
     """
-    from analyser.irules_checks import _is_generic_static_name
+    from compiler.irules_static_names import is_generic_static_name
 
     warnings: list[IrulesFlowWarning] = []
     seen: set[str] = set()  # deduplicate across events
@@ -1292,7 +1292,7 @@ def _find_generic_static_names(
             return
         if var_name in seen:
             return
-        if not _is_generic_static_name(var_name, generic_variable_patterns):
+        if not is_generic_static_name(var_name, generic_variable_patterns):
             return
         seen.add(var_name)
         bare = var_name.removeprefix("static::")

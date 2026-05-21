@@ -46,7 +46,7 @@ if``s on `build_options.with_tcltest` to splice the tcltest
 `BUILTINS` slice in or out at comptime.  The lean variant pays
 zero space cost — the tcltest sources are never touched.
 
-Selection happens in :mod:`core.compiler.codegen.wasm.extensions`:
+Selection happens in :mod:`compiler.codegen.wasm.extensions`:
 
 1. `find_required_extensions(ir_module)` walks the merged IR for
    `package require <name>` calls.

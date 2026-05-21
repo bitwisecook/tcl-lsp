@@ -52,8 +52,12 @@ _bundled_cache: dict[str, Path] = {}
 
 
 def _repo_root() -> Path:
-    """Locate the repo root by walking up from this file."""
-    return Path(__file__).resolve().parents[4]
+    """Locate the repo root by walking up from this file.
+
+    ``compiler/codegen/wasm/extensions.py`` → parents[3] is the repo root
+    (compiler/ is a top-level concern package, not nested under core/).
+    """
+    return Path(__file__).resolve().parents[3]
 
 
 def _zig_bin() -> Path:

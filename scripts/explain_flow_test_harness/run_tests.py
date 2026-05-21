@@ -444,9 +444,9 @@ def run_explain(
     scf_path: Path,
 ) -> None:
     """Run `f5 explain-flow` over every captured pcap."""
-    f5_cli = repo_root / "explorer" / "f5_cli.py"
+    f5_cli = repo_root / "tooling" / "f5" / "main.py"
     if not f5_cli.is_file():
-        print("(skipping explain-flow — explorer/f5_cli.py not found)")
+        print("(skipping explain-flow — tooling/f5/main.py not found)")
         return
     explain_dir = out_dir / "explain"
     explain_dir.mkdir(parents=True, exist_ok=True)
@@ -458,7 +458,7 @@ def run_explain(
             args = [
                 sys.executable,
                 "-m",
-                "explorer.f5_cli",
+                "tooling.f5.main",
                 "explain-flow",
                 "--tshark",
             ]

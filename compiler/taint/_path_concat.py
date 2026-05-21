@@ -19,11 +19,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from analyser.checks._helpers import _build_file_join_fix
 from compiler.registry.taint_hints import TaintColour
 from shared.codes import diag
 from shared.diagnostic import CodeFix
 from shared.ranges import range_from_token
+from shared.text_edits import build_file_join_fix
 
 from ..cfg import CFGFunction
 from ..ir import IRAssignValue
@@ -155,7 +155,7 @@ def _find_path_concat_warnings(
 
             # Build optional code fix.
             fixes: tuple[CodeFix, ...] = ()
-            replacement = _build_file_join_fix(stmt.value)
+            replacement = build_file_join_fix(stmt.value)
             if replacement is not None:
                 fixes = (
                     CodeFix(
