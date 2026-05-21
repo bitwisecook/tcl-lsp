@@ -55,8 +55,10 @@ for {set i 0} {$i < 100} {incr i} {
     store.set_wasi(wasi_config)
     tcl_instance, _ = _link_and_instantiate(store, wasm_bytes)
     top_func = tcl_instance.exports(store).get("::top")
-    if top_func is not None:
-        top_func(store)
+    # The module must export ::top, and running it must not fault on a freed
+    # handle (the regression this test pins) — run unconditionally.
+    assert top_func is not None, "compiled module must export ::top"
+    top_func(store)
     # Survival is the test — a dangling slot would trap or read garbage
     # somewhere in the 100-iteration loop.
 
@@ -80,5 +82,7 @@ set y [eval "set x"]
     store.set_wasi(wasi_config)
     tcl_instance, _ = _link_and_instantiate(store, wasm_bytes)
     top_func = tcl_instance.exports(store).get("::top")
-    if top_func is not None:
-        top_func(store)
+    # The module must export ::top, and running it must not fault on a freed
+    # handle (the regression this test pins) — run unconditionally.
+    assert top_func is not None, "compiled module must export ::top"
+    top_func(store)
