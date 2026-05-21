@@ -207,6 +207,23 @@ var dir_buf: u32 = 0;
 var dir_cap: u32 = 0;
 var dir_count: u32 = 0;
 
+/// The active array directory.  ``tcl_array.zig`` always operates on
+/// these three module globals; the interp registry swaps them per
+/// interp via :fn:`dir_state_get` / :fn:`dir_state_set` so each
+/// interp's arrays stay isolated.  See ``Interp.arr_dir_*`` in
+/// ``tcl_interp_registry.zig``.
+pub const DirState = struct { buf: u32, cap: u32, count: u32 };
+
+pub fn dir_state_get() DirState {
+    return .{ .buf = dir_buf, .cap = dir_cap, .count = dir_count };
+}
+
+pub fn dir_state_set(s: DirState) void {
+    dir_buf = s.buf;
+    dir_cap = s.cap;
+    dir_count = s.count;
+}
+
 fn dir_init() void {
     if (dir_cap != 0) return;
     dir_cap = DIR_INITIAL_CAP;

@@ -1207,6 +1207,16 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
+            # ``package ifneeded NAME VERSION ?SCRIPT?`` carries real
+            # state — the loadable-package registry that
+            # ``tcltest::loadIntoChildInterpreter`` reads to load tcltest
+            # into a child interp.  The other ``package`` subcommands are
+            # genuine no-ops under WASM, but ifneeded must route through
+            # the interpreter's ``eval_package`` store/lookup.
+            if canonical_command == "::package" and args and args[0] == "ifneeded" and len(args) >= 3:
+                self._emit_eval_fallback(command, args)
+                self._emit(WasmOp.DROP)
+                return
             # ``namespace eval ns arg1 arg2 ...`` in statement context
             # with dynamic script args: build the script at WASM level
             # (so compiled-frame aliases like $arr($key) are resolved
@@ -1827,6 +1837,13 @@ class _WasmEmitterStmtMixin(_Base):
                     return
                 # Runtime imports missing — push null TclObj as fallback.
                 self._emit_i32_const(0)
+                return
+            # ``[package ifneeded NAME VERSION]`` in value context — the
+            # loadable-package registry lookup tcltest does to fetch a
+            # child interp's load script.  Route through eval_package so
+            # the stored script is returned rather than a null TclObj.
+            if canonical_command == "::package" and args and args[0] == "ifneeded" and len(args) >= 3:
+                self._emit_eval_fallback(command, args)
                 return
             self._emit_i32_const(0)
             return

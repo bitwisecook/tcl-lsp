@@ -4902,8 +4902,17 @@ fn eval_interp_eval(words: []const i32) i32 {
     const target_interp = interp_impl.resolve_interp_path(words[2]);
     if (target_interp == 0) return 0;
 
-    // Concatenate words[3..] with single-space separator.
+    // On the child's first eval, prepend its deferred Tcl_Init bootstrap
+    // (init.tcl source) so it runs at the same eval depth as the user
+    // script — the only depth at which init.tcl's proc definitions
+    // register and persist.  ``null`` for already-initialised interps
+    // and for children that never opted in (parent without init.tcl).
+    const init_prefix: ?[]const u8 = interp_reg.take_deferred_init(target_interp);
+
+    // Concatenate words[3..] with single-space separator, after the
+    // optional init prefix.
     var total: u32 = 0;
+    if (init_prefix) |pfx| total += @as(u32, @intCast(pfx.len));
     var k: u32 = 3;
     while (k < words.len) : (k += 1) {
         total += @as(u32, @intCast(obj_ensure_string(words[k]).len));
@@ -4919,6 +4928,12 @@ fn eval_interp_eval(words: []const i32) i32 {
     // eval child …`` call doesn't leak ``total`` bytes of slab.
     defer if (total > 0) obj_mod.free_sized(script_ptr, total);
     var off: u32 = 0;
+    if (init_prefix) |pfx| {
+        if (pfx.len > 0) {
+            memcpy(script_ptr + off, @intFromPtr(pfx.ptr), @intCast(pfx.len));
+            off += @intCast(pfx.len);
+        }
+    }
     k = 3;
     while (k < words.len) : (k += 1) {
         const s = obj_ensure_string(words[k]);

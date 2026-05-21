@@ -63,6 +63,7 @@ const result_mod = @import("../interp/tcl_result.zig");
 const rt = @import("../tcl_runtime.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const clock = @import("../io/tcl_clock.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
 
 fn eval_auto_load(words: []const i32) result_mod.InterpResult {
     _ = words;
@@ -74,8 +75,112 @@ fn eval_auto_noop(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(rt.obj_new_string(0, 0));
 }
 
+// ``package ifneeded`` registry — the one piece of the package
+// machinery the WASM runtime needs working: ``tcltest``'s
+// ``loadIntoChildInterpreter`` does ``interp eval $child [package
+// ifneeded tcltest $Version]`` to load the framework into a freshly
+// created child interp.  Without a real store the query returns empty
+// and the child never gets ``tcltest::*``.  A small fixed-capacity
+// table keyed by ``name\x00version`` is enough — package data is
+// effectively process-global in a single-program WASM run, and the
+// volume is tiny (a handful of ``ifneeded`` registrations per run).
+const PkgEntry = struct { key_ptr: u32, key_len: u32, script: i32 };
+var pkg_entries: [128]PkgEntry = undefined;
+var pkg_count: u32 = 0;
+
+fn pkg_make_key(name: i32, version: i32) struct { ptr: u32, len: u32 } {
+    const n = rt.obj_ensure_string(name);
+    const v = rt.obj_ensure_string(version);
+    const total: u32 = n.len + 1 + v.len;
+    const buf = rt.alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
+    if (n.len > 0) rt.memcpy(buf, n.ptr, n.len);
+    const sep: [*]u8 = @ptrFromInt(buf + n.len);
+    sep[0] = 0;
+    if (v.len > 0) rt.memcpy(buf + n.len + 1, v.ptr, v.len);
+    return .{ .ptr = buf, .len = total };
+}
+
+fn pkg_key_eq(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) bool {
+    if (a_len != b_len) return false;
+    const a: [*]const u8 = @ptrFromInt(a_ptr);
+    const b: [*]const u8 = @ptrFromInt(b_ptr);
+    var i: u32 = 0;
+    while (i < a_len) : (i += 1) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+fn word_eq(o: i32, lit: []const u8) bool {
+    const s = rt.obj_ensure_string(o);
+    if (s.ptr == 0 or s.len != lit.len) return false;
+    const p = @as([*]const u8, @ptrFromInt(s.ptr))[0..s.len];
+    return std.mem.eql(u8, p, lit);
+}
+
 fn eval_package(words: []const i32) result_mod.InterpResult {
-    _ = words;
+    if (words.len == 0) return result_mod.from_globals(0);
+    // The handler is shared by the parent ``package`` command and the
+    // ``package <sub>`` subcommand entries; depending on the dispatch
+    // path ``words`` is either ``[package, sub, …]`` or ``[sub, …]``.
+    // Probe both so the sub-word index is correct either way.
+    const base: u32 = if (word_eq(words[0], "package")) 1 else 0;
+    if (words.len <= base) return result_mod.from_globals(0);
+    if (word_eq(words[base], "ifneeded")) {
+        // ``package ifneeded NAME VERSION ?SCRIPT?``
+        const name_i = base + 1;
+        const ver_i = base + 2;
+        const script_i = base + 3;
+        if (words.len > script_i) {
+            const key = pkg_make_key(words[name_i], words[ver_i]);
+            if (key.ptr == 0) return result_mod.from_globals(0);
+            var i: u32 = 0;
+            while (i < pkg_count) : (i += 1) {
+                if (pkg_key_eq(pkg_entries[i].key_ptr, pkg_entries[i].key_len, key.ptr, key.len)) {
+                    obj_mod.tcl_obj_retain(words[script_i]);
+                    obj_mod.tcl_obj_release(pkg_entries[i].script);
+                    pkg_entries[i].script = words[script_i];
+                    return result_mod.from_globals(0);
+                }
+            }
+            if (pkg_count < pkg_entries.len) {
+                obj_mod.tcl_obj_retain(words[script_i]);
+                pkg_entries[pkg_count] = .{ .key_ptr = key.ptr, .key_len = key.len, .script = words[script_i] };
+                pkg_count += 1;
+            }
+            return result_mod.from_globals(0);
+        }
+        if (words.len > ver_i) {
+            const key = pkg_make_key(words[name_i], words[ver_i]);
+            if (key.ptr == 0) return result_mod.from_globals(rt.obj_new_string(0, 0));
+            var i: u32 = 0;
+            while (i < pkg_count) : (i += 1) {
+                if (pkg_key_eq(pkg_entries[i].key_ptr, pkg_entries[i].key_len, key.ptr, key.len)) {
+                    const s = rt.obj_ensure_string(pkg_entries[i].script);
+                    return result_mod.from_globals(rt.obj_new_string_copy(s.ptr, s.len));
+                }
+            }
+            return result_mod.from_globals(rt.obj_new_string(0, 0));
+        }
+    }
+    // ``package require Tcl ?reqs?`` / ``package provide Tcl`` return the
+    // interpreter's version so library code that does ``variable version
+    // [package require Tcl 8.5-]`` (tcltest) gets a usable string.  Other
+    // packages have no on-disk presence under WASM, so requiring them is a
+    // silent empty no-op.
+    if (word_eq(words[base], "require") or word_eq(words[base], "provide")) {
+        if (words.len > base + 1 and word_eq(words[base + 1], "Tcl")) {
+            const ver = "9.0.3";
+            return result_mod.from_globals(rt.obj_new_string_copy(@intFromPtr(ver.ptr), ver.len));
+        }
+        return result_mod.from_globals(rt.obj_new_string(0, 0));
+    }
+    // ``package vsatisfies VERSION REQ...`` — the runtime targets Tcl
+    // 9.0.3, so version predicates a 9.0 build satisfies report true.
+    if (word_eq(words[base], "vsatisfies")) {
+        return result_mod.from_globals(rt.obj_new_int(1));
+    }
     return result_mod.from_globals(0);
 }
 

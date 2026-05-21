@@ -1353,7 +1353,38 @@ pub fn eval_interp_create(words: []const i32) i32 {
     // the raw ``-safe`` flag — Codex review on PR #451 caught a
     // path where a safe parent's child without ``-safe`` got the
     // trusted ``tcl_platform`` seed despite being marked safe.
-    seed_child_globals(child, parent_interp, (flags & interp_reg.INTERP_SAFE) != 0);
+    seed_child_globals(child, (flags & interp_reg.INTERP_SAFE) != 0);
+
+    // Tcl_Init for trusted children: C Tcl's ``ChildCreate`` runs
+    // ``Tcl_Init`` on every non-safe child, which sources ``init.tcl``
+    // so the child gets the auto-loading machinery (``auto_load``,
+    // ``auto_qualify``, ``unknown``, …).  We mirror that, but:
+    //
+    //  * only when the *parent* has itself loaded ``init.tcl`` —
+    //    detected by a real ``auto_qualify`` command in the parent's
+    //    root ns.  Bundles on the stub ``auto_load`` path are
+    //    unaffected, keeping the change scoped to runs that opt in by
+    //    loading the real stdlib; and
+    //  * lazily, on the child's first ``enter`` rather than here.
+    //    Sourcing init.tcl from inside the ``interp create`` dispatch
+    //    (nested in the parent's ``eval_command``) leaves init.tcl's
+    //    ``proc`` definitions unregistered; deferring to the first
+    //    ``interp eval`` runs them in a clean dispatch context.
+    //
+    // ``tcl_library`` / ``auto_path`` are copied from the parent now
+    // (a plain scalar copy, unaffected by the create-context issue) so
+    // the deferred bootstrap can resolve ``[file join $tcl_library
+    // init.tcl]``.
+    if ((flags & interp_reg.INTERP_SAFE) == 0) {
+        const parent_i2: *interp_reg.Interp = @ptrFromInt(parent_interp);
+        const aq = "auto_qualify";
+        if (tcl_ns.ns_cmd_find(parent_i2.root_ns, @intFromPtr(aq.ptr), aq.len) != 0) {
+            const child_i: *interp_reg.Interp = @ptrFromInt(child);
+            copy_global_scalar(parent_i2.root_ns, child_i.root_ns, "tcl_library");
+            copy_global_scalar(parent_i2.root_ns, child_i.root_ns, "auto_path");
+            child_i.flags |= interp_reg.INTERP_NEEDS_INIT;
+        }
+    }
 
     // Return the path as supplied (or the auto-generated simple
     // name) — matches tclsh's ``Tcl_SetObjResult(interp, childPtr)``
@@ -1385,7 +1416,7 @@ fn copy_global_scalar(src_ns: u32, dst_ns: u32, name: []const u8) void {
     tcl_ns.var_set_scalar(dv, value);
 }
 
-fn seed_child_globals(child: u32, parent: u32, safe_flag: bool) void {
+fn seed_child_globals(child: u32, safe_flag: bool) void {
     // Run the seed as a Tcl script inside the child so it threads
     // through the normal ``global_set`` / ``array set`` paths and
     // lands in the child's namespace state regardless of the
@@ -1416,40 +1447,6 @@ fn seed_child_globals(child: u32, parent: u32, safe_flag: bool) void {
     const save = interp_reg.enter(child);
     defer interp_reg.leave(save);
     _ = tcl_interp.eval_script(@intFromPtr(script.ptr), @intCast(script.len));
-
-    // Tcl_Init for trusted children: C Tcl's ``ChildCreate`` runs
-    // ``Tcl_Init`` on every non-safe child, which sources ``init.tcl``
-    // so the child gets the auto-loading machinery (``auto_load``,
-    // ``auto_qualify``, ``unknown``, …).  We mirror that, but only when
-    // the *parent* has itself loaded ``init.tcl`` — detected by the
-    // presence of a real ``auto_qualify`` command in the parent's root
-    // namespace.  Bundles that run on the stub ``auto_load`` path (no
-    // ``init.tcl`` in the parent) neither pay for nor are perturbed by
-    // child ``init.tcl`` sourcing, keeping the change scoped to runs
-    // that opt in by loading the real stdlib.
-    if (safe_flag) return;
-    const parent_i: *interp_reg.Interp = @ptrFromInt(parent);
-    const aq = "auto_qualify";
-    if (tcl_ns.ns_cmd_find(parent_i.root_ns, @intFromPtr(aq.ptr), aq.len) == 0) return;
-
-    const child_i: *interp_reg.Interp = @ptrFromInt(child);
-    copy_global_scalar(parent_i.root_ns, child_i.root_ns, "tcl_library");
-    copy_global_scalar(parent_i.root_ns, child_i.root_ns, "auto_path");
-
-    // ``::tcl::unsupported::clock::configure`` is a C-provided command
-    // init.tcl's clock-ensemble block signals once setup completes.
-    // The WASM runtime ships ``clock`` as a builtin, so init.tcl's
-    // ensemble glue is redundant; provide a no-op accessor so sourcing
-    // init.tcl completes.  ``env`` mirrors the minimal set tclsh's
-    // startup populates so init.tcl's reads resolve.
-    const init_script: []const u8 =
-        \\if {![info exists ::env]} { array set ::env {HOME / PATH {} USER wasm} }
-        \\namespace eval ::tcl::unsupported::clock { proc configure args { return } }
-        \\if {[info exists ::tcl_library] && $::tcl_library ne ""} {
-        \\    catch { source [file join $::tcl_library init.tcl] }
-        \\}
-    ;
-    _ = tcl_interp.eval_script(@intFromPtr(init_script.ptr), @intCast(init_script.len));
 }
 
 /// ``interp eval path script ?script ...?``.  Concatenate scripts
