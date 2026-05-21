@@ -151,10 +151,10 @@ class TestSemanticTokensDeltaEndToEnd:
         tokens1 = semantic_tokens_full(source1)
         tokens2 = semantic_tokens_full(source2)
         edits = compute_semantic_tokens_edits(tokens1, tokens2)
-        # Should have changes but not replace everything.
-        if edits:
-            total_insert = sum(len(ins) for _, _, ins in edits)
-            assert total_insert < len(tokens2)
+        # A one-token value edit produces a small delta, not a full replace.
+        assert edits, "expected a delta for the single-line value change"
+        total_insert = sum(len(ins) for _, _, ins in edits)
+        assert total_insert < len(tokens2)
 
     def test_append_command_produces_delta(self):
         """Adding a command at the end."""
@@ -163,7 +163,14 @@ class TestSemanticTokensDeltaEndToEnd:
         tokens1 = semantic_tokens_full(source1)
         tokens2 = semantic_tokens_full(source2)
         edits = compute_semantic_tokens_edits(tokens1, tokens2)
-        assert len(edits) >= 1
+        # Appending one command is a single pure-append edit: it starts at the
+        # end of the old token data, deletes nothing, and adds exactly the
+        # three new tokens (set, y, 20 → 3 × 5 ints) for the new line.
+        assert len(edits) == 1
+        start, delete_count, data = edits[0]
+        assert start == len(tokens1)
+        assert delete_count == 0
+        assert len(data) == 15
 
     def test_delete_command_produces_delta(self):
         source1 = "set x 10\nset y 20\nset z 30\n"
@@ -246,9 +253,10 @@ class TestUpdateSourceQuick:
         state = DocumentState(uri="test")
         state.update("set x 10\n")
         state.update_source_quick("set x 20\nset y 30\n")
-        # Tokens should work without analysis.
+        # Tokens should work without analysis: two ``set`` commands yield six
+        # tokens (set/var/literal × 2), i.e. 30 ints in LSP delta encoding.
         tokens = semantic_tokens_full("set x 20\nset y 30\n", analysis=None)
-        assert len(tokens) > 0
+        assert len(tokens) == 30
 
 
 class TestMultiCursorEdits:
@@ -660,12 +668,12 @@ class TestChunkBoundaryTokenAssignment:
         tokens_no_cache = semantic_tokens_full(source, analysis=state.analysis)
 
         cache_info = state.get_semantic_token_cache()
-        if cache_info is not None:
-            chunk_token_cache, chunk_line_ranges = cache_info
-            tokens_with_cache = semantic_tokens_full(
-                source,
-                analysis=state.analysis,
-                chunk_token_cache=chunk_token_cache,
-                chunk_line_ranges=chunk_line_ranges,
-            )
-            assert tokens_no_cache == tokens_with_cache
+        assert cache_info is not None, "expected a populated semantic-token cache"
+        chunk_token_cache, chunk_line_ranges = cache_info
+        tokens_with_cache = semantic_tokens_full(
+            source,
+            analysis=state.analysis,
+            chunk_token_cache=chunk_token_cache,
+            chunk_line_ranges=chunk_line_ranges,
+        )
+        assert tokens_no_cache == tokens_with_cache

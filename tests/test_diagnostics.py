@@ -39,12 +39,18 @@ class TestLSPDiagnostics:
     def test_warning_severity(self):
         result = get_diagnostics("string bogus hello")
         warnings = [d for d in result if d.severity == types.DiagnosticSeverity.Warning]
-        assert len(warnings) >= 1
+        # The invalid ``string`` subcommand is W001, reported as a warning.
+        assert any(str(d.code) == "W001" for d in warnings), [
+            (str(d.code), d.severity) for d in result
+        ]
 
     def test_hint_severity(self):
         result = get_diagnostics("proc foo {} { set x 1 }")
         hints = [d for d in result if d.severity == types.DiagnosticSeverity.Hint]
-        assert len(hints) >= 1
+        # The unused/dead local ``x`` is reported as hint-level W211/W220.
+        assert any(str(d.code) in {"W211", "W220"} for d in hints), [
+            (str(d.code), d.severity) for d in result
+        ]
 
     def test_multiple_errors(self):
         source = "set\nbreak extra\nwhile {1}"

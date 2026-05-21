@@ -71,8 +71,38 @@ class Profile:
     # When True, exclude the explorer's static/ web bundle from the copy.
     # Always exclude __pycache__ and *.pyc.
     exclude_explorer_static: bool = True
+    # When True, stage the prebuilt Zig runtime .wasm variants into
+    # ``compiler/_wasm_runtime/`` so the compiler can link a runnable
+    # binary without a source checkout (the resolver in
+    # compiler/codegen/wasm/extensions.py reads them from there).
+    bundle_wasm_runtime: bool = False
     # Extra description bytes to include in the smoke-test output.
     extra: dict[str, str] = field(default_factory=dict)
+
+
+def _bundle_wasm_runtime(stage: Path) -> None:
+    """Stage the prebuilt Zig runtime WASM variants into the zipapp.
+
+    The resolver in ``compiler/codegen/wasm/extensions.py`` reads these
+    from ``compiler._wasm_runtime`` when the dev build tree is
+    unavailable (i.e. inside a zipapp).
+    """
+    runtime_bin = ROOT / "runtime" / "zig" / "zig-out" / "bin"
+    runtime_dst = stage / "compiler" / "_wasm_runtime"
+    runtime_dst.mkdir(parents=True, exist_ok=True)
+    (runtime_dst / "__init__.py").write_text(
+        '"""Bundled Zig runtime WASM artifacts (zipapp only)."""\n'
+    )
+    for name in ("tcl_runtime.wasm", "tcl_runtime_with_tcltest.wasm"):
+        src = runtime_bin / name
+        if not src.is_file():
+            msg = (
+                f"build_wasm: runtime artifact {src} missing — "
+                f"build it via `cd runtime/zig && zig build` "
+                f"(the Makefile zipapp-wasm target depends on this)."
+            )
+            raise FileNotFoundError(msg)
+        shutil.copy2(src, runtime_dst / name)
 
 
 def _ignore_patterns(profile: Profile, package: str):
@@ -165,6 +195,8 @@ def build_profile(profile: Profile, version: str, output: Path) -> None:
     with tempfile.TemporaryDirectory(prefix=f"zipapp-{profile.name}-") as tmp:
         stage = Path(tmp)
         _copy_concern_packages(stage, profile)
+        if profile.bundle_wasm_runtime:
+            _bundle_wasm_runtime(stage)
         _pip_install_pure(stage, profile.pip_packages)
         _write_entry_point(stage, profile)
         _create_archive(stage, str(output))
@@ -226,6 +258,7 @@ PROFILES: dict[str, Profile] = {
         # The WASM compiler CLI doesn't need analyser, server, or ai.
         packages=("shared", "compiler", "dialects", "tooling"),
         entry_module="tooling.wasm.main:main",
+        bundle_wasm_runtime=True,
     ),
 }
 

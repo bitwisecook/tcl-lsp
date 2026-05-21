@@ -1328,21 +1328,24 @@ class TestMultiSetPacking:
         assert any(r.code == "O119" for r in rewrites)
 
     def test_read_breaks_group(self):
+        # The eval barrier stops O105 from propagating the constants away so
+        # O119 actually packs; b/c/d are three consecutive un-read sets, while
+        # ``a`` is read by ``puts $a`` before the run and must be excluded.
         source = textwrap.dedent("""\
             set a 1
             puts $a
             set b 2
             set c 3
-            puts "$b $c"
+            set d 4
+            eval {$a $b $c $d}
         """).rstrip()
-        _optimised, rewrites = optimise_source(source)
-        # $a is read between set a and set b, so set a cannot be grouped with b,c.
-        o119_rewrites = [r for r in rewrites if r.code == "O119"]
-        # Either no O119 (group of b,c is only 2) or a is not in any lassign.
-        if o119_rewrites:
-            for r in o119_rewrites:
-                if r.replacement and "lassign" in r.replacement:
-                    assert "a" not in r.replacement.split()
+        optimised, rewrites = optimise_source(source)
+        # O119 fires and packs b/c/d into one lassign.
+        assert any(r.code == "O119" for r in rewrites), [r.code for r in rewrites]
+        assert "lassign {2 3 4} b c d" in optimised, optimised
+        # ``a`` was read mid-run so it is NOT swept into the lassign group.
+        assert "lassign" not in optimised.split("\n")[0]  # a handled separately
+        assert " a " not in optimised.replace("lassign {2 3 4} b c d", "")
 
     def test_too_few_not_packed(self):
         source = textwrap.dedent("""\
@@ -2564,19 +2567,27 @@ class TestCodeSinking:
         assert not any(r.code == "O125" for r in rewrites)
 
     def test_sink_preserves_indentation(self):
+        # O125 only sinks when constant propagation is blocked — here the
+        # nested ``set b bar`` redefine stops O100 from folding ``set b foo``
+        # away, so the sink actually fires (the simple
+        # ``set b foo; if {$a} {puts $b}`` form is fully propagated instead).
         source = textwrap.dedent("""\
             set b foo
             if {$a} {
-                puts $b
+                if {$c} {
+                    set b bar
+                }
+                if {$d} {
+                    puts $b
+                }
             }""")
-        optimised, _rewrites = optimise_source(source)
-        lines = optimised.split("\n")
-        # The sunk statement should match the body indentation.
-        for line in lines:
-            if "set b foo" in line and "# [O125]" not in line:
-                # This is the sunk statement inside the body.
-                leading = len(line) - len(line.lstrip())
-                assert leading == 4  # matches puts indentation
+        optimised, rewrites = optimise_source(source)
+        assert any(r.code == "O125" for r in rewrites), [r.code for r in rewrites]
+        # The sunk ``set b foo`` lands at the outer-if body indent (4 spaces).
+        sunk = [ln for ln in optimised.split("\n") if ln.lstrip().startswith("set b foo")]
+        assert sunk, optimised
+        for line in sunk:
+            assert len(line) - len(line.lstrip()) == 4
 
     def test_no_sink_when_rhs_dep_can_change_in_condition(self):
         source = textwrap.dedent("""\
@@ -2766,19 +2777,24 @@ class TestLoadForwarding:
         assert any(r.code == "O100" for r in rewrites)
 
     def test_skip_when_propagation_already_rewrote_use_site(self):
-        """If O100/O102 already rewrote the use-site statement, O127 defers."""
+        """If propagation already rewrote the use-site statement, O127 defers."""
+        # ``return $y`` keeps y live so the ``set y`` statement survives; the
+        # constant ``c`` is folded into the expr (use-site rewritten), so the
+        # single-use ``x`` must NOT additionally be inlined by O127.
         source = textwrap.dedent("""\
             proc test {} {
                 set c 1
                 set x [clock seconds]
                 set y [expr {$c + $x}]
+                return $y
             }""")
-        _optimised, rewrites = optimise_source(source)
+        optimised, rewrites = optimise_source(source)
         codes = [r.code for r in rewrites]
-        # O100 propagates $c into the expr. O127 should not also try
-        # to inline $x into the same (already rewritten) statement.
-        if "O100" in codes:
-            assert not any(r.code == "O127" for r in rewrites)
+        # The constant c was folded into the expr (use-site rewritten).
+        assert "$c" not in optimised, optimised
+        assert "$x + 1" in optimised or "1 + $x" in optimised, optimised
+        # Because that statement was already rewritten, O127 defers on x.
+        assert "O127" not in codes, codes
 
     def test_skip_aliased_read_variable(self):
         """If the expression reads an aliased variable, skip entirely."""

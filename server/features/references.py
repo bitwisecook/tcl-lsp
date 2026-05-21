@@ -77,10 +77,14 @@ def get_references(
             locations: list[types.Location] = []
             if include_declaration:
                 locations.append(to_lsp_location(uri, class_def.name_range))
-            # NOTE: We do not report references from superclass/mixin
-            # declarations until the semantic model provides precise ranges
-            # for those tokens.  Using other_class.name_range would point at
-            # the subclass/mixin *declaration*, which is misleading.
+
+            # Superclass / mixin references to this class from *other* classes,
+            # using the precise token range captured by the analyser.
+            target_names = {class_def.name, class_def.qualified_name, f"::{class_def.name}"}
+            for other in analysis.all_classes.values():
+                for ref_name, ref_range in (*other.superclass_refs, *other.mixin_refs):
+                    if ref_name in target_names:
+                        locations.append(to_lsp_location(uri, ref_range))
 
             # Find references in command invocations
             for invocation in analysis.command_invocations:

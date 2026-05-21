@@ -123,7 +123,12 @@ class TestAliasDetectionExtended:
         source = "proc foo {} { global gvar\n set gvar 42 }"
         mem, _ = _build_proc(source, "foo")
         gvar_aliases = mem.aliases_for("gvar")
-        assert len(gvar_aliases) >= 1
+        # The ``global gvar`` declaration aliases the local to the global of
+        # the same name.
+        assert any(
+            a.reason == "global" and any(loc.name == "gvar" for loc in a.locations)
+            for a in gvar_aliases
+        ), gvar_aliases
 
     def test_aliases_for_unknown_name(self):
         source = "proc foo {} { global gvar\n set gvar 42 }"
@@ -178,4 +183,8 @@ class TestMemorySSAIntegration:
             ssa = build_ssa(cfg)
             analysis = analyse_function(cfg, ssa)
             assert analysis.memory_ssa is not None
-            assert len(analysis.memory_ssa.alias_sets) >= 1
+            # The wired-in memory-SSA carries the ``global gvar`` alias.
+            assert any(
+                a.reason == "global" and any(loc.name == "gvar" for loc in a.locations)
+                for a in analysis.memory_ssa.alias_sets
+            ), analysis.memory_ssa.alias_sets

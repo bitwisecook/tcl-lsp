@@ -28,6 +28,19 @@ def fresh() -> TclInterp:
     return TclInterp(source_init=False)
 
 
+def _tcltest_counts(interp: TclInterp) -> dict[str, int]:
+    """Return tcltest's running ``Total/Passed/Skipped/Failed`` tally.
+
+    The ``test`` command reports pass/fail into ``::tcltest::numTests``
+    rather than raising, so a test that merely ``eval``s a ``test`` body
+    proves nothing about whether the inner assertion held — callers must
+    inspect this tally.
+    """
+    raw = interp.eval("array get ::tcltest::numTests").value
+    parts = raw.split()
+    return {parts[i]: int(parts[i + 1]) for i in range(0, len(parts), 2)}
+
+
 # ══════════════════════════════════════════════════════════════════
 #  basic-1.*  —  interp create / eval / delete
 # ══════════════════════════════════════════════════════════════════
@@ -614,17 +627,21 @@ class TestTcltestFramework:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-1.0 {simple pass} {} {expr {1 + 1}} 2")
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
     def test_run_skipped_test(self) -> None:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("testConstraint myFeature 0")
         interp.eval("test mytest-2.0 {skipped test} {myFeature} {error boom} ok")
+        # A failed constraint must skip (not run/fail) the test body.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 0, "Skipped": 1, "Failed": 0}
 
     def test_new_style_test(self) -> None:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-3.0 {new style} -body {expr {2 + 3}} -result 5")
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
     def test_new_style_with_setup_cleanup(self) -> None:
         interp = fresh()
@@ -636,6 +653,10 @@ class TestTcltestFramework:
             "-result 15 "
             "-cleanup {unset x}"
         )
+        # -setup ran (x=10) so -body yields 15 and the test passes.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
+        # -cleanup unset x.
+        assert interp.eval("info exists x").value == "0"
 
     def test_new_style_error_return_code(self) -> None:
         interp = fresh()
@@ -646,6 +667,8 @@ class TestTcltestFramework:
             "-returnCodes error "
             "-result {test error}"
         )
+        # -returnCodes error means the raised error is the expected outcome.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
 
 # ══════════════════════════════════════════════════════════════════

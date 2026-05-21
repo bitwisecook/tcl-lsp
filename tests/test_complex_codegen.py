@@ -833,7 +833,7 @@ proc loop {} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::loop"]
-        assert len(proc_cfg.loop_nodes) >= 1, "for loop should register loop_nodes"
+        assert len(proc_cfg.loop_nodes) == 1, "the single for loop should register one loop node"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1198,7 +1198,8 @@ class TestCFGStructure:
             for name, b in cfg.blocks.items()
             if any(isinstance(s, IRAssignConst) and s.name == "b" for s in b.statements)
         ]
-        assert len(merge_blocks) >= 1
+        # ``set b 3`` lands in exactly one merge block after the if/else.
+        assert len(merge_blocks) == 1
 
     def test_for_loop_back_edge(self):
         """For loop step block jumps back to header (back-edge)."""

@@ -263,18 +263,19 @@ class TestVariableCompletion:
         source = "set ::myns::foo 1\nputs $"
         items = get_completions(source, 1, 6)
         by_label = {i.label: i for i in items}
-        # Cross-rule globals get stored in the global scope as ``::myns::foo``.
+        # Cross-rule globals get stored in the global scope as ``::myns::foo``;
+        # the completion must be offered.
         cand = next((lbl for lbl in by_label if lbl.endswith("::foo")), None)
-        if cand is not None:
-            item = by_label[cand]
-            # Either bare or brace is correct here; what matters is that
-            # the inserted text round-trips as a valid var substitution.
-            assert item.text_edit is not None
-            assert isinstance(item.text_edit, TextEdit)
-            assert item.text_edit.new_text in (
-                f"${cand[1:]}",
-                f"${{{cand[1:]}}}",
-            )
+        assert cand is not None, sorted(by_label)
+        item = by_label[cand]
+        # Either bare or brace is correct here; what matters is that
+        # the inserted text round-trips as a valid var substitution.
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        assert item.text_edit.new_text in (
+            f"${cand[1:]}",
+            f"${{{cand[1:]}}}",
+        )
 
     def test_dollar_cross_namespace_offers_qualified_name(self):
         """Vars in another namespace are offered fully qualified, e.g.

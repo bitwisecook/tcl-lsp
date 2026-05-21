@@ -32,6 +32,7 @@ from compiler.registry.runtime import (
     is_switch_case_list_form,
     iter_switch_case_list,
 )
+from shared.naming import split_array_name
 from shared.suffix_array import build_lcp_array, build_suffix_array
 from shared.text_edits import apply_edits, name_generator
 from shared.tokens import Token, TokenType
@@ -773,9 +774,6 @@ _UNSAFE_MEMBER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Parse "arrayname(member)" from a token's text.
-_ARRAY_MEMBER_RE = re.compile(r"^([\w:]+)\(([^)$\[]+)\)$")
-
 
 def _scan_array_tokens(
     text: str,
@@ -853,12 +851,17 @@ def _scan_array_tokens(
             if tok.type not in (TokenType.ESC, TokenType.VAR):
                 continue
 
-            m = _ARRAY_MEMBER_RE.match(tok.text)
-            if not m:
+            arr_name, member = split_array_name(tok.text)
+            # Literal array element only: ``arr(member)`` with no substitution
+            # in the index, a valid base name, and nothing trailing.
+            if (
+                not member
+                or any(ch in member for ch in ")$[")
+                or not arr_name
+                or not all(ch.isalnum() or ch in "_:" for ch in arr_name)
+                or tok.text != f"{arr_name}({member})"
+            ):
                 continue
-
-            arr_name = m.group(1)
-            member = m.group(2)
 
             if len(member) <= 1 or "::" in arr_name:
                 continue

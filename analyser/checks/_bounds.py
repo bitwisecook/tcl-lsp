@@ -36,6 +36,7 @@ from __future__ import annotations
 import re
 
 from shared.codes import diag
+from shared.ranges import widen_range_for_closer
 from shared.tokens import Token, TokenType
 
 from ..semantic_model import Diagnostic, Range, Severity
@@ -715,7 +716,7 @@ def check_loop_termination(
     if const is False:
         diagnostics.append(
             Diagnostic(
-                range=Range(start=cond_tok.start, end=cond_tok.end),
+                range=widen_range_for_closer(source, Range(start=cond_tok.start, end=cond_tok.end)),
                 message=(f"{cmd_name} condition is constant false; body never executes."),
                 severity=Severity.WARNING,
                 code="W240",
@@ -727,7 +728,9 @@ def check_loop_termination(
         if not _body_may_exit(body_text):
             diagnostics.append(
                 Diagnostic(
-                    range=Range(start=cond_tok.start, end=cond_tok.end),
+                    range=widen_range_for_closer(
+                        source, Range(start=cond_tok.start, end=cond_tok.end)
+                    ),
                     message=(
                         f"{cmd_name} is provably infinite: condition is constant "
                         f"true and body has no break/return/error/exit."
@@ -744,7 +747,9 @@ def check_loop_termination(
         if infinite is not None:
             diagnostics.append(
                 Diagnostic(
-                    range=Range(start=cond_tok.start, end=cond_tok.end),
+                    range=widen_range_for_closer(
+                        source, Range(start=cond_tok.start, end=cond_tok.end)
+                    ),
                     message=f"for loop is provably infinite: {infinite}",
                     severity=Severity.WARNING,
                     code="W241",
@@ -762,7 +767,9 @@ def check_loop_termination(
         if not modifies:
             diagnostics.append(
                 Diagnostic(
-                    range=Range(start=cond_tok.start, end=cond_tok.end),
+                    range=widen_range_for_closer(
+                        source, Range(start=cond_tok.start, end=cond_tok.end)
+                    ),
                     message=(
                         f"{cmd_name} termination cannot be proven: variable "
                         f"'{var}' in the condition is never modified by the "

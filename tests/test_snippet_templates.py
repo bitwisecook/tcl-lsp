@@ -364,5 +364,7 @@ class TestSnippetIntegration:
             if i.kind == types.CompletionItemKind.Function and i.sort_text
         ]
         snip_sort = [i.sort_text for i in items if i.kind == types.CompletionItemKind.Snippet]
-        if cmd_sort and snip_sort:
-            assert max(cmd_sort) < min(snip_sort)
+        # Both command and snippet completions are offered at top level, and
+        # snippets must sort strictly after every command.
+        assert cmd_sort and snip_sort, (len(cmd_sort), len(snip_sort))
+        assert max(cmd_sort) < min(snip_sort)

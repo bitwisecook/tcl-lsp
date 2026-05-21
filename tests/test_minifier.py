@@ -260,7 +260,15 @@ class TestMinifyRealWorld:
             "    }\n"
             "}\n"
         )
-        result = minify_tcl(source)
+        # The ``when`` body is only recursively minified (so its comment is
+        # stripped) when the active dialect recognises ``when`` as an
+        # event-block command.  Body-role detection reads the active dialect
+        # (not the ``dialect=`` argument), so scope it explicitly rather than
+        # relying on leaked global state from an earlier test.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = minify_tcl(source, dialect="f5-irules")
         assert "# Route" not in result  # comment stripped
         assert "pool api_pool" in result
         assert "pool web_pool" in result
@@ -587,10 +595,11 @@ class TestArrayMemberCompaction:
     def test_array_member_preserves_semantics(self):
         source = "set config(server_name) myhost\nputs $config(server_name)\n"
         result, smap = minify_tcl(source, compact_names=True)
-        if smap.array_members:
-            # The short name should appear in both set and reference.
-            short = list(smap.array_members.get("config", {}).values())[0]
-            assert f"config({short})" in result
+        # The array member must be compacted (not left to chance) and the
+        # short name must appear in both the set and the reference.
+        assert smap.array_members.get("config"), smap.array_members
+        short = list(smap.array_members["config"].values())[0]
+        assert f"config({short})" in result
 
     def test_array_member_in_string_not_compacted(self):
         # "foo(bar)" inside a string literal must NOT be treated as an array ref.
@@ -624,10 +633,11 @@ class TestCommandAliasing:
             "}\n"
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.command_aliases:
-            alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
-            assert alias  # Should have been aliased.
-            assert f"${alias}" in result.source
+        # HTTP::uri appears 3× so it must be aliased to a short command var,
+        # and that ``$alias`` must render in the output.
+        alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
+        assert alias, result.symbol_map.command_aliases
+        assert f"${alias}" in result.source
 
     def test_aliasing_not_applied_for_single_use(self):
         source = "HTTP::uri /test\n"
@@ -759,10 +769,12 @@ class TestStringLiteralAliasing:
             'puts "-normalized_long_flag"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.string_aliases:
-            alias = list(result.symbol_map.string_aliases.values())[0]
-            # Quote stripping may remove the quotes, leaving bare $alias.
-            assert f"${alias}" in result.source
+        # Three identical string literals must be aliased, and the alias
+        # reference must render as a valid ``$alias`` substitution.
+        assert result.symbol_map.string_aliases, result.source
+        alias = list(result.symbol_map.string_aliases.values())[0]
+        # Quote stripping may remove the quotes, leaving bare $alias.
+        assert f"${alias}" in result.source
 
     def test_no_collision_with_prior_alias_phases(self):
         source = (
@@ -877,15 +889,15 @@ class TestSubstTemplateAliasing:
             'log local0. "[clock format [clock seconds]] INFO: [HTTP::uri] $timing done"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        # Should parse correctly — no variable name collisions.
-        if "[subst " in result.source:
-            # The subst alias should not collide with command aliases.
-            cmd_aliases = set(result.symbol_map.command_aliases.values())
-            # Extract the subst alias name from [subst $X]
-            import re
+        # The repeated template must be subst-aliased, and that subst alias
+        # must not collide with any command alias from a prior phase.
+        assert "[subst " in result.source, result.source
+        cmd_aliases = set(result.symbol_map.command_aliases.values())
+        import re
 
-            subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
-            assert not cmd_aliases & subst_vars
+        subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
+        assert subst_vars
+        assert not cmd_aliases & subst_vars
 
     def test_short_dynamic_string_not_aliased(self):
         # Short strings: [subst $a] overhead exceeds savings.
@@ -1134,11 +1146,18 @@ class TestStaticSubstringFolding:
 
     def test_overdefined_var_at_join_not_folded(self):
         """A variable assigned different values on different paths is not folded."""
-        source = 'if {1} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
+        # Use a runtime condition ($c) so the branch can't be const-folded and
+        # ``x`` genuinely stays overdefined at the join.
+        source = 'if {$c} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is overdefined at the puts — should not fold to either value.
-        # (The constant-branch pass may fold the if, but that's a different pass.)
-        assert result is not None
+        # Both branch values survive and the use stays a $-substitution — the
+        # overdefined join must NOT collapse to either literal.
+        assert "hello" in result.source and "world" in result.source
+        assert "$x" in result.source
+        assert not any(
+            "value: hello" in v or "value: world" in v
+            for v in (result.symbol_map.static_folds or {}).values()
+        )
 
     def test_tainted_var_not_folded(self):
         """A variable from tainted source is not folded even if SCCP says constant."""
@@ -1155,17 +1174,20 @@ class TestStaticSubstringFolding:
         """Static fold details appear in the symbol map."""
         source = 'set x hello\nputs "greeting: $x"\n'
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.static_folds:
-            for original, folded in result.symbol_map.static_folds.items():
-                assert "hello" in folded
+        # The ``greeting: $x`` template must be statically folded, and every
+        # recorded fold must carry the resolved ``hello`` value.
+        assert result.symbol_map.static_folds, result.source
+        for _original, folded in result.symbol_map.static_folds.items():
+            assert "hello" in folded
 
     def test_no_fold_when_var_not_in_ssa(self):
         """Variables not tracked by SSA (e.g. global) are not folded."""
         source = 'proc test {} {\n    global x\n    puts "value: $x"\n}\n'
         result = minify_tcl(source, aggressive=True)
-        # global barrier prevents SCCP from knowing x's value.
-        # Should not fold.
-        assert result is not None
+        # The global barrier prevents SCCP from knowing x's value, so no fold
+        # happens and the ``$x`` substitution survives verbatim.
+        assert "$x" in result.source
+        assert not result.symbol_map.static_folds
 
     def test_fold_preserves_literal_text(self):
         """Literal text around $var substitutions is preserved."""
@@ -1217,8 +1239,9 @@ class TestStaticSubstringFolding:
         """set is NOT removed when the variable is still referenced."""
         source = 'set x hello\nputs "greeting: $x"\nputs $x\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is used as a bare argument in `puts $x`, so the set must remain.
-        assert result is not None
+        # $x is used as a bare argument in `puts $x`, so the assignment must
+        # survive minification rather than being eliminated as a dead store.
+        assert "set x hello" in result.source
 
     def test_format_static_folds_in_symbol_map(self):
         """Static fold map records what was folded."""

@@ -568,18 +568,15 @@ class TestProcDynamicBodySubstNocommands:
             }
         """)
         mod = lower_to_ir(source)
-        # ``::Verbose`` should NOT appear as a compiled IRProcedure
-        # because the body couldn't be materialised.  (The outer
-        # ``proc $name ...`` might still register the proc, but the
-        # body is unresolved — depends on the downstream lowering
-        # behaviour for unresolvable CMD bodies.)
-        if "::Verbose" in mod.procedures:
-            verbose = mod.procedures["::Verbose"]
-            # If we did register something, the body shouldn't be a
-            # materialised IRReturn — the template stayed dynamic.
-            from compiler.ir import IRReturn
+        # The outer ``proc $name ...`` registers ``::Verbose``, but its body
+        # could not be materialised (``$unbound`` isn't constant), so the body
+        # must NOT contain a materialised IRReturn — the template stayed
+        # dynamic.
+        from compiler.ir import IRReturn
 
-            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+        assert "::Verbose" in mod.procedures, list(mod.procedures)
+        verbose = mod.procedures["::Verbose"]
+        assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
 
     def test_subst_nocommands_body_refuses_nobackslashes_flag(self):
         # ``-nobackslashes`` changes semantics (no backslash
@@ -594,11 +591,14 @@ class TestProcDynamicBodySubstNocommands:
             }
         """)
         mod = lower_to_ir(source)
-        if "::Verbose" in mod.procedures:
-            from compiler.ir import IRReturn
+        # ``-nobackslashes`` opts out of our evaluator's semantics, so the
+        # body is not materialised: ``::Verbose`` registers but carries no
+        # IRReturn.
+        from compiler.ir import IRReturn
 
-            verbose = mod.procedures["::Verbose"]
-            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+        assert "::Verbose" in mod.procedures, list(mod.procedures)
+        verbose = mod.procedures["::Verbose"]
+        assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
 
 
 class TestNamespaceArrayScalarVariableForms:

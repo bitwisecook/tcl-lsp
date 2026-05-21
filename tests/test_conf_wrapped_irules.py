@@ -239,12 +239,19 @@ class TestRangeShifting:
             "    }\n"
             "}\n"
         )
-        result, rules = analyse_conf_wrapped(src)
+        # IRULE1001 (HTTP command in a non-HTTP event) is gated on the active
+        # dialect — configure_signatures alone doesn't set it, so scope the
+        # iRules dialect explicitly; otherwise the diagnostic never fires and
+        # the offset check is skipped.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result, rules = analyse_conf_wrapped(src)
         irule1001 = [d for d in result.diagnostics if d.code == "IRULE1001"]
-        if irule1001:
-            # The diagnostic offset must be within the second rule body.
-            assert irule1001[0].range.start.offset >= rules[1].body_start_offset
-            assert irule1001[0].range.start.offset < rules[1].body_end_offset
+        assert irule1001, [d.code for d in result.diagnostics]
+        # The diagnostic offset must be within the second rule body.
+        assert irule1001[0].range.start.offset >= rules[1].body_start_offset
+        assert irule1001[0].range.start.offset < rules[1].body_end_offset
 
 
 # -- Scope tree structure -----------------------------------------------------

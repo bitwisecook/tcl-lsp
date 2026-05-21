@@ -22,6 +22,17 @@ def _find_proc_at_position(
     source: str,
 ) -> ProcDef | None:
     """Find the proc definition at the cursor position."""
+    # Prefer the proc whose definition-name range contains the cursor; this
+    # disambiguates same-named procs in different namespaces (a bare-name
+    # lookup would always return the first).
+    for proc_def in analysis.all_procs.values():
+        nr = proc_def.name_range
+        if nr.start.line == nr.end.line:
+            if nr.start.line == line and nr.start.character <= character <= nr.end.character + 1:
+                return proc_def
+        elif nr.start.line <= line <= nr.end.line:
+            return proc_def
+    # Fallback: the cursor is on a call site, not a definition.
     word = find_word_at_position(source, line, character)
     if not word:
         return None
@@ -126,8 +137,17 @@ def resolve_call_target(
     item: types.CallHierarchyItem,
     analysis: AnalysisResult,
 ) -> ProcDef | None:
-    """Resolve the ``CallHierarchyItem`` to its defining ``ProcDef``."""
-    for _qname, proc_def in analysis.all_procs.items():
+    """Resolve the ``CallHierarchyItem`` to its defining ``ProcDef``.
+
+    Prefer the item's qualified name (carried in ``detail``) so that
+    same-named procs in sibling namespaces are disambiguated; fall back to
+    a bare-name match for items that carry no qualified detail.
+    """
+    if item.detail:
+        for proc_def in analysis.all_procs.values():
+            if proc_def.qualified_name == item.detail:
+                return proc_def
+    for proc_def in analysis.all_procs.values():
         if proc_def.name == item.name:
             return proc_def
     return None

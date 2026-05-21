@@ -166,8 +166,11 @@ class TestSSACopyPropagation:
 
         source = 'set path "$dir/file.txt"\nset copy "$path/sub"'
         ws = [w for w in find_taint_warnings(source) if w.code == "W201"]
-        # At least the first assignment should trigger.
-        assert len(ws) >= 1
+        # The ``path`` assignment on line 0 builds a path by string concat and
+        # must be flagged (W201), and the property propagates to ``copy``.
+        flagged = {w.variable for w in ws}
+        assert "path" in flagged, flagged
+        assert "copy" in flagged, flagged
 
     def test_copy_of_clean_var_no_false_positive(self):
         """set x 42; set y $x -- no W201."""

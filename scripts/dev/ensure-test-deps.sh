@@ -50,11 +50,12 @@
 #   bash scripts/dev/ensure-test-deps.sh --check   # only report what's missing
 #
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
+# ``SKIP_PYTHON_TK=1``,
 # ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``, ``SKIP_ZIG=1``,
 # ``SKIP_WASMTIME=1``, ``SKIP_BINARYEN=1``, ``SKIP_TCL_REGEX=1``,
 # ``SKIP_EMACS=1``, ``SKIP_XVFB=1``, ``SKIP_TSHARK=1``,
-# ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``, or
-# ``SKIP_TCLLIB=1``.
+# ``SKIP_OPENSSL=1``, ``SKIP_PING=1``, ``SKIP_RGXG=1``,
+# ``SKIP_TCLLIB=1``, or ``SKIP_UV=1``.
 
 set -euo pipefail
 
@@ -102,6 +103,7 @@ fi
 
 INSTALLABLE_SKIP_VARS=(
     SKIP_TCLSH
+    SKIP_PYTHON_TK
     SKIP_NODE
     SKIP_KOTLINC
     SKIP_RUST
@@ -116,6 +118,7 @@ INSTALLABLE_SKIP_VARS=(
     SKIP_PING
     SKIP_RGXG
     SKIP_TCLLIB
+    SKIP_UV
 )
 
 # If the caller has opted out of every installable tool, there's nothing
@@ -374,6 +377,33 @@ ensure_tcllib() {
         return 1
     fi
     info "Extracted tcllib ${TCLLIB_VERSION} to $target_dir"
+}
+
+ensure_python_tk() {
+    # The iRule test-framework suite cross-checks behaviour against a real Tcl
+    # interpreter via ``tkinter.Tcl()``.  Without the Tk binding the whole
+    # suite (~70 cases) silently skips, so install the ``python<X.Y>-tk``
+    # package matching the interpreter that runs pytest.
+    if [ "${SKIP_PYTHON_TK:-}" = "1" ]; then info "SKIP_PYTHON_TK=1 — skipping python tk"; return 0; fi
+    if python3 -c "import tkinter" >/dev/null 2>&1; then
+        info "python tkinter already importable"
+        return 0
+    fi
+    local pyver
+    pyver="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
+    case "$PKG" in
+        apt-get)
+            # Prefer the version-specific package (python3.11-tk); fall back to
+            # the generic python3-tk for distros that only ship the default.
+            if [ -n "$pyver" ] && run_install "python tk (apt)" "python${pyver}-tk"; then
+                :
+            else
+                run_install "python tk (apt)" python3-tk
+            fi
+            ;;
+        dnf | yum) run_install "python tk (dnf)" python3-tkinter ;;
+        brew) run_install "python tk (Homebrew)" python-tk ;;
+    esac
 }
 
 # ---------------------------------------------------------------- node + npm
@@ -810,11 +840,42 @@ ensure_rgxg() {
     esac
 }
 
+# uv — the Python environment manager the whole pytest suite runs under
+# (``make test-py`` / ``test-slow`` shell out to ``uv run``).  No distro
+# packages it reliably, so on Linux we use Astral's official installer
+# (drops the binary in ~/.local/bin); macOS gets the Homebrew formula.
+ensure_uv() {
+    if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi
+    if command -v uv >/dev/null 2>&1; then
+        info "uv already on PATH ($(uv --version 2>/dev/null || echo unknown))"
+        return 0
+    fi
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        note_missing "uv (Python environment manager)"
+        return 0
+    fi
+    case "$PKG" in
+        brew)
+            run_install "uv (Homebrew)" uv
+            ;;
+        *)
+            info "Installing uv via Astral installer (~/.local/bin)"
+            if ! curl -fsSL --connect-timeout 15 --max-time 600 \
+                    https://astral.sh/uv/install.sh | sh; then
+                warn "uv install script failed"
+                note_missing "uv (Python environment manager)"
+                return 1
+            fi
+            ;;
+    esac
+}
+
 
 # ---------------------------------------------------------------- main
 
 ensure_tclsh
 ensure_tcllib
+ensure_python_tk
 ensure_node
 ensure_kotlinc
 ensure_rust
@@ -828,6 +889,7 @@ ensure_xvfb
 ensure_openssl
 ensure_ping
 ensure_rgxg
+ensure_uv
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "${#missing[@]}" -gt 0 ]; then
     echo

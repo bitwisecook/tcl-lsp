@@ -7,7 +7,7 @@ import re
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import canonical_list_commands
 from shared.codes import diag
-from shared.ranges import range_from_token
+from shared.ranges import range_from_token, widen_range_for_closer
 from shared.tokens import Token, TokenType
 
 from ..semantic_model import Diagnostic, Severity
@@ -173,7 +173,7 @@ def check_eval_subst_double_decode(
         if inner.startswith("subst ") or inner.startswith("subst\t") or inner == "subst":
             diagnostics.append(
                 Diagnostic(
-                    range=range_from_token(tok),
+                    range=widen_range_for_closer(source, range_from_token(tok)),
                     message=(
                         f"{cmd_name} with [subst] creates double substitution: "
                         "subst expands $var and [cmd], then "

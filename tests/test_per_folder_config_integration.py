@@ -172,9 +172,11 @@ class TestPullAndApplyConfiguration:
 
         _lsp_settings._pull_and_apply_configuration()
         callback = server._captured["callback"]
-        # Empty result is a valid client response — must not crash.
+        # Empty/None results are valid client responses — they must not crash
+        # and must not register any per-folder config.
         callback([])
         callback(None)
+        assert "file:///home/user/proj-a" not in _lsp_state.editor_config_settings_per_folder
 
     def test_callback_skips_non_dict_items(self, reset_state, monkeypatch):
         folder_a = "file:///home/user/proj-a"

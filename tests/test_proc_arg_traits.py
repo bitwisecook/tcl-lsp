@@ -212,6 +212,7 @@ class TestDeepAnalysis:
     def test_max_depth_guard(self):
         """Deep analysis should not crash on deeply nested bodies."""
         body = "if {1} { " * 20 + "eval $x" + " }" * 20
-        # Should not raise, even though nesting is deep
-        infer_param_traits_deep(("x",), body)
-        # Should not raise regardless of depth
+        # Deep nesting must not crash; the depth guard bails cleanly and
+        # returns an (empty) trait map rather than raising or recursing away.
+        result = infer_param_traits_deep(("x",), body)
+        assert result == {}

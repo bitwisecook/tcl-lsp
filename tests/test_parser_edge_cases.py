@@ -1159,11 +1159,12 @@ class TestPositionUnderStress:
         """Backslash-newline continuation tracks lines correctly."""
         source = "set x \\\nhello"
         toks = lex(source)
-        # "hello" (or continuation token) should be on line 1
+        # The backslash-newline continues the command, so ``hello`` is the last
+        # token and must be reported on line 1 (the previous ``>= 0`` check was
+        # both gated and always-true).
         last_tok = toks[-1]
-        # The token on the second line should reflect line 1
-        if last_tok.start.line == 1:
-            assert last_tok.start.character >= 0
+        assert last_tok.text == "hello"
+        assert last_tok.start.line == 1
 
     def test_comment_continuation_position(self):
         """Comment with backslash-newline continuation — spans two lines."""

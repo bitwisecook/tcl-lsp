@@ -41,8 +41,14 @@ class TestProcDefinition:
         """)
         # Try to find definition of 'helper'
         locations = get_definition(source, TEST_URI, 3, 7)
-        # Should find the proc definition
+        # Should resolve to the proc's name on line 1 (``proc helper``), not
+        # merely return some location.
         assert len(locations) >= 1
+        loc = locations[0]
+        assert loc.uri == TEST_URI
+        assert loc.range.start.line == 1
+        name = source.split("\n")[1][loc.range.start.character : loc.range.end.character]
+        assert name == "helper", name
 
 
 class TestVariableDefinition:
@@ -64,7 +70,14 @@ class TestVariableDefinition:
         """)
         # $local starts at col 9 (4 spaces + "puts "), cursor on 'l' at col 11
         locations = get_definition(source, TEST_URI, 2, 11)
+        # Should resolve to the ``set local`` declaration on line 1, not just
+        # return some location.
         assert len(locations) >= 1
+        loc = locations[0]
+        assert loc.uri == TEST_URI
+        assert loc.range.start.line == 1
+        name = source.split("\n")[1][loc.range.start.character : loc.range.end.character]
+        assert name == "local", name
 
     def test_no_definition_for_unknown_var(self):
         locations = get_definition("puts $unknown", TEST_URI, 0, 8)

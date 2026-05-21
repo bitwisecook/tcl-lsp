@@ -977,8 +977,10 @@ class TestProbeGateDeep:
             'json_parse("[1,2,3]")',
             f'json_load("{sample}")',
         ]:
-            # Should not raise.
-            run_query(query, {"mem://x": cfg})
+            # Each ungated builtin runs and yields a non-empty result for the
+            # file (not merely "does not raise").
+            result = run_query(query, {"mem://x": cfg})
+            assert result.values_per_file.get("mem://x"), query
 
 
 # ===========================================================================

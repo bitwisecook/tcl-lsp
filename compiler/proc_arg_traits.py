@@ -22,16 +22,14 @@ Two analysis tiers:
 
 from __future__ import annotations
 
-import re
-
-from compiler.parsing.lexer import TclParseError
+from compiler.parsing.lexer import TclLexer, TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from compiler.registry.signatures import ArgRole
 from shared.proc_traits import ProcArgTrait
+from shared.tokens import TokenType
 
 # Simple $varName reference pattern.
-_SIMPLE_VAR_RE = re.compile(r"^\$(?:\{([A-Za-z_][\w:]*)\}|([A-Za-z_][\w:]*))\Z")
 
 # Variable-writing commands derived from CommandSpec.assigns_variable_at.
 # "dict set" etc. are handled via the registry's ArgRole.VAR_WRITE on
@@ -49,11 +47,26 @@ def _var_write_commands() -> dict[str, int]:
 
 
 def _extract_var_name(text: str) -> str | None:
-    """Extract a bare variable name from ``$var`` or ``${var}``."""
-    m = _SIMPLE_VAR_RE.match(text)
-    if m:
-        return m.group(1) or m.group(2)
-    return None
+    """Extract a bare scalar variable name from a ``$var`` / ``${var}`` word.
+
+    Uses the lexer rather than a regex: the whole word must be exactly one
+    variable substitution naming a scalar (no array index), and the name must
+    have the conventional shape (letter/underscore start, word chars and
+    ``::`` namespace separators).
+    """
+    lexer = TclLexer(text)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
+        return None
+    name = tok.text
+    # The word must be solely this variable reference.
+    if text not in (f"${name}", f"${{{name}}}"):
+        return None
+    if not name or not (name[0].isalpha() or name[0] == "_"):
+        return None
+    if not all(ch.isalnum() or ch in "_:" for ch in name):
+        return None
+    return name
 
 
 def _extract_commands(source: str) -> list[tuple[str, list[str]]]:

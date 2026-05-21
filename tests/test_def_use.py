@@ -142,9 +142,9 @@ class TestDefUseProc:
             # and have uses from the expr
             x_uses = du.uses_of("x", 0)
             y_uses = du.uses_of("y", 0)
-            # At least one use each (in the expr)
-            assert len(x_uses) >= 1
-            assert len(y_uses) >= 1
+            # Each parameter is read exactly once, in the ``$x + $y`` expr.
+            assert len(x_uses) == 1
+            assert len(y_uses) == 1
 
 
 class TestDefUseResultMethods:

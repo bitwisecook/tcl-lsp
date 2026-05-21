@@ -108,6 +108,10 @@ class ClassDef:
     metaclass: str = "oo::class"  # "oo::class"|"oo::configurable"|"oo::abstract"|"oo::singleton"
     superclasses: list[str] = field(default_factory=list)
     mixins: list[str] = field(default_factory=list)
+    # (name, range) for each superclass/mixin reference token, so a class's
+    # find-references / rename spans its use in superclass/mixin declarations.
+    superclass_refs: list[tuple[str, Range]] = field(default_factory=list)
+    mixin_refs: list[tuple[str, Range]] = field(default_factory=list)
     methods: dict[str, MethodDef] = field(default_factory=dict)
     class_methods: dict[str, MethodDef] = field(default_factory=dict)
     constructors: list[MethodDef] = field(default_factory=list)

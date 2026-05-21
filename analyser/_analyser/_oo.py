@@ -33,6 +33,12 @@ from ._utils import parse_param_list
 log = logging.getLogger(__name__)
 
 
+def _class_ref_ranges(names: list[str], tokens: list[Token]) -> list[tuple[str, Range]]:
+    """Pair each wanted class *name* with its token range (skips ``-flags``)."""
+    wanted = set(names)
+    return [(tok.text, range_from_token(tok)) for tok in tokens if tok.text in wanted]
+
+
 class _AnalyserOOMixin(_Base):
     """TclOO class/method analysis."""
 
@@ -163,10 +169,12 @@ class _AnalyserOOMixin(_Base):
             match subcmd:
                 case "superclass":
                     class_def.superclasses = list(sub_args)
+                    class_def.superclass_refs.extend(_class_ref_ranges(sub_args, sub_tokens))
                 case "mixin":
                     # Skip -append flag if present
                     mixins = [a for a in sub_args if not a.startswith("-")]
                     class_def.mixins = mixins
+                    class_def.mixin_refs.extend(_class_ref_ranges(mixins, sub_tokens))
                 case "variable":
                     class_def.variables = list(sub_args)
                 case "method":
@@ -256,9 +264,11 @@ class _AnalyserOOMixin(_Base):
                 self._extract_method_def(sub_args, sub_tokens, class_def, scope, kind=subcmd)
             case "superclass":
                 class_def.superclasses = list(sub_args)
+                class_def.superclass_refs.extend(_class_ref_ranges(sub_args, sub_tokens))
             case "mixin":
                 mixins = [a for a in sub_args if not a.startswith("-")]
                 class_def.mixins = mixins
+                class_def.mixin_refs.extend(_class_ref_ranges(mixins, sub_tokens))
             case "variable":
                 class_def.variables = list(sub_args)
             case "constructor":

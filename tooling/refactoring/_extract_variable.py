@@ -10,6 +10,17 @@ from . import RefactoringEdit, RefactoringResult
 
 _WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+# A whitespace-delimited binary operator marks an arithmetic/logical
+# expression that must be wrapped in ``[expr { ... }]`` so the resulting
+# ``set`` command stays a valid two-argument call.
+_EXPR_OP_RE = re.compile(
+    r"\s(?:\*\*|\+|-|\*|/|%|==|!=|<=|>=|<|>|&&|\|\||eq|ne|in|ni)\s",
+)
+
+
+def _looks_like_expr(text: str) -> bool:
+    return bool(_EXPR_OP_RE.search(text))
+
 
 def extract_variable(
     source: str,
@@ -39,10 +50,16 @@ def extract_variable(
     line_text = lines[start_line]
     indent = line_text[: len(line_text) - len(line_text.lstrip())]
 
-    # Build the ``set var [expr]`` insertion and the replacement reference.
-    # If the selection looks like a command substitution [cmd ...], keep it.
-    # Otherwise wrap in [expr { ... }] only if it contains operators.
-    assignment = f"{indent}set {var_name} {selected}\n"
+    # Build the ``set var <value>`` insertion and the replacement reference.
+    # A bare operator expression (``$a * $b``) is not a valid value word for
+    # ``set`` — wrap it in ``[expr { ... }]``.  A selection that is already a
+    # command substitution (``[cmd ...]``) or a single word is kept verbatim.
+    stripped = selected.strip()
+    if not stripped.startswith("[") and _looks_like_expr(stripped):
+        value = f"[expr {{{stripped}}}]"
+    else:
+        value = selected
+    assignment = f"{indent}set {var_name} {value}\n"
     replacement = f"${var_name}"
 
     set_edit = RefactoringEdit(

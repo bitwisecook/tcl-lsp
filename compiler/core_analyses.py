@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
@@ -87,6 +88,35 @@ if TYPE_CHECKING:
     from .taint import TaintLattice
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
+
+
+def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
+    """If *value* is exactly a ``[cmd args...]`` command substitution, return
+    ``(command_name, raw_args_text)``; otherwise ``None``.
+
+    Token-based replacement for the command-substitution regexes: the value
+    must lex to a single command-substitution word, and the inner script is
+    segmented so the command name and raw argument span come from the tokens.
+    """
+    v = value.strip()
+    if not (v.startswith("[") and v.endswith("]")):
+        return None
+    lexer = TclLexer(v)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = lexer.get_token()
+    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
+        nxt = lexer.get_token()
+    if nxt is not None:
+        return None
+    inner = v[1:-1]
+    commands = segment_commands(inner)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    cmd = commands[0]
+    args_text = inner[cmd.argv[1].start.offset :].rstrip() if len(cmd.argv) >= 2 else ""
+    return cmd.texts[0], args_text
 
 
 def _expr_has_command(node: ExprNode) -> bool:
@@ -430,9 +460,6 @@ def _fold_interpolation_set(
     return frozenset(current) if current else None
 
 
-_LIST_CMD_RE = re.compile(r"^\s*\[\s*list\s+(.*?)\s*\]\s*$", re.DOTALL)
-
-
 def _extract_foreach_elements(list_text: str) -> list[str] | None:
     """Extract constant list elements from a foreach list argument.
 
@@ -458,9 +485,9 @@ def _extract_foreach_elements(list_text: str) -> list[str] | None:
         return _split_tcl_list(inner)
 
     # Pattern 2: [list elem1 elem2 ...] with all literal args
-    m = _LIST_CMD_RE.match(stripped)
-    if m:
-        args_text = m.group(1)
+    parsed = _parse_cmd_subst(stripped)
+    if parsed is not None and parsed[0] == "list" and parsed[1]:
+        args_text = parsed[1]
         if "$" in args_text or "[" in args_text:
             return None
         return _split_tcl_list(args_text)
@@ -507,9 +534,6 @@ def _resolve_foreach_list_via_lattice(
     return None
 
 
-_CMD_SUBST_RE = re.compile(r"^\s*\[\s*(\S+)(?:\s+(.*?))?\s*\]\s*$", re.DOTALL)
-
-
 def _try_fold_cmd_subst(
     value: str,
     uses: dict[str, int],
@@ -521,12 +545,11 @@ def _try_fold_cmd_subst(
     ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
     is foldable with all-constant arguments, or ``None`` if not.
     """
-    m = _CMD_SUBST_RE.match(value)
-    if m is None:
+    parsed = _parse_cmd_subst(value)
+    if parsed is None:
         return None
 
-    cmd_name = m.group(1)
-    args_text = m.group(2) or ""
+    cmd_name, args_text = parsed
 
     # Look up fold callback — check subcommand hints first.
     fold_fn = FOLD_HINTS.get(cmd_name)
@@ -1116,12 +1139,54 @@ def _collect_used_names(
     return used_names
 
 
+def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
+    """Local names that alias storage outside the current frame.
+
+    Covers ``upvar`` (incl. ``upvar #0`` and multi-pair forms),
+    ``namespace upvar``, ``global``, and ``variable``.  A write to such a
+    name is observable in another scope (the caller's frame, a namespace,
+    or the global frame), so it must never be reported as a dead store
+    (W220) or set-but-never-used variable (W211), nor eliminated by DCE,
+    even when the local analysis sees no local read.
+
+    Uses the shared :mod:`core.analysis.var_scoping` grammar so every alias
+    form is recognised identically to memory-SSA alias detection — a single
+    source of truth rather than ad-hoc command-name matching (which misses
+    ``namespace upvar``, whose IR command is just ``namespace``).
+    """
+    from compiler.var_scoping import (
+        global_declaration_indices,
+        upvar_local_declaration_indices,
+        variable_declaration_indices,
+    )
+
+    names: set[str] = set()
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if not isinstance(stmt, (IRCall, IRBarrier)):
+                continue
+            args = stmt.args
+            for i in upvar_local_declaration_indices(stmt.command, args):
+                if 0 <= i < len(args):
+                    names.add(_normalise_var_name(args[i]))
+            if stmt.canonical_command == "::global":
+                for i in global_declaration_indices(args):
+                    if 0 <= i < len(args):
+                        names.add(_normalise_var_name(args[i]))
+            elif stmt.canonical_command == "::variable":
+                for i in variable_declaration_indices(args):
+                    if 0 <= i < len(args):
+                        names.add(_normalise_var_name(args[i]))
+    return frozenset(names)
+
+
 def _dead_stores(
     cfg: CFGFunction,
     ssa: SSAFunction,
     *,
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
+    escaping_names: frozenset[str] = frozenset(),
 ) -> tuple[DeadStore, ...]:
     considered_blocks = set(executable_blocks) if executable_blocks is not None else set(cfg.blocks)
     used: set[SSAValueKey] = set()
@@ -1159,6 +1224,10 @@ def _dead_stores(
                     continue
                 # Global variables are consumed externally.
                 if n.startswith("::"):
+                    continue
+                # upvar/global/variable aliases escape the local frame —
+                # a write is observable in another scope.
+                if n in escaping_names:
                     continue
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRAssignConst):
@@ -1312,6 +1381,7 @@ def _unused_variables(
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
     params: frozenset[str] = frozenset(),
+    escaping_names: frozenset[str] = frozenset(),
 ) -> tuple[UnusedVariable, ...]:
     """Find variables that are set but never used across the entire function.
 
@@ -1352,6 +1422,10 @@ def _unused_variables(
                     continue
                 # Global variables are consumed externally.
                 if name.startswith("::"):
+                    continue
+                # upvar/global/variable aliases escape the local frame —
+                # a write is observable in another scope.
+                if name in escaping_names:
                     continue
                 # Only report for safe (side-effect-free) assignments.
                 ir_stmt = stmt.statement
@@ -1608,11 +1682,13 @@ def analyse_function(
     inferred_taints = taint_propagation(cfg, ssa, executable_blocks, executable_edges)
 
     live_in, live_out = _liveness(cfg, ssa)
+    escaping_names = _escaping_var_names(cfg)
     dead = _dead_stores(
         cfg,
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
+        escaping_names=escaping_names,
     )
     reachable_cfg = set(cfg.blocks)
     unreachable = reachable_cfg - executable_blocks
@@ -1629,6 +1705,7 @@ def analyse_function(
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
         params=params,
+        escaping_names=escaping_names,
     )
     unused_p = _unused_parameters(
         cfg,

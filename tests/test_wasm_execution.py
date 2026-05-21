@@ -717,9 +717,11 @@ class TestCommandDispatch:
 
     def test_puts_executes(self):
         """puts should execute without error via the Zig runtime."""
-        # With the Zig WASM runtime, puts writes to WASI stdout.
-        # Just verify the module executes without trapping.
-        _compile_and_run("puts 42\n")
+        # With the Zig WASM runtime, puts writes to WASI stdout. A trap would
+        # raise; a clean run returns ::top's (empty → 0) result, so assert the
+        # module ran to completion and returned an int.
+        result = _compile_and_run("puts 42\n")
+        assert isinstance(result, int)
 
     def test_global_is_nop(self):
         """global declarations should not generate imports."""
@@ -959,11 +961,11 @@ class TestNopReduction:
         wasm_mod, _ = _compile_to_wasm("proc f {} { global x; return 1 }\n")
         # Find the proc function
         proc_funcs = [f for f in wasm_mod.functions if f.name != "::top"]
-        if proc_funcs:
-            from compiler.codegen.wasm import WasmOp
+        assert proc_funcs, "expected proc ::f to be compiled"
+        from compiler.codegen.wasm import WasmOp
 
-            nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
-            assert nop_count == 0
+        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+        assert nop_count == 0
 
 
 # Proc call WAT inspection
@@ -2066,9 +2068,9 @@ class TestBreakContinue:
 
         wasm_mod, _ = _compile_to_wasm('proc f {} { foreach i "1 2 3" { break } }\n')
         proc_funcs = [f for f in wasm_mod.functions if "f" in f.name]
-        if proc_funcs:
-            has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
-            assert has_br, "break should emit a br instruction"
+        assert proc_funcs, "expected proc ::f to be compiled"
+        has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
+        assert has_br, "break should emit a br instruction"
 
 
 # Unknown command traps

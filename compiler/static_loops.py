@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 import math
-import re
 
+from compiler.parsing.lexer import is_simple_scalar_var_word
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
@@ -32,7 +32,6 @@ from .tcl_expr_eval import eval_tcl_expr_str
 
 log = logging.getLogger(__name__)
 
-_SIMPLE_VAR_WORD_RE = re.compile(r"\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)\Z")
 _DEFAULT_MAX_STATIC_LOOP_ITERS = 4096
 
 
@@ -69,7 +68,7 @@ def _parse_literal_value(text: str) -> int | bool | str:
 
 def _simple_var_ref(text: str) -> str | None:
     stripped = text.strip()
-    if not _SIMPLE_VAR_WORD_RE.fullmatch(stripped):
+    if not is_simple_scalar_var_word(stripped):
         return None
     return _normalise_var_name(stripped)
 

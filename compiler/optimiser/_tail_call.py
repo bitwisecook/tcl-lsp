@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.dialect import active_dialect
 from compiler.registry.dialects import dialects_since
@@ -38,8 +39,6 @@ from ..ir import (
 )
 from ._helpers import _full_command_range, _parse_command_words, _parse_single_command_from_range
 from ._types import Optimisation, PassContext
-
-_CMD_SUBST_RE = re.compile(r"^\[(.+)\]\Z", re.DOTALL)
 
 
 @dataclass(frozen=True, slots=True)
@@ -359,9 +358,20 @@ def _emit_o121(ctx: PassContext, site: _TailCallSite, short_name: str) -> None:
     if site.kind == "return_subst":
         # return [procName args...] → tailcall procName args...
         value_text = ctx.source[site.stmt_range.start.offset : site.stmt_range.end.offset + 1]
-        # Strip 'return ' prefix and extract inner command.
-        m = _CMD_SUBST_RE.match(value_text.partition(" ")[2].strip() if " " in value_text else "")
-        if m is None:
+        # Extract the inner command from ``return [cmd ...]`` via the tokeniser:
+        # the return argument must be a single command-substitution word.
+        inner: str | None = None
+        commands = segment_commands(value_text)
+        if (
+            commands
+            and commands[0].texts[:1] == ["return"]
+            and len(commands[0].argv) >= 2
+            and commands[0].argv[1].type is TokenType.CMD
+        ):
+            word = commands[0].texts[1]
+            if word.startswith("[") and word.endswith("]"):
+                inner = word[1:-1].strip()
+        if inner is None:
             # Use the already-parsed inner command.
             inner_parts = []
             for name in _self_name_variants_from_short(short_name):
@@ -370,7 +380,7 @@ def _emit_o121(ctx: PassContext, site: _TailCallSite, short_name: str) -> None:
             inner_parts.extend(site.args)
             replacement = "tailcall " + " ".join(inner_parts)
         else:
-            replacement = f"tailcall {m.group(1).strip()}"
+            replacement = f"tailcall {inner}"
     else:
         # Bare call: prepend tailcall.
         cmd_text = ctx.source[site.full_range.start.offset : site.full_range.end.offset + 1]

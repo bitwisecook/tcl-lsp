@@ -22,9 +22,11 @@ class TestInlayHints:
     def test_integer_type_hint(self):
         source = "set x 42\n"
         hints = get_inlay_hints(source, FULL_RANGE)
-        # Should show int type for x
+        # Should show a ``: int`` hint immediately after ``set x`` (col 5).
         int_hints = [h for h in hints if "int" in h.label]
-        assert len(int_hints) >= 1
+        assert any(h.label == ": int" and h.position.character == 5 for h in int_hints), [
+            (h.label, h.position.line, h.position.character) for h in int_hints
+        ]
 
     def test_no_hints_for_unknown_type(self):
         source = "set x [some_command]\n"
@@ -105,10 +107,8 @@ class TestInlayHints:
         source = "foreach {a b c} {1 2 3} { puts $a$b$c }\n"
         hints = get_inlay_hints(source, FULL_RANGE)
         type_hints = [h for h in hints if h.kind == types.InlayHintKind.Type]
-        if len(type_hints) >= 2:
-            # The hints must have distinct character positions — they should
-            # NOT all share the same position (the old clumped behaviour).
-            positions = {h.position.character for h in type_hints}
-            assert len(positions) > 1, (
-                "foreach variable type hints are clumped at the same position"
-            )
+        # All three loop vars (a, b, c) must get a type hint, each at its own
+        # position — not clumped at a single column.
+        assert len(type_hints) == 3, type_hints
+        positions = {h.position.character for h in type_hints}
+        assert len(positions) == 3, [(h.label, h.position.character) for h in type_hints]
