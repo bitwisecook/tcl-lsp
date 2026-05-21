@@ -78,6 +78,133 @@ We get there by porting the codebase bottom-up, in dependency order:
 unrelated to this rewrite. It's intentionally excluded from the main
 Cargo workspace and should be left alone.
 
+## Complete porting inventory
+
+This is the master checklist for the rewrite. The terminal state has
+exactly **one** Python-importable artifact — the `tcl-lsp-py` PyO3
+wheel — and **zero** Python executed by any in-repo entry point. Every
+Python package below either (a) becomes a Rust crate, (b) folds into an
+existing crate, or (c) is deleted once its consumers move to Rust. The
+PyO3 surface is then re-derived from the Rust crates as a *designed
+public API*, not a transcription of whatever the in-tree Python used to
+call.
+
+### The boundary rule
+
+> Internal callers never import `tcl_lsp_py`. If in-tree Python imports
+> the binding crate, that import is a porting TODO, not an architecture.
+> When the last internal importer is gone, the remaining `#[pyfunction]`
+> exports are reviewed against the public-API design (below) and the
+> soft-dependency shims are deleted.
+
+Today 12 in-tree Python modules still import the binding crate (the
+soft-dependency rollout). Each is a delegation seam that disappears when
+its Python owner is ported: `core/parsing/lexer.py`,
+`core/analysis/signature_scan.py`, `core/compiler/gvn.py`,
+`core/compiler/interprocedural.py`, `core/compiler/optimiser/_manager.py`,
+`core/compiler/rust_spans.py`, `lsp/features/document_symbols.py`, plus
+the differential test harnesses under `tests/`.
+
+### Subsystem coverage matrix
+
+LOC are approximate Python source sizes at the time of writing. Status:
+✅ ported (Rust is the implementation), 🟡 partial (Rust exists but has
+parity gaps or Python is still primary), 🔴 not started.
+
+| Python subsystem | LOC | Target Rust crate | Status | Notes |
+|---|---|---|---|---|
+| `core/parsing/` (lexer, segmenter, expr sub-lexer, backslash) | 3.8K | `tcl-lexer`, `tcl-compiler::segmenter` | ✅ | Foundation; PyO3-exposed and differentially fuzzed. |
+| `core/compiler/` (IR, CFG, SSA, lowering, optimiser passes) | 58.6K | `tcl-compiler` | 🟡 | Most passes ported (lowering, SSA, GVN, SCCP, var_escape, inline_uplevel, side-effects, taint, type_infer). Remaining: bytecode **codegen** completeness, a few optimiser passes, full IR-disasm parity. |
+| `core/commands/` (command-spec registry data) | 110.8K | `tcl-registry` | 🟡 | Registry infra + ~2070 spec files ported; behavioural-trait stamping and dialect-shadow parity tracked under "Command-spec tracking". Long tail of per-spec fields. |
+| `core/analysis/` (analyser, scope, var-refs, signature_scan, taint hints) | 17K | `tcl-compiler::analyser`, `::signature_scan` | 🟡 | `signature_scan` ported (C40); analyser core in progress (C41). Scope/var-ref/diagnostic providers partially landed. |
+| `core/minifier/` | 3.4K | `tcl-lsp-core::minify` | ✅ | Aggressive + compact tiers, unminify, registry-driven skip lists. |
+| `core/formatting/` | 2.0K | `tcl-lsp-core::formatting` | ✅ | Token-aware engine + `FormatterConfig`; full-doc and range share the engine. |
+| `lsp/` (server + feature providers) | 19.3K | `tcl-lsp-server`, `tcl-lsp-core` | 🟡 | Rust server binary exists; most providers ported (hover, definition, references, rename, symbols, completion, code-lens, semantic tokens, folding, formatting, inlay hints, selection/linked-editing range, call/type hierarchy, workspace index). Remaining: diagnostics pipeline, workspace orchestration/lifecycle, the server flip to default. |
+| `core/refactoring/` | 1.9K | `tcl-lsp-core` (code-actions) or new `tcl-refactor` | 🔴 | Mechanical transforms shared by code-actions, MCP, AI skills. Decide: fold into `tcl-lsp-core` vs. standalone crate (MCP/AI want it independent of the LSP layer). |
+| `core/bigip/` (BIG-IP object model, APL parser, SCF/config) | 41.5K | new `tcl-bigip` | 🔴 | Largest unported block. Domain data + APL (iApp presentation language) parser + config model. Needed by iRule analysis, XC translation, semantic-token enrichment. |
+| `core/xc/` (iRule → F5 Distributed Cloud translation) | 2.5K | new `tcl-xc` | 🔴 | Depends on `tcl-bigip` + analyser. |
+| `core/irule_test/` (TMM event-simulation test framework) | 1.7K | new `tcl-irule-test` | 🔴 | Drives a real Tcl interp today; in Rust it drives `tcl-vm`. |
+| `core/common/`, `core/help/`, `core/diagram/`, `core/packages/`, `core/tk/` | ~4K | fold into existing crates | 🟡 | Utilities + diagram extraction (`DIAGRAM_ACTION` trait already in registry) + help text + package metadata. Port piecemeal alongside their consumers. |
+| `vm/` (bytecode VM, interp, OO, scopes, REPL) | 21.9K | new `tcl-vm` | 🔴 | The in-process interpreter the analyser, debugger, and iRule-test framework drive. Zig WASM runtime stays as the out-of-process runtime. |
+| `debugger/` (DAP) | 1.7K | new `tcl-debugger` | 🔴 | Debug-adapter protocol server over `tcl-vm`. |
+| `explorer/` (compiler explorer) | 7.4K | new `tcl-explorer` (Rust → WASM) | 🔴 | Replace the Pyodide web app with a Rust→WASM build; no Python at runtime. |
+| `ai/` (MCP server, skills glue) | 5.3K | new `tcl-mcp` (binary) | 🔴 | MCP server becomes a Rust binary consuming the analyser/refactor crates. AI *skill prompts* are content, not code, and stay as docs. |
+| `fuzzing/` (differential fuzzer harness) | 4.3K | new `tcl-fuzz` (xtask/bin) | 🔴 | Today compares Python vs. Rust vs. tclsh; as Python retires it compares Rust vs. tclsh. Port the harness last. |
+| `tclpkg/` (zipapp / package tooling) | 2.7K | `xtask` + `tcl-vm` package loader | 🔴 | Native-extension packaging; folds into the build tooling. |
+| `scripts/` (build, release, dev tooling) | 13.8K | `cargo xtask` + shell | 🔴 | Eliminates the Python toolchain dependency. |
+| `tests/` (pytest suites) | large | per-crate `#[test]` + integration | 🟡 | Ported incrementally with each subsystem; differential harnesses retire when Python does. |
+
+### Crates that exist vs. crates to create
+
+Existing workspace crates (`rust/`): `tcl-lexer`, `tcl-registry`,
+`tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-server`, `tcl-lsp-py` (PyO3),
+and `tcl-lsp-rust` (legacy `#[pymodule]` alias — retire once downstream
+imports move to `tcl_lsp_py`).
+
+Crates still to stand up, roughly in dependency order:
+
+1. **`tcl-vm`** — bytecode VM + interpreter + OO/scope model (from `vm/`).
+   Unlocks the debugger and iRule-test framework.
+2. **`tcl-bigip`** — BIG-IP object model + APL parser + config (from
+   `core/bigip/`). Unlocks XC translation and richer iRule analysis.
+3. **`tcl-refactor`** — mechanical refactors (from `core/refactoring/`),
+   consumed by code-actions, MCP, and skills.
+4. **`tcl-irule-test`** — TMM event simulation over `tcl-vm`.
+5. **`tcl-xc`** — iRule → XC translation over `tcl-bigip`.
+6. **`tcl-debugger`** — DAP server over `tcl-vm`.
+7. **`tcl-mcp`** — MCP server binary over the analyser/refactor crates.
+8. **`tcl-explorer`** — compiler-explorer Rust→WASM app.
+9. **`xtask`** — build/release tooling (from `scripts/`), plus the
+   zipapp/package work from `tclpkg/`.
+10. **`tcl-fuzz`** — differential fuzzer harness (retires Python last).
+
+Codegen note: bytecode **codegen** lives in `tcl-compiler::codegen`
+today but is incomplete relative to `core/compiler/codegen`. Finishing
+it is a prerequisite for `tcl-vm` running real scripts and for the
+`bytecode-compare` parity gate against tclsh.
+
+### PyO3 public-API surface (terminal state)
+
+When the internal porting is done, audit `tcl-lsp-py` against this
+intended public API and **delete** anything that was only a
+soft-dependency shim (e.g. `gvn_redundancies`, raw `interprocedural`
+internals, `compilation_unit` handles) unless it earns a place as a
+documented, semver-stable entry point. The designed surface is, roughly:
+
+- **Parsing** — tokenise (command + expr), segment, backslash subst.
+- **Registry** — command-spec lookup + trait/role/dialect queries.
+- **Analysis** — `analyse(source, dialect) -> AnalysisResult`, signature
+  scan, scope/var-ref queries, diagnostics.
+- **Compile** — source → IR → bytecode (+ disassembly).
+- **VM** — execute bytecode / eval a script with a controllable
+  environment (the embedding hook downstream users actually want).
+- **Transform** — format, minify/unminify, refactor edits.
+- **Each entry point is a stable struct-in / struct-out**, version-gated,
+  with no Python object-shape mimicry leaking into the crate APIs (the
+  crates stay `pyo3`-free; only `tcl-lsp-py` knows about Python).
+
+This list is the contract for downstream embedders; the in-tree code
+reaches the same functionality through the pure crates directly.
+
+### Suggested phase ordering
+
+The bottom-up dependency order (lexer → compiler → LSP → remainder) from
+"What we're doing" still holds. The remaining large blocks sequence as:
+
+1. **Finish the analyser + diagnostics** (`core/analysis`) and **flip the
+   Rust LSP server on by default** — this is the highest-leverage user-
+   facing milestone and lets `lsp/` retire.
+2. **Complete bytecode codegen** in `tcl-compiler`, then **`tcl-vm`** —
+   unblocks the debugger, iRule-test, and the explorer's run feature.
+3. **`tcl-bigip`** (and the APL parser) — unblocks XC + iRule depth.
+4. **`tcl-refactor`, `tcl-irule-test`, `tcl-xc`, `tcl-debugger`,
+   `tcl-mcp`** — the domain/tooling layer, parallelisable once their
+   shared deps (`tcl-vm`, `tcl-bigip`, `tcl-refactor`) land.
+5. **`tcl-explorer`** (Rust→WASM) and **`xtask`/`tcl-fuzz`** — replace the
+   last Python at the edges (web app, build scripts, fuzz harness).
+6. **Retire `tests/` and the soft-dependency shims**; re-derive and
+   document the `tcl-lsp-py` public API; delete `tcl-lsp-rust`.
+
 ## Non-negotiable principles
 
 Two architectural constraints that every chunk is measured against.
