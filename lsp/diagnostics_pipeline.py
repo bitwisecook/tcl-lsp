@@ -213,6 +213,7 @@ def _publish_diagnostics_sync(
     force_reanalyse: bool = False,
 ) -> None:
     from core.analysis.checks._style import non_ascii_mode_scope
+    from core.analysis.stub_comments import ambient_stub_scope
     from core.common.dialect import dialect_scope
 
     cfg = _state.config_for_uri(uri)
@@ -220,6 +221,7 @@ def _publish_diagnostics_sync(
     with (
         dialect_scope(dialect=dialect, extra_commands=extras),
         non_ascii_mode_scope(cfg.non_ascii_mode),
+        ambient_stub_scope(_state.workspace_stub_commands),
     ):
         state = _state.workspace_state.update(
             uri,
@@ -264,6 +266,7 @@ async def _publish_diagnostics(
     force_reanalyse: bool = False,
 ) -> None:
     from core.analysis.checks._style import non_ascii_mode_scope
+    from core.analysis.stub_comments import ambient_stub_scope
     from core.common.dialect import dialect_scope
 
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
@@ -280,6 +283,7 @@ async def _publish_diagnostics(
     with (
         dialect_scope(dialect=dialect, extra_commands=extras),
         non_ascii_mode_scope(cfg.non_ascii_mode),
+        ambient_stub_scope(_state.workspace_stub_commands),
     ):
         await _publish_diagnostics_inner(uri, source, version, force_reanalyse=force_reanalyse)
 
@@ -357,6 +361,10 @@ async def _publish_diagnostics_inner(
                             # default when a folder hasn't overridden it.
                             extra_commands=_extra_commands_var.get(),
                             non_ascii_mode=_non_ascii_mode_var.get(),
+                            # External .tcl.stubs are workspace state, not a
+                            # ContextVar, so forward them explicitly for the
+                            # subprocess to re-establish (mirrors dialect).
+                            stub_commands=tuple(_state.workspace_stub_commands),
                         ),
                     ),
                     timeout=15.0,

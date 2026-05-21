@@ -155,10 +155,11 @@ def compute_stub_fingerprint(source: str) -> int:
     source declares no stubs — the empty-overlay case stays compatible
     with callers that omit the fingerprint argument.
     """
-    from core.analysis.stub_comments import scan_source_for_stubs
+    from core.analysis.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
     from core.commands.registry.runtime import signatures_from_stubs
 
     cmd_stubs, _ = scan_source_for_stubs(source)
+    cmd_stubs = [*cmd_stubs, *ambient_cmd_stubs()]
     if not cmd_stubs:
         return 0
     overlay = signatures_from_stubs(cmd_stubs)
@@ -192,10 +193,11 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
-    from core.analysis.stub_comments import scan_source_for_stubs
+    from core.analysis.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
     from core.commands.registry.runtime import stub_signature_scope
 
     cmd_stubs, _ = scan_source_for_stubs(source)
+    cmd_stubs = [*cmd_stubs, *ambient_cmd_stubs()]
     # Fingerprint the stub overlay so cached proc / interproc summaries
     # are invalidated whenever a stub is added, removed, or changed —
     # the proc body text alone is not enough because summaries depend
