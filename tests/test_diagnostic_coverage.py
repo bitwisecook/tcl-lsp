@@ -1,0 +1,1153 @@
+"""Coverage enforcement for diagnostic/optimisation range accuracy.
+
+Every registered code must be classified into exactly one bucket:
+
+- ``FIXTURES`` — verified: the code fires on a trigger snippet covering the
+  *exact, narrow* offending span, and does **not** fire on a clean snippet.
+- ``RANGE_FIXME`` — the code fires (true positive) and is clean-clear (no
+  false positive), but its range is still too wide / drops a trailing
+  delimiter and needs narrowing.  Range is *not* asserted yet.
+- ``CROSSFILE`` — verified, but the code only fires for a *pair* of
+  coordinated sources (an iApp APL presentation + its implementation Tcl), so
+  it uses a dedicated two-input harness rather than the single-source ``Case``.
+- ``NOT_YET_COVERED`` — no trigger fixture authored yet; each entry is
+  annotated with the reason it is not (yet) reachable from a test harness.
+
+Codes reach their diagnostic producer through different entry points; a
+``Case``/``FiresCase`` selects one via boolean flags:
+
+- default — ``lsp.features.diagnostics.get_diagnostics`` (the editor path)
+- ``dialect`` — the same, under a ``dialect_scope`` (e.g. ``f5-irules``)
+- ``xc`` — enable XC translatability diagnostics
+- ``bigip`` — parse a BIG-IP ``.conf`` and run ``get_bigip_diagnostics``
+- ``iapp`` — parse an APL presentation and run ``validate_iapp_presentation``
+- ``analyse_raw`` — read raw analyser diagnostics (covers ``internal=True``
+  codes that ``get_diagnostics`` filters out)
+- ``recovery`` — run ``segment_with_recovery`` (parser-recovery codes)
+
+The partition test fails if any code is unclassified or double-classified, so
+a newly added code cannot slip through, and ``RANGE_FIXME`` / ``NOT_YET_COVERED``
+only ever shrink as codes graduate into ``FIXTURES``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import pytest
+
+import core.common.codes_all  # noqa: F401 — registers every code
+from core.common.codes import all_codes
+from core.common.dialect import dialect_scope
+from lsp.features.diagnostics import get_diagnostics
+
+
+@dataclass(frozen=True)
+class Case:
+    source: str
+    expected: str  # exact substring the range must cover
+    clean: str  # a snippet on which the code must NOT fire
+    dialect: str | None = None  # analyse under this dialect when set
+    xc: bool = False  # enable XC translatability diagnostics
+    contains: bool = False  # expected is a substring of a covering construct
+    bigip: bool = False  # source is a BIG-IP .conf — use the bigip validator
+    iapp: bool = False  # source is an APL presentation — use the iApp validator
+    analyse_raw: bool = False  # internal code — read raw analyser diagnostics
+    recovery: bool = False  # parser-recovery code — use segment_with_recovery
+
+
+@dataclass(frozen=True)
+class FiresCase:
+    source: str
+    clean: str
+    dialect: str | None = None
+    bigip: bool = False
+    iapp: bool = False
+    analyse_raw: bool = False
+    recovery: bool = False
+
+
+def _covered(source: str, r: Any) -> str:
+    lines = source.split("\n")
+    if r.start.line == r.end.line:
+        return lines[r.start.line][r.start.character : r.end.character]
+    return "\n".join(
+        [
+            lines[r.start.line][r.start.character :],
+            *lines[r.start.line + 1 : r.end.line],
+            lines[r.end.line][: r.end.character],
+        ]
+    )
+
+
+def _run(
+    source: str,
+    dialect: str | None,
+    xc: bool,
+    bigip: bool = False,
+    iapp: bool = False,
+    analyse_raw: bool = False,
+    recovery: bool = False,
+) -> list[Any]:
+    if recovery:
+        from core.parsing.recovery import segment_with_recovery
+
+        _cmds, diags = segment_with_recovery(source)
+        return list(diags)
+    if bigip:
+        from core.bigip.diagnostics import get_bigip_diagnostics
+        from core.bigip.parser import parse_bigip_conf
+
+        return get_bigip_diagnostics(parse_bigip_conf(source))
+    if iapp:
+        from core.bigip.apl_model import parse_apl
+        from core.bigip.iapp_diagnostics import validate_iapp_presentation
+
+        with dialect_scope("f5-iapps"):
+            return validate_iapp_presentation(parse_apl(source))
+    if analyse_raw:
+        # Internal diagnostics are filtered out of get_diagnostics; read them
+        # straight off the analyser result instead.
+        from core.analysis import analyse
+
+        if dialect is not None:
+            with dialect_scope(dialect):
+                return list(analyse(source).diagnostics)
+        return list(analyse(source).diagnostics)
+    if dialect is not None:
+        with dialect_scope(dialect):
+            return get_diagnostics(source, xc_diagnostics_enabled=xc)
+    return get_diagnostics(source, xc_diagnostics_enabled=xc)
+
+
+def _matches(
+    source: str,
+    code: str,
+    dialect: str | None = None,
+    xc: bool = False,
+    bigip: bool = False,
+    iapp: bool = False,
+    analyse_raw: bool = False,
+    recovery: bool = False,
+) -> list[Any]:
+    return [
+        d
+        for d in _run(source, dialect, xc, bigip, iapp, analyse_raw, recovery)
+        if (d.code if isinstance(d.code, str) else str(d.code)) == code
+    ]
+
+
+# ── verified: exact narrow range + no false positive ──────────────────
+
+FIXTURES: dict[str, Case] = {
+    "E001": Case("string\n", "string", "string length x\n"),
+    "E002": Case("set\n", "set", "set x 1\n"),
+    "E003": Case("string length a b c\n", "string", "string length a\n"),
+    "W001": Case("string bogus x\n", "bogus", "string length x\n"),
+    "W114": Case(
+        "set x [expr {[expr {1}]}]\nputs $x\n", "[expr {1}]", "set x [expr {1}]\nputs $x\n"
+    ),
+    "W123": Case("boguscommand foo bar\n", "boguscommand", "puts hi\n"),
+    "W212": Case("set $x 1\n", "$x", "set x 1\n"),
+    "W300": Case("source $f\n", "$f", "source data.tcl\n"),
+    "W230": Case("puts [lindex {a b} 5]\n", "5", "puts [lindex {a b} 1]\n"),
+    "W232": Case("puts [string index abc 10]\n", "10", "puts [string index abc 1]\n"),
+    "W240": Case("while {0} {puts x}\n", "{0}", "while {$go} {puts x}\n"),
+    "W241": Case("while {1} {puts x}\n", "{1}", "while {$go} {set go 0}\n"),
+    "W242": Case("while {$i < 10} {puts $i}\n", "{$i < 10}", "while {$i < 10} {incr i}\n"),
+    "W307": Case("$cmd arg\n", "$cmd", "puts arg\n"),
+    "W100": Case("if $x == 1 {puts hi}\n", "$x", "if {$x == 1} {puts hi}\n"),
+    "W101": Case("eval $userinput\n", "$userinput", "eval {puts hi}\n"),
+    "W102": Case("subst $x\n", "$x", "subst {literal}\n"),
+    "W110": Case(
+        'if {$x == "hello"} {set x done}\n',
+        '{$x == "hello"}',
+        'if {$x eq "hello"} {set x done}\n',
+    ),
+    "W112": Case("set x 1   \n", "   ", "set x 1\n"),
+    "W201": Case(
+        'set p "$dir/$file"\nputs $p\n', '"$dir/$file"', "set p [file join $d $f]\nputs $p\n"
+    ),
+    "W302": Case("catch {error oops}\n", "catch", "catch {error oops} result\n"),
+    "W309": Case("eval [subst $x]\n", "[subst $x]", "eval {puts hi}\n"),
+    "W312": Case("interp eval $i $code\n", "$code", "interp eval $i {puts hi}\n"),
+    "W210": Case("puts $undefined\n", "$undefined", "set u 1\nputs $u\n"),
+    "W211": Case("set unused 5\n", "unused", "set y 5\nputs $y\n"),
+    "W213": Case("unset maybe\n", "maybe", "set m 1\nunset m\n"),
+    "W220": Case("set dead 5\n", "dead", "set y 5\nputs $y\n"),
+    "O100": Case("set x [expr {1 + 2}]\nputs $x\n", "$x", "puts hi\n"),
+    "O102": Case("puts [expr {1 + 1}]\n", "[expr {1 + 1}]", "puts hi\n"),
+    "O111": Case("expr $a + $b\n", "$a + $b", "expr {$a + $b}\n"),
+    "O116": Case(
+        "set x [list]\nlappend x a\nputs $x\n", "[list]", "set x {}\nlappend x a\nputs $x\n"
+    ),
+    "O118": Case("puts [lindex {a b c} 1]\n", "[lindex {a b c} 1]", "puts hi\n"),
+    "O120": Case(
+        'if {$x == "hello"} {set x done}\n', '{$x == "hello"}', 'if {$x eq "hello"} {set x done}\n'
+    ),
+    "IRULE1002": Case(
+        "when BOGUS {\n}\n",
+        "BOGUS",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1004": Case(
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        "when",
+        "when CLIENT_ACCEPTED priority 500 {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2001": Case(
+        "when HTTP_REQUEST {\n  matchclass $x equals $y\n}\n",
+        "matchclass",
+        "when HTTP_REQUEST {\n  class match $x equals $y\n}\n",
+        dialect="f5-irules",
+    ),
+    "T100": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  eval $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  eval {puts hi}\n}\n",
+        dialect="f5-irules",
+    ),
+    "T101": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  puts $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  puts hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3001": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  HTTP::respond 200 content $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  HTTP::respond 200 content static\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3002": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  HTTP::header insert X $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  HTTP::header insert X static\n}\n",
+        dialect="f5-irules",
+    ),
+    # XC translatability classifications (need the xc flag).  The range covers
+    # the classified construct, which is the context the user needs.
+    "XC100": Case(
+        "when HTTP_REQUEST { pool web_pool }\n",
+        "pool web_pool",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC101": Case(
+        "when HTTP_REQUEST { HTTP::redirect http://x }\n",
+        "HTTP::redirect http://x",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC102": Case(
+        'when HTTP_REQUEST { if {[HTTP::host] eq "x.com"} { pool p } }\n',
+        'if {[HTTP::host] eq "x.com"}',
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC103": Case(
+        "when HTTP_REQUEST { HTTP::header insert X 1 }\n",
+        "HTTP::header insert X 1",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC105": Case(
+        "when HTTP_REQUEST { class match [HTTP::uri] eq dg }\n",
+        "class match [HTTP::uri] eq dg",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC106": Case(
+        "when HTTP_REQUEST { ASM::disable }\n",
+        "ASM::disable",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC107": Case(
+        "when HTTP_REQUEST { ASM::enable }\n",
+        "ASM::enable",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC201": Case(
+        "when HTTP_REQUEST_DATA { HTTP::payload }\n",
+        "when HTTP_REQUEST_DATA",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC203": Case(
+        "when HTTP_REQUEST { if {$x} { pool p } }\n",
+        "if {$x}",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC250": Case(
+        "when CLIENTSSL_HANDSHAKE { log local0. hi }\n",
+        "when CLIENTSSL_HANDSHAKE",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+        contains=True,
+    ),
+    "XC300": Case(
+        "when HTTP_REQUEST { eval $cmd }\n",
+        "eval $cmd",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "XC301": Case(
+        "when HTTP_REQUEST { TCP::collect }\n",
+        "TCP::collect",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        xc=True,
+    ),
+    "W103": Case(
+        'set f [open "| rm -rf /"]\n',
+        "| rm -rf /",
+        "set f [open data.txt]\n",
+        contains=True,
+    ),
+    "W105": Case(
+        'if {1} "puts $x"\n',
+        '"puts $x"',
+        "if {1} {puts $x}\n",
+    ),
+    "W113": Case(
+        "proc set {a b} {return}\n",
+        "set",
+        "proc myproc {} {return}\n",
+    ),
+    "W115": Case(
+        "# comment \\\nputs hi\n",
+        "# comment \\\nputs hi",
+        "# comment\nputs hi\n",
+    ),
+    "W121": Case(
+        "set m 255.255.0.255\n",
+        "255.255.0.255",
+        "set m 255.255.255.0\n",
+    ),
+    "W125": Case(
+        "if {1} {puts a}\nelse {puts b}\n",
+        "else",
+        "if {1} {puts a} else {puts b}\n",
+    ),
+    "W231": Case(
+        "set l {a b}\nlset l 5 x\n",
+        "5",
+        "set l {a b}\nlset l 1 x\n",
+    ),
+    "W301": Case(
+        'uplevel "set $x 1"\n',
+        "set $x 1",
+        "uplevel {set x 1}\n",
+        contains=True,
+    ),
+    "W303": Case(
+        "regexp {(a+)+$} $s\n",
+        "(a+)+$",
+        "regexp {abc} $s\n",
+        contains=True,
+    ),
+    "W308": Case(
+        "subst {$x [cmd]}\n",
+        "subst",
+        "subst -nocommands {$x}\n",
+    ),
+    "W313": Case(
+        "file delete $path\n",
+        "$path",
+        "file delete /tmp/static\n",
+    ),
+    "H300": Case(
+        "set x 1\nset x 1\n",
+        "set x 1",
+        "set x 1\nset y 2\n",
+    ),
+    "E102": Case(
+        "set x }\n",
+        "}",
+        "set x y\n",
+    ),
+    "E201": Case(
+        "set x [\n",
+        "[",
+        "set x [expr 1]\n",
+    ),
+    "O110": Case(
+        "puts [expr {$x + 0}]\n",
+        "[expr {$x + 0}]",
+        "puts $x\n",
+    ),
+    "O114": Case(
+        "set x [expr {$x + 1}]\nputs $x\n",
+        "set x [expr {$x + 1}]",
+        "incr x\nputs $x\n",
+    ),
+    "O117": Case(
+        "if {[string length $s] == 0} {puts empty}\n",
+        "{[string length $s] == 0}",
+        'if {$s eq ""} {puts empty}\n',
+    ),
+    "O128": Case(
+        "set L {a b c}\nputs [lindex $L [expr {[llength $L] - 1}]]\n",
+        "[expr {[llength $L] - 1}]",
+        "set L {a b c}\nputs [lindex $L 0]\n",
+    ),
+    "O124": Case(
+        "when HTTP_REQUEST {\n  log local0. hi\n}\nproc unused {} {return 1}\n",
+        "proc unused",
+        "when HTTP_REQUEST {\n  call used\n}\nproc used {} {return 1}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "O122": Case(
+        "proc f {n} {\n  if {$n <= 0} {return 0}\n  return [f [expr {$n-1}]]\n}\n",
+        "proc f",
+        "proc f {n} {\n  return [expr {$n+1}]\n}\n",
+        contains=True,
+    ),
+    "IRULE1005": Case(
+        "when HTTP_REQUEST_DATA {\n  log local0. hi\n}\n",
+        "HTTP_REQUEST_DATA",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1006": Case(
+        "when HTTP_REQUEST {\n  set p [HTTP::payload]\n}\n",
+        "HTTP::payload",
+        "when HTTP_REQUEST {\n}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "IRULE1201": Case(
+        "when HTTP_REQUEST {\n  HTTP::respond 200\n  HTTP::header insert X 1\n}\n",
+        "HTTP::header insert X 1",
+        "when HTTP_REQUEST {\n  HTTP::respond 200\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3003": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n  log local0. $u\n}\n",
+        "$u",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3102": Case(
+        "when HTTP_REQUEST {\n  set u [HTTP::uri]\n}\n",
+        "HTTP::uri",
+        "when HTTP_REQUEST {\n  set u [HTTP::uri -normalized]\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE4001": Case(
+        "when HTTP_REQUEST {\n  set static::count 1\n}\n",
+        "set",
+        "when RULE_INIT {\n  set static::count 1\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5001": Case(
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        "log",
+        "when RULE_INIT {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5005": Case(
+        "proc helper {} {return 1}\nwhen HTTP_REQUEST {\n  helper\n}\n",
+        "helper",
+        "proc helper {} {return 1}\nwhen HTTP_REQUEST {\n  call helper\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5007": Case(
+        "HTTP::uri\n",
+        "HTTP::uri",
+        "set x 1\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2101": Case(
+        "when HTTP_REQUEST {\n  if {[regexp {^/api/.*} $s]} {pool p}\n}\n",
+        "regexp",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5006": Case(
+        "when HTTP_REQUEST {\n  if {1} {\n    when HTTP_RESPONSE {log local0. x}\n  }\n}\n",
+        "when",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE6001": Case(
+        "when HTTP_REQUEST {\n  global g\n}\n",
+        "global",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3101": Case(
+        "when HTTP_REQUEST {\n  HTTP::uri foo\n}\n",
+        "HTTP::uri foo",
+        "when HTTP_REQUEST {\n  HTTP::uri /foo\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1001": Case(
+        "when CLIENT_ACCEPTED {\n  HTTP::uri\n}\n",
+        "HTTP::uri",
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1007": Case(
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n}\n",
+        "TCP::collect",
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n  TCP::release\n}\n",
+        dialect="f5-irules",
+    ),
+    "W002": Case(
+        "when HTTP_REQUEST {\n  exec ls\n}\n",
+        "exec",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "W104": Case(
+        'set l ""\nappend l " $x"\n',
+        '" $x"',
+        "set l {}\nlappend l $x\n",
+    ),
+    "W106": Case(
+        'switch $x "a" "puts 1"\n',
+        "puts 1",
+        "switch -- $x a {puts 1}\n",
+        contains=True,
+    ),
+    "W216": Case(
+        "set ${arr}(x) 1\n",
+        "${arr}(x)",
+        "set arr(x) 1\n",
+    ),
+    "W304": Case(
+        "switch $x a b\n",
+        "$x",
+        "switch -- $x a b\n",
+    ),
+    "O112": Case(
+        "if {0} {\n  puts never\n}\n",
+        "if {0} {\n  puts never\n}",
+        "if {$x} {\n  puts maybe\n}\n",
+    ),
+    "O126": Case(
+        "proc f {} {\n  set x 1\n  return 0\n}\n",
+        "set x 1",
+        "proc f {} {\n  set x 1\n  return $x\n}\n",
+    ),
+    "O105": Case(
+        "set a [expr {$x + 1}]\nset b [expr {$x + 1}]\nputs $a$b\n",
+        "expr {$x + 1}",
+        "set a [expr {$x + 1}]\nputs $a\n",
+        contains=True,
+    ),
+    "TK1001": Case(
+        "package require Tk\nbutton .b\nlabel .l\npack .b\ngrid .l\n",
+        "grid",
+        "package require Tk\nbutton .b\npack .b\n",
+    ),
+    "TK1002": Case(
+        "package require Tk\nbutton .frame.b\n",
+        "button",
+        "package require Tk\nframe .frame\nbutton .frame.b\n",
+    ),
+    "W003": Case(
+        "expr {2 in {1 2 3}}\n",
+        "2 in",
+        "expr {2 + 3}\n",
+        dialect="tcl8.4",
+        contains=True,
+    ),
+    "W004": Case(
+        "lsort -stride 2 $l\n",
+        "-stride",
+        "lsort $l\n",
+        dialect="tcl8.4",
+    ),
+    "W111": Case(
+        'set x "' + "a" * 200 + '"\n',
+        'set x "' + "a" * 200 + '"',
+        "set x 1\n",
+    ),
+    "O107": Case(
+        "while {1} {break}\nputs after\nset z 1\n",
+        "set z 1",
+        "puts hi\nputs there\n",
+    ),
+    "IRULE1003": Case(
+        "when AUTH_SUCCESS {\n  log local0. hi\n}\n",
+        "AUTH_SUCCESS",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1008": Case(
+        "when CLIENT_ACCEPTED {\n  TCP::release\n}\n",
+        "TCP::release",
+        "when CLIENT_ACCEPTED {\n  TCP::collect\n  TCP::release\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2002": Case(
+        "when CLIENT_ACCEPTED {\n  accumulate\n}\n",
+        "accumulate",
+        "when CLIENT_ACCEPTED {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE2003": Case(
+        "when HTTP_REQUEST {\n  uplevel 1 {set x 1}\n}\n",
+        "uplevel",
+        "when HTTP_REQUEST {\n  log local0. hi\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE5003": Case(
+        "when HTTP_REQUEST {\n  while {$n != 0} {\n    incr n -1\n  }\n}\n",
+        "$n != 0",
+        "when HTTP_REQUEST {\n  while {$n > 0} {\n    incr n -1\n  }\n}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "IRULE4004": Case(
+        "when HTTP_REQUEST {\n  set ::cfg 1\n}\n",
+        "set ::cfg 1",
+        "when HTTP_REQUEST {\n  set ::cfg [HTTP::uri]\n}\n",
+        dialect="f5-irules",
+    ),
+    "T103": Case(
+        "when HTTP_REQUEST {\n  set pat [HTTP::uri]\n  regexp $pat $data\n}\n",
+        "$pat",
+        "when HTTP_REQUEST {\n  regexp {^/api} $data\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE1202": Case(
+        "when HTTP_REQUEST {\n    HTTP::respond 200\n    HTTP::respond 302\n}\n",
+        "HTTP::respond 302",
+        "when HTTP_REQUEST {\n    HTTP::respond 200\n}\n",
+        dialect="f5-irules",
+    ),
+    "IRULE3103": Case(
+        'set uri [HTTP::uri]\nset parts [split $uri "?"]\n',
+        "split $uri",
+        "set p [HTTP::path]\nset q [HTTP::query]\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "T106": Case(
+        "when HTTP_REQUEST {\n  set safe [HTML::encode [HTTP::uri]]\n  set double [HTML::encode $safe]\n}\n",
+        "HTML::encode $safe",
+        "when HTTP_REQUEST {\n  set out [HTML::encode [HTTP::uri]]\n}\n",
+        dialect="f5-irules",
+        contains=True,
+    ),
+    "S100": Case(
+        "set myList {a b c d}\nlindex $myList 1\nputs $myList\n",
+        "lindex $myList 1",
+        "set myList [list a b c]\nlindex $myList 1\nputs $myList\n",
+    ),
+    "O103": Case(
+        "proc pi {} { return 3 }\nset v [pi]\n",
+        "[pi]",
+        "proc effect {} { puts hi; return 1 }\nset v [effect]\n",
+    ),
+    "W200": Case(
+        "binary format su $val\n",
+        "su",
+        "binary format s $val\n",
+        dialect="tcl8.4",
+    ),
+    "W306": Case(
+        "regexp -- $pattern$suffix $text\n",
+        "$pattern$suffix",
+        "regexp -- {^foo} $text\n",
+    ),
+    "W215": Case(
+        'set "weird}name" 1\n',
+        "weird}name",
+        "set x 1\n",
+        contains=True,
+    ),
+    "O113": Case(
+        "if {$x % 16} {}\n",
+        "{$x % 16}",
+        "if {$x % 7} {}\n",
+    ),
+    "O115": Case(
+        "while {[expr {$x > 0}]} { incr x -1 }\n",
+        "{[expr {$x > 0}]}",
+        "while {$x > 0} { incr x -1 }\n",
+    ),
+    "O121": Case(
+        "proc f {a b} {\n    return [f $a]\n}\nputs [f 1 2]\n",
+        "return [f $a]",
+        "proc f {a} {\n    return $a\n}\nputs [f 1]\n",
+    ),
+    "O123": Case(
+        "proc factorial {n} {\n    if {$n <= 1} { return 1 }\n"
+        "    return [expr {$n * [factorial [expr {$n - 1}]]}]\n}\nputs [factorial 5]\n",
+        "return [expr {$n * [factorial [expr {$n - 1}]]}]",
+        "proc f {a} {\n    return $a\n}\nputs [f 1]\n",
+    ),
+    "W120": Case(
+        "http::geturl $url\n",
+        "http::geturl",
+        "package require http\nhttp::geturl $url\n",
+    ),
+    "O106": Case(
+        "set n 5\nfor {set i 0} {$i < 10} {incr i} {\n  set k [string repeat x $n]\n  puts $k\n}\n",
+        "string repeat x $n",
+        "for {set i 0} {$i < 10} {incr i} {\n  puts $i\n}\n",
+        contains=True,
+    ),
+    "BIGIP6008": Case(
+        "ltm pool /Common/p { }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        "{ }",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        bigip=True,
+    ),
+}
+
+# ── fires + clean-clear, but range still too wide (narrowing pending) ──
+
+# Empty: every previously-too-wide range has been narrowed and graduated into
+# FIXTURES.  New too-wide-but-firing codes can be parked here while pending.
+RANGE_FIXME: dict[str, FiresCase] = {
+    # File-level inconsistent line endings: range points at the first
+    # character of the file rather than the offending line ending.
+    "W118": FiresCase("set a 1\r\nset b 2\n", "set a 1\nset b 2\n"),
+    # Invalid IP literal: range spans the whole `set` command rather than
+    # the IP literal token.
+    "W124": FiresCase("set ip 999.999.999.999\n", "set ip 1.2.3.4\n"),
+    # String-build chain: each step's range bleeds onto the next line's
+    # first character instead of ending at the statement.
+    "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
+    # Dead store: range bleeds onto the following line's first character.
+    "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
+    # lassign-pack of consecutive set literals: range bleeds onto the
+    # following line's first character.
+    "O119": FiresCase("set a 1\nset b 2\nset c 3\nlassign $lst a b c\n", "set a 1\nputs $a\n"),
+    # Non-ASCII token content: range bleeds into the adjacent ASCII
+    # character rather than covering only the non-ASCII run.
+    "W108": FiresCase("set x Аbc\n", "set x abc\n"),
+    # Stub command shadows builtin: range points at the leading `#` of the
+    # stub comment rather than the shadowed command name.
+    "W116": FiresCase(
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub set {varName value}\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub my_custom_cmd {arg1}\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+    ),
+    # Stub expr-func shadows builtin function: same leading-`#` range issue.
+    "W117": FiresCase(
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sin 1\n# tcl-lsp: stubs-end\nset x 1\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sizeof 1\n"
+        "# tcl-lsp: stubs-end\nset x 1\n",
+    ),
+    # `drop` without `event disable all`/`return`: range points at the
+    # event block's closing brace rather than the drop command.
+    "IRULE5002": FiresCase(
+        "when CLIENT_ACCEPTED {\n  drop\n}\n",
+        "when CLIENT_ACCEPTED {\n  drop\n  return\n}\n",
+        dialect="f5-irules",
+    ),
+    # `DNS::return` without `return`: range points at the event block's
+    # closing brace rather than the DNS::return command.
+    "IRULE5004": FiresCase(
+        "when DNS_REQUEST {\n  DNS::return\n}\n",
+        "when DNS_REQUEST {\n  DNS::return\n  return\n}\n",
+        dialect="f5-irules",
+    ),
+    # Unused proc parameter: range spans the whole proc rather than the
+    # offending parameter token.
+    "W214": FiresCase("proc f {a b} {return $a}\n", "proc f {a} {return $a}\n"),
+    # Shimmer inside loop body: range points at the pre-loop initialiser
+    # rather than the in-loop conversion site.
+    "S101": FiresCase(
+        'set x 0\nwhile {1} {\n  set x [expr {$x + 1}]\n  set x "str"\n}\n',
+        "set x 0\nputs $x\n",
+    ),
+    # Type oscillation across iterations: range drops the trailing quote.
+    "S102": FiresCase(
+        'set x 0\nwhile {1} {\n  set x [expr {$x + 1}]\n  set x "str"\n}\n',
+        "set x 0\nwhile {$x < 3} {\n  incr x\n}\n",
+    ),
+    # Unknown widget option: range points at the widget command rather than
+    # the offending `-option` token.
+    "TK1003": FiresCase(
+        "package require Tk\nbutton .b -bogusopt 1\n",
+        "package require Tk\nbutton .b -text hi\n",
+    ),
+    # iRule references a pool that does not exist: range is empty (zero-width)
+    # and needs to be anchored on the pool reference token.
+    "BIGIP6002": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/missing_pool }\n}\n",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/p }\n}\n",
+        bigip=True,
+    ),
+    # Virtual references a missing iRule: range spans the whole virtual stanza
+    # body rather than the offending rule reference.
+    "BIGIP6003": FiresCase(
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/missing_rule } }\n",
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        bigip=True,
+    ),
+    # Virtual references a missing pool: range spans the whole virtual stanza
+    # body rather than the pool reference token.
+    "BIGIP6005": FiresCase(
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/missing }\n",
+        "ltm pool /Common/p { members { /Common/n:80 { } } }\n"
+        "ltm virtual /Common/vs1 { destination /Common/1.1.1.1:80 pool /Common/p }\n",
+        bigip=True,
+    ),
+    # APL #include not found: AplInclude only tracks a line number, so the
+    # range is a zero-width placeholder at column 0 pending a real span.
+    "IAPP7003": FiresCase(
+        '#include "/missing/file.tcl"\n',
+        "set x 1\n",
+        iapp=True,
+    ),
+    # Invalid IP record in an ip-type data-group: range spans the whole
+    # data-group stanza body rather than the offending record.
+    "BIGIP6011": FiresCase(
+        "ltm data-group internal /Common/dg {\ntype ip\nrecords {\n300.1.1.1/32 { }\n}\n}\n",
+        "ltm data-group internal /Common/dg {\ntype ip\nrecords {\n10.1.1.1/32 { }\n}\n}\n",
+        bigip=True,
+    ),
+    # Hardcoded credential (internal diagnostic): range drops the closing
+    # quote of the literal secret.
+    "W310": FiresCase(
+        'http::geturl $url -password "s3cret"\n',
+        "http::geturl $url -password $pw\n",
+        analyse_raw=True,
+    ),
+    # Unsafe channel encoding mismatch (internal diagnostic): range uses the
+    # analyser's inclusive-end span, which the LSP layer normalises.
+    "W311": FiresCase(
+        "fconfigure $fd -encoding binary -translation auto\n",
+        "fconfigure $fd -encoding binary -translation binary\n",
+        analyse_raw=True,
+    ),
+    # Non-channel value in channel arg position: range spans the whole
+    # command rather than just the offending channel argument.
+    "W126": FiresCase(
+        "proc f {} { gets notachannel line }\n",
+        "proc f {fd} { gets $fd line }\n",
+    ),
+    # Single-use variable inlining: range spans the multi-line set statement
+    # rather than the variable reference being forwarded.
+    "O127": FiresCase(
+        "proc f {a} { set x $a\n puts $x }\n",
+        "proc f {} { set x 42\n puts $x }\n",
+    ),
+    # Racy static:: var written outside RULE_INIT and read in another event:
+    # range drops the trailing `]` of the write expression.
+    "IRULE4005": FiresCase(
+        "when HTTP_REQUEST priority 500 {\n    set static::token [HTTP::header Authorization]\n}\n"
+        "when HTTP_RESPONSE priority 500 {\n    log local0. $static::token\n}\n",
+        "when RULE_INIT {\n    set static::token 1\n}\n"
+        "when HTTP_RESPONSE {\n    log local0. $static::token\n}\n",
+        dialect="f5-irules",
+    ),
+    # Unmatched close-bracket (internal syntax error): range covers the
+    # command text rather than the offending `]`.
+    "E100": FiresCase("set x foo]\n", "set x [string length foo]\n", analyse_raw=True),
+    # Parser recovery for an unterminated quote: range is a zero-width
+    # marker at the opening quote.
+    "E202": FiresCase('set totp_key "\nset y 1\n', 'set x "hello"\n', recovery=True),
+    # Malformed `if` (extra words after else): range spans the whole `if`
+    # statement rather than the trailing extra word.
+    "E004": FiresCase(
+        "if {1} {puts a} else {puts b} extraword\n",
+        "if {1} {puts a} else {puts b}\n",
+    ),
+    # Missing `{` after switch (internal recovery): zero-width range at the
+    # insertion point.
+    "E101": FiresCase(
+        "switch $x\n  a {puts 1}\n  b {puts 2}\n",
+        "switch $x {\n  a {puts 1}\n}\n",
+        analyse_raw=True,
+    ),
+    # Missing `}` — a nested body consumed the closing brace (internal
+    # recovery): range covers just the stolen brace.
+    "E103": FiresCase(
+        "when ACCESS_POLICY_AGENT_EVENT {\n    switch [ACCESS::policy agent_id] {\n"
+        '        "a" {\n            set x 1\n        }\n        "b" {\n            set y 2\n'
+        "        }\n    \n}\n",
+        "when HTTP_REQUEST {\n  switch $x {\n    a { set y 1 }\n  }\n}\n",
+        dialect="f5-irules",
+        analyse_raw=True,
+    ),
+    # iRule references a data-group not in the config: zero-width range at
+    # the reference site.
+    "BIGIP6001": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/missing_dg]} { pool p }\n}\n}\n",
+        "ltm data-group internal /Common/missing_dg { type string }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/missing_dg]} { pool p }\n}\n}\n",
+        bigip=True,
+    ),
+    # iRule uses HTTP:: commands but its virtual has no HTTP profile: range
+    # spans the whole virtual stanza body.
+    "BIGIP6004": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { HTTP::respond 200 }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        "ltm profile http /Common/http { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { HTTP::respond 200 }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } "
+        "profiles { /Common/http { } } }\n",
+        bigip=True,
+    ),
+    # Data-group defined but never referenced: range spans the whole
+    # data-group stanza body.
+    "BIGIP6006": FiresCase(
+        "ltm data-group internal /Common/dg { type string }\n",
+        "ltm data-group internal /Common/dg { type string }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n"
+        "  if {[class match [HTTP::uri] equals /Common/dg]} { pool p }\n}\n}\n",
+        bigip=True,
+    ),
+    # Parser recovery — unclosed brace (internal): the analyser emits a
+    # zero-width E203 marker where the missing `}` belongs.
+    "E203": FiresCase(
+        "proc broken {} {\n    set inner 1\n    set inner2 2\n"
+        "    # missing close brace\nset x 1\nset y 2\n",
+        "proc ok {} {\n    set inner 1\n}\nset x 1\n",
+        analyse_raw=True,
+    ),
+    # Generic static:: variable name likely to collide across iRules: range
+    # spans the whole `set` statement rather than the variable name.
+    "IRULE4002": FiresCase(
+        "when RULE_INIT {\n  set static::data 1\n}\n",
+        "when RULE_INIT {\n  set static::myAppCacheV2 1\n}\n",
+        dialect="f5-irules",
+    ),
+    # iRule references a SNAT pool not in the config: zero-width range at
+    # the reference site.
+    "BIGIP6007": FiresCase(
+        "ltm rule /Common/r {\nwhen CLIENT_ACCEPTED { snatpool /Common/missing_snat }\n}\n",
+        "ltm snatpool /Common/missing_snat { members { /Common/1.1.1.1 } }\n"
+        "ltm rule /Common/r {\nwhen CLIENT_ACCEPTED { snatpool /Common/missing_snat }\n}\n",
+        bigip=True,
+    ),
+    # Duplicate iRule attachment on a virtual: range spans the whole virtual
+    # stanza body rather than the repeated reference.
+    "BIGIP6009": FiresCase(
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r /Common/r } }\n",
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { log local0. hi }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        bigip=True,
+    ),
+    # iRule `persist` references a profile not attached to its virtual: range
+    # spans the whole virtual stanza body.
+    "BIGIP6010": FiresCase(
+        "ltm persistence cookie /Common/ck { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { persist /Common/ck }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } }\n",
+        "ltm persistence cookie /Common/ck { }\n"
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { persist /Common/ck }\n}\n"
+        "ltm virtual /Common/vs { destination /Common/1.1.1.1:80 rules { /Common/r } "
+        "persist { /Common/ck { } } }\n",
+        bigip=True,
+    ),
+}
+
+
+@dataclass(frozen=True)
+class CrossFileCase:
+    """A cross-file iApp case: an APL presentation paired with an
+    implementation Tcl body.  Both validators run under the f5-iapps
+    dialect; ``code`` must fire on the (apl, impl) trigger pair and stay
+    silent on the (clean_apl, clean_impl) pair."""
+
+    apl: str
+    impl: str
+    clean_apl: str
+    clean_impl: str
+    # Which validator surfaces the code: "impl" → validate_iapp_implementation,
+    # "pres" → validate_iapp_presentation.
+    via: str
+
+
+# ── cross-file iApp checks (presentation + implementation) ────────────
+# These need two coordinated sources, so they have their own harness; their
+# ranges are placeholders (line-only / whole-field) pending narrowing.
+
+CROSSFILE: dict[str, CrossFileCase] = {
+    # IAPP7001: implementation references an APL field not defined in the
+    # presentation.
+    "IAPP7001": CrossFileCase(
+        apl="section basic {\n    string addr\n}\n",
+        impl="set addr $::basic__addr\nset port $::basic__port\n",
+        clean_apl="section basic {\n    string addr\n}\n",
+        clean_impl="set addr $::basic__addr\n",
+        via="impl",
+    ),
+    # IAPP7002: presentation field never referenced by the implementation.
+    "IAPP7002": CrossFileCase(
+        apl="section basic {\n    string addr\n    string port\n    string unused_field\n}\n",
+        impl="set addr $::basic__addr\nset port $::basic__port\n",
+        clean_apl="section basic {\n    string addr\n}\n",
+        clean_impl="set addr $::basic__addr\n",
+        via="pres",
+    ),
+}
+
+
+def _crossfile_matches(case: CrossFileCase, code: str, *, clean: bool) -> list[Any]:
+    from core.bigip.apl_model import parse_apl
+    from core.bigip.iapp_diagnostics import (
+        validate_iapp_implementation,
+        validate_iapp_presentation,
+    )
+    from core.bigip.iapp_vars import extract_iapp_var_refs
+
+    apl_src = case.clean_apl if clean else case.apl
+    impl_src = case.clean_impl if clean else case.impl
+    with dialect_scope("f5-iapps"):
+        model = parse_apl(apl_src)
+        refs = extract_iapp_var_refs(impl_src)
+        if case.via == "impl":
+            diags = validate_iapp_implementation(refs, model)
+        else:
+            diags = validate_iapp_presentation(model, refs)
+    return [d for d in diags if str(d.code) == code]
+
+
+@pytest.mark.parametrize("code", sorted(CROSSFILE))
+def test_crossfile_fires_and_is_clean(code):
+    case = CROSSFILE[code]
+    assert _crossfile_matches(case, code, clean=False), f"{code} did not fire on its trigger pair"
+    assert not _crossfile_matches(case, code, clean=True), (
+        f"{code} should not fire on its clean pair"
+    )
+
+
+# ── no trigger fixture yet ────────────────────────────────────────────
+# This list only shrinks: as a code graduates into FIXTURES/RANGE_FIXME it
+# must be removed here or the partition test fails.  The remaining codes are
+# not reachable through any test harness available here; each is annotated
+# with the reason it cannot (yet) be exercised:
+#
+#   E200       — generic shimmer/parse fallback; always preempted by the more
+#                specific E201/E203/E102 recovery codes, so it never surfaces.
+#   IRULE4003  — cross-event variable-scoping hint requiring a multi-event
+#                data-flow shape we have not been able to reproduce.
+#   O101/O108  — optimiser passes (const fold / transitive DCE) whose findings
+#   O125         are always subsumed by a sibling pass (O100/O102/O109/O126)
+#                in the surfaced rewrite set.
+#   T102       — option-injection taint; needs a tainted value in an option
+#                position that survives to a sink without another T-code firing.
+#   W122       — mistyped-IPv4; suppressed on any line where W124 fires, which
+#                is every dotted-quad we have found that also trips W122.
+#   W130–W134  — tclpkg lockfile diagnostics: reserved codes with no emission
+#                site in the codebase (produced, if ever, by a future
+#                `tcl pkg` CLI path, not document analysis).
+#   XC200      — "Partial — requires manual review": an advisory bucket that is
+#                intentionally not auto-classifiable.
+
+NOT_YET_COVERED: frozenset[str] = frozenset(
+    {
+        "E200",
+        "IRULE4003",
+        "O101",
+        "O108",
+        "O125",
+        "T102",
+        "W122",
+        "W130",
+        "W131",
+        "W132",
+        "W133",
+        "W134",
+        "XC200",
+    }
+)
+
+
+def test_every_code_is_classified_exactly_once():
+    covered = set(FIXTURES) | set(RANGE_FIXME) | set(CROSSFILE) | set(NOT_YET_COVERED)
+    registered = set(all_codes())
+
+    unclassified = registered - covered
+    assert not unclassified, (
+        f"{len(unclassified)} code(s) are not classified into FIXTURES, "
+        f"RANGE_FIXME, CROSSFILE, or NOT_YET_COVERED: {sorted(unclassified)}"
+    )
+    stale = covered - registered
+    assert not stale, f"classified codes that no longer exist: {sorted(stale)}"
+
+    buckets = [set(FIXTURES), set(RANGE_FIXME), set(CROSSFILE), NOT_YET_COVERED]
+    overlap: set[str] = set()
+    for i in range(len(buckets)):
+        for j in range(i + 1, len(buckets)):
+            overlap |= buckets[i] & buckets[j]
+    assert not overlap, f"codes classified in more than one bucket: {sorted(overlap)}"
+
+
+@pytest.mark.parametrize("code", sorted(FIXTURES))
+def test_fixture_fires_with_exact_range(code):
+    case = FIXTURES[code]
+    matches = _matches(
+        case.source, code, case.dialect, case.xc, case.bigip, case.iapp, case.analyse_raw
+    )
+    assert matches, f"{code} did not fire on {case.source!r}"
+    covered = {_covered(case.source, d.range) for d in matches}
+    if case.contains:
+        assert any(case.expected in c for c in covered), (
+            f"{code} should cover a span containing {case.expected!r}; covered {sorted(covered)}"
+        )
+    else:
+        assert case.expected in covered, (
+            f"{code} should cover {case.expected!r}; covered {sorted(covered)}"
+        )
+
+
+@pytest.mark.parametrize("code", sorted(FIXTURES))
+def test_fixture_no_false_positive(code):
+    case = FIXTURES[code]
+    assert not _matches(
+        case.clean, code, case.dialect, case.xc, case.bigip, case.iapp, case.analyse_raw
+    ), f"{code} should not fire on clean {case.clean!r}"
+
+
+@pytest.mark.parametrize("code", sorted(RANGE_FIXME))
+def test_range_fixme_fires_and_is_clean(code):
+    case = RANGE_FIXME[code]
+    assert _matches(
+        case.source,
+        code,
+        case.dialect,
+        bigip=case.bigip,
+        iapp=case.iapp,
+        analyse_raw=case.analyse_raw,
+        recovery=case.recovery,
+    ), f"{code} did not fire on {case.source!r}"
+    assert not _matches(
+        case.clean,
+        code,
+        case.dialect,
+        bigip=case.bigip,
+        iapp=case.iapp,
+        analyse_raw=case.analyse_raw,
+        recovery=case.recovery,
+    ), f"{code} should not fire on clean {case.clean!r}"

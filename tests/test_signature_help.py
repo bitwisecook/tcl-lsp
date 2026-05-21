@@ -118,6 +118,16 @@ class TestSignatureHelpSubcommands:
         source = "string length "
         # Cursor after "string length " (col 14)
         result = get_signature_help(source, 0, 14)
-        if result is not None:
-            # Should show the string length signature
-            assert any("string" in sig.label for sig in result.signatures)
+        # The ensemble subcommand signature is provided from the subcommand
+        # spec's own synopsis (``string length string``).
+        assert result is not None
+        assert any(sig.label == "string length string" for sig in result.signatures)
+
+    def test_string_index_subcommand(self):
+        result = get_signature_help("string index ", 0, 13)
+        assert result is not None
+        assert any(sig.label == "string index string charIndex" for sig in result.signatures)
+
+    def test_string_unknown_subcommand_no_signature(self):
+        # An unrecognised subcommand yields no signature (not the generic one).
+        assert get_signature_help("string bogus ", 0, 13) is None

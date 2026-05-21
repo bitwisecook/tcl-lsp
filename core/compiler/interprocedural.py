@@ -13,7 +13,6 @@ Conservative summaries are built per lowered proc to describe:
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 
 from ..analysis.proc_arg_traits import (
@@ -30,7 +29,7 @@ from ..common.naming import (
 from ..common.naming import (
     normalise_var_name as _normalise_var_name,
 )
-from ..parsing.lexer import TclLexer
+from ..parsing.lexer import TclLexer, is_simple_scalar_var_word
 from ..parsing.tokens import TokenType
 from .cfg import CFGFunction, CFGReturn, build_cfg
 from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
@@ -73,7 +72,6 @@ from .var_refs import VarReferenceScanner, VarScanOptions
 
 log = logging.getLogger(__name__)
 
-_SIMPLE_VAR_WORD_RE = re.compile(r"\$(?:\{[A-Za-z_][A-Za-z0-9_:]*\}|[A-Za-z_][A-Za-z0-9_:]*)\Z")
 _VAR_REF_SCANNER = VarReferenceScanner(
     VarScanOptions(
         include_var_read_roles=False,
@@ -234,7 +232,7 @@ def _parse_literal_word(text: str) -> int | bool | str | None:
 
 def _single_simple_var_word(text: str) -> str | None:
     stripped = text.strip()
-    if not _SIMPLE_VAR_WORD_RE.fullmatch(stripped):
+    if not is_simple_scalar_var_word(stripped):
         return None
     return _normalise_var_name(stripped)
 

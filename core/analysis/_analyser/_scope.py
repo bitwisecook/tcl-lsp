@@ -186,8 +186,49 @@ class _AnalyserScopeMixin(_Base):
             if element is not None:
                 self.result.global_scope.variables[base_name].array_indices.add(element)
             return
+
+        # Namespace-qualified read (``$ns::v`` / ``$::ns::v`` / ``$a::b::v``):
+        # resolve to the ``variable`` defined in the target namespace scope so
+        # find-references and rename span the definition and the qualified use.
+        qualified = self._resolve_qualified_var(base_name, scope)
+        if qualified is not None:
+            qualified.references.append(read_range)
+            if element is not None:
+                qualified.array_indices.add(element)
+            return
         # W210 is now emitted by the SSA-based analysis in
         # _emit_cfg_ssa_diagnostics_for_function.
+
+    def _resolve_qualified_var(self, base_name: str, scope: Scope) -> VarDef | None:
+        """Resolve a namespace-qualified variable name to its VarDef.
+
+        Handles absolute (``::ns::v``), relative (``ns::v`` from the current
+        namespace), and nested (``a::b::v``) forms by matching the target
+        namespace's full path against each namespace scope.
+        """
+        if "::" not in base_name:
+            return None
+        ns_part, _, var_part = base_name.rpartition("::")
+        if not var_part:
+            return None
+        if ns_part.startswith("::"):
+            target_ns = _normalise_qualified_name(ns_part)
+        elif ns_part == "":
+            target_ns = "::"
+        else:
+            current = self._namespace_from_scope(scope)
+            joined = f"{ns_part}" if current == "::" else f"{current}::{ns_part}"
+            target_ns = _normalise_qualified_name(
+                f"::{joined}" if not joined.startswith("::") else joined
+            )
+        for candidate in self._walk_scopes(self.result.global_scope):
+            if (
+                candidate.kind == "namespace"
+                and var_part in candidate.variables
+                and self._namespace_from_scope(candidate) == target_ns
+            ):
+                return candidate.variables[var_part]
+        return None
 
     def _walk_scopes(self, scope: Scope):
         yield scope
@@ -225,6 +266,11 @@ class _AnalyserScopeMixin(_Base):
                 scope.variables[base_name].warn_if_unused = True
             if element is not None:
                 scope.variables[base_name].array_indices.add(element)
+            # A write to an already-defined variable (``set x 2``,
+            # ``lappend x ...``, ``append x ...``) is a use site: rename and
+            # find-references must include every write, not only the first
+            # definition.
+            scope.variables[base_name].references.append(definition_range or range_from_token(tok))
 
         # Warn (once, at first definition) when the name is unreachable
         # via Tcl's ``$``-substitution forms.  The variable is creatable

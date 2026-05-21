@@ -27,7 +27,9 @@ class TestDataFlowGraphExtraction:
         graph = extract_dataflow_graph("set unused 42")
         top = graph.functions[0]
         dead_nodes = [n for n in top.nodes if n.is_dead]
-        assert len(dead_nodes) >= 1
+        # The dead node must be the never-read ``unused`` variable.
+        dead_vars = {getattr(n, "variable", None) or getattr(n, "name", None) for n in dead_nodes}
+        assert "unused" in dead_vars, dead_vars
 
     def test_proc_extraction(self):
         source = "proc foo {x} { return $x }\nset r [foo 42]"
@@ -44,7 +46,8 @@ class TestDataFlowGraphExtraction:
                 bar_fn = f
                 break
         assert bar_fn is not None
-        assert len(bar_fn.aliases) >= 1
+        # The ``global gvar`` declaration must register a gvar alias.
+        assert any(a.local_name == "gvar" for a in bar_fn.aliases), bar_fn.aliases
 
     def test_phi_edges(self):
         source = "if {$cond} {set a 1} else {set a 2}\nset b $a"

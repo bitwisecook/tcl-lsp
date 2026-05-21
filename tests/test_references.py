@@ -91,15 +91,18 @@ class TestVariableReferences:
     def test_find_var_refs(self):
         source = "set x 42\nputs $x"
         refs = get_references(source, TEST_URI, 1, 7)
-        # Should include definition and reference
-        assert len(refs) >= 1
+        # Should include the ``set x`` definition (line 0) and the ``$x``
+        # read (line 1) — both at the variable name's column.
+        starts = {(r.range.start.line, r.range.start.character) for r in refs}
+        assert starts == {(0, 4), (1, 5)}, starts
 
     def test_multiple_var_refs(self):
         source = "set x 1\nset x 2\nputs $x"
         # Position on $x at line 2, col 6 (the 'x' after '$')
         refs = get_references(source, TEST_URI, 2, 6)
-        # Should find at least the definition
-        assert len(refs) >= 1
+        # Both ``set x`` writes (lines 0,1) and the ``$x`` read (line 2).
+        starts = {(r.range.start.line, r.range.start.character) for r in refs}
+        assert starts == {(0, 4), (1, 4), (2, 5)}, starts
 
     def test_no_refs_for_unknown(self):
         refs = get_references("puts hello", TEST_URI, 0, 6)
@@ -144,3 +147,26 @@ class TestVariableReferences:
         refs = get_references(source, TEST_URI, 4, 10)
         lines = {loc.range.start.line for loc in refs}
         assert lines == {3, 4}
+
+
+class TestClassSuperclassMixinReferences:
+    """A class's find-references spans its use in superclass/mixin declarations."""
+
+    def test_superclass_and_mixin_references(self):
+        source = textwrap.dedent("""\
+            oo::class create Animal {
+                method speak {} {return noise}
+            }
+            oo::class create Dog {
+                superclass Animal
+                method speak {} {return woof}
+            }
+            oo::define Cat {
+                mixin Animal
+            }
+        """)
+        refs = get_references(source, TEST_URI, 0, 17)  # cursor on Animal definition
+        starts = {(loc.range.start.line, loc.range.start.character) for loc in refs}
+        assert (0, 17) in starts  # definition
+        assert (4, 15) in starts  # superclass Animal
+        assert (8, 10) in starts  # mixin Animal

@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from ...common.document_buffer import DocumentBuffer
 from ...common.naming import normalise_var_name as _normalise_var_name
 from ...compiler.cfg import CFGFunction
 from ...compiler.core_analyses import FunctionAnalysis
@@ -21,11 +22,26 @@ from ...compiler.ir import (
     IRStatement,
 )
 from ..semantic_model import Diagnostic, Severity
-from ._utils import _UNUSED_VAR_RE, _format_literal_for_message, _possible_paste_fingerprint
+from ._utils import (
+    _UNUSED_VAR_RE,
+    _format_literal_for_message,
+    _possible_paste_fingerprint,
+    narrow_to_variable,
+)
 
 
 class _AnalyserDiagVarLifecycleMixin(_Base):
     """W210/211/213/214/220 + H300 diagnostics: variable lifecycle."""
+
+    def _lifecycle_buffer(self) -> DocumentBuffer:
+        """Cached ``DocumentBuffer`` over the current source for range narrowing."""
+        src = self._source
+        cached = getattr(self, "_lifecycle_buf_cache", None)
+        if cached is None or cached[0] is not src:
+            buffer = DocumentBuffer.from_source(src)
+            self._lifecycle_buf_cache = (src, buffer)
+            return buffer
+        return cached[1]
 
     def _emit_dead_store_diagnostics(
         self,
@@ -63,9 +79,16 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             similar = self._find_case_mismatch(dead.variable, all_vars)
             if similar is not None:
                 msg += f"; did you mean '{similar}'?"
+            narrowed = narrow_to_variable(
+                self._source,
+                self._lifecycle_buffer(),
+                stmt_range,
+                variable=dead.variable,
+                kind="assigned_name",
+            )
             self.result.diagnostics.append(
                 Diagnostic(
-                    range=stmt_range,
+                    range=narrowed or stmt_range,
                     message=msg,
                     severity=Severity.HINT,
                     code="W220",
@@ -184,9 +207,16 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             if isinstance(stmt, IRCall) and stmt.canonical_command == "::unset":
                 # unset without -nocomplain on a possibly-undefined variable.
                 # Still warn even for cross-event vars — unset is explicit.
+                narrowed = narrow_to_variable(
+                    self._source,
+                    self._lifecycle_buffer(),
+                    r,
+                    variable=rbs.variable,
+                    kind="named_arg",
+                )
                 self.result.diagnostics.append(
                     Diagnostic(
-                        range=r,
+                        range=narrowed or r,
                         message=(
                             f"Variable '{rbs.variable}' may not exist; "
                             "use 'unset -nocomplain' to suppress the error"
@@ -215,9 +245,20 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 similar = self._find_case_mismatch(rbs.variable, all_vars)
                 if similar is not None:
                     msg += f"; did you mean '{similar}'?"
+                narrowed = (
+                    narrow_to_variable(
+                        self._source,
+                        self._lifecycle_buffer(),
+                        r,
+                        variable=rbs.variable,
+                        kind="read_var",
+                    )
+                    if stmt is not None
+                    else None
+                )
                 self.result.diagnostics.append(
                     Diagnostic(
-                        range=r,
+                        range=narrowed or r,
                         message=msg,
                         severity=Severity.WARNING,
                         code="W210",
@@ -249,9 +290,16 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             similar = self._find_case_mismatch(unused.variable, all_vars)
             if similar is not None:
                 msg += f"; did you mean '{similar}'?"
+            narrowed = narrow_to_variable(
+                self._source,
+                self._lifecycle_buffer(),
+                stmt_range,
+                variable=unused.variable,
+                kind="assigned_name",
+            )
             self.result.diagnostics.append(
                 Diagnostic(
-                    range=stmt_range,
+                    range=narrowed or stmt_range,
                     message=msg,
                     severity=Severity.HINT,
                     code="W211",

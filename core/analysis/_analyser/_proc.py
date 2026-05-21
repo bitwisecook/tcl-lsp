@@ -41,6 +41,7 @@ class _AnalyserProcMixin(_Base):
         def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
         def _lookup_const_string(self, *a: Any, **kw: Any) -> Any: ...
         def _record_defining_set_as_regex(self, *a: Any, **kw: Any) -> None: ...
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
         # From _AnalyserOOMixin
         def _extract_unknown_proc_info(self, *a: Any, **kw: Any) -> Any: ...
 
@@ -57,11 +58,18 @@ class _AnalyserProcMixin(_Base):
 
         params = parse_param_list(param_str)
 
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{proc_name}"
+        # Determine qualified name from the *full* namespace path so that
+        # procs in nested ``namespace eval a { namespace eval b { ... } }``
+        # blocks qualify as ``::a::b::proc`` rather than dropping the outer
+        # namespace.  A name that is itself qualified is resolved relative to
+        # the enclosing namespace.
+        ns = self._namespace_from_scope(scope)
+        if proc_name.startswith("::"):
+            qualified = _normalise_qualified_name(proc_name)
+        elif ns == "::":
+            qualified = _normalise_qualified_name(f"::{proc_name}")
         else:
-            qualified = f"::{proc_name}"
+            qualified = _normalise_qualified_name(f"{ns}::{proc_name}")
 
         if not arg_tokens:
             return

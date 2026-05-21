@@ -29,6 +29,7 @@ from core.refactoring._extract_datagroup import extract_to_datagroup
 from core.refactoring._extract_variable import extract_variable
 from core.refactoring._if_to_switch import if_to_switch
 from core.refactoring._inline_variable import inline_variable
+from core.refactoring._spans import command_span_offsets
 from core.refactoring._switch_to_dict import switch_to_dict
 
 from .diagnostics import _check_comment_continuation, _check_trailing_whitespace
@@ -637,16 +638,25 @@ def _extract_proc_action(
             replacement += "\n"
 
     insert_line = _package_insert_line(source)
-    edits = [
-        types.TextEdit(
-            range=types.Range(
-                start=types.Position(line=insert_line, character=0),
-                end=types.Position(line=insert_line, character=0),
+    # When the insertion point coincides exactly with the start of the
+    # selection (extracting from the very top of the file), a separate
+    # zero-width insert at (insert_line, 0) and the replacement of
+    # (insert_line, 0)-… share a start offset.  That is an overlapping edit
+    # whose application order is undefined across LSP clients, so merge them
+    # into a single non-overlapping edit instead.
+    if insert_line == range_.start.line and range_.start.character == 0:
+        edits = [types.TextEdit(range=range_, new_text=proc_text + replacement)]
+    else:
+        edits = [
+            types.TextEdit(
+                range=types.Range(
+                    start=types.Position(line=insert_line, character=0),
+                    end=types.Position(line=insert_line, character=0),
+                ),
+                new_text=proc_text,
             ),
-            new_text=proc_text,
-        ),
-        types.TextEdit(range=range_, new_text=replacement),
-    ]
+            types.TextEdit(range=range_, new_text=replacement),
+        ]
 
     # After the edit is applied the proc name sits at the insert line,
     # starting at column 5 (len("proc ")).  Attach a client-side command
@@ -764,7 +774,12 @@ def _inline_proc_action(
     if arg_map is None:
         return None
 
-    replacement = _substitute_proc_params(" ".join(body_cmd.texts), arg_map).strip()
+    # Substitute parameters into the *raw* body text rather than the
+    # space-joined word texts — joining drops structural braces/quotes
+    # (``expr {$x * 2}`` would collapse to ``expr $x * 2``).
+    body_start, body_end = command_span_offsets(body_text, body_cmd)
+    raw_body = body_text[body_start:body_end]
+    replacement = _substitute_proc_params(raw_body, arg_map).strip()
     if not replacement:
         return None
     prefix = _line_indent(source, cmd.range.start.line)

@@ -8,6 +8,7 @@ Options:
     --optimise / -O     Enable WASM optimisations
     --format FMT        Output format: wasm (binary), wat (text), both
     --output / -o PATH  Output file (default: stdout for WAT, out.wasm for binary)
+    --link / -l         Link the runtime into a single runnable .wasm binary
 
 Examples:
     # Compile to WAT (human-readable), non-optimised
@@ -18,6 +19,10 @@ Examples:
 
     # Compile to WASM binary
     python -m explorer.wasm_cli script.tcl --format wasm -o output.wasm
+
+    # Compile + link the runtime into a self-contained, runnable binary
+    python -m explorer.wasm_cli script.tcl --link -o output.wasm
+    wasmtime output.wasm   # (host must define env.host_spawn / WASI)
 
     # Compare optimised vs non-optimised
     python -m explorer.wasm_cli --source 'set x [expr {1 + 2}]' --format both
@@ -53,10 +58,42 @@ def compile_tcl_to_wasm(
 
     Returns:
         A ``WasmModule`` ready for serialisation.
+
+    The module's ``tcl``-namespaced imports are left unresolved; use
+    :func:`link_tcl_to_wasm` to fold in the runtime and get a binary
+    that instantiates standalone.
     """
     ir_module = lower_to_ir(source)
     cfg_module = build_cfg(ir_module)
     return wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
+
+
+def link_tcl_to_wasm(
+    source: str,
+    *,
+    optimise: bool = False,
+) -> bytes:
+    """Compile *and link* Tcl source into a self-contained ``.wasm``.
+
+    Folds the bundled Zig runtime into the compiled user module via
+    Binaryen ``wasm-merge`` so the result instantiates without any
+    host-side import re-exporting — i.e. it runs directly under
+    ``wasmtime``.  The runtime variant is chosen from the program's
+    ``package require`` extensions.
+
+    Requires the Binaryen tools (``wasm-merge`` / ``wasm-opt``) on
+    ``PATH`` and the runtime artifact (present in a source build tree
+    or bundled inside the zipapp via ``core/_wasm_runtime``).
+    """
+    # Lazy imports keep the un-linked path free of any Binaryen /
+    # extension-manifest dependency.
+    from core.compiler.codegen.wasm._bundle import bundle_wasm
+    from core.compiler.codegen.wasm.extensions import runtime_path_for
+
+    ir_module = lower_to_ir(source)
+    cfg_module = build_cfg(ir_module)
+    module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
+    return bundle_wasm(module.to_bytes(), runtime_path=runtime_path_for(ir_module))
 
 
 def main() -> int:
@@ -99,6 +136,17 @@ def main() -> int:
         "-o",
         help="Output file path (default: stdout for WAT, out.wasm for binary)",
     )
+    parser.add_argument(
+        "--link",
+        "-l",
+        action="store_true",
+        default=False,
+        help=(
+            "Link the Zig runtime into a single self-contained .wasm "
+            "binary that runs directly under wasmtime (implies binary "
+            "output; requires Binaryen wasm-merge/wasm-opt on PATH)"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -112,6 +160,18 @@ def main() -> int:
     else:
         parser.error("No input: provide a file, --source, or pipe via stdin")
         return 1
+
+    # Linked binary: fold in the runtime and emit a runnable module.
+    if args.link:
+        linked = link_tcl_to_wasm(source, optimise=args.optimise)
+        out_path = args.output or "out.wasm"
+        Path(out_path).write_bytes(linked)
+        opt_label = "optimised" if args.optimise else "non-optimised"
+        print(
+            f"Wrote linked WASM binary to {out_path} ({len(linked)} bytes, {opt_label})",
+            file=sys.stderr,
+        )
+        return 0
 
     # Compile
     module = compile_tcl_to_wasm(source, optimise=args.optimise)

@@ -491,11 +491,16 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
 
     def _check_statement(stmt: IRStatement) -> None:
-        # W302: catch without result variable (IR-native)
+        # W302: catch without result variable (IR-native).  Highlight just
+        # the ``catch`` command word — narrowest span that identifies the
+        # issue — rather than the whole ``catch {…}`` statement.
         if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            w302_range = stmt.range
+            if stmt.tokens is not None and stmt.tokens.argv:
+                w302_range = range_from_token(stmt.tokens.argv[0])
             diagnostics.append(
                 Diagnostic(
-                    range=stmt.range,
+                    range=w302_range,
                     message=(
                         "catch without a result variable silently swallows errors. "
                         "Consider capturing the result: catch {…} result"
@@ -543,16 +548,21 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
         arg_expand: list[bool] | None = None
         arg_tokens: list[Token] | None = None
         arg_single: list[bool] | None = None
-        if ct is not None and ct.expand_word is not None:
-            # If the command name itself is expanded ({*}$dispatch), we
-            # cannot resolve the actual command — skip arity checks.
-            if ct.expand_word and ct.expand_word[0]:
-                return
-            arg_expand = list(ct.expand_word[1:])
+        if ct is not None:
+            # Per-argument tokens are always carried (used for the W001
+            # subcommand range and, with ``arg_expand``, literal-list
+            # resolution).  ``{*}`` expansion markers are extracted only
+            # when present.
             if ct.argv:
                 arg_tokens = list(ct.argv[1:])
             if ct.single_token_word:
                 arg_single = list(ct.single_token_word[1:])
+            if ct.expand_word is not None:
+                # If the command name itself is expanded ({*}$dispatch), we
+                # cannot resolve the actual command — skip arity checks.
+                if ct.expand_word and ct.expand_word[0]:
+                    return
+                arg_expand = list(ct.expand_word[1:])
 
         # Built-in command arity checking
         sig = _resolve_signature(cmd_name)
@@ -635,9 +645,13 @@ def _check_arity(
             )
             if suggestions:
                 msg += f"; did you mean '{suggestions[0]}'?"
+            # Highlight the offending subcommand word, not the command name.
+            w001_range = diag_range
+            if arg_tokens:
+                w001_range = range_from_token(arg_tokens[0])
             diagnostics.append(
                 Diagnostic(
-                    range=diag_range,
+                    range=w001_range,
                     message=msg,
                     severity=Severity.WARNING,
                     code="W001",

@@ -63,7 +63,11 @@ class TestFoldingRanges:
         """)
         ranges = get_folding_ranges(source)
         region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
-        assert len(region_ranges) >= 1
+        # The if-body spans from its opening line (0) to the line before the
+        # closing brace (2), so a region fold must cover exactly that span.
+        assert any(r.start_line == 0 and r.end_line == 2 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
 
     def test_single_line_no_fold(self):
         source = "proc foo {} { return 1 }\n"
@@ -91,7 +95,11 @@ class TestFoldingRanges:
         """)
         ranges = get_folding_ranges(source)
         region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
-        assert len(region_ranges) >= 1
+        # The while-body folds from its opening line (0) to the line before
+        # the closing brace (2).
+        assert any(r.start_line == 0 and r.end_line == 2 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
 
     def test_if_else_bodies_are_disjoint(self):
         """Regression for #182: `} else {` must not put body1 and body2 on the same line."""

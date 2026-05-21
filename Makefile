@@ -65,6 +65,45 @@ OUT_DIR  := $(EXT_DIR)/out
 EXPLORER_DIR    := $(ROOT)explorer
 EXPLORER_STATIC := $(EXPLORER_DIR)/static
 
+# Zig runtime WASM — single source of truth for the artifact path and
+# its sources.  Listing every .zig as a prerequisite of the artifact
+# means any runtime source change forces a rebuild via Make, instead of
+# the stale binary silently surviving (core.runtime_wasm only builds
+# when the file is *missing*).
+RUNTIME_ZIG_DIR  := $(ROOT)runtime/zig
+RUNTIME_WASM     := $(RUNTIME_ZIG_DIR)/zig-out/bin/tcl_runtime.wasm
+RUNTIME_ZIG_SRCS := $(shell find $(RUNTIME_ZIG_DIR) -name '*.zig' -not -path '*/zig-out/*' -not -path '*/.zig-cache/*') $(wildcard $(RUNTIME_ZIG_DIR)/build.zig.zon)
+
+# Committed test-slow proof.  `.test-slow.stamp` certifies that
+# `make test-slow` passed against the current tree (the CI PR gate and
+# the release/publish targets verify it).  A *code-mutating* make
+# invocation means the certificate can no longer be trusted, so we drop
+# it up front — the gate then fails until test-slow re-runs and rewrites
+# it.
+#
+# Exempt (STAMP_KEEP_GOALS) are the targets that DON'T touch tracked
+# sources: the stamp's own writer/checker, help, and every release /
+# publish / artifact-build target (they only write to gitignored build/,
+# out/, zig-out/, _build_info.py).  Deleting the stamp for those would
+# (a) needlessly invalidate a valid proof and (b) dirty the worktree,
+# which `scripts/release.sh` rejects — so the release flow stays robust.
+# Those ship targets instead *depend on* verify-test-slow-stamp below, so
+# they rely on the proof rather than destroying it.  `%` are filter
+# wildcards (release%, zipapp%, publish%, …).  Skipped under `make -n`.
+STAMP_FILE       := $(ROOT).test-slow.stamp
+STAMP_KEEP_GOALS := test-slow verify-test-slow-stamp help \
+    release% publish% zipapp% smoke-% screenshot% explorer-build% \
+    package-vsix vsix verify-vsix jetbrains sublime zed claude-skills \
+    compiler-explorer-gui build-info
+ifeq ($(findstring n,$(firstword $(MAKEFLAGS))),)
+ifneq ($(strip $(filter-out $(STAMP_KEEP_GOALS),$(MAKECMDGOALS))),)
+# drop-if-stale, NOT unconditional delete: a still-valid stamp survives
+# (so e.g. `make clean publish-vsix` on a green tree publishes), while a
+# stamp that no longer matches the tree is cleared so the gate trips.
+$(shell bash $(ROOT)scripts/test-slow-stamp.sh drop-if-stale >/dev/null 2>&1 || true)
+endif
+endif
+
 # Build output — everything generated goes under build/
 BUILD_DIR  := $(ROOT)build
 KCS_DB     := core/help/kcs_help.db
@@ -136,7 +175,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-wasm test-slow verify-test-slow-stamp test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag release-codeql-gate build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps install-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -147,7 +186,7 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
+publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Verifying VS Code Marketplace credentials"
 	@if [ -n "$$VSCE_PAT" ]; then \
 		echo "    Using VSCE_PAT from environment (non-interactive)."; \
@@ -219,9 +258,13 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ensure-python-test-deps ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
+
+test-wasm: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the WASM codegen/runtime test suite (rebuilds the Zig runtime if its sources changed)
+	@echo "==> Running WASM tests against the Zig runtime"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_wasm_*.py -q -n 4
 
 test-tclpkg: $(UV_STAMP) ensure-tcl-deps ## Run tclpkg package manager tests only
 	@echo "==> Running tclpkg tests"
@@ -564,14 +607,31 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 		SKIP_TEST_VM=1 $(MAKE) -j $(NPROC) check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
 	fi
 	@mkdir -p $(ROOT)tmp
+	@# Committed proof for the CI PR gate (content fingerprint of the
+	@# tree, excluding the stamp itself).  Written before the local tmp
+	@# stamps so their worktree fingerprint accounts for it.
+	@bash $(ROOT)scripts/test-slow-stamp.sh write
 	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
-	@echo "==> test-slow: PASSED — stamped tmp/check-all.stamp + tmp/test-slow.stamp"
+	@echo "==> test-slow: PASSED — stamped .test-slow.stamp + tmp/check-all.stamp + tmp/test-slow.stamp"
+	@echo "==> test-slow: remember to 'git add .test-slow.stamp' and commit it with your PR"
+
+verify-test-slow-stamp: ## Verify the committed .test-slow.stamp matches the current tree (the CI PR gate)
+	@bash $(ROOT)scripts/test-slow-stamp.sh check
 
 install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
 	@bash $(ROOT)scripts/install-hooks.sh
 
 ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+install-test-deps: ## Install EVERYTHING test-slow needs (system tools + uv + Python venv) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
+	@echo "==> install-test-deps: installing system toolchain + uv"
+	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
+	@echo "==> install-test-deps: creating the Python venv (.venv via uv sync)"
+	@# uv may have just landed in ~/.local/bin (Astral installer) — make
+	@# sure the sync step can find it regardless of the parent PATH.
+	@PATH="$$HOME/.local/bin:$$PATH" $(MAKE) $(UV_STAMP)
+	@echo "==> install-test-deps: done — run 'make test-slow' next"
 
 ensure-python-test-deps: ## Install host deps exercised by the full Python pytest suite
 	@env \
@@ -1111,7 +1171,7 @@ $(ZIPAPP_MCP): $(PY_SRCS) $(BUILD_INFO)
 
 zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
 
-$(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO)
+$(ZIPAPP_WASM): $(PY_SRCS) $(BUILD_INFO) $(RUNTIME_WASM)
 	@echo "==> Building WASM compiler zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py wasm \
 		--version $(VERSION) \
@@ -1167,7 +1227,7 @@ $(JB_PLUGIN): $(PY_SRCS) $(BUILD_INFO)
 	@echo "Built: $(JB_PLUGIN)"
 	@ls -lh $(JB_PLUGIN)
 
-publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
+publish-jetbrains: verify-test-slow-stamp jetbrains ## Publish JetBrains plugin to JetBrains Marketplace
 	@echo "==> Resolving JetBrains Marketplace credentials"
 	@JETBRAINS_TOKEN="$$(bash $(ROOT)scripts/jetbrains_token.sh)" || exit 1; \
 	export JETBRAINS_TOKEN; \
@@ -1201,7 +1261,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
+publish-sublime: verify-test-slow-stamp sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/publish_sublime.sh
 
 # Zed extension
@@ -1246,12 +1306,12 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
-publish-zed: zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
+publish-zed: verify-test-slow-stamp zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
 	@bash $(ROOT)scripts/publish_zed.sh
 
 # Release
 
-release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: verify-test-slow-stamp package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
@@ -1336,6 +1396,7 @@ clean-screenshots: ## Remove captured screenshots
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf $(OUT_DIR)
+	rm -rf $(RUNTIME_ZIG_DIR)/zig-out
 	rm -f  $(BUILD_INFO)
 	rm -f  $(BUILD_INFO_JSON)
 	rm -f  $(KCS_DB)
@@ -1353,10 +1414,17 @@ distclean: clean ## Remove build artifacts and node_modules
 # below provide a scriptable entry-point and the leak-check variant
 # used by S0.2.
 
-.PHONY: build-runtime build-runtime-leakcheck
+.PHONY: build-wasm-runtime build-runtime-leakcheck
 
-build-runtime: ## Build runtime/zig (default debug build) → tcl_runtime.wasm
-	cd runtime/zig && zig build
+build-wasm-runtime: $(RUNTIME_WASM) ## Build runtime/zig (default debug build) → tcl_runtime.wasm
+
+# Real-file rule: rebuild only when a .zig source (or build.zig.zon) is
+# newer than the artifact.  Everything that consumes the runtime WASM
+# depends on this target so a stale binary can never survive a source
+# change.
+$(RUNTIME_WASM): $(RUNTIME_ZIG_SRCS)
+	@echo "==> Building Zig runtime WASM (sources changed)"
+	cd $(RUNTIME_ZIG_DIR) && zig build
 
 build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
 	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true

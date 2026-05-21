@@ -485,6 +485,49 @@ def taint_propagation(
             if t.tainted:
                 taints[(name, 0)] = t
 
+    # Alias groups: names that share the same underlying storage within this
+    # frame (``upvar 1 c a; upvar 1 c b`` makes ``a`` and ``b`` the same cell).
+    # Taint written through one name must be observable through the others, so
+    # we close the taint map over each group on every fixpoint pass.  This is
+    # flow-insensitive across the group (a member is tainted if *any* member is
+    # ever tainted) — the conservative, security-safe direction.  Only groups
+    # with two or more distinct names matter; a lone ``global g`` shares its
+    # name with itself and already flows through ordinary SSA.
+    alias_groups: list[frozenset[str]] = []
+    try:
+        from ..memory_ssa import compute_aliases
+
+        for aset in compute_aliases(ssa):
+            names = aset.names
+            if len(names) >= 2:
+                alias_groups.append(names)
+    except Exception:
+        alias_groups = []
+
+    # Every (name, version) an aliased member takes anywhere in the SSA — defs,
+    # uses, phis, and block exit versions.  A read site may reference a version
+    # produced by the ``upvar`` declaration itself (e.g. ``b#1``), so seeding
+    # only version 0 is not enough; the closure broadcasts to all of these.
+    aliased_member_names: set[str] = set()
+    for group in alias_groups:
+        aliased_member_names |= group
+    member_versions: dict[str, set[int]] = {n: {0} for n in aliased_member_names}
+    if aliased_member_names:
+        for block in ssa.blocks.values():
+            for phi in block.phis:
+                if phi.name in member_versions:
+                    member_versions[phi.name].add(phi.version)
+            for name, ver in getattr(block, "exit_versions", {}).items():
+                if name in member_versions:
+                    member_versions[name].add(ver)
+            for s in block.statements:
+                for name, ver in s.defs.items():
+                    if name in member_versions:
+                        member_versions[name].add(ver)
+                for name, ver in s.uses.items():
+                    if name in member_versions:
+                        member_versions[name].add(ver)
+
     # Compute traversal order (DFS over CFG, same algorithm as core_analyses).
     _seen: set[str] = set()
     order: list[str] = []
@@ -561,5 +604,23 @@ def taint_propagation(
                     )
                     if set_taint((var, ver), inferred):
                         changed = True
+
+        # Alias closure: share taint across names that alias the same storage.
+        if alias_groups:
+            # Snapshot the per-group taint, then broadcast it to every member.
+            for group in alias_groups:
+                group_taint = _UNTAINTED
+                for (name, _ver), t in taints.items():
+                    if name in group and t.tainted:
+                        group_taint = taint_join(group_taint, t)
+                if not group_taint.tainted:
+                    continue
+                # Broadcast the group taint to every version each member takes,
+                # so a read through any alias name (incl. the version produced
+                # by its own ``upvar`` declaration) observes it.
+                for name in group:
+                    for ver in member_versions.get(name, (0,)):
+                        if set_taint((name, ver), group_taint):
+                            changed = True
 
     return taints

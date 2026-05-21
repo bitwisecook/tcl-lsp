@@ -477,10 +477,10 @@ class TestCallHierarchy:
         """)
         analysis = analyse(src)
         items = prepare_call_hierarchy(src, TEST_URI, 3, 6, analysis)
-        if items:
-            calls = incoming_calls(items[0], src, TEST_URI, analysis)
-            caller_names = {c.from_.name for c in calls}
-            assert "outer" in caller_names
+        assert items, "expected a call-hierarchy item for inner"
+        calls = incoming_calls(items[0], src, TEST_URI, analysis)
+        caller_names = {c.from_.name for c in calls}
+        assert "outer" in caller_names
 
     @_irules
     def test_outgoing_calls_from_proc(self):
@@ -493,10 +493,10 @@ class TestCallHierarchy:
         """)
         analysis = analyse(src)
         items = prepare_call_hierarchy(src, TEST_URI, 0, 6, analysis)
-        if items:
-            calls = outgoing_calls(items[0], src, TEST_URI, analysis)
-            callee_names = {c.to.name for c in calls}
-            assert "inner" in callee_names
+        assert items, "expected a call-hierarchy item for outer"
+        calls = outgoing_calls(items[0], src, TEST_URI, analysis)
+        callee_names = {c.to.name for c in calls}
+        assert "inner" in callee_names
 
 
 # Rename: rename works through ``call`` sites

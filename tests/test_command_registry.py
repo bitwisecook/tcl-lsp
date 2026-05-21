@@ -147,10 +147,10 @@ class TestCommandsForEvent:
     def test_excluded_events_respected(self):
         # TCP::rcv_scale excludes SERVER_INIT.
         spec = REGISTRY.get("TCP::rcv_scale", "f5-irules")
-        if spec is not None and spec.excluded_events:
-            excluded_event = spec.excluded_events[0]
-            es = REGISTRY.commands_for_event("f5-irules", excluded_event)
-            assert "TCP::rcv_scale" in es.out_of_event_commands
+        assert spec is not None and spec.excluded_events, spec
+        excluded_event = spec.excluded_events[0]
+        es = REGISTRY.commands_for_event("f5-irules", excluded_event)
+        assert "TCP::rcv_scale" in es.out_of_event_commands
 
 
 class TestCommandLegality:

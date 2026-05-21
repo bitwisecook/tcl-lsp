@@ -29,7 +29,9 @@ plus a matching build target under ``runtime/zig/<extension>/`` and a
 
 from __future__ import annotations
 
+import importlib.resources
 import logging
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +39,16 @@ from pathlib import Path
 from ...ir import IRModule
 
 _LOGGER = logging.getLogger(__name__)
+
+# Name of the subpackage under ``core/`` into which the zipapp build
+# stages the runtime ``.wasm`` variants (see scripts/build_zipapp.py
+# ``build_wasm``).  In a normal source checkout this directory does not
+# exist — the dev build tree under ``runtime/zig/zig-out/bin`` wins.
+_BUNDLED_PKG = "core._wasm_runtime"
+
+# Materialised bundled runtimes are cached for the process lifetime so a
+# multi-file compile only extracts each variant once.
+_bundled_cache: dict[str, Path] = {}
 
 
 def _repo_root() -> Path:
@@ -48,14 +60,56 @@ def _zig_bin() -> Path:
     return _repo_root() / "runtime" / "zig" / "zig-out" / "bin"
 
 
+def _materialise_bundled(filename: str) -> Path | None:
+    """Return a real on-disk path to a runtime bundled inside the package.
+
+    The bundler invokes ``wasm-opt`` / ``wasm-merge`` on the runtime
+    path, so a copy living inside a zipapp (where ``core/`` is a zip
+    member, not a real file) must be extracted to a temp file first.
+    Returns ``None`` when no bundled copy is present (the normal source
+    checkout), letting the caller fall back to the dev build tree.
+    """
+    cached = _bundled_cache.get(filename)
+    if cached is not None and cached.is_file():
+        return cached
+    try:
+        resource = importlib.resources.files(_BUNDLED_PKG).joinpath(filename)
+        if not resource.is_file():
+            return None
+        data = resource.read_bytes()
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return None
+    out_dir = Path(tempfile.gettempdir()) / "tcl_lsp_wasm_runtime"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / filename
+    out_path.write_bytes(data)
+    _bundled_cache[filename] = out_path
+    return out_path
+
+
+def _runtime_path(filename: str) -> Path:
+    """Resolve a runtime artifact, preferring the dev build tree.
+
+    Falls back to a copy bundled inside the package (zipapp) when the
+    build tree is absent.  When neither exists the dev path is returned
+    unchanged so :func:`_bundle.bundle_wasm` raises the actionable
+    "build it via `zig build`" error.
+    """
+    dev = _zig_bin() / filename
+    if dev.is_file():
+        return dev
+    bundled = _materialise_bundled(filename)
+    return bundled if bundled is not None else dev
+
+
 def _tcltest_runtime_path() -> Path:
     """Path of the tcltest-enabled runtime variant."""
-    return _zig_bin() / "tcl_runtime_with_tcltest.wasm"
+    return _runtime_path("tcl_runtime_with_tcltest.wasm")
 
 
 def default_runtime_path() -> Path:
     """Path of the lean runtime — used when no extension is requested."""
-    return _zig_bin() / "tcl_runtime.wasm"
+    return _runtime_path("tcl_runtime.wasm")
 
 
 @dataclass(frozen=True)

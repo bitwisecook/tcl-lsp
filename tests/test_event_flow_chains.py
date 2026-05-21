@@ -74,9 +74,10 @@ class TestMasterOrder:
         """SERVERSSL events must come after SERVER_CONNECTED."""
         events = [evt for evt, _ in MASTER_ORDER]
         sc_idx = events.index("SERVER_CONNECTED")
-        for evt in events:
-            if evt.startswith("SERVERSSL_"):
-                assert events.index(evt) > sc_idx, f"{evt} should be after SERVER_CONNECTED"
+        serverssl = [evt for evt in events if evt.startswith("SERVERSSL_")]
+        assert serverssl, "no SERVERSSL_* events in MASTER_ORDER"
+        for evt in serverssl:
+            assert events.index(evt) > sc_idx, f"{evt} should be after SERVER_CONNECTED"
 
     def test_http_response_after_request_send(self):
         """HTTP_RESPONSE comes after HTTP_REQUEST_SEND."""
@@ -127,20 +128,26 @@ class TestFlowChains:
 
     def test_closed_events_are_last(self):
         """CLIENT_CLOSED must be the last step in every TCP chain."""
-        for chain_id, chain in FLOW_CHAINS.items():
-            if "TCP" in chain.profiles:
-                assert chain.steps[-1].event == "CLIENT_CLOSED", (
-                    f"Chain '{chain_id}' does not end with CLIENT_CLOSED"
-                )
+        tcp_chains = [(cid, c) for cid, c in FLOW_CHAINS.items() if "TCP" in c.profiles]
+        assert tcp_chains, "no TCP chains in FLOW_CHAINS"
+        for chain_id, chain in tcp_chains:
+            assert chain.steps[-1].event == "CLIENT_CLOSED", (
+                f"Chain '{chain_id}' does not end with CLIENT_CLOSED"
+            )
 
     def test_conditional_steps_have_notes(self):
         """Steps with conditional=True must have a condition_note."""
-        for chain_id, chain in FLOW_CHAINS.items():
-            for step in chain.steps:
-                if step.conditional:
-                    assert step.condition_note, (
-                        f"{step.event} in '{chain_id}' is conditional but has no condition_note"
-                    )
+        conditional_steps = [
+            (cid, step)
+            for cid, chain in FLOW_CHAINS.items()
+            for step in chain.steps
+            if step.conditional
+        ]
+        assert conditional_steps, "no conditional steps in FLOW_CHAINS"
+        for chain_id, step in conditional_steps:
+            assert step.condition_note, (
+                f"{step.event} in '{chain_id}' is conditional but has no condition_note"
+            )
 
     def test_no_duplicate_events_in_chain(self):
         """No event appears twice in the same chain."""

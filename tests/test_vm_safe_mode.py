@@ -26,8 +26,8 @@ class TestSafeModeWhitelist:
         """Non-specialised commands on the whitelist dispatch normally."""
         interp = TclInterp(safe=True, safe_whitelist=frozenset({"puts"}))
         # ``puts`` reaches ``_invoke_inner`` because it is not a specialised
-        # bytecode opcode; the whitelist allows it through.
-        interp.eval("puts -nonewline {}")
+        # bytecode opcode; the whitelist allows it through and it returns "".
+        assert interp.eval("puts -nonewline {}").value == ""
 
     def test_safe_refuses_non_whitelisted_invoked_command(self) -> None:
         interp = TclInterp(safe=True, safe_whitelist=frozenset({"set"}))
