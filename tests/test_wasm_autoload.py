@@ -152,3 +152,67 @@ class TestStdlibPrelude:
         with_lib = self._link(src, tmp_path, with_library=True)
         without = self._link(src, tmp_path, with_library=False)
         assert with_lib == without
+
+
+class TestStdlibPreludePruning:
+    """A bundled file may define several procs; only those statically
+    reachable from the program are kept — and only when it's provably
+    safe (no eval/source/dynamic dispatch that could invoke a proc by a
+    runtime-computed name).  Uses a synthetic library so it exercises the
+    pruning logic without depending on the real Tcl tree."""
+
+    def _make_lib(self, tmp_path):
+        lib = tmp_path / "lib"
+        lib.mkdir()
+        (lib / "multi.tcl").write_text(
+            "proc alpha {} { return [beta] }\n"
+            "proc beta {} { return 2 }\n"
+            "proc gamma {} { return 3 }\n"
+            "proc delta {} { return 4 }\n"
+        )
+        (lib / "tclIndex").write_text(
+            "# Tcl autoload index file, version 2.0\n"
+            + "".join(
+                f"set auto_index({c}) [list ::tcl::Pkg::source [file join $dir multi.tcl]]\n"
+                for c in ("alpha", "beta", "gamma", "delta")
+            )
+        )
+        return lib
+
+    def _bundled(self, src, lib):
+        from core.compiler.lowering import lower_to_ir
+        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+
+        module = lower_to_ir(src)
+        before = set(module.procedures)
+        # allowlist=None: bundle every referenced command (the gate under
+        # test is the *pruning* safety check, not the seed allowlist).
+        apply_stdlib_prelude(module, lib, allowlist=None)
+        return sorted(q.lstrip(":") for q in (set(module.procedures) - before))
+
+    def test_unreachable_procs_pruned(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        # alpha calls beta; gamma/delta are unreachable.
+        assert self._bundled("puts [alpha]\n", lib) == ["alpha", "beta"]
+
+    def test_single_proc_reachability(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        assert self._bundled("puts [gamma]\n", lib) == ["gamma"]
+
+    def test_eval_disables_pruning(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        # `eval $x` could invoke any proc by name → keep everything.
+        out = self._bundled("set x foo\neval $x\nputs [alpha]\n", lib)
+        assert out == ["alpha", "beta", "delta", "gamma"]
+
+    def test_dispatcher_command_disables_pruning(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        # `after`'s script arg isn't a [...] substitution the scanner
+        # walks → unprovable → keep everything.
+        out = self._bundled("after 0 {puts hi}\nputs [alpha]\n", lib)
+        assert out == ["alpha", "beta", "delta", "gamma"]
+
+    def test_dynamic_command_name_disables_pruning(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        out = self._bundled("set c alpha\n$c\nputs [gamma]\n", lib)
+        assert out == ["alpha", "beta", "delta", "gamma"]

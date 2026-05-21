@@ -198,6 +198,149 @@ def _recurse_bodies(stmt: IRStatement, out: set[str]) -> None:
         _collect_commands(stmt.body, out)
 
 
+# Commands that run a script or invoke a command by a name the static
+# call graph can't see — their script/command argument is an ordinary
+# word (not a ``[...]`` substitution the scanner walks), so any proc
+# they reach is invisible.  ``eval`` / ``uplevel`` / dynamic
+# ``namespace eval`` / dynamic ``catch`` already lower to
+# :class:`IRBarrier`; this set covers the rest that stay plain
+# :class:`IRCall`.  If any appears, pruning is unsafe.
+_DISPATCH_COMMANDS: frozenset[str] = frozenset(
+    {
+        "apply",
+        "source",
+        "subst",
+        "interp",
+        "after",
+        "trace",
+        "coroutine",
+        "tailcall",
+        "vwait",
+        "uplevel",
+        "eval",
+        "namespace",
+        "unknown",
+    }
+)
+
+
+def _name_is_dynamic(name: str) -> bool:
+    """A command name that isn't a compile-time literal (it's computed at
+    run time via variable / command substitution, so it could resolve to
+    any proc)."""
+    return "$" in name or "[" in name or "{" in name
+
+
+def _has_barrier(script: IRScript) -> bool:
+    """True if *script* (recursively) contains an :class:`IRBarrier` —
+    eval / uplevel / dynamic ``namespace eval`` / dynamic ``catch`` and
+    friends, which run scripts the static analysis can't see into."""
+    from .ir import IRBarrier
+
+    for stmt in script.statements:
+        if isinstance(stmt, IRBarrier):
+            return True
+        # Reuse the body-recursion shape; collect into a throwaway set
+        # is overkill, so walk bodies directly here.
+        if _stmt_bodies_have_barrier(stmt):
+            return True
+    return False
+
+
+def _stmt_bodies_have_barrier(stmt: IRStatement) -> bool:
+    if isinstance(stmt, IRIf):
+        return any(_has_barrier(c.body) for c in stmt.clauses) or (
+            stmt.else_body is not None and _has_barrier(stmt.else_body)
+        )
+    if isinstance(stmt, IRFor):
+        return _has_barrier(stmt.init) or _has_barrier(stmt.body) or _has_barrier(stmt.next)
+    if isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRBlock, IRUpFrame)):
+        return _has_barrier(stmt.body)
+    if isinstance(stmt, IRTry):
+        return (
+            _has_barrier(stmt.body)
+            or any(_has_barrier(h.body) for h in stmt.handlers)
+            or (stmt.finally_body is not None and _has_barrier(stmt.finally_body))
+        )
+    if isinstance(stmt, IRSwitch):
+        return any(arm.body is not None and _has_barrier(arm.body) for arm in stmt.arms) or (
+            stmt.default_body is not None and _has_barrier(stmt.default_body)
+        )
+    return False
+
+
+def _module_has_dynamic_dispatch(module: IRModule) -> bool:
+    """True when the module contains *any* construct that could invoke a
+    command by a name the static call graph can't enumerate — an
+    :class:`IRBarrier`, a non-literal command name, or a call to a
+    :data:`_DISPATCH_COMMANDS` script-runner.  Pruning bundled procs is
+    only sound when this is False."""
+    if _has_barrier(module.top_level):
+        return True
+    for proc in module.procedures.values():
+        if _has_barrier(proc.body):
+            return True
+    refs: set[str] = set()
+    _collect_commands(module.top_level, refs)
+    for proc in module.procedures.values():
+        _collect_commands(proc.body, refs)
+    for name in refs:
+        if _name_is_dynamic(name):
+            return True
+        if name.lstrip(":") in _DISPATCH_COMMANDS:
+            return True
+    return False
+
+
+def _prune_unused_bundled(module: IRModule, bundled_qnames: set[str]) -> None:
+    """Remove bundled procs unreachable from the user's code.
+
+    Roots are the top level plus every *non-bundled* proc (any of which
+    may run).  A bundled proc survives only if statically reachable from
+    a root, transitively through other bundled procs.  Skipped entirely
+    when the module has any dynamic dispatch (:func:`_module_has_dynamic
+    _dispatch`) — then we cannot prove what a runtime-resolved name
+    invokes, so nothing is pruned.
+    """
+    if not bundled_qnames:
+        return
+    if _module_has_dynamic_dispatch(module):
+        return
+
+    def _norm(n: str) -> str:
+        return n.lstrip(":")
+
+    bundled_by_norm: dict[str, str] = {_norm(q): q for q in bundled_qnames}
+
+    # Seed reachability with commands referenced by the roots.
+    worklist: set[str] = set()
+    _collect_commands(module.top_level, worklist)
+    for qname, proc in module.procedures.items():
+        if qname not in bundled_qnames:
+            _collect_commands(proc.body, worklist)
+
+    live: set[str] = set()
+    while worklist:
+        name = worklist.pop()
+        qn = bundled_by_norm.get(_norm(name))
+        if qn is None or qn in live:
+            continue
+        live.add(qn)
+        # Pull in the commands this now-live bundled proc references.
+        _collect_commands(module.procedures[qn].body, worklist)
+
+    for qname in bundled_qnames - live:
+        module.procedures.pop(qname, None)
+
+
+def _is_proc_definition(stmt: IRStatement) -> bool:
+    """True if *stmt* is a top-level ``proc NAME ARGS BODY`` definition —
+    redundant once the proc is in ``module.procedures``."""
+    return isinstance(stmt, IRCall) and (
+        stmt.command == "proc" or stmt.canonical_command == "::proc"
+    )
+
+
 def _file_for_command(name: str, mapping: dict[str, str]) -> str | None:
     """Resolve a referenced command to its library file, tolerating the
     leading ``::`` that canonicalisation adds to global names."""
@@ -239,6 +382,7 @@ def apply_stdlib_prelude(
         return module
 
     bundled_files: set[str] = set()
+    bundled_qnames: set[str] = set()
     seen_commands: set[str] = set()
 
     # Seed the worklist with commands referenced by the user's module,
@@ -280,13 +424,19 @@ def apply_stdlib_prelude(
         for qname, proc in sub.procedures.items():
             if qname not in module.procedures:
                 module.procedures[qname] = proc
+                bundled_qnames.add(qname)
         # Merge the file's load-time top-level setup (``namespace eval`` /
         # ``variable`` declarations the procs depend on) ahead of the
-        # user's code so it runs first.  Most index files lift their
-        # whole body into ``procedures`` and leave this empty.
-        if sub.top_level.statements:
+        # user's code so it runs first.  Drop the file's ``proc``
+        # *definition* statements: the procs are already merged into
+        # ``module.procedures`` (whence codegen compiles them), so the
+        # top-level ``proc`` calls are redundant — and scanning their
+        # body arguments would otherwise pollute the prune root set with
+        # commands the bundled procs reference internally.
+        setup_stmts = tuple(s for s in sub.top_level.statements if not _is_proc_definition(s))
+        if setup_stmts:
             module.top_level = IRScript(
-                statements=tuple(sub.top_level.statements) + tuple(module.top_level.statements)
+                statements=setup_stmts + tuple(module.top_level.statements)
             )
         if sub.namespace_imports:
             module.namespace_imports = module.namespace_imports + sub.namespace_imports
@@ -299,6 +449,10 @@ def apply_stdlib_prelude(
             _collect_commands(proc.body, new_cmds)
         _collect_commands(sub.top_level, new_cmds)
         pending |= new_cmds - seen_commands
+
+    # Drop bundled procs the program can't statically reach — but only
+    # when it's provably safe (no eval/source/dynamic dispatch).
+    _prune_unused_bundled(module, bundled_qnames)
 
     return module
 
