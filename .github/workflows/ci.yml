@@ -86,6 +86,31 @@ jobs:
       - name: Run fast CI gate (make ci-fast)
         run: make ci-fast
 
+  # PR gate: the committed `.test-slow.stamp` must match the code under
+  # test.  `make test-slow` rewrites that stamp on success with a content
+  # fingerprint of every tracked file (the stamp excepted), so a matching
+  # stamp proves the full local gate was run against exactly this tree.
+  # Content-addressed, hence reliable even though `actions/checkout`
+  # resets file mtimes — a timestamp comparison could not work here.
+  # Fails loudly with remediation steps; see AGENTS.md for the rule that
+  # agents must run test-slow before opening a PR.
+  test-slow-stamp:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Verify the PR's OWN head, not the default merge commit: the
+          # stamp records the fingerprint the agent ran test-slow against
+          # on their branch, so checking the merge-with-main tree would
+          # fail spuriously whenever main advanced.  Only tracked-file
+          # content is hashed, so a shallow checkout is enough.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify test-slow stamp matches the code under test
+        run: bash scripts/test-slow-stamp.sh check
+
   # Backstop: full Python test suite — runs only on push to main and on tags.
   # PRs are gated by pr-gate; this job catches anything pr-gate missed once
   # the change has merged, so a regression is loud but doesn't block PRs.

@@ -54,10 +54,11 @@ suite("Alias Tracking (upvar)", () => {
 
     const position = new vscode.Position(4, 13);
 
-    const result = (await vscode.commands.executeCommand("vscode.prepareRename", docUri, position)) as
-      | vscode.Range
-      | { range: vscode.Range; placeholder: string }
-      | undefined;
+    const result = (await vscode.commands.executeCommand(
+      "vscode.prepareRename",
+      docUri,
+      position,
+    )) as vscode.Range | { range: vscode.Range; placeholder: string } | undefined;
 
     assert.ok(result, "prepareRename should succeed on an upvar alias");
     const placeholder = (result as { placeholder?: string }).placeholder;
