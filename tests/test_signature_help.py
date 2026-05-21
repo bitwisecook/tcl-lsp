@@ -6,8 +6,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsp.features.signature_help import get_signature_help
@@ -116,15 +114,20 @@ class TestSignatureHelpDocumentation:
 
 
 class TestSignatureHelpSubcommands:
-    @pytest.mark.xfail(
-        reason="ensemble subcommand signature help (e.g. 'string length') is not "
-        "yet provided — only the top-level 'string option arg' signature is",
-        strict=False,
-    )
     def test_string_length(self):
         source = "string length "
         # Cursor after "string length " (col 14)
         result = get_signature_help(source, 0, 14)
-        # Should show the string length subcommand signature (currently None).
+        # The ensemble subcommand signature is provided from the subcommand
+        # spec's own synopsis (``string length string``).
         assert result is not None
-        assert any("string" in sig.label for sig in result.signatures)
+        assert any(sig.label == "string length string" for sig in result.signatures)
+
+    def test_string_index_subcommand(self):
+        result = get_signature_help("string index ", 0, 13)
+        assert result is not None
+        assert any(sig.label == "string index string charIndex" for sig in result.signatures)
+
+    def test_string_unknown_subcommand_no_signature(self):
+        # An unrecognised subcommand yields no signature (not the generic one).
+        assert get_signature_help("string bogus ", 0, 13) is None
