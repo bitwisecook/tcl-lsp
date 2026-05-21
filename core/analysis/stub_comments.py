@@ -42,6 +42,15 @@ Flags:
     -unsafe       — Command is unsafe
     -scope_alias  — Command creates a scope alias (like upvar)
 
+A ``-loop`` stub is lowered to a real loop (so the loop variable stays
+defined and the body is analysed in iteration order) when the call has
+the single-iterator ``... varName:var collection body:body`` shape — a
+leading subcommand word or option flags are tolerated.  Other shapes,
+and non-loop ``body:body`` arguments, are treated as barriers: nested
+commands are still checked, but the body's variable writes are not
+threaded into the surrounding data flow (the command's body scope is
+unknown, so assuming it runs in the caller's scope could be wrong).
+
 Examples::
 
     # tcl-lsp: stubs-begin
@@ -73,10 +82,56 @@ In ``.tcl.stubs`` files::
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .semantic_model import Range, StubArgDef, StubCommandDef, StubExprDef
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+# Workspace-level stub commands discovered from external ``.tcl.stubs``
+# files.  Unlike inline stubs (scanned per-source), these apply to every
+# file analysed under the active scope.  They feed the signature overlay
+# and the compile cache fingerprint, but NOT the per-file shadow check
+# (W116/W117) — their ``range`` points into a different document, so
+# attaching diagnostics to the file under analysis would be wrong.
+_ambient_cmd_stubs_var: contextvars.ContextVar[tuple[StubCommandDef, ...]] = contextvars.ContextVar(
+    "tcl_lsp_ambient_cmd_stubs", default=()
+)
+
+
+def ambient_cmd_stubs() -> tuple[StubCommandDef, ...]:
+    """Return the workspace stub commands active in the current scope."""
+    return _ambient_cmd_stubs_var.get()
+
+
+@contextlib.contextmanager
+def ambient_stub_scope(cmd_stubs: "Iterable[StubCommandDef]"):
+    """Make *cmd_stubs* the ambient workspace stubs for the ``with`` block.
+
+    In-process callers (the LSP diagnostics pipeline and its thread
+    fallbacks) use this so :func:`ambient_cmd_stubs` resolves to the
+    workspace's external stubs.  Restored on exit — safe to nest.
+    """
+    token = _ambient_cmd_stubs_var.set(tuple(cmd_stubs))
+    try:
+        yield
+    finally:
+        _ambient_cmd_stubs_var.reset(token)
+
+
+def set_ambient_stubs(cmd_stubs: "Iterable[StubCommandDef]") -> None:
+    """Set the ambient workspace stubs without a restore token.
+
+    For subprocess-pool workers, which do not share ContextVars with the
+    parent process and re-establish per-request state on every call (the
+    same pattern as ``configure_signatures``)."""
+    _ambient_cmd_stubs_var.set(tuple(cmd_stubs))
+
 
 _VALID_ROLES: frozenset[str] = frozenset(
     {"body", "expr", "var", "var_read", "name", "pattern", "channel", "value"}

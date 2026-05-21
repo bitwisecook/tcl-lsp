@@ -113,6 +113,14 @@ class CommandSig:
     (3 positional args, exceeds max 2).
     """
 
+    loop: bool = False
+    """``True`` when a ``BODY`` argument is the body of a loop.
+
+    Set by ``-loop`` stub declarations so the lowering pass can model the
+    body as an iterated block (loop variables stay defined, body vars are
+    tracked in order) instead of an opaque barrier.
+    """
+
 
 @dataclass(frozen=True, slots=True)
 class SubcommandSig:

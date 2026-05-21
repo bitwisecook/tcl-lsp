@@ -29,7 +29,7 @@ from ..semantic_model import (
     Scope,
     Severity,
 )
-from ..stub_comments import scan_source_for_stubs
+from ..stub_comments import ambient_cmd_stubs, scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
 from ._utils import parse_file_suppression, parse_noqa_line_suppressions
 
@@ -262,7 +262,7 @@ class _AnalyserBase:
         from core.commands.registry.runtime import stub_signature_scope
 
         snapshots: list[AnalyserSnapshot] = []
-        with stub_signature_scope(self.result.stub_commands):
+        with stub_signature_scope([*self.result.stub_commands, *ambient_cmd_stubs()]):
             for cmds in chunk_commands:
                 self._analyse_commands_inner(cmds, self._current_scope, source)
                 snapshots.append(self.snapshot())
@@ -311,7 +311,7 @@ class _AnalyserBase:
         # with it in ``self.result.stub_commands``.
         from core.commands.registry.runtime import stub_signature_scope
 
-        with stub_signature_scope(self.result.stub_commands):
+        with stub_signature_scope([*self.result.stub_commands, *ambient_cmd_stubs()]):
             self._analyse_commands_inner(commands, self._current_scope, source)
             if finalise:
                 self._emit_unresolved_command_diagnostics()
@@ -441,7 +441,7 @@ class _AnalyserBase:
         # the stubbed command's BODY argument see it as a script.
         from core.commands.registry.runtime import stub_signature_scope
 
-        with stub_signature_scope(cmd_stubs):
+        with stub_signature_scope([*cmd_stubs, *ambient_cmd_stubs()]):
             self._analyse_body(source, self._current_scope)
             self._emit_unresolved_command_diagnostics(cu=cu)
             self._emit_variable_usage_diagnostics()

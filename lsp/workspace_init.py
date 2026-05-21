@@ -7,6 +7,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from lsprotocol import types
@@ -36,6 +37,73 @@ except ImportError:
     _version = "dev"
 
 _server: LanguageServer | None = None
+
+# Cap the external-stub discovery walk so a pathological tree can't stall
+# initialisation.  Stub files are normally few and near the workspace root.
+_MAX_STUB_FILES = 200
+_STUB_WALK_SKIP_DIRS = frozenset(
+    {".git", ".hg", ".svn", "node_modules", "__pycache__", ".mypy_cache", ".tox"}
+)
+
+
+def _discover_workspace_stubs(bases: list[str]) -> None:
+    """Find and parse external ``*.tcl.stubs`` files under the workspace.
+
+    *bases* are the directories to search — workspace roots, every
+    workspace folder (multi-root), and library paths.  Populates
+    :data:`lsp.state.workspace_stub_commands` so every analysed document
+    sees the declared commands (same overlay as inline ``# tcl-lsp: stub``
+    blocks).  Best-effort: unreadable files and parse failures are skipped.
+
+    Traversal is sorted and the discovered file list is sorted before
+    parsing, so when two files declare the same command the "last wins"
+    overlay is deterministic across platforms.
+    """
+    import os
+
+    from core.analysis.stub_comments import parse_stubs_file
+
+    seen: set[str] = set()
+    stub_files: list[str] = []
+    capped = False
+    for base in bases:
+        if capped:
+            break
+        if not base or not os.path.isdir(base):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            # Sort in place for deterministic traversal; prune noise dirs.
+            dirnames[:] = sorted(d for d in dirnames if d not in _STUB_WALK_SKIP_DIRS)
+            for name in sorted(filenames):
+                if not name.endswith(".tcl.stubs"):
+                    continue
+                full = os.path.realpath(os.path.join(dirpath, name))
+                if full not in seen:
+                    seen.add(full)
+                    stub_files.append(full)
+                    if len(stub_files) >= _MAX_STUB_FILES:
+                        capped = True
+                        break
+            if capped:
+                break
+
+    stub_files.sort()
+    cmd_stubs: list = []
+    for path in stub_files:
+        try:
+            file_cmds, _ = parse_stubs_file(Path(path))
+        except Exception:
+            log.warning("Failed to parse stub file: %s", path, exc_info=True)
+            continue
+        cmd_stubs.extend(file_cmds)
+
+    _state.workspace_stub_commands = cmd_stubs
+    if cmd_stubs:
+        log.info(
+            "Loaded %d command stub(s) from %d external .tcl.stubs file(s)",
+            len(cmd_stubs),
+            len(stub_files),
+        )
 
 
 def configure(server_instance: LanguageServer) -> None:
@@ -377,6 +445,12 @@ def on_initialized(params: types.InitializedParams) -> None:
             if os.path.isdir(venv_lib):
                 library_paths.append(venv_lib)
                 log.info("Auto-detected tclpkg venv lib: %s", venv_lib)
+
+    # Search workspace roots, every workspace folder (multi-root), and
+    # library paths — deduped, order-preserving — so external stubs load
+    # consistently regardless of whether ``root_path`` is set.
+    stub_bases = list(dict.fromkeys([*roots, *(p for _, p in folder_paths), *library_paths]))
+    _discover_workspace_stubs(stub_bases)
 
     _state.background_scanner.configure(
         workspace_roots=roots,
