@@ -174,7 +174,7 @@ The project uses GNU Make. Key targets:
 | `make lint`        | All lint and style checks                |
 | `make format-py`   | Auto-fix Python formatting with Ruff     |
 | `make compile`     | Compile the TypeScript extension         |
-| `make vsix`        | Build the .vsix VS Code extension        |
+| `make build-editor-vsix`        | Build the .vsix VS Code extension        |
 | `make check-wasm-parity` | Verify WASM command parity (registry vs Zig runtime) against baseline |
 | `make snapshot-wasm-parity` | Refresh the WASM parity baseline after intentional registry/runtime changes |
 | `make publish-flow` | Print the release + marketplace publish cheat-sheet |

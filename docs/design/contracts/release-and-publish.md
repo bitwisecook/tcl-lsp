@@ -114,7 +114,7 @@ maintainer's machine.  None of them exist in GitHub Actions secrets.
 
 ## What CI may do
 
-* Build every release artefact via `make zipapp-X` / `make jetbrains`
+* Build every release artefact via `make zipapp-X` / `make build-editor-jetbrains`
   / `make sublime` / `make zed` / `make package-vsix`.
 * Sign every artefact with sigstore (OIDC + `github.token` — no
   configured secrets).
