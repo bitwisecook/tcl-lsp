@@ -203,6 +203,43 @@ impl CommandSpec {
             Some(ds) => ds.intersects(dialect),
         }
     }
+
+    /// Declared option / switch names valid in `dialect`, in
+    /// declaration order with duplicates removed.
+    ///
+    /// Mirrors `CommandSpec.switch_names` in
+    /// `core/commands/registry/models.py`: walks the command's
+    /// declared options (both the flat [`Self::options`] list and
+    /// every [`CommandForm`](crate::CommandForm)'s options) and keeps
+    /// only those whose [`OptionSpec::supports_dialect`] holds for
+    /// `dialect`, inheriting the command's own [`Self::dialects`] as
+    /// the parent set. `dialect == None` means "no dialect filter"
+    /// (every declared option is returned).
+    ///
+    /// Used by the analyser's option-aware arity check: leading
+    /// arguments that match one of these names are skipped before
+    /// counting positional args, so option flags introduced in a
+    /// later Tcl release don't leak into an earlier dialect's
+    /// signature and get wrongly skipped (e.g. `regsub -command` is
+    /// 9.0-only).
+    #[must_use]
+    pub fn switch_names(&self, dialect: Option<DialectSet>) -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = Vec::new();
+        let consider = |opt: &OptionSpec, names: &mut Vec<&'static str>| {
+            if opt.supports_dialect(dialect, self.dialects) && !names.contains(&opt.name) {
+                names.push(opt.name);
+            }
+        };
+        for opt in self.options {
+            consider(opt, &mut names);
+        }
+        for form in self.command_forms {
+            for opt in form.options {
+                consider(opt, &mut names);
+            }
+        }
+        names
+    }
 }
 
 /// Complete metadata for a single subcommand.

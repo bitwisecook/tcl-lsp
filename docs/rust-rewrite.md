@@ -1209,15 +1209,39 @@ closer via a token-tree `range_from_word_token`.
 
 This is the same convention the Rust side hit in the `${arr(idx)}`
 rename work — the lexer's `Var` token span excludes the closing
-brace. **Rust mirror:** `tcl-lsp-core::selection_range` must widen
-token ranges to the closer (it currently builds `Range(tok.start,
-tok.end)` raw); `tcl-compiler::segmenter` whole-command range
-should include the last word's closer. The audit on `main`
+brace. **Rust mirror:** `tcl-compiler::segmenter` whole-command
+range should include the last word's closer. The audit on `main`
 confirmed hover (no range), folding (line-based), and semantic
 tokens (length-encoded) are unaffected — so scope is
 selection-range + segmenter range only. Classify: in-scope,
 low/medium. Files: `selection_range.rs`, `segmenter.rs`, the span
 → LSP-range helpers.
+
+**Landed (segmenter) — `claude/tcl-lsp-rust-rewrite-lNRRS`.**
+`segmenter.rs` now derives the whole-command span via a new
+`command_span` / `widen_word_end` pair (mirroring Python's
+`_command_range` → `range_from_word_token`): the final word's
+exclusive end is extended by one byte when the last token is a
+`Str` / `Cmd` whose closer (`}` / `]`, derived from the token
+*type*) sits at `span.end()`. The single source byte at
+`span.end()` is inspected only to skip the degenerate `{}` / `[]`
+forms, whose span already covers the closer (the lexer extends
+those by one). Tests: braced / bracketed / multi-line / degenerate
+/ plain-word final words.
+
+**`selection_range` — no applicable hook (divergence noted).** The
+doc premise above ("`tcl-lsp-core::selection_range` … currently
+builds `Range(tok.start, tok.end)` raw") describes the *Python*
+structure. The Rust port diverged: its chain is word-at-cursor →
+single-line `;`-aware command-segment scan → line → enclosing
+bodies → document, and **none** of those links is built from a raw
+lexer `Str` / `Cmd` token — so none drops a closer (the line scan
+already runs to the `;` / EOL, past any closer). The closer-drop
+fix Python applies to its per-argument *token* link therefore has
+nothing to attach to until the deferred token-based command-segment
+machinery lands (tracked under `S-signature-help-rich`); when that
+strip ports the per-argument link, it must widen those token ranges
+to the closer (use a `widen_range_for_closer`-style helper).
 
 ### SYNC-MAY21-2 — `-loop` stubs + external `.tcl.stubs` files (#468)
 
@@ -1231,6 +1255,24 @@ and support `-loop` stub forms. Threaded through the analyser core
 the `-loop` stub form, plus the `tcl-registry` signature side.
 Classify: in-scope, **structural** → promote to a numbered chunk
 when the analyser-core port (C41) reaches diagnostics.
+
+**Verified Rust state (2026-05-21, branch
+`claude/tcl-lsp-rust-rewrite-lNRRS`).** The inline `-loop` stub
+*flag* is **already present**: `tcl-registry::stub_overlay`
+declares `StubSigFlags::LOOP` (bit 1) and the analyser parses /
+carries it onto each `StubSig`. What #468 actually adds on top of
+the flag is **structural and still blocked**:
+(1) routing a `-loop` stub call through real loop *lowering* (the
+Python `_lower_stub_loop`) so the loop variable stays defined and
+the body is analysed in iteration order — the Rust lowering's
+structured-hook dispatch doesn't yet consult the stub overlay for a
+loop shape; (2) external `.tcl.stubs` *file* ingestion + the ambient
+(cross-file) stub scope + bounded workspace discovery + the
+W002/W123 interplay + cache-fingerprint merge + subprocess-pool
+forwarding — none of which has a Rust home yet (workspace stub
+discovery lives in the not-yet-ported LSP-server/workspace-state
+layer). Net: the overlay data model is ready; the loop-lowering and
+workspace-ingestion consumers ride with C41 / the `S*` server port.
 
 ### SYNC-MAY21-3 — E003 false positives: switches before positional args (#460 / #455)
 
@@ -1246,6 +1288,61 @@ merge + dialect-scoped switch filtering in `tcl-registry`, and the
 E003 arity check (`compiler_checks` / analyser arity validation).
 Classify: in-scope, low-touch.
 
+**Landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** The Rust analyser
+had **no general arity emitter at all** (no live `E001`/`E002`/`E003`
+— the only prior `E002` occurrences were test fixtures for the E101
+de-dup pass), so this row ported the simple-command arity check from
+scratch rather than mirroring a 3-line Python delta:
+
+- **`tcl-registry`:** `CommandSpec::switch_names(dialect)` mirrors
+  Python's `models.py::switch_names` — declared option names across
+  `options` + `command_forms[].options`, dialect-filtered via
+  `OptionSpec::supports_dialect`, deduped in declaration order.
+- **`analyser::dispatch`:** `CommandSig` gains `leading_options:
+  BTreeSet<String>`, populated from `switch_names(Some(dialect))` for
+  the simple branch (the SubcommandSig branch leaves it empty —
+  per-subcommand arity is a follow-up).
+- **`analyser::diagnostics`:** `emit_arity_diagnostics` mirrors
+  `_check_simple_arity` — skip leading declared options (dialect-
+  filtered), then compare the positional count to the arity bounds
+  (E002 too few / E003 too many). `{*}`-expanded words are excluded
+  from the positional lower bound (expansion threaded through
+  `process_command`), exactly as Python does.
+- **Post-walk flush + shadowing guard:** candidates are collected
+  during the walk and emitted in `flush_arity_diagnostics` (called
+  beside `emit_unresolved_command_diagnostics`), which drops any
+  command name shadowed by a user proc / class / alias / ensemble /
+  inline stub. This is **ahead of Python's inline check** and was
+  driven by validation (below): without it, a namespace that defines
+  `proc ::ns::close {...}` and calls `close ...` with the proc's
+  wider arity false-fired E003 against the *builtin* `close` arity.
+  The post-walk timing makes the guard order-independent (the proc
+  may be defined after its call site).
+
+**Validation.** Analysed the full Tcl 8.6 standard library and the
+entire tcllib 2.0 module tree with the live `tcl8.6` path:
+**0 E002/E003 false positives** in both (the 2 tcllib hits found in
+an intermediate build — both `::websocket::close` — were what
+motivated the shadowing guard, and are gone). Regression tests cover
+the #455 leading-switch cases (`regsub -all …`), #460 dialect
+filtering (`regsub -command` 9.0-only), genuine over/under-arity,
+and `{*}`-expansion suppression.
+
+**Documented parity gaps (intentional):** (1) like Python's name-only
+`leading_options`, the *value* of a value-taking leading option is
+not skipped (Python's value-aware `skip_options` is used only for
+arg-role resolution, not arity); (2) statically-resolvable literal
+`{*}` expansions are not refined to their element count — the
+conservative form can miss a genuine over-arity but never invents a
+false positive; (3) subcommand-dispatch arity is deferred (W001
+already covers unknown subcommands).
+
+**Out-of-scope finds (pre-existing, flagged):** the analyser stack-
+overflows on `tcl8.6.16/library/http/http.tcl` and hangs on a few
+tcllib files (`fumagic/filetypes.tcl`, `nettool/*`,
+`textutil/build/*/wcswidth.tcl`) — unrelated to arity (a flat
+emitter can't recurse); worth a separate investigation.
+
 ### SYNC-MAY21-4 — Analyser diagnostic-range coverage + product fixes (#464)
 
 Test-suite hardening for diagnostic-range coverage surfaced real
@@ -1256,6 +1353,29 @@ tests exposed). **Rust mirror:** fold into the in-progress
 analyser-core port (C41) — diagnostic spans plus the specific
 lifecycle/scope fixes. Classify: in-scope, medium; tracked under
 C41.
+
+**Partially landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** One
+concrete, already-ported piece was mirrored: **W302** (catch without
+result var) now anchors at just the `catch` command token instead of
+the whole `catch {…}` statement (which also dropped the closing brace
+under the lexer's inner-end convention) —
+`emit_w302_catch_no_result_var` uses `cmd_tok.span`; test updated to
+assert the narrow span.
+
+The remaining #464 range-narrowing is **blocked / architectural**:
+- **W210 / W211** (read-before-set, set-but-never-used) are not ported
+  to `tcl-compiler::analyser` at all — part of the var-lifecycle
+  surface still under C41.
+- **W213 / W220** *are* live but emit from the CFG/SSA pass with
+  `stmt.span()` (whole statement); narrowing them to the variable
+  token needs the target-variable token span plumbed through the IR
+  statements / SSA use-sites — an IR/lowering change, not a local
+  emitter tweak. Fold into C41.
+- The refactoring-fidelity fixes (extract-variable `[expr {…}]`
+  wrapping, token-based inline-variable, inline-proc brace
+  preservation, extract-proc edit-overlap merge) live in the
+  refactoring/code-action subsystem (`tcl-lsp-core`), a separate
+  chunk from the analyser-core port.
 
 ### SYNC-MAY21-5 — Preserve array indices when renaming base variables (#461)
 

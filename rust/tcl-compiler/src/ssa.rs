@@ -195,6 +195,16 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
 ///
 /// Uses the iterative dataflow algorithm. Returns a map from block
 /// name to the set of blocks that dominate it.
+///
+/// The fixpoint visits blocks in **reverse postorder** so that each
+/// block is processed after the predecessors it depends on, which is
+/// what makes the iteration converge in a small constant number of
+/// passes for a reducible CFG instead of one pass per block.  Driving
+/// the fixpoint off the reachable-block *set* (arbitrary hash order)
+/// instead made convergence O(blocks) passes — pathological on a proc
+/// body that lowers to a long chain of branches (e.g. a 700-way
+/// `if {$x == N} {...}` dispatch), where it turned an O(N²) job into
+/// O(N³) and stalled the analyser.
 #[must_use]
 pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<String>> {
     let reachable = func.reachable_blocks();
@@ -208,11 +218,15 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
         }
     }
 
+    // Reverse postorder over blocks reachable from the entry — this is
+    // exactly the reachable set, ordered so predecessors precede the
+    // blocks that depend on them.
+    let rpo = func.reverse_postorder();
     let preds = func.predecessors();
     let mut changed = true;
     while changed {
         changed = false;
-        for name in &reachable {
+        for name in &rpo {
             if *name == func.entry {
                 continue;
             }
@@ -245,10 +259,105 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
     dom
 }
 
+/// Compute immediate dominators directly via the Cooper-Harvey-Kennedy
+/// "A Simple, Fast Dominance Algorithm".
+///
+/// Returns the same map shape as [`compute_idom`] (entry and
+/// unreachable blocks map to `None`, every other reachable block to
+/// `Some(parent)`), but **without** materialising the full dominator
+/// *sets*: it works on reverse-postorder block indices and a single
+/// `idom` pointer per block, so it is O(N·D) time and O(N) memory
+/// rather than the O(N²) memory / O(N³) worst-case time of the
+/// set-based [`compute_dominators`] + [`compute_idom`] pair.  This is
+/// what keeps `build_ssa` bounded on pathologically large functions
+/// (a single multi-thousand-branch generated proc would otherwise
+/// exhaust memory building the dominator sets).
+#[must_use]
+pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<String>> {
+    const UNDEF: usize = usize::MAX;
+
+    // Shared iterative RPO — see `cfg::Function::reverse_postorder`.
+    let rpo = func.reverse_postorder();
+    let mut out: HashMap<String, Option<String>> = HashMap::new();
+    for name in func.blocks.keys() {
+        out.insert(name.clone(), None);
+    }
+    if rpo.is_empty() {
+        return out;
+    }
+    // Map block name → reverse-postorder index (entry == 0).
+    let mut rpo_index: HashMap<&str, usize> = HashMap::with_capacity(rpo.len());
+    for (i, n) in rpo.iter().enumerate() {
+        rpo_index.insert(n.as_str(), i);
+    }
+    let preds = func.predecessors();
+
+    let mut idom: Vec<usize> = vec![UNDEF; rpo.len()];
+    idom[0] = 0; // entry is its own dominator (sentinel for the walk).
+
+    // Walk up the idom tree from both nodes until they meet, using
+    // RPO indices (a dominator always has a strictly smaller index).
+    let intersect = |mut a: usize, mut b: usize, idom: &[usize]| -> usize {
+        while a != b {
+            while a > b {
+                a = idom[a];
+            }
+            while b > a {
+                b = idom[b];
+            }
+        }
+        a
+    };
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        // Skip the entry (index 0); process the rest in RPO order so
+        // each block sees already-processed predecessors.
+        for i in 1..rpo.len() {
+            let mut new_idom = UNDEF;
+            if let Some(ps) = preds.get(&rpo[i]) {
+                for p in ps {
+                    let Some(&pi) = rpo_index.get(p.as_str()) else {
+                        continue; // unreachable predecessor
+                    };
+                    if idom[pi] == UNDEF {
+                        continue; // not processed yet this pass
+                    }
+                    new_idom = if new_idom == UNDEF {
+                        pi
+                    } else {
+                        intersect(pi, new_idom, &idom)
+                    };
+                }
+            }
+            if new_idom != UNDEF && idom[i] != new_idom {
+                idom[i] = new_idom;
+                changed = true;
+            }
+        }
+    }
+
+    for (i, name) in rpo.iter().enumerate() {
+        if i == 0 || idom[i] == UNDEF {
+            out.insert(name.clone(), None);
+        } else {
+            out.insert(name.clone(), Some(rpo[idom[i]].clone()));
+        }
+    }
+    out
+}
+
 /// Compute immediate dominators from dominator sets.
 ///
 /// The immediate dominator of a block is the closest strict dominator
 /// (the one with the largest dominator set).
+///
+/// Retained as the reference set-based implementation that
+/// [`compute_idom_fast`] (the production path) is cross-validated
+/// against; see the `compute_idom_fast_matches_reference` test. Only
+/// the fast path is used in production, so this is compiled for tests.
+#[cfg(test)]
 #[must_use]
 pub(crate) fn compute_idom(
     func: &cfg::Function,
@@ -678,9 +787,12 @@ enum RenamePhase {
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
-    // 1. Compute dominance information.
-    let dom = compute_dominators(func);
-    let idom = compute_idom(func, &dom);
+    // 1. Compute dominance information.  Use the Cooper-Harvey-
+    //    Kennedy immediate-dominator algorithm directly — it is
+    //    O(N) memory, where the set-based `compute_dominators` is
+    //    O(N²) and exhausts memory on a single huge generated proc
+    //    (tens of thousands of CFG blocks).
+    let idom = compute_idom_fast(func);
     let df = compute_dominance_frontier(func, &idom);
     let tree = build_dom_tree(&idom);
     let phi_vars = compute_phi_vars(func, &df, registry);
@@ -1270,6 +1382,54 @@ mod tests {
         assert_eq!(idom["header"], Some("entry".into()));
         assert_eq!(idom["body"], Some("header".into()));
         assert_eq!(idom["end"], Some("header".into()));
+    }
+
+    #[test]
+    fn compute_idom_fast_matches_reference() {
+        // The production CHK path (`compute_idom_fast`) must produce
+        // exactly the same immediate dominators as the set-based
+        // reference (`compute_idom` over `compute_dominators`) across
+        // linear / diamond / loop shapes.
+        let mut linear = Function::new("::test", "entry");
+        linear.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
+        linear.blocks.insert("b1".into(), Block::new("b1"));
+        linear.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
+        linear.blocks.insert("b2".into(), Block::new("b2"));
+        linear.blocks.get_mut("b2").unwrap().terminator = Some(make_return());
+
+        for func in [linear, diamond_cfg(), loop_cfg()] {
+            let reference = compute_idom(&func, &compute_dominators(&func));
+            let fast = compute_idom_fast(&func);
+            assert_eq!(fast, reference, "CHK idom diverged for {:?}", func.entry);
+        }
+    }
+
+    #[test]
+    fn compute_idom_fast_handles_long_chain_without_blowup() {
+        // A long chain of `if`-style diamonds (the shape a big
+        // generated dispatch proc lowers to) must compute quickly via
+        // CHK — this is the regression for the analyser stalling /
+        // OOMing on machine-generated files.
+        let mut func = Function::new("::big", "b0");
+        let n = 4000;
+        for i in 0..n {
+            let cur = format!("b{i}");
+            let then = format!("t{i}");
+            let next = format!("b{}", i + 1);
+            func.blocks
+                .entry(cur.clone())
+                .or_insert_with(|| Block::new(&cur));
+            func.blocks.insert(then.clone(), Block::new(&then));
+            func.blocks.get_mut(&then).unwrap().terminator = Some(make_return());
+            func.blocks.insert(next.clone(), Block::new(&next));
+            func.blocks.get_mut(&cur).unwrap().terminator = Some(make_branch("c", &then, &next));
+        }
+        func.blocks.get_mut(&format!("b{n}")).unwrap().terminator = Some(make_return());
+        let idom = compute_idom_fast(&func);
+        // Each chain block's idom is the previous chain block.
+        assert_eq!(idom["b1"], Some("b0".into()));
+        assert_eq!(idom[&format!("b{n}")], Some(format!("b{}", n - 1)));
+        assert_eq!(idom["b0"], None);
     }
 
     #[test]

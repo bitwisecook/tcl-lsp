@@ -101,7 +101,13 @@ impl Analyser {
                     &mut self.result.suppressed_lines,
                 );
             }
-            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+            self.process_command(
+                &cmd.texts,
+                &cmd.argv,
+                &cmd.single_token_word,
+                cmd.expand_word.as_deref().unwrap_or(&[]),
+                scope_path,
+            );
             // `S-document-highlight-rich` / `S-references-rich`
             // follow-up: record every `$var` substitution in
             // arg positions so `VarDef.references` carries the
@@ -133,14 +139,18 @@ impl Analyser {
     ///
     /// Deferred concerns (each gets its own future strip — see
     /// the module docstring): var-as-command site recording,
-    /// W125 / IRULE5005 emission, arity checks, sub-command
-    /// resolution, command-invocation recording with
-    /// resolved-qname annotation.
+    /// W125 / IRULE5005 emission, sub-command resolution,
+    /// command-invocation recording with resolved-qname annotation.
+    /// Simple-command arity (E002 / E003) lands here via
+    /// [`Self::emit_arity_diagnostics`] (SYNC-MAY21-3); the
+    /// candidates are flushed post-walk by
+    /// [`Self::flush_arity_diagnostics`].
     pub fn process_command(
         &mut self,
         argv_texts: &[String],
         arg_tokens_in: &[Token],
         single_token_word: &[bool],
+        arg_expand_in: &[bool],
         scope_path: &[usize],
     ) {
         if argv_texts.is_empty() || arg_tokens_in.is_empty() {
@@ -240,75 +250,21 @@ impl Analyser {
         // recursion only), so this can't double-fire.
         self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
 
-        // **C41-default-on-followups-postpass.**  W302 — `catch`
-        // without result variable silently swallows errors.
-        // Mirrors the IRCatch arm of ``_check_statement`` in
-        // ``core/compiler/compiler_checks.py:491-504``.  Fires
-        // *before* the early-returning ``handle_catch_command``
-        // for the same reason as the EXPR-role dispatch above:
-        // the catch handler returns early and the diagnostic
-        // would otherwise be skipped.
-        if cmd_name == "catch" {
-            self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
-        }
-
-        // **C41-default-on-followups-postpass.**  W001 — unknown
-        // subcommand on a registry-known SubcommandSig command
-        // (``string``, ``dict``, ``info``, ``namespace`` …).
-        // Mirrors the SubcommandSig branch of ``_check_arity``
-        // in ``core/compiler/compiler_checks.py:580-643``.  Run
-        // before the early-returning handlers (notably
-        // ``handle_namespace_eval_command``) so ``namespace foo``
-        // for an unknown ``foo`` still gets flagged.
-        self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
-
-        // **C41-default-on-followups-postpass.**  E004 — malformed
-        // ``if`` command (extra words after ``else``, or a
-        // structural shape that doesn't match
-        // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``).
-        // Mirrors the ``IRBarrier`` arm of ``_check_statement`` in
-        // ``core/compiler/compiler_checks.py:506-525``, with the
-        // shape detection re-implemented analyser-side rather than
-        // by walking lowered IR — same dispatch-site pattern as
-        // W302 / W001.  ``if`` falls through to
-        // ``dispatch_body_arguments`` below (no early-returning
-        // handler), so dispatch ordering is consistency-only.
-        if cmd_name == "if" {
-            self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
-        }
-
-        // **C41-default-on-followups-postpass.**  W101 — ``eval``
-        // with substituted arguments (string-concatenation
-        // injection risk).  Mirrors ``check_eval_string_concat`` in
-        // ``core/analysis/checks/_security.py:19-73``.  Run before
-        // the early-returning handlers / body-walk dispatch so the
-        // generic ``ArgRole::Body`` recursion into the ``eval``
-        // body still runs even after W101 fires.  Cheap guard
-        // (cmd_name == "eval") inside the emitter avoids the
-        // overhead for the common case.
-        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
-
-        // **C41-default-on-followups-postpass.**  W304 — missing
-        // option terminator (``--``) on option-bearing commands.
-        // Mirrors ``check_missing_option_terminator`` in
-        // ``core/analysis/checks/_style.py:506-679``.  Driven by
-        // the registry's ``resolve_option_terminator`` profile, so
-        // commands that don't declare a ``--`` option (e.g.
-        // ``subst``, ``string match``, ``lsearch``) are filtered
-        // out at the registry layer — no analyser-side allow-list
-        // needed.  Run before the early-returning handlers
-        // (``handle_switch_command`` etc.) so option-bearing
-        // commands with their own handler still get checked.
-        self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
-
-        // **SYNC-MAY19-W003-W004.**  W004 — option not available in
-        // the active dialect.  Mirrors `check_dialect_invalid_option`
-        // in `core/analysis/checks/_domain.py` (PR #433, 0f9288d2).
-        // Driven by the registry's per-option `dialects` field; only
-        // fires when an option is declared on this command but its
-        // dialect set excludes the active one.  Substituted-value
-        // args and `--` terminate the scan.
-        self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+        // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
+        // / W304 / W004 / E002-E003).  Extracted from this function so
+        // it stays within the line budget; see the method for the
+        // per-code rationale and ordering.  Run before the
+        // early-returning handlers so option-bearing / body-owning
+        // commands still get checked.
+        self.emit_dispatch_site_diagnostics(
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            arg_expand_in,
+            cmd_tok,
+            scope_path,
+        );
 
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
@@ -397,6 +353,62 @@ impl Analyser {
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, scope_path);
+    }
+
+    /// Dispatch-site diagnostic emitters, run from
+    /// [`Self::process_command`] before the early-returning handlers so
+    /// option-bearing / body-owning commands still get checked.
+    ///
+    /// - **W302** (`catch` without a result variable) — `IRCatch` arm
+    ///   of `_check_statement` (`compiler_checks.py:491-504`); fires
+    ///   before the early-returning `handle_catch_command`.
+    /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
+    ///   `SubcommandSig` branch of `_check_arity`
+    ///   (`compiler_checks.py:580-643`); before
+    ///   `handle_namespace_eval_command` so `namespace foo` is flagged.
+    /// - **E004** (malformed `if`) — `IRBarrier` arm of
+    ///   `_check_statement` (`compiler_checks.py:506-525`).
+    /// - **W101** (`eval` with substituted args) —
+    ///   `check_eval_string_concat` (`checks/_security.py:19-73`);
+    ///   before body-walk dispatch so the `ArgRole::Body` recursion
+    ///   into the `eval` body still runs.
+    /// - **W304** (missing `--` option terminator) —
+    ///   `check_missing_option_terminator` (`checks/_style.py:506-679`),
+    ///   driven by the registry's option-terminator profile.
+    /// - **W004** (option not available in the active dialect,
+    ///   SYNC-MAY19-W003-W004) — `check_dialect_invalid_option`
+    ///   (`checks/_domain.py`, PR #433).
+    /// - **E002 / E003** (arity, SYNC-MAY21-3) — collected here and
+    ///   flushed post-walk by [`Self::flush_arity_diagnostics`].
+    #[allow(clippy::too_many_arguments)]
+    fn emit_dispatch_site_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        arg_expand_in: &[bool],
+        cmd_tok: Token,
+        scope_path: &[usize],
+    ) {
+        if cmd_name == "catch" {
+            self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
+        }
+        self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
+        if cmd_name == "if" {
+            self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
+        }
+        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
+        self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
+        self.emit_arity_diagnostics(
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_expand_in,
+            cmd_tok,
+            scope_path,
+        );
     }
 
     /// Generic EXPR-argument walk via the command registry's
@@ -961,6 +973,7 @@ mod tests {
             ],
             &[true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("x"));
     }
@@ -983,6 +996,7 @@ mod tests {
             ],
             &[true, true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.all_procs.contains_key("::foo"));
     }
@@ -1004,6 +1018,7 @@ mod tests {
                 str_tok(span(19, 21)),
             ],
             &[true, true, true, true],
+            &[],
             &[],
         );
         assert_eq!(a.result.global_scope.children.len(), 1);
@@ -1028,6 +1043,7 @@ mod tests {
             ],
             &[true, true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("i"));
     }
@@ -1044,6 +1060,7 @@ mod tests {
             ],
             &[true, true, true],
             &[],
+            &[],
         );
         assert!(a.result.global_scope.variables.contains_key("x"));
         assert!(a.result.global_scope.variables.contains_key("y"));
@@ -1057,6 +1074,7 @@ mod tests {
             &[esc_tok(span(0, 18)), esc_tok(span(19, 22))],
             &[true, true],
             &[],
+            &[],
         );
         // No handler matched; no procs, vars, classes, or aliases
         // recorded. (Unknown-command diagnostic emission is C41d4.)
@@ -1067,7 +1085,7 @@ mod tests {
     #[test]
     fn process_empty_argv_is_no_op() {
         let mut a = Analyser::new();
-        a.process_command(&[], &[], &[], &[]);
+        a.process_command(&[], &[], &[], &[], &[]);
         // No panic, no state mutation.
     }
 
@@ -1092,6 +1110,7 @@ mod tests {
                 esc_tok(span(25, 28)),
             ],
             &[true, true, true, true, true, true],
+            &[],
             &[],
         );
         assert!(a.command_aliases.contains_key("::myset"));

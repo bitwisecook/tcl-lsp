@@ -384,7 +384,17 @@ fn word_taint(
             rest = &rest[open..];
             if let Some(close) = rest.find(']') {
                 let sub = &rest[..=close];
-                t = t.join(word_taint(sub, uses, taints, ctx));
+                // Only recurse when the bracketed slice is strictly
+                // smaller than the word being analysed — i.e. it's a
+                // substitution *embedded* in surrounding text. When the
+                // whole word is itself the bracketed region it was
+                // already handled by the command-substitution branch
+                // above; recursing on it again (e.g. the empty `[]`
+                // inside `{[]}`) makes no progress and would recurse
+                // until the stack overflows.
+                if sub.len() < stripped.len() {
+                    t = t.join(word_taint(sub, uses, taints, ctx));
+                }
                 rest = &rest[close + 1..];
             } else {
                 break;

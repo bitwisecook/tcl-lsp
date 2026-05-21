@@ -667,10 +667,11 @@ numeric/string coercion."
     /// emits W302 for `IRCatch` (not `IRBarrier`) — the lowerer
     /// falls back to `IRBarrier` when the body argument is multi-token
     /// (e.g. ``catch $body``), so this Rust emit gates on
-    /// ``arg_single[0]`` to mirror that suppression.  The
-    /// diagnostic anchors at the full command span (catch keyword
-    /// through the last argument's end), matching Python's
-    /// ``stmt.range``.
+    /// ``arg_single[0]`` to mirror that suppression.  The diagnostic
+    /// anchors at just the ``catch`` command token — the narrowest
+    /// span that identifies the issue — matching the #464 narrowing
+    /// (`compiler_checks.py` now uses ``range_from_token(argv[0])``
+    /// rather than the whole-statement ``stmt.range``).
     pub(super) fn emit_w302_catch_no_result_var(
         &mut self,
         args: &[String],
@@ -691,10 +692,10 @@ numeric/string coercion."
         if arg_single.first().copied() != Some(true) {
             return;
         }
-        let Some(body_tok) = arg_tokens.first().copied() else {
+        if arg_tokens.is_empty() {
             return;
-        };
-        let span = tcl_lexer::Span::new(cmd_tok.span.start(), body_tok.span.end());
+        }
+        let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W302".to_string(),
             span,
@@ -812,6 +813,232 @@ Consider capturing the result: catch {\u{2026}} result"
             severity: Severity::Warning,
             fixes,
         });
+    }
+
+    /// **E002 / E003.** Argument-count check for simple (non-
+    /// subcommand) commands.  Mirrors `_check_simple_arity` in
+    /// `core/compiler/compiler_checks.py`: skip leading declared
+    /// option flags, then compare the positional-argument count
+    /// against the registry signature's arity bounds.
+    ///
+    /// Option skipping uses the dialect-filtered
+    /// [`CommandSig::leading_options`](super::dispatch::CommandSig::leading_options)
+    /// set, so switches introduced in a later Tcl release (e.g.
+    /// `regsub -command`, 9.0+) are only skipped under a dialect that
+    /// declares them.  This is the SYNC-MAY21-3 fix: it prevents both
+    /// the #455 false positive (declared switches counted as
+    /// positional → spurious E003) and the #460 dialect leak (9.0-only
+    /// switches skipped under 8.x).
+    ///
+    /// `arg_expand[i]` marks an argument preceded by the Tcl 8.5+
+    /// `{*}` expansion prefix.  A `{*}`-expanded word contributes an
+    /// unknown number of runtime arguments, so option skipping stops
+    /// at the first such word and the positional upper bound becomes
+    /// unbounded — only the count of *non-expanded* positional words
+    /// can still trip E003, exactly as Python does.
+    ///
+    /// **Parity gaps (documented, intentional):**
+    /// - Like Python's name-only `leading_options` skip, the *value*
+    ///   of a value-taking leading option is **not** skipped (Python's
+    ///   value-aware `skip_options` is used only for arg-role
+    ///   resolution, not arity).  See the validation note in
+    ///   `docs/rust-rewrite.md` (SYNC-MAY21-3).
+    /// - Statically-resolvable literal `{*}` expansions (`{*}{a b c}`)
+    ///   are not refined to their element count; the conservative form
+    ///   here can miss a genuine over-arity but never invents a false
+    ///   positive.
+    ///
+    /// Subcommand-dispatch commands are handled by
+    /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
+    /// per-subcommand arity is a later follow-up.
+    pub(super) fn emit_arity_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand_in: &[bool],
+        cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
+    ) {
+        use super::dispatch::{signature_for_command, CommandSignature};
+        use tcl_registry::prelude::DialectSet;
+
+        // `arg_expand_in` is parallel to the full argv (command name at
+        // index 0); drop that slot so it lines up with `args`.
+        let arg_expand: &[bool] = arg_expand_in.get(1..).unwrap_or(&[]);
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let Some(CommandSignature::Simple(sig)) =
+            signature_for_command(registry, cmd_name, dialect)
+        else {
+            // Unknown command (no signature) or a subcommand-dispatch
+            // command — neither is arity-checked here.
+            return;
+        };
+
+        let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
+
+        // Skip leading declared option flags.  Stop at the first
+        // non-option word, the option terminator `--` (consumed), or
+        // a `{*}`-expanded word (whose value can't be classified).
+        let mut positional_start = 0usize;
+        if !sig.leading_options.is_empty() {
+            for (i, arg) in args.iter().enumerate() {
+                if expanded(i) {
+                    break;
+                }
+                if sig.leading_options.contains(arg) {
+                    positional_start = i + 1;
+                    if arg == "--" {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        let positional_any_expand = (positional_start..args.len()).any(expanded);
+        // `nargs_min` is the *lower bound* on the positional-argument
+        // count: the non-expanded words, since each `{*}` word
+        // contributes 0..N more at runtime.  E003 ("too many") fires
+        // when even this lower bound exceeds `max`.  E002 ("too few")
+        // needs an *upper bound* on the count, which becomes unbounded
+        // once any `{*}` expansion is present — so E002 only fires when
+        // there is no expansion and the count is therefore exact.
+        let nargs_min = if positional_any_expand {
+            (positional_start..args.len())
+                .filter(|&i| !expanded(i))
+                .count()
+        } else {
+            args.len() - positional_start
+        };
+        let min = usize::from(sig.arity.min);
+        let max = usize::from(sig.arity.max);
+
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+
+        // Capture the call-site command-resolution namespace so the
+        // post-walk flush can resolve this command the Tcl way (current
+        // namespace → global) and only suppress the arity check when
+        // the call actually resolves to a user definition — not to any
+        // same-tail-named proc elsewhere in the file. Uses the proc's
+        // *defining* namespace (so `close` inside a body of
+        // `proc ::ns::x` resolves through `::ns`), not just lexical
+        // `namespace eval` nesting.
+        let ns = self.command_resolution_namespace(scope_path);
+
+        // Collect as a *candidate*; the post-walk
+        // [`Self::flush_arity_diagnostics`] drops it if the call
+        // resolves to a user proc / class / alias / ensemble / stub
+        // (resolved against the complete tables, so definition order
+        // doesn't matter).
+        if !positional_any_expand && (args.len() - positional_start) < min {
+            let got = args.len() - positional_start;
+            self.pending_arity.push((
+                cmd_name.to_string(),
+                ns,
+                super::types::Diagnostic {
+                    code: "E002".to_string(),
+                    span: full_span,
+                    message: format!(
+                        "Too few arguments for '{cmd_name}': expected at least {min}, got {got}"
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                },
+            ));
+        } else if !sig.arity.is_unlimited() && nargs_min > max {
+            self.pending_arity.push((
+                cmd_name.to_string(),
+                ns,
+                super::types::Diagnostic {
+                    code: "E003".to_string(),
+                    span: full_span,
+                    message: format!(
+                        "Too many arguments for '{cmd_name}': expected at most {max}, got {nargs_min}"
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                },
+            ));
+        }
+    }
+
+    /// Post-walk flush of the [`Self::pending_arity`] candidates
+    /// collected by [`Self::emit_arity_diagnostics`].
+    ///
+    /// Runs after the command walk completes, when `all_procs`,
+    /// `all_classes`, `command_aliases`, `ensemble_namespaces` and the
+    /// inline stub set are fully populated.  A candidate is dropped
+    /// only when the call **resolves to** a user definition rather than
+    /// the builtin whose registry arity produced it — resolution
+    /// follows Tcl's rule for unqualified commands (the call-site
+    /// namespace, then global `::`), using the namespace captured at
+    /// emit time.  So `proc ::ns::close {...}` suppresses a `close`
+    /// call inside `::ns` (and a qualified `::ns::close ...`), but a
+    /// `close` call in another namespace still resolves to the builtin
+    /// and is checked.  Document-global declarations — inline
+    /// `# tcl-lsp: stub`s — suppress by bare name regardless of
+    /// namespace.
+    ///
+    /// Idempotent: drains `pending_arity`, so a second call is a
+    /// no-op.
+    pub fn flush_arity_diagnostics(&mut self) {
+        if self.pending_arity.is_empty() {
+            return;
+        }
+        // Fully-qualified user-command names the calls may resolve to
+        // (procs / classes / aliases are keyed by qualified name;
+        // ensemble namespaces *are* the command name).
+        let mut user_qnames: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        user_qnames.extend(self.result.all_procs.keys().map(String::as_str));
+        user_qnames.extend(self.result.all_classes.keys().map(String::as_str));
+        user_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
+        user_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
+        // Inline stubs are document-global and unqualified.
+        let stub_names = super::utils::scan_stub_command_names(&self.source);
+
+        // Qualify an unqualified command against a namespace, mirroring
+        // `resolve_command_qualified_name` (`::` root → `::cmd`).
+        let join = |ns: &str, cmd: &str| -> String {
+            if ns == "::" {
+                format!("::{cmd}")
+            } else {
+                format!("{ns}::{cmd}")
+            }
+        };
+
+        let pending = std::mem::take(&mut self.pending_arity);
+        for (cmd_name, ns, diag) in pending {
+            let bare = cmd_name.rsplit("::").next().unwrap_or(&cmd_name);
+            // Candidate qualified names this call could resolve to.
+            let candidates: Vec<String> = if cmd_name.contains("::") {
+                // Already qualified — absolutise like
+                // `resolve_command_qualified_name` does.
+                let abs = if cmd_name.starts_with("::") {
+                    cmd_name.clone()
+                } else {
+                    format!("::{cmd_name}")
+                };
+                vec![abs]
+            } else {
+                // Unqualified — current namespace, then global.
+                vec![join(&ns, &cmd_name), format!("::{cmd_name}")]
+            };
+            let resolves_to_user = candidates.iter().any(|c| user_qnames.contains(c.as_str()))
+                || stub_names.contains(bare);
+            if resolves_to_user {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
     }
 
     /// **E004.** Emit "Malformed `if` command" / "Extra words after
@@ -3781,6 +4008,133 @@ mod tests {
         );
         assert!(w004[0].message.contains("-command"));
         assert!(w004[0].message.contains("regsub"));
+    }
+
+    // -- SYNC-MAY21-3 (#460 / #455): E002 / E003 arity ---------------
+
+    #[test]
+    fn e003_not_emitted_for_leading_switches() {
+        // Regression for #455: declared option flags must be skipped
+        // before counting positional args.  `regsub` (max arity 4)
+        // previously tripped a false E003 once any switch appeared.
+        // These switches exist in every supported dialect.
+        for snippet in [
+            "regsub -all -line {x} $args {} str",
+            "regsub -all {a} $b {} c",
+            "regsub -nocase -all -- $pat $s {} out",
+        ] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e003: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E003")
+                .collect();
+            assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        }
+    }
+
+    #[test]
+    fn e003_fires_on_genuine_over_arity() {
+        // 5 positional args for `regsub` (max 4) is a real error.
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub a b c d e", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_switch_options_are_dialect_filtered() {
+        // `regsub -command` is Tcl 9.0+ (TIP 463).
+        // Under 9.0 it is a real switch → skipped → 4 positional → OK.
+        let mut a = Analyser::new();
+        let r9 = a.analyse("regsub -command a b c d", "tcl9.0");
+        assert!(
+            !r9.diagnostics.iter().any(|d| d.code == "E003"),
+            "unexpected E003 under tcl9.0: {:?}",
+            r9.diagnostics
+        );
+        // Under 8.6 `-command` is unknown → counted positional →
+        // 5 > max 4 → E003 (the #460 dialect-leak guard).
+        let mut a2 = Analyser::new();
+        let r8 = a2.analyse("regsub -command a b c d", "tcl8.6");
+        assert!(
+            r8.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003 under tcl8.6, got {:?}",
+            r8.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_suppressed_by_expanded_word() {
+        // `{*}$rest` expands to an unknown count, so the expanded word
+        // is excluded from the positional lower bound: `regsub a b c d
+        // {*}$rest` has 4 non-expanded positional words (≤ max 4) and
+        // must not trip E003, whereas the same five literal words do.
+        let mut a = Analyser::new();
+        let expanded = a.analyse("regsub a b c d {*}$rest", "tcl8.6");
+        assert!(
+            !expanded.diagnostics.iter().any(|d| d.code == "E003"),
+            "expansion should suppress E003: {:?}",
+            expanded.diagnostics
+        );
+        let mut b = Analyser::new();
+        let literal = b.analyse("regsub a b c d e", "tcl8.6");
+        assert!(
+            literal.diagnostics.iter().any(|d| d.code == "E003"),
+            "control: five literal words should fire E003: {:?}",
+            literal.diagnostics
+        );
+    }
+
+    #[test]
+    fn e002_fires_on_too_few_args() {
+        // `regsub` requires at least 3 args (exp string subSpec).
+        let mut a = Analyser::new();
+        let result = a.analyse("regsub a b", "tcl8.6");
+        let e002: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E002")
+            .collect();
+        assert!(
+            !e002.is_empty(),
+            "expected E002 for `regsub a b`, got {:?}",
+            result.diagnostics
+        );
+        assert!(e002[0].message.contains("at least 3"));
+    }
+
+    #[test]
+    fn e003_shadow_is_namespace_scoped() {
+        // PR #472 review (Codex): a namespaced proc named `close` must
+        // NOT suppress arity checks on a *global* `close` call (which
+        // resolves to the builtin, max 2), but must suppress a `close`
+        // call inside its own namespace (which resolves to the proc).
+        let src = "proc ::ns::close {a b c d} {}\n\
+                   close x y z\n\
+                   namespace eval ::ns { close x y z }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e003: Vec<&Diagnostic> = r.diagnostics.iter().filter(|d| d.code == "E003").collect();
+        assert_eq!(
+            e003.len(),
+            1,
+            "expected exactly one E003 (the global close), got {:?}",
+            r.diagnostics
+        );
+        // The flagged call must be the top-level one, before the
+        // `namespace eval` body (both call sites share the same text).
+        let ns_eval_off = src.find("namespace eval").unwrap();
+        let span = e003[0].span;
+        assert!(
+            (span.start() as usize) < ns_eval_off,
+            "flagged the namespaced call instead of the global one: {:?}",
+            &src[span.start() as usize..span.end() as usize],
+        );
     }
 
     #[test]

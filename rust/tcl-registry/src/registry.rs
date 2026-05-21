@@ -513,6 +513,34 @@ mod tests {
     }
 
     #[test]
+    fn switch_names_is_dialect_filtered() {
+        use crate::dialects::DialectSet;
+        let reg = CommandRegistry::build_default();
+        let regsub = reg.get("regsub").expect("regsub spec");
+        // `-command` is Tcl 9.0+ (TIP 463); the always-available
+        // switches appear in every dialect.
+        let in_86 = regsub.switch_names(Some(DialectSet::TCL86));
+        assert!(in_86.contains(&"-all"), "{in_86:?}");
+        assert!(in_86.contains(&"-nocase"), "{in_86:?}");
+        assert!(
+            !in_86.contains(&"-command"),
+            "9.0-only -command leaked into 8.6: {in_86:?}",
+        );
+        let in_90 = regsub.switch_names(Some(DialectSet::TCL90));
+        assert!(
+            in_90.contains(&"-command"),
+            "-command missing under 9.0: {in_90:?}",
+        );
+        // No filter → every declared option, no duplicates.
+        let all = regsub.switch_names(None);
+        assert!(all.contains(&"-command"));
+        let mut dedup = all.clone();
+        dedup.sort_unstable();
+        dedup.dedup();
+        assert_eq!(dedup.len(), all.len(), "switch_names returned duplicates");
+    }
+
+    #[test]
     fn tcl9_commands_from_pr_433_are_registered() {
         // SYNC-MAY19-tcl9-commands: mirrors PR #433 (0f9288d2).
         let reg = CommandRegistry::build_default();

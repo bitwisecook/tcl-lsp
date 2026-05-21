@@ -185,6 +185,19 @@ pub struct Analyser {
     /// per command) cost ``O(log N)`` instead of ``O(N)`` per
     /// call.  ``None`` outside an active analysis run.
     pub line_offsets: Option<Vec<usize>>,
+    /// Candidate E002 / E003 arity diagnostics collected during the
+    /// command walk, as `(command name, call-site namespace,
+    /// diagnostic)`.  Emitted in a post-walk pass
+    /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
+    /// to a user-defined proc / class / alias / ensemble / stub —
+    /// which may be defined *after* its call site — suppresses the
+    /// builtin-arity check regardless of definition order.  The
+    /// namespace is captured so suppression is scoped to the command
+    /// the call actually resolves to (current namespace → global),
+    /// not to every same-tail-named definition anywhere in the file.
+    /// Mirrors Python running `_check_arity` over the fully-resolved
+    /// IR rather than inline during the walk.
+    pub pending_arity: Vec<(String, String, super::types::Diagnostic)>,
 }
 
 impl Analyser {
@@ -228,6 +241,7 @@ impl Analyser {
             deep_param_traits: false,
             stub_overlay: None,
             line_offsets: None,
+            pending_arity: Vec::new(),
         }
     }
 
@@ -385,7 +399,13 @@ impl Analyser {
             // ``std::mem::take`` it; everything else clears it on
             // the next command.
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
-            self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
+            self.process_command(
+                &cmd.texts,
+                &cmd.argv,
+                &single,
+                cmd.expand_word.as_deref().unwrap_or(&[]),
+                &[],
+            );
             self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
@@ -412,6 +432,7 @@ impl Analyser {
             diag_registry.load_dialect(d);
         }
         self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.flush_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
@@ -505,6 +526,7 @@ impl Analyser {
             diag_registry.load_dialect(d);
         }
         self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.flush_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
@@ -582,6 +604,7 @@ impl Analyser {
                 diag_registry.load_dialect(d);
             }
             self.emit_unresolved_command_diagnostics(&diag_registry);
+            self.flush_arity_diagnostics();
             self.emit_missing_package_require_diagnostics(&diag_registry);
             self.emit_variable_usage_diagnostics();
             self.emit_cfg_ssa_diagnostics(source);
@@ -642,7 +665,13 @@ impl Analyser {
                 );
             }
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
-            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+            self.process_command(
+                &cmd.texts,
+                &cmd.argv,
+                &cmd.single_token_word,
+                cmd.expand_word.as_deref().unwrap_or(&[]),
+                &scope_path,
+            );
             self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -1672,25 +1701,20 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w302_anchors_at_command_range() {
-        // The W302 span runs from the catch keyword through (at
-        // least) the body argument's content, mirroring Python's
-        // ``stmt.range`` (the IRCatch's full source range).  The
-        // closing brace's inclusion depends on the lexer's
-        // ``Str``-token end convention; what matters for the LSP
-        // UX is that the span starts at ``catch`` and covers the
-        // body text rather than just the catch keyword.
+    fn analyse_w302_anchors_at_catch_keyword() {
+        // SYNC-MAY21-4 (#464): W302 highlights just the ``catch``
+        // command token — the narrowest span that identifies the
+        // issue — rather than the whole ``catch {…}`` statement
+        // (which also dropped the closing brace under the lexer's
+        // inner-end convention).
         let mut a = Analyser::new();
         let src = "catch { puts hi }\n";
         let r = a.analyse(src, "tcl");
         let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
         assert_eq!(w302.len(), 1);
         let span = w302[0].span;
-        let start = span.start() as usize;
-        let end = span.end() as usize;
-        let text = &src[start..end];
-        assert!(text.starts_with("catch"), "span starts at {text:?}");
-        assert!(text.contains("puts hi"), "span text {text:?}");
+        let text = &src[span.start() as usize..span.end() as usize];
+        assert_eq!(text, "catch", "W302 should span only the catch keyword");
     }
 
     // -- ``postpass`` chunk: W001 unknown-subcommand emitter

@@ -46,6 +46,20 @@ fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
     Some(cursor)
 }
 
+/// Append a namespace component `part` onto the absolute namespace
+/// `ns` (`"::"`-rooted), mirroring the join in
+/// [`Analyser::namespace_from_scope_path`]: an absolute `part` rebases,
+/// a relative one is appended.
+fn join_namespace(ns: &str, part: &str) -> String {
+    if part.starts_with("::") {
+        normalise_qualified_name(part)
+    } else if ns == "::" {
+        normalise_qualified_name(&format!("::{part}"))
+    } else {
+        normalise_qualified_name(&format!("{ns}::{part}"))
+    }
+}
+
 /// Mutable counterpart to [`scope_at`].
 pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'a mut Scope> {
     let mut cursor = root;
@@ -316,6 +330,49 @@ impl Analyser {
         };
         self.ns_cache.insert(scope_path.to_vec(), result.clone());
         result
+    }
+
+    /// Namespace in which an *unqualified* command invoked at
+    /// `scope_path` resolves, following Tcl's command-resolution rule:
+    /// the call's enclosing namespace, where a proc body resolves
+    /// commands in the proc's **defining** namespace (the prefix of its
+    /// qualified name) rather than its lexical parent.
+    ///
+    /// This differs from [`Self::namespace_from_scope_path`] (which is
+    /// purely lexical and ignores proc scopes): `proc ::ns::p {...}`
+    /// declared at top level has defining namespace `::ns`, so an
+    /// unqualified `foo` in its body resolves to `::ns::foo` then
+    /// `::foo` — even though there is no enclosing `namespace eval`.
+    /// Used to scope the E002/E003 arity shadow guard to the command a
+    /// call actually resolves to.
+    #[must_use]
+    pub(super) fn command_resolution_namespace(&self, scope_path: &[usize]) -> String {
+        let mut ns = "::".to_string();
+        let mut cursor = &self.result.global_scope;
+        for &idx in scope_path {
+            let Some(child) = cursor.children.get(idx) else {
+                break;
+            };
+            match child.kind {
+                ScopeKind::Namespace => ns = join_namespace(&ns, &child.name),
+                ScopeKind::Proc => {
+                    // The proc's defining namespace = prefix of its
+                    // (possibly relative) qualified name.
+                    let qualified = if child.name.starts_with("::") {
+                        normalise_qualified_name(&child.name)
+                    } else {
+                        join_namespace(&ns, &child.name)
+                    };
+                    ns = match qualified.rsplit_once("::") {
+                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
+                        _ => "::".to_string(),
+                    };
+                }
+                ScopeKind::Global => {}
+            }
+            cursor = child;
+        }
+        ns
     }
 
     /// Record a variable read for go-to-definition / find-references.

@@ -72,6 +72,10 @@ pub struct AnalyserSnapshot {
     pub var_command_sites: Vec<VarCommandSite>,
     /// Command-substitution-as-command call sites.
     pub cmd_command_sites: Vec<CmdCommandSite>,
+    /// Pending E002 / E003 arity candidates (flushed post-walk).
+    /// Snapshotted with `result` so a speculative rollback discards
+    /// the candidates of any rolled-back commands.
+    pub pending_arity: Vec<(String, String, super::types::Diagnostic)>,
 }
 
 impl Analyser {
@@ -102,6 +106,7 @@ impl Analyser {
             regex_vars: self.regex_vars.clone(),
             var_command_sites: self.var_command_sites.clone(),
             cmd_command_sites: self.cmd_command_sites.clone(),
+            pending_arity: self.pending_arity.clone(),
         }
     }
 
@@ -133,6 +138,7 @@ impl Analyser {
         self.regex_vars = snap.regex_vars;
         self.var_command_sites = snap.var_command_sites;
         self.cmd_command_sites = snap.cmd_command_sites;
+        self.pending_arity = snap.pending_arity;
         // Cache invalidation — the namespace cache keys on scope
         // path identity, which the deep-copy disrupts.
         self.ns_cache.clear();

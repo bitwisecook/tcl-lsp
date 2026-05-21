@@ -20,7 +20,7 @@
 //! populates), so the Rust port skips it. If a future Python
 //! change starts populating ``SIGNATURES``, mirror the data here.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, Arity, CommandRegistry};
@@ -36,6 +36,13 @@ pub struct CommandSig {
     /// Static arg-index → role map (0-based, after the command
     /// name). Args not listed default to ``ArgRole::Value``.
     pub arg_roles: HashMap<u8, ArgRole>,
+    /// Declared option / switch names valid in the active dialect.
+    /// Leading arguments matching one of these are skipped before
+    /// counting positional args for the E002 / E003 arity check.
+    /// Mirrors ``CommandSig.leading_options`` in
+    /// ``core/commands/registry/signatures.py``; populated from
+    /// [`tcl_registry::CommandSpec::switch_names`] (dialect-filtered).
+    pub leading_options: BTreeSet<String>,
 }
 
 /// Signature for a command that dispatches on a subcommand word.
@@ -105,6 +112,11 @@ pub fn signature_for_command(
                 CommandSig {
                     arity: sub.arity,
                     arg_roles,
+                    // Subcommand-level arity checking isn't wired up
+                    // yet (only simple-command E002 / E003 fires), so
+                    // the per-subcommand option set is left empty until
+                    // that follow-up lands.
+                    leading_options: BTreeSet::new(),
                 },
             );
         }
@@ -119,9 +131,15 @@ pub fn signature_for_command(
         .iter()
         .map(|(idx, role)| (*idx, *role))
         .collect();
+    let leading_options = spec
+        .switch_names(Some(dialect))
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
         arg_roles,
+        leading_options,
     }))
 }
 
