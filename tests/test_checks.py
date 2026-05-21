@@ -1064,6 +1064,88 @@ proc a {} {
         assert any(d.code == "W100" for d in result.diagnostics)
 
 
+class TestNamespaceShadowedArity:
+    """Builtin arity suppression must be namespace-aware (issue: PR #472).
+
+    A ``proc`` whose name matches a builtin only shadows that builtin for
+    calls that actually resolve to it.  A call in another namespace (e.g. a
+    global ``close``) still reaches the builtin and must keep its arity
+    check.
+    """
+
+    @staticmethod
+    def _arity_codes(source):
+        from core.compiler.compiler_checks import run_compiler_checks
+
+        return [d for d in run_compiler_checks(source) if d.code in ("E002", "E003")]
+
+    def test_global_call_to_shadowed_builtin_still_checked(self):
+        # ``proc ::ns::close`` must not silence a global ``close`` that
+        # resolves to the builtin (max 2 args).
+        source = (
+            "proc ::ns::close {a b c d} {}\n"
+            "close x y z\n"  # global -> builtin close, 3 args -> E003
+        )
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+        assert "at most 2" in diags[0].message
+
+    def test_call_resolving_to_user_proc_is_suppressed(self):
+        # ``close`` inside a ``::ns`` proc resolves to ``::ns::close`` (the
+        # user proc, 3 args) and must NOT trip the builtin arity check.
+        source = (
+            "proc ::ns::close {a b c} {}\n"
+            "proc ::ns::caller {} { close x y z }\n"
+            "close x y z\n"  # only the global call reaches the builtin
+        )
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert "at most 2" in diags[0].message  # the builtin, not ::ns::close
+
+    def test_shadowing_proc_in_other_namespace_does_not_suppress(self):
+        # A proc named ``close`` in an unrelated namespace must not silence
+        # the global builtin call.
+        source = "proc ::other::close {a b c} {}\nclose x y z\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_top_level_call_before_definition_still_checked(self):
+        # A global call resolves to the builtin when it textually precedes
+        # the shadowing proc — script load runs in order, so suppression
+        # must respect definition order.
+        source = "close x y z\nproc close {a b c d} {}\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_conditionally_defined_proc_does_not_suppress(self):
+        # A proc defined only inside a conditional is not statically known
+        # to exist, so the builtin arity check must still fire.
+        source = "if {$x} { proc close {a b c d} {} }\nclose x y z\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_top_level_call_after_definition_is_suppressed(self):
+        # Once the proc is defined, a later global call resolves to it.
+        source = "proc close {a b c} {}\nclose x y z\n"
+        assert self._arity_codes(source) == []
+
+    def test_websocket_close_no_false_positive(self):
+        # Real-world shape: ``::websocket::close`` takes 3 args and is called
+        # as a bare ``close`` from procs in the same namespace.
+        source = (
+            "namespace eval ::websocket {}\n"
+            "proc ::websocket::close {sock {code 1000} {reason {}}} {}\n"
+            "proc ::websocket::Receiver {} {\n"
+            '    close $sock 1009 "too big"\n'
+            "}\n"
+        )
+        assert self._arity_codes(source) == []
+
+
 # W200: Binary format signed/unsigned modifier requires Tcl 8.5+
 
 
