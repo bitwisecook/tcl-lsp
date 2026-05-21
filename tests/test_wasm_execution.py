@@ -717,9 +717,11 @@ class TestCommandDispatch:
 
     def test_puts_executes(self):
         """puts should execute without error via the Zig runtime."""
-        # With the Zig WASM runtime, puts writes to WASI stdout.
-        # Just verify the module executes without trapping.
-        _compile_and_run("puts 42\n")
+        # With the Zig WASM runtime, puts writes to WASI stdout. A trap would
+        # raise; a clean run returns ::top's (empty → 0) result, so assert the
+        # module ran to completion and returned an int.
+        result = _compile_and_run("puts 42\n")
+        assert isinstance(result, int)
 
     def test_global_is_nop(self):
         """global declarations should not generate imports."""
