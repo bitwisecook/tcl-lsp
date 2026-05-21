@@ -1,10 +1,16 @@
 package com.tcllsp.jetbrains
 
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -17,7 +23,6 @@ import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.cef.browser.CefBrowser
 import org.cef.handler.CefLoadHandlerAdapter
 import java.util.concurrent.CompletableFuture
-import javax.swing.Timer
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.CompilerExplorer")
 
@@ -26,20 +31,35 @@ class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val panel = CompilerExplorerPanel(project)
         val content = ContentFactory.getInstance().createContent(panel.browser.component, "", false)
+        // Disposing the content tears down the panel: it unregisters from the
+        // project service and disposes the JCEF browser, JS query, and the
+        // editor-listener connection (all registered as children of the panel).
+        content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
     }
 
     override fun shouldBeAvailable(project: Project): Boolean = true
 }
 
-private class CompilerExplorerPanel(private val project: Project) {
+internal class CompilerExplorerPanel(private val project: Project) : Disposable {
 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
-    private var debounceTimer: Timer? = null
+
+    // All three fields are touched only on the EDT (every mutator hops through
+    // invokeLater), so no extra synchronisation is needed.
     private var lastSource: String = ""
+    private var pageReady = false
+    private var pendingSource: String? = null
 
     init {
+        // Tie the native browser, the JS bridge query, and the editor-listener
+        // connection to this panel's lifetime so they're released when the
+        // tool-window content is disposed (see content.setDisposer).
+        Disposer.register(this, browser)
+        Disposer.register(this, jsQuery)
+        project.service<CompilerExplorerService>().register(this)
+
         // Set up JS → Kotlin bridge
         jsQuery.addHandler { message ->
             handleJsMessage(message)
@@ -63,20 +83,42 @@ private class CompilerExplorerPanel(private val project: Project) {
                     """.trimIndent()
                     cefBrowser?.executeJavaScript(bridgeJs, "", 0)
 
-                    // Push initial source
-                    pushSourceFromActiveEditor()
+                    // The page's `message` listener is registered by load-end, so
+                    // it is now safe to deliver source. onLoadEnd runs on a JCEF
+                    // thread, so flip the ready flag and flush on the EDT. Any
+                    // push that arrived before now (e.g. the "Open In" action's
+                    // pushFile) was parked in pendingSource; deliver it, else
+                    // fall back to the active editor.
+                    ApplicationManager.getApplication().invokeLater {
+                        pageReady = true
+                        val pending = pendingSource
+                        pendingSource = null
+                        if (pending != null) {
+                            sendSourceUpdate(pending)
+                        } else {
+                            pushFromActiveEditor(force = true)
+                        }
+                    }
                 }
             }
         }, browser.cefBrowser)
 
         browser.loadHTML(getCompilerExplorerHtml())
 
-        // Listen for file editor changes
-        project.messageBus.connect().subscribe(
+        // Listen for file editor changes. fileOpened covers newly opened files;
+        // selectionChanged covers switching between already-open tabs (including
+        // the common case where the explorer is opened while a Tcl file is
+        // already the active tab and no fileOpened event ever fires). The
+        // connection is bound to this panel so it disconnects on dispose.
+        project.messageBus.connect(this).subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
             object : FileEditorManagerListener {
                 override fun fileOpened(source: FileEditorManager, file: VirtualFile) {
-                    pushSourceFromActiveEditor()
+                    pushFromActiveEditor()
+                }
+
+                override fun selectionChanged(event: FileEditorManagerEvent) {
+                    pushFromActiveEditor()
                 }
 
                 override fun fileClosed(source: FileEditorManager, file: VirtualFile) {}
@@ -84,16 +126,53 @@ private class CompilerExplorerPanel(private val project: Project) {
         )
     }
 
-    private fun pushSourceFromActiveEditor() {
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
-        val document = editor.document
-        val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull() ?: return
-        if (!TclFileType.isSupported(file)) return
+    override fun dispose() {
+        project.service<CompilerExplorerService>().unregister(this)
+    }
 
-        val source = document.text
-        if (source == lastSource) return
+    /**
+     * Read the active editor's Tcl source and push it to the webview.
+     *
+     * Editor access (`selectedTextEditor`, document text) is only valid on the
+     * EDT, but this is invoked both from the EDT (editor listeners) and from a
+     * JCEF callback thread (`onLoadEnd`). Hopping through `invokeLater`
+     * normalises that — without it the initial load-time push silently fails
+     * off-EDT and the IR pane stays stuck on "Waiting for source from editor...".
+     */
+    fun pushFromActiveEditor(force: Boolean = false) {
+        ApplicationManager.getApplication().invokeLater {
+            val manager = FileEditorManager.getInstance(project)
+            val editor = manager.selectedTextEditor ?: return@invokeLater
+            val file = manager.selectedFiles.firstOrNull() ?: return@invokeLater
+            if (!TclFileType.isSupported(file)) return@invokeLater
+            dispatchSource(editor.document.text, force)
+        }
+    }
+
+    /** Push a specific file's source, used by the "Open In" action. */
+    fun pushFile(file: VirtualFile, force: Boolean = true) {
+        ApplicationManager.getApplication().invokeLater {
+            if (!TclFileType.isSupported(file)) return@invokeLater
+            val document = FileDocumentManager.getInstance().getDocument(file) ?: return@invokeLater
+            dispatchSource(document.text, force)
+        }
+    }
+
+    private fun dispatchSource(source: String, force: Boolean) {
+        if (!force && source == lastSource) return
         lastSource = source
 
+        // A sourceUpdate dispatched before the page registers its message
+        // listener is silently lost, and lastSource would then suppress the
+        // load-end retry. Park it until onLoadEnd marks the page ready.
+        if (!pageReady) {
+            pendingSource = source
+            return
+        }
+        sendSourceUpdate(source)
+    }
+
+    private fun sendSourceUpdate(source: String) {
         val dialect = TclLspSettings.getInstance().dialect
         val escaped = escapeForJs(source)
         val dialectEscaped = escapeForJs(dialect)
@@ -188,20 +267,19 @@ private class CompilerExplorerPanel(private val project: Project) {
 
     private fun highlightSourceRange(startOffset: Int, endOffset: Int) {
         // Highlight in the main editor — run on EDT
-        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+        ApplicationManager.getApplication().invokeLater {
             val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
             val document = editor.document
             if (startOffset < 0 || endOffset > document.textLength) return@invokeLater
 
             val startPos = editor.offsetToLogicalPosition(startOffset)
-            val endPos = editor.offsetToLogicalPosition(endOffset)
             editor.selectionModel.setSelection(startOffset, endOffset)
             editor.scrollingModel.scrollTo(startPos, com.intellij.openapi.editor.ScrollType.CENTER_UP)
         }
     }
 
     private fun clearSourceHighlight() {
-        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+        ApplicationManager.getApplication().invokeLater {
             val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
             editor.selectionModel.removeSelection()
         }

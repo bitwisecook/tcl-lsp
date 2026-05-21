@@ -21,7 +21,7 @@ from typing import cast
 
 from ..analysis.semantic_model import Range
 from ..commands.registry import REGISTRY
-from ..commands.registry.runtime import ArgRole, arg_indices_for_role
+from ..commands.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
 from ..common.alias import (
     detect_interp_alias,
 )
@@ -1180,6 +1180,47 @@ class _Lowerer:
             body=body_script,
             body_range=range_from_token(body_tok),
             is_lmap=is_lmap,
+            raw_args=tuple(args),
+        )
+
+    def _lower_stub_loop(
+        self,
+        cmd: _Command,
+        *,
+        namespace: str,
+        var_indices: set[int],
+        body_indices: set[int],
+    ) -> IRForeach | None:
+        """Lower a ``-loop`` stub call to :class:`IRForeach`, or ``None``.
+
+        Handles the single-iterator ``... var collection body`` shape using
+        the stub's declared roles, so it works regardless of a leading
+        subcommand word or option flags.  Returns ``None`` (caller falls
+        back to :class:`IRBarrier`) when the call does not match that shape
+        or the body is not a braced literal.
+        """
+        if len(var_indices) != 1 or not body_indices:
+            return None
+        var_idx = next(iter(var_indices))
+        body_idx = max(body_indices)
+        coll_idx = var_idx + 1
+        args = cmd.args
+        if not (0 <= var_idx < coll_idx < body_idx < len(args)):
+            return None
+
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        body_tok = arg_tokens[body_idx] if body_idx < len(arg_tokens) else None
+        if body_tok is None or not (body_idx < len(arg_single) and arg_single[body_idx]):
+            return None
+
+        var_names = _parse_param_names(args[var_idx])
+        body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+        return IRForeach(
+            range=cmd.range,
+            iterators=((var_names, args[coll_idx]),),
+            body=body_script,
+            body_range=range_from_token(body_tok),
             raw_args=tuple(args),
         )
 
@@ -2345,10 +2386,13 @@ class _Lowerer:
             case "foreach":
                 return self._lower_foreach(cmd, namespace=namespace)
 
-            case "foreach_in_collection" if REGISTRY.get(cmd_name, _active_dialect()) is not None:
-                # Only lower as a loop when enabled in the active dialect.
-                # Enforce exact arity so incorrect arg counts produce
-                # IRBarrier and get caught by generic arity checks (E002/E003).
+            case "foreach_in_collection" if REGISTRY.get(
+                cmd_name, _active_dialect()
+            ) is not None or is_loop_command(cmd_name, args):
+                # Lower as a loop when the command is enabled in the active
+                # dialect or declared as a ``-loop`` stub.  Enforce exact
+                # arity so incorrect arg counts produce IRBarrier and get
+                # caught by generic arity checks (E002/E003).
                 if len(args) != 3:
                     return IRBarrier(
                         range=cmd.range,
@@ -2403,6 +2447,21 @@ class _Lowerer:
                 var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)
                 var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
                 if body_indices:
+                    # A ``-loop`` stub is modelled as a real loop so the
+                    # loop variable stays defined and the body is analysed
+                    # in iteration order, rather than collapsing to an
+                    # opaque barrier.  Role-driven (not positional) so the
+                    # ``var collection body`` shape is found even behind a
+                    # subcommand word or leading option flags.
+                    if prepend_n == 0 and is_loop_command(role_cmd, role_args):
+                        loop_ir = self._lower_stub_loop(
+                            cmd,
+                            namespace=namespace,
+                            var_indices=var_indices,
+                            body_indices=body_indices,
+                        )
+                        if loop_ir is not None:
+                            return loop_ir
                     return IRBarrier(
                         range=cmd.range,
                         reason="unsupported body command",

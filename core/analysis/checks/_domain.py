@@ -9,6 +9,7 @@ from ...commands.registry.models import DialectStatus, FormKind
 from ...commands.registry.runtime import (
     ArgRole,
     arg_indices_for_role,
+    command_is_stubbed,
     normalized_flag_commands,
 )
 from ...common.codes import diag
@@ -70,6 +71,14 @@ def check_disabled_command(
     # bare (``log``) and fully-qualified (``::log``) call sites
     # resolve to the same spec.
     lookup = qualified.lstrip(":")
+
+    # A command declared by an inline/file stub is intentionally made
+    # available in this file regardless of the active dialect — the
+    # whole point of the stub is to teach the analyser the command.
+    # Suppress W002 so the user's own declaration isn't flagged as
+    # "disabled".
+    if command_is_stubbed(lookup):
+        return []
 
     dialect = active_dialect()
     status = REGISTRY.command_status(lookup, dialect)
