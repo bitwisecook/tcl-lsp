@@ -368,6 +368,20 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
         const ch2 = src[i + 2];
         const ch3 = src[i + 3];
         if (ch3 != ' ' and ch3 != '\t') continue;
+        // A string operator (``eq`` / ``ne`` / ``in`` / ``ni``) is only
+        // the top-level operator when no lower-precedence boolean /
+        // ternary operator follows it.  Without this, ``$ec ne "*" && 1
+        // ni $rc`` would be mis-read as ``$ec ne ("*" && 1 ni $rc)`` and
+        // ``eval_string_expr`` would string-compare the whole RHS — the
+        // ``==`` / ``!=`` branch above already guards this way.  When the
+        // RHS carries a ``&&`` / ``||`` / ``?:`` (or arithmetic), defer:
+        // ``continue`` so the scan reaches that operator and returns null,
+        // letting ``expr_or`` split there and recurse per operand.
+        if ((ch1 == 'e' and ch2 == 'q') or (ch1 == 'n' and ch2 == 'e') or
+            (ch1 == 'i' and ch2 == 'n') or (ch1 == 'n' and ch2 == 'i'))
+        {
+            if (!eq_op_is_top_level(src, len, i + 4)) continue;
+        }
         if (ch1 == 'e' and ch2 == 'q') {
             return .{ .kind = .eq, .start = i + 1, .op_len = 2 };
         }
