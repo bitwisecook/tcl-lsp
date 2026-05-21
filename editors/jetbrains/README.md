@@ -38,7 +38,8 @@ All features from the tcl-lsp server are supported:
 - **Call hierarchy** (incoming/outgoing)
 - **Code folding**, **inlay hints**, **signature help**
 - **Code actions** (quick fixes)
-- **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer)
+- **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer) — also
+  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**
 - **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
 
 ## Installation
