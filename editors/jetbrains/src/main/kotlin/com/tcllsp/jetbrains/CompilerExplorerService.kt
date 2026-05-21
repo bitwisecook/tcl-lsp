@@ -20,6 +20,13 @@ class CompilerExplorerService {
         this.panel = panel
     }
 
+    /** Clear the reference when the panel is disposed, but only if it's ours. */
+    internal fun unregister(panel: CompilerExplorerPanel) {
+        if (this.panel === panel) {
+            this.panel = null
+        }
+    }
+
     /** Push the given file's source into the explorer, if the panel is live. */
     fun pushFile(file: VirtualFile) {
         panel?.pushFile(file)

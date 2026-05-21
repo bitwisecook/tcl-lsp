@@ -18,7 +18,7 @@ VS Code
 ## How to use
 
 - **VS Code**: Open a Tcl file and run `Tcl: Open in Tcl Compiler Explorer` from the command palette or press Ctrl+Alt+E. The panel shows bytecode disassembly side-by-side with the source, and updates live as you edit.
-- **JetBrains**: Right-click a Tcl/iRule file in the editor or project view and choose `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window. The panel tracks the active editor and recompiles as you switch files or edit.
+- **JetBrains**: Right-click a Tcl/iRule file in the editor or project view and choose `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window. The panel tracks the active editor and recompiles when you open or switch to a different Tcl file.
 
 ## Operational context
 

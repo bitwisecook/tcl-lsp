@@ -1,5 +1,6 @@
 package com.tcllsp.jetbrains
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
@@ -9,6 +10,7 @@ import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -29,19 +31,33 @@ class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val panel = CompilerExplorerPanel(project)
         val content = ContentFactory.getInstance().createContent(panel.browser.component, "", false)
+        // Disposing the content tears down the panel: it unregisters from the
+        // project service and disposes the JCEF browser, JS query, and the
+        // editor-listener connection (all registered as children of the panel).
+        content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
     }
 
     override fun shouldBeAvailable(project: Project): Boolean = true
 }
 
-internal class CompilerExplorerPanel(private val project: Project) {
+internal class CompilerExplorerPanel(private val project: Project) : Disposable {
 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
+
+    // All three fields are touched only on the EDT (every mutator hops through
+    // invokeLater), so no extra synchronisation is needed.
     private var lastSource: String = ""
+    private var pageReady = false
+    private var pendingSource: String? = null
 
     init {
+        // Tie the native browser, the JS bridge query, and the editor-listener
+        // connection to this panel's lifetime so they're released when the
+        // tool-window content is disposed (see content.setDisposer).
+        Disposer.register(this, browser)
+        Disposer.register(this, jsQuery)
         project.service<CompilerExplorerService>().register(this)
 
         // Set up JS → Kotlin bridge
@@ -67,9 +83,22 @@ internal class CompilerExplorerPanel(private val project: Project) {
                     """.trimIndent()
                     cefBrowser?.executeJavaScript(bridgeJs, "", 0)
 
-                    // Push initial source. onLoadEnd runs on a JCEF thread, so
-                    // the editor read must hop to the EDT — see pushFromActiveEditor.
-                    pushFromActiveEditor()
+                    // The page's `message` listener is registered by load-end, so
+                    // it is now safe to deliver source. onLoadEnd runs on a JCEF
+                    // thread, so flip the ready flag and flush on the EDT. Any
+                    // push that arrived before now (e.g. the "Open In" action's
+                    // pushFile) was parked in pendingSource; deliver it, else
+                    // fall back to the active editor.
+                    ApplicationManager.getApplication().invokeLater {
+                        pageReady = true
+                        val pending = pendingSource
+                        pendingSource = null
+                        if (pending != null) {
+                            sendSourceUpdate(pending)
+                        } else {
+                            pushFromActiveEditor(force = true)
+                        }
+                    }
                 }
             }
         }, browser.cefBrowser)
@@ -79,8 +108,9 @@ internal class CompilerExplorerPanel(private val project: Project) {
         // Listen for file editor changes. fileOpened covers newly opened files;
         // selectionChanged covers switching between already-open tabs (including
         // the common case where the explorer is opened while a Tcl file is
-        // already the active tab and no fileOpened event ever fires).
-        project.messageBus.connect().subscribe(
+        // already the active tab and no fileOpened event ever fires). The
+        // connection is bound to this panel so it disconnects on dispose.
+        project.messageBus.connect(this).subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
             object : FileEditorManagerListener {
                 override fun fileOpened(source: FileEditorManager, file: VirtualFile) {
@@ -94,6 +124,10 @@ internal class CompilerExplorerPanel(private val project: Project) {
                 override fun fileClosed(source: FileEditorManager, file: VirtualFile) {}
             }
         )
+    }
+
+    override fun dispose() {
+        project.service<CompilerExplorerService>().unregister(this)
     }
 
     /**
@@ -128,6 +162,17 @@ internal class CompilerExplorerPanel(private val project: Project) {
         if (!force && source == lastSource) return
         lastSource = source
 
+        // A sourceUpdate dispatched before the page registers its message
+        // listener is silently lost, and lastSource would then suppress the
+        // load-end retry. Park it until onLoadEnd marks the page ready.
+        if (!pageReady) {
+            pendingSource = source
+            return
+        }
+        sendSourceUpdate(source)
+    }
+
+    private fun sendSourceUpdate(source: String) {
         val dialect = TclLspSettings.getInstance().dialect
         val escaped = escapeForJs(source)
         val dialectEscaped = escapeForJs(dialect)
