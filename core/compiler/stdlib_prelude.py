@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import deque
 from pathlib import Path
 
 from .ir import (
@@ -91,7 +92,13 @@ def _parse_tcl_index(library_dir: Path) -> dict[str, str]:
     for line in text.splitlines():
         m = _AUTO_INDEX_RE.search(line)
         if m:
-            mapping[m.group(1)] = m.group(2).strip()
+            # The ``[file join $dir ...]`` tail may carry several path
+            # segments (subdirectories), e.g. ``[file join $dir sub
+            # foo.tcl]``.  Join them into a relative path rather than
+            # treating the whole tail as one segment.
+            segments = m.group(2).split()
+            if segments:
+                mapping[m.group(1)] = os.path.join(*segments)
     return mapping
 
 
@@ -119,8 +126,15 @@ def _script_command_names(script_text: str, out: set[str]) -> None:
         elif ttype == TokenType.COMMENT:
             continue
         else:
-            if at_cmd_start and ttype in (TokenType.ESC, TokenType.STR):
-                out.add(tok.text)
+            if at_cmd_start:
+                if ttype in (TokenType.ESC, TokenType.STR):
+                    out.add(tok.text)
+                elif ttype in (TokenType.VAR, TokenType.CMD):
+                    # The command name itself is computed at run time
+                    # (``[$cmd ...]`` / ``[[set c foo] ...]``) — record a
+                    # non-literal marker so the dynamic-dispatch gate
+                    # trips and pruning stays conservative.
+                    out.add("${dyn}")
             at_cmd_start = False
             if ttype == TokenType.CMD:
                 _script_command_names(tok.text, out)
@@ -387,17 +401,25 @@ def apply_stdlib_prelude(
 
     # Seed the worklist with commands referenced by the user's module,
     # gated by the allowlist (transitive deps added later are not gated).
-    pending: set[str] = set()
-    _collect_commands(module.top_level, pending)
+    # The worklist is processed FIFO with new commands added in sorted
+    # order so bundling — and the merged setup ordering below — is
+    # deterministic / reproducible regardless of set iteration order.
+    seed: set[str] = set()
+    _collect_commands(module.top_level, seed)
     for proc in list(module.procedures.values()):
-        _collect_commands(proc.body, pending)
+        _collect_commands(proc.body, seed)
     if allowlist is not None:
-        pending = {n for n in pending if n in allowlist or n.lstrip(":") in allowlist}
+        seed = {n for n in seed if n in allowlist or n.lstrip(":") in allowlist}
+    queue: deque[str] = deque(sorted(seed))
+
+    # Load-time setup from each bundled file, accumulated in bundling
+    # order and prepended once after the traversal (deterministic).
+    setup: list[IRStatement] = []
 
     from .lowering import lower_to_ir
 
-    while pending and len(bundled_files) < max_files:
-        name = pending.pop()
+    while queue and len(bundled_files) < max_files:
+        name = queue.popleft()
         if name in seen_commands:
             continue
         seen_commands.add(name)
@@ -425,30 +447,31 @@ def apply_stdlib_prelude(
             if qname not in module.procedures:
                 module.procedures[qname] = proc
                 bundled_qnames.add(qname)
-        # Merge the file's load-time top-level setup (``namespace eval`` /
-        # ``variable`` declarations the procs depend on) ahead of the
-        # user's code so it runs first.  Drop the file's ``proc``
-        # *definition* statements: the procs are already merged into
-        # ``module.procedures`` (whence codegen compiles them), so the
-        # top-level ``proc`` calls are redundant — and scanning their
-        # body arguments would otherwise pollute the prune root set with
-        # commands the bundled procs reference internally.
-        setup_stmts = tuple(s for s in sub.top_level.statements if not _is_proc_definition(s))
-        if setup_stmts:
-            module.top_level = IRScript(
-                statements=setup_stmts + tuple(module.top_level.statements)
-            )
+        # Collect the file's load-time top-level setup (``namespace eval``
+        # / ``variable`` declarations the procs depend on).  Drop the
+        # file's ``proc`` *definition* statements: the procs are already
+        # merged into ``module.procedures`` (whence codegen compiles
+        # them), so the top-level ``proc`` calls are redundant — and
+        # scanning their body arguments would otherwise pollute the prune
+        # root set with commands the bundled procs reference internally.
+        setup.extend(s for s in sub.top_level.statements if not _is_proc_definition(s))
         if sub.namespace_imports:
             module.namespace_imports = module.namespace_imports + sub.namespace_imports
         if sub.namespace_exports:
             module.namespace_exports = module.namespace_exports + sub.namespace_exports
 
-        # Transitive: queue commands the freshly-bundled procs reference.
+        # Transitive: queue commands the freshly-bundled procs reference,
+        # in sorted order for deterministic traversal.
         new_cmds: set[str] = set()
         for proc in sub.procedures.values():
             _collect_commands(proc.body, new_cmds)
         _collect_commands(sub.top_level, new_cmds)
-        pending |= new_cmds - seen_commands
+        queue.extend(sorted(new_cmds - seen_commands))
+
+    # Prepend all bundled setup ahead of the user's code so it runs
+    # first, once, in deterministic bundling order.
+    if setup:
+        module.top_level = IRScript(statements=tuple(setup) + tuple(module.top_level.statements))
 
     # Drop bundled procs the program can't statically reach — but only
     # when it's provably safe (no eval/source/dynamic dispatch).

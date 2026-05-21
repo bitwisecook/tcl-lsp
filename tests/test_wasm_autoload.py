@@ -58,9 +58,7 @@ class TestStdlibAutoLoad:
         """With no ``TCL_LIBRARY`` the auto-loader is a no-op, so a
         genuinely unknown command still reports an error rather than
         silently succeeding."""
-        wasm = _compile_tcl(
-            "set rc [catch {definitely_not_a_command 1 2} m]\nputs \"rc=$rc\"\n"
-        )
+        wasm = _compile_tcl('set rc [catch {definitely_not_a_command 1 2} m]\nputs "rc=$rc"\n')
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=1\n"
 
@@ -77,9 +75,7 @@ class TestStdlibPrelude:
 
         prog = tmp_path / "prog.tcl"
         prog.write_text(tcl_src)
-        module = wasm_link(
-            prog, library_dir=str(_TCL_LIBRARY) if with_library else None
-        )
+        module = wasm_link(prog, library_dir=str(_TCL_LIBRARY) if with_library else None)
         return module.to_bytes()
 
     def test_parray_bundled_runs_without_tcl_library(self, tmp_path):
@@ -98,8 +94,7 @@ class TestStdlibPrelude:
         bundling captures both, so they run self-contained and match the
         reference output."""
         wasm = self._link(
-            'puts [tcl_endOfWord "hello world" 0]\n'
-            'puts [tcl_startOfNextWord "hello world" 0]\n',
+            'puts [tcl_endOfWord "hello world" 0]\nputs [tcl_startOfNextWord "hello world" 0]\n',
             tmp_path,
             with_library=True,
         )
@@ -112,7 +107,7 @@ class TestStdlibPrelude:
         proving the bundling, not a fallback, is what resolved it."""
         monkeypatch.delenv("TCL_LIBRARY", raising=False)
         wasm = self._link(
-            "array set a {x 1}\nset rc [catch {parray a} m]\nputs \"rc=$rc\"\n",
+            'array set a {x 1}\nset rc [catch {parray a} m]\nputs "rc=$rc"\n',
             tmp_path,
             with_library=False,
         )
@@ -124,9 +119,7 @@ class TestStdlibPrelude:
         *compile-time* environment, bundling is on by default — and the
         resulting binary still runs with no run-time library."""
         monkeypatch.setenv("TCL_LIBRARY", str(_TCL_LIBRARY))
-        wasm = self._link(
-            "array set a {x 1 y 22}\nparray a\n", tmp_path, with_library=False
-        )
+        wasm = self._link("array set a {x 1 y 22}\nparray a\n", tmp_path, with_library=False)
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "a(x) = 1\na(y) = 22\n"
 
@@ -137,7 +130,7 @@ class TestStdlibPrelude:
         monkeypatch.delenv("TCL_LIBRARY", raising=False)
         # ``history`` is autoloadable but not on the validated allowlist.
         wasm = self._link(
-            "set rc [catch {history info} m]\nputs \"rc=$rc\"\n",
+            'set rc [catch {history info} m]\nputs "rc=$rc"\n',
             tmp_path,
             with_library=True,
         )
@@ -216,3 +209,31 @@ class TestStdlibPreludePruning:
         lib = self._make_lib(tmp_path)
         out = self._bundled("set c alpha\n$c\nputs [gamma]\n", lib)
         assert out == ["alpha", "beta", "delta", "gamma"]
+
+    def test_dynamic_command_in_substitution_disables_pruning(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        # `[$c]` — a command substitution whose command word is computed
+        # at run time — must trip the gate (was previously missed).
+        out = self._bundled("set c beta\nputs [gamma][$c]\n", lib)
+        assert out == ["alpha", "beta", "delta", "gamma"]
+
+    def test_nested_command_substitution_disables_pruning(self, tmp_path):
+        lib = self._make_lib(tmp_path)
+        out = self._bundled("puts [gamma][[set c beta]]\n", lib)
+        assert out == ["alpha", "beta", "delta", "gamma"]
+
+    def test_multi_segment_file_join_path(self, tmp_path):
+        """tclIndex entries with subdirectory file-join segments
+        (``[file join $dir sub foo.tcl]``) resolve correctly."""
+        from core.compiler.lowering import lower_to_ir
+        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+
+        lib = tmp_path / "lib"
+        (lib / "sub").mkdir(parents=True)
+        (lib / "sub" / "foo.tcl").write_text("proc foo {} { return 42 }\n")
+        (lib / "tclIndex").write_text(
+            "set auto_index(foo) [list ::tcl::Pkg::source [file join $dir sub foo.tcl]]\n"
+        )
+        module = lower_to_ir("puts [foo]\n")
+        apply_stdlib_prelude(module, lib, allowlist=None)
+        assert "::foo" in module.procedures

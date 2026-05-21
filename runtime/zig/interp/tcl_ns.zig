@@ -909,6 +909,19 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     if (old != 0 and old != stored) obj.tcl_obj_release(@bitCast(old));
 }
 
+/// True when *name* (``ptr``/``len``) has array-element shape
+/// ``base(index)`` — a ``(`` after position 0 and a trailing ``)``.
+fn is_array_element_name(ptr: u32, len: u32) bool {
+    if (len < 3 or ptr == 0) return false;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    if (p[len - 1] != ')') return false;
+    var i: u32 = 1;
+    while (i < len) : (i += 1) {
+        if (p[i] == '(') return true;
+    }
+    return false;
+}
+
 /// Create a global-scope ``upvar`` alias: make ``local`` a ``VAR_LINK``
 /// to the global variable ``target`` in the root namespace.  Used when
 /// ``upvar #0`` / ``upvar 0`` runs at the script top level (no proc
@@ -923,6 +936,15 @@ pub fn global_alias_link(local: i32, target: i32) void {
     if (ln.len == 0 or ln.ptr == 0 or tn.len == 0 or tn.ptr == 0) return;
     const lk = strip_global_prefix(ln.ptr, ln.len);
     const tk = strip_global_prefix(tn.ptr, tn.len);
+    // ``upvar #0 arr(k) uv`` aliases an array *element*.  A scalar
+    // ``VAR_LINK`` to a Var literally named ``arr(k)`` would diverge from
+    // the array directory that ``$arr(k)`` reads/writes go through, so
+    // don't create a misleading link.  At the script top level there is
+    // no frame to hold the element-alias descriptor the in-proc path
+    // uses, so element targets are left unaliased here (the pre-feature
+    // behaviour) rather than silently linked to the wrong storage.
+    // Scalar targets — the common ``upvar #0 x uv`` (upvar-7.1) — work.
+    if (is_array_element_name(tk.ptr, tk.len)) return;
     const target_var = ns_var_create(ns_root(), tk.ptr, tk.len);
     if (target_var == 0) return;
     const local_var = ns_var_create(ns_root(), lk.ptr, lk.len);

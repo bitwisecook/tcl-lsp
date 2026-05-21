@@ -1942,6 +1942,17 @@ pub fn eval_uplevel(words: []const i32) i32 {
                     raise_bad_level(words[1]);
                     return 0;
                 }
+            } else if (w1.len >= 4 and w1p[1] == '0' and
+                (w1p[2] == 'x' or w1p[2] == 'X' or w1p[2] == 'o' or
+                    w1p[2] == 'O' or w1p[2] == 'b' or w1p[2] == 'B'))
+            {
+                // ``-0x..`` / ``-0o..`` / ``-0b..`` — a based integer
+                // literal with a leading sign.  Reference Tcl's
+                // ``Tcl_GetInt`` parses it and rejects (negative /
+                // out-of-range) with ``bad level``, rather than treating
+                // it as a body word (uplevel-4.17).
+                raise_bad_level(words[1]);
+                return 0;
             }
         }
         // else: not a level spec; body_start stays 1, shift stays 1
