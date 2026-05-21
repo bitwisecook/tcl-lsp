@@ -1138,12 +1138,54 @@ def _collect_used_names(
     return used_names
 
 
+def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
+    """Local names that alias storage outside the current frame.
+
+    Covers ``upvar`` (incl. ``upvar #0`` and multi-pair forms),
+    ``namespace upvar``, ``global``, and ``variable``.  A write to such a
+    name is observable in another scope (the caller's frame, a namespace,
+    or the global frame), so it must never be reported as a dead store
+    (W220) or set-but-never-used variable (W211), nor eliminated by DCE,
+    even when the local analysis sees no local read.
+
+    Uses the shared :mod:`core.analysis.var_scoping` grammar so every alias
+    form is recognised identically to memory-SSA alias detection — a single
+    source of truth rather than ad-hoc command-name matching (which misses
+    ``namespace upvar``, whose IR command is just ``namespace``).
+    """
+    from ..analysis.var_scoping import (
+        global_declaration_indices,
+        upvar_local_declaration_indices,
+        variable_declaration_indices,
+    )
+
+    names: set[str] = set()
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if not isinstance(stmt, (IRCall, IRBarrier)):
+                continue
+            args = stmt.args
+            for i in upvar_local_declaration_indices(stmt.command, args):
+                if 0 <= i < len(args):
+                    names.add(_normalise_var_name(args[i]))
+            if stmt.canonical_command == "::global":
+                for i in global_declaration_indices(args):
+                    if 0 <= i < len(args):
+                        names.add(_normalise_var_name(args[i]))
+            elif stmt.canonical_command == "::variable":
+                for i in variable_declaration_indices(args):
+                    if 0 <= i < len(args):
+                        names.add(_normalise_var_name(args[i]))
+    return frozenset(names)
+
+
 def _dead_stores(
     cfg: CFGFunction,
     ssa: SSAFunction,
     *,
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
+    escaping_names: frozenset[str] = frozenset(),
 ) -> tuple[DeadStore, ...]:
     considered_blocks = set(executable_blocks) if executable_blocks is not None else set(cfg.blocks)
     used: set[SSAValueKey] = set()
@@ -1181,6 +1223,10 @@ def _dead_stores(
                     continue
                 # Global variables are consumed externally.
                 if n.startswith("::"):
+                    continue
+                # upvar/global/variable aliases escape the local frame —
+                # a write is observable in another scope.
+                if n in escaping_names:
                     continue
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRAssignConst):
@@ -1334,6 +1380,7 @@ def _unused_variables(
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
     params: frozenset[str] = frozenset(),
+    escaping_names: frozenset[str] = frozenset(),
 ) -> tuple[UnusedVariable, ...]:
     """Find variables that are set but never used across the entire function.
 
@@ -1374,6 +1421,10 @@ def _unused_variables(
                     continue
                 # Global variables are consumed externally.
                 if name.startswith("::"):
+                    continue
+                # upvar/global/variable aliases escape the local frame —
+                # a write is observable in another scope.
+                if name in escaping_names:
                     continue
                 # Only report for safe (side-effect-free) assignments.
                 ir_stmt = stmt.statement
@@ -1630,11 +1681,13 @@ def analyse_function(
     inferred_taints = taint_propagation(cfg, ssa, executable_blocks, executable_edges)
 
     live_in, live_out = _liveness(cfg, ssa)
+    escaping_names = _escaping_var_names(cfg)
     dead = _dead_stores(
         cfg,
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
+        escaping_names=escaping_names,
     )
     reachable_cfg = set(cfg.blocks)
     unreachable = reachable_cfg - executable_blocks
@@ -1651,6 +1704,7 @@ def analyse_function(
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
         params=params,
+        escaping_names=escaping_names,
     )
     unused_p = _unused_parameters(
         cfg,
