@@ -20,6 +20,7 @@ use std::collections::HashSet;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::when_event_name;
+use crate::taint::is_irules_dialect;
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
@@ -104,14 +105,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
         ctx.report(Optimisation::new("O124", message, span, replacement));
     }
-}
-
-// ---------------------------------------------------------------------------
-// Dialect gate
-// ---------------------------------------------------------------------------
-
-fn is_irules_dialect(dialect: Option<&str>) -> bool {
-    matches!(dialect, Some("irules" | "f5-irules"))
 }
 
 // ---------------------------------------------------------------------------

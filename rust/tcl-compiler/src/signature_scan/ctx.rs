@@ -82,64 +82,32 @@ pub(super) struct ScanCtx {
     /// Proc-body records collected during pass 1, used to identify
     /// real factory wrappers in pass 2.
     pub(super) proc_bodies: Vec<ProcBodyInfo>,
+    /// Command heads that match the factory-wrapper token shape but
+    /// are not factories — sourced from the registry's
+    /// `NOT_PROC_FACTORY` trait plus [`FACTORY_SKIP_NONCOMMAND_HEADS`],
+    /// built once by `extract_signatures`.  Empty in `Default`
+    /// (used only by focused unit tests).
+    pub(super) skip_heads: std::collections::HashSet<String>,
 }
 
-/// Heads that incidentally match the `HEAD NAME BRACED BRACED`
-/// four-token shape but are definitely not factory wrappers.
-///
-/// Mirrors `_FACTORY_SKIP_HEADS` in `core/analysis/signature_scan.py`.
-pub(super) const FACTORY_SKIP_HEADS: &[&str] = &[
-    "proc",
-    "namespace",
-    "if",
-    "switch",
-    "while",
-    "for",
-    "foreach",
-    "try",
-    "catch",
-    "eval",
-    "apply",
-    "expr",
-    "uplevel",
-    "upvar",
-    "variable",
-    "set",
-    "lappend",
-    "dict",
-    "array",
-    "string",
-    "list",
-    "lindex",
-    "package",
-    "source",
-    "interp",
-    "oo::class",
-    "oo::define",
-    "oo::objdefine",
-    "method",
-    "classmethod",
-    "itcl::class",
-    "::itcl::class",
-];
+/// Factory-skip heads that are **not** registered commands and so
+/// cannot carry the registry's `NOT_PROC_FACTORY` trait: the `TclOO`
+/// definition keywords `method` / `classmethod` and the
+/// (unregistered) itcl class-definition heads.  `extract_signatures`
+/// unions these with the registry-stamped heads to rebuild the full
+/// former `_FACTORY_SKIP_HEADS` set.
+pub(super) const FACTORY_SKIP_NONCOMMAND_HEADS: &[&str] =
+    &["method", "classmethod", "itcl::class", "::itcl::class"];
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn skip_heads_matches_python_count() {
-        // The Python list at signature_scan.py:546 has 32 entries.
-        assert_eq!(FACTORY_SKIP_HEADS.len(), 32);
-    }
-
-    #[test]
-    fn skip_heads_includes_canonical_builtins() {
-        for head in ["proc", "namespace", "if", "for", "package", "source"] {
-            assert!(
-                FACTORY_SKIP_HEADS.contains(&head),
-                "expected {head:?} in skip list"
-            );
+    fn noncommand_skip_heads_are_the_unregistered_four() {
+        assert_eq!(FACTORY_SKIP_NONCOMMAND_HEADS.len(), 4);
+        for head in ["method", "classmethod", "itcl::class", "::itcl::class"] {
+            assert!(FACTORY_SKIP_NONCOMMAND_HEADS.contains(&head));
         }
     }
 

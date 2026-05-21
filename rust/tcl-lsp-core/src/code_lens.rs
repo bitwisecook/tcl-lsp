@@ -14,15 +14,22 @@
 //!   <inst>`, and inheritance references in
 //!   `analysis.command_invocations`.
 //!
+//! Per-method / classmethod reference-count lenses also land:
+//! each member declaration's name span gets a `N references`
+//! lens counting call sites discovered by re-segmenting every
+//! sibling method body in the class (the analyser doesn't
+//! walk into method bodies for `command_invocations`).
+//!
+//! Cross-document reference counts have landed: when the
+//! caller threads a [`crate::workspace_index::WorkspaceIndex`]
+//! and the document's URI, the proc / class lens count
+//! includes call sites in sibling documents.
+//!
 //! What is *deferred*:
 //!
-//! * Cross-document reference counts — workspace-wide
-//!   matching that includes call sites in other open
-//!   documents.  Lands alongside `S-workspace-symbols-rich`.
-//! * Per-method reference lenses inside class bodies — Python's
-//!   `_method_reference_count_lens` matches `[$obj methodName]`
-//!   call sites; needs the analyser to surface method-call
-//!   tracking (gated on `S-references-rich` follow-up).
+//! * `[$obj methodName]` call sites *outside* the class body
+//!   — needs analyser-side variable-type tracking so the
+//!   provider knows which object's class to match against.
 //! * Inline command for "show references" jump-out — the
 //!   minimal lens carries a static label; the editor's
 //!   built-in references command can be invoked from the
@@ -50,17 +57,29 @@ pub struct CodeLens {
 /// `analysis` is the analyser result for the document; when
 /// `None`, returns an empty vector (preserves the stub call
 /// shape for callers that haven't yet plumbed analysis
-/// through).
+/// through).  `workspace` / `current_uri`, when provided, add
+/// cross-document call sites to the proc / class reference
+/// counts so the lens reflects workspace-wide usage.
 #[must_use]
-pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeLens> {
+pub fn code_lenses(
+    source: &str,
+    analysis: Option<&AnalysisResult>,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+    current_uri: &str,
+) -> Vec<CodeLens> {
     let Some(analysis) = analysis else {
         return Vec::new();
     };
     let line_index = LineIndex::new(source);
-    let mut lenses = Vec::new();
+    let mut lenses: Vec<CodeLens> = Vec::new();
 
     for (qname, proc_def) in &analysis.all_procs {
-        let count = count_references(qname, proc_def, analysis);
+        let mut count = count_references(qname, proc_def, analysis);
+        if let Some(index) = workspace {
+            count += index
+                .invocations_of(&proc_def.name, &proc_def.qualified_name, current_uri)
+                .len();
+        }
         let title = reference_count_title(count);
         let start = line_index.position_at(proc_def.name_span.start());
         let end = line_index.position_at(proc_def.name_span.end());
@@ -87,7 +106,12 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
     // inheritance chains (`oo::class create Sub { superclass
     // ClassName ... }`).
     for (qname, class_def) in &analysis.all_classes {
-        let count = count_class_references(qname, class_def, analysis);
+        let mut count = count_class_references(qname, class_def, analysis);
+        if let Some(index) = workspace {
+            count += index
+                .invocations_of(&class_def.name, &class_def.qualified_name, current_uri)
+                .len();
+        }
         let title = reference_count_title(count);
         let start = line_index.position_at(class_def.name_span.start());
         let end = line_index.position_at(class_def.name_span.end());
@@ -101,9 +125,122 @@ pub fn code_lenses(source: &str, analysis: Option<&AnalysisResult>) -> Vec<CodeL
             command_title: title,
             command: String::new(),
         });
+        // Per-method / classmethod / property lenses inside
+        // the class body.  Counts call sites discovered by re-
+        // segmenting every sibling method body (the analyser
+        // doesn't walk into method bodies for
+        // `command_invocations`).
+        emit_class_member_lenses(source, class_def, &line_index, &mut lenses);
     }
 
     lenses
+}
+
+/// Emit per-member reference-count lenses for every method,
+/// classmethod, and property in `class_def`.  Call sites are
+/// discovered by re-segmenting each method body.
+fn emit_class_member_lenses(
+    source: &str,
+    class_def: &tcl_compiler::analyser::ClassDef,
+    line_index: &LineIndex,
+    lenses: &mut Vec<CodeLens>,
+) {
+    let body_spans: Vec<tcl_lexer::Span> = class_def
+        .methods
+        .values()
+        .map(|m| m.body_span)
+        .chain(class_def.class_methods.values().map(|m| m.body_span))
+        .chain(class_def.constructors.iter().map(|c| c.body_span))
+        .chain(class_def.destructor.iter().map(|d| d.body_span))
+        .collect();
+    let calls_for = |word: &str, decl_span: tcl_lexer::Span| -> usize {
+        let mut count = 0;
+        for span in &body_spans {
+            count += count_method_calls_in_body(source, *span, word, decl_span);
+        }
+        count
+    };
+    let push_lens = |name_span: tcl_lexer::Span, title: String, lenses: &mut Vec<CodeLens>| {
+        let start = line_index.position_at(name_span.start());
+        let end = line_index.position_at(name_span.end());
+        lenses.push(CodeLens {
+            range: LspRange {
+                start_line: start.line,
+                start_character: start.character,
+                end_line: end.line,
+                end_character: end.character,
+            },
+            command_title: title,
+            command: String::new(),
+        });
+    };
+    for m in class_def.methods.values() {
+        if m.name_span.is_empty() {
+            continue;
+        }
+        push_lens(
+            m.name_span,
+            reference_count_title(calls_for(&m.name, m.name_span)),
+            lenses,
+        );
+    }
+    for m in class_def.class_methods.values() {
+        if m.name_span.is_empty() {
+            continue;
+        }
+        push_lens(
+            m.name_span,
+            reference_count_title(calls_for(&m.name, m.name_span)),
+            lenses,
+        );
+    }
+}
+
+/// Count call sites in `body_span` whose head token equals
+/// `word`, skipping the declaration site at `decl_span`.
+fn count_method_calls_in_body(
+    source: &str,
+    body_span: tcl_lexer::Span,
+    word: &str,
+    decl_span: tcl_lexer::Span,
+) -> usize {
+    use tcl_compiler::segmenter::segment_commands_with_offset;
+    if body_span.is_empty() {
+        return 0;
+    }
+    let mut start = body_span.start() as usize;
+    let mut end = body_span.end() as usize;
+    if start >= source.len() || end > source.len() || start > end {
+        return 0;
+    }
+    if source.as_bytes().get(start) == Some(&b'{') {
+        start += 1;
+    }
+    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
+        end -= 1;
+    }
+    let body_text = &source[start..end];
+    let commands =
+        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    let mut count = 0;
+    for cmd in &commands {
+        let Some(head) = cmd.argv.first() else {
+            continue;
+        };
+        let h_start = head.span.start() as usize;
+        let h_end = head.span.end() as usize;
+        if h_start >= source.len() || h_end > source.len() {
+            continue;
+        }
+        if &source[h_start..h_end] != word {
+            continue;
+        }
+        if head.span.start() == decl_span.start() && head.span.end() == decl_span.end() {
+            continue;
+        }
+        count += 1;
+    }
+    count
 }
 
 fn reference_count_title(count: usize) -> String {
@@ -182,14 +319,14 @@ mod tests {
 
     #[test]
     fn empty_lenses_when_analysis_is_none() {
-        assert!(code_lenses("proc foo {} {}\n", None).is_empty());
+        assert!(code_lenses("proc foo {} {}\n", None, None, "").is_empty());
     }
 
     #[test]
     fn lens_per_user_proc() {
         let src = "proc foo {} {}\nproc bar {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 2, "{lenses:?}");
     }
 
@@ -197,7 +334,7 @@ mod tests {
     fn lens_shows_zero_references_for_unused_proc() {
         let src = "proc lonely {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         assert_eq!(lenses[0].command_title, "0 references");
     }
@@ -206,7 +343,7 @@ mod tests {
     fn lens_shows_singular_for_one_reference() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -218,7 +355,7 @@ mod tests {
     fn lens_counts_multiple_references() {
         let src = "proc tool {} {}\ntool\ntool\ntool\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let tool = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -230,7 +367,7 @@ mod tests {
     fn lens_anchors_at_proc_name_span() {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
@@ -248,7 +385,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let class_lenses: Vec<_> = lenses
             .iter()
             .filter(|l| l.command_title.contains("reference"))
@@ -270,7 +407,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis));
+        let lenses = code_lenses(src, Some(&analysis), None, "");
         let myclass_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -278,7 +415,79 @@ mod tests {
         // Two constructor calls.
         assert_eq!(
             myclass_lens.command_title, "2 references",
-            "got {:?}", myclass_lens.command_title,
+            "got {:?}",
+            myclass_lens.command_title,
         );
+    }
+
+    // -- S-code-lens-rich: class-member lenses ----------------------
+
+    #[test]
+    fn lens_counts_method_calls_within_class_body() {
+        // `greet` is called twice from `twice`'s body.
+        let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, Some(&analysis), None, "");
+        // Find the lens anchored on line 1 (the `greet`
+        // declaration's name span).
+        let greet_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("greet lens");
+        assert_eq!(greet_lens.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_reports_zero_for_uncalled_method() {
+        let src = "oo::class create C {\n    method orphan {} {}\n}\n";
+        let analysis = analyse(src);
+        if analysis.all_classes.is_empty() {
+            return;
+        }
+        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let orphan_lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("orphan lens");
+        assert_eq!(orphan_lens.command_title, "0 references", "{lenses:?}");
+    }
+
+    // -- workspace-index: cross-document reference counts -----------
+
+    #[test]
+    fn proc_lens_counts_cross_document_calls() {
+        use crate::workspace_index::WorkspaceIndex;
+        // lib.tcl defines `helper` with no local callers;
+        // consumer.tcl calls it twice.
+        let lib_src = "proc helper {} {}\n";
+        let lib = analyse(lib_src);
+        let consumer = analyse("helper\nhelper\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///lib.tcl", &lib),
+            ("file:///consumer.tcl", &consumer),
+        ]);
+        // The lens on lib.tcl's `helper` counts the two
+        // cross-document calls.
+        let lenses = code_lenses(lib_src, Some(&lib), Some(&index), "file:///lib.tcl");
+        let helper = lenses
+            .iter()
+            .find(|l| l.range.start_line == 0)
+            .expect("helper lens");
+        assert_eq!(helper.command_title, "2 references", "{lenses:?}");
+    }
+
+    #[test]
+    fn proc_lens_without_workspace_counts_local_only() {
+        let src = "proc helper {} {}\nhelper\n";
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let helper = lenses
+            .iter()
+            .find(|l| l.range.start_line == 0)
+            .expect("helper lens");
+        assert_eq!(helper.command_title, "1 reference", "{lenses:?}");
     }
 }

@@ -9,7 +9,9 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
-        traits: Traits::LANGUAGE_KEYWORD
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
             | Traits::NEVER_INLINE_BODY
             | Traits::IRULES_TOP_LEVEL_ONLY,

@@ -394,20 +394,30 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
             }
         }
         "constructor" => {
-            if let Some(md) = extract_method_def(
+            if let Some(mut md) = extract_method_def(
                 sub_args,
                 sub_tokens,
                 "constructor",
                 "public",
                 "<constructor>",
             ) {
+                // Anchor the name span on the `constructor`
+                // keyword token (argv[0]) — there's no name
+                // token of its own, so editors land on the
+                // keyword for go-to-definition / hover.
+                if let Some(kw) = argv.first() {
+                    md.name_span = kw.span;
+                }
                 class_def.constructors.push(md);
             }
         }
         "destructor" => {
-            if let Some(md) =
+            if let Some(mut md) =
                 extract_method_def(sub_args, sub_tokens, "destructor", "public", "<destructor>")
             {
+                if let Some(kw) = argv.first() {
+                    md.name_span = kw.span;
+                }
                 class_def.destructor = Some(md);
             }
         }
@@ -682,6 +692,9 @@ mod tests {
         assert_eq!(cd.constructors.len(), 1);
         assert_eq!(cd.constructors[0].kind, "constructor");
         assert_eq!(cd.constructors[0].name, "<constructor>");
+        // Name span anchors on the `constructor` keyword token
+        // (argv[0] = 0..11), not the default (0, 0).
+        assert_eq!(cd.constructors[0].name_span, tcl_lexer::Span::new(0, 11));
         // Constructors are no longer mirrored into the methods map.
         assert!(!cd.methods.contains_key("<constructor>"));
     }
@@ -698,6 +711,9 @@ mod tests {
         let dtor = cd.destructor.as_ref().expect("destructor recorded");
         assert_eq!(dtor.kind, "destructor");
         assert_eq!(dtor.name, "<destructor>");
+        // Name span anchors on the `destructor` keyword token
+        // (argv[0] = 0..10).
+        assert_eq!(dtor.name_span, tcl_lexer::Span::new(0, 10));
         assert!(!cd.methods.contains_key("<destructor>"));
     }
 

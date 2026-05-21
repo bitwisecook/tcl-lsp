@@ -10,7 +10,7 @@ use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, WasmCodegenHookId};
-use crate::hover::{FormSpec, HoverSnippet, OptionSpec};
+use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::side_effects::{SideEffect, StorageType};
 use crate::traits::Traits;
 use crate::types::TclType;
@@ -277,6 +277,15 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Enumerable positional-argument values, keyed by 0-based
+    /// argument index *after* the subcommand word.  Drives
+    /// value completion — e.g. `string is <class>` declares
+    /// `(0, &[alnum, alpha, …])` so the character classes
+    /// complete at the first sub-arg.  Mirrors
+    /// `SubCommand.arg_values` in
+    /// `core/commands/registry/models.py`.
+    pub arg_values: &'static [(u8, &'static [ArgValue])],
+
     /// Structured invocation-form descriptors for the subcommand.
     ///
     /// Same shape as [`CommandSpec::command_forms`]; entries are
@@ -329,6 +338,7 @@ impl SubCommand {
         codegen_hook: None,
         wasm_codegen_hook: None,
         options: &[],
+        arg_values: &[],
         subcommand_forms: &[],
         dialects: None,
         safe_on_uninit: None,
@@ -346,5 +356,16 @@ impl SubCommand {
             .iter()
             .find(|(i, _)| *i == index)
             .map(|(_, r)| *r)
+    }
+
+    /// Look up enumerable argument values for the 0-based
+    /// `index` *after* the subcommand word.  Returns an empty
+    /// slice when this argument has no fixed value set.
+    #[must_use]
+    pub fn arg_values_at(&self, index: u8) -> &'static [ArgValue] {
+        self.arg_values
+            .iter()
+            .find(|(i, _)| *i == index)
+            .map_or(&[], |(_, vs)| vs)
     }
 }

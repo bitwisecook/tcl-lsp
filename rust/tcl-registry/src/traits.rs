@@ -127,5 +127,41 @@ bitflags! {
         /// defs from `arg_roles[0]`.  Mirrors Python's
         /// `creates_dynamic_barrier` field set by `f87bc090`.
         const CREATES_DYNAMIC_BARRIER   = 1 << 40;
+
+        /// Command invokes a user-defined Tcl procedure named by
+        /// its first argument.  Set on the iRules `call` command
+        /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
+        /// provider to surface user-proc names — and only those,
+        /// not built-in commands — at word-index 1.
+        const INVOKES_USER_PROC         = 1 << 41;
+
+        /// Core Tcl built-in that the bytecode compiler special-cases
+        /// (or that is otherwise load-bearing as a literal command
+        /// word).  Re-invoking such a command through a `$var`
+        /// command alias would defeat byte-compilation or change
+        /// semantics, so the minifier never rewrites these heads to
+        /// `$alias`.  Single source of truth for the minifier's
+        /// former `_BUILTIN_SKIP` list; query via
+        /// [`crate::registry::CommandRegistry::is_byte_compiled`].
+        const BYTE_COMPILED             = 1 << 42;
+
+        /// Command head incidentally matches the
+        /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
+        /// proc-factory wrapper, so the signature scanner must not
+        /// treat it as one.  Single source of truth for the analyser's
+        /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
+        /// non-command heads like `method` / `itcl::class` are handled
+        /// by a small residual set in the scanner).
+        const NOT_PROC_FACTORY          = 1 << 43;
+
+        /// Command whose codegen always lowers to a dedicated runtime
+        /// helper (or to a structured IR node) and never falls back to
+        /// the interpreter — so a call to it needs no runtime frame in
+        /// the callee.  The var-escape analysis treats only these as
+        /// frame-free.  Single source of truth for the former
+        /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
+        /// stamping a command that secretly eval-falls-back would
+        /// break eval-inside-proc semantics in escape-free procs.
+        const FRAMELESS_RUNTIME         = 1 << 44;
     }
 }

@@ -218,6 +218,12 @@ impl Analyser {
         // (``_commands.py:182-198``).
         self.record_var_or_cmd_command_site(cmd_tok, args);
 
+        // Record TclOO instance creation (`set v [Cls new]`,
+        // `Cls create inst`) so the LSP providers can resolve
+        // ``$v method`` / ``inst method`` call sites to the
+        // object's class.
+        self.record_instance_creation(cmd_name, args);
+
         // Generic EXPR-argument walk via the command registry's
         // ``ArgRole::Expr``.  Picks up the condition arg of
         // ``if`` / ``elseif`` / ``while`` / the cond+next slots
@@ -657,6 +663,75 @@ impl Analyser {
             }
             _ => {}
         }
+    }
+
+    /// Detect `TclOO` instance creation and record the resulting
+    /// variable / instance-command → class mapping in
+    /// [`AnalysisResult::instance_classes`].  Three patterns:
+    ///
+    /// * `set VAR [CLASS new ?args?]`
+    /// * `set VAR [CLASS create NAME ?args?]`
+    /// * `CLASS create VAR ?args?`
+    ///
+    /// `CLASS` must resolve to a user-defined class in
+    /// `result.all_classes` (so `oo::class create Dog` — which
+    /// defines a *class*, not an instance — is naturally
+    /// excluded because `oo::class` isn't a user class).
+    /// Best-effort and not flow-sensitive: the last assignment
+    /// to a given name wins.
+    pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
+        // Pattern A: `set VAR [CLASS new|create ...]`.
+        if cmd_name == "set" && args.len() >= 2 {
+            if let Some(class_q) = self.class_from_constructor_subst(&args[1]) {
+                self.result
+                    .instance_classes
+                    .insert(args[0].clone(), class_q);
+                return;
+            }
+        }
+        // Pattern B: `CLASS create VAR ...` — the instance
+        // command is named by argv[1].
+        if args.len() >= 2 && args[0] == "create" {
+            if let Some(class_q) = self.resolve_user_class(cmd_name) {
+                self.result
+                    .instance_classes
+                    .insert(args[1].clone(), class_q);
+            }
+        }
+    }
+
+    /// Resolve a class reference (`Dog`, `::Dog`, or a
+    /// namespace-relative form) to its qualified name when it
+    /// names a user-defined class.
+    fn resolve_user_class(&self, name: &str) -> Option<String> {
+        if self.result.all_classes.contains_key(name) {
+            return Some(name.to_string());
+        }
+        let qualified = format!("::{name}");
+        if self.result.all_classes.contains_key(&qualified) {
+            return Some(qualified);
+        }
+        self.result
+            .all_classes
+            .values()
+            .find(|c| c.name == name)
+            .map(|c| c.qualified_name.clone())
+    }
+
+    /// Parse a `[CLASS new ...]` / `[CLASS create ...]`
+    /// command-substitution value and return the qualified
+    /// class name when `CLASS` is a user-defined class and the
+    /// subcommand is a constructor (`new` / `create`).
+    fn class_from_constructor_subst(&self, value: &str) -> Option<String> {
+        let inner = value.trim();
+        let inner = inner.strip_prefix('[')?.strip_suffix(']')?;
+        let mut words = inner.split_whitespace();
+        let class = words.next()?;
+        let subcmd = words.next()?;
+        if subcmd != "new" && subcmd != "create" {
+            return None;
+        }
+        self.resolve_user_class(class)
     }
 }
 

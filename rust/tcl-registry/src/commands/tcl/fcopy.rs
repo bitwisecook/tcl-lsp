@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         return_type: Some(TclType::Int),

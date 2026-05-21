@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrepeat",
-        traits: Traits::PURE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::PURE,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),

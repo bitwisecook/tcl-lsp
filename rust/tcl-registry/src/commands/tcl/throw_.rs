@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "throw",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::TERMINATES_BLOCK,
+        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::TERMINATES_BLOCK,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::exact(2),
         return_type: Some(TclType::String),

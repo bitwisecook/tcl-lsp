@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(2),
         arg_roles: &[
             (2, ArgRole::VarWrite),

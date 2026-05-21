@@ -446,7 +446,10 @@ mod tests {
     #[test]
     fn percent_encode_path_escapes_non_ascii() {
         // UTF-8 bytes for `é` are 0xC3 0xA9.
-        assert_eq!(percent_encode_path("/caf\u{00E9}/x.tcl"), "/caf%C3%A9/x.tcl");
+        assert_eq!(
+            percent_encode_path("/caf\u{00E9}/x.tcl"),
+            "/caf%C3%A9/x.tcl"
+        );
     }
 
     #[test]
@@ -541,10 +544,7 @@ mod tests {
         let src = "source [file join lib helper.tcl]\n";
         let links = document_links(src, Some("/home/user/project"));
         assert_eq!(links.len(), 1, "{links:?}");
-        assert_eq!(
-            links[0].target,
-            "file:///home/user/project/lib/helper.tcl",
-        );
+        assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl",);
     }
 
     #[test]

@@ -178,7 +178,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "namespace",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::NEVER_INLINE_BODY | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::NEVER_INLINE_BODY
+            | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

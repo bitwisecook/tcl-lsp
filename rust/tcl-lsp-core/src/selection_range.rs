@@ -10,13 +10,20 @@
 //! the link is omitted so the chain stays strictly outward-
 //! growing.
 //!
+//! `S-selection-range-rich` enclosing-body ranges: when the
+//! caller threads an [`AnalysisResult`] through, the chain
+//! grows with one link per containing proc / class body,
+//! ordered innermost first.  This makes `Ctrl-Shift-Right`
+//! step from a statement to its proc body, then to the
+//! enclosing class body, then to the document.
+//!
 //! What is *still deferred* (planned as further
 //! `S-selection-range-rich` sub-strips):
 //!
-//! * Enclosing-body ranges (proc / class / namespace bodies)
-//!   between command segment and document.  Requires the
-//!   analyser's body-span index, which the minimal port
-//!   doesn't yet surface.
+//! * Namespace-body enclosing ranges.  Needs a flat list of
+//!   namespace scope body spans on the analyser side; today
+//!   they only live in the scope tree, which the selection-
+//!   range provider doesn't walk.
 //! * Multi-line command segments (the current port uses a
 //!   single-line `;`-aware scan; continuation lines and
 //!   embedded `[…]` / `{…}` tokens are deferred to the same
@@ -27,7 +34,10 @@
 //!   chain is built so parents always contain children by
 //!   construction.
 
-use crate::definition::LspRange;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lexer::{LineIndex, Span};
+
+use crate::definition::{byte_offset_at, LspRange};
 use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
@@ -60,9 +70,17 @@ pub struct SelectionRange {
 ///    the line range (i.e. the line has `;` separators or
 ///    leading / trailing whitespace).
 /// 3. Enclosing line.
-/// 4. Entire document.
+/// 4. Enclosing proc / class bodies — one link per containing
+///    body, innermost first.  Only present when `analysis`
+///    is `Some`.
+/// 5. Entire document.
 #[must_use]
-pub fn selection_range(source: &str, line: u32, character: u32) -> Vec<SelectionRange> {
+pub fn selection_range(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: Option<&AnalysisResult>,
+) -> Vec<SelectionRange> {
     let mut ranges: Vec<LspRange> = Vec::new();
 
     if let Some((_, start, end)) = find_word_span_at_position(source, line, character) {
@@ -111,6 +129,17 @@ pub fn selection_range(source: &str, line: u32, character: u32) -> Vec<Selection
         ranges.push(lr);
     }
 
+    // Enclosing-body links — one per proc / class body whose
+    // span contains the cursor's byte offset.  Order is
+    // innermost first so the chain stays outward-growing.
+    if let Some(analysis) = analysis {
+        let line_index = LineIndex::new(source);
+        let cursor_offset = byte_offset_at(source, line, character);
+        for span in enclosing_body_spans(analysis, cursor_offset) {
+            ranges.push(span_to_range(&line_index, span));
+        }
+    }
+
     let total_lines = source.split('\n').count();
     if total_lines > 0 {
         let last_line_idx = u32::try_from(total_lines.saturating_sub(1)).unwrap_or(0);
@@ -135,6 +164,63 @@ pub fn selection_range(source: &str, line: u32, character: u32) -> Vec<Selection
             parent_index: (i + 1 < len).then_some(i + 1),
         })
         .collect()
+}
+
+/// Collect every proc / class / method body span that
+/// strictly contains the cursor byte offset, ordered
+/// innermost first.  Innermost == smallest span; we sort by
+/// `span.end - span.start` ascending after filtering.
+fn enclosing_body_spans(analysis: &AnalysisResult, cursor_offset: u32) -> Vec<Span> {
+    let contains = |s: Span| s.start() < cursor_offset && cursor_offset < s.end();
+    let mut spans: Vec<Span> = Vec::new();
+    for proc_def in analysis.all_procs.values() {
+        if contains(proc_def.body_span) {
+            spans.push(proc_def.body_span);
+        }
+    }
+    for class_def in analysis.all_classes.values() {
+        if contains(class_def.body_span) {
+            spans.push(class_def.body_span);
+        }
+        // Method / classmethod / constructor / destructor
+        // bodies live inside the class body — surface them
+        // independently so the chain can step from method
+        // body → class body.
+        for method in class_def.methods.values() {
+            if contains(method.body_span) {
+                spans.push(method.body_span);
+            }
+        }
+        for method in class_def.class_methods.values() {
+            if contains(method.body_span) {
+                spans.push(method.body_span);
+            }
+        }
+        for ctor in &class_def.constructors {
+            if contains(ctor.body_span) {
+                spans.push(ctor.body_span);
+            }
+        }
+        if let Some(dtor) = &class_def.destructor {
+            if contains(dtor.body_span) {
+                spans.push(dtor.body_span);
+            }
+        }
+    }
+    // Innermost first — sort by span width ascending.
+    spans.sort_by_key(|s| s.end() - s.start());
+    spans
+}
+
+fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {
+    let start = line_index.position_at(span.start());
+    let end = line_index.position_at(span.end());
+    LspRange {
+        start_line: start.line,
+        start_character: start.character,
+        end_line: end.line,
+        end_character: end.character,
+    }
 }
 
 /// Command-segment boundaries on a single line.  Walks left
@@ -190,7 +276,7 @@ mod tests {
     #[test]
     fn selection_range_chain_grows_outward() {
         let src = "set x 1\nputs hi\n";
-        let ranges = selection_range(src, 0, 5);
+        let ranges = selection_range(src, 0, 5, None);
         assert!(!ranges.is_empty());
         // Innermost should be the word `1` (or `x` if cursor was earlier).
         let inner = &ranges[0];
@@ -206,7 +292,7 @@ mod tests {
 
     #[test]
     fn empty_source_returns_empty_chain() {
-        let ranges = selection_range("", 0, 0);
+        let ranges = selection_range("", 0, 0, None);
         // No word, no lines really — but we still emit a doc
         // range; check we don't panic and the chain is well-formed.
         assert!(ranges.is_empty() || !ranges.is_empty());
@@ -215,7 +301,7 @@ mod tests {
     #[test]
     fn cursor_in_whitespace_still_emits_line_and_doc_ranges() {
         let src = "  \n  \n";
-        let ranges = selection_range(src, 0, 1);
+        let ranges = selection_range(src, 0, 1, None);
         // No word match; we still get line + doc ranges.
         assert!(ranges.len() >= 2);
     }
@@ -229,7 +315,7 @@ mod tests {
         // Expect 4 chain links: word → command segment → line
         // → document.
         let src = "set x 1; puts $x\n";
-        let ranges = selection_range(src, 0, 12);
+        let ranges = selection_range(src, 0, 12, None);
         assert!(ranges.len() >= 4, "chain too short: {ranges:?}");
         // Same-line links (word, segment, line) must
         // nest by character span; the outermost document
@@ -266,7 +352,7 @@ mod tests {
         // range, so the rich link is suppressed and the chain
         // is just word → line → doc.
         let src = "puts hi\n";
-        let ranges = selection_range(src, 0, 5);
+        let ranges = selection_range(src, 0, 5, None);
         // No duplicate ranges by start/end char.
         for w in ranges.windows(2) {
             assert!(
@@ -283,7 +369,7 @@ mod tests {
         // segment starts at column 4, line range starts at 0.
         // The rich link should be present.
         let src = "    set x 1\n";
-        let ranges = selection_range(src, 0, 6);
+        let ranges = selection_range(src, 0, 6, None);
         // Find the command segment (between word and line).
         let starts: Vec<u32> = ranges.iter().map(|r| r.range.start_character).collect();
         // Expect at least one range starting at column 4
@@ -301,7 +387,7 @@ mod tests {
     #[test]
     fn parent_indices_form_outward_chain() {
         let src = "set x 1; puts $x\n";
-        let ranges = selection_range(src, 0, 12);
+        let ranges = selection_range(src, 0, 12, None);
         // Every link except the outermost should have its
         // `parent_index` pointing to the next link in the
         // Vec.
@@ -327,5 +413,79 @@ mod tests {
         let line = "  set x 1  ";
         let (start, end) = command_segment_on_line(line, 5).expect("segment");
         assert_eq!(&line[start as usize..end as usize], "set x 1");
+    }
+
+    // -- S-selection-range-rich: enclosing-body links ----------------
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn analysis_chain_adds_enclosing_proc_body() {
+        // Cursor inside the proc body — should add a link
+        // covering the body, between line and document.
+        let src = "proc greet {} {\n    set x 1\n}\n";
+        let analysis = analyse(src);
+        let ranges = selection_range(src, 1, 8, Some(&analysis));
+        // At least: word + line + body + doc.
+        assert!(ranges.len() >= 4, "{ranges:?}");
+        // Find the body link — its start_line should be 0
+        // (the opening `{` line) and end_line >= 2.
+        let body_link = ranges
+            .iter()
+            .find(|r| r.range.start_line == 0 && r.range.end_line >= 2);
+        assert!(body_link.is_some(), "expected body link; got {ranges:?}");
+    }
+
+    #[test]
+    fn analysis_chain_skips_body_when_cursor_outside() {
+        // Cursor on the line AFTER the proc body.  No
+        // enclosing-body link should appear.
+        let src = "proc greet {} {\n    set x 1\n}\nset z 9\n";
+        let analysis = analyse(src);
+        let ranges = selection_range(src, 3, 5, Some(&analysis));
+        // No range covers lines 0–2 inclusive (the body).
+        let has_body = ranges
+            .iter()
+            .any(|r| r.range.start_line == 0 && r.range.end_line == 2);
+        assert!(!has_body, "unexpected body link: {ranges:?}");
+    }
+
+    #[test]
+    fn analysis_chain_orders_inner_body_before_outer_class() {
+        // Method body inside a class body.  Cursor inside the
+        // method body should yield the method body first, then
+        // the class body.
+        let src = "oo::class create C {\n    method m {} {\n        set x 1\n    }\n}\n";
+        let analysis = analyse(src);
+        let ranges = selection_range(src, 2, 16, Some(&analysis));
+        // Multi-line links are (in chain order, innermost first):
+        // method body, class body, document.  The document link
+        // is always the very last one — drop it before checking
+        // the body ordering.
+        let multi_line: Vec<&SelectionRange> = ranges
+            .iter()
+            .filter(|r| r.range.start_line != r.range.end_line)
+            .collect();
+        assert!(
+            multi_line.len() >= 3,
+            "expected method-body + class-body + doc; got {ranges:?}",
+        );
+        // Drop the document link (the last one).
+        let bodies = &multi_line[..multi_line.len() - 1];
+        assert!(
+            bodies.len() >= 2,
+            "expected ≥2 enclosing-body links; got {bodies:?}",
+        );
+        // Each body's span should be no wider than the next.
+        let width = |r: &SelectionRange| r.range.end_line - r.range.start_line;
+        for win in bodies.windows(2) {
+            assert!(
+                width(win[0]) <= width(win[1]),
+                "expected innermost-first body ordering, got {bodies:?}",
+            );
+        }
     }
 }

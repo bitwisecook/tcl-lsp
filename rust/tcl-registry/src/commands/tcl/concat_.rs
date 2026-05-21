@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
-        traits: Traits::PURE | Traits::PRODUCES_CANONICAL_LIST,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::PRODUCES_CANONICAL_LIST,
         arity: Arity::any(),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet::brief(

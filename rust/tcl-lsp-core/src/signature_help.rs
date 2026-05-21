@@ -116,7 +116,11 @@ pub fn signature_help(
     // name itself is consumed before the user-typed args).
     if !spec.subcommands.is_empty() {
         if let Some(first_arg) = args.first() {
-            if let Some(sub) = spec.subcommands.iter().find(|s| s.name == first_arg.as_str()) {
+            if let Some(sub) = spec
+                .subcommands
+                .iter()
+                .find(|s| s.name == first_arg.as_str())
+            {
                 let sub_param = active_param.saturating_sub(1);
                 return subcommand_signature_help(&command, sub, sub_param);
             }
@@ -646,8 +650,8 @@ mod tests {
         let src = "proc a {x} {}\nproc b {y} {}\na 1; b \n";
         let analysis = analyse(src);
         // Cursor at end of line 2 — past `b `.
-        let h = signature_help(src, 2, 7, &analysis, None)
-            .expect("expected signature help for `b`");
+        let h =
+            signature_help(src, 2, 7, &analysis, None).expect("expected signature help for `b`");
         // The signature should be for `b`, not `a`.
         assert!(
             h.signatures[0].label.contains("::b"),
@@ -686,10 +690,7 @@ mod tests {
             label = h.signatures[0].label,
         );
         assert!(
-            h.signatures[0]
-                .parameters
-                .iter()
-                .any(|p| p.label == "name"),
+            h.signatures[0].parameters.iter().any(|p| p.label == "name"),
             "expected `name` parameter from greet; got {:?}",
             h.signatures[0].parameters,
         );
@@ -743,8 +744,8 @@ mod tests {
             "a \n",
         );
         let analysis = analyse(src);
-        let h = signature_help(src, 3, 2, &analysis, None)
-            .expect("expected chained alias resolution");
+        let h =
+            signature_help(src, 3, 2, &analysis, None).expect("expected chained alias resolution");
         assert!(
             h.signatures[0].label.contains("::c"),
             "expected target `c`; got {label}",

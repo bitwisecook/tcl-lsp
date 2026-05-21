@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {

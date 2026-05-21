@@ -2636,6 +2636,114 @@ before this value so it is treated as data, not an option."
         self.result.command_invocations = invocations;
     }
 
+    /// W120 — command used without a corresponding
+    /// `package require`.
+    ///
+    /// Mirrors `_check_missing_package_require` in
+    /// `lsp/features/diagnostics.py`.  For every command
+    /// invocation whose registry spec carries a
+    /// `required_package`, emit W120 (once per command name)
+    /// unless that package is already imported (a
+    /// `package require` / `package provide` in this file).
+    /// Attaches a `CodeFix` that inserts
+    /// `package require <pkg>` after the last existing
+    /// `package require`, or at the top of the file.
+    ///
+    /// Gated off entirely when:
+    /// * the dialect has no `package` command (iRules);
+    /// * the file loads packages dynamically
+    ///   (`has_dynamic_providers`) — the runtime set of
+    ///   commands is then unknowable;
+    /// * W120 is in `disabled_diagnostics`.
+    pub fn emit_missing_package_require_diagnostics(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if self.disabled_diagnostics.contains("W120") {
+            return;
+        }
+        // Dialects without a `package` command (e.g. iRules)
+        // can't `package require`, so W120 never applies.
+        if registry.get("package").is_none() {
+            return;
+        }
+        // Dynamic providers ⇒ unknowable command set ⇒ no W120.
+        if self.result.has_dynamic_providers {
+            return;
+        }
+
+        // Packages already available in this file: every
+        // `package require` name plus every `package provide`
+        // name (a file that provides a package needn't require
+        // it).
+        let mut imported: HashSet<&str> = HashSet::new();
+        for pr in &self.result.package_requires {
+            imported.insert(pr.name.as_str());
+        }
+        for pp in &self.result.package_provides {
+            imported.insert(pp.name.as_str());
+        }
+
+        // Insertion point for the code fix: just after the last
+        // `package require` line, else the top of the file.
+        let insert_offset = self.package_require_insert_offset();
+
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
+        for inv in &self.result.command_invocations {
+            let Some(spec) = registry.get(&inv.name) else {
+                continue;
+            };
+            let Some(pkg) = spec.required_package else {
+                continue;
+            };
+            if imported.contains(pkg) {
+                continue;
+            }
+            // Emit once per command name to avoid flooding.
+            if !seen.insert(inv.name.clone()) {
+                continue;
+            }
+            let fix = super::types::CodeFix {
+                span: tcl_lexer::Span::new(insert_offset, insert_offset),
+                new_text: format!("package require {pkg}\n"),
+                description: format!("Add 'package require {pkg}'"),
+            };
+            new_diags.push(super::types::Diagnostic {
+                code: "W120".to_string(),
+                span: inv.range,
+                message: format!("\"{}\" requires `package require {pkg}`", inv.name),
+                severity: Severity::Warning,
+                fixes: vec![fix],
+            });
+        }
+        self.result.diagnostics.extend(new_diags);
+    }
+
+    /// Byte offset at which a `package require <pkg>` line
+    /// should be inserted: just past the newline after the
+    /// last existing `package require`, else `0` (top of
+    /// file).
+    fn package_require_insert_offset(&self) -> u32 {
+        let Some(last) = self
+            .result
+            .package_requires
+            .iter()
+            .max_by_key(|p| p.range.end())
+        else {
+            return 0;
+        };
+        let bytes = self.source.as_bytes();
+        let mut off = last.range.end() as usize;
+        while off < bytes.len() && bytes[off] != b'\n' {
+            off += 1;
+        }
+        if off < bytes.len() {
+            off += 1; // past the newline
+        }
+        u32::try_from(off).unwrap_or(0)
+    }
+
     /// W307 — non-literal command name (variable / command-sub
     /// used as command head).
     ///
@@ -4981,5 +5089,77 @@ foo
             .push(diag("W113", Span::new(0, 3), "x"));
         a.apply_disabled_diagnostics();
         assert_eq!(a.result.diagnostics.len(), 1);
+    }
+
+    // -- W120: missing package require ------------------------------
+
+    #[test]
+    fn w120_fires_for_package_gated_command_without_require() {
+        // `tcl::idna` carries `required_package = "tcl::idna"`.
+        // Using it without a `package require` emits W120.
+        let mut a = Analyser::new();
+        let r = a.analyse("tcl::idna decode example.com\n", "tcl9.0");
+        let w120: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W120").collect();
+        assert_eq!(w120.len(), 1, "expected one W120; got {:?}", r.diagnostics);
+        assert!(w120[0].message.contains("package require tcl::idna"));
+        // Carries a fix that inserts the require at the top.
+        assert_eq!(w120[0].fixes.len(), 1);
+        assert_eq!(w120[0].fixes[0].new_text, "package require tcl::idna\n");
+        assert!(w120[0].fixes[0]
+            .description
+            .contains("Add 'package require"));
+    }
+
+    #[test]
+    fn w120_suppressed_when_package_required() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "package require tcl::idna\ntcl::idna decode example.com\n",
+            "tcl9.0",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W120"),
+            "W120 must not fire when the package is required; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w120_fix_inserts_after_existing_require() {
+        // With an unrelated `package require` present, the fix
+        // inserts on the line after it.
+        let src = "package require Tcl 8.6\ntcl::idna decode x\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let w120 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "W120")
+            .expect("W120 expected");
+        let fix = &w120.fixes[0];
+        // Insertion offset is past the first line's newline
+        // (byte 23 = start of line 1).
+        let off = fix.span.start() as usize;
+        assert_eq!(&src[..off], "package require Tcl 8.6\n");
+    }
+
+    #[test]
+    fn w120_emitted_once_per_command_name() {
+        let src = "tcl::idna decode a\ntcl::idna encode b\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        let w120: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W120").collect();
+        assert_eq!(w120.len(), 1, "expected one W120 per name; got {w120:?}");
+    }
+
+    #[test]
+    fn w120_disabled_via_directive() {
+        let mut a = Analyser::new();
+        let r = a.analyse("# tcl-lsp: disable=W120\ntcl::idna decode x\n", "tcl9.0");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W120"),
+            "{:?}",
+            r.diagnostics
+        );
     }
 }

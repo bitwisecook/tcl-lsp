@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),

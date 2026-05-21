@@ -218,7 +218,7 @@ use crate::spec::CommandSpec;
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
-    vec![
+    let mut specs = vec![
         base64__decode::spec(),
         base64__encode::spec(),
         cmdline__getargv0::spec(),
@@ -425,5 +425,115 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         yaml__setoptions::spec(),
         yaml__yaml2dict::spec(),
         yaml__yaml2huddle::spec(),
-    ]
+    ];
+    // Mirror Python's `tcllib_command_specs` (`__init__.py`):
+    // every tcllib command is gated on its providing package.
+    // Derive `required_package` from the command's namespace so
+    // W120 (missing-package-require) and package-gated
+    // completion fire for tcllib commands used without the
+    // corresponding `package require`.
+    for spec in &mut specs {
+        if spec.required_package.is_none() {
+            spec.required_package = tcllib_required_package(spec.name);
+        }
+    }
+    specs
+}
+
+/// Map a tcllib command name to the package that provides it.
+///
+/// Mirrors the per-module `_PACKAGE` constants in
+/// `core/commands/registry/tcllib/*.py`.  Most packages own a
+/// flat namespace (`csv::split` → `csv`); `math::statistics`
+/// is a two-level namespace; the `struct::*` ensembles are
+/// each their own package (the command name *is* the package).
+fn tcllib_required_package(name: &str) -> Option<&'static str> {
+    // `struct::*` ensembles: the command name is the package.
+    match name {
+        "struct::list" => return Some("struct::list"),
+        "struct::queue" => return Some("struct::queue"),
+        "struct::set" => return Some("struct::set"),
+        "struct::stack" => return Some("struct::stack"),
+        _ => {}
+    }
+    // `math::statistics::*` → two-level package namespace.
+    if name.starts_with("math::statistics::") {
+        return Some("math::statistics");
+    }
+    // Otherwise the package is the leading namespace segment.
+    match name.split("::").next()? {
+        "base64" => Some("base64"),
+        "cmdline" => Some("cmdline"),
+        "csv" => Some("csv"),
+        "dns" => Some("dns"),
+        "fileutil" => Some("fileutil"),
+        "html" => Some("html"),
+        "ip" => Some("ip"),
+        "json" => Some("json"),
+        "logger" => Some("logger"),
+        "md5" => Some("md5"),
+        "mime" => Some("mime"),
+        "sha1" => Some("sha1"),
+        "sha2" => Some("sha2"),
+        "smtp" => Some("smtp"),
+        "snit" => Some("snit"),
+        "textutil" => Some("textutil"),
+        "uri" => Some("uri"),
+        "uuid" => Some("uuid"),
+        "yaml" => Some("yaml"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_tcllib_spec_has_required_package() {
+        // Mirrors Python's invariant: every tcllib command is
+        // package-gated.  A `None` here means a namespace the
+        // `tcllib_required_package` table doesn't cover.
+        for spec in tcllib_command_specs() {
+            assert!(
+                spec.required_package.is_some(),
+                "tcllib command `{}` has no required_package",
+                spec.name,
+            );
+        }
+    }
+
+    #[test]
+    fn required_package_matches_namespace() {
+        let specs = tcllib_command_specs();
+        let pkg = |name: &str| {
+            specs
+                .iter()
+                .find(|s| s.name == name)
+                .and_then(|s| s.required_package)
+        };
+        // Flat namespace → leading segment.
+        assert_eq!(pkg("csv::split"), Some("csv"));
+        assert_eq!(pkg("base64::decode"), Some("base64"));
+        assert_eq!(pkg("uuid::uuid"), Some("uuid"));
+        // Two-level namespace.
+        assert_eq!(pkg("math::statistics::mean"), Some("math::statistics"));
+        // `struct::*` ensembles own their package name.
+        assert_eq!(pkg("struct::list"), Some("struct::list"));
+        assert_eq!(pkg("struct::queue"), Some("struct::queue"));
+        // Versioned sha packages.
+        assert_eq!(pkg("sha1::sha1"), Some("sha1"));
+        assert_eq!(pkg("sha2::sha256"), Some("sha2"));
+    }
+
+    #[test]
+    fn default_registry_carries_tcllib_required_package() {
+        // The package survives into the built registry so the
+        // analyser's W120 emitter can read it.
+        let reg = crate::registry::CommandRegistry::build_default();
+        assert_eq!(
+            reg.get("csv::split").and_then(|s| s.required_package),
+            Some("csv"),
+        );
+    }
 }

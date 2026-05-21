@@ -94,6 +94,24 @@ impl OptionSpec {
     }
 }
 
+/// Completion / hover metadata for a single enumerable
+/// positional-argument value.
+///
+/// Mirrors `ArgumentValueSpec` in
+/// `core/commands/registry/models.py`.  Used for arguments
+/// whose value comes from a fixed set — e.g. the character
+/// class in `string is <class>`, the event name in iRules
+/// `when <EVENT>`, or a subcommand keyword.  The completion
+/// provider surfaces `value` (with `detail` as the right-hand
+/// description) when the cursor sits on the matching argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArgValue {
+    /// The literal value (e.g. `"alnum"`).
+    pub value: &'static str,
+    /// Short description for the completion list.
+    pub detail: &'static str,
+}
+
 /// Classification of a command invocation form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormKind {

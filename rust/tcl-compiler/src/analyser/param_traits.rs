@@ -420,22 +420,13 @@ fn scan_command<'p>(
         _ => {}
     }
 
-    // Variable-writing commands where param is used as var name.
-    // Mirrors the ``vwc = _var_write_commands()`` branch in
-    // Python.  We restrict the registry hop to the canonical
-    // commands the Python version covers by name to keep the
-    // port tight.
-    if let Some(idx) = var_write_index(cmd_name) {
-        if idx < cmd_args.len() {
-            if let Some(vn) = extract_var_name(&cmd_args[idx]) {
-                if param_set.contains(vn) {
-                    if let Some(set) = traits.get_mut(vn) {
-                        set.insert(ProcArgTrait::VarWrite);
-                    }
-                }
-            }
-        }
-    }
+    // (Variable-writing commands where a param is used directly as
+    // the var name — `set`/`incr`/`append`/`lappend`/`global`/
+    // `variable` etc. — are already covered by
+    // `apply_arg_role_traits` above, which marks `ProcArgTrait::VarWrite`
+    // for any arg whose registry `ArgRole` is `VarWrite`.  The old
+    // hardcoded `var_write_index` name list was a redundant duplicate
+    // of that registry query and has been removed.)
 
     // Track writes through upvar aliases — ``set local …`` where
     // ``local`` was registered as an alias for some param.
@@ -537,19 +528,6 @@ fn apply_eval_traits<'a>(
             }
         }
         _ => {}
-    }
-}
-
-/// Return the var-write argument index for the canonical
-/// variable-writing commands tracked by Python's
-/// ``variable_writing_commands`` helper.  Skipping commands with
-/// sub-commands here is fine because those go through
-/// ``resolve_arg_roles`` (which picks the sub-command's role) at
-/// the per-arg loop above.
-fn var_write_index(cmd_name: &str) -> Option<usize> {
-    match cmd_name {
-        "set" | "incr" | "append" | "lappend" | "global" | "variable" => Some(0),
-        _ => None,
     }
 }
 

@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
+        traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {

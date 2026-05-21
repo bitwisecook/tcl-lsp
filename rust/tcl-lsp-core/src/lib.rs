@@ -23,12 +23,14 @@ pub mod formatting;
 pub mod hover;
 pub mod inlay_hints;
 pub mod linked_editing_range;
+pub mod minify;
 pub mod references;
 pub mod rename;
 pub mod selection_range;
 pub mod semantic_tokens;
 pub mod signature_help;
 pub mod type_hierarchy;
+pub mod workspace_index;
 pub mod workspace_symbols;
 
 /// Crate version string.

@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
-        traits: Traits::OPENS_CHANNEL,
+        traits: Traits::BYTE_COMPILED | Traits::OPENS_CHANNEL,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {

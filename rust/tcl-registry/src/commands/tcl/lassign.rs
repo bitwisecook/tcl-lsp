@@ -4,6 +4,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        traits: Traits::FRAMELESS_RUNTIME,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         arg_roles: &[

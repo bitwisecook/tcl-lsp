@@ -59,7 +59,7 @@ pub mod prelude {
     pub use crate::dialects::DialectSet;
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::hooks::{ArgTypeHint, CodegenHookId, LoweringHookId, WasmCodegenHookId};
-    pub use crate::hover::{FormKind, FormSpec, HoverSnippet, OptionSpec};
+    pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};
     pub use crate::traits::Traits;
@@ -70,6 +70,7 @@ pub mod prelude {
 pub use arg_role::ArgRole;
 pub use arity::Arity;
 pub use body_kind::BodyKind;
+pub use hover::ArgValue;
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
 pub use traits::Traits;

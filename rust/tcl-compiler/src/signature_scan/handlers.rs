@@ -13,7 +13,7 @@
 
 use tcl_lexer::{Token, TokenType};
 
-use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx, FACTORY_SKIP_HEADS};
+use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
     SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceImport,
@@ -324,8 +324,10 @@ pub(super) fn handle_oo_class(
 /// Mirrors `_maybe_record_factory_candidate` in
 /// `core/analysis/signature_scan.py`. A tcllib-style factory call
 /// has the shape `HEAD NAME ARGS BODY` (four tokens total, last
-/// braced). HEADs in [`FACTORY_SKIP_HEADS`] are built-ins that
-/// happen to match the same shape; they are skipped. Names with
+/// braced). HEADs in `ctx.skip_heads` (the registry's
+/// `NOT_PROC_FACTORY` heads plus the non-command residual) are
+/// built-ins that happen to match the same shape; they are skipped.
+/// Names with
 /// `$` / `[` substitution markers cannot be statically resolved
 /// and are skipped. The body must be a `Str` token (braced
 /// literal); unbraced bodies cannot be re-scanned for the
@@ -340,7 +342,7 @@ pub(super) fn maybe_record_factory_candidate(
     if texts.len() != 4 {
         return;
     }
-    if FACTORY_SKIP_HEADS.contains(&head) {
+    if ctx.skip_heads.contains(head) {
         return;
     }
     let name = &texts[1];
@@ -936,6 +938,7 @@ mod tests {
         ];
         let argv = vec![token(0, 4), token(5, 8), token(9, 13), str_token(14, 20)];
         let mut ctx = ScanCtx::default();
+        ctx.skip_heads.insert("proc".to_string());
         maybe_record_factory_candidate("proc", &texts, &argv, "", &mut ctx);
         assert!(ctx.candidates.is_empty());
     }

@@ -137,14 +137,7 @@ fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {
 fn dedup_ranges(ranges: &mut Vec<LspRange>) {
     let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
         std::collections::HashSet::new();
-    ranges.retain(|r| {
-        seen.insert((
-            r.start_line,
-            r.start_character,
-            r.end_line,
-            r.end_character,
-        ))
-    });
+    ranges.retain(|r| seen.insert((r.start_line, r.start_character, r.end_line, r.end_character)));
 }
 
 #[cfg(test)]
@@ -208,4 +201,3 @@ mod tests {
         assert!(result.ranges.len() >= 2, "{result:?}");
     }
 }
-

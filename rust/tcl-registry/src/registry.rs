@@ -133,6 +133,35 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Whether `name` is a core Tcl built-in carrying the
+    /// [`Traits::BYTE_COMPILED`] trait — i.e. the minifier must not
+    /// rewrite this command head to a `$var` alias.  Checks every
+    /// registered spec for the name (not just the dialect-preferred
+    /// one) so the core stamp is honoured even when a dialect layers
+    /// an additional spec under the same name.
+    #[must_use]
+    pub fn is_byte_compiled(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::BYTE_COMPILED))
+        })
+    }
+
+    /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
+    /// a registered command head that incidentally matches the
+    /// proc-factory token shape but is not a factory wrapper.  Like
+    /// [`Self::is_byte_compiled`], checks every spec registered under
+    /// the name.
+    #[must_use]
+    pub fn is_not_proc_factory(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::NOT_PROC_FACTORY))
+        })
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
@@ -566,6 +595,195 @@ mod tests {
         assert!(control_flow.contains(&"if"));
         assert!(control_flow.contains(&"while"));
         assert!(!control_flow.contains(&"puts"));
+    }
+
+    #[test]
+    fn byte_compiled_covers_the_core_builtins() {
+        let reg = CommandRegistry::build_default();
+        // Every registered command the minifier must never alias.
+        // Mirrors the former `_BUILTIN_SKIP` list (minus the
+        // non-command keywords `else` / `elseif` and the unregistered
+        // `pwd`).
+        let expected = [
+            "set",
+            "unset",
+            "proc",
+            "if",
+            "while",
+            "for",
+            "foreach",
+            "switch",
+            "return",
+            "break",
+            "continue",
+            "expr",
+            "catch",
+            "try",
+            "throw",
+            "package",
+            "namespace",
+            "upvar",
+            "uplevel",
+            "variable",
+            "global",
+            "append",
+            "lappend",
+            "incr",
+            "info",
+            "string",
+            "list",
+            "llength",
+            "lindex",
+            "lrange",
+            "lsort",
+            "lsearch",
+            "lreplace",
+            "linsert",
+            "dict",
+            "array",
+            "regexp",
+            "regsub",
+            "scan",
+            "format",
+            "open",
+            "close",
+            "read",
+            "gets",
+            "eof",
+            "flush",
+            "seek",
+            "tell",
+            "fconfigure",
+            "fcopy",
+            "fileevent",
+            "socket",
+            "after",
+            "update",
+            "vwait",
+            "rename",
+            "source",
+            "eval",
+            "apply",
+            "tailcall",
+            "error",
+            "cd",
+            "file",
+            "glob",
+            "clock",
+            "binary",
+            "encoding",
+            "interp",
+            "load",
+            "exit",
+            "pid",
+            "exec",
+            "chan",
+            "puts",
+        ];
+        for name in expected {
+            assert!(
+                reg.is_byte_compiled(name),
+                "{name} should carry Traits::BYTE_COMPILED"
+            );
+        }
+        // A user-proc-like name and a command outside the curated
+        // skip set must not carry the trait.
+        assert!(!reg.is_byte_compiled("my_helper_proc"));
+        assert!(!reg.is_byte_compiled("split"));
+    }
+
+    #[test]
+    fn not_proc_factory_covers_registered_skip_heads() {
+        let reg = CommandRegistry::build_default();
+        // Registered heads from the former `_FACTORY_SKIP_HEADS` list
+        // (the four non-command heads method / classmethod /
+        // itcl::class / ::itcl::class are handled by the scanner's
+        // residual set, not the registry).
+        let expected = [
+            "proc",
+            "namespace",
+            "if",
+            "switch",
+            "while",
+            "for",
+            "foreach",
+            "try",
+            "catch",
+            "eval",
+            "apply",
+            "expr",
+            "uplevel",
+            "upvar",
+            "variable",
+            "set",
+            "lappend",
+            "dict",
+            "array",
+            "string",
+            "list",
+            "lindex",
+            "package",
+            "source",
+            "interp",
+            "oo::class",
+            "oo::define",
+            "oo::objdefine",
+        ];
+        for name in expected {
+            assert!(
+                reg.is_not_proc_factory(name),
+                "{name} should carry Traits::NOT_PROC_FACTORY"
+            );
+        }
+        // A real factory-wrapper head must not be skipped.
+        assert!(!reg.is_not_proc_factory("my_factory"));
+    }
+
+    #[test]
+    fn frameless_runtime_covers_the_audited_allow_list() {
+        let reg = CommandRegistry::build_default();
+        let got: std::collections::HashSet<&str> = reg
+            .commands_with_trait(Traits::FRAMELESS_RUNTIME)
+            .into_iter()
+            .collect();
+        let expected: std::collections::HashSet<&str> = [
+            "list",
+            "lindex",
+            "lrange",
+            "linsert",
+            "llength",
+            "lsort",
+            "lsearch",
+            "lappend",
+            "lreverse",
+            "lreplace",
+            "lrepeat",
+            "lassign",
+            "concat",
+            "split",
+            "join",
+            "string",
+            "expr",
+            "global",
+            "variable",
+            "upvar",
+            "namespace",
+            "set",
+            "incr",
+            "append",
+            "unset",
+            "puts",
+            "return",
+            "error",
+            "continue",
+            "break",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            got, expected,
+            "FRAMELESS_RUNTIME stamps drifted from the audited allow-list"
+        );
     }
 
     #[test]
