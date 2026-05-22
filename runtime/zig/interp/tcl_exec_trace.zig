@@ -172,11 +172,25 @@ pub fn fire(bucket: u32, op: u32, cmd_str: i32, code: i32, result: i32) void {
         else => return,
     };
     const with_result = (op == OP_LEAVE or op == OP_LEAVESTEP);
-    var i: u32 = 0;
-    while (i < count) : (i += 1) {
-        if (entries[i].bucket != bucket) continue;
-        if ((entries[i].ops & op) == 0) continue;
-        fire_one(entries[i].callback, cmd_str, op_word, with_result, code, result, interp);
+    // Reference Tcl fires *enter* / *enterstep* traces in reverse
+    // registration order (most-recently-added first) and *leave* /
+    // *leavestep* in forward order, so the two nest symmetrically
+    // (trace-25.4 / 25.5 enter, trace-25.6 / 25.7 leave).
+    if (with_result) {
+        var i: u32 = 0;
+        while (i < count) : (i += 1) {
+            if (entries[i].bucket != bucket) continue;
+            if ((entries[i].ops & op) == 0) continue;
+            fire_one(entries[i].callback, cmd_str, op_word, with_result, code, result, interp);
+        }
+    } else {
+        var i: u32 = count;
+        while (i > 0) {
+            i -= 1;
+            if (entries[i].bucket != bucket) continue;
+            if ((entries[i].ops & op) == 0) continue;
+            fire_one(entries[i].callback, cmd_str, op_word, with_result, code, result, interp);
+        }
     }
 }
 
@@ -257,8 +271,9 @@ pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
         new_ptr = ns.ptr;
         new_len = ns.len;
     }
-    var i: u32 = 0;
-    while (i < count) : (i += 1) {
+    var i: u32 = count;
+    while (i > 0) {
+        i -= 1;
         if (entries[i].bucket != bucket) continue;
         if ((entries[i].ops & op) == 0) continue;
         const cb = obj_ensure_string(entries[i].callback);

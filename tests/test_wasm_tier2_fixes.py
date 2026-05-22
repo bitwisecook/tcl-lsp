@@ -639,3 +639,37 @@ class TestCommandTraces:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "{{delete rename} cb}"
+
+
+class TestExecutionTraceOrder:
+    """Multiple execution traces on one command fire in Tcl's defined
+    order: enter/enterstep most-recently-added first, leave/leavestep
+    in registration order (trace-25.4/25.6)."""
+
+    def test_enter_traces_reverse_order(self) -> None:
+        src = (
+            "eval {proc te {args} { global info; lappend info $args }\n"
+            "proc te2 {args} { global info; lappend info $args }\n"
+            "proc foo {a} {}\n"
+            "set info {}\n"
+            "trace add execution foo enter [list te te]\n"
+            "trace add execution foo enter [list te2 te2]\n"
+            "foo 1\n"
+            "puts [join $info \\n]}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["te2 {foo 1} enter", "te {foo 1} enter"]
+
+    def test_leave_traces_forward_order(self) -> None:
+        src = (
+            "eval {proc te {args} { global info; lappend info $args }\n"
+            "proc te2 {args} { global info; lappend info $args }\n"
+            "proc foo {a} {}\n"
+            "set info {}\n"
+            "trace add execution foo leave [list te te]\n"
+            "trace add execution foo leave [list te2 te2]\n"
+            "foo 1\n"
+            "puts [join $info \\n]}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["te {foo 1} 0 {} leave", "te2 {foo 1} 0 {} leave"]
