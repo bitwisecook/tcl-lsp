@@ -311,6 +311,13 @@ namespace eval ::tcl::unsupported::clock {
         }
         if {[llength $args] == 1} {
             set opt [lindex $args 0]
+            # ``-init-complete`` is the setup signal init.tcl's clock
+            # ensemble block sends once the ::clock map is installed.
+            # Real Tcl 9's C accessor accepts it as a no-op; mirror that
+            # so sourcing the upstream init.tcl completes.
+            if {$opt eq "-init-complete"} {
+                return
+            }
             if {[info exists state($opt)]} {
                 return $state($opt)
             }

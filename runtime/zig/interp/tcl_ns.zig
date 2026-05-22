@@ -105,6 +105,55 @@ pub const Namespace = extern struct {
 /// Zero before the first ``ns_root()`` call (lazy allocation).
 pub var root_addr: u32 = 0;
 
+// ``namespace unknown`` per-namespace handler registry.  Maps a
+// namespace address to its explicit unknown-command handler (a Tcl
+// command prefix).  Small linear table — namespaces with a custom
+// handler are rare.  An absent entry means "no explicit handler", in
+// which case command dispatch falls back to the global ``::unknown``
+// machinery (auto-loading) and ``namespace unknown`` queries report
+// ``::unknown`` for the root and ``{}`` elsewhere.
+const NsUnknownEntry = struct { ns: u32, handler: i32 };
+var ns_unknown_entries: [64]NsUnknownEntry = undefined;
+var ns_unknown_count: u32 = 0;
+
+/// Set (or, with an empty handler, clear) the explicit unknown handler
+/// for namespace ``ns``.
+pub fn ns_unknown_set(ns: u32, handler: i32) void {
+    if (ns == 0) return;
+    var is_empty = handler == 0;
+    if (!is_empty) {
+        const hs = obj.obj_ensure_string(handler);
+        if (hs.len == 0) is_empty = true;
+    }
+    var i: u32 = 0;
+    while (i < ns_unknown_count) : (i += 1) {
+        if (ns_unknown_entries[i].ns == ns) {
+            obj.tcl_obj_release(ns_unknown_entries[i].handler);
+            if (is_empty) {
+                ns_unknown_count -= 1;
+                if (i != ns_unknown_count) ns_unknown_entries[i] = ns_unknown_entries[ns_unknown_count];
+            } else {
+                obj.tcl_obj_retain(handler);
+                ns_unknown_entries[i].handler = handler;
+            }
+            return;
+        }
+    }
+    if (is_empty or ns_unknown_count >= ns_unknown_entries.len) return;
+    obj.tcl_obj_retain(handler);
+    ns_unknown_entries[ns_unknown_count] = .{ .ns = ns, .handler = handler };
+    ns_unknown_count += 1;
+}
+
+/// The explicit unknown handler for ``ns`` (a borrowed TclObj), or 0.
+pub fn ns_unknown_get(ns: u32) i32 {
+    var i: u32 = 0;
+    while (i < ns_unknown_count) : (i += 1) {
+        if (ns_unknown_entries[i].ns == ns) return ns_unknown_entries[i].handler;
+    }
+    return 0;
+}
+
 /// Currently-active namespace handle.  Zero means "no explicit
 /// context set" — readers should treat that as root.  Compiled
 /// procs flip this via ``ns_set`` / ``ns_restore`` (in

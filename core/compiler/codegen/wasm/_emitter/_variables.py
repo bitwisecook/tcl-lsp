@@ -567,6 +567,20 @@ class _WasmEmitterVarMixin(_Base):
                     self._emit_obj_literal(name)
                     self._emit_call(lget_lenient)
                     return
+        # ``global``-declared name: consult the global table directly,
+        # never the WASM-local mirror — the mirror goes stale when a
+        # callee mutates the same global through its own ``global``
+        # declaration (e.g. a ``lappend g …`` whose value arg fires a
+        # trace whose callback ``global g; lappend g …``).  Mirrors the
+        # strict-read branch in ``_emit_var_read_obj``; the lenient
+        # variant uses ``tcl_global_get`` so an as-yet-unset global
+        # reads as a null TclObj instead of raising.
+        if name in self._globals:
+            gget_lenient = self._shared_imports.get("tcl_global_get")
+            if gget_lenient is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_lenient)
+                return
         if name.startswith("::"):
             gget_lenient = self._shared_imports.get("tcl_global_get")
             if gget_lenient is not None:

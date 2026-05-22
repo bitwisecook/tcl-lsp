@@ -217,6 +217,14 @@ const ALIAS_REC_SIZE: u32 = 40;
 /// as part of the cascade.
 pub const INTERP_DELETED: u32 = 0x2;
 
+/// Trusted child awaiting its deferred ``Tcl_Init`` (init.tcl source).
+/// Set by ``eval_interp_create`` when the parent has loaded init.tcl;
+/// :func:`enter` runs the bootstrap once on the child's first entry and
+/// clears the bit.  Deferring out of the ``interp create`` dispatch is
+/// required: init.tcl's ``proc`` definitions don't register when
+/// sourced from inside the create command's nested eval.
+pub const INTERP_NEEDS_INIT: u32 = 0x4;
+
 /// Bucket size shared across ``children`` and ``hidden_cmd_table``.
 /// Keeps ``Table(16)`` monomorphised once; matches the
 /// ``NS_BUCKET_SIZE`` used throughout the namespace tree so the
@@ -307,6 +315,24 @@ pub const Interp = extern struct {
     /// dangling source-side alias so a later dispatch through the
     /// child can't crash on a freed parent.
     alias_targets_head: u32,
+
+    /// Per-interp array directory.  ``tcl_array.zig`` keys every array
+    /// name (global, namespace-qualified, and proc-local) into a single
+    /// open-addressing table; C Tcl arrays are interp-local state, so
+    /// each interp owns its own directory here.  Without this, global
+    /// and namespace arrays (``auto_index``, ``tcl_platform``, …) would
+    /// be shared across ``interp create`` boundaries — a child's
+    /// ``array set ::tcl_platform`` would leak into the parent.
+    /// :fn:`enter` / :fn:`leave` swap the active directory between
+    /// ``tcl_array.zig``'s module-global cache and these fields.  Zero
+    /// = lazily initialised on first array op in this interp.
+    arr_dir_buf: u32,
+    arr_dir_cap: u32,
+    arr_dir_count: u32,
+    // ``array default`` registry, swapped alongside the directory so
+    // each interp's defaults are isolated.  Zero on a fresh interp.
+    arr_def_buf: u32,
+    arr_def_count: u32,
 };
 
 /// Root-interp singleton.  ``interp_root()`` allocates lazily and
@@ -786,11 +812,16 @@ pub const EnterSave = struct {
 /// ``tcl_ns.root_addr`` covers the case where the parent is itself
 /// a child and we need to unwind correctly on return.
 pub fn enter(target: u32) EnterSave {
+    // Establish the root interp so ``current_interp`` is non-zero and
+    // the live array directory in ``tcl_array.zig`` has an owner to be
+    // stashed back into before we swap in the target's directory.
+    if (current_interp == 0) _ = interp_root();
     const save: EnterSave = .{
         .prev_interp = current_interp,
         .prev_root_addr = tcl_ns.root_addr,
         .prev_current_ns = tcl_ns.current_ns,
     };
+    swap_array_dir(current_interp, target);
     const t: *Interp = @ptrFromInt(target);
     current_interp = target;
     tcl_ns.root_addr = t.root_ns;
@@ -798,11 +829,91 @@ pub fn enter(target: u32) EnterSave {
     return save;
 }
 
+/// The deferred ``Tcl_Init`` bootstrap a trusted child runs the first
+/// time it is the target of an ``interp eval`` / ``child eval``.  It is
+/// *prepended to the user's eval script* (see
+/// :func:`tcl_interp.eval_interp_eval`) rather than run as a separate
+/// nested eval: init.tcl's ``proc`` definitions only register and
+/// persist when sourced at the same eval depth as a top-level ``interp
+/// eval child {source init.tcl}``; a separately-nested eval leaves them
+/// unregistered.
+///
+/// ``::tcl::unsupported::clock::configure`` is a C-provided command
+/// init.tcl's clock-ensemble block signals once setup completes; the
+/// WASM runtime ships ``clock`` as a builtin, so a no-op accessor lets
+/// sourcing the upstream init.tcl finish.  ``env`` mirrors the minimal
+/// set tclsh's startup populates.  ``tcl_library`` / ``auto_path`` are
+/// copied from the parent at create time.
+pub const DEFERRED_INIT_SCRIPT: []const u8 =
+    \\if {![info exists ::env]} { array set ::env {HOME / PATH {} USER wasm} }
+    \\namespace eval ::tcl::unsupported::clock { proc configure args { return } }
+    \\if {[info exists ::tcl_library]} {
+    \\    catch { source [file join $::tcl_library init.tcl] }
+    \\}
+    \\
+;
+
+/// If *target* is a trusted child still awaiting its deferred
+/// ``Tcl_Init``, clear the bit and return the bootstrap script bytes to
+/// prepend to the caller's eval script; otherwise return ``null``.
+pub fn run_deferred_init(target: u32) void {
+    if (target == 0) return;
+    const t: *Interp = @ptrFromInt(target);
+    if ((t.flags & INTERP_NEEDS_INIT) == 0) return;
+    t.flags &= ~INTERP_NEEDS_INIT;
+    // Run init.tcl as its own complete enter / eval / leave cycle —
+    // separate from (and before) the caller's eval script.  Sourcing it
+    // inline with the user script (e.g. tcltest's own ``source``) leaves
+    // init.tcl half-applied; a standalone cycle registers and persists
+    // its procs the same way a top-level ``interp eval child {source
+    // init.tcl}`` does.  The bit is cleared first so init.tcl's own
+    // nested evals don't re-enter this path.
+    const ti = @import("tcl_interp.zig");
+    const frames = @import("tcl_frames.zig");
+    // Stash before enter (see eval_interp_eval): the stash re-points
+    // current_ns at the caller's frame ns, so enter must run after it to
+    // install the child-root context.  Unwind in reverse: leave, then
+    // restore.
+    const frame_saved = frames.frame_depth_stash(@intCast(frames.frame_depth));
+    defer frames.frame_depth_restore(frame_saved);
+    const save = enter(target);
+    defer leave(save);
+    _ = ti.eval_script(@intFromPtr(DEFERRED_INIT_SCRIPT.ptr), @intCast(DEFERRED_INIT_SCRIPT.len));
+}
+
+/// Persist the live array directory into ``from``'s ``Interp`` slot
+/// and load ``to``'s directory into ``tcl_array.zig``'s active globals.
+/// ``enter`` / ``leave`` call this so each interp's arrays are isolated
+/// (C Tcl arrays are interp-local state).
+fn swap_array_dir(from: u32, to: u32) void {
+    const arr = @import("../valtypes/tcl_array.zig");
+    if (from != 0) {
+        const f: *Interp = @ptrFromInt(from);
+        const st = arr.dir_state_get();
+        f.arr_dir_buf = st.buf;
+        f.arr_dir_cap = st.cap;
+        f.arr_dir_count = st.count;
+        f.arr_def_buf = st.def_buf;
+        f.arr_def_count = st.def_count;
+    }
+    if (to != 0) {
+        const t: *Interp = @ptrFromInt(to);
+        arr.dir_state_set(.{
+            .buf = t.arr_dir_buf,
+            .cap = t.arr_dir_cap,
+            .count = t.arr_dir_count,
+            .def_buf = t.arr_def_buf,
+            .def_count = t.arr_def_count,
+        });
+    }
+}
+
 /// Inverse of :func:`enter` — restore the saved state.  Callers that
 /// match ``enter`` / ``leave`` as a save/restore pair get transparent
 /// nesting: ``interp eval child1 { interp eval child2 {...} }`` will
 /// walk into child2 from child1 and unwind back through both.
 pub fn leave(save: EnterSave) void {
+    swap_array_dir(current_interp, save.prev_interp);
     current_interp = save.prev_interp;
     tcl_ns.root_addr = save.prev_root_addr;
     tcl_ns.current_ns = save.prev_current_ns;

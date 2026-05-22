@@ -141,6 +141,38 @@ fn rename_builtin(
     return 0;
 }
 
+/// Build an owned ``::name``-qualified TclObj from a (possibly already
+/// qualified) command name.  Used for the new-name argument of a
+/// command rename trace.
+fn qualify_simple_name(ptr: u32, len: u32) i32 {
+    if (len >= 2) {
+        const p: [*]const u8 = @ptrFromInt(ptr);
+        if (p[0] == ':' and p[1] == ':') return obj_new_string(@bitCast(ptr), @bitCast(len));
+    }
+    // Resolve the relative new name against the current namespace so a
+    // rename inside ``namespace eval foo {rename a b}`` reports the FQ
+    // ``::foo::b`` to the trace callback, not ``::b`` — the command-trace
+    // contract requires fully-qualified old/new names.  A root-context
+    // rename still yields ``::name`` (ns_build_fqn collapses root), so
+    // top-level behaviour is unchanged.
+    const cxt = tcl_ns.ns_current();
+    const r = tcl_ns.ns_resolve_qualified(cxt, ptr, len);
+    const target = if (r.target_ns != 0) r.target_ns else cxt;
+    const fqn = tcl_ns.ns_build_fqn(target, r.simple_ptr, r.simple_len);
+    if (fqn.ptr != 0) return rt.obj_new_string_take(fqn.ptr, fqn.len, fqn.len);
+    // Allocation failure — fall back to the bare ``::name`` form.
+    const total: u32 = len + 2;
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(@bitCast(ptr), @bitCast(len));
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = ':';
+    dst[1] = ':';
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) dst[2 + i] = src[i];
+    return rt.obj_new_string_take(buf, total, total);
+}
+
 pub fn eval_rename(words: []const i32) i32 {
     // ``rename`` takes exactly two operands (oldName + newName).
     // Extra words are rejected with ``wrong # args`` rather than
@@ -233,6 +265,40 @@ pub fn eval_rename(words: []const i32) i32 {
         }
     }
 
+    // A move whose destination is already occupied fails *before* any
+    // command trace fires — reference Tcl validates the rename target
+    // first, so ``trace add command foo {rename delete} cb`` does not
+    // see a failed ``rename foo <existing>`` (trace-19.10).  Probe the
+    // destination here and raise the same error ``rename_command``
+    // would, skipping the fire path below.
+    if (new_s.len > 0) {
+        const new_probe = tcl_ns.ns_resolve_qualified(cxt, new_s.ptr, new_s.len);
+        const probe_ns = if (new_probe.target_ns != 0) new_probe.target_ns else new_probe.alt_ns;
+        if (probe_ns != 0) {
+            const occupant = tcl_ns.ns_cmd_find(probe_ns, new_probe.simple_ptr, new_probe.simple_len);
+            if (occupant != 0 and occupant != old_cmd) {
+                rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+                return 0;
+            }
+        }
+    }
+
+    // Fire any ``trace add command`` callbacks (rename / delete) before
+    // the command goes away, with the resolved FQ old name and (for a
+    // rename) the new name (trace-20.x).  The callback's result is
+    // discarded.  After a delete the command's traces are dropped.
+    if (old_cmd != 0) {
+        const exec_trace = @import("../interp/tcl_exec_trace.zig");
+        const op = if (new_s.len == 0) exec_trace.OP_CMD_DELETE else exec_trace.OP_CMD_RENAME;
+        if ((exec_trace.ops_for(@bitCast(old_cmd)) & op) != 0) {
+            const old_fqn = command_fqn_obj(@bitCast(old_cmd));
+            defer if (old_fqn != 0) obj_mod.tcl_obj_release(old_fqn);
+            const new_fqn: i32 = if (new_s.len == 0) 0 else qualify_simple_name(new_s.ptr, new_s.len);
+            defer if (new_fqn != 0) obj_mod.tcl_obj_release(new_fqn);
+            exec_trace.fire_command(@bitCast(old_cmd), op, old_fqn, new_fqn);
+        }
+    }
+
     // Deletion form: new name is empty.
     if (new_s.len == 0) {
         const r = rename_mod.rename_command(
@@ -246,6 +312,11 @@ pub fn eval_rename(words: []const i32) i32 {
         switch (r) {
             .ok => return 0,
             .not_found => {
+                // The command existed when we resolved ``old_cmd`` above,
+                // so a not-found here means the trace callback we just
+                // fired deleted/renamed it.  That makes the outer delete
+                // a no-op rather than an error (trace-20.9 / 20.11).
+                if (old_cmd != 0) return 0;
                 rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
                 return 0;
             },
@@ -286,6 +357,10 @@ pub fn eval_rename(words: []const i32) i32 {
             return 0;
         },
         .not_found => {
+            // Existed at resolution time, so the just-fired rename trace
+            // callback must have deleted/renamed it — the outer rename
+            // becomes a no-op rather than an error (trace-20.9 / 20.10).
+            if (old_cmd != 0) return 0;
             rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
             return 0;
         },
@@ -1355,6 +1430,37 @@ pub fn eval_interp_create(words: []const i32) i32 {
     // trusted ``tcl_platform`` seed despite being marked safe.
     seed_child_globals(child, (flags & interp_reg.INTERP_SAFE) != 0);
 
+    // Tcl_Init for trusted children: C Tcl's ``ChildCreate`` runs
+    // ``Tcl_Init`` on every non-safe child, which sources ``init.tcl``
+    // so the child gets the auto-loading machinery (``auto_load``,
+    // ``auto_qualify``, ``unknown``, …).  We mirror that, but:
+    //
+    //  * only when the *parent* has itself loaded ``init.tcl`` —
+    //    detected by a real ``auto_qualify`` command in the parent's
+    //    root ns.  Bundles on the stub ``auto_load`` path are
+    //    unaffected, keeping the change scoped to runs that opt in by
+    //    loading the real stdlib; and
+    //  * lazily, on the child's first ``enter`` rather than here.
+    //    Sourcing init.tcl from inside the ``interp create`` dispatch
+    //    (nested in the parent's ``eval_command``) leaves init.tcl's
+    //    ``proc`` definitions unregistered; deferring to the first
+    //    ``interp eval`` runs them in a clean dispatch context.
+    //
+    // ``tcl_library`` / ``auto_path`` are copied from the parent now
+    // (a plain scalar copy, unaffected by the create-context issue) so
+    // the deferred bootstrap can resolve ``[file join $tcl_library
+    // init.tcl]``.
+    if ((flags & interp_reg.INTERP_SAFE) == 0) {
+        const parent_i2: *interp_reg.Interp = @ptrFromInt(parent_interp);
+        const aq = "auto_qualify";
+        if (tcl_ns.ns_cmd_find(parent_i2.root_ns, @intFromPtr(aq.ptr), aq.len) != 0) {
+            const child_i: *interp_reg.Interp = @ptrFromInt(child);
+            copy_global_scalar(parent_i2.root_ns, child_i.root_ns, "tcl_library");
+            copy_global_scalar(parent_i2.root_ns, child_i.root_ns, "auto_path");
+            child_i.flags |= interp_reg.INTERP_NEEDS_INIT;
+        }
+    }
+
     // Return the path as supplied (or the auto-generated simple
     // name) — matches tclsh's ``Tcl_SetObjResult(interp, childPtr)``
     // on OPT_CREATE.
@@ -1375,6 +1481,16 @@ pub fn eval_interp_create(words: []const i32) i32 {
 /// (``os``, ``osVersion``, ``machine``, ``user``) so a safe child
 /// only sees ``byteOrder``, ``engine``, ``pathSeparator``,
 /// ``platform``, ``pointerSize``, ``threaded``, ``wordSize``.
+fn copy_global_scalar(src_ns: u32, dst_ns: u32, name: []const u8) void {
+    const sv = tcl_ns.ns_var_find(src_ns, @intFromPtr(name.ptr), @intCast(name.len));
+    if (sv == 0) return;
+    const value = tcl_ns.var_get_scalar(sv);
+    if (value == 0) return;
+    const dv = tcl_ns.ns_var_create(dst_ns, @intFromPtr(name.ptr), @intCast(name.len));
+    if (dv == 0) return;
+    tcl_ns.var_set_scalar(dv, value);
+}
+
 fn seed_child_globals(child: u32, safe_flag: bool) void {
     // Run the seed as a Tcl script inside the child so it threads
     // through the normal ``global_set`` / ``array set`` paths and

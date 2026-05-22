@@ -113,6 +113,60 @@ fn sub_rule_for(sp: [*]const u8, slen: u32) ?*const SubRule {
     return match;
 }
 
+/// ``array default set|get|unset|exists arrayName ?value?`` — per-array
+/// fallback value for missing-element reads (var-24.x).
+fn eval_default(words: []const i32) result_mod.InterpResult {
+    const array_mod = @import("../valtypes/tcl_array.zig");
+    const frames_mod = @import("../interp/tcl_frames.zig");
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    // words: [array, default, SUB, arrayName, ?value?]
+    const sub = obj_ensure_string(words[2]);
+    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    const resolved: i32 = frames_mod.frame_resolve_array_name(words[3]);
+    defer if (resolved != words[3]) obj_mod.tcl_obj_release(resolved);
+
+    if (str_eq(sp, sub.len, "set")) {
+        if (words.len != 5) {
+            raise_array_error("wrong # args: should be \"array default set arrayName value\"");
+            return result_mod.from_globals(0);
+        }
+        // A scalar of the same name is an error ("variable isn't array").
+        array_mod.array_default_set_value(resolved, words[4]);
+        return result_mod.from_globals(obj_new_string(0, 0));
+    }
+    if (str_eq(sp, sub.len, "get")) {
+        if (words.len != 4) {
+            raise_array_error("wrong # args: should be \"array default get arrayName\"");
+            return result_mod.from_globals(0);
+        }
+        const v = array_mod.array_default_get_value(resolved);
+        if (v == 0) {
+            raise_array_error("array has no default value");
+            return result_mod.from_globals(0);
+        }
+        obj_mod.tcl_obj_retain(v);
+        return result_mod.from_globals(v);
+    }
+    if (str_eq(sp, sub.len, "exists")) {
+        if (words.len != 4) {
+            raise_array_error("wrong # args: should be \"array default exists arrayName\"");
+            return result_mod.from_globals(0);
+        }
+        const v = array_mod.array_default_get_value(resolved);
+        return result_mod.from_globals(rt.obj_new_int(if (v != 0) 1 else 0));
+    }
+    if (str_eq(sp, sub.len, "unset")) {
+        if (words.len != 4) {
+            raise_array_error("wrong # args: should be \"array default unset arrayName\"");
+            return result_mod.from_globals(0);
+        }
+        _ = array_mod.array_default_clear(resolved);
+        return result_mod.from_globals(obj_new_string(0, 0));
+    }
+    raise_array_error("bad option: must be exists, get, set, or unset");
+    return result_mod.from_globals(0);
+}
+
 pub fn eval(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         raise_array_error("wrong # args: should be \"array subcommand ?arg ...?\"");
@@ -130,6 +184,12 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (words.len < rule.min_words or (rule.max_words != null and words.len > rule.max_words.?)) {
         raise_array_error(rule.usage);
         return result_mod.from_globals(0);
+    }
+    // ``array default SUB arrayName ?value?`` — distinct arg layout
+    // (the array name is words[3], not words[2]), so handle it before
+    // the shared ``resolved_name`` resolution below.
+    if (str_eq(rule.name.ptr, @intCast(rule.name.len), "default")) {
+        return eval_default(words);
     }
     // Use the canonical resolved name for dispatch comparisons —
     // user-typed prefixes like ``array next ...`` should land in

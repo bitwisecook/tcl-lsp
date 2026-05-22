@@ -190,6 +190,13 @@ fn eval_unset(words: []const i32) result_mod.InterpResult {
         } else {
             _ = frames.var_set(words[i], 0);
         }
+        // Tcl drops a variable's traces once it's unset (the unset
+        // callbacks above have already fired).  Without this a stale
+        // trace keeps firing on a later variable that reuses the name —
+        // the trace-2.x cascade.  Done after the null so the unset
+        // callback still observed the live trace.
+        const inspect = @import("inspect.zig");
+        inspect.remove_all_var_traces(words[i]);
     }
     return result_mod.from_globals(obj_new_string(0, 0));
 }
