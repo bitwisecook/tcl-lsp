@@ -504,3 +504,17 @@ class TestNamespaceUnknownHandler:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "MYUNKNOWN: dummy a b c"
+
+
+class TestEnsembleUnknownFqnName:
+    """The ensemble ``-unknown`` handler receives the fully-qualified
+    ensemble command name, not the short invoked word (namespace-47.7)."""
+
+    def test_handler_gets_fqn(self) -> None:
+        src = (
+            "namespace ensemble create -command foo -unknown bar\n"
+            "proc bar {args} { list ::set ::x [join $args |] }\n"
+            "puts [foo {one two three}]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "::foo|one two three"

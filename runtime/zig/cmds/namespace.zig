@@ -2210,7 +2210,6 @@ fn invoke_ensemble_impl(impl_obj: i32, words: []const i32, sub_idx: u32) i32 {
 }
 
 fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i32 {
-    _ = bucket;
     // Build call: unknown_prefix + ensemble_name + words[1..]
     const us = obj_ensure_string(rec.unknown_obj);
     const interp = @import("../interp/tcl_interp.zig");
@@ -2228,9 +2227,17 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         obj_mod.write_i32(argv + idx * 4, w);
         idx += 1;
     }
-    // Ensemble name (use words[0] as-is)
-    obj_mod.tcl_obj_retain(words[0]);
-    obj_mod.write_i32(argv + idx * 4, words[0]);
+    // Ensemble name — pass the fully-qualified command name (Tcl hands
+    // the handler the resolved ``::ns::ensemble`` form, not the short
+    // invoked word; namespace-47.7/47.8).  Fall back to words[0] if the
+    // FQN can't be built.
+    const fqn = interp_impl.command_fqn_obj(@as(u32, @bitCast(bucket)));
+    if (fqn != 0) {
+        obj_mod.write_i32(argv + idx * 4, fqn);
+    } else {
+        obj_mod.tcl_obj_retain(words[0]);
+        obj_mod.write_i32(argv + idx * 4, words[0]);
+    }
     idx += 1;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
