@@ -3898,6 +3898,46 @@ fn eval_proc_call(words: []const i32) i32 {
         if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;
         }
+        // Per-namespace ``namespace unknown`` handler (namespace-52.x):
+        // the current namespace's explicit handler — or the root
+        // namespace's, if the current one has none — intercepts the
+        // unknown command, invoked as ``{*}$handler word0 word1 …``.
+        // When neither has an explicit handler the dispatch falls
+        // through to the global ``unknown`` proc below (the default
+        // ``::unknown`` auto-loader).
+        {
+            const ns_mod = @import("tcl_ns.zig");
+            var ns_handler = ns_mod.ns_unknown_get(ns_mod.current_ns);
+            if (ns_handler == 0 and ns_mod.current_ns != ns_mod.root_addr) {
+                ns_handler = ns_mod.ns_unknown_get(ns_mod.root_addr);
+            }
+            if (ns_handler != 0) {
+                const hs = obj_ensure_string(ns_handler);
+                const n_h: u32 = @intCast(obj_mod.list_count_elements(hs.ptr, hs.len));
+                if (n_h > 0 and n_h + words.len <= parse.MAX_WORDS) {
+                    var hw: [parse.MAX_WORDS]i32 = undefined;
+                    var hi: u32 = 0;
+                    var ei: i64 = 0;
+                    while (ei < n_h) : (ei += 1) {
+                        const e = obj_mod.list_element_at(hs.ptr, hs.len, ei);
+                        hw[hi] = obj_mod.obj_new_string(@bitCast(hs.ptr + e.start), @bitCast(e.len));
+                        hi += 1;
+                    }
+                    var wk: u32 = 0;
+                    while (wk < words.len) : (wk += 1) {
+                        obj_mod.tcl_obj_retain(words[wk]);
+                        hw[hi] = words[wk];
+                        hi += 1;
+                    }
+                    const r = eval_command(hw[0..hi]);
+                    var rk: u32 = 0;
+                    while (rk < hi) : (rk += 1) {
+                        if (hw[rk] != 0) obj_mod.tcl_obj_release(hw[rk]);
+                    }
+                    return r;
+                }
+            }
+        }
         // Before declaring the command unknown, look for a
         // user-defined ``unknown`` proc that should intercept the
         // call (Tcl's classic auto-dispatch hook).  Reference Tcl's

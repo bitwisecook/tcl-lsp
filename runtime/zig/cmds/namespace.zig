@@ -492,6 +492,26 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
             return result_mod.from_globals(obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len)));
         }
+        if (str_eq(@ptrFromInt(sub.ptr), sub.len, "unknown")) {
+            // ``namespace unknown ?handler?`` — per-namespace
+            // unknown-command handler (namespace-52.x).
+            const cur_ns = tcl_ns.ns_current();
+            if (words.len >= 3) {
+                tcl_ns.ns_unknown_set(cur_ns, words[2]);
+                return result_mod.from_globals(obj_new_string(0, 0));
+            }
+            const h = tcl_ns.ns_unknown_get(cur_ns);
+            if (h != 0) {
+                obj_mod.tcl_obj_retain(h);
+                return result_mod.from_globals(h);
+            }
+            // No explicit handler: the root namespace defaults to
+            // ``::unknown``; every other namespace reports ``{}``.
+            if (cur_ns == tcl_ns.root_addr) {
+                return result_mod.from_globals(obj_new_string(@bitCast(@intFromPtr("::unknown".ptr)), 9));
+            }
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "ensemble")) {
             return result_mod.from_globals(eval_ns_ensemble(words));
         }

@@ -465,3 +465,42 @@ class TestEnsembleParameters:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "1 bar"
+
+
+class TestNamespaceUnknownHandler:
+    """Per-namespace ``namespace unknown`` handler (namespace-52.x): a
+    namespace's handler (or the root's, when it has none) intercepts an
+    unknown command invoked within that namespace.  Queries report the
+    explicit handler, defaulting to ``::unknown`` for the root and ``{}``
+    elsewhere."""
+
+    def test_set_and_dispatch(self) -> None:
+        src = (
+            "namespace eval foo {\n"
+            "  namespace unknown [list dispatch]\n"
+            "  proc dispatch {args} { return $args }\n"
+            "  proc test {} { UnknownCmd a b c }\n"
+            "}\n"
+            "puts [foo::test]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "UnknownCmd a b c"
+
+    def test_query_defaults(self) -> None:
+        src = (
+            'puts "<[namespace eval foobar { namespace unknown }]>"\n'
+            'puts "<[namespace eval :: { namespace unknown }]>"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["<>", "<::unknown>"]
+
+    def test_global_handler_inherited(self) -> None:
+        src = (
+            "proc ::myunknown {args} { return \"MYUNKNOWN: $args\" }\n"
+            "namespace eval :: { namespace unknown ::myunknown }\n"
+            "set result [namespace eval foo { dummy a b c }]\n"
+            "namespace eval :: { namespace unknown {} }\n"
+            "puts $result\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "MYUNKNOWN: dummy a b c"
