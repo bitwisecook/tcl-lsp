@@ -848,8 +848,31 @@ class _WasmEmitterStmtMixin(_Base):
             case IRForeach(iterators=iterators, body=body):
                 self._emit_foreach(iterators, body)
 
-            case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
-                self._emit_switch(subject, arms, default_body, mode=mode)
+            case IRSwitch(
+                subject=subject,
+                arms=arms,
+                default_body=default_body,
+                mode=mode,
+                raw_args=raw_args,
+            ):
+                if mode == "regexp":
+                    # No WASM regex matcher: re-invoke ``switch`` through
+                    # the runtime so regexp arm patterns match tclsh
+                    # rather than being compared as exact strings.  Build
+                    # the eval script with the braced body re-quoted
+                    # verbatim (a pattern like ``{^\d+$}`` keeps its
+                    # backslash) instead of letting the generic fallback
+                    # backslash-substitute it.
+                    script = self._regexp_switch_eval_script(subject, raw_args)
+                    self._emit_eval_fallback("switch", raw_args, script_override=script)
+                    self._emit(WasmOp.DROP)
+                    if self._optimise:
+                        # The eval-fallback runs arbitrary arm bodies that
+                        # can reassign variables, so any constant we tracked
+                        # is now stale.
+                        self._const_map.clear()
+                else:
+                    self._emit_switch(subject, arms, default_body, mode=mode)
 
             case IRCatch(body=body, result_var=result_var, options_var=options_var):
                 self._emit_catch(body, result_var, options_var=options_var)
@@ -1450,6 +1473,53 @@ class _WasmEmitterStmtMixin(_Base):
             self._emit_call(fidx)
         if self._catch_depth == 0:
             self._emit(WasmOp.UNREACHABLE)
+
+    def _regexp_switch_eval_script(self, subject: str, raw_args: tuple[str, ...]) -> str:
+        """Reconstruct a ``switch`` script for the ``-regexp`` eval-fallback.
+
+        ``raw_args`` holds the original words with the outer braces of the
+        body block already stripped by the lowering, e.g.
+        ``('-regexp', '${s}', '{^\\d+$} {body} default {body}')``.  The
+        generic eval-fallback would backslash-substitute the unbraced body
+        (turning ``\\d`` into ``d``), so re-quote each word here instead:
+
+        * leading option flags (``-regexp``, ``-nocase``, ``--`` and the
+          value of ``-matchvar`` / ``-indexvar``) pass through bare so the
+          runtime still recognises them;
+        * the subject — and any later command/variable substitution word —
+          passes through unquoted so it resolves against the current frame;
+        * every other word (the pattern/body block) is list-quoted, which
+          wraps brace-balanced text in ``{…}`` without applying backslash
+          substitution, preserving the regex verbatim.
+        """
+        # ``-nocase`` takes no value; only ``-matchvar`` / ``-indexvar`` do.
+        value_opts = {"-matchvar", "-indexvar"}
+        parts = ["switch"]
+        i = 0
+        n = len(raw_args)
+        while i < n and raw_args[i].startswith("-") and raw_args[i] != "-":
+            opt = raw_args[i]
+            parts.append(opt)
+            i += 1
+            if opt == "--":
+                break
+            if opt in value_opts and i < n:
+                parts.append(raw_args[i])
+                i += 1
+        if i < n:
+            subj = raw_args[i]
+            i += 1
+            parts.append(
+                subj
+                if (subj.startswith("$") or subj.startswith("["))
+                else _tcl_list_quote(subj, first=False)
+            )
+        for word in raw_args[i:]:
+            if word.startswith("$") or word.startswith("["):
+                parts.append(word)
+            else:
+                parts.append(_tcl_list_quote(word, first=False))
+        return " ".join(parts)
 
     def _emit_eval_fallback(
         self,

@@ -568,28 +568,6 @@ def _cfg_predecessors(
     return preds
 
 
-def _cfg_order(cfg: CFGFunction, executable: set[BlockName]) -> list[BlockName]:
-    """Return a stable forward traversal order for executable blocks."""
-    seen: set[BlockName] = set()
-    order: list[BlockName] = []
-    stack: list[BlockName] = [cfg.entry]
-
-    while stack:
-        bn = stack.pop()
-        if bn in seen or bn not in executable:
-            continue
-        seen.add(bn)
-        order.append(bn)
-        succs = [s for s in _cfg_successors(cfg, bn) if s in executable]
-        for succ in reversed(succs):
-            stack.append(succ)
-
-    for bn in cfg.blocks:
-        if bn in executable and bn not in seen:
-            order.append(bn)
-    return order
-
-
 def _collect_function_occurrence_events(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -649,19 +627,6 @@ def _collect_function_occurrence_events(
     return events_by_block, all_occurrences
 
 
-def _transfer_occurrence_keys(
-    events: tuple[_ExprOccurrence | None, ...],
-    in_set: set[ExprKey],
-) -> set[ExprKey]:
-    state = set(in_set)
-    for event in events:
-        if event is None:
-            state.clear()
-            continue
-        state.add(event.key)
-    return state
-
-
 def _find_partial_redundancies(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -689,18 +654,53 @@ def _find_partial_redundancies(
     if not all_occurrences:
         return []
 
-    universe: set[ExprKey] = {occ.key for occ in all_occurrences}
     preds = _cfg_predecessors(cfg, executable)
-    order = _cfg_order(cfg, executable)
+    order = [bn for bn in cfg.reverse_postorder() if bn in executable]
 
-    may_in: dict[BlockName, set[ExprKey]] = {bn: set() for bn in executable}
-    may_out: dict[BlockName, set[ExprKey]] = {bn: set() for bn in executable}
-    must_in: dict[BlockName, set[ExprKey]] = {
-        bn: (set() if bn == ssa.entry else set(universe)) for bn in executable
-    }
-    must_out: dict[BlockName, set[ExprKey]] = {
-        bn: _transfer_occurrence_keys(events_by_block.get(bn, ()), must_in[bn]) for bn in executable
-    }
+    # Encode the expression universe as bit indices so the availability
+    # fixpoint runs on integer bitmasks (one machine word per ~64
+    # expressions) instead of per-block hash sets.  The set form spent
+    # O(|universe|·|blocks|) just initialising must-in to ⊤ for every
+    # block, then re-built that full set via intersection each pass.
+    bit_of: dict[ExprKey, int] = {}
+    for occ in all_occurrences:
+        if occ.key not in bit_of:
+            bit_of[occ.key] = len(bit_of)
+    full_mask = (1 << len(bit_of)) - 1
+
+    # Per-block transfer.  The occurrence transfer clears state on a
+    # barrier (``None`` event) then adds every later key, so a block's
+    # out-state is either independent of in (a barrier is present → only
+    # post-barrier keys survive) or ``in | gen`` (no barrier → the keys
+    # generated in the block).  Precompute both forms once.
+    block_has_barrier: dict[BlockName, bool] = {}
+    block_post_barrier: dict[BlockName, int] = {}
+    block_gen: dict[BlockName, int] = {}
+    for bn in executable:
+        has_barrier = False
+        post = 0
+        gen = 0
+        for event in events_by_block.get(bn, ()):
+            if event is None:
+                has_barrier = True
+                post = 0
+                continue
+            b = 1 << bit_of[event.key]
+            gen |= b
+            post |= b
+        block_has_barrier[bn] = has_barrier
+        block_post_barrier[bn] = post
+        block_gen[bn] = gen
+
+    def transfer(bn: BlockName, in_mask: int) -> int:
+        if block_has_barrier[bn]:
+            return block_post_barrier[bn]
+        return in_mask | block_gen[bn]
+
+    may_in: dict[BlockName, int] = {bn: 0 for bn in executable}
+    may_out: dict[BlockName, int] = {bn: 0 for bn in executable}
+    must_in: dict[BlockName, int] = {bn: (0 if bn == ssa.entry else full_mask) for bn in executable}
+    must_out: dict[BlockName, int] = {bn: transfer(bn, must_in[bn]) for bn in executable}
 
     changed = True
     while changed:
@@ -708,25 +708,19 @@ def _find_partial_redundancies(
         for bn in order:
             pred_list = [p for p in preds.get(bn, set()) if p in executable]
             if bn == ssa.entry or not pred_list:
-                new_must_in: set[ExprKey] = set()
-                new_may_in: set[ExprKey] = set()
+                new_must_in = 0
+                new_may_in = 0
             else:
-                new_must_in = set(must_out[pred_list[0]])
+                new_must_in = must_out[pred_list[0]]
                 for p in pred_list[1:]:
                     new_must_in &= must_out[p]
 
-                new_may_in = set()
+                new_may_in = 0
                 for p in pred_list:
                     new_may_in |= may_out[p]
 
-            new_must_out = _transfer_occurrence_keys(
-                events_by_block.get(bn, ()),
-                new_must_in,
-            )
-            new_may_out = _transfer_occurrence_keys(
-                events_by_block.get(bn, ()),
-                new_may_in,
-            )
+            new_must_out = transfer(bn, new_must_in)
+            new_may_out = transfer(bn, new_may_in)
 
             if new_must_in != must_in[bn]:
                 must_in[bn] = new_must_in
@@ -751,18 +745,19 @@ def _find_partial_redundancies(
 
     results: list[RedundantComputation] = []
     for bn in order:
-        state_may = set(may_in.get(bn, set()))
-        state_must = set(must_in.get(bn, set()))
+        state_may = may_in.get(bn, 0)
+        state_must = must_in.get(bn, 0)
 
         for event in events_by_block.get(bn, ()):
             if event is None:
-                state_may.clear()
-                state_must.clear()
+                state_may = 0
+                state_must = 0
                 continue
 
             occ = event
+            b = bit_of[occ.key]
             if len(key_offsets.get(occ.key, ())) >= 2:
-                if occ.key in state_may and occ.key not in state_must:
+                if (state_may >> b) & 1 and not ((state_must >> b) & 1):
                     first_occ = first_by_key.get(occ.key, occ)
                     if first_occ.range.start.offset != occ.range.start.offset:
                         results.append(
@@ -774,8 +769,9 @@ def _find_partial_redundancies(
                             )
                         )
 
-            state_may.add(occ.key)
-            state_must.add(occ.key)
+            bit = 1 << b
+            state_may |= bit
+            state_must |= bit
 
     return results
 

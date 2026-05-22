@@ -465,7 +465,11 @@ class _AnalyserDiagVarCommandMixin(_Base):
                                 )
                             )
 
-            # Remove suppressed W307 diagnostics.
+            # Remove suppressed W307 diagnostics.  Rebuild in one pass
+            # (O(N)) instead of repeated del-by-index (each del shifts the
+            # tail — O(R·N) when many sites are suppressed).
             if remove_indices:
-                for i in sorted(remove_indices, reverse=True):
-                    del self.result.diagnostics[i]
+                drop = set(remove_indices)
+                self.result.diagnostics[:] = [
+                    d for i, d in enumerate(self.result.diagnostics) if i not in drop
+                ]

@@ -12,7 +12,14 @@ from compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, b
 from compiler.expr_ast import ExprRaw
 from compiler.ir import IRAssignConst, IRAssignExpr
 from compiler.lowering import lower_to_ir
-from compiler.ssa import build_ssa
+from compiler.ssa import (
+    _compute_idom_fast,
+    _dominators,
+    _immediate_dominators,
+    _predecessors,
+    _reachable_blocks,
+    build_ssa,
+)
 from shared.tokens import SourcePosition
 
 
@@ -145,3 +152,117 @@ class TestBarrierVarWriteRoles:
                 range=r, reason="dynamic command", command=cmd, args=("x", "y", "z")
             )
             assert _defs(barrier) == (), cmd
+
+
+class TestSharedTraversal:
+    """The centralised reverse-postorder + Cooper-Harvey-Kennedy idom."""
+
+    _SOURCES = [
+        "set a 1\nset b 2",
+        "if {$x} {set a 1} else {set a 2}\nset b [expr {$a + 0}]",
+        "set i 0\nwhile {$i < 10} {set i [expr {$i + 1}]}\nset done 1",
+        "for {set i 0} {$i < 5} {incr i} {if {$i} {set a 1} else {set a 2}}",
+        "switch $x {a {set r 1} b {set r 2} default {set r 3}}\nset y $r",
+        "if {$a} {if {$b} {set c 1} else {set c 2}} else {set c 3}\nset d $c",
+        "while {$a} {while {$b} {set x 1}\nset y 2}\nset z 3",
+    ]
+
+    def _cfgs(self):
+        for src in self._SOURCES:
+            yield build_cfg(lower_to_ir(src)).top_level
+
+    def test_reverse_postorder_entry_first_and_complete(self):
+        for cfg in self._cfgs():
+            order = cfg.reverse_postorder()
+            # Same set as cfg.blocks (reachable RPO + unreachable tail).
+            assert set(order) == set(cfg.blocks)
+            assert len(order) == len(cfg.blocks)
+            assert order[0] == cfg.entry
+
+    def test_reverse_postorder_respects_non_back_edges(self):
+        # A valid RPO places every block before all of its successors
+        # except across *back edges* (loop-closing edges).  In a reducible
+        # CFG a back edge is exactly one whose target dominates its source,
+        # so identify back edges via the dominance relation and require
+        # strict predecessor-before-successor ordering for every other edge.
+        from compiler.cfg import _block_successors
+
+        for cfg in self._cfgs():
+            order = cfg.reverse_postorder()
+            pos = {bn: i for i, bn in enumerate(order)}
+            reachable = _reachable_blocks(cfg)
+            preds = _predecessors(cfg)
+            dom = _dominators(cfg, reachable, preds)
+            for bn in reachable:
+                for succ in _block_successors(cfg.blocks[bn].terminator):
+                    if succ not in reachable:
+                        continue
+                    # Back edge (succ dominates bn) closes a loop, so RPO is
+                    # permitted to place succ earlier.  Every non-back edge
+                    # must order the predecessor strictly before the successor.
+                    if succ in dom[bn]:
+                        continue
+                    assert pos[bn] < pos[succ], (bn, succ, order)
+
+    def test_compute_idom_fast_matches_reference(self):
+        # The production CHK path must produce exactly the same idom map
+        # as the naive set-based reference (_dominators →
+        # _immediate_dominators) on every shape.
+        for cfg in self._cfgs():
+            reachable = _reachable_blocks(cfg)
+            preds = _predecessors(cfg)
+            dom = _dominators(cfg, reachable, preds)
+            reference = _immediate_dominators(cfg, reachable, dom)
+            fast = _compute_idom_fast(cfg, reachable, preds)
+            assert fast == reference
+
+
+class TestDeepCFGStackSafety:
+    """A long block chain must not overflow the worker-thread stack.
+
+    The recursive dominator-tree rename / DFS traversal blew the stack on
+    machine-generated procs that lower to thousands of sequential blocks
+    (e.g. ~700 chained ``if {$c == N} {return X}`` arms).  Both the shared
+    reverse_postorder and the SSA rename walk are now iterative, so this
+    must complete under the common 2 MB worker-thread stack.
+    """
+
+    def _deep_chain_cfg(self, n: int) -> CFGFunction:
+        # entry -> b1 -> b2 -> ... -> bn -> exit, each block a trivial set.
+        r = _dummy_range()
+        blocks: dict[str, CFGBlock] = {}
+        names = ["entry"] + [f"b{i}" for i in range(1, n + 1)]
+        for idx, name in enumerate(names):
+            stmt = IRAssignConst(range=r, name=f"v{idx}", value="1")
+            nxt = names[idx + 1] if idx + 1 < len(names) else None
+            term = CFGGoto(target=nxt, range=r) if nxt else CFGReturn(range=r)
+            blocks[name] = CFGBlock(name=name, statements=(stmt,), terminator=term)
+        return CFGFunction(name="deep", entry="entry", blocks=blocks)
+
+    def test_deep_chain_under_small_stack(self):
+        import threading
+
+        cfg = self._deep_chain_cfg(8000)
+
+        result: dict[str, object] = {}
+
+        def run() -> None:
+            try:
+                ssa = build_ssa(cfg)
+                # idom forms a chain: each block's idom is its predecessor.
+                result["ok"] = len(ssa.blocks) == len(cfg.blocks)
+                result["rpo_len"] = len(cfg.reverse_postorder())
+            except Exception as exc:  # pragma: no cover - failure path
+                result["error"] = repr(exc)
+
+        old = threading.stack_size(2 * 1024 * 1024)
+        try:
+            t = threading.Thread(target=run)
+            t.start()
+            t.join()
+        finally:
+            threading.stack_size(old)
+
+        assert "error" not in result, result.get("error")
+        assert result.get("ok") is True
+        assert result.get("rpo_len") == len(cfg.blocks)

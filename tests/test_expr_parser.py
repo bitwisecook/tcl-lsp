@@ -472,10 +472,11 @@ class TestVarsInExprNode:
         node = parse_expr("sin($angle)")
         assert vars_in_expr_node(node) == {"angle"}
 
-    def test_raw_no_vars(self):
+    def test_raw_extracts_vars(self):
         node = ExprRaw(text="$x + $y")
-        # ExprRaw is opaque — no variable extraction
-        assert vars_in_expr_node(node) == set()
+        # ExprRaw is opaque to value/type analysis, but use-detection must
+        # still see the variables it reads (over-approximation is sound).
+        assert vars_in_expr_node(node) == {"x", "y"}
 
     def test_repeated_var(self):
         node = parse_expr("$x + $x")

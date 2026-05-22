@@ -481,6 +481,16 @@ class CFGReturn:
 CFGTerminator = CFGGoto | CFGBranch | CFGReturn
 
 
+def _block_successors(term: CFGTerminator | None) -> tuple[str, ...]:
+    match term:
+        case CFGGoto(target=target):
+            return (target,)
+        case CFGBranch(true_target=tt, false_target=ft):
+            return (tt, ft)
+        case _:
+            return ()
+
+
 @dataclass(frozen=True, slots=True)
 class CFGBlock:
     name: str
@@ -494,6 +504,53 @@ class CFGFunction:
     entry: str
     blocks: dict[str, CFGBlock]
     loop_nodes: dict[str, tuple[str, IRFor]] = field(default_factory=dict)
+
+    def reverse_postorder(self) -> list[str]:
+        """Return blocks in reverse-postorder — the one shared CFG order.
+
+        Blocks reachable from :attr:`entry` come first in true reverse
+        post-order: ``entry`` is first and every block appears after all
+        of its non-back-edge predecessors.  Blocks not reachable from the
+        entry are appended in declaration order so callers that iterate
+        every block keep the full set (matching the old per-pass
+        ``_cfg_order`` helpers, which appended unreachable blocks too).
+
+        Implemented with an explicit work stack rather than recursion so
+        it cannot overflow the thread stack on a degenerate CFG — a
+        single machine-generated proc can lower to a block chain tens of
+        thousands deep, which a recursive DFS overflows at the common
+        2 MB worker-thread stack size.  This is the only RPO used across
+        the CFG/SSA passes (dominators, SCCP, liveness, type / rendered-
+        property propagation, GVN), so keeping it iterative keeps them
+        all bounded.
+        """
+        visited: set[str] = set()
+        postorder: list[str] = []
+        # Each frame is [block name, index of next successor to visit];
+        # a frame moves to ``postorder`` once all its successors have been
+        # pushed — yielding the recursive post-order, then reversed.
+        stack: list[list] = []
+        if self.entry in self.blocks:
+            visited.add(self.entry)
+            stack.append([self.entry, 0])
+        while stack:
+            frame = stack[-1]
+            bn = frame[0]
+            succs = _block_successors(self.blocks[bn].terminator)
+            if frame[1] < len(succs):
+                nxt = succs[frame[1]]
+                frame[1] += 1
+                if nxt in self.blocks and nxt not in visited:
+                    visited.add(nxt)
+                    stack.append([nxt, 0])
+            else:
+                postorder.append(bn)
+                stack.pop()
+        postorder.reverse()
+        for bn in self.blocks:
+            if bn not in visited:
+                postorder.append(bn)
+        return postorder
 
 
 @dataclass(frozen=True, slots=True)
@@ -956,28 +1013,19 @@ class _CFGBuilder:
         return end_block
 
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
-        # ``-regexp`` still needs a runtime regex engine pass we haven't
-        # plumbed through the CFG, so keep it as a barrier and route
-        # through the interpreter.
-        if stmt.mode == "regexp":
-            barrier = IRBarrier(
-                range=stmt.range,
-                reason="switch -regexp",
-                command="switch",
-                canonical_command="::switch",
-                args=stmt.raw_args,
-            )
-            self._block(block_name).statements.append(barrier)
-            return block_name
-        # ``-glob`` dispatch: the CFG's STR_EQ branch chain can't
-        # represent glob matching.  Keep the ``IRSwitch`` in the
-        # block's statement list so ``codegen/_statements.py`` can emit
-        # an ``invokeStk`` call matching tclsh 9.0's un-compiled approach.
+        # ``-regexp`` needs a runtime regex engine pass we haven't plumbed
+        # through the CFG, and ``-glob`` matching can't be expressed by the
+        # CFG's STR_EQ branch chain.  Both stay as an ``IRSwitch`` statement
+        # so ``codegen/_statements.py`` can emit an ``invokeStk`` call
+        # matching tclsh 9.0's un-compiled approach; keeping the structured
+        # form (rather than collapsing to an ``IRBarrier``) also lets SSA
+        # recover the subject/arm-body variable reads.
+        #
         # ``-exact`` with fallthrough arms also stays as an ``IRSwitch``
         # because the CFG's multi-predecessor shared-body topology can't
         # be lowered to valid WASM structured control flow in general;
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
-        if stmt.mode == "glob":
+        if stmt.mode in ("glob", "regexp"):
             self._block(block_name).statements.append(stmt)
             return block_name
         if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:

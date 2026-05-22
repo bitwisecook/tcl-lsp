@@ -222,13 +222,19 @@ class _AnalyserScopeMixin(_Base):
             target_ns = _normalise_qualified_name(
                 f"::{joined}" if not joined.startswith("::") else joined
             )
+        cache_key = (target_ns, var_part)
+        cached = self._qual_var_cache.get(cache_key)
+        if cached is not None:
+            return cached
         for candidate in self._walk_scopes(self.result.global_scope):
             if (
                 candidate.kind == "namespace"
                 and var_part in candidate.variables
                 and self._namespace_from_scope(candidate) == target_ns
             ):
-                return candidate.variables[var_part]
+                resolved = candidate.variables[var_part]
+                self._qual_var_cache[cache_key] = resolved
+                return resolved
         return None
 
     def _walk_scopes(self, scope: Scope):

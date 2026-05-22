@@ -219,8 +219,17 @@ def _collect_vars(node: ExprNode, out: set[str]) -> None:
             # Command substitutions may contain variable references.
             # Delegate to the script-level variable extractor.
             _collect_vars_in_command(text, out)
+        case ExprRaw(text=text):
+            # Unparseable expression preserved as raw text — scan it for
+            # ``$``-substitutions so the variables it reads are still
+            # treated as uses. Returning nothing here would be unsound for
+            # use-based analyses (liveness, DCE, unused-variable/parameter
+            # detection), e.g. a ``switch -- $col`` subject lowered to an
+            # ``ExprRaw`` branch condition would otherwise hide the read of
+            # ``col``.
+            _collect_vars_in_raw(text, out)
         case _:
-            pass  # ExprLiteral, ExprString, ExprRaw — no variables
+            pass  # ExprLiteral, ExprString — no variables
 
 
 def _collect_vars_in_command(cmd_text: str, out: set[str]) -> None:
@@ -234,6 +243,16 @@ def _collect_vars_in_command(cmd_text: str, out: set[str]) -> None:
     if len(cmd_text) >= 2 and cmd_text.startswith("[") and cmd_text.endswith("]"):
         cmd_text = cmd_text[1:-1]
     out.update(_vars_in_script(cmd_text))
+
+
+def _collect_vars_in_raw(text: str, out: set[str]) -> None:
+    """Extract variables from raw, unparseable expression text.
+
+    Imports lazily to avoid a circular dependency with ssa.py.
+    """
+    from .ssa import _vars_in_word
+
+    out.update(_vars_in_word(text))
 
 
 def _needs_parens_for_unary(operand: ExprNode) -> bool:

@@ -30,6 +30,7 @@ from ..semantic_model import (
     Range,
     Scope,
     Severity,
+    VarDef,
 )
 from ._snapshot import AnalyserSnapshot
 from ._utils import parse_file_suppression, parse_noqa_line_suppressions
@@ -106,6 +107,12 @@ class _AnalyserBase:
         self._cmd_command_sites: list[tuple[str, str | None, Range, bool, bool]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
+        # Cache: (target_ns, var_part) -> VarDef, for _resolve_qualified_var.
+        # Only positive (resolved) results are cached: a VarDef object is
+        # stable once created and the DFS-first matching scope never moves
+        # (scopes are append-only), so a cached hit stays correct.  Misses
+        # are not cached — the variable may be defined later in the walk.
+        self._qual_var_cache: dict[tuple[str, str], VarDef] = {}
         # Namespace ensembles: namespaces where ``namespace ensemble create``
         # was detected.  Their tail names become valid commands.
         self._ensemble_namespaces: set[str] = set()
@@ -169,6 +176,7 @@ class _AnalyserBase:
         self._conditional_depth = snap.conditional_depth
         self._command_aliases = dict(snap.command_aliases)
         self._ns_cache.clear()
+        self._qual_var_cache.clear()
 
         # Remap scope ids: old_id → new scope's id
         # snap.scope_id_map maps id(original_live_scope) → copied_scope_in_snap.result.
@@ -237,6 +245,7 @@ class _AnalyserBase:
         self._file_path = file_path
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
+        self._qual_var_cache.clear()
         if not skip_stubs:
             # Pre-scan for inline stubs (same as analyse()).
             cmd_stubs, expr_stubs = scan_source_for_stubs(source)
@@ -295,6 +304,7 @@ class _AnalyserBase:
         self._source = source
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
+        self._qual_var_cache.clear()
         # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
         file_codes = parse_file_suppression(source)
         if file_codes:
@@ -416,6 +426,7 @@ class _AnalyserBase:
         self._file_path = file_path
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
+        self._qual_var_cache.clear()
         # Pre-scan for inline stubs blocks (independent of Tcl parsing).
         cmd_stubs, expr_stubs = scan_source_for_stubs(source)
         self.result.stub_commands.extend(cmd_stubs)

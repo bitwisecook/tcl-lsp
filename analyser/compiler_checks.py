@@ -479,7 +479,74 @@ def _resolve_signature(cmd_name: str) -> CommandSig | SubcommandSig | None:
     return None
 
 
-def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
+def _defining_namespace(qualified_name: str) -> str:
+    """Return the namespace a command defined as *qualified_name* lives in.
+
+    Command resolution inside a proc body uses the proc's defining
+    namespace — the qualified name minus its final ``::``-separated
+    component (``::`` for a globally defined proc).
+    """
+    idx = qualified_name.rfind("::")
+    if idx <= 0:
+        return "::"
+    return qualified_name[:idx]
+
+
+def _resolution_candidates(cmd_name: str, call_ns: str) -> list[str]:
+    """Qualified names *cmd_name* may resolve to from *call_ns*.
+
+    Mirrors the analyser's ``_resolve_proc_call`` resolution order: an
+    absolute name resolves to itself; a namespace-qualified relative name
+    resolves against the global namespace; a bare name resolves against
+    the call-site namespace first, then the global namespace.
+    """
+    if not cmd_name:
+        return []
+    if cmd_name.startswith("::"):
+        return [normalise_qualified_name(cmd_name)]
+    if "::" in cmd_name:
+        return [normalise_qualified_name(f"::{cmd_name}")]
+    candidates: list[str] = []
+    if call_ns and call_ns != "::":
+        candidates.append(normalise_qualified_name(f"{call_ns}::{cmd_name}"))
+    candidates.append(normalise_qualified_name(f"::{cmd_name}"))
+    return candidates
+
+
+def _resolves_to_user_command(
+    cmd_name: str,
+    call_ns: str,
+    user_proc_offsets: Mapping[str, int],
+    *,
+    call_offset: int,
+    enforce_order: bool,
+) -> bool:
+    """True when *cmd_name*, resolved from *call_ns*, names a user proc.
+
+    Suppression of the builtin arity check is gated on this so a shadowing
+    proc in one namespace cannot silence a call that actually reaches the
+    builtin.  Only *unconditional* proc definitions (the keys of
+    ``user_proc_offsets``, which excludes conditional/looping definitions)
+    can shadow a builtin — a conditionally defined proc is not statically
+    known to exist.
+
+    ``enforce_order`` is set for top-level calls, which execute in source
+    order during script load: a definition only shadows the builtin if it
+    textually precedes the call (``def_offset < call_offset``).  Proc
+    bodies run after load, by which point every unconditional definition
+    exists, so ordering is not enforced there.
+    """
+    for candidate in _resolution_candidates(cmd_name, call_ns):
+        def_offset = user_proc_offsets.get(candidate)
+        if def_offset is None:
+            continue
+        if enforce_order and def_offset >= call_offset:
+            continue
+        return True
+    return False
+
+
+def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
     """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
 
     W002/W003/W004/W307 are now in checks.py ALL_CHECKS so they fire for
@@ -488,10 +555,18 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
     Only checks built-in commands against registry signatures.  User-defined
     proc-call arity is checked by the analyser which has access to full
     parameter default information via ``ProcDef``.
+
+    Builtin arity is suppressed for any call that resolves Tcl-style to a
+    user-defined command (a shadowing proc): the suppression is
+    namespace-aware so a ``proc ::ns::close`` only silences ``close`` calls
+    that actually resolve to it, not a global ``close`` that reaches the
+    builtin.  ``user_proc_offsets`` maps each unconditionally defined proc
+    to its definition offset so suppression also respects definition order
+    and reachability (see :func:`_resolves_to_user_command`).
     """
     diagnostics: list[Diagnostic] = []
 
-    def _check_statement(stmt: IRStatement) -> None:
+    def _check_statement(stmt: IRStatement, call_ns: str, enforce_order: bool) -> None:
         # W302: catch without result variable (IR-native).  Highlight just
         # the ``catch`` command word — narrowest span that identifies the
         # issue — rather than the whole ``catch {…}`` statement.
@@ -565,9 +640,17 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
                     return
                 arg_expand = list(ct.expand_word[1:])
 
-        # Built-in command arity checking
+        # Built-in command arity checking.  Skip when the call resolves to a
+        # user-defined command shadowing the builtin — that call's arity is
+        # validated against the proc's real parameter list by the analyser.
         sig = _resolve_signature(cmd_name)
-        if sig is not None:
+        if sig is not None and not _resolves_to_user_command(
+            cmd_name,
+            call_ns,
+            user_proc_offsets,
+            call_offset=stmt.range.start.offset,
+            enforce_order=enforce_order,
+        ):
             _check_arity(
                 cmd_name,
                 args,
@@ -579,13 +662,17 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
                 arg_single,
             )
 
-    def _walk_ir(script: IRScript) -> None:
+    def _walk_ir(script: IRScript, call_ns: str, enforce_order: bool) -> None:
         for stmt in iter_ir_statements(script):
-            _check_statement(stmt)
+            _check_statement(stmt, call_ns, enforce_order)
 
-    _walk_ir(ir_module.top_level)
+    # Top-level statements execute in source order, so a shadowing proc must
+    # be defined before the call; proc bodies run after load and see every
+    # unconditional definition regardless of order.
+    _walk_ir(ir_module.top_level, "::", enforce_order=True)
     for proc in ir_module.procedures.values():
-        _walk_ir(proc.body)
+        # A proc body resolves commands in the proc's defining namespace.
+        _walk_ir(proc.body, _defining_namespace(proc.qualified_name), enforce_order=False)
 
     return diagnostics
 
@@ -926,5 +1013,5 @@ def run_compiler_checks(
         runner.process_statement(stmt)
 
     diagnostics = runner.diagnostics
-    diagnostics.extend(_arity_checks(ir_module))
+    diagnostics.extend(_arity_checks(ir_module, user_procs))
     return diagnostics

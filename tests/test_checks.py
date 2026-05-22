@@ -1064,6 +1064,88 @@ proc a {} {
         assert any(d.code == "W100" for d in result.diagnostics)
 
 
+class TestNamespaceShadowedArity:
+    """Builtin arity suppression must be namespace-aware (issue: PR #472).
+
+    A ``proc`` whose name matches a builtin only shadows that builtin for
+    calls that actually resolve to it.  A call in another namespace (e.g. a
+    global ``close``) still reaches the builtin and must keep its arity
+    check.
+    """
+
+    @staticmethod
+    def _arity_codes(source):
+        from analyser.compiler_checks import run_compiler_checks
+
+        return [d for d in run_compiler_checks(source) if d.code in ("E002", "E003")]
+
+    def test_global_call_to_shadowed_builtin_still_checked(self):
+        # ``proc ::ns::close`` must not silence a global ``close`` that
+        # resolves to the builtin (max 2 args).
+        source = (
+            "proc ::ns::close {a b c d} {}\n"
+            "close x y z\n"  # global -> builtin close, 3 args -> E003
+        )
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+        assert "at most 2" in diags[0].message
+
+    def test_call_resolving_to_user_proc_is_suppressed(self):
+        # ``close`` inside a ``::ns`` proc resolves to ``::ns::close`` (the
+        # user proc, 3 args) and must NOT trip the builtin arity check.
+        source = (
+            "proc ::ns::close {a b c} {}\n"
+            "proc ::ns::caller {} { close x y z }\n"
+            "close x y z\n"  # only the global call reaches the builtin
+        )
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert "at most 2" in diags[0].message  # the builtin, not ::ns::close
+
+    def test_shadowing_proc_in_other_namespace_does_not_suppress(self):
+        # A proc named ``close`` in an unrelated namespace must not silence
+        # the global builtin call.
+        source = "proc ::other::close {a b c} {}\nclose x y z\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_top_level_call_before_definition_still_checked(self):
+        # A global call resolves to the builtin when it textually precedes
+        # the shadowing proc — script load runs in order, so suppression
+        # must respect definition order.
+        source = "close x y z\nproc close {a b c d} {}\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_conditionally_defined_proc_does_not_suppress(self):
+        # A proc defined only inside a conditional is not statically known
+        # to exist, so the builtin arity check must still fire.
+        source = "if {$x} { proc close {a b c d} {} }\nclose x y z\n"
+        diags = self._arity_codes(source)
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    def test_top_level_call_after_definition_is_suppressed(self):
+        # Once the proc is defined, a later global call resolves to it.
+        source = "proc close {a b c} {}\nclose x y z\n"
+        assert self._arity_codes(source) == []
+
+    def test_websocket_close_no_false_positive(self):
+        # Real-world shape: ``::websocket::close`` takes 3 args and is called
+        # as a bare ``close`` from procs in the same namespace.
+        source = (
+            "namespace eval ::websocket {}\n"
+            "proc ::websocket::close {sock {code 1000} {reason {}}} {}\n"
+            "proc ::websocket::Receiver {} {\n"
+            '    close $sock 1009 "too big"\n'
+            "}\n"
+        )
+        assert self._arity_codes(source) == []
+
+
 # W200: Binary format signed/unsigned modifier requires Tcl 8.5+
 
 
@@ -3054,3 +3136,90 @@ class TestStructuralBodyDoesNotLeakIntoOuterScope:
 
     def test_uri_register_body_does_not_leak(self):
         self._assert_outer_diagnostics_fire("uri::register demo { puts $x; set y 1; set p 2 }")
+
+
+class TestSwitchSubjectCountsAsParamUse:
+    """Issue #471 — a parameter read only as a ``switch`` subject must not
+    be reported as an unused parameter (W214).
+
+    An exact ``switch -- $col {...}`` lowers to a chain of CFG branch
+    conditions whose subject is preserved as an ``ExprRaw`` node; the read
+    of ``col`` must still be recognised as a use.
+    """
+
+    def test_switch_subject_param_not_unused(self):
+        source = (
+            "proc editStartCmd {tbl row col text} {\n"
+            "    switch -- $col {\n"
+            "        1 { set combList columns }\n"
+            "        default { return $text }\n"
+            "    }\n"
+            "    return $combList\n"
+            "}\n"
+        )
+        result = analyse(source)
+        unused = {d.message.split("'")[1] for d in result.diagnostics if d.code == "W214"}
+        assert "col" not in unused, f"col wrongly flagged unused; got {sorted(unused)}"
+        # ``row`` is genuinely unused — the check still fires for it.
+        assert "row" in unused, f"expected row to be unused; got {sorted(unused)}"
+
+    @staticmethod
+    def _w214(source: str) -> set[str]:
+        return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
+
+    def test_glob_switch_subject_and_body_reads(self):
+        # -glob and fallthrough switches are kept as an IRSwitch statement
+        # (never lowered into CFG branches), so the subject and arm-body
+        # reads must be recovered from the structured form.  (-regexp is a
+        # barrier handled separately — see PR #474.)
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_fallthrough_switch_body_reads(self):
+        source = (
+            "proc p {col text} {\n"
+            "    switch -- $col {\n"
+            "        a -\n"
+            "        b { return $text }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "col" not in self._w214(source)
+        assert "text" not in self._w214(source)
+
+    def test_nested_control_flow_in_switch_arm_read(self):
+        # Reads buried in nested if/loop bodies inside an un-lowered switch
+        # arm must still be discovered.
+        source = (
+            "proc p {col text} {\n"
+            "    switch -glob -- $col {\n"
+            "        a* { if {1} { foreach x {1 2} { puts $text } } }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "text" not in self._w214(source)
+
+    def test_arm_local_set_then_read_no_read_before_set(self):
+        # A temporary set then read *inside* an arm is arm-local; collecting
+        # its read onto the outer IRSwitch must not surface as W210
+        # read-before-set (the outer statement has no view of the arm's def).
+        source = (
+            "proc p {x} {\n"
+            "    switch -glob -- $x {\n"
+            "        a* { set tmp 1; puts $tmp }\n"
+            "        default { return 0 }\n"
+            "    }\n"
+            "}\n"
+        )
+        codes = {d.code for d in analyse(source).diagnostics}
+        assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"

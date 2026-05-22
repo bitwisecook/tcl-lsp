@@ -390,8 +390,9 @@ class _StatementsMixin:
                 self._emit(Op.RETURN_IMM, 0, 0)
 
             case IRSwitch(raw_args=raw_args):
-                # switch -glob kept as IRSwitch by cfg.py; emit a generic
-                # invokeStk call matching tclsh 9.0's un-compiled approach.
+                # switch -glob/-regexp (and -exact with fallthrough arms)
+                # kept as IRSwitch by cfg.py; emit a generic invokeStk
+                # call matching tclsh 9.0's un-compiled approach.
                 self._emit_call("switch", raw_args)
 
             case _:

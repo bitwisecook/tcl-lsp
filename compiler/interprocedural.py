@@ -773,12 +773,13 @@ def _scan_local_facts(
 
 
 def _compute_param_dependencies(
+    cfg: CFGFunction,
     ssa: SSAFunction,
     params: tuple[str, ...],
 ) -> dict[SSAValueKey, frozenset[str]]:
     param_set = set(params)
     deps: dict[SSAValueKey, set[str]] = {}
-    order = list(ssa.blocks.keys())
+    order = cfg.reverse_postorder()
 
     changed = True
     while changed:
@@ -992,7 +993,7 @@ def _summarise_proc_local(
             if facts.writes_global:
                 break
 
-    param_deps = _compute_param_dependencies(ssa, proc.params)
+    param_deps = _compute_param_dependencies(cfg, ssa, proc.params)
     return_infos = _collect_return_infos(
         cfg,
         ssa,
@@ -1101,35 +1102,57 @@ def analyse_interprocedural_ir(
             and local.local_effect_writes == EffectRegion.NONE
         )
 
+    # Reverse call graph: callers[callee] = procs that call it.  Both
+    # fixpoints below propagate a monotone change at a proc only to its
+    # callers, so a worklist visits O(edges) work instead of re-scanning
+    # every proc each pass (round-robin was O(procs² · fanout) on deep
+    # call chains).
+    callers: dict[str, set[str]] = {qname: set() for qname in local_proc_summaries}
+    for qname, local in local_proc_summaries.items():
+        for callee in local.calls:
+            if callee in callers:
+                callers[callee].add(qname)
+
     pure: dict[str, bool] = dict(local_pure_base)
-    changed = True
-    while changed:
-        changed = False
-        for qname, local in local_proc_summaries.items():
-            new_pure = local_pure_base[qname] and all(
-                pure.get(callee, False) for callee in local.calls
-            )
-            if new_pure != pure[qname]:
-                pure[qname] = new_pure
-                changed = True
+    worklist: list[str] = list(local_proc_summaries)
+    queued: set[str] = set(worklist)
+    while worklist:
+        qname = worklist.pop()
+        queued.discard(qname)
+        local = local_proc_summaries[qname]
+        new_pure = local_pure_base[qname] and all(pure.get(callee, False) for callee in local.calls)
+        if new_pure != pure[qname]:
+            pure[qname] = new_pure
+            for caller in callers[qname]:
+                if caller not in queued:
+                    worklist.append(caller)
+                    queued.add(caller)
 
     effect_reads: dict[str, EffectRegion] = dict(local_reads)
     effect_writes: dict[str, EffectRegion] = dict(local_writes)
-    changed = True
-    while changed:
-        changed = False
-        for qname, local in local_proc_summaries.items():
-            new_reads = local_reads[qname]
-            new_writes = local_writes[qname]
-            for callee in local.calls:
-                new_reads |= effect_reads.get(callee, EffectRegion.UNKNOWN_STATE)
-                new_writes |= effect_writes.get(callee, EffectRegion.UNKNOWN_STATE)
-            if new_reads != effect_reads[qname]:
-                effect_reads[qname] = new_reads
-                changed = True
-            if new_writes != effect_writes[qname]:
-                effect_writes[qname] = new_writes
-                changed = True
+    worklist = list(local_proc_summaries)
+    queued = set(worklist)
+    while worklist:
+        qname = worklist.pop()
+        queued.discard(qname)
+        local = local_proc_summaries[qname]
+        new_reads = local_reads[qname]
+        new_writes = local_writes[qname]
+        for callee in local.calls:
+            new_reads |= effect_reads.get(callee, EffectRegion.UNKNOWN_STATE)
+            new_writes |= effect_writes.get(callee, EffectRegion.UNKNOWN_STATE)
+        dirty = False
+        if new_reads != effect_reads[qname]:
+            effect_reads[qname] = new_reads
+            dirty = True
+        if new_writes != effect_writes[qname]:
+            effect_writes[qname] = new_writes
+            dirty = True
+        if dirty:
+            for caller in callers[qname]:
+                if caller not in queued:
+                    worklist.append(caller)
+                    queued.add(caller)
 
     summaries: dict[str, ProcSummary] = {}
     for qname in sorted(ir_module.procedures):

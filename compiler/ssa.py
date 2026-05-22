@@ -32,7 +32,14 @@ from compiler.registry.runtime import (
 )
 from shared.naming import normalise_var_name as _normalise_var_name
 
-from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
+from .cfg import (
+    CFGBranch,
+    CFGFunction,
+    CFGGoto,
+    CFGReturn,
+    CFGTerminator,
+    _defs_from_ir_script,
+)
 from .expr_ast import ExprNode, vars_in_expr_node
 from .ir import (
     CommandTokens,
@@ -41,10 +48,18 @@ from .ir import (
     IRAssignValue,
     IRBarrier,
     IRCall,
+    IRCatch,
     IRExprEval,
+    IRFor,
+    IRForeach,
+    IRIf,
     IRIncr,
     IRReturn,
+    IRScript,
     IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
 )
 from .var_refs import VarReferenceScanner, VarScanOptions
 
@@ -196,6 +211,91 @@ def _structural_body_indices(
     }
 
 
+def _switch_reads(stmt: IRSwitch) -> set[str]:
+    """Collect every variable read by a non-lowered ``switch``.
+
+    ``-glob`` and fallthrough ``-exact`` switches are kept as an
+    ``IRSwitch`` statement rather than lowered into CFG branches/blocks
+    (their shared-body topology can't be expressed as structured control
+    flow).  The subject word and the arm/default bodies therefore never
+    contribute reads to the enclosing function's dataflow, so we gather
+    them here — otherwise a parameter read only as a switch subject or
+    only inside an arm body would be reported unused (W214) and similar
+    false positives would fire (issue #471).
+    """
+    reads: set[str] = set()
+    reads |= _vars_in_word(stmt.subject)
+    for arm in stmt.arms:
+        reads |= _vars_in_word(arm.pattern)
+        if arm.body is not None:
+            reads |= _free_reads_in_ir_script(arm.body)
+    if stmt.default_body is not None:
+        reads |= _free_reads_in_ir_script(stmt.default_body)
+    return reads
+
+
+def _free_reads_in_ir_script(script: IRScript) -> set[str]:
+    """Reads of variables a collapsed body consumes from the *outer* scope.
+
+    An un-lowered switch arm contributes its reads to the single enclosing
+    ``IRSwitch`` statement, which has no way to represent the arm's own
+    defs.  Subtracting the body's defs keeps arm-local temporaries
+    (``set tmp 1; puts $tmp``) from being seen as outer reads — otherwise
+    they would surface as false read-before-set (W210).  Genuine outer
+    reads (a parameter used as ``return $text``) survive because they are
+    never assigned inside the arm.
+    """
+    return _reads_in_ir_script(script) - set(_defs_from_ir_script(script))
+
+
+def _reads_in_ir_script(script: IRScript) -> set[str]:
+    """Recursively collect variable reads from an un-lowered IR script."""
+    reads: set[str] = set()
+    for stmt in script.statements:
+        reads |= _reads_in_ir_stmt(stmt)
+    return reads
+
+
+def _reads_in_ir_stmt(stmt: IRStatement) -> set[str]:
+    """Variable reads of a single statement, recursing into nested bodies.
+
+    Leaf reads come from :func:`_uses` (which already resolves a nested
+    ``IRSwitch`` via :func:`_switch_reads`); structured statements (``if``,
+    loops, ``catch``/``try``) are not lowered when they live inside an
+    un-lowered switch arm, so their conditions and sub-scripts must be
+    walked here.
+    """
+    reads = set(_uses(stmt))
+    match stmt:
+        case IRIf(clauses=clauses, else_body=else_body):
+            for clause in clauses:
+                reads |= _vars_in_expr(clause.condition)
+                reads |= _reads_in_ir_script(clause.body)
+            if else_body is not None:
+                reads |= _reads_in_ir_script(else_body)
+        case IRWhile(condition=condition, body=body):
+            reads |= _vars_in_expr(condition)
+            reads |= _reads_in_ir_script(body)
+        case IRFor(init=init, condition=condition, next=next_clause, body=body):
+            reads |= _reads_in_ir_script(init)
+            reads |= _vars_in_expr(condition)
+            reads |= _reads_in_ir_script(next_clause)
+            reads |= _reads_in_ir_script(body)
+        case IRForeach(iterators=iterators, body=body):
+            for _var_names, list_arg in iterators:
+                reads |= _vars_in_word(list_arg)
+            reads |= _reads_in_ir_script(body)
+        case IRCatch(body=body):
+            reads |= _reads_in_ir_script(body)
+        case IRTry(body=body, handlers=handlers, finally_body=finally_body):
+            reads |= _reads_in_ir_script(body)
+            for handler in handlers:
+                reads |= _reads_in_ir_script(handler.body)
+            if finally_body is not None:
+                reads |= _reads_in_ir_script(finally_body)
+    return reads
+
+
 def _uses(stmt: IRStatement) -> tuple[str, ...]:
     vars_found: set[str] = set()
     reads_own_def: set[str] = set()
@@ -238,6 +338,8 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 for name in call_defs:
                     vars_found.add(name)
                     reads_own_def.add(name)
+        case IRSwitch():
+            vars_found |= _switch_reads(stmt)
         case IRReturn(value=value, expr=expr):
             if value is not None:
                 vars_found |= _vars_in_word(value)
@@ -350,6 +452,30 @@ class SSAFunction:
     dominator_tree: dict[BlockName, tuple[BlockName, ...]]
 
 
+def value_use_blocks(ssa: SSAFunction) -> dict[SSAValueKey, set[BlockName]]:
+    """Map each SSA value ``(name, version)`` to the blocks that read it.
+
+    A reader is any block whose phi nodes take that version on an incoming
+    edge, or whose statements use it.  Forward dataflow worklists
+    (SCCP, type / rendered-property / taint propagation) use this to
+    re-enqueue exactly the blocks affected when a value's lattice entry
+    changes, instead of re-scanning every block on every fixpoint pass.
+
+    Terminator (branch/return) uses are not included — passes that read
+    values in a terminator add those dependencies themselves.
+    """
+    deps: dict[SSAValueKey, set[BlockName]] = {}
+    for bn, block in ssa.blocks.items():
+        for phi in block.phis:
+            for inc_ver in phi.incoming.values():
+                if inc_ver > 0:
+                    deps.setdefault((phi.name, inc_ver), set()).add(bn)
+        for s in block.statements:
+            for name, ver in s.uses.items():
+                deps.setdefault((name, ver), set()).add(bn)
+    return deps
+
+
 def _reachable_blocks(cfg: CFGFunction) -> set[str]:
     seen: set[str] = set()
     stack = [cfg.entry]
@@ -401,6 +527,68 @@ def _dominators(
                 dom[bn] = new_dom
                 changed = True
     return dom
+
+
+def _compute_idom_fast(
+    cfg: CFGFunction,
+    reachable: set[str],
+    preds: dict[str, set[str]],
+) -> dict[str, str | None]:
+    """Immediate dominators via Cooper-Harvey-Kennedy.
+
+    Computes idom directly over reverse-postorder indices with the
+    walk-up ``intersect`` — O(N) memory, no per-block dominator sets.
+    The naive set-based fixpoint (:func:`_dominators` /
+    :func:`_immediate_dominators`, retained for cross-validation) is
+    O(N²) memory / ~O(N³) time and OOMs on a single huge generated proc
+    that lowers to tens of thousands of CFG blocks.
+
+    Result shape matches the set-based path exactly: entry → ``None``,
+    unreachable → ``None``, otherwise the immediate-dominator block.
+
+    Reference: ``compute_idom_fast`` in ``rust/tcl-compiler/src/ssa.rs``.
+    """
+    out: dict[str, str | None] = {bn: None for bn in cfg.blocks}
+    # Pure reachable RPO (entry == index 0): reverse_postorder lists
+    # reachable blocks first in true RPO, so filtering drops only the
+    # unreachable tail.
+    rpo = [bn for bn in cfg.reverse_postorder() if bn in reachable]
+    if not rpo:
+        return out
+    rpo_index = {bn: i for i, bn in enumerate(rpo)}
+    undef = -1
+    idom = [undef] * len(rpo)
+    idom[0] = 0  # entry dominates itself (sentinel for the walk-up)
+
+    def intersect(a: int, b: int) -> int:
+        # Walk both nodes up the idom tree until they meet; a dominator
+        # always has a strictly smaller RPO index.
+        while a != b:
+            while a > b:
+                a = idom[a]
+            while b > a:
+                b = idom[b]
+        return a
+
+    changed = True
+    while changed:
+        changed = False
+        # Process in RPO order (skipping the entry) so each block sees
+        # already-processed predecessors.
+        for i in range(1, len(rpo)):
+            new_idom = undef
+            for p in preds.get(rpo[i], set()):
+                pi = rpo_index.get(p)
+                if pi is None or idom[pi] == undef:
+                    continue  # unreachable / not yet processed this pass
+                new_idom = pi if new_idom == undef else intersect(pi, new_idom)
+            if new_idom != undef and idom[i] != new_idom:
+                idom[i] = new_idom
+                changed = True
+
+    for i, bn in enumerate(rpo):
+        out[bn] = None if i == 0 or idom[i] == undef else rpo[idom[i]]
+    return out
 
 
 def _immediate_dominators(
@@ -487,8 +675,7 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
     """Build SSA with dominator-based phi placement and renaming."""
     reachable = _reachable_blocks(cfg)
     preds = _predecessors(cfg)
-    dom = _dominators(cfg, reachable, preds)
-    idom = _immediate_dominators(cfg, reachable, dom)
+    idom = _compute_idom_fast(cfg, reachable, preds)
     df = _dominance_frontier(cfg, reachable, preds, idom)
     tree = _dom_tree(idom)
     phi_vars = _phi_vars(cfg, reachable, df)
@@ -512,57 +699,75 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
     exit_versions: dict[str, dict[str, int]] = {bn: {} for bn in cfg.blocks}
     stmt_infos: dict[str, list[SSAStatement]] = {bn: [] for bn in cfg.blocks}
 
-    def rename(bn: str) -> None:
-        pushed_in_block: list[str] = []
+    # Rename walk over the dominator tree.  Iterative with an explicit
+    # stack rather than recursion: a long block chain ⇒ deep dominator
+    # tree, which a recursive descent overflows at the common 2 MB
+    # worker-thread stack.  Each frame is processed in two phases —
+    # ``_ENTER`` does the per-block work (phis, statements, successor phi
+    # edges), then ``_CHILDREN`` walks the dominator-tree children and,
+    # once exhausted, pops the versions this block pushed.
+    _ENTER, _CHILDREN = 0, 1
+    work: list[list] = []
+    if cfg.entry in cfg.blocks:
+        work.append([cfg.entry, 0, [], _ENTER])
 
-        for var in sorted(phi_vars.get(bn, set())):
-            ver = push_new(var)
-            pushed_in_block.append(var)
-            phi_versions[bn][var] = ver
-            phi_incoming[bn].setdefault(var, {})
+    while work:
+        frame = work[-1]
+        bn = frame[0]
+        if frame[3] == _ENTER:
+            pushed_in_block: list[str] = frame[2]
 
-        visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
-        entry_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
-
-        for stmt in cfg.blocks[bn].statements:
-            uses_map: dict[str, int] = {}
-            for var in _uses(stmt):
-                uses_map[var] = top(var)
-
-            defs_map: dict[str, int] = {}
-            for var in _defs(stmt):
+            for var in sorted(phi_vars.get(bn, set())):
                 ver = push_new(var)
                 pushed_in_block.append(var)
-                defs_map[var] = ver
+                phi_versions[bn][var] = ver
+                phi_incoming[bn].setdefault(var, {})
 
-            stmt_infos[bn].append(
-                SSAStatement(
-                    statement=stmt,
-                    uses=uses_map,
-                    defs=defs_map,
+            visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
+            entry_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
+
+            for stmt in cfg.blocks[bn].statements:
+                uses_map: dict[str, int] = {}
+                for var in _uses(stmt):
+                    uses_map[var] = top(var)
+
+                defs_map: dict[str, int] = {}
+                for var in _defs(stmt):
+                    ver = push_new(var)
+                    pushed_in_block.append(var)
+                    defs_map[var] = ver
+
+                stmt_infos[bn].append(
+                    SSAStatement(
+                        statement=stmt,
+                        uses=uses_map,
+                        defs=defs_map,
+                    )
                 )
-            )
 
-        visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
-        exit_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
+            visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
+            exit_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
 
-        for succ in _successors(cfg.blocks[bn].terminator):
-            if succ not in cfg.blocks:
-                continue
-            for var in sorted(phi_vars.get(succ, set())):
-                phi_incoming[succ].setdefault(var, {})
-                phi_incoming[succ][var][bn] = top(var)
+            for succ in _successors(cfg.blocks[bn].terminator):
+                if succ not in cfg.blocks:
+                    continue
+                for var in sorted(phi_vars.get(succ, set())):
+                    phi_incoming[succ].setdefault(var, {})
+                    phi_incoming[succ][var][bn] = top(var)
 
-        for child in tree.get(bn, []):
-            rename(child)
-
-        for var in reversed(pushed_in_block):
-            stacks[var].pop()
-            if not stacks[var]:
-                del stacks[var]
-
-    if cfg.entry in cfg.blocks:
-        rename(cfg.entry)
+            frame[3] = _CHILDREN
+        else:
+            children = tree.get(bn, [])
+            if frame[1] < len(children):
+                child = children[frame[1]]
+                frame[1] += 1
+                work.append([child, 0, [], _ENTER])
+            else:
+                for var in reversed(frame[2]):
+                    stacks[var].pop()
+                    if not stacks[var]:
+                        del stacks[var]
+                work.pop()
 
     ssa_blocks: dict[str, SSABlock] = {}
     for bn, block in cfg.blocks.items():
