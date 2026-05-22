@@ -44,6 +44,12 @@ fn is_local_trace_target(name: i32) bool {
         if (sp[k] == ':' and k + 1 < sn.len and sp[k + 1] == ':') return false;
         if (sp[k] == '(') return false;
     }
+    // A ``global x`` declaration aliases the local name to the root
+    // global ``::x``; a trace on it belongs in the global directory so
+    // it outlives the proc that installed it (trace-17.2 / 17.3).  An
+    // unqualified bare name that is NOT a global alias is a genuine
+    // proc-local and stays on the per-frame chain.
+    if (frames.current_frame_is_global_alias(name)) return false;
     return true;
 }
 

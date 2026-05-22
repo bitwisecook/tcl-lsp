@@ -1103,6 +1103,11 @@ def _scan_needed_imports(
                 elif command == "::global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                    # Inside a proc, ``global`` also registers a runtime
+                    # frame alias so interpreter-side dispatch (e.g. a
+                    # ``trace add variable`` on the name) resolves it to
+                    # the global — see _emit_global.
+                    needed.add("tcl_frame_alias_global")
                 elif command == "::upvar":
                     # upvar #0 resolves to a global alias — reads/writes go
                     # through the global table. The target name is computed

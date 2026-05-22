@@ -2497,6 +2497,23 @@ pub export fn local_get(name: i32) i32 {
     return 0;
 }
 
+/// True when *name* resolves through a same-name ``global`` alias
+/// (``ALIAS_GLOBAL``) in the current frame.  The variable-trace
+/// installer uses this to route a trace added inside a proc on a
+/// ``global``-declared name to the global directory rather than the
+/// per-frame chain — a frame-local record would be dropped when the
+/// proc returns, losing the trace (trace-17.2 / 17.3).
+pub fn current_frame_is_global_alias(name: i32) bool {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            return read_i32(bucket + OFF_VALUE) == ALIAS_GLOBAL;
+        }
+    }
+    return false;
+}
+
 /// Frame-readback read — counterpart of :func:`local_set_silent`.
 /// Reads the local slot without firing READ traces; used by the
 /// codegen ``_emit_frame_readback`` path that pulls interpreter-side

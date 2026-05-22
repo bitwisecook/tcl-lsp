@@ -813,3 +813,38 @@ class TestBareArrayElementReadImport:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "1 FIRED"
+
+
+class TestGlobalAliasedVariableTraceSurvivesProc:
+    """A variable trace added inside a proc on a ``global``-declared name
+    must be stored in the global trace directory, not the per-frame
+    chain — otherwise it is dropped when the proc returns (trace-17.2 /
+    17.3).  ``global`` now registers a runtime frame alias so the trace
+    installer resolves the name to the global and routes accordingly.
+    """
+
+    def test_trace_info_survives_proc_return(self) -> None:
+        src = (
+            "proc traceProc {n1 n2 op} { global info; "
+            "set info [concat $info [list $n1 $n2 $op]] }\n"
+            "unset -nocomplain x\n"
+            "proc p1 {} { global x; trace add variable x write traceProc }\n"
+            "p1\n"
+            "puts [trace info variable x]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{write traceProc}"
+
+    def test_trace_fires_after_proc_return(self) -> None:
+        src = (
+            "proc traceProc {n1 n2 op} { global info; "
+            "set info [concat $info [list $n1 $n2 $op]] }\n"
+            "unset -nocomplain x\n"
+            "set info {}\n"
+            "proc p1 {} { global x; trace add variable x write traceProc }\n"
+            "p1\n"
+            "set x 44\n"
+            "puts $info\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "x {} write"
