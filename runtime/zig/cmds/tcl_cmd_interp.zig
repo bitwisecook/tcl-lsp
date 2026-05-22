@@ -253,6 +253,24 @@ pub fn eval_rename(words: []const i32) i32 {
         }
     }
 
+    // A move whose destination is already occupied fails *before* any
+    // command trace fires — reference Tcl validates the rename target
+    // first, so ``trace add command foo {rename delete} cb`` does not
+    // see a failed ``rename foo <existing>`` (trace-19.10).  Probe the
+    // destination here and raise the same error ``rename_command``
+    // would, skipping the fire path below.
+    if (new_s.len > 0) {
+        const new_probe = tcl_ns.ns_resolve_qualified(cxt, new_s.ptr, new_s.len);
+        const probe_ns = if (new_probe.target_ns != 0) new_probe.target_ns else new_probe.alt_ns;
+        if (probe_ns != 0) {
+            const occupant = tcl_ns.ns_cmd_find(probe_ns, new_probe.simple_ptr, new_probe.simple_len);
+            if (occupant != 0 and occupant != old_cmd) {
+                rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+                return 0;
+            }
+        }
+    }
+
     // Fire any ``trace add command`` callbacks (rename / delete) before
     // the command goes away, with the resolved FQ old name and (for a
     // rename) the new name (trace-20.x).  The callback's result is

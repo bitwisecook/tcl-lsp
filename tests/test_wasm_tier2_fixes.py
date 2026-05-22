@@ -848,3 +848,50 @@ class TestGlobalAliasedVariableTraceSurvivesProc:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "x {} write"
+
+
+class TestCommandTraceLifecycle:
+    """Command-trace lifecycle on rename / redefine.
+
+    * A move whose destination already exists fails *before* any command
+      trace fires (trace-19.10) — Tcl validates the target first.
+    * Redefining a command deletes the old one: its ``delete`` trace
+      fires and all command/execution traces are dropped, so the
+      recreated command starts clean (trace-19.4 / 19.5 / 20.3).
+    """
+
+    def test_failed_rename_does_not_fire_trace(self) -> None:
+        src = (
+            "proc traceCommand {args} { global info; lappend info $args }\n"
+            "set info {}\n"
+            "proc foo {} {}\n"
+            "proc bar {} {}\n"
+            "trace add command foo {rename delete} traceCommand\n"
+            "catch {rename foo bar}\n"
+            "puts [list $info]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{}"
+
+    def test_redefine_clears_command_traces(self) -> None:
+        src = (
+            "proc traceCommand {args} {}\n"
+            "proc foo {} {}\n"
+            "trace add command foo rename traceCommand\n"
+            "proc foo {} {}\n"
+            "puts [list [trace info command foo]]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{}"
+
+    def test_redefine_fires_delete_trace(self) -> None:
+        src = (
+            "proc traceCommand {o n op} { global info; set info [list $o $n $op] }\n"
+            "proc foo {} {}\n"
+            "set info {}\n"
+            "trace add command foo delete traceCommand\n"
+            "proc foo {} {}\n"
+            "puts $info\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "::foo {} delete"
