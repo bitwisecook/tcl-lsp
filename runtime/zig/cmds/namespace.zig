@@ -151,7 +151,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 defer tcl_ns.current_ns = saved_ns;
                 if (words.len == 4) {
                     const bs = obj_ensure_string(words[3]);
-                    if (bs.len > 0) return result_mod.from_globals(interp.eval_script(bs.ptr, bs.len));
+                    if (bs.len > 0) {
+                        const line_before = @import("../interp/tcl_frames.zig").frame_get_line(0);
+                        const r = interp.eval_script(bs.ptr, bs.len);
+                        append_ns_eval_error_frame(target_ns, line_before);
+                        return result_mod.from_globals(r);
+                    }
                     return result_mod.from_globals(0);
                 }
                 var total: u32 = 0;
@@ -175,7 +180,9 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         off += 1;
                     }
                 }
+                const line_before2 = @import("../interp/tcl_frames.zig").frame_get_line(0);
                 const ns_result = interp.eval_script(buf, total);
+                append_ns_eval_error_frame(target_ns, line_before2);
                 // Free the synthesised script buffer.  ``eval_script``
                 // either copies bytes into owned TclObjs or borrows
                 // through retained var slots; either way the result's
@@ -2636,6 +2643,72 @@ fn raise_ns_not_found_in_current(name_ptr: u32, name_len: u32) void {
     }
     const e = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(e);
+}
+
+/// When a ``namespace eval`` body raises, append the
+/// ``\n    (in namespace eval "<FQNS>" script line N)`` errorInfo frame
+/// — the namespace-eval analogue of ``(procedure "X" line N)``.  The
+/// surrounding ``eval_script`` then stamps the ``invoked from within
+/// "namespace eval …"`` callsite frame via ``append_errinfo_frame``'s
+/// sentinel (namespace-25.6/25.7/25.8).  No-op when the body succeeded.
+fn append_ns_eval_error_frame(target_ns: u32, line_before: u32) void {
+    const tcl_catch = @import("../interp/tcl_catch.zig");
+    if (tcl_catch.state.error_flag == 0) return;
+    const ns_full = tcl_ns.ns_full_name(target_ns);
+    if (ns_full.ptr == 0 or ns_full.len == 0) return;
+    // ``error_frame_line`` is the absolute source line of the failing
+    // command.  The body's nested ``eval_script`` doesn't reset the
+    // frame line (only the outermost eval owns it), so subtract the
+    // ``namespace eval`` command's own line to get the body-relative
+    // ``script line N`` Tcl reports (1-based).
+    const abs = tcl_catch.state.error_frame_line;
+    var line_n: u32 = if (abs >= line_before and line_before > 0) abs - line_before + 1 else 1;
+    if (line_n == 0) line_n = 1;
+    // Decimal-render the line number.
+    var digits: [16]u8 = undefined;
+    var d_off: u32 = 0;
+    {
+        var n = line_n;
+        while (n > 0) : (n /= 10) {
+            digits[d_off] = @intCast('0' + (n % 10));
+            d_off += 1;
+        }
+    }
+    const prefix: []const u8 = "\n    (in namespace eval \"";
+    const middle: []const u8 = "\" script line ";
+    const suffix: []const u8 = ")";
+    const total: u32 = @intCast(prefix.len + ns_full.len + middle.len + d_off + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(ns_full.ptr);
+    var k: u32 = 0;
+    while (k < ns_full.len) : (k += 1) {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    // ``digits`` holds the line in reverse; emit most-significant first.
+    while (d_off > 0) {
+        d_off -= 1;
+        dst[off] = digits[d_off];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
 }
 
 /// Raise the canonical Tcl 9 ``unknown namespace "NAME" in CONTEXT``

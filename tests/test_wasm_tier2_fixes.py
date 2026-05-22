@@ -357,3 +357,30 @@ class TestEnsembleUnknownRetry:
         )
         stdout, _ = _run(src)
         assert stdout.splitlines() == ["1", "no zzz"]
+
+
+class TestNamespaceEvalErrorInfo:
+    """An error propagating out of ``namespace eval`` gets the
+    ``(in namespace eval "::ns" script line N)`` errorInfo frame (the
+    namespace-eval analogue of ``(procedure "X" line N)``), with the
+    surrounding ``invoked from within`` callsite frame added by the
+    interpreter.  (namespace-25.6/25.7.)  Driven through a dynamic
+    ``eval`` so the body is interpreted (matching how tcltest runs test
+    bodies) rather than compile-time inlined.
+    """
+
+    def test_namespace_eval_errorinfo_frame(self) -> None:
+        src = (
+            "namespace eval test_ns_1 {}\n"
+            "set s {catch {namespace eval test_ns_1 {xxxx}} msg ; set ::errorInfo}\n"
+            "puts [eval $s]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == (
+            'invalid command name "xxxx"\n'
+            "    while executing\n"
+            '"xxxx"\n'
+            '    (in namespace eval "::test_ns_1" script line 1)\n'
+            "    invoked from within\n"
+            '"namespace eval test_ns_1 {xxxx}"'
+        )
