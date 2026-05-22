@@ -782,3 +782,34 @@ class TestTraceCreatesArrayElement:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "0"
+
+
+class TestBareArrayElementReadImport:
+    """A command-form array element read (``set arr(key)``) must pull in
+    the ``tcl_array_get`` runtime import even when nothing writes the
+    array elsewhere in the module.  The import scanner previously only
+    registered ``tcl_array_get`` for the substitution form (``$arr(k)``)
+    and for array writes, so a lone ``set arr(key)`` read silently fell
+    back to a null push — skipping the actual lookup (and any variable
+    read traces).  trace-1.x relies on the read firing.
+    """
+
+    def test_bare_set_read_returns_array_default(self) -> None:
+        # With no write to ``a`` anywhere, the read must still consult
+        # the array (here returning its configured default), proving the
+        # element read is emitted rather than short-circuited to null.
+        src = "array default set a NADA\nputs [set a(missing)]\n"
+        stdout, _ = _run(src)
+        assert stdout.strip() == "NADA"
+
+    def test_bare_set_read_fires_read_trace(self) -> None:
+        src = (
+            "proc tc {n1 n2 op} { global ran; set ran FIRED }\n"
+            "set ran {}\n"
+            "set a(0) 1\n"
+            "trace add variable a(0) read tc\n"
+            "set v [set a(0)]\n"
+            'puts "$v $ran"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "1 FIRED"
