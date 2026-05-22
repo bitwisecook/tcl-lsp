@@ -313,3 +313,47 @@ class TestAppendCreatesMissingVariable:
     def test_append_missing_array_element(self) -> None:
         stdout, _ = _run("set a(y) 1\nappend a(x) bar\nputs $a(x)\n")
         assert stdout.strip() == "bar"
+
+
+class TestEnsembleUnknownRetry:
+    """``namespace ensemble create -unknown HANDLER`` retry protocol: on
+    an unknown subcommand the handler runs, then the ensemble re-resolves
+    (the handler may have created the subcommand) and dispatches it.  A
+    non-empty handler result is a rewritten command prefix invoked in
+    place of the ensemble call.  (namespace-47.1/47.3.)
+    """
+
+    def test_handler_creates_then_retry(self) -> None:
+        src = (
+            "namespace eval ns {\n"
+            "  namespace export *\n"
+            "  proc mk {ens sub args} { proc $sub args { return done } }\n"
+            "  namespace ensemble create -unknown ::ns::mk\n"
+            "}\n"
+            "puts [ns hello a b]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "done"
+
+    def test_handler_nonempty_rewrite(self) -> None:
+        src = (
+            "proc real {a b} { return \"real:$a:$b\" }\n"
+            "namespace eval ns {\n"
+            "  proc mk {ens sub args} { return [list ::real X] }\n"
+            "  namespace ensemble create -unknown ::ns::mk\n"
+            "}\n"
+            "puts [ns foo Y]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "real:X:Y"
+
+    def test_handler_error_propagates(self) -> None:
+        src = (
+            "namespace eval ns {\n"
+            "  proc mk {ens sub args} { return -code error \"no $sub\" }\n"
+            "  namespace ensemble create -unknown ::ns::mk\n"
+            "}\n"
+            "puts [catch {ns zzz} m]\nputs $m\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["1", "no zzz"]

@@ -1934,24 +1934,7 @@ pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
     }
 
     // 1. Resolve subcommand → impl.
-    var impl_obj: i32 = 0;
-    if (rec.map_obj != 0) {
-        const ms = obj_ensure_string(rec.map_obj);
-        const n = obj_mod.list_count_elements(ms.ptr, ms.len);
-        if (n > 0 and @rem(n, 2) == 0) {
-            const matched = ensemble_lookup_map(ms.ptr, ms.len, n, sub.ptr, sub.len, rec.prefixes);
-            if (matched > 0) {
-                const e = obj_mod.list_element_at(ms.ptr, ms.len, matched);
-                impl_obj = obj_mod.obj_new_string(@bitCast(ms.ptr + e.start), @bitCast(e.len));
-            } else if (matched == 0) {
-                // No match — fall through to -unknown / no-export error
-            }
-        }
-    }
-    if (impl_obj == 0) {
-        // Try exported commands of the target ns.
-        impl_obj = ensemble_lookup_exported(rec, sub.ptr, sub.len);
-    }
+    const impl_obj = ensemble_resolve(rec, sub.ptr, sub.len);
     if (impl_obj == 0) {
         // -unknown handler?
         if (rec.unknown_obj != 0) {
@@ -1964,6 +1947,28 @@ pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
 
     // 2. Build the full call: impl-elements + words[2..].
     return invoke_ensemble_impl(impl_obj, words);
+}
+
+/// Resolve an ensemble subcommand to its implementation command prefix
+/// (a fresh TclObj list), or 0 if no match.  Probes the ``-map`` table
+/// first, then the target namespace's exported commands.
+fn ensemble_resolve(rec: *EnsembleRec, sub_ptr: u32, sub_len: u32) i32 {
+    var impl_obj: i32 = 0;
+    if (rec.map_obj != 0) {
+        const ms = obj_ensure_string(rec.map_obj);
+        const n = obj_mod.list_count_elements(ms.ptr, ms.len);
+        if (n > 0 and @rem(n, 2) == 0) {
+            const matched = ensemble_lookup_map(ms.ptr, ms.len, n, sub_ptr, sub_len, rec.prefixes);
+            if (matched > 0) {
+                const e = obj_mod.list_element_at(ms.ptr, ms.len, matched);
+                impl_obj = obj_mod.obj_new_string(@bitCast(ms.ptr + e.start), @bitCast(e.len));
+            }
+        }
+    }
+    if (impl_obj == 0) {
+        impl_obj = ensemble_lookup_exported(rec, sub_ptr, sub_len);
+    }
+    return impl_obj;
 }
 
 /// Match *sub* against the keys of the ``-map`` list.  Returns the
@@ -2177,7 +2182,38 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         const v = obj_mod.read_i32(argv + j * 4);
         if (v != 0) obj_mod.tcl_obj_release(v);
     }
-    return result;
+
+    // Tcl ensemble ``-unknown`` retry protocol.  The handler ran for its
+    // side effects (it may have created / mapped the subcommand) and
+    // returns a list:
+    //   * error           → propagate.
+    //   * empty list       → re-resolve the original subcommand and
+    //                        dispatch it (the handler just created it).
+    //                        Still unknown ⇒ "unknown subcommand" error.
+    //   * non-empty list   → that list is the rewritten command prefix
+    //                        to invoke in place of the ensemble call.
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    if (catch_mod.state.error_flag != 0) return result;
+
+    const sub = obj_ensure_string(words[1]);
+    const impl = ensemble_resolve(rec, sub.ptr, sub.len);
+    if (impl != 0) {
+        if (result != 0) obj_mod.tcl_obj_release(result);
+        defer obj_mod.tcl_obj_release(impl);
+        return invoke_ensemble_impl(impl, words);
+    }
+
+    const rs = obj_ensure_string(result);
+    if (rs.len != 0) {
+        // Non-empty rewrite: evaluate the returned command prefix
+        // followed by the ensemble's argument tail (words[2..]).
+        defer if (result != 0) obj_mod.tcl_obj_release(result);
+        return invoke_ensemble_impl(result, words);
+    }
+
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    raise_ensemble_unknown_sub(words[0], sub.ptr, sub.len, rec);
+    return 0;
 }
 
 fn raise_ensemble_wrong_args(name: i32, rec: *EnsembleRec) void {
