@@ -83,6 +83,7 @@ def expand_show(raw: str) -> frozenset[str]:
             )
     return frozenset(views)
 
+
 # ANSI styling
 
 

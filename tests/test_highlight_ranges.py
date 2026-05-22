@@ -38,8 +38,8 @@ from shared.ranges import (
     widen_for_highlight,
 )
 from shared.tokens import SourcePosition, Token, TokenType
-from tooling.explorer.pipeline import run_pipeline
 from tooling.cli.serialise import serialise_result
+from tooling.explorer.pipeline import run_pipeline
 
 # ── source corpus ──────────────────────────────────────────────────────
 

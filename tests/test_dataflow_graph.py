@@ -160,8 +160,8 @@ class TestDataFlowGraphSerialisation:
 class TestDataFlowGraphExplorer:
     def test_pipeline_integration(self):
         """Verify the data-flow graph appears in explorer pipeline results."""
-        from tooling.explorer.pipeline import run_pipeline
         from tooling.cli.serialise import serialise_result
+        from tooling.explorer.pipeline import run_pipeline
 
         result = run_pipeline("set x 1\nset y $x")
         assert result.dataflow_graph is not None

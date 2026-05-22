@@ -10,8 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tooling.cli.formatters import LineIndex, preview
-from tooling.explorer.pipeline import ALL_VIEWS
 from tooling.explorer.cli import Ansi, load_source, main, parse_args, style
+from tooling.explorer.pipeline import ALL_VIEWS
 
 # Helpers
 
