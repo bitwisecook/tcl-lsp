@@ -45,13 +45,14 @@ expressions use a separate tokeniser). Because of this, the pipeline cannot
 flatten the document once and reuse one stream everywhere — historically each
 subsystem re-lexed the bytes it cared about, in the mode it needed.
 
-Phase 1 (already shipped — see
-[lexing-segmentation.md](lexing-segmentation.md#shared-tokenisation-memo))
-introduced a per-analysis memo, `core/parsing/token_cache.py`, keyed by
+Phase 1 (shipped, then subsumed by phase 2 — see
+[lexing-segmentation.md](lexing-segmentation.md#shared-tokenisation-memo-now-the-green-token-tree))
+introduced a per-analysis memo (the former `core/parsing/token_cache.py`
+module, now removed and folded into `green_tree.py`), keyed by
 `(base_offset, base_line, base_col, insidequote, text)`. It cut
 `TclLexer.get_token` calls roughly in half on the trigger corpus and gave a
 ~22% analysis speed-up with byte-identical output. Its limits — and the
-reasons the tree is needed — are:
+reasons the tree is needed — were:
 
 1. **Two anchorings of the same bytes don't share.** A proc body is lexed at
    its *absolute* offset by the lowerer and `compiler_checks`, and again at
@@ -93,36 +94,40 @@ incremental reparse that fixes (2).
 
 ## A. The green tree node model
 
-The tree is a *green tree* in the rust-analyzer sense: immutable nodes with
-relative widths, plus a thin cursor layer that resolves absolute positions on
-demand. Concretely:
+> **Implementation note.** The original design here was a rust-analyzer-style
+> green tree (relative widths + a cursor resolving absolute positions on
+> demand). That was *not* implemented, because `Token` positions are read as
+> absolute by every position-sensitive consumer (see the status note); the
+> shipped `GreenNode` therefore stores **absolute** positions and a `width`
+> for shifting. The description below reflects the implementation.
+
+A `GreenNode` owns the tokenisation of one region, tagged with its `Mode`.
+Concretely (`core/parsing/green_tree.py`):
 
 ```
 GreenNode
-  kind:      NodeKind            # ROOT | BRACED | BRACKETED | QUOTED | EXPR | WORD | ERROR
-  mode:      Mode                # script | quoted | expr | raw
-  width:     int                 # byte length of this node's full span (incl. delimiters)
-  # exactly one of:
-  tokens:    tuple[Token, ...]   # leaf: the lexed token stream for this region (in `mode`)
-  children:  tuple[GreenChild]   # interior: ordered (gap_text | GreenNode) entries
-  # lazily computed:
-  _descended: GreenNode | None   # memoised re-lex of an opaque leaf as a child subtree
+  kind:       NodeKind          # ROOT | BRACED | BRACKETED | QUOTED | EXPR | ERROR
+  mode:       Mode              # script | quoted | expr | raw
+  text:       str               # the region's source text
+  base_offset/base_line/base_col, insidequote
+  width:      int               # len(text) — used to locate/shift regions
+  tokens:     tuple[Token, ...] # the lexed stream for this region (positions ABSOLUTE)
+  warnings:   tuple[...]
+  _descended: dict[(offset, Mode), GreenNode]  # memoised child descents
 ```
 
 Key properties:
 
-- **Relative widths, not absolute offsets.** A node stores its byte *width*,
-  not its position. Absolute offsets are computed by a cursor that walks from
-  the root accumulating widths. This is what makes incremental offset-shifting
-  O(affected nodes) rather than O(document): re-tokenising a region only
-  changes the widths on the path to the root.
-- **Losslessness.** Interior nodes interleave `GreenNode` children with the
-  literal `gap_text` between them (separators, comments, delimiters), so
-  concatenating a node's full text reproduces the source exactly.
-- **Leaf token streams carry positions relative to the node.** A leaf's
-  `Token` offsets are 0-based within the node; the cursor adds the node's
-  absolute base when a consumer asks for an anchored token. (This is the
-  generalisation of today's `base_offset` lexer parameter.)
+- **Absolute positions + `width`.** A leaf's `Token` offsets/lines/cols are
+  absolute (anchored at the node's `base_offset` / `base_line` / `base_col`),
+  matching every consumer's expectation. `width = len(text)` is what the
+  incremental layer uses to locate the edited region and offset-shift the
+  unchanged tail (phases 3–4); there is no cursor.
+- **Lazy descent, not interior child nodes.** A node does not eagerly hold
+  interior `GreenNode` children; instead `descend(token)` re-lexes an opaque
+  `{…}` / `[…]` leaf on demand and memoises the child in `_descended`. Sharing
+  of regions reached independently (segmenter vs `compiler_checks` vs lowerer)
+  is provided by the analysis-scoped intern index, not by a parent→child link.
 
 ### Mode tagging is load-bearing
 

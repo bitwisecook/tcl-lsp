@@ -47,14 +47,14 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from .lexer import TclLexer
-from .tokens import TokenType
+from .tokens import SourcePosition, TokenType
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from .tokens import SourcePosition, Token
+    from .tokens import Token
 
-_Warnings = tuple["tuple[SourcePosition, str]", ...]
+_Warnings = tuple[tuple[SourcePosition, str], ...]
 
 
 class Mode(Enum):
@@ -139,11 +139,15 @@ def _delimiter_terminated(token: Token, text: str, base_offset: int) -> bool:
     """Return whether *token*'s closing delimiter is present in *text*.
 
     *text* is the region containing *token* and *base_offset* its absolute
-    anchor.  A terminated ``{...}`` / ``[...]`` has its closing brace/bracket
-    one byte past the token's inner content; an unterminated one runs to the
-    end of the region (or is followed by something else).
+    anchor.  The opening delimiter sits at ``token.start.offset`` and the inner
+    content occupies the ``len(token.text)`` bytes after it, so a terminated
+    ``{...}`` / ``[...]`` has its closing brace/bracket immediately past that.
+    Deriving the closer position from the token's *length* (rather than
+    ``token.end.offset``) is what classifies empty regions correctly: for an
+    empty ``{}`` / ``[]`` the lexer reports ``token.end.offset`` *at* the
+    closer, which ``end.offset + 1`` would skip over.
     """
-    idx = token.end.offset + 1 - base_offset
+    idx = token.start.offset + 1 + len(token.text) - base_offset
     if idx < 0 or idx >= len(text):
         return False
     close = "}" if token.type is TokenType.STR else "]"

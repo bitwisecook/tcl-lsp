@@ -506,7 +506,10 @@ def _build_proc_cache(
     for qname, fu in cu.procedures.items():
         ir_proc = cu.ir_module.procedures.get(qname)
         if ir_proc is not None:
-            proc_src = cu.source[ir_proc.range.start.offset : ir_proc.range.end.offset]
+            # +1: range.end.offset is the proc's last character (inclusive).
+            # Must match _proc_cache_key in compilation_unit.py exactly, or
+            # lookups built by compile_source never hit this cache.
+            proc_src = cu.source[ir_proc.range.start.offset : ir_proc.range.end.offset + 1]
             cache[(qname, hash((proc_src, stub_fingerprint)))] = fu
     return cache
 

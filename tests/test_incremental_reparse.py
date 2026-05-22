@@ -182,6 +182,40 @@ class TestIncrementalUnit:
         assert incremental_top_level_chunks("", [], "set a 1", EditRange(0, 0, 7)) is None
 
 
+class TestChunkHashStaleness:
+    """A change to a command's final character must change its chunk hash,
+    or dirty-chunk detection silently reuses stale analysis (#480 review)."""
+
+    def test_last_char_change_changes_hash(self):
+        a = segment_top_level_chunks("set a 1\nset b 2\n")
+        b = segment_top_level_chunks("set a 1\nset b 3\n")
+        # chunk 0 (set a 1) unchanged; chunk 1 (set b 2 -> set b 3) must differ
+        assert a[0].source_hash == b[0].source_hash
+        assert a[1].source_hash != b[1].source_hash
+
+    def test_trailing_command_last_char(self):
+        a = segment_top_level_chunks("puts hi\nputs lo")
+        b = segment_top_level_chunks("puts hi\nputs lX")
+        assert a[1].source_hash != b[1].source_hash
+
+    def test_proc_cache_key_detects_bare_body_last_char(self):
+        # A bare-word proc body whose last char changes (same length) must
+        # produce a different proc cache key.
+        from core.compiler.interprocedural import _cache_key_for_proc
+        from core.compiler.lowering import lower_to_ir
+
+        src_a = "proc f {} abc\n"
+        src_b = "proc f {} abd\n"
+        ma = lower_to_ir(src_a)
+        mb = lower_to_ir(src_b)
+        pa = next(iter(ma.procedures.values()))
+        pb = next(iter(mb.procedures.values()))
+        ka = _cache_key_for_proc(src_a, "::f", pa)
+        kb = _cache_key_for_proc(src_b, "::f", pb)
+        assert ka is not None and kb is not None
+        assert ka != kb
+
+
 # --- randomised property test -----------------------------------------------
 
 

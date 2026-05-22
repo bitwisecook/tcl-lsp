@@ -386,6 +386,10 @@ def tile_commands(
 
     Hashes cover only the command text (not trailing whitespace) so that
     appending a new command does not invalidate the previous chunk's hash.
+    ``range.end.offset`` is the command's last character (inclusive), so the
+    hash slice is end-*exclusive* at ``cmd_end + 1`` — otherwise a change to
+    only the final character of a command would leave its hash unchanged and
+    the dirty-chunk detection would miss the edit.
     """
     chunks: list[TopLevelChunk] = []
     n = len(commands)
@@ -394,7 +398,7 @@ def tile_commands(
         start = cmd.range.start.offset
         cmd_end = cmd.range.end.offset
         tile_end = commands[i + 1].range.start.offset if i + 1 < n else last
-        cmd_text = source[start:cmd_end]
+        cmd_text = source[start : cmd_end + 1]
         chunks.append(
             TopLevelChunk(
                 index=start_index + i,

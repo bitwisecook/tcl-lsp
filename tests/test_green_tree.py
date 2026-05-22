@@ -144,6 +144,22 @@ class TestErrorNodes:
         body = next(t for t in root.tokens if t.type is TokenType.STR)
         assert root.descend(body).kind is NodeKind.BRACED
 
+    def test_empty_braces_are_terminated(self):
+        # Regression: empty {} reports end.offset AT the closer, so deriving
+        # the closer from end.offset+1 wrongly tagged it ERROR.
+        root = node_for("proc p {} {}")
+        bodies = [t for t in root.tokens if t.type is TokenType.STR]
+        assert len(bodies) == 2  # the arg list {} and the body {}
+        for b in bodies:
+            assert b.text == ""
+            assert root.descend(b).kind is NodeKind.BRACED
+
+    def test_empty_bracket_is_terminated(self):
+        root = node_for("set x []")
+        cmd = next(t for t in root.tokens if t.type is TokenType.CMD)
+        assert cmd.text == ""
+        assert root.descend(cmd).kind is NodeKind.BRACKETED
+
     def test_error_node_keeps_inner_tokens(self):
         # An ERROR node still carries the (recovered) inner token stream.
         src = "proc p {} {set x 1"
