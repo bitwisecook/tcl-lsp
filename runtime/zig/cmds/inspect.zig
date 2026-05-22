@@ -7,6 +7,7 @@ const trace_mod = @import("../interp/tcl_trace.zig");
 const var_trace = @import("../interp/tcl_var_trace.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 
 /// Phase 6 follow-up: classify ``NAME`` for ``trace add/remove/info
 /// variable``.  Proc-local traces go on the per-frame chain (so two
@@ -232,6 +233,54 @@ fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
     }
     const canon = canonical_var_name(name);
     var_trace.add(canon, ops, cmd_prefix);
+    if (canon != name and canon != 0) tcl_obj_release(canon);
+}
+
+/// Drop every variable trace registered on ``name`` — the removal
+/// counterpart to :func:`install_var_trace`, routed the same way
+/// (per-frame chain for proc-locals, canonical-name directory
+/// otherwise).  Called by ``unset`` after the variable's unset
+/// callbacks have fired, so a later variable reusing the name doesn't
+/// inherit the stale trace (Tcl's documented ``unset`` semantics; see
+/// :func:`tcl_var_trace.remove_all`).  Probes both the as-written and
+/// FQ ``::name`` spellings for the directory case, mirroring the
+/// dual-form lookup the scalar fire path uses.
+pub fn remove_all_var_traces(name: i32) void {
+    if (is_local_trace_target(name)) {
+        const sn = obj_ensure_string(name);
+        if (frames.frame_depth > 0) {
+            var_trace.remove_all_in_list(
+                &frames.frame_trace_heads[frames.frame_depth - 1],
+                sn.ptr,
+                sn.len,
+            );
+        }
+        return;
+    }
+    const canon = canonical_var_name(name);
+    const sn = obj_ensure_string(canon);
+    if (sn.ptr != 0 and sn.len != 0) {
+        var_trace.remove_all(sn.ptr, sn.len);
+        // Also probe the alternate FQ / non-FQ spelling so a trace
+        // installed under ``::x`` is dropped when ``unset x`` runs
+        // (and vice versa) — matches fire_scalar_trace_op's dual probe.
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        const has_fq = sn.len >= 2 and sp[0] == ':' and sp[1] == ':';
+        if (has_fq) {
+            var_trace.remove_all(sn.ptr + 2, sn.len - 2);
+        } else {
+            const total: u32 = sn.len + 2;
+            const buf = obj.alloc(total);
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                dst[0] = ':';
+                dst[1] = ':';
+                for (0..sn.len) |k| dst[2 + k] = sp[k];
+                var_trace.remove_all(buf, total);
+                obj.free_sized(buf, total);
+            }
+        }
+    }
     if (canon != name and canon != 0) tcl_obj_release(canon);
 }
 

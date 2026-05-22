@@ -269,6 +269,54 @@ pub fn remove(name: i32, ops: u32, cmd_prefix: i32) bool {
     return false;
 }
 
+/// Remove *every* trace registered on ``name_ptr``/``name_len`` from
+/// the global directory, freeing each record.  Mirrors Tcl's contract
+/// that ``unset`` of a variable drops the variable's traces (after the
+/// unset callbacks have fired): without this a stale write/read trace
+/// keeps firing on a later, unrelated variable that reuses the name —
+/// the trace-2.x cascade where ``unset x`` left 2.1's whole-variable
+/// write trace attached, so a subsequent ``set x(abc)`` re-fired it
+/// (and eventually trapped via re-entrant xlinks lookup).
+///
+/// Must be called only when no fire is walking the chain (i.e. after
+/// the unset callbacks return), since it frees records out from under
+/// any active iterator.
+pub fn remove_all(name_ptr: u32, name_len: u32) void {
+    if (name_ptr == 0 or name_len == 0) return;
+    if (dir_buf == 0) return;
+    const hash = fnv1a(name_ptr, name_len);
+    const bucket = dir_find(name_ptr, name_len, hash) orelse return;
+    const head: u32 = @bitCast(read_i32(bucket + 12));
+    if (head == 0) return;
+    // Re-entrancy: ``remove_all`` can run from inside a fire (an unset
+    // that the trace callback itself triggered).  A ``fire_at_key``
+    // loop higher on the stack still holds a ``cur`` into this chain
+    // and will advance through ``OFF_NEXT``, so freeing *any* record in
+    // the chain — not just the active one — is a use-after-free.  When
+    // any record is active, unlink the whole chain from the bucket
+    // (future fires see none) but leave the records allocated; the
+    // in-flight fire walks its captured chain to completion and the
+    // orphaned records leak (bounded, rare).
+    var any_active = false;
+    var scan: u32 = head;
+    while (scan != 0) : (scan = @bitCast(read_i32(scan + OFF_NEXT))) {
+        if (read_i32(scan + OFF_ACTIVE) != 0) {
+            any_active = true;
+            break;
+        }
+    }
+    write_i32(bucket + 12, 0);
+    if (any_active) return;
+    var cur: u32 = head;
+    while (cur != 0) {
+        const next: u32 = @bitCast(read_i32(cur + OFF_NEXT));
+        const cmd = read_i32(cur + OFF_CMD);
+        if (cmd != 0) tcl_obj_release(cmd);
+        obj.free_sized(cur, TRACE_REC_SIZE);
+        cur = next;
+    }
+}
+
 /// Return a Tcl list of ``{ops cmd}`` pairs for every trace on
 /// ``name``, or empty list if none.
 pub fn info(name: i32) i32 {

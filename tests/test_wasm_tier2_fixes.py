@@ -180,3 +180,59 @@ class TestCatchBracedArgToProc:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == 'm=puts "$x $y"'
+
+
+class TestUnsetRemovesVariableTrace:
+    """Tcl drops a variable's traces when it is ``unset`` (after the
+    unset callbacks fire).  The WASM runtime previously kept the trace
+    registered, so a later variable that reused the name re-fired the
+    stale callback — the trace-2.x cascade that eventually trapped via
+    re-entrant xlinks lookup.  ``unset`` now removes scalar, array-name
+    and array-element traces.
+    """
+
+    def test_scalar_trace_gone_after_unset(self) -> None:
+        src = (
+            "proc cb {args} { puts FIRED }\n"
+            "trace add variable x write cb\n"
+            "set x 1\n"
+            "unset x\n"
+            'puts "after=[trace info variable x]"\n'
+            "set x 2\n"
+            'puts "x=$x"\n'
+        )
+        stdout, _ = _run(src)
+        # cb fires once (on ``set x 1``); after unset the trace is gone,
+        # so ``set x 2`` is silent.
+        assert stdout.splitlines() == ["FIRED", "after=", "x=2"]
+
+    def test_local_trace_gone_after_unset(self) -> None:
+        src = (
+            "proc p {} {\n"
+            "    proc cb {args} { puts FIRED }\n"
+            "    trace add variable y write cb\n"
+            "    set y 1\n"
+            "    unset y\n"
+            "    set y 2\n"
+            '    puts "y=$y"\n'
+            "}\n"
+            "p\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["FIRED", "y=2"]
+
+    def test_array_element_trace_gone_after_whole_array_unset(self) -> None:
+        # A stale element trace must not survive ``unset`` of the whole
+        # array and re-fire on a re-created array (trace-1.6 leakage).
+        src = (
+            "proc cb {n1 n2 op} { puts STALE }\n"
+            "set a(2) zzz\n"
+            "trace add variable a(2) read cb\n"
+            "set v $a(2)\n"
+            "unset a\n"
+            "set a(2) again\n"
+            'puts "v2=$a(2)"\n'
+        )
+        stdout, _ = _run(src)
+        # cb fires once on the first read; after ``unset a`` it's gone.
+        assert stdout.splitlines() == ["STALE", "v2=again"]

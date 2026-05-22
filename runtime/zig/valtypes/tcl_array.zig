@@ -1285,6 +1285,25 @@ pub export fn array_unset(arr: i32) i32 {
                 const kl: u32 = @bitCast(read_i32(b + 4));
                 const v: i32 = read_i32(b + 12);
                 if (v != 0) obj.tcl_obj_release(v);
+                // Drop any element-level trace (``arr(key)``) so it
+                // doesn't survive the whole-array ``unset`` and re-fire
+                // on a later array that reuses the name (trace-1.6/1.8
+                // leakage).  The element key is stored under the
+                // normalised array name + ``(key)`` — the same form the
+                // fire path builds.
+                const tk_total: u32 = sn.len + 2 + kl;
+                const tk_buf = obj.alloc(tk_total);
+                if (tk_buf != 0) {
+                    const td: [*]u8 = @ptrFromInt(tk_buf);
+                    const ap2: [*]const u8 = @ptrFromInt(sn.ptr);
+                    for (0..sn.len) |i| td[i] = ap2[i];
+                    td[sn.len] = '(';
+                    const kpb: [*]const u8 = @ptrFromInt(kp);
+                    for (0..kl) |i| td[sn.len + 1 + i] = kpb[i];
+                    td[tk_total - 1] = ')';
+                    var_trace.remove_all(tk_buf, tk_total);
+                    obj.free_sized(tk_buf, tk_total);
+                }
                 obj.free_sized(kp, kl);
             }
             obj.free_sized(table, AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);
