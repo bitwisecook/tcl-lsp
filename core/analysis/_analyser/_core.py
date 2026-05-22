@@ -451,8 +451,9 @@ class _AnalyserBase:
         # for the duration of this analysis pass, so callers that walk
         # the stubbed command's BODY argument see it as a script.
         from core.commands.registry.runtime import stub_signature_scope
+        from core.parsing.green_tree import green_tree_scope
 
-        with stub_signature_scope([*cmd_stubs, *ambient_cmd_stubs()]):
+        with green_tree_scope(), stub_signature_scope([*cmd_stubs, *ambient_cmd_stubs()]):
             self._analyse_body(source, self._current_scope)
             self._emit_unresolved_command_diagnostics(cu=cu)
             self._emit_variable_usage_diagnostics()
