@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from shared.docstrings import _DECORATION_CHARS
+
 from .config import DocstringTagStyle
 
 if TYPE_CHECKING:
@@ -64,8 +66,6 @@ class DocstringInfo:
 
 
 # Parsing
-
-_DECORATION_CHARS = frozenset(".-=*~#")
 
 
 def parse_docstring(text: str) -> DocstringInfo:
@@ -261,35 +261,6 @@ def generate_stub(
 
 
 # Extracting body docstring from proc body text
-
-
-def extract_body_docstring(body: str) -> str:
-    """Extract the leading comment block from a proc body.
-
-    Returns the accumulated comment text (lines joined with newlines) if
-    the body starts with one or more comment lines, otherwise returns an
-    empty string.  Decoration lines consisting only of dots, dashes,
-    hashes, or similar characters are stripped.
-    """
-    lines: list[str] = []
-    for raw_line in body.splitlines():
-        stripped = raw_line.strip()
-        if not stripped:
-            if lines:
-                break
-            continue
-        if stripped.startswith("#"):
-            text = stripped.lstrip("#").strip()
-            # Skip hash-only decoration lines
-            if not text and set(stripped) <= {"#"}:
-                continue
-            # Skip decoration lines (dots, dashes, equals, etc.)
-            if text and all(ch in _DECORATION_CHARS for ch in text):
-                continue
-            lines.append(text)
-        else:
-            break
-    return "\n".join(lines)
 
 
 def resolve_tag_style(style: str) -> DocstringTagStyle:

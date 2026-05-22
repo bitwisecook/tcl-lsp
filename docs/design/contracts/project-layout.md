@@ -54,10 +54,10 @@ truth.  Summary:
    carve-out: `dialects.f5.bigip.explain_flow` lazy-imports
    `tooling.irule_test` to optionally drive the iRule test framework
    for a richer trace.
-5. **`analyser/` ↛ `server/`, `tooling/`, `ai/`.**  One carve-out:
-   `analyser._analyser._proc` lazy-imports
-   `tooling.formatter.docstring` as a fallback when the proc has no
-   preceding comment.
+5. **`analyser/` ↛ `server/`, `tooling/`, `ai/`.**  No carve-outs —
+   the proc-doc fallback extractor (`extract_body_docstring`) lives in
+   the leaf `shared.docstrings`, which both the analyser and the
+   formatter import.
 6. **`server/` ↛ `ai/`.**  Server *may* consume `tooling/` (refactorings,
    formatter, minifier, diagram extractor, explorer pipeline,
    `tclpkg`) to deliver LSP features.  AI integrations sit above the

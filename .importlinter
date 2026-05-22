@@ -201,11 +201,6 @@ forbidden_modules =
     server
     tooling
     ai
-ignore_imports =
-    ; _proc.py lazy-imports the formatter's docstring extractor as a
-    ; fallback when the proc has no preceding comment.  It's purely
-    ; metadata enrichment — analyser still works without tooling/.
-    analyser._analyser._proc -> tooling.formatter.docstring
 
 ; ---------------------------------------------------------------------------
 ; 5.  server/ may depend on shared/, compiler/, dialects/, analyser/, tooling/.

@@ -1,10 +1,11 @@
 """Tcl source code formatter."""
 
+from shared.docstrings import extract_body_docstring
+
 from .config import BraceStyle, DocstringStyle, DocstringTagStyle, FormatterConfig, IndentStyle
 from .docstring import (
     DocstringInfo,
     ParamDoc,
-    extract_body_docstring,
     format_docstring,
     generate_stub,
     generate_stub_for_proc,

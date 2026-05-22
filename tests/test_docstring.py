@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import textwrap
 
+from shared.docstrings import extract_body_docstring
 from tooling.formatter.docstring import (
     DocstringInfo,
     DocstringTagStyle,
     ParamDoc,
-    extract_body_docstring,
     format_docstring,
     generate_stub,
     generate_stub_for_proc,

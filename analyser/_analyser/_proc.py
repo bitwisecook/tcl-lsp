@@ -13,6 +13,7 @@ from compiler.proc_arg_traits import infer_param_traits
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.signatures import Arity
+from shared.docstrings import extract_body_docstring
 from shared.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -105,8 +106,6 @@ class _AnalyserProcMixin(_Base):
         # fallback docstring when there is no preceding comment.
         body_doc = ""
         if not preceding_doc and body:
-            from tooling.formatter.docstring import extract_body_docstring
-
             body_doc = extract_body_docstring(body)
 
         proc_def = ProcDef(
