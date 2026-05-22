@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from shared.naming import normalise_var_name
 from shared.tokens import Token, TokenType
@@ -83,7 +84,12 @@ class VarReferenceScanner:
         # Tokenise once and share the token stream across the variable,
         # var-read-role, and script-role scans below — each of those
         # previously built its own ``TclLexer`` over the same source.
-        tokens = TclLexer(source).tokenise_all()
+        # Route through the shared per-analysis memo so the independent
+        # scanner singletons (SSA, GVN, interprocedural) reuse one
+        # tokenisation of the same body text rather than re-lexing it each.
+        # Variable names are position-independent, so lexing at base 0 is
+        # fine even though the memo keys on base offset.
+        tokens, _ = tokenise(source, 0, 0, 0)
 
         for tok in tokens:
             if tok.type is TokenType.VAR:
@@ -101,7 +107,7 @@ class VarReferenceScanner:
 
         return frozenset(vars_found)
 
-    def _scan_script_role_args(self, tokens: list[Token]) -> set[str]:
+    def _scan_script_role_args(self, tokens: Sequence[Token]) -> set[str]:
         """Walk a pre-tokenised script command-by-command, recursing into
         BODY/EXPR args.
 
@@ -164,7 +170,7 @@ class VarReferenceScanner:
         flush_command()
         return result
 
-    def _scan_var_read_role_names(self, tokens: list[Token]) -> set[str]:
+    def _scan_var_read_role_names(self, tokens: Sequence[Token]) -> set[str]:
         result: set[str] = set()
         words: list[str] = []
         prev_type = TokenType.EOL

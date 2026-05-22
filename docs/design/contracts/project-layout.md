@@ -62,10 +62,13 @@ truth.  Summary:
    formatter, minifier, diagram extractor, explorer pipeline,
    `tclpkg`) to deliver LSP features.  AI integrations sit above the
    LSP, not below it.
-7. **`tooling/` ↛ `server/`, `ai/`.**  One carve-out for the
-   `f5-query irule context` verb that lazy-imports
+7. **`tooling/` ↛ `server/`, `ai/`.**  Two carve-outs: the
+   `f5-query irule context` verb lazy-imports
    `ai.shared.irule_context` to produce a context bundle from the
-   CLI.
+   CLI; and the incremental-reparse differential fuzzer
+   (`tooling.fuzzing.incremental_diff`) drives a real
+   `server.workspace.DocumentState` as its test subject, comparing
+   its incremental output against a full reparse.
 
 ## When you add a new module
 

@@ -957,7 +957,11 @@ def _cache_key_for_proc(
     end = proc.range.end.offset
     if start < 0 or end < start or end > len(source):
         return None
-    return (qname, hash((source[start:end], stub_fingerprint)))
+    # range.end.offset is the proc's last character (inclusive), so slice
+    # end-exclusive at end+1 — otherwise a same-length edit to the final
+    # character of the proc body leaves the hash unchanged and the cached
+    # summary is wrongly reused.
+    return (qname, hash((source[start : end + 1], stub_fingerprint)))
 
 
 def _summarise_proc_local(

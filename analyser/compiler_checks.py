@@ -33,7 +33,7 @@ from compiler.ir import (
 from compiler.lowering import lower_to_ir
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import GreenNode, descend_token, node_for, tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -225,12 +225,10 @@ class _CompilerCheckRunner:
         base_line: int,
         base_col: int,
     ) -> None:
-        lexer = TclLexer(
-            text,
-            base_offset=base_offset,
-            base_line=base_line,
-            base_col=base_col,
-        )
+        self._process_node(node_for(text, base_offset, base_line, base_col))
+
+    def _process_node(self, node: GreenNode) -> None:
+        tokens = node.tokens
 
         argv: list[Token] = []
         argv_texts: list[str] = []
@@ -268,11 +266,7 @@ class _CompilerCheckRunner:
             self._recurse_expression_subcommands(cmd_name, args, arg_tokens)
             self._recurse_body_arguments(cmd_name, args, arg_tokens)
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-
+        for tok in tokens:
             match tok.type:
                 case TokenType.COMMENT:
                     continue
@@ -309,12 +303,10 @@ class _CompilerCheckRunner:
         for tok in tokens:
             if tok.type is not TokenType.CMD or not tok.text:
                 continue
-            self._process_text(
-                tok.text,
-                base_offset=tok.start.offset + 1,
-                base_line=tok.start.line,
-                base_col=tok.start.character + 1,
-            )
+            # Descend the command substitution against the full source; the
+            # green tree shares its tokenisation with the lowerer's and tags
+            # an unterminated [..] as an ERROR node.
+            self._process_node(descend_token(tok, self._source))
 
     def _recurse_body_arguments(
         self,
@@ -336,12 +328,7 @@ class _CompilerCheckRunner:
             if cmd_name == "switch" and _switch_list_body_index(args) == body.index:
                 self._recurse_switch_list_body(body.text, body.token)
                 continue
-            self._process_text(
-                body.text,
-                base_offset=body.token.start.offset + 1,
-                base_line=body.token.start.line,
-                base_col=body.token.start.character + 1,
-            )
+            self._process_node(descend_token(body.token, self._source))
         if cmd_name == "when":
             self._current_event = prev_event
 
@@ -416,20 +403,17 @@ class _CompilerCheckRunner:
         body_tok: Token,
     ) -> tuple[list[str], list[Token]]:
         """Lex switch list-form body into alternating pattern/body elements."""
-        lexer = TclLexer(
+        tokens, _ = tokenise(
             body_text,
-            base_offset=body_tok.start.offset + 1,
-            base_line=body_tok.start.line,
-            base_col=body_tok.start.character + 1,
+            body_tok.start.offset + 1,
+            body_tok.start.line,
+            body_tok.start.character + 1,
         )
         elements: list[str] = []
         element_tokens: list[Token] = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
+        for tok in tokens:
             if tok.type in (TokenType.SEP, TokenType.EOL):
                 prev_type = tok.type
                 continue

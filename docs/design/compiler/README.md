@@ -19,6 +19,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [lexing-segmentation.md](lexing-segmentation.md) — token and command
   segmentation.
+- [green-token-tree.md](green-token-tree.md) — lossless token tree, error
+  nodes, and incremental reparse (issue #477; phases 1–5 shipped).
 - [expression-parsing.md](expression-parsing.md) — Pratt parser, braced
   and unbraced expressions.
 - [cfg-construction.md](cfg-construction.md) — basic block

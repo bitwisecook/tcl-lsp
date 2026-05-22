@@ -250,6 +250,12 @@ ignore_imports =
     ; verb dispatcher so the CLI itself stays usable without ai/
     ; installed.
     tooling.f5.verbs.irule -> ai.shared.irule_context
+    ; The incremental-reparse differential fuzzer drives a real
+    ; server.workspace.DocumentState through random edits and compares
+    ; its incremental output against a full reparse.  DocumentState is
+    ; the test subject, so this dev-only harness legitimately reaches
+    ; into server/ to exercise it.
+    tooling.fuzzing.incremental_diff -> server.workspace.document_state
 
 ; ---------------------------------------------------------------------------
 ; 7.  ai/ may sit on top of any concern — no outbound restriction.

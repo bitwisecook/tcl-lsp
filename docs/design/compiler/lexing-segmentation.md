@@ -144,6 +144,39 @@ arguments alone exceed the signature maximum.
 3. **Semantic analysis** uses `range` for diagnostic positions and
    `all_tokens` for syntax highlighting/semantic tokens.
 
+### Shared tokenisation memo (now the green token tree)
+
+The analysis pipeline lexes the same source bytes from several independent
+paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
+`compiler_checks`, and `var_refs` each tokenise overlapping regions, and
+nested braced bodies are re-lexed at every level of recursion.
+
+The original per-analysis memo (`core/parsing/token_cache.py` /
+`tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
+green token tree** in `core/parsing/green_tree.py` — see
+[green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
+analysis-scoped intern index, with the same correctness rules:
+
+- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `GreenNode`
+  carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
+  substrings lexed at the same base offset (e.g. two bodies both lexed at
+  base 0) never collide.
+- Tokens are immutable, so the cached stream is shared read-only — consumers
+  build their own derived structures and never mutate it.
+- Regions lexed with error-recovery virtual insertions are never interned
+  (the insertions are request-specific).
+- The index lives in a `contextvars.ContextVar` activated by
+  `green_tree_scope()` (reentrant), opened at `Analyser.analyse` and
+  `lower_to_ir`. It is discarded when the scope exits, so memory is bounded
+  by one analysis and lexer-affecting context (dialect, strict-quoting) is
+  stable for its lifetime.
+
+`var_refs` lexes at base offset 0 (it extracts position-independent variable
+names) and keeps its own text-keyed result-LRU, which shares across the SSA /
+GVN / interprocedural scanner singletons (and across documents) in a way the
+absolute-offset, per-document tree cannot. It consults `green_tree.tokenise()`
+for the leaf tokenisation but keeps that result cache.
+
 ### Worked example — `set y $x`
 
 ```python

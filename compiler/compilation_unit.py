@@ -144,7 +144,11 @@ def _proc_cache_key(
     """
     if start_offset < 0 or end_offset < start_offset or end_offset > len(source):
         return None
-    return (qname, hash((source[start_offset:end_offset], stub_fingerprint)))
+    # end_offset is the proc's last character (inclusive), so slice
+    # end-exclusive at end_offset+1 — otherwise a same-length edit to the
+    # proc's final character leaves the hash unchanged and the cached unit is
+    # wrongly reused.  Must stay in lockstep with _build_proc_cache's slice.
+    return (qname, hash((source[start_offset : end_offset + 1], stub_fingerprint)))
 
 
 def compute_stub_fingerprint(source: str) -> int:
