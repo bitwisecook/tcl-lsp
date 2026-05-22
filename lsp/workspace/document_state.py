@@ -38,6 +38,7 @@ from core.parsing.command_segmenter import (
     find_first_dirty_chunk,
     segment_top_level_chunks,
 )
+from core.parsing.incremental import incremental_top_level_chunks, infer_edit_range
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import Token
 
@@ -949,6 +950,24 @@ class DocumentState:
             deep_diag_result=diagnostics,
         )
 
+    def _segment_chunks(self, source: str, old_snap: _StateSnapshot) -> list[TopLevelChunk]:
+        """Segment *source* into top-level chunks, incrementally when possible.
+
+        On an edit, the previous segmentation is reused everywhere the change
+        did not reach (verbatim prefix + offset-shifted suffix), re-tokenising
+        only the window straddling the edit.  The result is byte-identical to a
+        from-scratch :func:`segment_top_level_chunks`; the incremental builder
+        returns ``None`` (and we fall back to a full pass) whenever it cannot
+        prove equivalence.
+        """
+        if old_snap.chunks and old_snap.source:
+            edit = infer_edit_range(old_snap.source, source)
+            if edit is not None:
+                inc = incremental_top_level_chunks(old_snap.source, old_snap.chunks, source, edit)
+                if inc is not None:
+                    return inc
+        return segment_top_level_chunks(source)
+
     def update_source_quick(
         self,
         source: str,
@@ -982,7 +1001,7 @@ class DocumentState:
         old = self._snap
         if source == old.source and (version is None or version == old.version):
             return False  # unchanged
-        new_chunks = segment_top_level_chunks(source)
+        new_chunks = self._segment_chunks(source, old)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
         # Carry forward chunk caches for unchanged chunks so that
         # semantic token requests can serve cached tokens immediately.
@@ -1062,7 +1081,7 @@ class DocumentState:
         if source == old_snap.source and old_snap.chunks:
             new_chunks = old_snap.chunks
         else:
-            new_chunks = segment_top_level_chunks(source)
+            new_chunks = self._segment_chunks(source, old_snap)
         t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 

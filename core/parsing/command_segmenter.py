@@ -369,31 +369,35 @@ class TopLevelChunk:
     commands: tuple[SegmentedCommand, ...]
 
 
-def segment_top_level_chunks(source: str) -> list[TopLevelChunk]:
-    """Split *source* into top-level chunks, one per command.
+def tile_commands(
+    commands: list[SegmentedCommand],
+    source: str,
+    *,
+    start_index: int = 0,
+    final_end: int | None = None,
+) -> list[TopLevelChunk]:
+    """Tile *commands* into :class:`TopLevelChunk`s over *source*.
 
-    Each chunk records the byte range and a hash of the raw source text
-    it covers.  Downstream consumers compare hashes between edits to
-    identify the first changed chunk.
+    Each chunk spans from its command's start to the next command's start
+    (so chunks tile contiguously), with the last command extending to
+    *final_end* (defaulting to ``len(source)``).  ``source`` must be the full
+    document text — command offsets are absolute, so the hash slice
+    ``source[start:cmd_end]`` is taken against absolute positions.
+
+    Hashes cover only the command text (not trailing whitespace) so that
+    appending a new command does not invalidate the previous chunk's hash.
     """
-    commands = segment_commands(source)
     chunks: list[TopLevelChunk] = []
+    n = len(commands)
+    last = final_end if final_end is not None else len(source)
     for i, cmd in enumerate(commands):
         start = cmd.range.start.offset
         cmd_end = cmd.range.end.offset
-        # Extend end to include any trailing whitespace/newlines up to
-        # the start of the next command (so chunks tile the source).
-        if i + 1 < len(commands):
-            tile_end = commands[i + 1].range.start.offset
-        else:
-            tile_end = len(source)
-        # Hash only the command text (start..cmd_end), not the
-        # trailing whitespace, so appending a new command doesn't
-        # invalidate the previous chunk's hash.
+        tile_end = commands[i + 1].range.start.offset if i + 1 < n else last
         cmd_text = source[start:cmd_end]
         chunks.append(
             TopLevelChunk(
-                index=i,
+                index=start_index + i,
                 start_offset=start,
                 end_offset=tile_end,
                 source_hash=hash(cmd_text),
@@ -401,6 +405,16 @@ def segment_top_level_chunks(source: str) -> list[TopLevelChunk]:
             )
         )
     return chunks
+
+
+def segment_top_level_chunks(source: str) -> list[TopLevelChunk]:
+    """Split *source* into top-level chunks, one per command.
+
+    Each chunk records the byte range and a hash of the raw source text
+    it covers.  Downstream consumers compare hashes between edits to
+    identify the first changed chunk.
+    """
+    return tile_commands(segment_commands(source), source)
 
 
 def find_first_dirty_chunk(

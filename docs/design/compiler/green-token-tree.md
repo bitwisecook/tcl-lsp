@@ -189,48 +189,73 @@ tree per `DocumentState` across edits is phase 4.)
 and analysers are untouched. The tree changes *how* segments are produced, not
 their contract.
 
-## C. Edit-range inference
+## C. Edit-range inference — *shipped*
 
 pygls is configured for **FULL** text sync, so `did_change`
-(`lsp/lifecycle.py`) receives the entire new source, not edit ranges. The
-handler infers the changed span by a common-prefix / common-suffix diff of old
-vs new source:
+(`lsp/lifecycle.py`) receives the entire new source, not edit ranges.
+`infer_edit_range(old, new)` (`core/parsing/incremental.py`) recovers the
+changed span by a common-prefix / common-suffix diff:
 
 ```
-start = first index where old[i] != new[i]
-old_end, new_end = last indices where old[-j] != new[-j]
-changed = (start, old_end, new_end)   # → delete old[start:old_end], insert new[start:new_end]
+start   = first index where old[i] != new[i]
+old_end, new_end = strip the common suffix, not crossing back past start
+                   # → replace old[start:old_end] with new[start:new_end]
 ```
 
-This is O(len) byte scanning (cheap) and yields a single contiguous
-`(start, old_len, new_len)` span for the common single-edit case. Multi-region
+This is O(len) byte scanning and yields one contiguous span; multi-region
 edits collapse to one enclosing span — correct, just less selective.
+`offset_delta = new_end - old_end` is the shift applied to everything at/after
+`old_end`. The inference runs in `DocumentState` (where both revisions are in
+hand), not in `did_change`.
 
-## D. Incremental tree update
+## D. Incremental tree update — *shipped*
 
-Given the changed span and the previous `DocumentTree`:
+The update is realised at the **top-level-command (chunk) granularity** the
+rest of the pipeline already caches at, rather than by mutating a persistent
+node tree in place. `incremental_top_level_chunks(old_source, old_chunks,
+new_source, edit)` rebuilds the chunk list for the new source:
 
-1. **Locate** the smallest node whose span fully contains the changed span by
-   walking children with the width-accumulating cursor.
-2. **Re-tokenise** only that node's region in its own mode (and re-`descend`
-   lazily as before). Its width changes by `new_len - old_len`.
-3. **Shift** following siblings/ancestors: because nodes store *widths*, not
-   offsets, only the widths on the root path need updating — every untouched
-   subtree is reused by reference, including its memoised descents.
-4. **Feed the existing caches.** The chunk-level machinery in
-   `lsp/workspace/document_state.py` (`segment_top_level_chunks`,
-   `find_first_dirty_chunk`, per-proc `(name, body-hash)` cache) consumes the
-   reused-vs-rebuilt boundary: unchanged chunks keep their cached IR / CFG /
-   SSA / analysis; only dirty chunks re-analyse. The tree makes the
-   "which chunk changed" decision exact (node identity) rather than
-   hash-comparison.
+1. **Prefix reuse (verbatim).** Chunks whose tile ends *strictly* before the
+   edit start are reused unchanged — same offsets, hashes, commands. (Strict:
+   a chunk whose tile boundary *equals* the edit start has its `end_offset`
+   pushed by an insertion there, so it goes into the window.)
+2. **Suffix reuse (offset-shifted).** Chunks beginning after the first newline
+   at/after `old_end` sit on lines strictly below the edit, so shifting their
+   tokens/ranges by `(offset_delta, line_delta)` is exact — columns are
+   unchanged because those tokens are on later lines. Shifting is integer
+   arithmetic via `core/parsing/token_positions.py`, far cheaper than
+   re-lexing.
+3. **Window re-segmentation.** Only the span from the previous command's end
+   through the *first* post-edit command is re-tokenised. Starting at the
+   previous command's end (not the next command's start) is what lets a
+   comment in the gap attach forward to the right command, matching a full
+   pass.
+4. **Boundary validation.** The first post-edit command (re-segmented in full
+   context) must equal the old one shifted into place. If it does, the lexer
+   has provably reached the same clean state at the reuse boundary, so the
+   shifted suffix tail is sound; if not (an edit unbalanced a delimiter and
+   bled across the boundary), the whole result is rejected.
 
-### Offset bookkeeping is the classic hazard
+The rebuilt list is **byte-identical** to `segment_top_level_chunks(new)`, so
+the existing `find_first_dirty_chunk` + `_update_incremental` machinery (per
+chunk IR / analyser-snapshot reuse, per-proc `(name, body-hash)` cache)
+consumes it unchanged: same dirty boundary, same analysis reuse, just without
+re-tokenising the unchanged prefix and suffix. Wired into both
+`DocumentState._segment_chunks` paths (the quick source-only update and the
+full analysis update).
 
-The relative-width model is chosen specifically to make drift hard: a node's
-absolute position is *never stored*, so it cannot go stale. The only mutable
-quantity on an edit is the width of nodes on the path from the edited leaf to
-the root. This is verified by property tests (below).
+### Why chunk granularity, and the fallback
+
+A persistent in-place node tree with relative-width offset bookkeeping was the
+original design, but `Token` positions are read as absolute by every
+position-sensitive consumer (§ status note), so the realisable unit is the
+chunk, whose `SegmentedCommand`s can be shifted wholesale. Any case the fast
+path cannot *prove* equivalent — no clean multi-chunk suffix below the edit's
+last line, a partial/recovered command in a reused region, or a failed
+boundary validation — returns `None`, and the caller re-segments fully. The
+`incremental == full` property test (4000 randomised edits, including
+delimiter-unbalancing ones that exercise the fallback) is the guard against
+offset/column/comment drift.
 
 ## E. Error-recovery nodes
 
@@ -252,12 +277,17 @@ The bar is unchanged and strict:
   the full `make test-py` suite green at each phase.
 - **Mode-correctness tests:** assert that each region's node mode matches the
   registry-resolved role, so a body is never lexed as data or vice versa.
-- **Property test — incremental equals full.** For random source + random edit
-  sequences, the incrementally-updated tree must equal a from-scratch reparse:
-  same node structure, same leaf tokens, same absolute offsets. This is the
-  guard against offset drift and is run with a large random-seed budget.
-- **`SemanticTokensDelta` parity:** deltas derived from the reused-vs-rebuilt
-  node boundary must match deltas computed from a full re-tokenise.
+- **Property test — incremental equals full.** *Shipped*
+  (`tests/test_incremental_reparse.py`). For random source + random edit, the
+  incrementally-rebuilt chunk list must equal a from-scratch
+  `segment_top_level_chunks`: same chunk count, offsets, hashes, and every
+  command's tokens / ranges / texts / `preceding_comment` / partial flags.
+  Run over 4000 randomised edits including delimiter-unbalancing ones (which
+  exercise the fallback). This is the guard against offset/column/comment
+  drift.
+- **`SemanticTokensDelta` parity:** because the rebuilt chunk list is
+  byte-identical to a full pass, the existing semantic-token chunk cache and
+  delta path are unaffected (covered by `tests/test_semantic_tokens_delta.py`).
 
 > Note for contributors: validate with `make test-py` (parallel, excludes the
 > pyvm `test_vm_*_test.py` tcltest suite), **not** a bare `pytest tests/` — the
@@ -270,28 +300,35 @@ The bar is unchanged and strict:
 2. **Green token tree** — *shipped.* `green_tree.py`; sections A–B; lazy
    memoised descent + intern index; segmenter and `compiler_checks` migrated,
    `var_refs` on the leaf primitive.
-3. **Edit-range inference** — section C; prefix/suffix diff in `did_change`.
-4. **Incremental tree update** — section D; re-tokenise dirty nodes,
-   offset-shift the tail; wire into chunk/proc caches and semantic-token deltas.
+3. **Edit-range inference** — *shipped.* `incremental.infer_edit_range`;
+   section C; prefix/suffix diff in `DocumentState`.
+4. **Incremental tree update** — *shipped.*
+   `incremental.incremental_top_level_chunks`; section D; verbatim prefix +
+   offset-shifted suffix + re-segmented window with boundary validation; wired
+   into both `DocumentState._segment_chunks` paths and consumed by the existing
+   chunk/proc caches.
 5. **Error-recovery nodes** — section E.
 
-Phase 2 is pure throughput (no LSP behaviour change). Phases 3–5 deliver true
-incrementality and are where the per-keystroke latency win lives.
+Phase 2 is pure throughput (no LSP behaviour change). Phases 3–4 deliver the
+per-keystroke win by not re-tokenising the unchanged prefix/suffix on each
+edit.
 
 ## Risks
 
 - **Context-sensitivity bugs** (wrong mode on a region) silently corrupt
   analysis — mitigated by explicit mode tags and mode-correctness tests.
-- **Offset drift** on incremental update — mitigated by the relative-width
-  model and the incremental-equals-full property test.
-- **`SemanticTokensDelta` fragility** — the most position-sensitive consumer;
-  gated by delta-parity tests before phase 4 ships.
+- **Offset / column / comment drift** on incremental update — mitigated by the
+  boundary-validation step and the incremental-equals-full property test, with
+  a full-re-segmentation fallback whenever equivalence cannot be proven.
+- **`SemanticTokensDelta` fragility** — neutralised by the byte-identical
+  guarantee: the rebuilt chunk list is indistinguishable from a full pass.
 - **Scope creep into the expr parser** — explicitly out of scope; expressions
   stay opaque `expr` nodes.
 
 ## Pointers
 
 - Green tree (phases 1–2): [`core/parsing/green_tree.py`](../../../core/parsing/green_tree.py)
+- Incremental reparse (phases 3–4): [`core/parsing/incremental.py`](../../../core/parsing/incremental.py)
 - Offset-shift helpers (phase 4): [`core/parsing/token_positions.py`](../../../core/parsing/token_positions.py)
 - Lexer / modes: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py),
   [`core/parsing/expr_lexer.py`](../../../core/parsing/expr_lexer.py),
