@@ -673,3 +673,69 @@ class TestExecutionTraceOrder:
         )
         stdout, _ = _run(src)
         assert stdout.splitlines() == ["te {foo 1} 0 {} leave", "te2 {foo 1} 0 {} leave"]
+
+
+class TestLappendArgEvalOrder:
+    """``lappend`` evaluates all of its value arguments *before* the
+    read-modify-write of the target variable (Tcl semantics).  A value
+    arg that mutates the same variable as a side effect — e.g. a ``read``
+    trace whose callback rewrites the var (trace-16.*), or an inline
+    ``[cmd]`` that touches it — must be observed by the subsequent read.
+    The compiled ``lappend`` emitter previously read the variable first,
+    discarding any such mutation when it wrote the snapshot back.
+    """
+
+    def test_inline_subst_mutates_target(self) -> None:
+        src = (
+            "set info {A}\n"
+            "proc mutate {} { global info; lappend info FROMPROC; return X }\n"
+            "lappend info [mutate] Y\n"
+            "puts $info\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "A FROMPROC X Y"
+
+    def test_read_trace_unset_during_lappend(self) -> None:
+        # Distilled from trace-16.1: a read trace whose callback unsets
+        # the variable (firing an unset trace that appends to ``info``),
+        # all observed by the enclosing ``lappend info ...``.
+        src = (
+            "proc traceUnset {unsetName args} {\n"
+            "  global info\n"
+            "  upvar 1 $unsetName x\n"
+            "  lappend info [catch {unset x} msg] $msg [catch {set x} msg] $msg\n"
+            "}\n"
+            "proc traceAppend {string n1 n2 op} { global info; lappend info $string }\n"
+            "unset -nocomplain y\n"
+            "set y 1234\n"
+            "set info {}\n"
+            "trace add variable y read {traceUnset y}\n"
+            "trace add variable y unset {traceAppend unset}\n"
+            "lappend info [catch {set y} msg] $msg\n"
+            "puts $info\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == (
+            'unset 0 {} 1 {can\'t read "x": no such variable} '
+            '1 {can\'t read "y": no such variable}'
+        )
+
+
+class TestGlobalLenientReadFreshness:
+    """A ``global``-declared variable read through the *lenient* path
+    (``lappend`` / ``incr``) must consult the global table directly, not
+    the WASM-local mirror.  The mirror goes stale when a callee mutates
+    the same global through its own ``global`` declaration.  The strict
+    read already did this; the lenient read now does too.
+    """
+
+    def test_lappend_sees_callee_global_write(self) -> None:
+        src = (
+            "set info {A}\n"
+            "proc mutate {} { global info; lappend info FROMPROC; return X }\n"
+            "proc doit {} { global info; set r [mutate]; lappend info Z; return $r }\n"
+            "doit\n"
+            "puts $info\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "A FROMPROC Z"
