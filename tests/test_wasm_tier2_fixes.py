@@ -532,3 +532,20 @@ class TestEnsembleConfigQuoting:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "bar"
+
+
+class TestTraceCommandTargetExists:
+    """``trace add|remove|info command|execution`` requires the target
+    command to exist, else ``unknown command "X"`` (trace-27.x/28.8/28.9)."""
+
+    def test_info_command_missing(self) -> None:
+        stdout, _ = _run('set rc [catch {trace info command thisdoesntexist} r]\nputs "$rc|$r"\n')
+        assert stdout.strip() == '1|unknown command "thisdoesntexist"'
+
+    def test_remove_execution_missing(self) -> None:
+        stdout, _ = _run('set rc [catch {trace remove execution nope {enter} bar} r]\nputs "$rc|$r"\n')
+        assert stdout.strip() == '1|unknown command "nope"'
+
+    def test_existing_command_ok(self) -> None:
+        stdout, _ = _run('proc foo {} {}\nset rc [catch {trace info command foo} r]\nputs "$rc|$r"\n')
+        assert stdout.strip() == "0|"

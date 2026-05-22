@@ -122,6 +122,24 @@ fn obj_bytes(o: i32) []const u8 {
     return (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
 }
 
+/// True if *name* resolves to a live command (user proc / alias /
+/// builtin).  ``trace add|remove|info command|execution`` requires the
+/// target command to exist (trace-27.x / 28.8 / 28.9).
+fn trace_command_exists(name: i32) bool {
+    const procs = @import("../interp/tcl_procs.zig");
+    if (procs.proc_lookup(name) != 0) return true;
+    const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+    const s = obj_ensure_string(name);
+    if (s.ptr != 0 and s.len != 0 and cmd_table.lookup(s.ptr, s.len) != null) return true;
+    return false;
+}
+
+/// Raise ``unknown command "NAME"`` for a command/execution trace whose
+/// target doesn't resolve.
+fn raise_unknown_trace_command(name: i32) void {
+    raise_parts(&.{ "unknown command \"", obj_bytes(name), "\"" });
+}
+
 fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         raise_parts(&.{"wrong # args: should be \"trace option ?arg ...?\""});
@@ -141,9 +159,17 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             return result_mod.from_globals(0);
         }
         const ty_s = obj_ensure_string(words[2]);
-        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len) != null) {
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len)) |kw| {
             if (words.len != 6) {
                 raise_parts(&.{ "wrong # args: should be \"trace ", obj_bytes(words[1]), " ", obj_bytes(words[2]), " name opList command\"" });
+                return result_mod.from_globals(0);
+            }
+            // command / execution traces require the target to exist.
+            if ((str_eq(kw.ptr, @intCast(kw.len), "command") or
+                str_eq(kw.ptr, @intCast(kw.len), "execution")) and
+                !trace_command_exists(words[3]))
+            {
+                raise_unknown_trace_command(words[3]);
                 return result_mod.from_globals(0);
             }
         }
@@ -153,9 +179,16 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             return result_mod.from_globals(0);
         }
         const ty_s = obj_ensure_string(words[2]);
-        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len) != null) {
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len)) |kw| {
             if (words.len != 4) {
                 raise_parts(&.{ "wrong # args: should be \"trace info ", obj_bytes(words[2]), " name\"" });
+                return result_mod.from_globals(0);
+            }
+            if ((str_eq(kw.ptr, @intCast(kw.len), "command") or
+                str_eq(kw.ptr, @intCast(kw.len), "execution")) and
+                !trace_command_exists(words[3]))
+            {
+                raise_unknown_trace_command(words[3]);
                 return result_mod.from_globals(0);
             }
         }
