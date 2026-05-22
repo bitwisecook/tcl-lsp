@@ -20,9 +20,8 @@ from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.registry import REGISTRY
 from shared.tokens import TokenType
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS
 from tooling.formatter.config import FormatterConfig
-
-from .pipeline import AVAILABLE_DIALECTS
 
 # ---------------------------------------------------------------------------
 # Source file detection

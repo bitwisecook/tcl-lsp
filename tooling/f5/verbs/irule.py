@@ -43,7 +43,7 @@ from tooling.cli._utils import (
     _write_highlighted_output,
     _write_text_output,
 )
-from tooling.cli.pipeline import AVAILABLE_DIALECTS
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS
 
 from ._paths import IruleInput, load_irule_inputs
 

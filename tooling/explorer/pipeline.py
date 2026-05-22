@@ -6,7 +6,6 @@ explorers — along with supporting data types and view constants.
 
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 
 from compiler.cfg import CFGFunction
@@ -93,25 +92,6 @@ VIEW_GROUPS: dict[str, frozenset[str]] = {
 }
 
 AVAILABLE_DIALECTS = tuple(sorted(available_dialects()))
-
-
-def expand_show(raw: str) -> frozenset[str]:
-    """Expand a comma-separated --show value into a set of view names."""
-    views: set[str] = set()
-    for token in raw.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if token in VIEW_GROUPS:
-            views |= VIEW_GROUPS[token]
-        elif token in ALL_VIEWS:
-            views.add(token)
-        else:
-            raise argparse.ArgumentTypeError(
-                f"unknown view {token!r}; choose from: "
-                f"{', '.join(sorted(ALL_VIEWS | set(VIEW_GROUPS)))}"
-            )
-    return frozenset(views)
 
 
 # Pipeline helpers

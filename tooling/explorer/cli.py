@@ -50,13 +50,38 @@ from tooling.cli.formatters import (
     format_type,
     preview,
 )
-from tooling.cli.pipeline import (
+from tooling.explorer.pipeline import (
+    ALL_VIEWS,
     AVAILABLE_DIALECTS,
+    VIEW_GROUPS,
     CompilerExplorerResult,
     FunctionSnapshot,
-    expand_show,
     run_pipeline,
 )
+
+
+def expand_show(raw: str) -> frozenset[str]:
+    """Expand a comma-separated ``--show`` value into a set of view names.
+
+    Lives in the CLI adapter (not the pipeline library) because it raises
+    :class:`argparse.ArgumentTypeError` for an unknown view — argparse is
+    an adapter concern, so the pipeline module stays argparse-free.
+    """
+    views: set[str] = set()
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token in VIEW_GROUPS:
+            views |= VIEW_GROUPS[token]
+        elif token in ALL_VIEWS:
+            views.add(token)
+        else:
+            raise argparse.ArgumentTypeError(
+                f"unknown view {token!r}; choose from: "
+                f"{', '.join(sorted(ALL_VIEWS | set(VIEW_GROUPS)))}"
+            )
+    return frozenset(views)
 
 # ANSI styling
 

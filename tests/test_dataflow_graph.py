@@ -160,7 +160,7 @@ class TestDataFlowGraphSerialisation:
 class TestDataFlowGraphExplorer:
     def test_pipeline_integration(self):
         """Verify the data-flow graph appears in explorer pipeline results."""
-        from tooling.cli.pipeline import run_pipeline
+        from tooling.explorer.pipeline import run_pipeline
         from tooling.cli.serialise import serialise_result
 
         result = run_pipeline("set x 1\nset y $x")
@@ -173,7 +173,7 @@ class TestDataFlowGraphExplorer:
 
     def test_pipeline_stats(self):
         """Verify data-flow stats appear in pipeline stats."""
-        from tooling.cli.pipeline import compute_stats, run_pipeline
+        from tooling.explorer.pipeline import compute_stats, run_pipeline
 
         result = run_pipeline("set x 1\nset y $x")
         stats = compute_stats(result)

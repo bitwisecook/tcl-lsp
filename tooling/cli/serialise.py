@@ -26,6 +26,7 @@ from compiler.taint import (
     TaintWarning,
 )
 from compiler.types import TypeKind
+from tooling.explorer.pipeline import CompilerExplorerResult, FunctionSnapshot
 
 from .formatters import (
     format_lattice,
@@ -38,7 +39,6 @@ from .formatters import (
     stmt_summary,
     to_str,
 )
-from .pipeline import CompilerExplorerResult, FunctionSnapshot
 
 # IR
 
@@ -759,8 +759,7 @@ def serialise_result(result: CompilerExplorerResult) -> dict:
     """
     from compiler.cfg import build_cfg
     from shared.ranges import reset_highlight_source, set_highlight_source
-
-    from .pipeline import compute_stats
+    from tooling.explorer.pipeline import compute_stats
 
     # Widen braced/quoted word ranges to their closing delimiter against the
     # document source while serialising (see ``range_dict``).

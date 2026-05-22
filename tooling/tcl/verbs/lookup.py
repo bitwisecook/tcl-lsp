@@ -15,7 +15,7 @@ from tooling.cli._utils import (
     TclCliError,
     _write_text_output,
 )
-from tooling.cli.pipeline import AVAILABLE_DIALECTS
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS
 
 from ._registry import verb
 

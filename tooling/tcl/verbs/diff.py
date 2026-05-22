@@ -16,8 +16,8 @@ from tooling.cli._utils import (
     _write_text_output,
 )
 from tooling.cli.formatters import range_dict
-from tooling.cli.pipeline import AVAILABLE_DIALECTS, run_pipeline
 from tooling.cli.serialise import serialise_result
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS, run_pipeline
 
 from ._registry import verb
 
