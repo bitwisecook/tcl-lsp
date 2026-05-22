@@ -160,11 +160,7 @@ class TestStdlibPrelude:
         opt command still errors — proving the compile-time bundling, not
         a runtime fallback, is what resolved it above."""
         monkeypatch.delenv("TCL_LIBRARY", raising=False)
-        src = (
-            "package require opt\n"
-            "set rc [catch {::tcl::OptProc f {} {}} m]\n"
-            'puts "rc=$rc"\n'
-        )
+        src = 'package require opt\nset rc [catch {::tcl::OptProc f {} {}} m]\nputs "rc=$rc"\n'
         wasm = self._link(src, tmp_path, with_library=False)
         _, out = _run_wasm(wasm, capture_stdout=True)
         assert out == "rc=1\n"
@@ -294,12 +290,10 @@ class TestPackageRequireBundling:
         lib = tmp_path / "lib"
         (lib / "mypkg").mkdir(parents=True)
         (lib / "mypkg" / "mypkg.tcl").write_text(
-            "proc ::mypkg::hello {} { return hi }\n"
-            "proc ::mypkg::unused {} { return nope }\n"
+            "proc ::mypkg::hello {} { return hi }\nproc ::mypkg::unused {} { return nope }\n"
         )
         (lib / "mypkg" / "pkgIndex.tcl").write_text(
-            "package ifneeded mypkg 1.0 "
-            "[list source -encoding utf-8 [file join $dir mypkg.tcl]]\n"
+            "package ifneeded mypkg 1.0 [list source -encoding utf-8 [file join $dir mypkg.tcl]]\n"
         )
         return lib
 

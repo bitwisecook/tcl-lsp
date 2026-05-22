@@ -162,22 +162,14 @@ class TestCatchBracedArgToProc:
     """
 
     def test_catch_braced_dollar_arg_not_substituted(self) -> None:
-        src = (
-            "proc q {a} { return $a }\n"
-            'catch {q {puts "$x $y"}} m\n'
-            'puts "m=$m"\n'
-        )
+        src = 'proc q {a} { return $a }\ncatch {q {puts "$x $y"}} m\nputs "m=$m"\n'
         stdout, _ = _run(src)
         assert stdout.strip() == 'm=puts "$x $y"'
 
     def test_catch_braced_arg_after_leading_stmt(self) -> None:
         # The proc call is the *last* (captured) statement of a
         # multi-statement catch body — the keep-result tail path.
-        src = (
-            "proc q {a} { return $a }\n"
-            'catch {set zz 1\nq {puts "$x $y"}} m\n'
-            'puts "m=$m"\n'
-        )
+        src = 'proc q {a} { return $a }\ncatch {set zz 1\nq {puts "$x $y"}} m\nputs "m=$m"\n'
         stdout, _ = _run(src)
         assert stdout.strip() == 'm=puts "$x $y"'
 
@@ -264,7 +256,7 @@ class TestArrayDefault:
             "puts [array default exists ary]\n"
             "array default unset ary\n"
             "puts [array default exists ary]\n"
-            'set rc [catch {array default get ary} m]\n'
+            "set rc [catch {array default get ary} m]\n"
             'puts "$rc $m"\n'
         )
         stdout, _ = _run(src)
@@ -286,11 +278,7 @@ class TestArrayDefault:
         assert stdout.strip() == "8"
 
     def test_default_dropped_on_unset(self) -> None:
-        src = (
-            "array default set a 7\n"
-            "unset a\n"
-            "puts [array default exists a]\n"
-        )
+        src = "array default set a 7\nunset a\nputs [array default exists a]\n"
         stdout, _ = _run(src)
         assert stdout.strip() == "0"
 
@@ -337,7 +325,7 @@ class TestEnsembleUnknownRetry:
 
     def test_handler_nonempty_rewrite(self) -> None:
         src = (
-            "proc real {a b} { return \"real:$a:$b\" }\n"
+            'proc real {a b} { return "real:$a:$b" }\n'
             "namespace eval ns {\n"
             "  proc mk {ens sub args} { return [list ::real X] }\n"
             "  namespace ensemble create -unknown ::ns::mk\n"
@@ -350,7 +338,7 @@ class TestEnsembleUnknownRetry:
     def test_handler_error_propagates(self) -> None:
         src = (
             "namespace eval ns {\n"
-            "  proc mk {ens sub args} { return -code error \"no $sub\" }\n"
+            '  proc mk {ens sub args} { return -code error "no $sub" }\n'
             "  namespace ensemble create -unknown ::ns::mk\n"
             "}\n"
             "puts [catch {ns zzz} m]\nputs $m\n"
@@ -414,35 +402,35 @@ class TestTraceCommandArity:
     Tcl diagnostics instead of silently succeeding."""
 
     def test_add_variable_wrong_args(self) -> None:
-        stdout, _ = _run('puts [catch {trace add variable foo bar} m]\nputs $m\n')
+        stdout, _ = _run("puts [catch {trace add variable foo bar} m]\nputs $m\n")
         assert stdout.splitlines() == [
             "1",
             'wrong # args: should be "trace add variable name opList command"',
         ]
 
     def test_remove_variable_too_many_args(self) -> None:
-        stdout, _ = _run('puts [catch {trace remove variable foo bar baz boo} m]\nputs $m\n')
+        stdout, _ = _run("puts [catch {trace remove variable foo bar baz boo} m]\nputs $m\n")
         assert stdout.splitlines() == [
             "1",
             'wrong # args: should be "trace remove variable name opList command"',
         ]
 
     def test_info_variable_wrong_args(self) -> None:
-        stdout, _ = _run('puts [catch {trace info variable foo bar} m]\nputs $m\n')
+        stdout, _ = _run("puts [catch {trace info variable foo bar} m]\nputs $m\n")
         assert stdout.splitlines() == [
             "1",
             'wrong # args: should be "trace info variable name"',
         ]
 
     def test_bad_option(self) -> None:
-        stdout, _ = _run('puts [catch {trace gorp} m]\nputs $m\n')
+        stdout, _ = _run("puts [catch {trace gorp} m]\nputs $m\n")
         assert stdout.splitlines() == [
             "1",
             'bad option "gorp": must be add, info, or remove',
         ]
 
     def test_no_args(self) -> None:
-        stdout, _ = _run('puts [catch {trace} m]\nputs $m\n')
+        stdout, _ = _run("puts [catch {trace} m]\nputs $m\n")
         assert stdout.splitlines() == [
             "1",
             'wrong # args: should be "trace option ?arg ...?"',
@@ -496,7 +484,7 @@ class TestNamespaceUnknownHandler:
 
     def test_global_handler_inherited(self) -> None:
         src = (
-            "proc ::myunknown {args} { return \"MYUNKNOWN: $args\" }\n"
+            'proc ::myunknown {args} { return "MYUNKNOWN: $args" }\n'
             "namespace eval :: { namespace unknown ::myunknown }\n"
             "set result [namespace eval foo { dummy a b c }]\n"
             "namespace eval :: { namespace unknown {} }\n"
@@ -543,11 +531,15 @@ class TestTraceCommandTargetExists:
         assert stdout.strip() == '1|unknown command "thisdoesntexist"'
 
     def test_remove_execution_missing(self) -> None:
-        stdout, _ = _run('set rc [catch {trace remove execution nope {enter} bar} r]\nputs "$rc|$r"\n')
+        stdout, _ = _run(
+            'set rc [catch {trace remove execution nope {enter} bar} r]\nputs "$rc|$r"\n'
+        )
         assert stdout.strip() == '1|unknown command "nope"'
 
     def test_existing_command_ok(self) -> None:
-        stdout, _ = _run('proc foo {} {}\nset rc [catch {trace info command foo} r]\nputs "$rc|$r"\n')
+        stdout, _ = _run(
+            'proc foo {} {}\nset rc [catch {trace info command foo} r]\nputs "$rc|$r"\n'
+        )
         assert stdout.strip() == "0|"
 
 
@@ -589,20 +581,31 @@ class TestTraceOpListValidation:
     diagnostic (trace-14.6.x)."""
 
     def test_bad_op_variable(self) -> None:
-        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add variable x {y z w} a} m]\nputs "$rc|$m"\n')
+        stdout, _ = _run(
+            'proc x {} {}\nset rc [catch {trace add variable x {y z w} a} m]\nputs "$rc|$m"\n'
+        )
         assert stdout.strip() == '1|bad operation "y": must be array, read, unset, or write'
 
     def test_null_op_list_command(self) -> None:
-        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add command x {} a} m]\nputs "$rc|$m"\n')
+        stdout, _ = _run(
+            'proc x {} {}\nset rc [catch {trace add command x {} a} m]\nputs "$rc|$m"\n'
+        )
         assert stdout.strip() == '1|bad operation list "": must be one or more of delete or rename'
 
     def test_abbreviation_rejected(self) -> None:
-        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add variable x {r} a} m]\nputs "$rc|$m"\n')
+        stdout, _ = _run(
+            'proc x {} {}\nset rc [catch {trace add variable x {r} a} m]\nputs "$rc|$m"\n'
+        )
         assert stdout.strip() == '1|bad operation "r": must be array, read, unset, or write'
 
     def test_execution_op_list(self) -> None:
-        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add execution x {bogus} a} m]\nputs "$rc|$m"\n')
-        assert stdout.strip() == '1|bad operation "bogus": must be enter, leave, enterstep, or leavestep'
+        stdout, _ = _run(
+            'proc x {} {}\nset rc [catch {trace add execution x {bogus} a} m]\nputs "$rc|$m"\n'
+        )
+        assert (
+            stdout.strip()
+            == '1|bad operation "bogus": must be enter, leave, enterstep, or leavestep'
+        )
 
 
 class TestCommandTraces:
@@ -716,8 +719,7 @@ class TestLappendArgEvalOrder:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == (
-            'unset 0 {} 1 {can\'t read "x": no such variable} '
-            '1 {can\'t read "y": no such variable}'
+            'unset 0 {} 1 {can\'t read "x": no such variable} 1 {can\'t read "y": no such variable}'
         )
 
 
@@ -917,11 +919,7 @@ class TestCommandTraceReentrancyAndErrors:
         assert stdout.strip() == "{} {}"
 
     def test_delete_trace_error_discarded(self) -> None:
-        src = (
-            "proc foo {} {}\n"
-            "trace add command foo delete {error}\n"
-            'puts ">[rename foo {}]<"\n'
-        )
+        src = 'proc foo {} {}\ntrace add command foo delete {error}\nputs ">[rename foo {}]<"\n'
         stdout, _ = _run(src)
         assert stdout.strip() == "><"
 
