@@ -26,7 +26,7 @@ import os
 import subprocess
 from pathlib import Path
 
-# Repo root = two levels up from this file (.../core/runtime_wasm.py).
+# Repo root = two levels up from this file (.../shared/runtime_wasm.py).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_PATH: Path = _REPO_ROOT / "runtime" / "zig" / "zig-out" / "bin" / "tcl_runtime.wasm"

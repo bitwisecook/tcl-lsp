@@ -218,7 +218,7 @@ _BIGIP_HEADER_LINE_RE = re.compile(
 # through :func:`extract_irules_object_references` (the same iRule
 # scanner ``f5 grep`` / cleanup linter / document links use).  Adding
 # a new command-arg → kind mapping to
-# ``core/bigip/data/irules_object_refs_graph.json`` now lights up
+# ``dialects/f5/bigip/data/irules_object_refs_graph.json`` now lights up
 # go-to-definition automatically.
 
 _BIGIP_FALSEY_REF_TOKENS = frozenset(

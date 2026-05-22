@@ -144,7 +144,7 @@ def _serve_tls(bind: str, port: int, cert: str, key: str, ca: str = "") -> threa
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     # Refuse legacy TLS — test harness servers should not accept
     # versions weaker than the production audit baseline (CodeQL
-    # ``py/insecure-protocol``).  Probes in ``core/bigip/query`` keep
+    # ``py/insecure-protocol``).  Probes in ``dialects/f5/query`` keep
     # the system default for genuine legacy-server probing.
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(certfile=cert, keyfile=key)

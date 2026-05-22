@@ -9,7 +9,7 @@ the saved configuration as ``10.0.0.5:https``.
 The table is **not** ``/etc/services`` — it differs in entries and in
 the names BIG-IP picked for some ports (for example ``f5-iquery``,
 ``f5-globalsite``, and ``any -> 0``).  The canonical source lives in
-``core/bigip/data/scf_port_names.csv`` and is codegen'd into
+``dialects/f5/bigip/data/scf_port_names.csv`` and is codegen'd into
 :mod:`dialects.f5.bigip._port_names_table` so the dict literal can be
 unmarshalled straight from the zipapp bytecode — no archive read, no
 csv parse on cold start.  The reverse lookup is a single dict

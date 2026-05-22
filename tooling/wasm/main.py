@@ -92,7 +92,7 @@ def link_tcl_to_wasm(
 
     Requires the Binaryen tools (``wasm-merge`` / ``wasm-opt``) on
     ``PATH`` and the runtime artifact (present in a source build tree
-    or bundled inside the zipapp via ``core/_wasm_runtime``).
+    or bundled inside the zipapp via ``compiler/_wasm_runtime``).
     """
     # Lazy imports keep the un-linked path free of any Binaryen /
     # extension-manifest dependency.

@@ -23,7 +23,7 @@ scripts fail in a particular shell.
    ``--force`` is given.
 8. ``tcl venv run .venv -- <command>`` sets up the env and execs the command
    without manual activation.
-9. ``tclsh`` discovery reuses ``core.tcl_discovery.find_tclsh()``.
+9. ``tclsh`` discovery reuses ``shared.tcl_discovery.find_tclsh()``.
 
 ## File-path anchors
 

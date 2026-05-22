@@ -2,7 +2,7 @@
 
 Loads templates from the templates/ package directory and provides
 ``render_test_script`` as the public API.  An optional post-render
-formatting pass uses ``core.formatting.formatter.format_tcl``.
+formatting pass uses ``tooling.formatter.formatter.format_tcl``.
 """
 
 from __future__ import annotations

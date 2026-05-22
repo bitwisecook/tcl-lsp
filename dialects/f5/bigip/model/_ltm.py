@@ -262,7 +262,7 @@ class BigipMonitor:
     actually present in the stanza, so absent fields stay empty and
     consumers branch on :attr:`monitor_type` to decide which fields
     are meaningful.  Subtypes are discoverable from
-    ``_TWO_WORD_TYPES`` in ``core/bigip/parser/_parsers.py``.
+    ``_TWO_WORD_TYPES`` in ``dialects/f5/bigip/parser/_parsers.py``.
     """
 
     name: str

@@ -40,7 +40,7 @@ from ...ir import IRModule
 
 _LOGGER = logging.getLogger(__name__)
 
-# Name of the subpackage under ``core/`` into which the zipapp build (compiler/_wasm_runtime)
+# Name of the subpackage under ``compiler/`` into which the zipapp build (compiler/_wasm_runtime)
 # stages the runtime ``.wasm`` variants (see scripts/build/zipapps.py
 # ``build_wasm``).  In a normal source checkout this directory does not
 # exist — the dev build tree under ``runtime/zig/zig-out/bin`` wins.
@@ -68,7 +68,7 @@ def _materialise_bundled(filename: str) -> Path | None:
     """Return a real on-disk path to a runtime bundled inside the package.
 
     The bundler invokes ``wasm-opt`` / ``wasm-merge`` on the runtime
-    path, so a copy living inside a zipapp (where ``core/`` is a zip
+    path, so a copy living inside a zipapp (where ``compiler/`` is a zip
     member, not a real file) must be extracted to a temp file first.
     Returns ``None`` when no bundled copy is present (the normal source
     checkout), letting the caller fall back to the dev build tree.

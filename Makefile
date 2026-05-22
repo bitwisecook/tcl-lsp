@@ -38,7 +38,7 @@ TCLPKG_TCL_DIR  := $(ROOT)tooling/tclpkg/tcl
 # Zig runtime WASM — single source of truth for the artifact path and
 # its sources.  Listing every .zig as a prerequisite of the artifact
 # means any runtime source change forces a rebuild via Make, instead of
-# the stale binary silently surviving (core.runtime_wasm only builds
+# the stale binary silently surviving (shared.runtime_wasm only builds
 # when the file is *missing*).
 RUNTIME_ZIG_DIR  := $(ROOT)runtime/zig
 RUNTIME_WASM     := $(RUNTIME_ZIG_DIR)/zig-out/bin/tcl_runtime.wasm

@@ -151,9 +151,9 @@ paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The original per-analysis memo (`core/parsing/token_cache.py` /
+The original per-analysis memo (`compiler/parsing/token_cache.py` /
 `tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
-green token tree** in `core/parsing/green_tree.py` — see
+green token tree** in `compiler/parsing/green_tree.py` — see
 [green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
 analysis-scoped intern index, with the same correctness rules:
 
