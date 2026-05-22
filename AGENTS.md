@@ -66,7 +66,7 @@ samples/          Sample Tcl, iRules, and BigIP configs.
 docs/             Design docs, KCS notes, references, perf reports.
 ```
 
-The seven `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
+The six `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
 `f5-query`, `tcl-wasm`, `tcl-explorer`, `tcl-vm`.
 
 ## Prerequisites
@@ -201,8 +201,9 @@ contract.
 
 ## WASM command parity
 
-The Python command registry (`compiler/registry/tcl/`) is the
-**source of truth** for which Tcl 8.4-9.0 commands exist.  The Zig
+The per-command spec packs (`dialects/tcl/`, registered through
+`compiler.registry`) are the **source of truth** for which Tcl
+8.4-9.0 commands exist.  The Zig
 WASM runtime must be bit-for-bit aligned with it — same commands,
 same sub-commands, same arity bounds — and this alignment is enforced
 by a CI gate that runs on every `make prep-pr` and GitHub Actions
@@ -262,7 +263,7 @@ Zig entry — or vice versa — is a merge-blocking regression.
 
 `scripts/check/wasm_command_parity.py` walks five locations:
 
-1. Python registry under `compiler/registry/tcl/`
+1. Python command specs under `dialects/tcl/`
 2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)
 3. Zig fallback stubs (`dispatch/tcl_stub_fallback.zig`)
 4. Per-command `SubEntry` slices (`cmds/*.zig`)
@@ -788,13 +789,13 @@ position type. Use it instead of constructing `SourceMap` or calling
   `position_from_relative()` when a `line_starts` array is available
   (O(log n) instead of O(text_len)).
 
-See `docs/kcs/kcs-shared-utility-contracts.md` for the full contract.
+See `docs/design/contracts/shared-utility-contracts.md` for the full contract.
 
 ## Command registry
 
 Command metadata lives on `CommandSpec` in `compiler/registry/models.py`,
 **not** in hardcoded sets scattered across consumer modules. Each command is
-defined in its own file under `compiler/registry/{irules,tcl,iapps}/`.
+defined in its own file under `dialects/{tcl,f5/irules,f5/iapps}/`.
 
 When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a boolean field to `CommandSpec`, a
@@ -850,7 +851,7 @@ layers — not just the feature module closest to the symptom.
 - Tests live in `tests/` — run with `make test-py` or `uv run pytest tests/ -q`
 - VS Code extension tests: `make test-ext`
 - **iRule test framework** (`tooling/irule_test/`): simulates TMM for testing iRules
-  without hardware.  See `docs/kcs/kcs-irule-test-framework.md` for architecture.
+  without hardware.  See `docs/design/contracts/irule-test-framework.md` for architecture.
   Codegen: `python -m tooling.irule_test.codegen_mock_stubs` (after registry changes)
 - **WASM runtime tests** (`runtime/zig/test_*.zig`): unit tests for the Zig
   runtime, run with `cd runtime/zig && zig build test`. Tests that need to
