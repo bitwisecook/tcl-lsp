@@ -549,3 +549,35 @@ class TestTraceCommandTargetExists:
     def test_existing_command_ok(self) -> None:
         stdout, _ = _run('proc foo {} {}\nset rc [catch {trace info command foo} r]\nputs "$rc|$r"\n')
         assert stdout.strip() == "0|"
+
+
+class TestExecutionTraces:
+    """``trace add execution`` enter/leave/enterstep/leavestep callbacks
+    (trace-21.x and the broader execution-trace suite).  Driven through a
+    dynamic ``eval`` so the traced proc's body is interpreted (step
+    traces fire on each body command), matching how tcltest runs."""
+
+    def test_enter_leave_enterstep_leavestep(self) -> None:
+        body = (
+            "proc traceExecute {args} { global info; lappend info $args }\n"
+            "proc foo {x} {set b $x}\n"
+            "set info {}\n"
+            "trace add execution foo {enter leave enterstep leavestep} [list traceExecute foo]\n"
+            "foo 3\n"
+            "trace remove execution foo {enter leave enterstep leavestep} [list traceExecute foo]\n"
+            "puts $info"
+        )
+        stdout, _ = _run("eval {" + body + "}\n")
+        assert stdout.strip() == (
+            "{foo {foo 3} enter} {foo {set b 3} enterstep} "
+            "{foo {set b 3} 0 3 leavestep} {foo {foo 3} 0 3 leave}"
+        )
+
+    def test_trace_info_execution(self) -> None:
+        src = (
+            "eval {proc foo {} {}\n"
+            "trace add execution foo {enter leave} bar\n"
+            "puts [trace info execution foo]}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{{enter leave} bar}"

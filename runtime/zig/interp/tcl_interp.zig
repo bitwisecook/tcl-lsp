@@ -1447,6 +1447,75 @@ pub fn recursion_check_leave() void {
 
 pub fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
+    const et = @import("tcl_exec_trace.zig");
+    // Fast path: no execution traces and no active step context (and
+    // not currently inside a trace callback) — skip all bookkeeping.
+    if (et.suppress != 0 or (et.any_traces == 0 and et.step_depth == 0)) {
+        return eval_command_dispatch(words);
+    }
+    return eval_command_traced(words);
+}
+
+/// Execution-trace wrapper around the real dispatch.  Fires the traced
+/// command's ``enter`` / ``leave`` callbacks and the enclosing step
+/// traces' ``enterstep`` / ``leavestep``.  Only reached when at least
+/// one execution trace exists or a step context is active.
+fn eval_command_traced(words: []const i32) i32 {
+    const et = @import("tcl_exec_trace.zig");
+    const bucket: u32 = @bitCast(procs.proc_lookup(words[0]));
+    const ops = if (bucket != 0) et.ops_for(bucket) else 0;
+    const step_active = et.step_depth != 0;
+    if (ops == 0 and !step_active) return eval_command_dispatch(words);
+
+    const cmd_str = build_invocation_string(words);
+    defer if (cmd_str != 0) obj_mod.tcl_obj_release(cmd_str);
+
+    // Enclosing step traces fire ``enterstep`` for this command.
+    if (step_active) et.fire_step(et.OP_ENTERSTEP, cmd_str, 0, 0);
+    // This command's own ``enter`` trace.
+    if ((ops & et.OP_ENTER) != 0) et.fire(bucket, et.OP_ENTER, cmd_str, 0, 0);
+
+    const has_step = (ops & (et.OP_ENTERSTEP | et.OP_LEAVESTEP)) != 0;
+    if (has_step) et.push_step(bucket);
+    const result = eval_command_dispatch(words);
+    if (has_step) et.pop_step();
+
+    // Capture the completion code for leave / leavestep.
+    if ((ops & et.OP_LEAVE) != 0 or step_active) {
+        const snap = result_mod.snapshot(result);
+        const code_obj = obj_mod.obj_new_int(@intFromEnum(snap.code));
+        if ((ops & et.OP_LEAVE) != 0) et.fire(bucket, et.OP_LEAVE, cmd_str, code_obj, result);
+        if (step_active) et.fire_step(et.OP_LEAVESTEP, cmd_str, code_obj, result);
+        obj_mod.tcl_obj_release(code_obj);
+    }
+    return result;
+}
+
+/// Build the command-invocation string (the objv joined as a Tcl list)
+/// passed to execution-trace callbacks.
+fn build_invocation_string(words: []const i32) i32 {
+    const quote = @import("../valtypes/tcl_list_quote.zig");
+    var size: u32 = 0;
+    for (words) |w| {
+        const s = obj_ensure_string(w);
+        size += 2 * s.len + 3; // worst-case quoting + separator
+    }
+    if (size == 0) return obj_mod.obj_new_string(0, 0);
+    const buf = obj_mod.alloc(size);
+    if (buf == 0) return obj_mod.obj_new_string(0, 0);
+    var off: u32 = 0;
+    for (words, 0..) |w, i| {
+        if (i > 0) {
+            @as([*]u8, @ptrFromInt(buf))[off] = ' ';
+            off += 1;
+        }
+        const s = obj_ensure_string(w);
+        off = quote.list_elem_quote(buf, off, s.ptr, s.len);
+    }
+    return obj_mod.obj_new_string_take(buf, off, size);
+}
+
+fn eval_command_dispatch(words: []const i32) i32 {
     cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);
     if (cmd_s.len == 0) return 0;

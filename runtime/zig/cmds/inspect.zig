@@ -140,6 +140,42 @@ fn raise_unknown_trace_command(name: i32) void {
     raise_parts(&.{ "unknown command \"", obj_bytes(name), "\"" });
 }
 
+fn is_execution_keyword(p: [*]const u8, len: u32) bool {
+    if (len < 3 or len > 9) return false;
+    const lit = "execution";
+    var k: u32 = 0;
+    while (k < len) : (k += 1) {
+        if (p[k] != lit[k]) return false;
+    }
+    return true;
+}
+
+/// Parse an execution-trace op list (``{enter leave enterstep
+/// leavestep}``) into the OP_* bitmask.
+fn parse_exec_ops(ops_obj: i32) u32 {
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const s = obj_ensure_string(ops_obj);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    var mask: u32 = 0;
+    const n = obj.list_count_elements(s.ptr, s.len);
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        if (str_eq(ep, e.len, "enter")) mask |= exec_trace.OP_ENTER;
+        if (str_eq(ep, e.len, "leave")) mask |= exec_trace.OP_LEAVE;
+        if (str_eq(ep, e.len, "enterstep")) mask |= exec_trace.OP_ENTERSTEP;
+        if (str_eq(ep, e.len, "leavestep")) mask |= exec_trace.OP_LEAVESTEP;
+    }
+    return mask;
+}
+
+/// The command bucket (identity) an execution trace keys against, or 0.
+fn exec_trace_bucket(name: i32) u32 {
+    const procs = @import("../interp/tcl_procs.zig");
+    return @bitCast(procs.proc_lookup(name));
+}
+
 fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         raise_parts(&.{"wrong # args: should be \"trace option ?arg ...?\""});
@@ -212,7 +248,12 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             install_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
-        // execution / command tracing — pass-through NOP.
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.add(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
+        // command tracing — pass-through NOP.
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace remove variable NAME OPS CMD``.
@@ -225,6 +266,11 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             _ = uninstall_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.remove(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace info variable NAME``.
@@ -233,6 +279,10 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
         if (is_variable_keyword(kind_p, kind_s.len)) {
             return result_mod.from_globals(query_var_trace(words[3]));
+        }
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3])));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
