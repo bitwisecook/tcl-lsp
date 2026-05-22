@@ -5,12 +5,8 @@ from __future__ import annotations
 import struct
 
 from compiler.cfg import build_cfg
-from compiler.codegen.wasm import (
-    WasmModule,
-    _leb128_signed,
-    _leb128_unsigned,
-    wasm_codegen_module,
-)
+from compiler.codegen.wasm import WasmModule, wasm_codegen_module
+from compiler.codegen.wasm._encoding import _leb128_signed, _leb128_unsigned
 from compiler.lowering import lower_to_ir
 
 # LEB128 encoding
