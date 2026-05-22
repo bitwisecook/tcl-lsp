@@ -236,3 +236,60 @@ class TestUnsetRemovesVariableTrace:
         stdout, _ = _run(src)
         # cb fires once on the first read; after ``unset a`` it's gone.
         assert stdout.splitlines() == ["STALE", "v2=again"]
+
+
+class TestArrayDefault:
+    """``array default set|get|exists|unset`` (Tcl 8.7/9, var-24.x): a
+    per-array fallback returned when a missing element is read.  The
+    default does not create elements — ``info exists`` / ``array size``
+    ignore it — but element reads and read-modify-write ``incr`` observe
+    it.
+    """
+
+    def test_default_get_and_read(self) -> None:
+        src = (
+            "array set ary {a 3}\n"
+            "array default set ary 7\n"
+            "puts [list $ary(a) $ary(b) [info exist ary(a)]"
+            " [info exist ary(b)] [array default get ary]]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "3 7 1 0 7"
+
+    def test_default_exists_and_unset(self) -> None:
+        src = (
+            "array set ary {a 3}\n"
+            "puts [array default exists ary]\n"
+            "array default set ary 7\n"
+            "puts [array default exists ary]\n"
+            "array default unset ary\n"
+            "puts [array default exists ary]\n"
+            'set rc [catch {array default get ary} m]\n'
+            'puts "$rc $m"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == ["0", "1", "0", "1 array has no default value"]
+
+    def test_default_set_creates_empty_array(self) -> None:
+        # ``array default set`` on a non-existent variable makes it an
+        # empty array; the default doesn't add elements.
+        src = (
+            "array default set ary grill\n"
+            'puts "[array size ary] [info exist ary(x)] [array exists ary]"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "0 0 1"
+
+    def test_default_observed_by_incr(self) -> None:
+        src = "array default set a 7\nincr a(x)\nputs $a(x)\n"
+        stdout, _ = _run(src)
+        assert stdout.strip() == "8"
+
+    def test_default_dropped_on_unset(self) -> None:
+        src = (
+            "array default set a 7\n"
+            "unset a\n"
+            "puts [array default exists a]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "0"

@@ -4057,7 +4057,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
                     off += 1;
                 }
                 const fq_key = obj_mod.obj_new_string_take(buf, total, total);
-                const entry = tcl_array.array_get(arr_name, fq_key);
+                const entry = tcl_array.array_get_raw(arr_name, fq_key);
                 if (entry != 0) {
                     const es = obj_ensure_string(entry);
                     if (es.len > 0) {
@@ -4071,7 +4071,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
         }
     }
     // 2. Bare-name probe.
-    const entry2 = tcl_array.array_get(arr_name, cmd_obj);
+    const entry2 = tcl_array.array_get_raw(arr_name, cmd_obj);
     if (entry2 != 0) {
         const es = obj_ensure_string(entry2);
         if (es.len > 0) {
