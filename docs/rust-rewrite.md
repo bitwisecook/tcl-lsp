@@ -1,8 +1,13 @@
 # Python → Rust rewrite
 
-tcl-lsp is ~360K lines of Python across `core/`, `lsp/`, `vm/`,
-`debugger/`, `fuzzing/`, `explorer/`, `ai/`, `scripts/`, and `tests/`.
-We're rewriting **all of it** in Rust. The end goal is a repo whose
+tcl-lsp is ~360K lines of Python, organised since the May-2026
+reorganisation into seven concern packages — `shared/`, `compiler/`,
+`dialects/`, `analyser/`, `server/`, `tooling/`, and `ai/` — plus
+`scripts/` and `tests/`.  (It previously lived under `core/`, `lsp/`,
+`vm/`, `debugger/`, `fuzzing/`, `explorer/`, and `tclpkg/`; older path
+references in this document map through the table in
+[Python source layout](#python-source-layout-seven-concern-reorganisation)
+below.)  We're rewriting **all of it** in Rust. The end goal is a repo whose
 runtime, LSP server, bytecode VM, formatter, minifier, debugger,
 refactoring engine, code-action surface, compiler explorer, iRule test
 framework, BigIP / APL config parsers, and even the build/release
@@ -25,6 +30,110 @@ This document explains what we're doing, how we're doing it, and —
 most importantly — what a good port looks like. Read it before
 touching anything under `rust/`, the PyO3 bindings, or the
 native-extension bits of the zipapp builder.
+
+## Python source layout (seven-concern reorganisation)
+
+The Python source was reorganised (May 2026) from the old
+`core/` + `lsp/` + `vm/` + `explorer/` + `fuzzing/` + `tclpkg/` +
+`debugger/` shape into **seven concern packages** with a fixed
+dependency direction enforced by `import-linter` (`.importlinter` at
+the repo root, gated in `make ci-fast`).  **This matters for the Rust
+rewrite because the enforced Python DAG is exactly the crate-boundary
+DAG the Rust workspace already targets** — porting in dependency order
+now means porting concern-by-concern, and a Python module's concern
+tells you which crate its Rust port belongs in.
+
+| Concern | Role | Old location(s) | Target Rust crate |
+|---|---|---|---|
+| `shared/` | Leaf utilities: Range/Token/SourcePosition, document buffer, source-map, ranges, codes, naming, `docstrings`, dialect-agnostic text | `core/common/` | `tcl-lexer` (span/tokens/line_index) + small shared mods |
+| `compiler/` | Lexer, parser, IR, lowering, passes, optimiser, codegen (`codegen/bytecode/`, `codegen/wasm/`), WASM emitter, compiler-internal analyses (taint, var_escape, interprocedural, proc_arg_traits, var_scoping), command-registry **runtime**, position lookup, `Dialect` | `core/parsing/`, `core/compiler/` | `tcl-lexer`, `tcl-compiler`, `tcl-registry` (runtime) |
+| `dialects/` | Per-dialect command **spec packs** + dialect data: `tcl/`, `tcllib/`, `expect/`, `eda/<vendor>`, `f5/{bigip,irules,iapps,query,xc}/`, `tk/` | `core/commands/registry/<dialect>/`, `core/bigip/` | `tcl-registry` (`commands/<dialect>/*.rs`) + F5/BigIP crates |
+| `analyser/` | IDE-facing semantic model + checks: `semantic_model`, `proc_lookup`, `signature_scan`, `class_hierarchy`, MRO, `checks/`, `_analyser/`, `compiler_checks` | `core/analysis/` | `tcl-compiler` analyses + `tcl-lsp-core` |
+| `server/` | LSP protocol surface: pygls wiring, `features/`, `workspace/`, diagnostics pipeline, `_lsp_conv` | `lsp/` | `tcl-lsp-core` + `tcl-lsp-server` |
+| `tooling/` | Developer tools over the compiler stack: `tcl`/`f5`/`wasm` CLIs, `vm/`, `explorer/`, `debugger/`, `fuzzing/`, `tclpkg/`, `formatter/`, `minifier/`, `refactoring/`, `diagram/`, `irule_test/` | `vm/`, `explorer/`, `fuzzing/`, `tclpkg/`, `debugger/`, scattered | per-subsystem crates (`tcl-vm`, formatter, …) |
+| `ai/` | AI integrations: Claude skills, MCP server, iRule context | `ai/` | binding-layer / out of scope for core crates |
+
+**Registry mechanics vs. spec data is now a hard split** (the most
+load-bearing change for the rewrite): the registry *engine* and runtime
+data model live in `compiler/registry/` (`models.py`, `runtime.py`,
+`command_registry.py`, `signatures.py`, `namespace_registry.py`), while
+the *dialect command spec packs* live in `dialects/<dialect>/`.  This
+mirrors the intended `tcl-registry` crate split exactly: registry types
+are the crate's structs; dialect packs are `commands/<dialect>/*.rs`
+data modules a utility can inspect without pulling compiler or LSP code.
+
+### Dependency contracts (the crate-boundary DAG)
+
+`shared → compiler → dialects → analyser → server/tooling → ai`, with
+seven `import-linter` contracts.  As of this branch there are **zero
+upward carve-outs in the analyser and dialects contracts** — both were
+removed during PyO3-readiness work (see below).  The remaining
+documented carve-outs are narrow and intentional:
+
+- `dialects/` may import `compiler.registry` / `compiler.parsing` /
+  pure-data compiler modules only (two carve-outs: the F5 XC translator
+  consumes IR/lowering because it *is* an iRules→XC compiler; the
+  vanilla const-fold spec uses `compiler.tcl_expr_eval`).
+- `tooling/` ↛ `server`/`ai` (two carve-outs: the `f5-query irule
+  context` verb lazy-imports `ai.shared.irule_context`; the incremental
+  reparse fuzzer drives `server.workspace.DocumentState` as its test
+  subject).
+
+Read `docs/design/contracts/project-layout.md` (Python tree) for the
+authoritative contract text — it is the spec the Rust crate graph
+should not violate either.
+
+### PyO3-readiness changes already made on the Python side
+
+These are *Python* changes that pre-shape the eventual binding surface;
+the Rust ports should preserve their shape:
+
+- **Ambient-free F5 query session.** `dialects.f5.query` now exposes
+  `QueryOptions` (frozen) + `QuerySession` + `prepare_query_session()` +
+  `run_query_in_session()`.  The runner still uses `ContextVar`s
+  internally, but the *public* surface is an explicit session a caller
+  builds once and reuses — this is the shape `query_bigip` /
+  `QuerySession` should own in Rust (own a parsed-config session, run
+  many queries without reparsing).  `run_query()` and the fluent `q()`
+  remain thin wrappers.
+- **Upward dependencies inverted.** The proc-doc fallback extractor
+  moved to the leaf `shared.docstrings` (was `tooling.formatter`); the
+  iRule-simulation bridge moved to `tooling.f5.irule_simulation` and
+  `dialects.f5.bigip.explain_flow` now takes an injected
+  `IruleSimulator` instead of importing the test framework.  Net: the
+  analyser and dialects crates will have **no edge into tooling**.
+- **Module splits that map to crate modules.**
+  `tooling.cli.pipeline` → `tooling.explorer.pipeline` (argparse-free,
+  source-in/result-out); `compiler.codegen.wasm.__init__` (763 lines) →
+  `api.py` + `proc_scan.py` with a re-export-only `__init__`;
+  `dialects.f5.bigip.explain_flow` (2572 lines) → a `flow/` subpackage
+  (`_model`, `packets`, `sessions`, `tshark`) for the config-agnostic
+  half, leaving config-aware matching/policy/report in the parent.
+
+### Recommended PyO3 facade surface (not yet built in Python)
+
+The terminal public API (see *PyO3 public-API surface* below) should be
+a small set of narrow facades — source/bytes/options in, structured
+result out — over the layered crates, **not** a re-export of the whole
+graph.  Suggested signatures, all returning the existing structured
+result types rather than new `Any`-shaped dicts:
+
+```text
+parse_tcl(source, options)        -> tokens / parse tree
+compile_tcl(source, options)      -> CompilationUnit
+analyse_tcl(source, options)      -> AnalysisResult        (analyser.analyse today)
+format_tcl(source, options)       -> String                (tooling.formatter.format_tcl today)
+parse_bigip_config(source, opts)  -> BigipConfig            (dialects.f5.bigip.parser.parse_bigip_conf)
+query_bigip(sources, query, opts) -> QueryResult            (run_query_in_session)
+```
+
+Pair with a typed public error hierarchy (`TclLspError` base →
+`TclParseError` / `TclCompileError` / `TclAnalysisError` /
+`BigipParseError` / `BigipQueryError` / `UnsupportedFeatureError`), each
+carrying a stable code + message + optional URI/range, translated at the
+facade boundary.  These facades + the error hierarchy are deliberately
+**not** built in the Python tree yet (no consumer until the Rust binding
+lands) — they are the design the binding crate should implement.
 
 ## What we're doing
 
