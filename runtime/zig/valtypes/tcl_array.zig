@@ -1212,6 +1212,20 @@ pub export fn array_exists(arr: i32) i32 {
     return obj_new_int(1);
 }
 
+/// Make ``arr`` exist as an (empty) array if it isn't one already.
+/// Reference Tcl creates the array when a trace is registered on one
+/// of its elements (``trace add variable arr(key) …`` with ``arr``
+/// absent), so a subsequent element read reports ``no such element in
+/// array`` — and fires the registered read/unset trace — instead of
+/// ``no such variable``.  No-op when ``arr`` is already an array; bails
+/// (does not clobber) when a scalar of the same name exists.
+pub fn ensure_array_exists(arr: i32) void {
+    if (find_table(arr) != 0) return;
+    const tcl_ns = @import("../interp/tcl_ns.zig");
+    if (obj.obj_get_int(tcl_ns.global_exists(arr)) != 0) return;
+    _ = find_or_create(arr);
+}
+
 // ``array default`` — a per-array fallback value returned when a
 // missing element is *read* (Tcl 8.7 / 9 feature, var-24.x).  Defaults
 // are rare, so a small linear registry keyed by the array's normalised

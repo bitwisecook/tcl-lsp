@@ -739,3 +739,46 @@ class TestGlobalLenientReadFreshness:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "A FROMPROC Z"
+
+
+class TestTraceCreatesArrayElement:
+    """``trace add variable arr(key)`` on an absent ``arr`` materialises
+    ``arr`` as an (empty) array — reference Tcl behaviour.  A subsequent
+    element read then reports ``no such element in array`` (and is an
+    array for ``array exists``) instead of ``no such variable``
+    (trace-1.4 / trace-10.1 wording).
+    """
+
+    def test_element_trace_makes_array_exist(self) -> None:
+        src = (
+            "unset -nocomplain x\n"
+            "trace add variable x(2) read traceCb\n"
+            "proc traceCb {a b c} {}\n"
+            "puts [array exists x]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "1"
+
+    def test_missing_element_reports_array_wording(self) -> None:
+        src = (
+            "unset -nocomplain x\n"
+            "proc traceCb {a b c} {}\n"
+            "trace add variable x(2) read traceCb\n"
+            "set rc [catch {set y $x(2)} m]\n"
+            'puts "$rc $m"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == '1 can\'t read "x(2)": no such element in array'
+
+    def test_does_not_clobber_existing_scalar(self) -> None:
+        # A scalar of the same name must not be silently turned into an
+        # array by an element-trace install.
+        src = (
+            "unset -nocomplain x\n"
+            "set x scalar\n"
+            "proc traceCb {a b c} {}\n"
+            "catch {trace add variable x(2) read traceCb}\n"
+            "puts [array exists x]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "0"

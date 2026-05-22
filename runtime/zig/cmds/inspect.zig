@@ -500,6 +500,7 @@ fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
         var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
         return;
     }
+    maybe_create_array_for_trace_install(name);
     const canon = canonical_var_name(name);
     var_trace.add(canon, ops, cmd_prefix);
     if (canon != name and canon != 0) tcl_obj_release(canon);
@@ -583,6 +584,34 @@ fn maybe_invalidate_searches_on_trace_install(name: i32) void {
     if (obj_helpers.obj_get_int(tcl_array_mod.array_element_exists(arr_name, key_obj)) == 0) {
         tcl_array_mod.array_invalidate_searches_for_obj(arr_name);
     }
+}
+
+/// When ``name`` parses as ``arr(key)`` and ``arr`` is not yet an
+/// array, create it as an empty array so element reads / unsets report
+/// ``no such element in array`` (and fire the just-installed trace)
+/// rather than ``no such variable`` — matching reference Tcl, which
+/// materialises the array when a trace is registered on one of its
+/// elements (trace-1.4 / trace-10.1).  Directory (global / top-level)
+/// case only; proc-local element traces take the per-frame path above.
+fn maybe_create_array_for_trace_install(name: i32) void {
+    const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len < 3) return;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[sn.len - 1] != ')') return;
+    var paren: i32 = -1;
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        if (sp[i] == '(') {
+            paren = @intCast(i);
+            break;
+        }
+    }
+    if (paren <= 0) return;
+    const paren_at: u32 = @intCast(paren);
+    const arr_name = obj_new_string(@bitCast(sn.ptr), @bitCast(paren_at));
+    defer tcl_obj_release(arr_name);
+    const tcl_array_mod = @import("../valtypes/tcl_array.zig");
+    tcl_array_mod.ensure_array_exists(arr_name);
 }
 
 /// Fire any ``array``-op variable trace on *name*.  Reference Tcl
