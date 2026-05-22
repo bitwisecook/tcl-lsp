@@ -293,3 +293,23 @@ class TestArrayDefault:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "0"
+
+
+class TestAppendCreatesMissingVariable:
+    """``append`` on an unset variable treats it as empty and creates it
+    (Tcl semantics) rather than raising ``can't read "<var>": no such
+    variable``.  The compiled ``append`` emitter read the variable
+    strictly; it now uses the lenient read like ``lappend`` / ``incr``.
+    """
+
+    def test_append_missing_scalar(self) -> None:
+        stdout, _ = _run("append s abc\nputs $s\n")
+        assert stdout.strip() == "abc"
+
+    def test_append_missing_scalar_no_error(self) -> None:
+        stdout, _ = _run('set rc [catch {append s abc} m]\nputs "$rc $s"\n')
+        assert stdout.strip() == "0 abc"
+
+    def test_append_missing_array_element(self) -> None:
+        stdout, _ = _run("set a(y) 1\nappend a(x) bar\nputs $a(x)\n")
+        assert stdout.strip() == "bar"
