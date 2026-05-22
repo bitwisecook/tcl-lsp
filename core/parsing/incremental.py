@@ -201,7 +201,9 @@ def incremental_top_level_chunks(
     # command at ``p`` exactly as a full segmentation would (comments attach
     # forward but physically sit in the previous chunk's tile region).
     p = 0 if prefix_count == 0 else old_chunks[prefix_count].start_offset
-    ws = 0 if prefix_count == 0 else old_chunks[prefix_count - 1].commands[-1].range.end.offset
+    # +1: range.end.offset is the command's last character (inclusive), so the
+    # gap before p begins one byte past it.
+    ws = 0 if prefix_count == 0 else old_chunks[prefix_count - 1].commands[-1].range.end.offset + 1
     val_end_old = old_chunks[val_idx].end_offset  # == old_chunks[val_idx+1].start_offset
     if ws > p or p > old_chunks[val_idx].start_offset:
         return None

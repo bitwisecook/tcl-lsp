@@ -255,4 +255,4 @@ class TestIncrementalProperty:
         # the rate is well under 100% on randomised edits — correctness, not
         # fire rate, is the contract.)
         assert checked > 1000
-        assert matched > 400
+        assert matched > checked // 3

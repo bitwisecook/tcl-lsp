@@ -227,11 +227,11 @@ new_source, edit)` rebuilds the chunk list for the new source:
    unchanged because those tokens are on later lines. Shifting is integer
    arithmetic via `core/parsing/token_positions.py`, far cheaper than
    re-lexing.
-3. **Window re-segmentation.** Only the span from the previous command's end
-   through the *first* post-edit command is re-tokenised. Starting at the
-   previous command's end (not the next command's start) is what lets a
-   comment in the gap attach forward to the right command, matching a full
-   pass.
+3. **Window re-segmentation.** Only the span from one byte past the previous
+   command's last character through the *first* post-edit command is
+   re-tokenised. Starting in the gap before the next command (not at the next
+   command's start) is what lets a comment there attach forward to the right
+   command, matching a full pass.
 4. **Boundary validation.** The first post-edit command (re-segmented in full
    context) must equal the old one shifted into place. If it does, the lexer
    has provably reached the same clean state at the reuse boundary, so the
