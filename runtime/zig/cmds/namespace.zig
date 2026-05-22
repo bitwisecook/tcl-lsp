@@ -1945,11 +1945,21 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
 /// extra args).
 pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
     const rec = ensemble_rec_of(@bitCast(bucket)) orelse return 0;
-    if (words.len < 2) {
+    // ``-parameters {p1 p2 …}`` consumes that many words *before* the
+    // subcommand; they are re-inserted ahead of the resolved impl's
+    // trailing args (namespace-53.1).
+    var n_params: u32 = 0;
+    if (rec.params_obj != 0) {
+        const ps = obj_ensure_string(rec.params_obj);
+        const c = obj_mod.list_count_elements(ps.ptr, ps.len);
+        if (c > 0) n_params = @intCast(c);
+    }
+    const sub_idx: u32 = 1 + n_params;
+    if (words.len < sub_idx + 1) {
         raise_ensemble_wrong_args(words[0], rec);
         return 0;
     }
-    const sub = obj_ensure_string(words[1]);
+    const sub = obj_ensure_string(words[sub_idx]);
     if (sub.len == 0) {
         raise_ensemble_wrong_args(words[0], rec);
         return 0;
@@ -1967,8 +1977,8 @@ pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
     }
     defer obj_mod.tcl_obj_release(impl_obj);
 
-    // 2. Build the full call: impl-elements + words[2..].
-    return invoke_ensemble_impl(impl_obj, words);
+    // 2. Build the full call: impl-elements + parameters + trailing args.
+    return invoke_ensemble_impl(impl_obj, words, sub_idx);
 }
 
 /// Resolve an ensemble subcommand to its implementation command prefix
@@ -2129,15 +2139,19 @@ fn ensemble_match_in_exports(ns: u32, sub_ptr: u32, sub_len: u32, prefixes: u32)
 
 /// Combine the ensemble impl prefix (a Tcl list) with the remaining
 /// call args and invoke the result.
-fn invoke_ensemble_impl(impl_obj: i32, words: []const i32) i32 {
+fn invoke_ensemble_impl(impl_obj: i32, words: []const i32, sub_idx: u32) i32 {
     const is = obj_ensure_string(impl_obj);
     if (is.len == 0) return 0;
     const interp = @import("../interp/tcl_interp.zig");
-    // The impl is a list ``cmd ?arg ...?``.  Split into element
-    // TclObjs, then append words[2..].
+    // The impl is a list ``cmd ?arg ...?``.  Split into element TclObjs,
+    // then append the ensemble ``-parameters`` words (``words[1..sub_idx]``,
+    // before the subcommand) followed by the trailing args after the
+    // subcommand (``words[sub_idx+1..]``).  With no parameters
+    // ``sub_idx == 1`` so this is just ``words[2..]``.
     const n_impl = obj_mod.list_count_elements(is.ptr, is.len);
-    const tail = if (words.len >= 2) words.len - 2 else 0;
-    const total_args: u32 = @intCast(@as(i64, n_impl) + @as(i64, @intCast(tail)));
+    const n_params: u32 = if (sub_idx > 1) sub_idx - 1 else 0;
+    const n_trail: u32 = if (words.len > sub_idx + 1) @intCast(words.len - sub_idx - 1) else 0;
+    const total_args: u32 = @intCast(@as(i64, n_impl) + @as(i64, n_params) + @as(i64, n_trail));
     if (total_args == 0) return 0;
     const argv = obj_mod.alloc(total_args * 4);
     if (argv == 0) return 0;
@@ -2150,7 +2164,14 @@ fn invoke_ensemble_impl(impl_obj: i32, words: []const i32) i32 {
         obj_mod.write_i32(argv + idx * 4, w);
         idx += 1;
     }
-    var wi: u32 = 2;
+    // ``-parameters`` words (between the ensemble name and subcommand).
+    var pi: u32 = 1;
+    while (pi < sub_idx) : (pi += 1) {
+        obj_mod.tcl_obj_retain(words[pi]);
+        obj_mod.write_i32(argv + idx * 4, words[pi]);
+        idx += 1;
+    }
+    var wi: u32 = sub_idx + 1;
     while (wi < words.len) : (wi += 1) {
         obj_mod.tcl_obj_retain(words[wi]);
         obj_mod.write_i32(argv + idx * 4, words[wi]);
@@ -2231,7 +2252,7 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
     if (impl != 0) {
         if (result != 0) obj_mod.tcl_obj_release(result);
         defer obj_mod.tcl_obj_release(impl);
-        return invoke_ensemble_impl(impl, words);
+        return invoke_ensemble_impl(impl, words, 1);
     }
 
     const rs = obj_ensure_string(result);
@@ -2239,7 +2260,7 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         // Non-empty rewrite: evaluate the returned command prefix
         // followed by the ensemble's argument tail (words[2..]).
         defer if (result != 0) obj_mod.tcl_obj_release(result);
-        return invoke_ensemble_impl(result, words);
+        return invoke_ensemble_impl(result, words, 1);
     }
 
     if (result != 0) obj_mod.tcl_obj_release(result);

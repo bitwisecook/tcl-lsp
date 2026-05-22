@@ -447,3 +447,21 @@ class TestTraceCommandArity:
             "1",
             'wrong # args: should be "trace option ?arg ...?"',
         ]
+
+
+class TestEnsembleParameters:
+    """``namespace ensemble create -parameters {p ...}`` consumes that
+    many words before the subcommand and re-inserts them ahead of the
+    resolved implementation's arguments (namespace-53.1)."""
+
+    def test_single_parameter(self) -> None:
+        src = (
+            "namespace eval ns {\n"
+            "  namespace export x\n"
+            "  proc x {para} {list 1 $para}\n"
+            "  namespace ensemble create -parameters {para1}\n"
+            "}\n"
+            "puts [ns bar x]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "1 bar"
