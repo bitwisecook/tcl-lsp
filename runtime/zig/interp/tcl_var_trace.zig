@@ -269,6 +269,54 @@ pub fn remove(name: i32, ops: u32, cmd_prefix: i32) bool {
     return false;
 }
 
+/// Remove *every* trace registered on ``name_ptr``/``name_len`` from
+/// the global directory, freeing each record.  Mirrors Tcl's contract
+/// that ``unset`` of a variable drops the variable's traces (after the
+/// unset callbacks have fired): without this a stale write/read trace
+/// keeps firing on a later, unrelated variable that reuses the name —
+/// the trace-2.x cascade where ``unset x`` left 2.1's whole-variable
+/// write trace attached, so a subsequent ``set x(abc)`` re-fired it
+/// (and eventually trapped via re-entrant xlinks lookup).
+///
+/// Must be called only when no fire is walking the chain (i.e. after
+/// the unset callbacks return), since it frees records out from under
+/// any active iterator.
+pub fn remove_all(name_ptr: u32, name_len: u32) void {
+    if (name_ptr == 0 or name_len == 0) return;
+    if (dir_buf == 0) return;
+    const hash = fnv1a(name_ptr, name_len);
+    const bucket = dir_find(name_ptr, name_len, hash) orelse return;
+    const head: u32 = @bitCast(read_i32(bucket + 12));
+    if (head == 0) return;
+    // Re-entrancy: ``remove_all`` can run from inside a fire (an unset
+    // that the trace callback itself triggered).  A ``fire_at_key``
+    // loop higher on the stack still holds a ``cur`` into this chain
+    // and will advance through ``OFF_NEXT``, so freeing *any* record in
+    // the chain — not just the active one — is a use-after-free.  When
+    // any record is active, unlink the whole chain from the bucket
+    // (future fires see none) but leave the records allocated; the
+    // in-flight fire walks its captured chain to completion and the
+    // orphaned records leak (bounded, rare).
+    var any_active = false;
+    var scan: u32 = head;
+    while (scan != 0) : (scan = @bitCast(read_i32(scan + OFF_NEXT))) {
+        if (read_i32(scan + OFF_ACTIVE) != 0) {
+            any_active = true;
+            break;
+        }
+    }
+    write_i32(bucket + 12, 0);
+    if (any_active) return;
+    var cur: u32 = head;
+    while (cur != 0) {
+        const next: u32 = @bitCast(read_i32(cur + OFF_NEXT));
+        const cmd = read_i32(cur + OFF_CMD);
+        if (cmd != 0) tcl_obj_release(cmd);
+        obj.free_sized(cur, TRACE_REC_SIZE);
+        cur = next;
+    }
+}
+
 /// Return a Tcl list of ``{ops cmd}`` pairs for every trace on
 /// ``name``, or empty list if none.
 pub fn info(name: i32) i32 {
@@ -475,14 +523,10 @@ fn invoke_cb(
     op_char: u8,
 ) void {
     const interp = @import("tcl_interp.zig");
-    const list_parse = @import("../valtypes/tcl_list_parse.zig");
+    const quote = @import("../valtypes/tcl_list_quote.zig");
     // Reference Tcl 9 invokes variable-trace callbacks with the full
     // op word (``read`` / ``write`` / ``unset`` / ``array``), not the
     // single-character internal op code we carry in ``op_char``.
-    // Without this expansion, the test ``trace add variable x read
-    // traceScalar; set x`` reports ``op = r`` to the callback and
-    // every reference-Tcl-shaped assertion fails (cf. trace.test
-    // 1.1–1.14, 2.1–2.5 in the Tcl 9 core slice).
     const op_word: []const u8 = switch (op_char) {
         'r' => "read",
         'w' => "write",
@@ -490,122 +534,64 @@ fn invoke_cb(
         'a' => "array",
         else => &[_]u8{op_char},
     };
-    // Build argv directly (one TclObj per word) and dispatch through
-    // ``eval_command``.  The previous implementation built a script
-    // string ``<cmd> <name1> <name2> <op>`` and called ``eval_script``;
-    // ``eval_script`` parses the bytes back into TclObjs whose
-    // ``str_ptr`` aliased into the script buffer (``obj_new_string``
-    // is a non-copying constructor), so freeing the buffer left any
-    // TclObj a callback captured into a long-lived variable
-    // dangling.  The earlier workaround leaked the buffer on every
-    // fire — fine for one-shot traces but a per-fire linear-memory
-    // leak in trace-heavy workloads (variables traced inside loops,
-    // tcltest's ``::errorInfo`` write trace fired by every test).
-    //
-    // ``cmd_prefix`` is a list TclObj — the verbatim ``CMD`` argument
-    // from ``trace add variable NAME OPS CMD``.  Parse it as a list
-    // and concatenate its elements with the three trace-supplied
-    // arguments to form the dispatched argv.  Each argv element is
-    // an owned ``obj_new_string_copy`` so the TclObjs survive the
-    // full callback lifetime even if the callback assigns one to a
-    // long-lived variable.
+    const op_ptr: u32 = @intFromPtr(op_word.ptr);
+    const op_len: u32 = @intCast(op_word.len);
+
+    // Reference Tcl (``tclTrace.c`` ``TclCallVarTraces`` →
+    // ``traceVarProc``) builds the callback string by appending the
+    // verbatim command prefix, then ``name1``, ``name2``, and the op
+    // word as *list elements*, and evaluates the whole thing as a
+    // **script** (``Tcl_EvalEx``).  That is what makes:
+    //   * a bare command prefix (``trace add variable v write myProc``)
+    //     dispatch as ``myProc name1 name2 op``; and
+    //   * the ``cmd … ;#`` idiom work — the trailing ``;#`` turns the
+    //     appended args into a comment so they don't reach ``cmd``
+    //     (tcltest's stdio-constraint trace at tcltest.tcl:284).
+    // The previous implementation list-parsed the prefix and dispatched
+    // a single ``eval_command``, so ``;#`` became literal words and
+    // multi-word / proc-name prefixes never fired correctly.
     const cs = obj_ensure_string(cmd_prefix);
     if (cs.len == 0 and cs.ptr == 0) return;
-    const n_prefix = list_parse.count_elements(cs.ptr, cs.len);
-    if (n_prefix < 0) return;
-    const total_args: u32 = @as(u32, @intCast(n_prefix)) + 3;
-    // Cap argv at a sensible upper bound — runaway list parsing on a
-    // corrupted prefix shouldn't drive us into a multi-megabyte alloc.
-    const MAX_TRACE_ARGV: u32 = 512;
-    if (total_args > MAX_TRACE_ARGV) return;
-    const argv_bytes: u32 = total_args * @sizeOf(i32);
-    const argv_buf = alloc(argv_bytes);
-    if (argv_buf == 0) return;
-    defer obj.free_sized(argv_buf, argv_bytes);
-    var argv_slice: [*]i32 = @ptrFromInt(argv_buf);
-    // Collect prefix words.
-    var i: u32 = 0;
-    var cursor: list_parse.Cursor = .{ .pos = 0 };
-    while (i < @as(u32, @intCast(n_prefix))) : (i += 1) {
-        const elem = list_parse.cursor_next(cs.ptr, cs.len, &cursor);
-        if (elem.braced) {
-            argv_slice[i] = obj.obj_new_string_copy(cs.ptr + elem.start, elem.len);
-        } else {
-            // Process backslash escapes for unbraced elements via the
-            // same path ``tcl_cmd_list_index`` uses.
-            const buf = obj.alloc(elem.len);
-            if (buf == 0) {
-                // OOM — release everything we've built and bail.
-                var j: u32 = 0;
-                while (j < i) : (j += 1) {
-                    if (argv_slice[j] != 0) tcl_obj_release(argv_slice[j]);
-                }
-                return;
-            }
-            const out_len = list_parse.copy_unbraced_elem(buf, cs.ptr + elem.start, elem.len);
-            argv_slice[i] = obj.obj_new_string_take(buf, out_len, elem.len);
-        }
+    // Worst-case size: prefix verbatim + for each of the three trailing
+    // args, a separator space plus the list-quoting expansion (≤ 2·len+2).
+    const size: u32 = cs.len +
+        (1 + 2 * name1_len + 2) +
+        (1 + 2 * name2_len + 2) +
+        (1 + 2 * op_len + 2);
+    const buf = alloc(size);
+    if (buf == 0) return;
+    var off: u32 = 0;
+    if (cs.len > 0) {
+        memcpy(buf, cs.ptr, cs.len);
+        off = cs.len;
     }
-    // name1 — copy bytes so we own the TclObj.  ``name1_ptr`` may
-    // alias into a hash-table key buffer that gets reused on the
-    // next array op; we can't borrow it across the callback.
-    argv_slice[i] = obj.obj_new_string_copy(name1_ptr, name1_len);
-    i += 1;
-    // name2 — same ownership story.  When ``name2_len == 0`` (whole-
-    // array fire) we still pass an empty string TclObj rather than
-    // 0, matching reference Tcl's ``Tcl_TraceVar2``.
-    argv_slice[i] = obj.obj_new_string_copy(name2_ptr, name2_len);
-    i += 1;
-    // op_word — copy from a stack-resident slice into an owned
-    // TclObj so the callback can assign ``$op`` to a variable
-    // without hitting freed memory.
-    argv_slice[i] = obj.obj_new_string_copy(@intFromPtr(op_word.ptr), @intCast(op_word.len));
-    i += 1;
-    // Dispatch.  ``eval_command`` runs the command synchronously and
-    // returns the result handle (or 0 on error / no-result).  The
-    // result handle is intentionally NOT released here.
-    //
-    // The dispatch chain's deferred-free queue (PENDING_FREE_CAP =
-    // 65536) overflows during long-running trace-heavy bundles like
-    // tcl9_trace.test.  When the queue is full a fresh release goes
-    // through ``release_now`` immediately, writing POISON to the
-    // slab's type tag and pushing it onto the recycler — a
-    // subsequent ``obj_alloc`` reissues that exact slab.  Releasing
-    // ``r`` here then either hits POISON (slab still on freelist) or
-    // ``bad_rc`` (slab reissued, freelist next-link bleeding through),
-    // depending on timing.
-    //
-    // Triage data on tcl9_trace.test (split counters from this
-    // investigation) attributed 92% of the bundle's 1,574,308
-    // ``g_double_free_count`` bumps to ``invoke_cb``'s post-call
-    // releases.  Skipping the result release alone drops that to 18
-    // bumps and also LOWERS ``alloc_residual`` (from 37.6M to 36.5M
-    // — the cascading immediate-frees on queue-overflowing slabs
-    // stop happening, so other paths' releases successfully queue
-    // instead of going immediate-free).
-    //
-    // ``r`` itself does NOT leak in practice: a stress test
-    // (10,000 trace fires whose proc returns a 1,000-char string)
-    // produces alloc_residual = 70,012 both with and without the
-    // release — empirical evidence that the result is consumed by
-    // the dispatch chain itself (most likely via ``eval_return``'s
-    // retain into ``return_val`` and the eval_script per-statement
-    // release at tcl_interp.zig:3967, the same way other callers
-    // such as ``cmds/namespace.zig``'s ``invoke_ensemble`` /
-    // ``invoke_ensemble_unknown`` and ``tcl_expr_eval.zig``'s
-    // math-func call site forward the result without releasing it).
-    // ``invoke_cb`` is a terminal consumer that doesn't propagate
-    // ``r``, so the original ``tcl_obj_release(r)`` over-released
-    // a handle that had already been consumed upstream.
-    const argv_view: []const i32 = (@as([*]const i32, @ptrCast(argv_slice)))[0..total_args];
-    _ = interp.eval_command(argv_view);
-    // Release every argv TclObj we built — ``eval_command`` retains
-    // any it stores into a long-lived slot via the normal var-set
-    // refcount discipline.
-    var k: u32 = 0;
-    while (k < total_args) : (k += 1) {
-        if (argv_slice[k] != 0) tcl_obj_release(argv_slice[k]);
+    const sp: [*]u8 = @ptrFromInt(buf + off);
+    sp[0] = ' ';
+    off += 1;
+    off = quote.list_elem_quote(buf, off, name1_ptr, name1_len);
+    const sp2: [*]u8 = @ptrFromInt(buf + off);
+    sp2[0] = ' ';
+    off += 1;
+    off = quote.list_elem_quote(buf, off, name2_ptr, name2_len);
+    const sp3: [*]u8 = @ptrFromInt(buf + off);
+    sp3[0] = ' ';
+    off += 1;
+    off = quote.list_elem_quote(buf, off, op_ptr, op_len);
+
+    // Wrap as an owning TclObj string (``obj_new_string_take`` claims
+    // the buffer via ``OBJ_STR_CAP``) and evaluate as a script.
+    // ``tcl_eval`` retains the script for the eval; the deferred-free
+    // queue keeps the bytes alive across any word TclObj that borrows
+    // from them, and ``var_set`` promotes a borrowed value to an owned
+    // copy before storing — so a callback that assigns a trace argument
+    // to a long-lived variable stays valid after we release here.
+    const script_obj = obj.obj_new_string_take(buf, off, size);
+    if (script_obj == 0) {
+        obj.free_sized(buf, size);
+        return;
     }
+    _ = interp.tcl_eval(script_obj);
+    tcl_obj_release(script_obj);
 }
 
 // --- Phase 6 follow-up: per-frame trace lists --------------------------

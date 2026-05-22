@@ -212,6 +212,101 @@ def _recurse_bodies(stmt: IRStatement, out: set[str]) -> None:
         _collect_commands(stmt.body, out)
 
 
+def _walk_calls(script: IRScript):
+    """Yield every :class:`IRCall` anywhere in *script*, descending into
+    control-flow bodies (the same shape :func:`_recurse_bodies` walks)."""
+    for stmt in script.statements:
+        if isinstance(stmt, IRCall):
+            yield stmt
+        if isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                yield from _walk_calls(clause.body)
+            if stmt.else_body:
+                yield from _walk_calls(stmt.else_body)
+        elif isinstance(stmt, IRFor):
+            yield from _walk_calls(stmt.init)
+            yield from _walk_calls(stmt.body)
+            yield from _walk_calls(stmt.next)
+        elif isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRBlock, IRUpFrame)):
+            yield from _walk_calls(stmt.body)
+        elif isinstance(stmt, IRTry):
+            yield from _walk_calls(stmt.body)
+            for handler in stmt.handlers:
+                yield from _walk_calls(handler.body)
+            if stmt.finally_body:
+                yield from _walk_calls(stmt.finally_body)
+        elif isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                if arm.body:
+                    yield from _walk_calls(arm.body)
+            if stmt.default_body:
+                yield from _walk_calls(stmt.default_body)
+
+
+def _collect_package_requires(module: IRModule) -> set[str]:
+    """Names of packages the module statically ``package require``s.
+
+    Only literal names are collected — ``package require $name`` is a
+    run-time computation the compiler can't bundle, so it's skipped
+    (the runtime ``package`` machinery handles it instead)."""
+    names: set[str] = set()
+
+    def scan(script: IRScript) -> None:
+        for call in _walk_calls(script):
+            if call.command != "package" or len(call.args) < 2:
+                continue
+            if call.args[0] != "require":
+                continue
+            # ``package require ?-exact? NAME ?version?`` — skip the
+            # optional ``-exact`` flag to reach the package name.
+            idx = 1
+            if call.args[idx] == "-exact":
+                idx += 1
+            if idx >= len(call.args):
+                continue
+            name = call.args[idx]
+            if name and not _name_is_dynamic(name):
+                names.add(name)
+
+    scan(module.top_level)
+    for proc in module.procedures.values():
+        scan(proc.body)
+    return names
+
+
+# ``package ifneeded NAME VERSION [list source ?-encoding ENC? [file join
+# $dir FILE ...]]`` — the source-style entry a pkgIndex.tcl emits for a
+# pure-Tcl package (opt, msgcat, …).  ``tclPkgSetup`` / binary-loaded
+# packages use a different shape and are left to the runtime loader.
+_PKG_IFNEEDED_RE = re.compile(
+    r"package\s+ifneeded\s+(\S+)\s+\S+\s+\[list\s+source\s+"
+    r"(?:-encoding\s+\S+\s+)?\[file\s+join\s+\$dir\s+([^\]]+)\]\s*\]"
+)
+
+
+def _discover_packages(library_dir: Path) -> dict[str, str]:
+    """Map ``package name -> relative source file`` by parsing the
+    ``source``-style ``ifneeded`` entries in each ``*/pkgIndex.tcl``
+    under *library_dir*.  Packages whose index uses a non-source loader
+    (``tclPkgSetup``, binary ``load``) are omitted — those still resolve
+    through the runtime ``TCL_LIBRARY`` machinery."""
+    result: dict[str, str] = {}
+    for index_path in sorted(library_dir.glob("*/pkgIndex.tcl")):
+        try:
+            text = index_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        subdir = index_path.parent.name
+        for m in _PKG_IFNEEDED_RE.finditer(text):
+            name = m.group(1)
+            segments = m.group(2).split()
+            if name not in result and segments:
+                # ``$dir`` is the package's own directory, so the file is
+                # ``<subdir>/<segments...>`` relative to the library root.
+                result[name] = os.path.join(subdir, *segments)
+    return result
+
+
 # Commands that run a script or invoke a command by a name the static
 # call graph can't see — their script/command argument is an ordinary
 # word (not a ``[...]`` substitution the scanner walks), so any proc
@@ -392,25 +487,16 @@ def apply_stdlib_prelude(
     """
     lib = Path(library_dir)
     mapping = _parse_tcl_index(lib)
-    if not mapping:
+    # Package-require bundling keys off ``*/pkgIndex.tcl`` discovery and
+    # is independent of ``tclIndex`` — a library may have one without the
+    # other — so don't early-out on a missing ``tclIndex`` here.
+    pkg_files = _discover_packages(lib) if lib.is_dir() else {}
+    if not mapping and not pkg_files:
         return module
 
     bundled_files: set[str] = set()
     bundled_qnames: set[str] = set()
     seen_commands: set[str] = set()
-
-    # Seed the worklist with commands referenced by the user's module,
-    # gated by the allowlist (transitive deps added later are not gated).
-    # The worklist is processed FIFO with new commands added in sorted
-    # order so bundling — and the merged setup ordering below — is
-    # deterministic / reproducible regardless of set iteration order.
-    seed: set[str] = set()
-    _collect_commands(module.top_level, seed)
-    for proc in list(module.procedures.values()):
-        _collect_commands(proc.body, seed)
-    if allowlist is not None:
-        seed = {n for n in seed if n in allowlist or n.lstrip(":") in allowlist}
-    queue: deque[str] = deque(sorted(seed))
 
     # Load-time setup from each bundled file, accumulated in bundling
     # order and prepended once after the traversal (deterministic).
@@ -418,27 +504,23 @@ def apply_stdlib_prelude(
 
     from .lowering import lower_to_ir
 
-    while queue and len(bundled_files) < max_files:
-        name = queue.popleft()
-        if name in seen_commands:
-            continue
-        seen_commands.add(name)
+    # FIFO command worklist; package source files prime it by being
+    # bundled directly (below), which queues their transitive commands.
+    queue: deque[str] = deque()
 
-        rel_file = _file_for_command(name, mapping)
-        if rel_file is None or rel_file in bundled_files:
-            continue
-        # A command the user already defines as a proc shadows the
-        # library version — don't bundle it.
-        if name in module.procedures or f"::{name}" in module.procedures:
-            continue
-
+    def bundle_file(rel_file: str) -> None:
+        """Read, lower and merge one library file's procedures + setup,
+        queuing the commands it transitively references.  Idempotent per
+        *rel_file*."""
+        if rel_file in bundled_files:
+            return
         path = lib / rel_file
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
             sub = lower_to_ir(text)
         except Exception:  # noqa: BLE001 — a non-readable / non-lowerable
             # library file just falls back to the runtime auto-loader.
-            continue
+            return
 
         bundled_files.add(rel_file)
 
@@ -467,6 +549,45 @@ def apply_stdlib_prelude(
             _collect_commands(proc.body, new_cmds)
         _collect_commands(sub.top_level, new_cmds)
         queue.extend(sorted(new_cmds - seen_commands))
+
+    # Bundle the source file behind each ``package require NAME`` the
+    # module names statically.  Unlike command bundling this is not gated
+    # by the allowlist: an explicit ``package require`` is a deliberate
+    # dependency, so honour it whenever the package resolves to a
+    # source-style pkgIndex entry.
+    for pkg in sorted(_collect_package_requires(module)):
+        rel_file = pkg_files.get(pkg)
+        if rel_file is not None:
+            bundle_file(rel_file)
+
+    # Seed the command worklist with commands referenced by the user's
+    # module, gated by the allowlist (transitive deps added later are not
+    # gated).  Processed FIFO with new commands added in sorted order so
+    # bundling — and the merged setup ordering below — is deterministic /
+    # reproducible regardless of set iteration order.
+    seed: set[str] = set()
+    _collect_commands(module.top_level, seed)
+    for proc in list(module.procedures.values()):
+        _collect_commands(proc.body, seed)
+    if allowlist is not None:
+        seed = {n for n in seed if n in allowlist or n.lstrip(":") in allowlist}
+    queue.extend(sorted(seed))
+
+    while queue and len(bundled_files) < max_files:
+        name = queue.popleft()
+        if name in seen_commands:
+            continue
+        seen_commands.add(name)
+
+        rel_file = _file_for_command(name, mapping)
+        if rel_file is None or rel_file in bundled_files:
+            continue
+        # A command the user already defines as a proc shadows the
+        # library version — don't bundle it.
+        if name in module.procedures or f"::{name}" in module.procedures:
+            continue
+
+        bundle_file(rel_file)
 
     # Prepend all bundled setup ahead of the user's code so it runs
     # first, once, in deterministic bundling order.

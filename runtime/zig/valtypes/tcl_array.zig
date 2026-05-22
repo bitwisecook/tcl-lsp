@@ -207,6 +207,39 @@ var dir_buf: u32 = 0;
 var dir_cap: u32 = 0;
 var dir_count: u32 = 0;
 
+/// The active array directory.  ``tcl_array.zig`` always operates on
+/// these three module globals; the interp registry swaps them per
+/// interp via :fn:`dir_state_get` / :fn:`dir_state_set` so each
+/// interp's arrays stay isolated.  See ``Interp.arr_dir_*`` in
+/// ``tcl_interp_registry.zig``.
+pub const DirState = struct {
+    buf: u32,
+    cap: u32,
+    count: u32,
+    // ``array default`` registry — swapped with the directory so
+    // defaults are interp-local too (Copilot review on PR #482).
+    def_buf: u32,
+    def_count: u32,
+};
+
+pub fn dir_state_get() DirState {
+    return .{
+        .buf = dir_buf,
+        .cap = dir_cap,
+        .count = dir_count,
+        .def_buf = def_buf,
+        .def_count = def_count,
+    };
+}
+
+pub fn dir_state_set(s: DirState) void {
+    dir_buf = s.buf;
+    dir_cap = s.cap;
+    dir_count = s.count;
+    def_buf = s.def_buf;
+    def_count = s.def_count;
+}
+
 fn dir_init() void {
     if (dir_cap != 0) return;
     dir_cap = DIR_INITIAL_CAP;
@@ -1059,6 +1092,25 @@ fn raise_array_set_scalar_conflict_empty(arr: i32) void {
 /// distinguish missing-vs-present should use ``array_element_exists``
 /// first or ``info exists``.
 pub export fn array_get(arr: i32, key: i32) i32 {
+    const v = array_get_raw(arr, key);
+    if (v != 0) return v;
+    // Element missing → fall back to the array's default value (if any),
+    // returning a fresh copy so the caller owns an independent TclObj
+    // (each ``$arr(missing)`` read yields its own value, and
+    // read-modify-write commands may mutate it).  var-24.x.
+    const d = array_default_get_value(arr);
+    if (d != 0) {
+        const ds = obj_ensure_string(d);
+        return obj.obj_new_string_copy(ds.ptr, ds.len);
+    }
+    return 0;
+}
+
+/// Pure single-element lookup: returns the stored value or 0 on miss,
+/// *without* the ``array default`` fallback.  Used by internal dispatch
+/// probes (``auto_index`` / ensemble maps) that must distinguish
+/// genuinely-absent entries from a default.
+pub export fn array_get_raw(arr: i32, key: i32) i32 {
     const sk = obj_ensure_string(key);
     // Phase 6: fire READ trace BEFORE the lookup.  The callback may
     // ``set`` the variable to provide a lazy value (e.g. tcltest
@@ -1176,6 +1228,144 @@ pub export fn array_exists(arr: i32) i32 {
     return obj_new_int(1);
 }
 
+/// Make ``arr`` exist as an (empty) array if it isn't one already.
+/// Reference Tcl creates the array when a trace is registered on one
+/// of its elements (``trace add variable arr(key) …`` with ``arr``
+/// absent), so a subsequent element read reports ``no such element in
+/// array`` — and fires the registered read/unset trace — instead of
+/// ``no such variable``.  No-op when ``arr`` is already an array; bails
+/// (does not clobber) when a scalar of the same name exists.
+pub fn ensure_array_exists(arr: i32) void {
+    if (find_table(arr) != 0) return;
+    const tcl_ns = @import("../interp/tcl_ns.zig");
+    if (obj.obj_get_int(tcl_ns.global_exists(arr)) != 0) return;
+    _ = find_or_create(arr);
+}
+
+// ``array default`` — a per-array fallback value returned when a
+// missing element is *read* (Tcl 8.7 / 9 feature, var-24.x).  Defaults
+// are rare, so a small linear registry keyed by the array's normalised
+// name is enough; no hot-path cost for arrays without one.  The default
+// does NOT create elements: ``info exists arr(x)`` / ``array size`` /
+// ``array names`` ignore it; only an element *read* (and the
+// read-modify-write commands append / lappend / incr / dict that read
+// before writing) observe it.
+const DefEntry = struct { name_ptr: u32, name_len: u32, value: i32 };
+const DEF_CAP: u32 = 64;
+// Heap-backed default registry, swapped per-interp alongside the array
+// directory (see DirState / swap_array_dir).  A module-global fixed
+// array would leak ``array default`` state across interpreters — a
+// default set in one interp could be read from another that reused the
+// same normalised array name.  ``def_buf`` is 0 until the first default
+// is recorded in the active interp.
+var def_buf: u32 = 0;
+var def_count: u32 = 0;
+
+inline fn def_arr() [*]DefEntry {
+    return @ptrFromInt(def_buf);
+}
+
+fn def_ensure() bool {
+    if (def_buf != 0) return true;
+    def_buf = alloc(DEF_CAP * @sizeOf(DefEntry));
+    return def_buf != 0;
+}
+
+fn def_find(name_ptr: u32, name_len: u32) ?u32 {
+    if (def_buf == 0) return null;
+    const entries = def_arr();
+    var i: u32 = 0;
+    while (i < def_count) : (i += 1) {
+        const e = entries[i];
+        if (e.name_len != name_len) continue;
+        const ap: [*]const u8 = @ptrFromInt(e.name_ptr);
+        const bp: [*]const u8 = @ptrFromInt(name_ptr);
+        var match = true;
+        for (0..name_len) |k| {
+            if (ap[k] != bp[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return i;
+    }
+    return null;
+}
+
+/// Store ``value`` as ``arr``'s default, replacing any prior one.  The
+/// array directory entry is created if absent (Tcl: ``array default
+/// set`` on a non-existent variable makes it an empty array).
+pub fn array_default_set_value(arr: i32, value: i32) void {
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return;
+    // Ensure the array exists so `array exists` / element writes work.
+    // Bail without recording a default if the table couldn't be
+    // materialised (alloc failure) — otherwise a later read would
+    // surface the default for a variable that isn't actually an array.
+    if (find_or_create(n) == 0) return;
+    obj.tcl_obj_retain(value);
+    if (def_find(sn.ptr, sn.len)) |idx| {
+        const entries = def_arr();
+        obj.tcl_obj_release(entries[idx].value);
+        entries[idx].value = value;
+        return;
+    }
+    if (def_count >= DEF_CAP or !def_ensure()) {
+        obj.tcl_obj_release(value);
+        return;
+    }
+    const nbuf = alloc(sn.len);
+    if (nbuf == 0) {
+        obj.tcl_obj_release(value);
+        return;
+    }
+    const dp: [*]u8 = @ptrFromInt(nbuf);
+    const spp: [*]const u8 = @ptrFromInt(sn.ptr);
+    for (0..sn.len) |k| dp[k] = spp[k];
+    def_arr()[def_count] = .{ .name_ptr = nbuf, .name_len = sn.len, .value = value };
+    def_count += 1;
+}
+
+/// Return ``arr``'s default value TclObj, or 0 if none is set.
+pub fn array_default_get_value(arr: i32) i32 {
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return 0;
+    if (def_find(sn.ptr, sn.len)) |idx| return def_arr()[idx].value;
+    return 0;
+}
+
+/// Remove ``arr``'s default (no-op if none).  Returns true if one was
+/// removed.
+pub fn array_default_clear(arr: i32) bool {
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return false;
+    if (def_find(sn.ptr, sn.len)) |idx| {
+        const entries = def_arr();
+        obj.tcl_obj_release(entries[idx].value);
+        obj.free_sized(entries[idx].name_ptr, entries[idx].name_len);
+        // Compact: move the last entry into the hole.
+        def_count -= 1;
+        if (idx != def_count) entries[idx] = entries[def_count];
+        return true;
+    }
+    return false;
+}
+
+/// Look up a default by the array's *raw* normalised name bytes — used
+/// by the variable-read miss path to substitute the default for a
+/// missing element.  Returns the default TclObj (borrowed) or 0.
+pub fn array_default_for_raw(name_ptr: u32, name_len: u32) i32 {
+    if (def_count == 0 or name_len == 0) return 0;
+    if (def_find(name_ptr, name_len)) |idx| return def_arr()[idx].value;
+    return 0;
+}
+
 /// Bare-int variant of :func:`array_exists` for runtime-side
 /// callers that don't want a TclObj round-trip.  Returns 1 iff the
 /// array directory has an entry for the given (raw byte, length)
@@ -1245,6 +1435,10 @@ pub export fn array_unset(arr: i32) i32 {
     const n = normalize_ns_name(arr);
     defer if (n != arr) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
+    // ``unset`` of the whole array drops its default value too.
+    if (sn.ptr != 0 and sn.len != 0 and def_count != 0) {
+        _ = array_default_clear(n);
+    }
     if (dir_buf == 0) return obj_new_int(0);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
@@ -1268,6 +1462,25 @@ pub export fn array_unset(arr: i32) i32 {
                 const kl: u32 = @bitCast(read_i32(b + 4));
                 const v: i32 = read_i32(b + 12);
                 if (v != 0) obj.tcl_obj_release(v);
+                // Drop any element-level trace (``arr(key)``) so it
+                // doesn't survive the whole-array ``unset`` and re-fire
+                // on a later array that reuses the name (trace-1.6/1.8
+                // leakage).  The element key is stored under the
+                // normalised array name + ``(key)`` — the same form the
+                // fire path builds.
+                const tk_total: u32 = sn.len + 2 + kl;
+                const tk_buf = obj.alloc(tk_total);
+                if (tk_buf != 0) {
+                    const td: [*]u8 = @ptrFromInt(tk_buf);
+                    const ap2: [*]const u8 = @ptrFromInt(sn.ptr);
+                    for (0..sn.len) |i| td[i] = ap2[i];
+                    td[sn.len] = '(';
+                    const kpb: [*]const u8 = @ptrFromInt(kp);
+                    for (0..kl) |i| td[sn.len + 1 + i] = kpb[i];
+                    td[tk_total - 1] = ')';
+                    var_trace.remove_all(tk_buf, tk_total);
+                    obj.free_sized(tk_buf, tk_total);
+                }
                 obj.free_sized(kp, kl);
             }
             obj.free_sized(table, AR_HEADER_SIZE + cap * AR_BUCKET_SIZE);

@@ -9,6 +9,7 @@ keeps the updated value on the stack for implicit return.
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from ..._ir import ValType
 from ..._ownership import Ownership
 from ..._parsing import _parse_array_ref
 from .._variables import _is_dynamic_var_name
@@ -57,8 +58,22 @@ def _emit_lappend(
     keep_last = context is EmitContext.VALUE
     last_index = len(args) - 1
 
+    # Tcl evaluates *all* of lappend's value arguments before reading
+    # the target variable for the read-modify-write.  A value arg can
+    # mutate that very variable as a side effect — e.g. a ``read`` trace
+    # whose callback unsets/rewrites the var (trace-16.*), or an inline
+    # ``[set var ...]`` / ``[incr var]``.  Evaluating each value first
+    # into a temp local, then reading the variable, makes the read
+    # observe those mutations instead of a pre-evaluation snapshot.
+    val_tmps: list[int] = []
+    for value_arg in args[1:]:
+        emitter._emit_value(value_arg)
+        tmp = emitter._add_extra_local(prefix="_lappend_v", val_type=ValType.I32)
+        emitter._emit_local_set(tmp)
+        val_tmps.append(tmp)
+
     if use_var_path:
-        for i, value_arg in enumerate(args[1:], start=1):
+        for i, tmp in enumerate(val_tmps, start=1):
             # ``lappend`` auto-creates an unset variable with the
             # appended values (``lappend missing a b`` ⇒ ``a b``), so
             # the read must be lenient: a missing alias / namespace
@@ -70,7 +85,7 @@ def _emit_lappend(
             # registers the alias but does not initialise the slot,
             # so the first ``lappend`` must initialise it itself.
             emitter._emit_var_read_obj_lenient(var_name)
-            emitter._emit_value(value_arg)
+            emitter._emit_local_get(tmp)
             emitter._emit_call(func_idx)
             # ``tcl_cmd_lappend`` returns either a freshly allocated
             # canonical-rebuild result (slow path, rc=1) or the input
@@ -88,9 +103,9 @@ def _emit_lappend(
                 emitter._emit_var_write_obj(var_name, source=Ownership.OWNED)
     else:
         var_idx = emitter._intern_local(var_name)
-        for i, value_arg in enumerate(args[1:], start=1):
+        for i, tmp in enumerate(val_tmps, start=1):
             emitter._emit_local_get(var_idx)
-            emitter._emit_value(value_arg)
+            emitter._emit_local_get(tmp)
             emitter._emit_call(func_idx)
             if keep_last and i == last_index:
                 emitter._emit_local_tee(var_idx)

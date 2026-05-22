@@ -1085,9 +1085,29 @@ def _scan_needed_imports(
                     needed.add("tcl_lappend")
                 elif command == "::dict" and args and args[0] == "merge":
                     needed.add("tcl_dict_merge_pair")
+                elif command == "::set" and args and _parse_array_ref(args[0]) is not None:
+                    # ``set arr(key)`` (read) / ``set arr(key) value``
+                    # (write) route through ``_emit_array_element_read`` /
+                    # ``_emit_array_element_write`` (tcl_array_get /
+                    # tcl_array_set).  Those emitters fall back to a null
+                    # push when the import is absent, so a bare element
+                    # read whose array is never written elsewhere would
+                    # otherwise silently skip the read — and its variable
+                    # read traces never fire (trace-1.x).  The substitution
+                    # form ``$arr(k)`` is already covered by the value
+                    # scan; this handles the command-form spelling.
+                    if len(args) == 1:
+                        needed.add("tcl_array_get")
+                    else:
+                        needed.add("tcl_array_set")
                 elif command == "::global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                    # Inside a proc, ``global`` also registers a runtime
+                    # frame alias so interpreter-side dispatch (e.g. a
+                    # ``trace add variable`` on the name) resolves it to
+                    # the global — see _emit_global.
+                    needed.add("tcl_frame_alias_global")
                 elif command == "::upvar":
                     # upvar #0 resolves to a global alias — reads/writes go
                     # through the global table. The target name is computed

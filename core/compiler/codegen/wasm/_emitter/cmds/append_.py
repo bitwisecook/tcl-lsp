@@ -9,6 +9,7 @@ keeps the updated value on the stack for implicit return.
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from ..._ownership import Ownership
 from ..._parsing import _parse_array_ref
 from .._variables import _is_dynamic_var_name
 
@@ -60,13 +61,26 @@ def _emit_append(
 
     if use_var_path:
         for i, value_arg in enumerate(args[1:], start=1):
-            emitter._emit_var_read_obj(var_name)
+            # ``append`` auto-creates an unset variable (``append missing
+            # x`` ⇒ ``x``; ``append arr(new) x`` creates the element), so
+            # the read must be lenient — a missing scalar / array element
+            # / alias must read as the null TclObj (empty), not raise
+            # ``can't read "<var>": no such variable``.  ``tcl_cmd_append``
+            # treats null as the empty starting value.  Matches lappend
+            # and the var-24.x ``array default`` append cases.
+            emitter._emit_var_read_obj_lenient(var_name)
             emitter._emit_value(value_arg)
             emitter._emit_call(func_idx)
+            # ``tcl_cmd_append`` returns an OWNED handle (a fresh
+            # canonical-rebuild result on the slow path, or the input
+            # mutated in place on the fast path).  Declaring the write
+            # source OWNED balances the store's retain against the
+            # caller's +1 — without it the fresh element on an empty
+            # array is dropped before the store lands (var-24.7 append).
             if keep_last and i == last_index:
-                emitter._emit_var_write_obj_keep(var_name)
+                emitter._emit_var_write_obj_keep(var_name, source=Ownership.OWNED)
             else:
-                emitter._emit_var_write_obj(var_name)
+                emitter._emit_var_write_obj(var_name, source=Ownership.OWNED)
     else:
         var_idx = emitter._intern_local(var_name)
         for i, value_arg in enumerate(args[1:], start=1):

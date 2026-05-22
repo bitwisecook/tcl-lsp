@@ -1207,6 +1207,21 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
+            # ``package ifneeded NAME VERSION ?SCRIPT?`` carries real
+            # state — the loadable-package registry that
+            # ``tcltest::loadIntoChildInterpreter`` reads to load tcltest
+            # into a child interp.  The other ``package`` subcommands are
+            # genuine no-ops under WASM, but ifneeded must route through
+            # the interpreter's ``eval_package`` store/lookup.
+            if (
+                canonical_command == "::package"
+                and args
+                and args[0] == "ifneeded"
+                and len(args) >= 3
+            ):
+                self._emit_eval_fallback(command, args)
+                self._emit(WasmOp.DROP)
+                return
             # ``namespace eval ns arg1 arg2 ...`` in statement context
             # with dynamic script args: build the script at WASM level
             # (so compiled-frame aliases like $arr($key) are resolved
@@ -1828,6 +1843,18 @@ class _WasmEmitterStmtMixin(_Base):
                 # Runtime imports missing — push null TclObj as fallback.
                 self._emit_i32_const(0)
                 return
+            # ``[package ifneeded NAME VERSION]`` in value context — the
+            # loadable-package registry lookup tcltest does to fetch a
+            # child interp's load script.  Route through eval_package so
+            # the stored script is returned rather than a null TclObj.
+            if (
+                canonical_command == "::package"
+                and args
+                and args[0] == "ifneeded"
+                and len(args) >= 3
+            ):
+                self._emit_eval_fallback(command, args)
+                return
             self._emit_i32_const(0)
             return
 
@@ -1855,6 +1882,29 @@ class _WasmEmitterStmtMixin(_Base):
             # ``info level 0`` argv0 — see
             # :meth:`_emit_prepare_pending_argv0`.
             argv0_local = self._emit_prepare_pending_argv0(command)
+
+            def _was_braced(call_arg_idx: int) -> bool:
+                """True if the call-site word at *call_arg_idx* was braced.
+
+                Mirrors ``_emit_cmd_proc_call``'s probe.  Without it, a
+                braced literal arg (``q {puts "$x $y"}``) reaches
+                ``_emit_value`` as a plain string and its embedded ``$x``
+                / ``[...]`` get substituted — wrong, since braces suppress
+                all substitution.  This path is the catch-body /
+                implicit-return tail; the statement path already passes
+                ``was_braced``."""
+                if tokens is None or tokens.argv is None:
+                    return False
+                tok_idx = call_arg_idx + 1
+                if tok_idx >= len(tokens.argv):
+                    return False
+                if tokens.single_token_word is not None:
+                    if tok_idx >= len(tokens.single_token_word):
+                        return False
+                    if not tokens.single_token_word[tok_idx]:
+                        return False
+                return tokens.argv[tok_idx].type == TokenType.STR
+
             if has_args_tail and n_params > 0:
                 # Variadic proc — pack call-site args past the fixed
                 # positionals into a single list TclObj for the
@@ -1866,14 +1916,17 @@ class _WasmEmitterStmtMixin(_Base):
                 # ``_emit_command_subst_value`` (value context).
                 fixed = n_params - 1
                 for i in range(min(fixed, len(args))):
-                    self._emit_value(args[i])
+                    self._emit_value(args[i], was_braced=_was_braced(i))
                 for _slot in range(len(args), fixed):
                     self._emit_i32_const(0)
-                self._emit_args_list(tuple(args[fixed:]))
+                self._emit_args_list(
+                    tuple(args[fixed:]),
+                    was_braced_fn=lambda i, base=fixed: _was_braced(base + i),
+                )
             else:
                 # Push exactly n_params args (truncate surplus, pad missing)
                 for i in range(min(n_params, len(args))):
-                    self._emit_value(args[i])
+                    self._emit_value(args[i], was_braced=_was_braced(i))
                 for _ in range(n_params - len(args)):
                     self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
