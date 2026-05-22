@@ -2214,8 +2214,17 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
     //                        Still unknown ⇒ "unknown subcommand" error.
     //   * non-empty list   → that list is the rewritten command prefix
     //                        to invoke in place of the ensemble call.
-    const catch_mod = @import("../interp/tcl_catch.zig");
-    if (catch_mod.state.error_flag != 0) return result;
+    //   * break/continue/return → "unknown subcommand handler returned
+    //                        bad code: <name>" (namespace-47.4).
+    const result_mod2 = @import("../interp/tcl_result.zig");
+    const snap = result_mod2.snapshot(result);
+    if (snap.code == .ERROR) return result;
+    if (snap.code != .OK) {
+        result_mod2.consume(snap.code);
+        raise_ensemble_bad_code(snap.code);
+        if (result != 0) obj_mod.tcl_obj_release(result);
+        return 0;
+    }
 
     const sub = obj_ensure_string(words[1]);
     const impl = ensemble_resolve(rec, sub.ptr, sub.len);
@@ -2658,6 +2667,37 @@ fn raise_ns_not_found_in_current(name_ptr: u32, name_len: u32) void {
     }
     const e = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(e);
+}
+
+/// Raise ``unknown subcommand handler returned bad code: <name>`` when
+/// an ensemble ``-unknown`` handler returns a non-OK / non-error code
+/// (break / continue / return).  namespace-47.4.
+fn raise_ensemble_bad_code(code: @import("../interp/tcl_result.zig").Code) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const name: []const u8 = switch (code) {
+        .RETURN => "return",
+        .BREAK => "break",
+        .CONTINUE => "continue",
+        else => "?",
+    };
+    const prefix: []const u8 = "unknown subcommand handler returned bad code: ";
+    const total: u32 = @intCast(prefix.len + name.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (name) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    catch_mod.tcl_cmd_error(obj_mod.obj_new_string_take(buf, total, total));
 }
 
 /// When a ``namespace eval`` body raises, append the

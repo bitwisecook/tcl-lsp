@@ -384,3 +384,25 @@ class TestNamespaceEvalErrorInfo:
             "    invoked from within\n"
             '"namespace eval test_ns_1 {xxxx}"'
         )
+
+
+class TestEnsembleUnknownBadCode:
+    """An ensemble ``-unknown`` handler that returns a non-ok / non-error
+    code (break / continue / return) must raise ``unknown subcommand
+    handler returned bad code: <name>`` rather than letting the control-
+    flow signal leak out of the ensemble dispatch (namespace-47.4).
+    """
+
+    def test_break_from_unknown_handler(self) -> None:
+        src = (
+            "namespace eval ns {\n"
+            "  proc Magic {e s args} { return -code break }\n"
+            "  namespace ensemble create -unknown ::ns::Magic\n"
+            "}\n"
+            "puts [catch {ns spong} msg]\nputs $msg\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.splitlines() == [
+            "1",
+            "unknown subcommand handler returned bad code: break",
+        ]
