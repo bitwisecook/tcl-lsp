@@ -34,7 +34,7 @@ from ..common.ranges import position_from_relative, range_from_token
 from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ..parsing.lexer import TclLexer
+from ..parsing.token_cache import tokenise_cached
 from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
@@ -224,12 +224,7 @@ class _CompilerCheckRunner:
         base_line: int,
         base_col: int,
     ) -> None:
-        lexer = TclLexer(
-            text,
-            base_offset=base_offset,
-            base_line=base_line,
-            base_col=base_col,
-        )
+        tokens, _ = tokenise_cached(text, base_offset, base_line, base_col)
 
         argv: list[Token] = []
         argv_texts: list[str] = []
@@ -267,11 +262,7 @@ class _CompilerCheckRunner:
             self._recurse_expression_subcommands(cmd_name, args, arg_tokens)
             self._recurse_body_arguments(cmd_name, args, arg_tokens)
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-
+        for tok in tokens:
             match tok.type:
                 case TokenType.COMMENT:
                     continue
@@ -415,20 +406,17 @@ class _CompilerCheckRunner:
         body_tok: Token,
     ) -> tuple[list[str], list[Token]]:
         """Lex switch list-form body into alternating pattern/body elements."""
-        lexer = TclLexer(
+        tokens, _ = tokenise_cached(
             body_text,
-            base_offset=body_tok.start.offset + 1,
-            base_line=body_tok.start.line,
-            base_col=body_tok.start.character + 1,
+            body_tok.start.offset + 1,
+            body_tok.start.line,
+            body_tok.start.character + 1,
         )
         elements: list[str] = []
         element_tokens: list[Token] = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
+        for tok in tokens:
             if tok.type in (TokenType.SEP, TokenType.EOL):
                 prev_type = tok.type
                 continue

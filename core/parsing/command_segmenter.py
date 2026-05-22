@@ -23,7 +23,7 @@ from .known_commands import known_command_names
 
 if TYPE_CHECKING:
     from ..commands.registry.command_registry import CommandRegistry
-from .lexer import TclLexer
+from .token_cache import tokenise_cached
 from .tokens import SourcePosition, Token, TokenType
 
 log = logging.getLogger(__name__)
@@ -128,28 +128,25 @@ class SegmentedCommand:
         return self.single_token_word[1:]
 
 
-def _make_lexer(
-    source: str,
-    body_token: Token | None,
-    virtual_insertions: dict[int, str] | None = None,
-) -> TclLexer:
-    """Create a lexer with appropriate base offsets for *body_token*."""
+def _base_position_for(body_token: Token | None) -> tuple[int, int, int]:
+    """Return ``(base_offset, base_line, base_col)`` for lexing *body_token*.
+
+    Mirrors the offsets the lexer is anchored at: a braced/bracketed body
+    starts one character past the opening delimiter; an ESC (recovery) body
+    or top-level source starts at the token's own position.
+    """
     if body_token is None:
-        return TclLexer(source, virtual_insertions=virtual_insertions)
+        return (0, 0, 0)
     if body_token.type in (TokenType.STR, TokenType.CMD):
-        return TclLexer(
-            source,
-            base_offset=body_token.start.offset + 1,
-            base_line=body_token.start.line,
-            base_col=body_token.start.character + 1,
-            virtual_insertions=virtual_insertions,
+        return (
+            body_token.start.offset + 1,
+            body_token.start.line,
+            body_token.start.character + 1,
         )
-    return TclLexer(
-        source,
-        base_offset=body_token.start.offset,
-        base_line=body_token.start.line,
-        base_col=body_token.start.character,
-        virtual_insertions=virtual_insertions,
+    return (
+        body_token.start.offset,
+        body_token.start.line,
+        body_token.start.character,
     )
 
 
@@ -234,7 +231,14 @@ def _segment_raw(
     collect_warnings: list[tuple[SourcePosition, str]] | None = None,
 ) -> list[SegmentedCommand]:
     """Segment without error recovery — the inner loop."""
-    lexer = _make_lexer(source, body_token, virtual_insertions)
+    base_offset, base_line, base_col = _base_position_for(body_token)
+    tokens, warnings = tokenise_cached(
+        source,
+        base_offset,
+        base_line,
+        base_col,
+        virtual_insertions=virtual_insertions,
+    )
 
     commands: list[SegmentedCommand] = []
     argv: list[Token] = []
@@ -247,11 +251,7 @@ def _segment_raw(
     next_expand = False
     has_expand = False
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-
+    for tok in tokens:
         if tok.type is TokenType.COMMENT:
             line = tok.text.lstrip("#").strip()
             if last_comment is not None:
@@ -349,7 +349,7 @@ def _segment_raw(
 
     # Harvest non-fatal warnings from the lexer for diagnostic emission.
     if collect_warnings is not None:
-        collect_warnings.extend(lexer.warnings)
+        collect_warnings.extend(warnings)
 
     return commands
 

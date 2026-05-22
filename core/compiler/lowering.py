@@ -2520,6 +2520,18 @@ def lower_to_ir(
     call site as :class:`IRBlock` nodes.  See
     :mod:`core.compiler.inline_uplevel` for the recognition gate.
     """
+    from ..parsing.token_cache import token_cache_scope
+
+    with token_cache_scope():
+        return _lower_to_ir_inner(source, chunk_ir=chunk_ir, chunks=chunks)
+
+
+def _lower_to_ir_inner(
+    source: str,
+    *,
+    chunk_ir: list[tuple[tuple[IRStatement, ...], dict[str, IRProcedure]] | None] | None = None,
+    chunks: list[TopLevelChunk] | None = None,
+) -> IRModule:
     from .inline_uplevel import inline_uplevel_passthrough
 
     if chunk_ir is None or chunks is None:
