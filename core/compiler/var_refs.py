@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ..commands.registry.runtime import ArgRole, arg_indices_for_role
 from ..common.naming import normalise_var_name
-from ..parsing.lexer import TclLexer
+from ..parsing.token_cache import tokenise_cached
 from ..parsing.tokens import Token, TokenType
 
 _DEFAULT_CACHE_SIZE = 512
@@ -83,7 +83,12 @@ class VarReferenceScanner:
         # Tokenise once and share the token stream across the variable,
         # var-read-role, and script-role scans below — each of those
         # previously built its own ``TclLexer`` over the same source.
-        tokens = TclLexer(source).tokenise_all()
+        # Route through the shared per-analysis memo so the independent
+        # scanner singletons (SSA, GVN, interprocedural) reuse one
+        # tokenisation of the same body text rather than re-lexing it each.
+        # Variable names are position-independent, so lexing at base 0 is
+        # fine even though the memo keys on base offset.
+        tokens, _ = tokenise_cached(source, 0, 0, 0)
 
         for tok in tokens:
             if tok.type is TokenType.VAR:
