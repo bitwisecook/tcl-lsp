@@ -176,6 +176,56 @@ fn exec_trace_bucket(name: i32) u32 {
     return @bitCast(procs.proc_lookup(name));
 }
 
+/// Validate a trace op-list against the allowed ops for *kw* (the
+/// canonical type keyword).  Each op must be a full (non-abbreviated)
+/// keyword; the list must be non-empty.  Raises the canonical Tcl
+/// diagnostic and returns false on any violation (trace-14.6.x).
+fn validate_trace_oplist(ops_obj: i32, kw: []const u8) bool {
+    var allowed: []const []const u8 = undefined;
+    var allowed_str: []const u8 = undefined;
+    if (str_eq(kw.ptr, @intCast(kw.len), "variable")) {
+        allowed = &.{ "array", "read", "unset", "write" };
+        allowed_str = "array, read, unset, or write";
+    } else if (str_eq(kw.ptr, @intCast(kw.len), "command")) {
+        allowed = &.{ "delete", "rename" };
+        allowed_str = "delete or rename";
+    } else {
+        allowed = &.{ "enter", "leave", "enterstep", "leavestep" };
+        allowed_str = "enter, leave, enterstep, or leavestep";
+    }
+    const s = obj_ensure_string(ops_obj);
+    const n = obj.list_count_elements(s.ptr, s.len);
+    if (n <= 0) {
+        raise_parts(&.{ "bad operation list \"\": must be one or more of ", allowed_str });
+        return false;
+    }
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        var ok = false;
+        for (allowed) |a| {
+            if (a.len != e.len) continue;
+            var match = true;
+            for (a, 0..) |c, k| {
+                if (ep[k] != c) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) {
+            raise_parts(&.{ "bad operation \"", ep[0..e.len], "\": must be ", allowed_str });
+            return false;
+        }
+    }
+    return true;
+}
+
 fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         raise_parts(&.{"wrong # args: should be \"trace option ?arg ...?\""});
@@ -206,6 +256,10 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
                 !trace_command_exists(words[3]))
             {
                 raise_unknown_trace_command(words[3]);
+                return result_mod.from_globals(0);
+            }
+            // Validate the op list (words[4]) against the type's ops.
+            if (!validate_trace_oplist(words[4], kw)) {
                 return result_mod.from_globals(0);
             }
         }

@@ -581,3 +581,25 @@ class TestExecutionTraces:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "{{enter leave} bar}"
+
+
+class TestTraceOpListValidation:
+    """Trace op-lists are validated against the type's allowed ops; an
+    invalid op, an abbreviation, or an empty list raises the canonical
+    diagnostic (trace-14.6.x)."""
+
+    def test_bad_op_variable(self) -> None:
+        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add variable x {y z w} a} m]\nputs "$rc|$m"\n')
+        assert stdout.strip() == '1|bad operation "y": must be array, read, unset, or write'
+
+    def test_null_op_list_command(self) -> None:
+        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add command x {} a} m]\nputs "$rc|$m"\n')
+        assert stdout.strip() == '1|bad operation list "": must be one or more of delete or rename'
+
+    def test_abbreviation_rejected(self) -> None:
+        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add variable x {r} a} m]\nputs "$rc|$m"\n')
+        assert stdout.strip() == '1|bad operation "r": must be array, read, unset, or write'
+
+    def test_execution_op_list(self) -> None:
+        stdout, _ = _run('proc x {} {}\nset rc [catch {trace add execution x {bogus} a} m]\nputs "$rc|$m"\n')
+        assert stdout.strip() == '1|bad operation "bogus": must be enter, leave, enterstep, or leavestep'
