@@ -518,3 +518,17 @@ class TestEnsembleUnknownFqnName:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "::foo|one two three"
+
+
+class TestEnsembleConfigQuoting:
+    """``namespace ensemble config`` renders each option value as a Tcl
+    list element — a simple word is unbraced (``-unknown bar`` not
+    ``-unknown {bar}``).  (namespace-47.5.)"""
+
+    def test_unknown_word_unbraced(self) -> None:
+        src = (
+            "namespace ensemble create -command foo -unknown bar\n"
+            "puts [dict get [namespace ensemble config foo] -unknown]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "bar"

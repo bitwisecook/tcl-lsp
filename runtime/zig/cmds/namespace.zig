@@ -1518,17 +1518,18 @@ fn read_ensemble_option(rec: *EnsembleRec, key_obj: i32) i32 {
 /// Wrap a TclObj's string in ``{…}`` braces for the ``configure``
 /// emit.  Empty becomes ``{}``.  Caller releases.
 fn brace_wrap(value: i32) i32 {
+    // Render *value* as a single Tcl list element for ``namespace
+    // ensemble config`` output: empty → ``{}``, a simple word →
+    // verbatim (``-unknown bar`` not ``-unknown {bar}``), and only
+    // values with whitespace / special chars get braced (namespace-47.5).
+    const quote = @import("../valtypes/tcl_list_quote.zig");
     const s = obj_ensure_string(value);
     if (s.len == 0) return obj_new_string_copy_str("{}");
-    const total: u32 = s.len + 2;
-    const buf = alloc(total);
+    const cap: u32 = 2 * s.len + 4;
+    const buf = alloc(cap);
     if (buf == 0) return obj_new_string(0, 0);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    dst[0] = '{';
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    for (0..s.len) |i| dst[1 + i] = sp[i];
-    dst[total - 1] = '}';
-    return obj_mod.obj_new_string_take(buf, total, total);
+    const off = quote.list_elem_quote(buf, 0, s.ptr, s.len);
+    return obj_mod.obj_new_string_take(buf, off, cap);
 }
 
 fn raise_unknown_ensemble_option(name_ptr: u32, name_len: u32) void {
