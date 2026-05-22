@@ -8,6 +8,7 @@ the runner reusable from tests, MCP tools, or future ad-hoc scripts.
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
@@ -89,6 +90,48 @@ class QueryResult:
     values_per_file: dict[str, list[Any]] = field(default_factory=dict)
     edits_per_file: dict[str, AppliedSource] = field(default_factory=dict)
     has_mutation: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class QueryOptions:
+    """Explicit, ambient-free configuration for a query run.
+
+    Bundles everything :func:`run_query` previously took as loose keyword
+    arguments so a host — the CLI, the LSP server, an MCP tool, or a
+    future PyO3/Rust caller — can build one value and reuse it.  Frozen
+    so a prepared :class:`QuerySession` is safe to share across threads
+    and contexts.
+    """
+
+    names: Mapping[str, str] | None = None
+    merge: bool = False
+    partitions: Mapping[str, str] | None = None
+    json_sources: frozenset[str] | None = None
+    input_specs: Mapping[str, InputSpec] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QuerySession:
+    """A prepared set of sources + options to run queries against.
+
+    This is the explicit public alternative to the module-level
+    ``ContextVar`` state: a host builds one session and runs many queries
+    through :func:`run_query_in_session` without touching ambient state.
+    The runner still uses ``ContextVar``s internally to thread per-file
+    context into the graph builtins; the session is the public contract
+    that keeps them an implementation detail.
+    """
+
+    sources: Mapping[str, str]
+    options: QueryOptions = field(default_factory=QueryOptions)
+
+
+def prepare_query_session(
+    sources: Mapping[str, str],
+    options: QueryOptions | None = None,
+) -> QuerySession:
+    """Bundle *sources* and *options* into a reusable :class:`QuerySession`."""
+    return QuerySession(sources=dict(sources), options=options or QueryOptions())
 
 
 @contextlib.contextmanager
@@ -415,6 +458,30 @@ def run_query(
     finally:
         _ACTIVE_PARTITIONS.reset(_partition_token)
         _INPUT_SPECS.reset(_input_token)
+
+
+def run_query_in_session(query: str, session: QuerySession) -> QueryResult:
+    """Run *query* against a prepared :class:`QuerySession`.
+
+    The explicit, ambient-free entry point: the session carries the
+    sources and a frozen :class:`QueryOptions`, so a host (notably a
+    PyO3/Rust caller) configures the run once and reuses the session
+    across many queries instead of relying on module-level state.
+
+    :func:`run_query` remains the lower-level keyword-argument form that
+    existing callers use; this delegates to it so both paths share one
+    implementation.
+    """
+    opts = session.options
+    return run_query(
+        query,
+        dict(session.sources),
+        names=dict(opts.names) if opts.names is not None else None,
+        merge=opts.merge,
+        partitions=dict(opts.partitions) if opts.partitions is not None else None,
+        json_sources=opts.json_sources,
+        input_specs=dict(opts.input_specs) if opts.input_specs is not None else None,
+    )
 
 
 def _run_query_merged(

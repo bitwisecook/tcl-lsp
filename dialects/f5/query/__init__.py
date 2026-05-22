@@ -13,6 +13,11 @@ Public entry points:
   having to know where the renderer lives.
 - :func:`run_query` — the lower-level entry point :class:`Query`
   wraps.  Keeps the per-URI :class:`QueryResult` shape the CLI uses.
+- :class:`QueryOptions` / :class:`QuerySession` /
+  :func:`prepare_query_session` / :func:`run_query_in_session` — the
+  explicit, ambient-free session API.  A host builds one session and
+  runs many queries against it without relying on module-level state;
+  this is the surface a future PyO3/Rust binding should own.
 - :func:`parse_query` — produce an AST for a query string.  Useful for
   the help-time validation tests.
 - :func:`render` / :func:`renderer` / :func:`list_renderers` — the
@@ -49,7 +54,14 @@ from .inputs import input_format, list_input_formats
 from .parser import parse_query
 from .plugins import load_user_plugins, xdg_plugin_dir
 from .renderers import list_renderers, render, renderer
-from .runner import QueryResult, run_query
+from .runner import (
+    QueryOptions,
+    QueryResult,
+    QuerySession,
+    prepare_query_session,
+    run_query,
+    run_query_in_session,
+)
 from .values import ObjectRef, PathRef, Root, Stream
 
 __all__ = (
@@ -63,9 +75,11 @@ __all__ = (
     "PathRef",
     "Query",
     "QueryError",
+    "QueryOptions",
     "QueryResult",
     "QueryRow",
     "QueryRun",
+    "QuerySession",
     "RendererError",
     "Root",
     "Sources",
@@ -82,9 +96,11 @@ __all__ = (
     "load",
     "load_user_plugins",
     "parse_query",
+    "prepare_query_session",
     "q",
     "render",
     "renderer",
     "run_query",
+    "run_query_in_session",
     "xdg_plugin_dir",
 )

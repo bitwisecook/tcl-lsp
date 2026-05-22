@@ -226,3 +226,76 @@ def test_query_error_propagates_unchanged() -> None:
     script catching the public base type Just Works."""
     with pytest.raises(QueryError):
         Query("this is not a valid query !!!").run(paths=[SAMPLE_LTM])
+
+
+# ---------------------------------------------------------------------------
+# Explicit session API (the ambient-free, PyO3-facing surface)
+# ---------------------------------------------------------------------------
+
+
+def test_session_api_matches_run_query() -> None:
+    """``run_query_in_session`` must produce the same result as the
+    keyword-argument :func:`run_query` it delegates to."""
+    from dialects.f5.query import (
+        QueryOptions,
+        prepare_query_session,
+        run_query_in_session,
+    )
+
+    sources = {"inline.conf": _ltm_text()}
+    expected = run_query(".ltm.virtual[] | .name", dict(sources))
+
+    session = prepare_query_session(sources, QueryOptions())
+    got = run_query_in_session(".ltm.virtual[] | .name", session)
+
+    assert got.values_per_file == expected.values_per_file
+
+
+def test_session_threads_options_merge_and_partitions() -> None:
+    """Options carried on the session reach the runner — a merge run
+    through the session matches the equivalent ``run_query(merge=True)``."""
+    from dialects.f5.query import (
+        QueryOptions,
+        prepare_query_session,
+        run_query_in_session,
+    )
+
+    sources = {"inline.conf": _ltm_text()}
+    opts = QueryOptions(merge=True, partitions={"inline.conf": "Common"})
+
+    via_session = run_query_in_session(
+        ".ltm.virtual[] | .name", prepare_query_session(sources, opts)
+    )
+    via_kwargs = run_query(
+        ".ltm.virtual[] | .name",
+        dict(sources),
+        merge=True,
+        partitions={"inline.conf": "Common"},
+    )
+
+    assert via_session.values_per_file == via_kwargs.values_per_file
+
+
+def test_query_options_is_frozen() -> None:
+    """``QueryOptions`` is immutable so a prepared session can be shared
+    across threads/contexts without aliasing surprises."""
+    from dataclasses import FrozenInstanceError
+
+    from dialects.f5.query import QueryOptions
+
+    opts = QueryOptions()
+    with pytest.raises(FrozenInstanceError):
+        opts.merge = True  # type: ignore[misc]
+
+
+def test_session_is_reusable_across_queries() -> None:
+    """One prepared session can answer many read-only queries — the
+    property that lets a PyO3 caller hold a session and re-query."""
+    from dialects.f5.query import prepare_query_session, run_query_in_session
+
+    session = prepare_query_session({"inline.conf": _ltm_text()})
+    names = run_query_in_session(".ltm.virtual[] | .name", session)
+    pools = run_query_in_session(".ltm.pool[] | .name", session)
+
+    assert "web_vs" in names.values_per_file["inline.conf"]
+    assert isinstance(pools.values_per_file, dict)
