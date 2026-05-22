@@ -256,8 +256,6 @@ fn fire_one(
 /// result is discarded (the rename/delete proceeds regardless).
 pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
     if (count == 0) return;
-    const interp = @import("tcl_interp.zig");
-    const quote = @import("../valtypes/tcl_list_quote.zig");
     const op_word: []const u8 = switch (op) {
         OP_CMD_DELETE => "delete",
         OP_CMD_RENAME => "rename",
@@ -276,46 +274,88 @@ pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
         i -= 1;
         if (entries[i].bucket != bucket) continue;
         if ((entries[i].ops & op) == 0) continue;
-        const cb = obj_ensure_string(entries[i].callback);
-        const size: u32 = cb.len + (1 + 2 * old_s.len + 2) + (1 + 2 * new_len + 2) + (1 + @as(u32, @intCast(op_word.len)) + 2);
-        const buf = alloc(size);
-        if (buf == 0) continue;
-        var off: u32 = 0;
-        if (cb.len > 0) {
-            const cbp: [*]const u8 = @ptrFromInt(cb.ptr);
-            var k: u32 = 0;
-            while (k < cb.len) : (k += 1) {
-                @as([*]u8, @ptrFromInt(buf))[off] = cbp[k];
-                off += 1;
-            }
+        run_command_callback(entries[i].callback, old_s.ptr, old_s.len, new_ptr, new_len, op_word);
+    }
+}
+
+/// Build ``CALLBACK old new op`` and evaluate it, discarding the
+/// result (including any error) inside a catch boundary.  Shared by
+/// :func:`fire_command` and :func:`fire_command_delete_oneshot`.
+fn run_command_callback(callback: i32, old_ptr: u32, old_len: u32, new_ptr: u32, new_len: u32, op_word: []const u8) void {
+    const interp = @import("tcl_interp.zig");
+    const quote = @import("../valtypes/tcl_list_quote.zig");
+    const cb = obj_ensure_string(callback);
+    const size: u32 = cb.len + (1 + 2 * old_len + 2) + (1 + 2 * new_len + 2) + (1 + @as(u32, @intCast(op_word.len)) + 2);
+    const buf = alloc(size);
+    if (buf == 0) return;
+    var off: u32 = 0;
+    if (cb.len > 0) {
+        const cbp: [*]const u8 = @ptrFromInt(cb.ptr);
+        var k: u32 = 0;
+        while (k < cb.len) : (k += 1) {
+            @as([*]u8, @ptrFromInt(buf))[off] = cbp[k];
+            off += 1;
         }
-        off = append_sp_elem(buf, off, old_s.ptr, old_s.len, quote);
-        off = append_sp_elem(buf, off, new_ptr, new_len, quote);
-        off = append_sp_elem(buf, off, @intFromPtr(op_word.ptr), @intCast(op_word.len), quote);
-        const script = obj.obj_new_string_take(buf, off, size);
-        if (script == 0) {
-            obj.free_sized(buf, size);
+    }
+    off = append_sp_elem(buf, off, old_ptr, old_len, quote);
+    off = append_sp_elem(buf, off, new_ptr, new_len, quote);
+    off = append_sp_elem(buf, off, @intFromPtr(op_word.ptr), @intCast(op_word.len), quote);
+    const script = obj.obj_new_string_take(buf, off, size);
+    if (script == 0) {
+        obj.free_sized(buf, size);
+        return;
+    }
+    // A command-trace callback's result — including an error — is
+    // discarded (Tcl Bug 1355342 / trace-20.14 / 20.16).  Run it inside
+    // a catch boundary so an ``error`` raised in the callback is
+    // absorbed (sets the flag rather than aborting the bundle at top
+    // level) and doesn't propagate out of the rename/delete that
+    // triggered the trace.  The outer pending-error state is saved and
+    // restored around the boundary so a trace firing mid-error leaves
+    // that error intact.
+    const catch_mod = @import("tcl_catch.zig");
+    const saved_err = catch_mod.state.error_flag;
+    const saved_msg = catch_mod.state.error_msg;
+    suppress += 1;
+    catch_mod.catch_enter();
+    _ = interp.tcl_eval(script);
+    _ = catch_mod.catch_leave();
+    if (suppress > 0) suppress -= 1;
+    catch_mod.state.error_flag = saved_err;
+    catch_mod.state.error_msg = saved_msg;
+    tcl_obj_release(script);
+}
+
+/// Fire a command's ``delete`` trace as a *one-shot*: each matching
+/// entry is removed from the registry **before** its callback runs, so
+/// a callback that re-deletes the same command (e.g. a delete trace
+/// whose body does ``namespace delete`` of the command's own namespace)
+/// cannot re-fire and recurse forever (namespace teardown / trace-34.4).
+pub fn fire_command_delete_oneshot(bucket: u32, old_name: i32) void {
+    if (count == 0 or bucket == 0) return;
+    const old_s = obj_ensure_string(old_name);
+    var i: u32 = 0;
+    while (i < count) {
+        if (entries[i].bucket != bucket or (entries[i].ops & OP_CMD_DELETE) == 0) {
+            i += 1;
             continue;
         }
-        // A command-trace callback's result — including an error — is
-        // discarded (Tcl Bug 1355342 / trace-20.14 / 20.16).  Run it
-        // inside a catch boundary so an ``error`` raised in the callback
-        // is absorbed (sets the flag rather than aborting the bundle at
-        // top level) and doesn't propagate out of the rename/delete that
-        // triggered the trace.  The outer pending-error state is saved
-        // and restored around the boundary so a trace firing mid-error
-        // leaves that error intact.
-        const catch_mod = @import("tcl_catch.zig");
-        const saved_err = catch_mod.state.error_flag;
-        const saved_msg = catch_mod.state.error_msg;
-        suppress += 1;
-        catch_mod.catch_enter();
-        _ = interp.tcl_eval(script);
-        _ = catch_mod.catch_leave();
-        if (suppress > 0) suppress -= 1;
-        catch_mod.state.error_flag = saved_err;
-        catch_mod.state.error_msg = saved_msg;
-        tcl_obj_release(script);
+        // Detach this entry's DELETE op before firing.  Retain the
+        // callback across the removal so the eval still has it.
+        const cb = entries[i].callback;
+        tcl_obj_retain(cb);
+        entries[i].ops &= ~OP_CMD_DELETE;
+        const drop = entries[i].ops == 0;
+        if (drop) {
+            tcl_obj_release(entries[i].callback);
+            count -= 1;
+            if (i != count) entries[i] = entries[count];
+            any_traces = count;
+        }
+        run_command_callback(cb, old_s.ptr, old_s.len, 0, 0, "delete");
+        tcl_obj_release(cb);
+        // Re-scan from the same index: a drop swapped a new entry in,
+        // and the callback may have mutated the table.
     }
 }
 

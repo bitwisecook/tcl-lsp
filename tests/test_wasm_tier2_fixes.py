@@ -949,3 +949,35 @@ class TestCommandTraceReentrancyAndErrors:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "{} {} someothername"
+
+
+class TestNamespaceDeleteFiresCommandDeleteTrace:
+    """``namespace delete`` deletes each command in the namespace, firing
+    its ``delete`` command trace while the command (and namespace) are
+    still live — so the callback's ``namespace which -command`` resolves
+    it (trace-34.4).  A callback that re-deletes the same namespace must
+    not recurse forever (the delete entry is removed before it fires).
+    """
+
+    def test_delete_trace_fires_on_namespace_delete(self) -> None:
+        src = (
+            "proc callback {old args} { global x; "
+            'set x "$old exists: [namespace which -command $old]" }\n'
+            "set x notrace\n"
+            "namespace eval ::foo {proc bar {} {}}\n"
+            "trace add command ::foo::bar delete callback\n"
+            "namespace delete ::foo\n"
+            "puts $x\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "::foo::bar exists: ::foo::bar"
+
+    def test_self_deleting_callback_does_not_recurse(self) -> None:
+        src = (
+            "namespace eval ::ns { proc cmd {} {} }\n"
+            "trace add command ::ns::cmd delete {namespace delete ::ns}\n"
+            "namespace delete ::ns\n"
+            "puts ok\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "ok"

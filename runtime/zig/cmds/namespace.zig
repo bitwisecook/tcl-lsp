@@ -1020,6 +1020,12 @@ fn do_ns_delete(h: u32) void {
     // Command pointer and ``test_ns_1::q`` would keep running its
     // body (namespace-old-7.1, namespace-35.2).  Drop the LRU
     // unconditionally on every namespace teardown.
+    // Reference Tcl ``TclTeardownNamespace`` deletes each command in
+    // the namespace, which fires its ``delete`` command trace while the
+    // command (and namespace) is still live — so the callback's
+    // ``namespace which -command`` still resolves it (trace-34.4).  Fire
+    // before the tombstoning below removes the cmd_table entries.
+    fire_ns_command_delete_traces(h);
     invalidate_ns_command_imports(h);
     procs.lru_invalidate_all();
     const parent = ns.parent;
@@ -1159,6 +1165,45 @@ fn list_imported_simple_names(ns_addr: u32) i32 {
 /// import redirect that points at one of these commands.  ``info
 /// commands`` filters such "dead" redirects via ``entry_matches``,
 /// matching Tcl 9 ``Tcl_DeleteNamespace`` semantics.
+/// Fire the ``delete`` command trace for every traced command in
+/// *ns_addr* before the namespace is torn down.  The command and its
+/// home namespace are still live at this point, so the callback's
+/// ``namespace which -command <fqn>`` resolves it (trace-34.4).  Each
+/// command's traces are dropped afterwards.
+fn fire_ns_command_delete_traces(ns_addr: u32) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue;
+        // Guard against out-of-heap handles (builtin forwards, etc.).
+        if (@as(u64, cmd) + procs.OFF_FLAGS + 4 > mem_bytes) continue;
+        if ((exec_trace.ops_for(cmd) & exec_trace.OP_CMD_DELETE) != 0) {
+            const fqn_info = tcl_ns.ns_build_fqn(ns_addr, name_ptr, name_len);
+            const fqn: i32 = if (fqn_info.ptr != 0)
+                obj_mod.obj_new_string_take(fqn_info.ptr, fqn_info.len, fqn_info.len)
+            else
+                0;
+            defer if (fqn != 0) obj_mod.tcl_obj_release(fqn);
+            // One-shot: the delete entry is removed before its callback
+            // runs, so a callback that re-deletes this namespace can't
+            // recurse back into here forever.
+            exec_trace.fire_command_delete_oneshot(cmd, fqn);
+        }
+        exec_trace.remove_all_for(cmd);
+    }
+}
+
 fn invalidate_ns_command_imports(ns_addr: u32) void {
     if (ns_addr == 0) return;
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
