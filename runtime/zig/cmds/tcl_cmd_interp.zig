@@ -300,6 +300,11 @@ pub fn eval_rename(words: []const i32) i32 {
         switch (r) {
             .ok => return 0,
             .not_found => {
+                // The command existed when we resolved ``old_cmd`` above,
+                // so a not-found here means the trace callback we just
+                // fired deleted/renamed it.  That makes the outer delete
+                // a no-op rather than an error (trace-20.9 / 20.11).
+                if (old_cmd != 0) return 0;
                 rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
                 return 0;
             },
@@ -340,6 +345,10 @@ pub fn eval_rename(words: []const i32) i32 {
             return 0;
         },
         .not_found => {
+            // Existed at resolution time, so the just-fired rename trace
+            // callback must have deleted/renamed it — the outer rename
+            // becomes a no-op rather than an error (trace-20.9 / 20.10).
+            if (old_cmd != 0) return 0;
             rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
             return 0;
         },

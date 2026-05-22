@@ -297,9 +297,24 @@ pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
             obj.free_sized(buf, size);
             continue;
         }
+        // A command-trace callback's result — including an error — is
+        // discarded (Tcl Bug 1355342 / trace-20.14 / 20.16).  Run it
+        // inside a catch boundary so an ``error`` raised in the callback
+        // is absorbed (sets the flag rather than aborting the bundle at
+        // top level) and doesn't propagate out of the rename/delete that
+        // triggered the trace.  The outer pending-error state is saved
+        // and restored around the boundary so a trace firing mid-error
+        // leaves that error intact.
+        const catch_mod = @import("tcl_catch.zig");
+        const saved_err = catch_mod.state.error_flag;
+        const saved_msg = catch_mod.state.error_msg;
         suppress += 1;
+        catch_mod.catch_enter();
         _ = interp.tcl_eval(script);
+        _ = catch_mod.catch_leave();
         if (suppress > 0) suppress -= 1;
+        catch_mod.state.error_flag = saved_err;
+        catch_mod.state.error_msg = saved_msg;
         tcl_obj_release(script);
     }
 }

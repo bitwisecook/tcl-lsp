@@ -895,3 +895,57 @@ class TestCommandTraceLifecycle:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "::foo {} delete"
+
+
+class TestCommandTraceReentrancyAndErrors:
+    """Command-trace callbacks that error or that rename/delete the very
+    command being renamed must not break the triggering operation.
+
+    * A callback's error result is discarded (trace-20.14 / 20.16).
+    * When the callback deletes/renames the command during the rename
+      trace, the outer rename becomes a silent no-op rather than raising
+      ``command doesn't exist`` (trace-20.9 / 20.10 / 20.11).
+    """
+
+    def test_rename_trace_error_discarded(self) -> None:
+        src = (
+            "proc foo {} {}\n"
+            "trace add command foo rename {error}\n"
+            "puts [list [rename foo bar] [rename bar {}]]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{} {}"
+
+    def test_delete_trace_error_discarded(self) -> None:
+        src = (
+            "proc foo {} {}\n"
+            "trace add command foo delete {error}\n"
+            'puts ">[rename foo {}]<"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "><"
+
+    def test_callback_deletes_command_no_error(self) -> None:
+        src = (
+            'proc traceCmddelete {cmd old new op} { rename $old "" }\n'
+            "proc foo {} {}\n"
+            "trace add command foo rename [list traceCmddelete foo]\n"
+            "rename foo bar\n"
+            "puts [list [info commands foo] [info commands bar]]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{} {}"
+
+    def test_callback_renames_command_no_error(self) -> None:
+        src = (
+            "proc traceCmdrename {cmd old new op} { rename $old someothername }\n"
+            "proc foo {} {}\n"
+            "catch {rename someothername {}}\n"
+            "trace add command foo rename [list traceCmdrename foo]\n"
+            "rename foo bar\n"
+            "set r [list [info commands foo] [info commands bar] [info commands someothername]]\n"
+            "rename someothername {}\n"
+            "puts $r\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{} {} someothername"
