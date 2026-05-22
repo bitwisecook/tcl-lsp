@@ -149,6 +149,18 @@ fn qualify_simple_name(ptr: u32, len: u32) i32 {
         const p: [*]const u8 = @ptrFromInt(ptr);
         if (p[0] == ':' and p[1] == ':') return obj_new_string(@bitCast(ptr), @bitCast(len));
     }
+    // Resolve the relative new name against the current namespace so a
+    // rename inside ``namespace eval foo {rename a b}`` reports the FQ
+    // ``::foo::b`` to the trace callback, not ``::b`` — the command-trace
+    // contract requires fully-qualified old/new names.  A root-context
+    // rename still yields ``::name`` (ns_build_fqn collapses root), so
+    // top-level behaviour is unchanged.
+    const cxt = tcl_ns.ns_current();
+    const r = tcl_ns.ns_resolve_qualified(cxt, ptr, len);
+    const target = if (r.target_ns != 0) r.target_ns else cxt;
+    const fqn = tcl_ns.ns_build_fqn(target, r.simple_ptr, r.simple_len);
+    if (fqn.ptr != 0) return rt.obj_new_string_take(fqn.ptr, fqn.len, fqn.len);
+    // Allocation failure — fall back to the bare ``::name`` form.
     const total: u32 = len + 2;
     const buf = alloc(total);
     if (buf == 0) return obj_new_string(@bitCast(ptr), @bitCast(len));

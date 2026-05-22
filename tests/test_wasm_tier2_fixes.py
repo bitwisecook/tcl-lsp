@@ -979,3 +979,53 @@ class TestNamespaceDeleteFiresCommandDeleteTrace:
         )
         stdout, _ = _run(src)
         assert stdout.strip() == "ok"
+
+
+class TestBuiltinCommandTrace:
+    """``trace add command|execution <builtin>`` must actually attach and
+    fire — reference Tcl gives builtins a Command identity.  Previously
+    the trace validated as OK but stored nothing (the bucket resolved to
+    0), so it silently never fired.  A forwarding Command bucket is now
+    provisioned so interpreted invocations fire the trace.
+    """
+
+    def test_execution_trace_on_builtin_fires(self) -> None:
+        src = (
+            "proc tracer {args} { global info; lappend info $args }\n"
+            "set info {}\n"
+            "set x 5\n"
+            "trace add execution incr enter tracer\n"
+            "trace add execution incr leave tracer\n"
+            "set script {incr x}\n"
+            "eval $script\n"
+            'puts "$x|$info"\n'
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "6|{{incr x} enter} {{incr x} 0 6 leave}"
+
+    def test_trace_info_lists_builtin_trace(self) -> None:
+        src = (
+            "proc tracer {args} {}\n"
+            "trace add execution incr enter tracer\n"
+            "puts [trace info execution incr]\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{enter tracer}"
+
+
+class TestArrayDefaultInterpIsolation:
+    """``array default`` state is interp-local: a default set in a child
+    interpreter must not be observable in the parent (or vice versa),
+    even when both use the same normalised array name.
+    """
+
+    def test_child_default_does_not_leak_to_parent(self) -> None:
+        src = (
+            "interp create kid\n"
+            "interp eval kid { array default set b CHILD }\n"
+            "set rc [catch {set b(z)} m]\n"
+            'puts "$rc|[info exists b]|[array exists b]"\n'
+            "interp delete kid\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "1|0|0"

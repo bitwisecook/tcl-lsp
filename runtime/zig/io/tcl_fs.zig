@@ -1426,6 +1426,11 @@ fn glob_rec(acc_in: i32, base: [*:0]const u8, base_len: u32, pattern: []const u8
         } else {
             acc = glob_rec(acc, @ptrCast(cp), child_len, rest, strip_len);
         }
+        // ``list_append`` copies the element bytes and ``glob_rec``
+        // copies what it needs into deeper child buffers, so this
+        // per-entry path buffer can be reclaimed immediately — without
+        // this a deep/wide recursive glob grows linear memory unbounded.
+        obj.free_sized(cbuf, child_len + 1);
     }
     _ = closedir(dir_handle.?);
     return acc;
@@ -1454,7 +1459,9 @@ pub fn tcl_cmd_glob_dir(dir_obj: i32, pattern_obj: i32, tails: bool) i32 {
     bp[d.len] = 0;
     const pat: []const u8 = (@as([*]const u8, @ptrFromInt(p.ptr)))[0..p.len];
     const strip_len: u32 = if (tails) d.len + 1 else 0;
-    return glob_rec(obj_new_string(0, 0), @ptrCast(bp), d.len, pat, strip_len);
+    const result = glob_rec(obj_new_string(0, 0), @ptrCast(bp), d.len, pat, strip_len);
+    obj.free_sized(base, d.len + 1);
+    return result;
 }
 
 /// ``file link ?-type? linkName target`` — create a link.  Tcl's

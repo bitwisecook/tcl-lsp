@@ -329,6 +329,10 @@ pub const Interp = extern struct {
     arr_dir_buf: u32,
     arr_dir_cap: u32,
     arr_dir_count: u32,
+    // ``array default`` registry, swapped alongside the directory so
+    // each interp's defaults are isolated.  Zero on a fresh interp.
+    arr_def_buf: u32,
+    arr_def_count: u32,
 };
 
 /// Root-interp singleton.  ``interp_root()`` allocates lazily and
@@ -889,10 +893,18 @@ fn swap_array_dir(from: u32, to: u32) void {
         f.arr_dir_buf = st.buf;
         f.arr_dir_cap = st.cap;
         f.arr_dir_count = st.count;
+        f.arr_def_buf = st.def_buf;
+        f.arr_def_count = st.def_count;
     }
     if (to != 0) {
         const t: *Interp = @ptrFromInt(to);
-        arr.dir_state_set(.{ .buf = t.arr_dir_buf, .cap = t.arr_dir_cap, .count = t.arr_dir_count });
+        arr.dir_state_set(.{
+            .buf = t.arr_dir_buf,
+            .cap = t.arr_dir_cap,
+            .count = t.arr_dir_count,
+            .def_buf = t.arr_def_buf,
+            .def_count = t.arr_def_count,
+        });
     }
 }
 

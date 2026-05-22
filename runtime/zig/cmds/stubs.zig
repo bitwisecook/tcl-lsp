@@ -141,19 +141,28 @@ fn eval_package(words: []const i32) result_mod.InterpResult {
                     obj_mod.tcl_obj_retain(words[script_i]);
                     obj_mod.tcl_obj_release(pkg_entries[i].script);
                     pkg_entries[i].script = words[script_i];
+                    // Overwrite: the existing entry keeps its own key, so
+                    // the freshly-built lookup key is unused — free it.
+                    obj_mod.free_sized(key.ptr, key.len);
                     return result_mod.from_globals(0);
                 }
             }
             if (pkg_count < pkg_entries.len) {
                 obj_mod.tcl_obj_retain(words[script_i]);
+                // New entry takes ownership of the key buffer.
                 pkg_entries[pkg_count] = .{ .key_ptr = key.ptr, .key_len = key.len, .script = words[script_i] };
                 pkg_count += 1;
+            } else {
+                // Table full: the key was never stored — don't leak it.
+                obj_mod.free_sized(key.ptr, key.len);
             }
             return result_mod.from_globals(0);
         }
         if (words.len > ver_i) {
             const key = pkg_make_key(words[name_i], words[ver_i]);
             if (key.ptr == 0) return result_mod.from_globals(rt.obj_new_string(0, 0));
+            // Lookup-only key — never stored, so reclaim it on every exit.
+            defer obj_mod.free_sized(key.ptr, key.len);
             var i: u32 = 0;
             while (i < pkg_count) : (i += 1) {
                 if (pkg_key_eq(pkg_entries[i].key_ptr, pkg_entries[i].key_len, key.ptr, key.len)) {

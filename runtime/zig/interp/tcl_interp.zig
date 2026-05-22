@@ -1463,7 +1463,14 @@ pub fn eval_command(words: []const i32) i32 {
 fn eval_command_traced(words: []const i32) i32 {
     const et = @import("tcl_exec_trace.zig");
     const bucket: u32 = @bitCast(procs.proc_lookup(words[0]));
-    const ops = if (bucket != 0) et.ops_for(bucket) else 0;
+    // Only the *execution*-trace ops (enter/leave/enterstep/leavestep)
+    // fire through this dispatch path; command-trace ops (delete/rename)
+    // fire from the rename / redefine / namespace-teardown sites via
+    // ``fire_command``.  Mask them out so a command carrying *only* a
+    // delete/rename trace doesn't drag every invocation through the full
+    // wrapper (build_invocation_string + step bookkeeping) for nothing.
+    const EXEC_OP_MASK = et.OP_ENTER | et.OP_LEAVE | et.OP_ENTERSTEP | et.OP_LEAVESTEP;
+    const ops = (if (bucket != 0) et.ops_for(bucket) else 0) & EXEC_OP_MASK;
     const step_active = et.step_depth != 0;
     if (ops == 0 and !step_active) return eval_command_dispatch(words);
 

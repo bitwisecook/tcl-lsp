@@ -2036,7 +2036,7 @@ pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
     if (impl_obj == 0) {
         // -unknown handler?
         if (rec.unknown_obj != 0) {
-            return invoke_ensemble_unknown(bucket, rec, words);
+            return invoke_ensemble_unknown(bucket, rec, words, sub_idx);
         }
         raise_ensemble_unknown_sub(words[0], sub.ptr, sub.len, rec);
         return 0;
@@ -2255,7 +2255,7 @@ fn invoke_ensemble_impl(impl_obj: i32, words: []const i32, sub_idx: u32) i32 {
     return result;
 }
 
-fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i32 {
+fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32, sub_idx: u32) i32 {
     // Build call: unknown_prefix + ensemble_name + words[1..]
     const us = obj_ensure_string(rec.unknown_obj);
     const interp = @import("../interp/tcl_interp.zig");
@@ -2320,20 +2320,24 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         return 0;
     }
 
-    const sub = obj_ensure_string(words[1]);
+    // The subcommand sits *after* any ``-parameters`` words, at
+    // ``sub_idx`` — not ``words[1]``.  Re-resolving with the wrong index
+    // would treat the first parameter as the subcommand, so a handler
+    // that created/mapped the real subcommand could never be recovered.
+    const sub = obj_ensure_string(words[sub_idx]);
     const impl = ensemble_resolve(rec, sub.ptr, sub.len);
     if (impl != 0) {
         if (result != 0) obj_mod.tcl_obj_release(result);
         defer obj_mod.tcl_obj_release(impl);
-        return invoke_ensemble_impl(impl, words, 1);
+        return invoke_ensemble_impl(impl, words, sub_idx);
     }
 
     const rs = obj_ensure_string(result);
     if (rs.len != 0) {
         // Non-empty rewrite: evaluate the returned command prefix
-        // followed by the ensemble's argument tail (words[2..]).
+        // followed by the ensemble's parameters + argument tail.
         defer if (result != 0) obj_mod.tcl_obj_release(result);
-        return invoke_ensemble_impl(result, words, 1);
+        return invoke_ensemble_impl(result, words, sub_idx);
     }
 
     if (result != 0) obj_mod.tcl_obj_release(result);

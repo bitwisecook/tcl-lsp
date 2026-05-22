@@ -203,10 +203,28 @@ fn parse_exec_ops(ops_obj: i32) u32 {
     return mask;
 }
 
-/// The command bucket (identity) an execution trace keys against, or 0.
-fn exec_trace_bucket(name: i32) u32 {
+/// The command bucket (identity) an execution/command trace keys
+/// against, or 0.  When *provision* is set (the ``trace add`` path) and
+/// the target is a hardcoded BUILTIN with no proc-table Command yet,
+/// materialise a forwarding Command bucket for it: reference Tcl gives
+/// every command an identity that traces attach to, and dispatch then
+/// routes the builtin through the proc path so its enter/leave/step (and
+/// rename/delete) traces actually fire while still invoking the original
+/// handler.  ``trace remove`` / ``trace info`` pass provision=false so an
+/// untraced builtin isn't turned into a forward by a no-op query.
+fn exec_trace_bucket(name: i32, provision: bool) u32 {
     const procs = @import("../interp/tcl_procs.zig");
-    return @bitCast(procs.proc_lookup(name));
+    const existing: u32 = @bitCast(procs.proc_lookup(name));
+    if (existing != 0) return existing;
+    if (!provision) return 0;
+    const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+    const s = obj_ensure_string(name);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    if (cmd_table.lookup(s.ptr, s.len)) |handler| {
+        procs.register_builtin_forward(s.ptr, s.len, @intCast(@intFromPtr(handler)));
+        return @bitCast(procs.proc_lookup(name));
+    }
+    return 0;
 }
 
 /// Validate a trace op-list against the allowed ops for *kw* (the
@@ -337,12 +355,12 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         }
         if (is_execution_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
-            exec_trace.add(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
+            exec_trace.add(exec_trace_bucket(words[3], true), parse_exec_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         if (is_command_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
-            exec_trace.add(exec_trace_bucket(words[3]), parse_command_ops(words[4]), words[5]);
+            exec_trace.add(exec_trace_bucket(words[3], true), parse_command_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
@@ -359,12 +377,12 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         }
         if (is_execution_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
-            exec_trace.remove(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
+            exec_trace.remove(exec_trace_bucket(words[3], false), parse_exec_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         if (is_command_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
-            exec_trace.remove(exec_trace_bucket(words[3]), parse_command_ops(words[4]), words[5]);
+            exec_trace.remove(exec_trace_bucket(words[3], false), parse_command_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
@@ -379,12 +397,12 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         if (is_execution_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
             const m = exec_trace.OP_ENTER | exec_trace.OP_LEAVE | exec_trace.OP_ENTERSTEP | exec_trace.OP_LEAVESTEP;
-            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3]), m));
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3], false), m));
         }
         if (is_command_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
             const m = exec_trace.OP_CMD_DELETE | exec_trace.OP_CMD_RENAME;
-            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3]), m));
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3], false), m));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
