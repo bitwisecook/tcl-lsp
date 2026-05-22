@@ -42,7 +42,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -117,26 +117,82 @@ class GreenNode:
 
         For ``STR`` / ``CMD`` tokens the child covers the inner text anchored
         one byte past the opening delimiter; for other tokens (e.g. an ESC
-        recovery body) the child is anchored at the token's own position.  The
-        result is memoised on this node keyed by ``(token offset, mode)``.
+        recovery body) the child is anchored at the token's own position.
+
+        The child shares the interned tokenisation of its region (so a body
+        descended here and tokenised elsewhere is lexed once), but its *kind*
+        is resolved in this parent's context: an opaque token whose closing
+        delimiter is missing in this region yields an :attr:`NodeKind.ERROR`
+        node — the lossless representation of an unterminated/recovered region
+        (phase 5).  Memoised on this node keyed by ``(token offset, mode)``.
         """
         key = (token.start.offset, mode)
         cached = self._descended.get(key)
         if cached is not None:
             return cached
-        if token.type in _OPAQUE_TYPES:
-            b_off = token.start.offset + 1
-            b_line = token.start.line
-            b_col = token.start.character + 1
-            kind = NodeKind.BRACKETED if token.type is TokenType.CMD else NodeKind.BRACED
-        else:
-            b_off = token.start.offset
-            b_line = token.start.line
-            b_col = token.start.character
-            kind = NodeKind.ERROR
-        child = _build_node(token.text, b_off, b_line, b_col, mode, kind)
+        child = _descend(token, mode, self.text, self.base_offset)
         self._descended[key] = child
         return child
+
+
+def _delimiter_terminated(token: Token, text: str, base_offset: int) -> bool:
+    """Return whether *token*'s closing delimiter is present in *text*.
+
+    *text* is the region containing *token* and *base_offset* its absolute
+    anchor.  A terminated ``{...}`` / ``[...]`` has its closing brace/bracket
+    one byte past the token's inner content; an unterminated one runs to the
+    end of the region (or is followed by something else).
+    """
+    idx = token.end.offset + 1 - base_offset
+    if idx < 0 or idx >= len(text):
+        return False
+    close = "}" if token.type is TokenType.STR else "]"
+    return text[idx] == close
+
+
+def _descend(token: Token, mode: Mode, context_text: str, context_base: int) -> GreenNode:
+    """Build the child node for *token*, resolving ERROR kind in context.
+
+    *context_text* / *context_base* describe the region containing *token*
+    (used only to decide whether the delimiter is terminated).  The child's
+    token stream is obtained through the shared intern index, so descent does
+    not re-lex a region another consumer already tokenised; only the
+    context-dependent ``kind`` is applied per call via a thin wrapper.
+    """
+    if token.type in _OPAQUE_TYPES:
+        b_off = token.start.offset + 1
+        b_line = token.start.line
+        b_col = token.start.character + 1
+        structural = NodeKind.BRACKETED if token.type is TokenType.CMD else NodeKind.BRACED
+        kind = (
+            structural
+            if _delimiter_terminated(token, context_text, context_base)
+            else NodeKind.ERROR
+        )
+    else:
+        b_off = token.start.offset
+        b_line = token.start.line
+        b_col = token.start.character
+        kind = NodeKind.ERROR
+    shared = node_for(token.text, b_off, b_line, b_col, mode=mode)
+    if shared.kind is kind:
+        return shared
+    # Context-tagged wrapper: same interned tokens/warnings, region-specific
+    # kind.  The shared node's own kind is whatever its first interner set, so
+    # it is never relied on for the ERROR distinction.
+    return replace(shared, kind=kind)
+
+
+def descend_token(token: Token, source: str, mode: Mode = Mode.SCRIPT) -> GreenNode:
+    """Descend an *absolutely-positioned* ``token`` against the full *source*.
+
+    Equivalent to :meth:`GreenNode.descend` but for callers that hold a token
+    anchored into the whole document rather than a parent :class:`GreenNode`
+    (e.g. ``compiler_checks`` recursing into command substitutions and bodies
+    from either segmented text or IR-carried tokens).  Shares the intern index
+    and applies the same ERROR-kind resolution.
+    """
+    return _descend(token, mode, source, 0)
 
 
 def _lex(

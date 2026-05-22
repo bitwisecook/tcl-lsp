@@ -11,6 +11,7 @@ from core.parsing.green_tree import (
     Mode,
     NodeKind,
     active_scope,
+    descend_token,
     green_tree_scope,
     node_for,
     tokenise,
@@ -112,6 +113,65 @@ class TestInternSharing:
         with green_tree_scope() as outer:
             with green_tree_scope() as inner:
                 assert inner is outer
+
+
+class TestErrorNodes:
+    """Phase 5: unterminated descended regions are tagged NodeKind.ERROR."""
+
+    def test_terminated_brace_is_braced(self):
+        root = node_for("proc p {} {set x 1}")
+        body = next(t for t in root.tokens if t.type is TokenType.STR and "set x" in t.text)
+        assert root.descend(body).kind is NodeKind.BRACED
+
+    def test_unterminated_brace_is_error(self):
+        src = "proc p {} {set x 1"
+        root = node_for(src)
+        body = next(t for t in root.tokens if t.type is TokenType.STR and "set x" in t.text)
+        assert root.descend(body).kind is NodeKind.ERROR
+
+    def test_terminated_bracket_is_bracketed(self):
+        root = node_for("set y [expr 1]")
+        cmd = next(t for t in root.tokens if t.type is TokenType.CMD)
+        assert root.descend(cmd).kind is NodeKind.BRACKETED
+
+    def test_unterminated_bracket_is_error(self):
+        root = node_for("set y [expr 1")
+        cmd = next(t for t in root.tokens if t.type is TokenType.CMD)
+        assert root.descend(cmd).kind is NodeKind.ERROR
+
+    def test_nested_braces_still_terminated(self):
+        root = node_for("nest {a {b} c}")
+        body = next(t for t in root.tokens if t.type is TokenType.STR)
+        assert root.descend(body).kind is NodeKind.BRACED
+
+    def test_error_node_keeps_inner_tokens(self):
+        # An ERROR node still carries the (recovered) inner token stream.
+        src = "proc p {} {set x 1"
+        root = node_for(src)
+        body = next(t for t in root.tokens if t.type is TokenType.STR and "set x" in t.text)
+        child = root.descend(body)
+        assert child.kind is NodeKind.ERROR
+        assert any(t.text == "set" for t in child.tokens)
+
+    def test_descend_token_against_full_source(self):
+        # descend_token works from an absolute token + the whole document.
+        src = "set y [expr 1]\nset z [expr 2"
+        root = node_for(src)
+        cmds = [t for t in root.tokens if t.type is TokenType.CMD]
+        assert descend_token(cmds[0], src).kind is NodeKind.BRACKETED
+        assert descend_token(cmds[1], src).kind is NodeKind.ERROR
+
+    def test_descend_shares_interned_tokens(self):
+        # Descent reuses the interned tokenisation rather than re-lexing.
+        with green_tree_scope():
+            root = node_for("proc p {} {set x 1}")
+            body = next(t for t in root.tokens if t.type is TokenType.STR and "set x" in t.text)
+            child = root.descend(body)
+            # Same region tokenised independently shares the token tuple.
+            toks, _ = tokenise(
+                body.text, body.start.offset + 1, body.start.line, body.start.character + 1
+            )
+            assert child.tokens is toks
 
 
 class TestTokeniseShim:

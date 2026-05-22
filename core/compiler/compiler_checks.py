@@ -34,7 +34,7 @@ from ..common.ranges import position_from_relative, range_from_token
 from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ..parsing.green_tree import tokenise
+from ..parsing.green_tree import GreenNode, descend_token, node_for, tokenise
 from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
@@ -224,7 +224,10 @@ class _CompilerCheckRunner:
         base_line: int,
         base_col: int,
     ) -> None:
-        tokens, _ = tokenise(text, base_offset, base_line, base_col)
+        self._process_node(node_for(text, base_offset, base_line, base_col))
+
+    def _process_node(self, node: GreenNode) -> None:
+        tokens = node.tokens
 
         argv: list[Token] = []
         argv_texts: list[str] = []
@@ -299,12 +302,10 @@ class _CompilerCheckRunner:
         for tok in tokens:
             if tok.type is not TokenType.CMD or not tok.text:
                 continue
-            self._process_text(
-                tok.text,
-                base_offset=tok.start.offset + 1,
-                base_line=tok.start.line,
-                base_col=tok.start.character + 1,
-            )
+            # Descend the command substitution against the full source; the
+            # green tree shares its tokenisation with the lowerer's and tags
+            # an unterminated [..] as an ERROR node.
+            self._process_node(descend_token(tok, self._source))
 
     def _recurse_body_arguments(
         self,
@@ -326,12 +327,7 @@ class _CompilerCheckRunner:
             if cmd_name == "switch" and _switch_list_body_index(args) == body.index:
                 self._recurse_switch_list_body(body.text, body.token)
                 continue
-            self._process_text(
-                body.text,
-                base_offset=body.token.start.offset + 1,
-                base_line=body.token.start.line,
-                base_col=body.token.start.character + 1,
-            )
+            self._process_node(descend_token(body.token, self._source))
         if cmd_name == "when":
             self._current_event = prev_event
 

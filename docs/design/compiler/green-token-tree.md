@@ -1,10 +1,12 @@
 # Green token tree and incremental reparse
 
-> **Status:** Phase 1 (shared tokenisation memo) and phase 2 (green token
-> tree, sections A–B) are implemented and shipped — the flat memo has been
-> subsumed by `core/parsing/green_tree.py` and the segmenter,
-> `compiler_checks`, and `var_refs` consume it. Phases 3–5 below are the
-> planned evolution. Tracking issue: #477.
+> **Status:** All five phases are implemented and shipped. The flat memo has
+> been subsumed by `core/parsing/green_tree.py` (phases 1–2); the segmenter,
+> `compiler_checks`, and `var_refs` consume it, with `compiler_checks`
+> descending command substitutions and bodies through the tree. Incremental
+> reparse from edit-range inference lives in `core/parsing/incremental.py`
+> (phases 3–4). Unterminated descended regions are tagged `NodeKind.ERROR`
+> (phase 5). Tracking issue: #477.
 >
 > **Phase-2 deviations from the original design, and why.** Two design
 > assumptions collided with codebase realities and were reconciled:
@@ -257,16 +259,36 @@ boundary validation — returns `None`, and the caller re-segments fully. The
 delimiter-unbalancing ones that exercise the fallback) is the guard against
 offset/column/comment drift.
 
-## E. Error-recovery nodes
+## E. Error-recovery nodes — *shipped*
 
-Today `segment_with_recovery` (`core/parsing/recovery.py`) parses twice on
+`segment_with_recovery` (`core/parsing/recovery.py`) parses twice on
 unterminated delimiters, injecting `VirtualToken`s (E201/E202/E203) on the
-second pass. In the tree, an unterminated region produces an `ERROR` node that
-**attaches** the recovered subtree rather than aborting — tree-sitter style.
-The recovery heuristics (scan forward for a known command at a line start) are
-preserved; they decide where the `ERROR` node ends and the next sibling
-begins. Virtual-token insertions remain un-memoised (they are request-specific)
-exactly as in the current memo.
+second pass; that recovery mechanism is **preserved unchanged** — it remains
+the authority for top-level recovery and virtual-token insertions stay
+un-memoised (request-specific), exactly as the design specifies.
+
+What the tree adds is the lossless *representation*: descending an opaque
+token whose closing delimiter is absent in the parent region yields a
+`NodeKind.ERROR` node that still **carries the recovered inner token stream**
+rather than aborting — tree-sitter style. Termination is decided by
+`_delimiter_terminated` (the closing brace/bracket must sit one byte past the
+token's inner content, in the parent region's text), which correctly handles
+nesting because the lexer has already matched delimiter levels.
+
+Because termination is a property of the *parent context* — not of the
+region's own text — and the intern index is keyed without `kind` (so a shared
+node's `kind` reflects whatever its first interner set), the ERROR distinction
+is applied per descent via a thin wrapper over the shared (interned) tokens:
+`descend` / `descend_token` return an `ERROR`-kind node that reuses the
+interned token stream. The shared node's own `kind` is never relied upon.
+
+This is live in `compiler_checks`, which descends command substitutions
+(`_recurse_nested_commands`) and bodies (`_recurse_body_arguments`) through
+`descend_token` against the full source — so the tree's descent (and its
+ERROR tagging) is exercised in production, sharing tokenisation with the
+lowerer rather than re-lexing. Consumers read the token stream, not the kind,
+so the change is byte-identical; the ERROR kind is the representational hook
+for future tooling (e.g. structural diagnostics).
 
 ## Validation
 
@@ -275,8 +297,10 @@ The bar is unchanged and strict:
 - **Byte-identical diagnostics** on the trigger corpus (`wcswidth.tcl`,
   `http.tcl`, `filetypes.tcl`) and the 800+-file real-world differential, plus
   the full `make test-py` suite green at each phase.
-- **Mode-correctness tests:** assert that each region's node mode matches the
-  registry-resolved role, so a body is never lexed as data or vice versa.
+- **Mode-correctness + ERROR-node tests:** `tests/test_green_tree.py` asserts
+  region modes, descent anchoring, intern sharing, and that unterminated
+  `{...}` / `[...]` descents are tagged `NodeKind.ERROR` (terminated ones
+  `BRACED` / `BRACKETED`).
 - **Property test — incremental equals full.** *Shipped*
   (`tests/test_incremental_reparse.py`). For random source + random edit, the
   incrementally-rebuilt chunk list must equal a from-scratch
@@ -307,11 +331,13 @@ The bar is unchanged and strict:
    offset-shifted suffix + re-segmented window with boundary validation; wired
    into both `DocumentState._segment_chunks` paths and consumed by the existing
    chunk/proc caches.
-5. **Error-recovery nodes** — section E.
+5. **Error-recovery nodes** — *shipped.* Section E; `NodeKind.ERROR` tagging in
+   `green_tree.descend` / `descend_token`, live in `compiler_checks`; the
+   `recovery.py` virtual-token mechanism preserved as the recovery authority.
 
 Phase 2 is pure throughput (no LSP behaviour change). Phases 3–4 deliver the
 per-keystroke win by not re-tokenising the unchanged prefix/suffix on each
-edit.
+edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Risks
 
