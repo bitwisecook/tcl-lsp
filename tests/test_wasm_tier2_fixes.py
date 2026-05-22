@@ -406,3 +406,44 @@ class TestEnsembleUnknownBadCode:
             "1",
             "unknown subcommand handler returned bad code: break",
         ]
+
+
+class TestTraceCommandArity:
+    """``trace`` argument/option validation (trace-14.0.x / 14.1-14.5):
+    wrong argument counts and unknown options must raise the canonical
+    Tcl diagnostics instead of silently succeeding."""
+
+    def test_add_variable_wrong_args(self) -> None:
+        stdout, _ = _run('puts [catch {trace add variable foo bar} m]\nputs $m\n')
+        assert stdout.splitlines() == [
+            "1",
+            'wrong # args: should be "trace add variable name opList command"',
+        ]
+
+    def test_remove_variable_too_many_args(self) -> None:
+        stdout, _ = _run('puts [catch {trace remove variable foo bar baz boo} m]\nputs $m\n')
+        assert stdout.splitlines() == [
+            "1",
+            'wrong # args: should be "trace remove variable name opList command"',
+        ]
+
+    def test_info_variable_wrong_args(self) -> None:
+        stdout, _ = _run('puts [catch {trace info variable foo bar} m]\nputs $m\n')
+        assert stdout.splitlines() == [
+            "1",
+            'wrong # args: should be "trace info variable name"',
+        ]
+
+    def test_bad_option(self) -> None:
+        stdout, _ = _run('puts [catch {trace gorp} m]\nputs $m\n')
+        assert stdout.splitlines() == [
+            "1",
+            'bad option "gorp": must be add, info, or remove',
+        ]
+
+    def test_no_args(self) -> None:
+        stdout, _ = _run('puts [catch {trace} m]\nputs $m\n')
+        assert stdout.splitlines() == [
+            "1",
+            'wrong # args: should be "trace option ?arg ...?"',
+        ]

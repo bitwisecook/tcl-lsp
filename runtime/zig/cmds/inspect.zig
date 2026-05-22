@@ -73,12 +73,102 @@ fn eval_info(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(obj_new_string(0, 0));
 }
 
+/// Match a ``trace`` operand type — ``variable`` / ``command`` /
+/// ``execution`` — accepting any ≥3-char unique prefix (Tcl allows
+/// abbreviation).  Returns the canonical keyword, or null for an
+/// unrecognised type.
+fn trace_type_keyword(p: [*]const u8, len: u32) ?[]const u8 {
+    if (len < 3) return null;
+    const cands = [_][]const u8{ "variable", "command", "execution" };
+    for (cands) |c| {
+        if (len > c.len) continue;
+        var k: u32 = 0;
+        var match = true;
+        while (k < len) : (k += 1) {
+            if (p[k] != c[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return c;
+    }
+    return null;
+}
+
+/// Raise a Tcl error whose message is the concatenation of *parts*.
+fn raise_parts(parts: []const []const u8) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    var total: u32 = 0;
+    for (parts) |p| total += @intCast(p.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (parts) |p| {
+        for (p) |c| {
+            dst[off] = c;
+            off += 1;
+        }
+    }
+    catch_mod.tcl_cmd_error(obj_new_string_take(buf, total, total));
+}
+
+fn obj_bytes(o: i32) []const u8 {
+    const s = obj_ensure_string(o);
+    if (s.ptr == 0 or s.len == 0) return "";
+    return (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
+}
+
 fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
-        return result_mod.from_globals(obj_new_string(0, 0));
+        raise_parts(&.{"wrong # args: should be \"trace option ?arg ...?\""});
+        return result_mod.from_globals(0);
     }
     const sub_s = obj_ensure_string(words[1]);
     const sub_p: [*]const u8 = @ptrFromInt(sub_s.ptr);
+    // Arity / type validation for the modern add / remove / info forms
+    // (trace-14.0.x / 14.1-14.4).  Done up front so the working paths
+    // below can assume well-formed argument counts.
+    const sub_is_add = str_eq(sub_p, sub_s.len, "add");
+    const sub_is_remove = str_eq(sub_p, sub_s.len, "remove");
+    const sub_is_info = str_eq(sub_p, sub_s.len, "info");
+    if (sub_is_add or sub_is_remove) {
+        if (words.len < 3) {
+            raise_parts(&.{ "wrong # args: should be \"trace ", obj_bytes(words[1]), " type ?arg ...?\"" });
+            return result_mod.from_globals(0);
+        }
+        const ty_s = obj_ensure_string(words[2]);
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len) != null) {
+            if (words.len != 6) {
+                raise_parts(&.{ "wrong # args: should be \"trace ", obj_bytes(words[1]), " ", obj_bytes(words[2]), " name opList command\"" });
+                return result_mod.from_globals(0);
+            }
+        }
+    } else if (sub_is_info) {
+        if (words.len < 3) {
+            raise_parts(&.{"wrong # args: should be \"trace info type name\""});
+            return result_mod.from_globals(0);
+        }
+        const ty_s = obj_ensure_string(words[2]);
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len) != null) {
+            if (words.len != 4) {
+                raise_parts(&.{ "wrong # args: should be \"trace info ", obj_bytes(words[2]), " name\"" });
+                return result_mod.from_globals(0);
+            }
+        }
+    } else if (!str_eq(sub_p, sub_s.len, "variable") and
+        !str_eq(sub_p, sub_s.len, "vdelete") and
+        !str_eq(sub_p, sub_s.len, "vinfo"))
+    {
+        // Unknown subcommand — the legacy ``variable`` / ``vdelete`` /
+        // ``vinfo`` forms are still handled below; everything else is a
+        // bad option (trace-14.5).
+        raise_parts(&.{ "bad option \"", obj_bytes(words[1]), "\": must be add, info, or remove" });
+        return result_mod.from_globals(0);
+    }
     // ``trace add variable NAME OPS CMD`` — phase 6 implementation.
     if (str_eq(sub_p, sub_s.len, "add") and words.len >= 6) {
         const kind_s = obj_ensure_string(words[2]);
