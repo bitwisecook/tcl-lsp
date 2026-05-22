@@ -50,10 +50,11 @@ truth.  Summary:
    the vanilla-Tcl const-fold spec (`dialects.tcl.const_fold`) uses
    `compiler.tcl_expr_eval` to evaluate constant expressions baked
    into command specs.
-4. **`dialects/` ↛ `analyser/`, `server/`, `tooling/`, `ai/`.**  One
-   carve-out: `dialects.f5.bigip.explain_flow` lazy-imports
-   `tooling.irule_test` to optionally drive the iRule test framework
-   for a richer trace.
+4. **`dialects/` ↛ `analyser/`, `server/`, `tooling/`, `ai/`.**  No
+   carve-outs — `dialects.f5.bigip.explain_flow` exposes an
+   ``IruleSimulator`` injection point; the iRule-test bridge that drives
+   the orchestrator lives in `tooling.f5.irule_simulation` and the CLI /
+   MCP adapters pass it in when dynamic simulation is requested.
 5. **`analyser/` ↛ `server/`, `tooling/`, `ai/`.**  No carve-outs —
    the proc-doc fallback extractor (`extract_body_docstring`) lives in
    the leaf `shared.docstrings`, which both the analyser and the

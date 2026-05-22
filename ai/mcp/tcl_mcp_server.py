@@ -712,6 +712,7 @@ def _tool_explain_flow(
 
     from dialects.f5.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
     from dialects.f5.bigip.parser import parse_bigip_conf
+    from tooling.f5.irule_simulation import simulate_irule_for_session
 
     pcap = Path(pcap_path).resolve()
     if not pcap.is_file():
@@ -739,7 +740,7 @@ def _tool_explain_flow(
             tshark_filter=tshark_filter,
             show_event_bodies=max_event_body_lines > 0,
             max_event_body_lines=max(max_event_body_lines, 1),
-            simulate=simulate,
+            simulator=simulate_irule_for_session if simulate else None,
         )
     except (OSError, ValueError) as exc:
         # Surface bad pcap / unreadable file as a structured JSON error

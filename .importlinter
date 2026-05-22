@@ -183,11 +183,6 @@ forbidden_modules =
     server
     tooling
     ai
-ignore_imports =
-    ; explain_flow.py optionally drives the iRule test framework for a
-    ; richer trace when it's available.  Lazy import behind a try/except
-    ; ImportError so dialects/ stays usable without tooling/ installed.
-    dialects.f5.bigip.explain_flow -> tooling.irule_test
 
 ; ---------------------------------------------------------------------------
 ; 4.  analyser/ depends on shared/, compiler/, dialects/.

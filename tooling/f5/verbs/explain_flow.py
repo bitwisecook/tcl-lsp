@@ -26,6 +26,7 @@ from dialects.f5.bigip.explain_flow import (
     report_to_dict,
     tshark_available,
 )
+from tooling.f5.irule_simulation import simulate_irule_for_session
 
 from ._paths import load_paths
 from ._registry import verb
@@ -142,7 +143,7 @@ def _run_explain_flow(args: argparse.Namespace) -> int:
             tshark_filter=args.tshark_filter,
             show_event_bodies=not args.no_event_bodies,
             max_event_body_lines=args.max_event_lines,
-            simulate=args.simulate,
+            simulator=simulate_irule_for_session if args.simulate else None,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
