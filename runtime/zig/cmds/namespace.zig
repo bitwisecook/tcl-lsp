@@ -183,6 +183,21 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 const line_before2 = @import("../interp/tcl_frames.zig").frame_get_line(0);
                 const ns_result = interp.eval_script(buf, total);
                 append_ns_eval_error_frame(target_ns, line_before2);
+                // ``error msg …`` in the body stores ``msg`` as a bare
+                // borrow that can point into ``buf`` (the synthesised
+                // body, e.g. ``namespace eval ns error foo bar baz``);
+                // promote it to an owned copy before freeing so the
+                // catch result variable doesn't read recycled memory
+                // (namespace-25.8's ``rIn`` corruption).
+                {
+                    const tcl_catch = @import("../interp/tcl_catch.zig");
+                    if (tcl_catch.state.error_flag != 0 and tcl_catch.state.error_msg != 0) {
+                        const ms = obj_mod.obj_ensure_string(tcl_catch.state.error_msg);
+                        if (ms.len > 0 and ms.ptr >= buf and ms.ptr < buf + total) {
+                            tcl_catch.state.error_msg = obj_mod.obj_new_string_copy(ms.ptr, ms.len);
+                        }
+                    }
+                }
                 // Free the synthesised script buffer.  ``eval_script``
                 // either copies bytes into owned TclObjs or borrows
                 // through retained var slots; either way the result's
