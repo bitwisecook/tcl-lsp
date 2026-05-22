@@ -1,7 +1,33 @@
 # Green token tree and incremental reparse
 
-> **Status:** Design — phase 1 (shared tokenisation memo) is implemented and
-> shipped; phases 2–5 below are the planned evolution. Tracking issue: #477.
+> **Status:** Phase 1 (shared tokenisation memo) and phase 2 (green token
+> tree, sections A–B) are implemented and shipped — the flat memo has been
+> subsumed by `core/parsing/green_tree.py` and the segmenter,
+> `compiler_checks`, and `var_refs` consume it. Phases 3–5 below are the
+> planned evolution. Tracking issue: #477.
+>
+> **Phase-2 deviations from the original design, and why.** Two design
+> assumptions collided with codebase realities and were reconciled:
+>
+> 1. *`var_refs` does not route through the per-document tree.* It lexes at
+>    base 0 precisely so its text-keyed result-LRU (frozensets of variable
+>    names) shares across different occurrences of the same body text and
+>    across documents — sharing a per-document, absolutely-anchored tree
+>    cannot reproduce. Its LRU already prevents re-tokenising repeated text,
+>    so it consults the green-tree leaf primitive (`tokenise`) but keeps its
+>    own result cache. The "two anchorings collapse to one" win in limit (1)
+>    below is therefore *parity with the flat memo*, not a reduction: a body
+>    is still lexed once at its absolute offset (shared by segmenter +
+>    `compiler_checks` + lowerer via the tree) and once at base 0 by
+>    `var_refs` (covered by its LRU).
+> 2. *Tokens keep absolute positions; nodes carry a `width`.* The design's
+>    relative-width-only model would make offset-shifting O(path), but
+>    `Token.start.offset` is read as absolute by every one of the ~16
+>    position-sensitive consumers, so converting to relative positions is
+>    infeasible byte-identically. Nodes store `width` for locating and
+>    shifting regions (phase 4); leaves keep absolute-anchored tokens and the
+>    unchanged tail is offset-shifted on edit (arithmetic, far cheaper than
+>    re-lexing) rather than resolved lazily.
 
 This document specifies the lossless, context-aware token tree that replaces
 the "re-lex on demand" model in the analysis pipeline, and the incremental
@@ -124,24 +150,30 @@ consumer that needs to see inside calls `node.descend()`:
 - `descend()` re-lexes the node's inner text in the appropriate child mode
   (`script` for a body, `script` for `[..]` inner, `expr` via `expr_lexer`),
   builds the child subtree once, memoises it in `_descended`, and returns it.
-- Every later consumer (segmenter, `compiler_checks`, `var_refs`) reuses the
-  memoised child. This is what eliminates the per-nesting-level re-scan that
-  makes `_parse_brace` O(depth) today.
+- Every later consumer (segmenter, `compiler_checks`) reuses the memoised
+  child. This is what eliminates the per-nesting-level re-scan that makes
+  `_parse_brace` O(depth) today. (`var_refs` keeps its own result-LRU — see
+  the status note above.)
 
-`var_refs` becomes a pure tree walk: it descends body/expr nodes, reads
-`VAR`/`CMD` leaves for names, and never re-lexes at base 0 — removing the
-second anchoring entirely (limit (1) above).
+Cross-consumer sharing for regions reached *independently* (the segmenter
+scanning a body, `compiler_checks` descending the same body, the lowerer
+segmenting it) is provided by an analysis-scoped **intern index** keyed by
+`(base_offset, base_line, base_col, mode, text)`. `descend()` registers its
+children in that index, so a standalone `node_for(...)` lookup of the same
+region returns the already-built node. The per-node `_descended` map is the
+primary structure for nesting; the intern index is what lets the three
+consumers meet on one node.
 
-## How the tree subsumes `token_cache.py`
+## How the tree subsumed the flat memo
 
-The shipped memo is the degenerate, flat form of this tree: a dict from
-`(anchoring, text)` to a leaf token stream. When the tree lands, `tokenise_cached`
-becomes the leaf-construction primitive *inside* `descend()`, and the
-ContextVar-scoped dict is replaced by the tree's own `_descended` memoisation.
-`token_cache_scope()` at `Analyser.analyse` / `lower_to_ir` is replaced by a
-`DocumentTree` owned by `DocumentState` (and constructed on demand for the
-non-LSP `analyse(source)` / `lower_to_ir(source)` entry points). No consumer
-keeps calling `TclLexer` directly except the tree builder itself.
+The flat tokenisation memo (the former `token_cache` module) was the
+degenerate form of this tree: a dict from `(anchoring, text)` to a leaf token
+stream. It has been replaced by `green_tree.py`: `tokenise()` is the
+leaf-construction primitive, the ContextVar-scoped intern index (above) plus
+the per-node `_descended` map is the memo, and `green_tree_scope()` replaces
+the former `token_cache_scope()` at `Analyser.analyse` / `lower_to_ir`. No
+consumer calls `TclLexer` directly except the node builder. (Persisting one
+tree per `DocumentState` across edits is phase 4.)
 
 ## Consumer migration
 
@@ -234,16 +266,16 @@ The bar is unchanged and strict:
 
 ## Phase mapping (issue #477)
 
-1. **Shared tokenisation memo** — *shipped.* `token_cache.py`; consumers:
-   segmenter, `compiler_checks`, `var_refs`.
-2. **Green token tree** — sections A–B; replace the flat memo with lazy
-   memoised descent; migrate the segmenter and `compiler_checks`.
+1. **Shared tokenisation memo** — *shipped, then subsumed by phase 2.*
+2. **Green token tree** — *shipped.* `green_tree.py`; sections A–B; lazy
+   memoised descent + intern index; segmenter and `compiler_checks` migrated,
+   `var_refs` on the leaf primitive.
 3. **Edit-range inference** — section C; prefix/suffix diff in `did_change`.
-4. **Incremental tree update** — section D; re-tokenise dirty nodes, width-shift
-   the rest; wire into chunk/proc caches and semantic-token deltas.
+4. **Incremental tree update** — section D; re-tokenise dirty nodes,
+   offset-shift the tail; wire into chunk/proc caches and semantic-token deltas.
 5. **Error-recovery nodes** — section E.
 
-Phases 2 is pure throughput (no LSP behaviour change). Phases 3–5 deliver true
+Phase 2 is pure throughput (no LSP behaviour change). Phases 3–5 deliver true
 incrementality and are where the per-keystroke latency win lives.
 
 ## Risks
@@ -259,7 +291,8 @@ incrementality and are where the per-keystroke latency win lives.
 
 ## Pointers
 
-- Memo (phase 1): [`core/parsing/token_cache.py`](../../../core/parsing/token_cache.py)
+- Green tree (phases 1–2): [`core/parsing/green_tree.py`](../../../core/parsing/green_tree.py)
+- Offset-shift helpers (phase 4): [`core/parsing/token_positions.py`](../../../core/parsing/token_positions.py)
 - Lexer / modes: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py),
   [`core/parsing/expr_lexer.py`](../../../core/parsing/expr_lexer.py),
   [`core/parsing/tokens.py`](../../../core/parsing/tokens.py)

@@ -23,7 +23,7 @@ from .known_commands import known_command_names
 
 if TYPE_CHECKING:
     from ..commands.registry.command_registry import CommandRegistry
-from .token_cache import tokenise_cached
+from .green_tree import tokenise
 from .tokens import SourcePosition, Token, TokenType
 
 log = logging.getLogger(__name__)
@@ -232,7 +232,7 @@ def _segment_raw(
 ) -> list[SegmentedCommand]:
     """Segment without error recovery — the inner loop."""
     base_offset, base_line, base_col = _base_position_for(body_token)
-    tokens, warnings = tokenise_cached(
+    tokens, warnings = tokenise(
         source,
         base_offset,
         base_line,

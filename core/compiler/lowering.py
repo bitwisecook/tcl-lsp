@@ -2520,9 +2520,9 @@ def lower_to_ir(
     call site as :class:`IRBlock` nodes.  See
     :mod:`core.compiler.inline_uplevel` for the recognition gate.
     """
-    from ..parsing.token_cache import token_cache_scope
+    from ..parsing.green_tree import green_tree_scope
 
-    with token_cache_scope():
+    with green_tree_scope():
         return _lower_to_ir_inner(source, chunk_ir=chunk_ir, chunks=chunks)
 
 

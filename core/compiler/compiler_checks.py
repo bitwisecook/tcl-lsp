@@ -34,7 +34,7 @@ from ..common.ranges import position_from_relative, range_from_token
 from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
 from ..parsing.expr_lexer import ExprTokenType, tokenise_expr
-from ..parsing.token_cache import tokenise_cached
+from ..parsing.green_tree import tokenise
 from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
@@ -224,7 +224,7 @@ class _CompilerCheckRunner:
         base_line: int,
         base_col: int,
     ) -> None:
-        tokens, _ = tokenise_cached(text, base_offset, base_line, base_col)
+        tokens, _ = tokenise(text, base_offset, base_line, base_col)
 
         argv: list[Token] = []
         argv_texts: list[str] = []
@@ -406,7 +406,7 @@ class _CompilerCheckRunner:
         body_tok: Token,
     ) -> tuple[list[str], list[Token]]:
         """Lex switch list-form body into alternating pattern/body elements."""
-        tokens, _ = tokenise_cached(
+        tokens, _ = tokenise(
             body_text,
             body_tok.start.offset + 1,
             body_tok.start.line,
