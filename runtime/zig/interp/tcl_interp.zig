@@ -153,7 +153,7 @@ pub fn eval_expr_str(ptr: u32, len: u32) i64 {
 /// position lets the caller split the expression text into LHS / RHS
 /// substrings.
 const StringOp = struct {
-    kind: enum { eq, ne, in_, ni, eq_eq, ne_eq },
+    kind: enum { eq, ne, in_, ni, eq_eq, ne_eq, lt, gt, le, ge },
     /// First byte of the operator keyword in the expression text.
     start: u32,
     /// Byte length of the keyword (2 for all four operators).
@@ -170,6 +170,37 @@ const StringOp = struct {
 /// regular ``expr_or`` pipeline (which itself recurses back into
 /// ``eval_expr_str`` for each side, picking up the string-op fix
 /// where it actually applies).
+/// Advance past a ``$variable`` reference starting at ``src[start] == '$'``,
+/// returning the index of its last byte (so a scanner's ``i += 1`` steps
+/// onto the next unconsumed byte).  Operator scanners must skip these so
+/// the ``::`` in ``$ns::v`` isn't read as a ternary ``:`` and the ``eq``
+/// in ``$equal`` isn't read as the string operator.  Handles ``$name``,
+/// ``$::ns::name``, ``${braced}``, and a trailing ``(index)`` array key.
+fn skip_dollar_ref(src: [*]const u8, len: u32, start: u32) u32 {
+    var i: u32 = start + 1;
+    if (i < len and src[i] == '{') {
+        i += 1;
+        while (i < len and src[i] != '}') i += 1;
+        return if (i < len) i else len - 1;
+    }
+    while (i < len and ((src[i] >= 'a' and src[i] <= 'z') or
+        (src[i] >= 'A' and src[i] <= 'Z') or
+        (src[i] >= '0' and src[i] <= '9') or src[i] == '_' or
+        (src[i] == ':' and i + 1 < len and src[i + 1] == ':')))
+    {
+        if (src[i] == ':') i += 2 else i += 1;
+    }
+    if (i < len and src[i] == '(') {
+        var d: u32 = 1;
+        i += 1;
+        while (i < len and d > 0) : (i += 1) {
+            if (src[i] == '(') d += 1 else if (src[i] == ')') d -= 1;
+        }
+        if (i > 0) i -= 1;
+    }
+    return if (i > start) i - 1 else start;
+}
+
 /// Walk *src*[rest_start..len] looking for a lower-precedence boolean
 /// or ternary operator that would override the candidate ``==``/``!=``.
 /// Returns true when no such operator is present (so the equality
@@ -180,6 +211,10 @@ fn eq_op_is_top_level(src: [*]const u8, len: u32, rest_start: u32) bool {
     var i: u32 = rest_start;
     while (i < len) : (i += 1) {
         const c = src[i];
+        if (c == '$') {
+            i = skip_dollar_ref(src, len, i);
+            continue;
+        }
         if (c == '"') {
             i += 1;
             while (i < len and src[i] != '"') {
@@ -238,6 +273,13 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
     var i: u32 = 0;
     while (i < len) : (i += 1) {
         const c = src[i];
+        // Skip ``$var`` references so the ``::`` in ``$ns::v`` isn't read
+        // as a ternary ``:`` (which would bail before the real operator)
+        // and ``$equal`` doesn't self-match its ``eq`` substring.
+        if (c == '$') {
+            i = skip_dollar_ref(src, len, i);
+            continue;
+        }
         // Skip nested constructs so an inner ``eq`` doesn't get picked.
         if (c == '"') {
             i += 1;
@@ -315,6 +357,24 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
                 .op_len = 2,
             };
         }
+        // ``< > <= >=`` relational operators: Tcl 9 compares numerically
+        // when both operands parse as numbers, else lexicographically.
+        // The legacy i64 ``expr_add`` path raises on non-numeric operands
+        // (``$c < "\x7F"`` in tcltest's ``Asciify``), so dispatch through
+        // ``eval_string_expr`` here.  Exclude the ``<<`` / ``>>`` shift
+        // operators (those stay numeric in ``expr_add``).  Same
+        // lower-precedence guard as the equality branch.
+        if ((c == '<' or c == '>') and !(i + 1 < len and src[i + 1] == c)) {
+            const two = i + 1 < len and src[i + 1] == '=';
+            const op_len: u32 = if (two) 2 else 1;
+            if (!eq_op_is_top_level(src, len, i + op_len)) {
+                continue;
+            }
+            if (c == '<') {
+                return .{ .kind = if (two) .le else .lt, .start = i, .op_len = op_len };
+            }
+            return .{ .kind = if (two) .ge else .gt, .start = i, .op_len = op_len };
+        }
         if (c == '+' or c == '-' or c == '*' or c == '/' or c == '%') return null;
         // String operator must be surrounded by whitespace on both
         // sides — otherwise a variable name like ``$equal`` would
@@ -326,6 +386,20 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
         const ch2 = src[i + 2];
         const ch3 = src[i + 3];
         if (ch3 != ' ' and ch3 != '\t') continue;
+        // A string operator (``eq`` / ``ne`` / ``in`` / ``ni``) is only
+        // the top-level operator when no lower-precedence boolean /
+        // ternary operator follows it.  Without this, ``$ec ne "*" && 1
+        // ni $rc`` would be mis-read as ``$ec ne ("*" && 1 ni $rc)`` and
+        // ``eval_string_expr`` would string-compare the whole RHS — the
+        // ``==`` / ``!=`` branch above already guards this way.  When the
+        // RHS carries a ``&&`` / ``||`` / ``?:`` (or arithmetic), defer:
+        // ``continue`` so the scan reaches that operator and returns null,
+        // letting ``expr_or`` split there and recurse per operand.
+        if ((ch1 == 'e' and ch2 == 'q') or (ch1 == 'n' and ch2 == 'e') or
+            (ch1 == 'i' and ch2 == 'n') or (ch1 == 'n' and ch2 == 'i'))
+        {
+            if (!eq_op_is_top_level(src, len, i + 4)) continue;
+        }
         if (ch1 == 'e' and ch2 == 'q') {
             return .{ .kind = .eq, .start = i + 1, .op_len = 2 };
         }
@@ -418,6 +492,25 @@ fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
             const eq_flag = obj_mod.obj_get_int(eq_obj);
             obj_mod.tcl_obj_release(eq_obj);
             result = if (op.kind == .eq_eq) eq_flag else (1 - eq_flag);
+        },
+        .lt, .gt, .le, .ge => {
+            // Tcl 9 ``< > <= >=``: numeric compare when both operands
+            // parse as numbers, else lexicographic string compare.
+            // ``tcl_expr_order_cmp`` returns -1 / 0 / 1 with exactly
+            // those semantics — the legacy ``expr_add`` i64 path instead
+            // raised ``cannot use non-numeric string as operand`` (e.g.
+            // tcltest's ``Asciify`` does ``$c < "\x7F"`` on a character).
+            const tcl_string = @import("../valtypes/tcl_string.zig");
+            const cmp_obj = tcl_string.tcl_expr_order_cmp(lhs_obj, rhs_obj);
+            const c = obj_mod.obj_get_int(cmp_obj);
+            obj_mod.tcl_obj_release(cmp_obj);
+            result = switch (op.kind) {
+                .lt => if (c < 0) @as(i64, 1) else 0,
+                .gt => if (c > 0) @as(i64, 1) else 0,
+                .le => if (c <= 0) @as(i64, 1) else 0,
+                .ge => if (c >= 0) @as(i64, 1) else 0,
+                else => unreachable,
+            };
         },
     }
     obj_mod.tcl_obj_release(lhs_obj);
@@ -1166,9 +1259,15 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         const vs = pos.*;
         while (pos.* < len and ((src[pos.*] >= 'a' and src[pos.*] <= 'z') or
             (src[pos.*] >= 'A' and src[pos.*] <= 'Z') or
-            (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
+            (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_' or
+            // ``::`` namespace separators are part of the variable name —
+            // ``$::v`` / ``$ns::v`` must read the qualified global, not
+            // stop at the first colon and resolve an empty name to 0.
+            (src[pos.*] == ':' and pos.* + 1 < len and src[pos.* + 1] == ':')))
         {
-            pos.* += 1;
+            // Consume both colons of a ``::`` separator in one step so a
+            // trailing single ``:`` (not a separator) still terminates.
+            if (src[pos.*] == ':') pos.* += 2 else pos.* += 1;
         }
         const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
         // Issue #303 — release the per-atom name temp.
@@ -1348,6 +1447,82 @@ pub fn recursion_check_leave() void {
 
 pub fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
+    const et = @import("tcl_exec_trace.zig");
+    // Fast path: no execution traces and no active step context (and
+    // not currently inside a trace callback) — skip all bookkeeping.
+    if (et.suppress != 0 or (et.any_traces == 0 and et.step_depth == 0)) {
+        return eval_command_dispatch(words);
+    }
+    return eval_command_traced(words);
+}
+
+/// Execution-trace wrapper around the real dispatch.  Fires the traced
+/// command's ``enter`` / ``leave`` callbacks and the enclosing step
+/// traces' ``enterstep`` / ``leavestep``.  Only reached when at least
+/// one execution trace exists or a step context is active.
+fn eval_command_traced(words: []const i32) i32 {
+    const et = @import("tcl_exec_trace.zig");
+    const bucket: u32 = @bitCast(procs.proc_lookup(words[0]));
+    // Only the *execution*-trace ops (enter/leave/enterstep/leavestep)
+    // fire through this dispatch path; command-trace ops (delete/rename)
+    // fire from the rename / redefine / namespace-teardown sites via
+    // ``fire_command``.  Mask them out so a command carrying *only* a
+    // delete/rename trace doesn't drag every invocation through the full
+    // wrapper (build_invocation_string + step bookkeeping) for nothing.
+    const EXEC_OP_MASK = et.OP_ENTER | et.OP_LEAVE | et.OP_ENTERSTEP | et.OP_LEAVESTEP;
+    const ops = (if (bucket != 0) et.ops_for(bucket) else 0) & EXEC_OP_MASK;
+    const step_active = et.step_depth != 0;
+    if (ops == 0 and !step_active) return eval_command_dispatch(words);
+
+    const cmd_str = build_invocation_string(words);
+    defer if (cmd_str != 0) obj_mod.tcl_obj_release(cmd_str);
+
+    // Enclosing step traces fire ``enterstep`` for this command.
+    if (step_active) et.fire_step(et.OP_ENTERSTEP, cmd_str, 0, 0);
+    // This command's own ``enter`` trace.
+    if ((ops & et.OP_ENTER) != 0) et.fire(bucket, et.OP_ENTER, cmd_str, 0, 0);
+
+    const has_step = (ops & (et.OP_ENTERSTEP | et.OP_LEAVESTEP)) != 0;
+    if (has_step) et.push_step(bucket);
+    const result = eval_command_dispatch(words);
+    if (has_step) et.pop_step();
+
+    // Capture the completion code for leave / leavestep.
+    if ((ops & et.OP_LEAVE) != 0 or step_active) {
+        const snap = result_mod.snapshot(result);
+        const code_obj = obj_mod.obj_new_int(@intFromEnum(snap.code));
+        if ((ops & et.OP_LEAVE) != 0) et.fire(bucket, et.OP_LEAVE, cmd_str, code_obj, result);
+        if (step_active) et.fire_step(et.OP_LEAVESTEP, cmd_str, code_obj, result);
+        obj_mod.tcl_obj_release(code_obj);
+    }
+    return result;
+}
+
+/// Build the command-invocation string (the objv joined as a Tcl list)
+/// passed to execution-trace callbacks.
+fn build_invocation_string(words: []const i32) i32 {
+    const quote = @import("../valtypes/tcl_list_quote.zig");
+    var size: u32 = 0;
+    for (words) |w| {
+        const s = obj_ensure_string(w);
+        size += 2 * s.len + 3; // worst-case quoting + separator
+    }
+    if (size == 0) return obj_mod.obj_new_string(0, 0);
+    const buf = obj_mod.alloc(size);
+    if (buf == 0) return obj_mod.obj_new_string(0, 0);
+    var off: u32 = 0;
+    for (words, 0..) |w, i| {
+        if (i > 0) {
+            @as([*]u8, @ptrFromInt(buf))[off] = ' ';
+            off += 1;
+        }
+        const s = obj_ensure_string(w);
+        off = quote.list_elem_quote(buf, off, s.ptr, s.len);
+    }
+    return obj_mod.obj_new_string_take(buf, off, size);
+}
+
+fn eval_command_dispatch(words: []const i32) i32 {
     cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);
     if (cmd_s.len == 0) return 0;
@@ -3799,6 +3974,46 @@ fn eval_proc_call(words: []const i32) i32 {
         if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;
         }
+        // Per-namespace ``namespace unknown`` handler (namespace-52.x):
+        // the current namespace's explicit handler — or the root
+        // namespace's, if the current one has none — intercepts the
+        // unknown command, invoked as ``{*}$handler word0 word1 …``.
+        // When neither has an explicit handler the dispatch falls
+        // through to the global ``unknown`` proc below (the default
+        // ``::unknown`` auto-loader).
+        {
+            const ns_mod = @import("tcl_ns.zig");
+            var ns_handler = ns_mod.ns_unknown_get(ns_mod.current_ns);
+            if (ns_handler == 0 and ns_mod.current_ns != ns_mod.root_addr) {
+                ns_handler = ns_mod.ns_unknown_get(ns_mod.root_addr);
+            }
+            if (ns_handler != 0) {
+                const hs = obj_ensure_string(ns_handler);
+                const n_h: u32 = @intCast(obj_mod.list_count_elements(hs.ptr, hs.len));
+                if (n_h > 0 and n_h + words.len <= parse.MAX_WORDS) {
+                    var hw: [parse.MAX_WORDS]i32 = undefined;
+                    var hi: u32 = 0;
+                    var ei: i64 = 0;
+                    while (ei < n_h) : (ei += 1) {
+                        const e = obj_mod.list_element_at(hs.ptr, hs.len, ei);
+                        hw[hi] = obj_mod.obj_new_string(@bitCast(hs.ptr + e.start), @bitCast(e.len));
+                        hi += 1;
+                    }
+                    var wk: u32 = 0;
+                    while (wk < words.len) : (wk += 1) {
+                        obj_mod.tcl_obj_retain(words[wk]);
+                        hw[hi] = words[wk];
+                        hi += 1;
+                    }
+                    const r = eval_command(hw[0..hi]);
+                    var rk: u32 = 0;
+                    while (rk < hi) : (rk += 1) {
+                        if (hw[rk] != 0) obj_mod.tcl_obj_release(hw[rk]);
+                    }
+                    return r;
+                }
+            }
+        }
         // Before declaring the command unknown, look for a
         // user-defined ``unknown`` proc that should intercept the
         // call (Tcl's classic auto-dispatch hook).  Reference Tcl's
@@ -3958,7 +4173,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
                     off += 1;
                 }
                 const fq_key = obj_mod.obj_new_string_take(buf, total, total);
-                const entry = tcl_array.array_get(arr_name, fq_key);
+                const entry = tcl_array.array_get_raw(arr_name, fq_key);
                 if (entry != 0) {
                     const es = obj_ensure_string(entry);
                     if (es.len > 0) {
@@ -3972,7 +4187,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
         }
     }
     // 2. Bare-name probe.
-    const entry2 = tcl_array.array_get(arr_name, cmd_obj);
+    const entry2 = tcl_array.array_get_raw(arr_name, cmd_obj);
     if (entry2 != 0) {
         const es = obj_ensure_string(entry2);
         if (es.len > 0) {
@@ -4033,6 +4248,81 @@ fn build_invocation_list(words: []const i32) i32 {
     // (578 invocations in the failing trace) leaked one TclObj
     // header and one quoted-args buffer.
     return obj_new_string_take(buf, off, total);
+}
+
+/// Raise ``wrong # args: should be "<name> <params>"`` for an
+/// interpreted proc called with fewer args than its required (no-
+/// default) parameters.  Mirrors C Tcl's ``ProcWrongNumArgs``: a
+/// defaulted parameter renders as ``?name?``, a trailing ``args``
+/// parameter as ``?arg ...?``, and a required parameter as its bare
+/// name.  ``invoked_name`` is the word the caller used (``words[0]``)
+/// so the message echoes the spelling at the call site.
+fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const inv = obj_ensure_string(invoked_name);
+    const ps = obj_ensure_string(params_obj);
+    const prefix = "wrong # args: should be \"";
+    var pcap: u32 = 0;
+    var i: u32 = 0;
+    while (i < n_params) : (i += 1) {
+        const pe = list_element_at(ps.ptr, ps.len, @intCast(i));
+        pcap += pe.len + 12;
+    }
+    const total: u32 = @as(u32, @intCast(prefix.len)) + inv.len + pcap + 1;
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    var off: u32 = 0;
+    for (prefix) |c| {
+        @as([*]u8, @ptrFromInt(buf + off))[0] = c;
+        off += 1;
+    }
+    if (inv.len > 0) {
+        memcpy(buf + off, inv.ptr, inv.len);
+        off += inv.len;
+    }
+    i = 0;
+    while (i < n_params) : (i += 1) {
+        @as([*]u8, @ptrFromInt(buf + off))[0] = ' ';
+        off += 1;
+        const pe = list_element_at(ps.ptr, ps.len, @intCast(i));
+        const pptr = ps.ptr + pe.start;
+        const plen = pe.len;
+        const sub_n = list_count_elements(pptr, plen);
+        var nptr = pptr;
+        var nlen = plen;
+        if (sub_n == 2) {
+            const ne = list_element_at(pptr, plen, 0);
+            nptr = pptr + ne.start;
+            nlen = ne.len;
+        }
+        const np: [*]const u8 = @ptrFromInt(nptr);
+        const is_args = (i == n_params - 1) and nlen == 4 and
+            np[0] == 'a' and np[1] == 'r' and np[2] == 'g' and np[3] == 's';
+        if (sub_n == 2) {
+            @as([*]u8, @ptrFromInt(buf + off))[0] = '?';
+            off += 1;
+            memcpy(buf + off, nptr, nlen);
+            off += nlen;
+            @as([*]u8, @ptrFromInt(buf + off))[0] = '?';
+            off += 1;
+        } else if (is_args) {
+            const lit = "?arg ...?";
+            for (lit) |c| {
+                @as([*]u8, @ptrFromInt(buf + off))[0] = c;
+                off += 1;
+            }
+        } else {
+            memcpy(buf + off, nptr, nlen);
+            off += nlen;
+        }
+    }
+    @as([*]u8, @ptrFromInt(buf + off))[0] = '"';
+    off += 1;
+    const msg = obj_mod.obj_new_string_take(buf, off, total);
+    catch_mod.tcl_cmd_error(msg);
 }
 
 /// Internal: dispatch once the proc bucket is already resolved.
@@ -4417,14 +4707,15 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                     // omitted this positional arg.
                     _ = frames.local_set(param_name, param_default);
                 } else {
-                    // No default and no caller-supplied value —
-                    // reference Tcl raises ``wrong # args`` here, but
-                    // legacy tests (and our own existing baselines)
-                    // rely on the lenient empty-default behaviour, so
-                    // keep that for the no-default case.
-                    const empty = obj_new_string(0, 0);
-                    _ = frames.local_set(param_name, empty);
-                    obj_mod.tcl_obj_release(empty);
+                    // No default and no caller-supplied value: reference
+                    // Tcl raises ``wrong # args: should be "name a ?b?"``
+                    // (``TclObjInterpProc`` → ``ProcWrongNumArgs``).
+                    // init-2.x and many tcltest cases assert this exact
+                    // message; bind-empty would silently run the body
+                    // with an empty required argument instead.
+                    raise_proc_wrong_args(words[0], params_obj, n_params);
+                    frames.frame_pop();
+                    return 0;
                 }
             }
         }
@@ -4902,6 +5193,13 @@ fn eval_interp_eval(words: []const i32) i32 {
     const target_interp = interp_impl.resolve_interp_path(words[2]);
     if (target_interp == 0) return 0;
 
+    // On the child's first eval, run its deferred Tcl_Init (init.tcl
+    // source) as a complete, separate eval cycle before the user script,
+    // giving trusted children the auto-loading machinery the way C Tcl's
+    // ChildCreate does.  No-op for already-initialised interps and for
+    // children that never opted in (parent without init.tcl).
+    interp_reg.run_deferred_init(target_interp);
+
     // Concatenate words[3..] with single-space separator.
     var total: u32 = 0;
     var k: u32 = 3;
@@ -4953,13 +5251,49 @@ fn eval_interp_eval(words: []const i32) i32 {
     // paths use.  Procs cached by ``proc_lookup`` are keyed on
     // (ns, ...) so the LRU doesn't cross-pollute between interps.
     const swapped = target_interp != interp_reg.interp_current();
+    // A child interp has its own call stack: ``interp eval child {…}``
+    // runs at the child's *global* frame regardless of the caller's
+    // depth.  Park the caller's frames (frame_depth → 0) so unqualified
+    // variables and arrays at the child script's top level resolve as
+    // globals, not as locals of whatever parent proc invoked the eval.
+    // Mirrors C Tcl's per-interp call stack (``ChildEval`` runs the
+    // script in the child, not a continuation of the parent's frame).
+    //
+    // Order matters: stash *before* :func:`enter`.  ``frame_depth_stash``
+    // re-points ``current_ns`` at the parked top frame's caller-ns (its
+    // uplevel contract); doing it after ``enter`` would clobber the
+    // child-root context ``enter`` installs, leaving the child script
+    // running in the *parent's* namespace (observed as tcltest's
+    // ``ConstraintInitializer`` failing when the child is loaded from a
+    // ``::tcltest``-namespace proc).  ``enter`` after the stash restores
+    // ``current_ns = 0`` / ``root_addr = child``; ``leave`` then
+    // ``frame_depth_restore`` unwind in the reverse order.
+    const frame_saved: i32 = if (swapped) frames.frame_depth_stash(@intCast(frames.frame_depth)) else 0;
     const save = if (swapped) interp_reg.enter(target_interp) else interp_reg.EnterSave{
         .prev_interp = interp_reg.current_interp,
         .prev_root_addr = tcl_ns.root_addr,
         .prev_current_ns = tcl_ns.current_ns,
     };
     const result = if (off > 0) eval_script(script_ptr, off) else 0;
+    // A child error's message (``error "msg"``) is stored in
+    // ``state.error_msg`` as a *borrowed* handle into the eval script
+    // buffer (``script_ptr``), which the ``defer free_sized`` below
+    // reclaims as soon as we return.  The parent's surrounding ``catch``
+    // reads ``error_msg`` only after that free, seeing zeroed bytes.
+    // Promote it to an owned copy now, while the buffer is still live,
+    // so the message survives the interp-eval boundary intact.
+    {
+        const tcl_catch = @import("tcl_catch.zig");
+        if (tcl_catch.state.error_flag != 0 and tcl_catch.state.error_msg != 0) {
+            const em = obj_ensure_string(tcl_catch.state.error_msg);
+            if (em.len > 0) {
+                const owned = obj_mod.obj_new_string_copy(em.ptr, em.len);
+                if (owned != 0) tcl_catch.state.error_msg = owned;
+            }
+        }
+    }
     interp_reg.leave(save);
+    if (swapped) frames.frame_depth_restore(frame_saved);
 
     // ``ChildEval`` (tclInterp.c) wraps the child eval in
     // ``Tcl_EvalObjEx`` which calls ``TclUpdateReturnInfo`` when the

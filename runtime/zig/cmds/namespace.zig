@@ -151,7 +151,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 defer tcl_ns.current_ns = saved_ns;
                 if (words.len == 4) {
                     const bs = obj_ensure_string(words[3]);
-                    if (bs.len > 0) return result_mod.from_globals(interp.eval_script(bs.ptr, bs.len));
+                    if (bs.len > 0) {
+                        const line_before = @import("../interp/tcl_frames.zig").frame_get_line(0);
+                        const r = interp.eval_script(bs.ptr, bs.len);
+                        append_ns_eval_error_frame(target_ns, line_before);
+                        return result_mod.from_globals(r);
+                    }
                     return result_mod.from_globals(0);
                 }
                 var total: u32 = 0;
@@ -175,7 +180,24 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         off += 1;
                     }
                 }
+                const line_before2 = @import("../interp/tcl_frames.zig").frame_get_line(0);
                 const ns_result = interp.eval_script(buf, total);
+                append_ns_eval_error_frame(target_ns, line_before2);
+                // ``error msg …`` in the body stores ``msg`` as a bare
+                // borrow that can point into ``buf`` (the synthesised
+                // body, e.g. ``namespace eval ns error foo bar baz``);
+                // promote it to an owned copy before freeing so the
+                // catch result variable doesn't read recycled memory
+                // (namespace-25.8's ``rIn`` corruption).
+                {
+                    const tcl_catch = @import("../interp/tcl_catch.zig");
+                    if (tcl_catch.state.error_flag != 0 and tcl_catch.state.error_msg != 0) {
+                        const ms = obj_mod.obj_ensure_string(tcl_catch.state.error_msg);
+                        if (ms.len > 0 and ms.ptr >= buf and ms.ptr < buf + total) {
+                            tcl_catch.state.error_msg = obj_mod.obj_new_string_copy(ms.ptr, ms.len);
+                        }
+                    }
+                }
                 // Free the synthesised script buffer.  ``eval_script``
                 // either copies bytes into owned TclObjs or borrows
                 // through retained var slots; either way the result's
@@ -469,6 +491,26 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "current")) {
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
             return result_mod.from_globals(obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len)));
+        }
+        if (str_eq(@ptrFromInt(sub.ptr), sub.len, "unknown")) {
+            // ``namespace unknown ?handler?`` — per-namespace
+            // unknown-command handler (namespace-52.x).
+            const cur_ns = tcl_ns.ns_current();
+            if (words.len >= 3) {
+                tcl_ns.ns_unknown_set(cur_ns, words[2]);
+                return result_mod.from_globals(obj_new_string(0, 0));
+            }
+            const h = tcl_ns.ns_unknown_get(cur_ns);
+            if (h != 0) {
+                obj_mod.tcl_obj_retain(h);
+                return result_mod.from_globals(h);
+            }
+            // No explicit handler: the root namespace defaults to
+            // ``::unknown``; every other namespace reports ``{}``.
+            if (cur_ns == tcl_ns.root_addr) {
+                return result_mod.from_globals(obj_new_string(@bitCast(@intFromPtr("::unknown".ptr)), 9));
+            }
+            return result_mod.from_globals(obj_new_string(0, 0));
         }
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "ensemble")) {
             return result_mod.from_globals(eval_ns_ensemble(words));
@@ -978,6 +1020,12 @@ fn do_ns_delete(h: u32) void {
     // Command pointer and ``test_ns_1::q`` would keep running its
     // body (namespace-old-7.1, namespace-35.2).  Drop the LRU
     // unconditionally on every namespace teardown.
+    // Reference Tcl ``TclTeardownNamespace`` deletes each command in
+    // the namespace, which fires its ``delete`` command trace while the
+    // command (and namespace) is still live — so the callback's
+    // ``namespace which -command`` still resolves it (trace-34.4).  Fire
+    // before the tombstoning below removes the cmd_table entries.
+    fire_ns_command_delete_traces(h);
     invalidate_ns_command_imports(h);
     procs.lru_invalidate_all();
     const parent = ns.parent;
@@ -1117,6 +1165,45 @@ fn list_imported_simple_names(ns_addr: u32) i32 {
 /// import redirect that points at one of these commands.  ``info
 /// commands`` filters such "dead" redirects via ``entry_matches``,
 /// matching Tcl 9 ``Tcl_DeleteNamespace`` semantics.
+/// Fire the ``delete`` command trace for every traced command in
+/// *ns_addr* before the namespace is torn down.  The command and its
+/// home namespace are still live at this point, so the callback's
+/// ``namespace which -command <fqn>`` resolves it (trace-34.4).  Each
+/// command's traces are dropped afterwards.
+fn fire_ns_command_delete_traces(ns_addr: u32) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue;
+        // Guard against out-of-heap handles (builtin forwards, etc.).
+        if (@as(u64, cmd) + procs.OFF_FLAGS + 4 > mem_bytes) continue;
+        if ((exec_trace.ops_for(cmd) & exec_trace.OP_CMD_DELETE) != 0) {
+            const fqn_info = tcl_ns.ns_build_fqn(ns_addr, name_ptr, name_len);
+            const fqn: i32 = if (fqn_info.ptr != 0)
+                obj_mod.obj_new_string_take(fqn_info.ptr, fqn_info.len, fqn_info.len)
+            else
+                0;
+            defer if (fqn != 0) obj_mod.tcl_obj_release(fqn);
+            // One-shot: the delete entry is removed before its callback
+            // runs, so a callback that re-deletes this namespace can't
+            // recurse back into here forever.
+            exec_trace.fire_command_delete_oneshot(cmd, fqn);
+        }
+        exec_trace.remove_all_for(cmd);
+    }
+}
+
 fn invalidate_ns_command_imports(ns_addr: u32) void {
     if (ns_addr == 0) return;
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
@@ -1476,17 +1563,18 @@ fn read_ensemble_option(rec: *EnsembleRec, key_obj: i32) i32 {
 /// Wrap a TclObj's string in ``{…}`` braces for the ``configure``
 /// emit.  Empty becomes ``{}``.  Caller releases.
 fn brace_wrap(value: i32) i32 {
+    // Render *value* as a single Tcl list element for ``namespace
+    // ensemble config`` output: empty → ``{}``, a simple word →
+    // verbatim (``-unknown bar`` not ``-unknown {bar}``), and only
+    // values with whitespace / special chars get braced (namespace-47.5).
+    const quote = @import("../valtypes/tcl_list_quote.zig");
     const s = obj_ensure_string(value);
     if (s.len == 0) return obj_new_string_copy_str("{}");
-    const total: u32 = s.len + 2;
-    const buf = alloc(total);
+    const cap: u32 = 2 * s.len + 4;
+    const buf = alloc(cap);
     if (buf == 0) return obj_new_string(0, 0);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    dst[0] = '{';
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    for (0..s.len) |i| dst[1 + i] = sp[i];
-    dst[total - 1] = '}';
-    return obj_mod.obj_new_string_take(buf, total, total);
+    const off = quote.list_elem_quote(buf, 0, s.ptr, s.len);
+    return obj_mod.obj_new_string_take(buf, off, cap);
 }
 
 fn raise_unknown_ensemble_option(name_ptr: u32, name_len: u32) void {
@@ -1923,47 +2011,62 @@ fn eval_ns_ensemble_create(words: []const i32) i32 {
 /// extra args).
 pub fn dispatch_ensemble(bucket: i32, words: []const i32) i32 {
     const rec = ensemble_rec_of(@bitCast(bucket)) orelse return 0;
-    if (words.len < 2) {
+    // ``-parameters {p1 p2 …}`` consumes that many words *before* the
+    // subcommand; they are re-inserted ahead of the resolved impl's
+    // trailing args (namespace-53.1).
+    var n_params: u32 = 0;
+    if (rec.params_obj != 0) {
+        const ps = obj_ensure_string(rec.params_obj);
+        const c = obj_mod.list_count_elements(ps.ptr, ps.len);
+        if (c > 0) n_params = @intCast(c);
+    }
+    const sub_idx: u32 = 1 + n_params;
+    if (words.len < sub_idx + 1) {
         raise_ensemble_wrong_args(words[0], rec);
         return 0;
     }
-    const sub = obj_ensure_string(words[1]);
+    const sub = obj_ensure_string(words[sub_idx]);
     if (sub.len == 0) {
         raise_ensemble_wrong_args(words[0], rec);
         return 0;
     }
 
     // 1. Resolve subcommand → impl.
-    var impl_obj: i32 = 0;
-    if (rec.map_obj != 0) {
-        const ms = obj_ensure_string(rec.map_obj);
-        const n = obj_mod.list_count_elements(ms.ptr, ms.len);
-        if (n > 0 and @rem(n, 2) == 0) {
-            const matched = ensemble_lookup_map(ms.ptr, ms.len, n, sub.ptr, sub.len, rec.prefixes);
-            if (matched > 0) {
-                const e = obj_mod.list_element_at(ms.ptr, ms.len, matched);
-                impl_obj = obj_mod.obj_new_string(@bitCast(ms.ptr + e.start), @bitCast(e.len));
-            } else if (matched == 0) {
-                // No match — fall through to -unknown / no-export error
-            }
-        }
-    }
-    if (impl_obj == 0) {
-        // Try exported commands of the target ns.
-        impl_obj = ensemble_lookup_exported(rec, sub.ptr, sub.len);
-    }
+    const impl_obj = ensemble_resolve(rec, sub.ptr, sub.len);
     if (impl_obj == 0) {
         // -unknown handler?
         if (rec.unknown_obj != 0) {
-            return invoke_ensemble_unknown(bucket, rec, words);
+            return invoke_ensemble_unknown(bucket, rec, words, sub_idx);
         }
         raise_ensemble_unknown_sub(words[0], sub.ptr, sub.len, rec);
         return 0;
     }
     defer obj_mod.tcl_obj_release(impl_obj);
 
-    // 2. Build the full call: impl-elements + words[2..].
-    return invoke_ensemble_impl(impl_obj, words);
+    // 2. Build the full call: impl-elements + parameters + trailing args.
+    return invoke_ensemble_impl(impl_obj, words, sub_idx);
+}
+
+/// Resolve an ensemble subcommand to its implementation command prefix
+/// (a fresh TclObj list), or 0 if no match.  Probes the ``-map`` table
+/// first, then the target namespace's exported commands.
+fn ensemble_resolve(rec: *EnsembleRec, sub_ptr: u32, sub_len: u32) i32 {
+    var impl_obj: i32 = 0;
+    if (rec.map_obj != 0) {
+        const ms = obj_ensure_string(rec.map_obj);
+        const n = obj_mod.list_count_elements(ms.ptr, ms.len);
+        if (n > 0 and @rem(n, 2) == 0) {
+            const matched = ensemble_lookup_map(ms.ptr, ms.len, n, sub_ptr, sub_len, rec.prefixes);
+            if (matched > 0) {
+                const e = obj_mod.list_element_at(ms.ptr, ms.len, matched);
+                impl_obj = obj_mod.obj_new_string(@bitCast(ms.ptr + e.start), @bitCast(e.len));
+            }
+        }
+    }
+    if (impl_obj == 0) {
+        impl_obj = ensemble_lookup_exported(rec, sub_ptr, sub_len);
+    }
+    return impl_obj;
 }
 
 /// Match *sub* against the keys of the ``-map`` list.  Returns the
@@ -2102,15 +2205,19 @@ fn ensemble_match_in_exports(ns: u32, sub_ptr: u32, sub_len: u32, prefixes: u32)
 
 /// Combine the ensemble impl prefix (a Tcl list) with the remaining
 /// call args and invoke the result.
-fn invoke_ensemble_impl(impl_obj: i32, words: []const i32) i32 {
+fn invoke_ensemble_impl(impl_obj: i32, words: []const i32, sub_idx: u32) i32 {
     const is = obj_ensure_string(impl_obj);
     if (is.len == 0) return 0;
     const interp = @import("../interp/tcl_interp.zig");
-    // The impl is a list ``cmd ?arg ...?``.  Split into element
-    // TclObjs, then append words[2..].
+    // The impl is a list ``cmd ?arg ...?``.  Split into element TclObjs,
+    // then append the ensemble ``-parameters`` words (``words[1..sub_idx]``,
+    // before the subcommand) followed by the trailing args after the
+    // subcommand (``words[sub_idx+1..]``).  With no parameters
+    // ``sub_idx == 1`` so this is just ``words[2..]``.
     const n_impl = obj_mod.list_count_elements(is.ptr, is.len);
-    const tail = if (words.len >= 2) words.len - 2 else 0;
-    const total_args: u32 = @intCast(@as(i64, n_impl) + @as(i64, @intCast(tail)));
+    const n_params: u32 = if (sub_idx > 1) sub_idx - 1 else 0;
+    const n_trail: u32 = if (words.len > sub_idx + 1) @intCast(words.len - sub_idx - 1) else 0;
+    const total_args: u32 = @intCast(@as(i64, n_impl) + @as(i64, n_params) + @as(i64, n_trail));
     if (total_args == 0) return 0;
     const argv = obj_mod.alloc(total_args * 4);
     if (argv == 0) return 0;
@@ -2123,7 +2230,14 @@ fn invoke_ensemble_impl(impl_obj: i32, words: []const i32) i32 {
         obj_mod.write_i32(argv + idx * 4, w);
         idx += 1;
     }
-    var wi: u32 = 2;
+    // ``-parameters`` words (between the ensemble name and subcommand).
+    var pi: u32 = 1;
+    while (pi < sub_idx) : (pi += 1) {
+        obj_mod.tcl_obj_retain(words[pi]);
+        obj_mod.write_i32(argv + idx * 4, words[pi]);
+        idx += 1;
+    }
+    var wi: u32 = sub_idx + 1;
     while (wi < words.len) : (wi += 1) {
         obj_mod.tcl_obj_retain(words[wi]);
         obj_mod.write_i32(argv + idx * 4, words[wi]);
@@ -2141,8 +2255,7 @@ fn invoke_ensemble_impl(impl_obj: i32, words: []const i32) i32 {
     return result;
 }
 
-fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i32 {
-    _ = bucket;
+fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32, sub_idx: u32) i32 {
     // Build call: unknown_prefix + ensemble_name + words[1..]
     const us = obj_ensure_string(rec.unknown_obj);
     const interp = @import("../interp/tcl_interp.zig");
@@ -2160,9 +2273,17 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         obj_mod.write_i32(argv + idx * 4, w);
         idx += 1;
     }
-    // Ensemble name (use words[0] as-is)
-    obj_mod.tcl_obj_retain(words[0]);
-    obj_mod.write_i32(argv + idx * 4, words[0]);
+    // Ensemble name — pass the fully-qualified command name (Tcl hands
+    // the handler the resolved ``::ns::ensemble`` form, not the short
+    // invoked word; namespace-47.7/47.8).  Fall back to words[0] if the
+    // FQN can't be built.
+    const fqn = interp_impl.command_fqn_obj(@as(u32, @bitCast(bucket)));
+    if (fqn != 0) {
+        obj_mod.write_i32(argv + idx * 4, fqn);
+    } else {
+        obj_mod.tcl_obj_retain(words[0]);
+        obj_mod.write_i32(argv + idx * 4, words[0]);
+    }
     idx += 1;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
@@ -2177,7 +2298,51 @@ fn invoke_ensemble_unknown(bucket: i32, rec: *EnsembleRec, words: []const i32) i
         const v = obj_mod.read_i32(argv + j * 4);
         if (v != 0) obj_mod.tcl_obj_release(v);
     }
-    return result;
+
+    // Tcl ensemble ``-unknown`` retry protocol.  The handler ran for its
+    // side effects (it may have created / mapped the subcommand) and
+    // returns a list:
+    //   * error           → propagate.
+    //   * empty list       → re-resolve the original subcommand and
+    //                        dispatch it (the handler just created it).
+    //                        Still unknown ⇒ "unknown subcommand" error.
+    //   * non-empty list   → that list is the rewritten command prefix
+    //                        to invoke in place of the ensemble call.
+    //   * break/continue/return → "unknown subcommand handler returned
+    //                        bad code: <name>" (namespace-47.4).
+    const result_mod2 = @import("../interp/tcl_result.zig");
+    const snap = result_mod2.snapshot(result);
+    if (snap.code == .ERROR) return result;
+    if (snap.code != .OK) {
+        result_mod2.consume(snap.code);
+        raise_ensemble_bad_code(snap.code);
+        if (result != 0) obj_mod.tcl_obj_release(result);
+        return 0;
+    }
+
+    // The subcommand sits *after* any ``-parameters`` words, at
+    // ``sub_idx`` — not ``words[1]``.  Re-resolving with the wrong index
+    // would treat the first parameter as the subcommand, so a handler
+    // that created/mapped the real subcommand could never be recovered.
+    const sub = obj_ensure_string(words[sub_idx]);
+    const impl = ensemble_resolve(rec, sub.ptr, sub.len);
+    if (impl != 0) {
+        if (result != 0) obj_mod.tcl_obj_release(result);
+        defer obj_mod.tcl_obj_release(impl);
+        return invoke_ensemble_impl(impl, words, sub_idx);
+    }
+
+    const rs = obj_ensure_string(result);
+    if (rs.len != 0) {
+        // Non-empty rewrite: evaluate the returned command prefix
+        // followed by the ensemble's parameters + argument tail.
+        defer if (result != 0) obj_mod.tcl_obj_release(result);
+        return invoke_ensemble_impl(result, words, sub_idx);
+    }
+
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    raise_ensemble_unknown_sub(words[0], sub.ptr, sub.len, rec);
+    return 0;
 }
 
 fn raise_ensemble_wrong_args(name: i32, rec: *EnsembleRec) void {
@@ -2600,6 +2765,103 @@ fn raise_ns_not_found_in_current(name_ptr: u32, name_len: u32) void {
     }
     const e = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(e);
+}
+
+/// Raise ``unknown subcommand handler returned bad code: <name>`` when
+/// an ensemble ``-unknown`` handler returns a non-OK / non-error code
+/// (break / continue / return).  namespace-47.4.
+fn raise_ensemble_bad_code(code: @import("../interp/tcl_result.zig").Code) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const name: []const u8 = switch (code) {
+        .RETURN => "return",
+        .BREAK => "break",
+        .CONTINUE => "continue",
+        else => "?",
+    };
+    const prefix: []const u8 = "unknown subcommand handler returned bad code: ";
+    const total: u32 = @intCast(prefix.len + name.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (name) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    catch_mod.tcl_cmd_error(obj_mod.obj_new_string_take(buf, total, total));
+}
+
+/// When a ``namespace eval`` body raises, append the
+/// ``\n    (in namespace eval "<FQNS>" script line N)`` errorInfo frame
+/// — the namespace-eval analogue of ``(procedure "X" line N)``.  The
+/// surrounding ``eval_script`` then stamps the ``invoked from within
+/// "namespace eval …"`` callsite frame via ``append_errinfo_frame``'s
+/// sentinel (namespace-25.6/25.7/25.8).  No-op when the body succeeded.
+fn append_ns_eval_error_frame(target_ns: u32, line_before: u32) void {
+    const tcl_catch = @import("../interp/tcl_catch.zig");
+    if (tcl_catch.state.error_flag == 0) return;
+    const ns_full = tcl_ns.ns_full_name(target_ns);
+    if (ns_full.ptr == 0 or ns_full.len == 0) return;
+    // ``error_frame_line`` is the absolute source line of the failing
+    // command.  The body's nested ``eval_script`` doesn't reset the
+    // frame line (only the outermost eval owns it), so subtract the
+    // ``namespace eval`` command's own line to get the body-relative
+    // ``script line N`` Tcl reports (1-based).
+    const abs = tcl_catch.state.error_frame_line;
+    var line_n: u32 = if (abs >= line_before and line_before > 0) abs - line_before + 1 else 1;
+    if (line_n == 0) line_n = 1;
+    // Decimal-render the line number.
+    var digits: [16]u8 = undefined;
+    var d_off: u32 = 0;
+    {
+        var n = line_n;
+        while (n > 0) : (n /= 10) {
+            digits[d_off] = @intCast('0' + (n % 10));
+            d_off += 1;
+        }
+    }
+    const prefix: []const u8 = "\n    (in namespace eval \"";
+    const middle: []const u8 = "\" script line ";
+    const suffix: []const u8 = ")";
+    const total: u32 = @intCast(prefix.len + ns_full.len + middle.len + d_off + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(ns_full.ptr);
+    var k: u32 = 0;
+    while (k < ns_full.len) : (k += 1) {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    // ``digits`` holds the line in reverse; emit most-significant first.
+    while (d_off > 0) {
+        d_off -= 1;
+        dst[off] = digits[d_off];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp_const: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns.append_errinfo_frame(bp_const[0..total]);
+    obj_mod.free_sized(buf, total);
 }
 
 /// Raise the canonical Tcl 9 ``unknown namespace "NAME" in CONTEXT``

@@ -42,6 +42,24 @@ _VARIADIC_OVERFLOW_TO_EVAL = frozenset(
         "::lsort",
         "lsearch",
         "::lsearch",
+        # ``source`` has a fixed argc=1 runtime import (the bare
+        # ``source fileName`` fast path).  The option forms
+        # ``source -encoding enc fileName`` and ``source -nopkg
+        # fileName`` carry extra leading args, so route them through
+        # the interpreter's ``eval_source`` dispatcher (which strips
+        # the option and sources the trailing fileName) instead of
+        # feeding the first arg to the 1-arg import as the path.
+        "source",
+        "::source",
+        # ``package`` has a fixed argc=2 import covering the 2-arg
+        # subcommands (``package require X``, ``package provide X``).
+        # The longer forms — notably ``package ifneeded NAME VERSION
+        # SCRIPT`` (store) and ``package ifneeded NAME VERSION``
+        # (query), which ``tcltest::loadIntoChildInterpreter`` relies
+        # on — carry more args than the import accepts, so route them
+        # through the interpreter's ``eval_package`` dispatcher.
+        "package",
+        "::package",
     }
 )
 

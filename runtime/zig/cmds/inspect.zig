@@ -7,6 +7,7 @@ const trace_mod = @import("../interp/tcl_trace.zig");
 const var_trace = @import("../interp/tcl_var_trace.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 
 /// Phase 6 follow-up: classify ``NAME`` for ``trace add/remove/info
 /// variable``.  Proc-local traces go on the per-frame chain (so two
@@ -43,6 +44,12 @@ fn is_local_trace_target(name: i32) bool {
         if (sp[k] == ':' and k + 1 < sn.len and sp[k + 1] == ':') return false;
         if (sp[k] == '(') return false;
     }
+    // A ``global x`` declaration aliases the local name to the root
+    // global ``::x``; a trace on it belongs in the global directory so
+    // it outlives the proc that installed it (trace-17.2 / 17.3).  An
+    // unqualified bare name that is NOT a global alias is a genuine
+    // proc-local and stays on the per-frame chain.
+    if (frames.current_frame_is_global_alias(name)) return false;
     return true;
 }
 
@@ -72,12 +79,270 @@ fn eval_info(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(obj_new_string(0, 0));
 }
 
+/// Match a ``trace`` operand type — ``variable`` / ``command`` /
+/// ``execution`` — accepting any ≥3-char unique prefix (Tcl allows
+/// abbreviation).  Returns the canonical keyword, or null for an
+/// unrecognised type.
+fn trace_type_keyword(p: [*]const u8, len: u32) ?[]const u8 {
+    if (len < 3) return null;
+    const cands = [_][]const u8{ "variable", "command", "execution" };
+    for (cands) |c| {
+        if (len > c.len) continue;
+        var k: u32 = 0;
+        var match = true;
+        while (k < len) : (k += 1) {
+            if (p[k] != c[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return c;
+    }
+    return null;
+}
+
+/// Raise a Tcl error whose message is the concatenation of *parts*.
+fn raise_parts(parts: []const []const u8) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    var total: u32 = 0;
+    for (parts) |p| total += @intCast(p.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (parts) |p| {
+        for (p) |c| {
+            dst[off] = c;
+            off += 1;
+        }
+    }
+    catch_mod.tcl_cmd_error(obj_new_string_take(buf, total, total));
+}
+
+fn obj_bytes(o: i32) []const u8 {
+    const s = obj_ensure_string(o);
+    if (s.ptr == 0 or s.len == 0) return "";
+    return (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
+}
+
+/// True if *name* resolves to a live command (user proc / alias /
+/// builtin).  ``trace add|remove|info command|execution`` requires the
+/// target command to exist (trace-27.x / 28.8 / 28.9).
+fn trace_command_exists(name: i32) bool {
+    const procs = @import("../interp/tcl_procs.zig");
+    if (procs.proc_lookup(name) != 0) return true;
+    const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+    const s = obj_ensure_string(name);
+    if (s.ptr != 0 and s.len != 0 and cmd_table.lookup(s.ptr, s.len) != null) return true;
+    return false;
+}
+
+/// Raise ``unknown command "NAME"`` for a command/execution trace whose
+/// target doesn't resolve.
+fn raise_unknown_trace_command(name: i32) void {
+    raise_parts(&.{ "unknown command \"", obj_bytes(name), "\"" });
+}
+
+fn is_execution_keyword(p: [*]const u8, len: u32) bool {
+    if (len < 3 or len > 9) return false;
+    const lit = "execution";
+    var k: u32 = 0;
+    while (k < len) : (k += 1) {
+        if (p[k] != lit[k]) return false;
+    }
+    return true;
+}
+
+fn is_command_keyword(p: [*]const u8, len: u32) bool {
+    if (len < 3 or len > 7) return false;
+    const lit = "command";
+    var k: u32 = 0;
+    while (k < len) : (k += 1) {
+        if (p[k] != lit[k]) return false;
+    }
+    return true;
+}
+
+/// Parse a command-trace op list (``{delete rename}``) → OP_CMD_* mask.
+fn parse_command_ops(ops_obj: i32) u32 {
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const s = obj_ensure_string(ops_obj);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    var mask: u32 = 0;
+    const n = obj.list_count_elements(s.ptr, s.len);
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        if (str_eq(ep, e.len, "delete")) mask |= exec_trace.OP_CMD_DELETE;
+        if (str_eq(ep, e.len, "rename")) mask |= exec_trace.OP_CMD_RENAME;
+    }
+    return mask;
+}
+
+/// Parse an execution-trace op list (``{enter leave enterstep
+/// leavestep}``) into the OP_* bitmask.
+fn parse_exec_ops(ops_obj: i32) u32 {
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const s = obj_ensure_string(ops_obj);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    var mask: u32 = 0;
+    const n = obj.list_count_elements(s.ptr, s.len);
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        if (str_eq(ep, e.len, "enter")) mask |= exec_trace.OP_ENTER;
+        if (str_eq(ep, e.len, "leave")) mask |= exec_trace.OP_LEAVE;
+        if (str_eq(ep, e.len, "enterstep")) mask |= exec_trace.OP_ENTERSTEP;
+        if (str_eq(ep, e.len, "leavestep")) mask |= exec_trace.OP_LEAVESTEP;
+    }
+    return mask;
+}
+
+/// The command bucket (identity) an execution/command trace keys
+/// against, or 0.  When *provision* is set (the ``trace add`` path) and
+/// the target is a hardcoded BUILTIN with no proc-table Command yet,
+/// materialise a forwarding Command bucket for it: reference Tcl gives
+/// every command an identity that traces attach to, and dispatch then
+/// routes the builtin through the proc path so its enter/leave/step (and
+/// rename/delete) traces actually fire while still invoking the original
+/// handler.  ``trace remove`` / ``trace info`` pass provision=false so an
+/// untraced builtin isn't turned into a forward by a no-op query.
+fn exec_trace_bucket(name: i32, provision: bool) u32 {
+    const procs = @import("../interp/tcl_procs.zig");
+    const existing: u32 = @bitCast(procs.proc_lookup(name));
+    if (existing != 0) return existing;
+    if (!provision) return 0;
+    const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+    const s = obj_ensure_string(name);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    if (cmd_table.lookup(s.ptr, s.len)) |handler| {
+        procs.register_builtin_forward(s.ptr, s.len, @intCast(@intFromPtr(handler)));
+        return @bitCast(procs.proc_lookup(name));
+    }
+    return 0;
+}
+
+/// Validate a trace op-list against the allowed ops for *kw* (the
+/// canonical type keyword).  Each op must be a full (non-abbreviated)
+/// keyword; the list must be non-empty.  Raises the canonical Tcl
+/// diagnostic and returns false on any violation (trace-14.6.x).
+fn validate_trace_oplist(ops_obj: i32, kw: []const u8) bool {
+    var allowed: []const []const u8 = undefined;
+    var allowed_str: []const u8 = undefined;
+    if (str_eq(kw.ptr, @intCast(kw.len), "variable")) {
+        allowed = &.{ "array", "read", "unset", "write" };
+        allowed_str = "array, read, unset, or write";
+    } else if (str_eq(kw.ptr, @intCast(kw.len), "command")) {
+        allowed = &.{ "delete", "rename" };
+        allowed_str = "delete or rename";
+    } else {
+        allowed = &.{ "enter", "leave", "enterstep", "leavestep" };
+        allowed_str = "enter, leave, enterstep, or leavestep";
+    }
+    const s = obj_ensure_string(ops_obj);
+    const n = obj.list_count_elements(s.ptr, s.len);
+    if (n <= 0) {
+        raise_parts(&.{ "bad operation list \"\": must be one or more of ", allowed_str });
+        return false;
+    }
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        var ok = false;
+        for (allowed) |a| {
+            if (a.len != e.len) continue;
+            var match = true;
+            for (a, 0..) |c, k| {
+                if (ep[k] != c) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) {
+            raise_parts(&.{ "bad operation \"", ep[0..e.len], "\": must be ", allowed_str });
+            return false;
+        }
+    }
+    return true;
+}
+
 fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
-        return result_mod.from_globals(obj_new_string(0, 0));
+        raise_parts(&.{"wrong # args: should be \"trace option ?arg ...?\""});
+        return result_mod.from_globals(0);
     }
     const sub_s = obj_ensure_string(words[1]);
     const sub_p: [*]const u8 = @ptrFromInt(sub_s.ptr);
+    // Arity / type validation for the modern add / remove / info forms
+    // (trace-14.0.x / 14.1-14.4).  Done up front so the working paths
+    // below can assume well-formed argument counts.
+    const sub_is_add = str_eq(sub_p, sub_s.len, "add");
+    const sub_is_remove = str_eq(sub_p, sub_s.len, "remove");
+    const sub_is_info = str_eq(sub_p, sub_s.len, "info");
+    if (sub_is_add or sub_is_remove) {
+        if (words.len < 3) {
+            raise_parts(&.{ "wrong # args: should be \"trace ", obj_bytes(words[1]), " type ?arg ...?\"" });
+            return result_mod.from_globals(0);
+        }
+        const ty_s = obj_ensure_string(words[2]);
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len)) |kw| {
+            if (words.len != 6) {
+                raise_parts(&.{ "wrong # args: should be \"trace ", obj_bytes(words[1]), " ", obj_bytes(words[2]), " name opList command\"" });
+                return result_mod.from_globals(0);
+            }
+            // command / execution traces require the target to exist.
+            if ((str_eq(kw.ptr, @intCast(kw.len), "command") or
+                str_eq(kw.ptr, @intCast(kw.len), "execution")) and
+                !trace_command_exists(words[3]))
+            {
+                raise_unknown_trace_command(words[3]);
+                return result_mod.from_globals(0);
+            }
+            // Validate the op list (words[4]) against the type's ops.
+            if (!validate_trace_oplist(words[4], kw)) {
+                return result_mod.from_globals(0);
+            }
+        }
+    } else if (sub_is_info) {
+        if (words.len < 3) {
+            raise_parts(&.{"wrong # args: should be \"trace info type name\""});
+            return result_mod.from_globals(0);
+        }
+        const ty_s = obj_ensure_string(words[2]);
+        if (trace_type_keyword(@ptrFromInt(ty_s.ptr), ty_s.len)) |kw| {
+            if (words.len != 4) {
+                raise_parts(&.{ "wrong # args: should be \"trace info ", obj_bytes(words[2]), " name\"" });
+                return result_mod.from_globals(0);
+            }
+            if ((str_eq(kw.ptr, @intCast(kw.len), "command") or
+                str_eq(kw.ptr, @intCast(kw.len), "execution")) and
+                !trace_command_exists(words[3]))
+            {
+                raise_unknown_trace_command(words[3]);
+                return result_mod.from_globals(0);
+            }
+        }
+    } else if (!str_eq(sub_p, sub_s.len, "variable") and
+        !str_eq(sub_p, sub_s.len, "vdelete") and
+        !str_eq(sub_p, sub_s.len, "vinfo"))
+    {
+        // Unknown subcommand — the legacy ``variable`` / ``vdelete`` /
+        // ``vinfo`` forms are still handled below; everything else is a
+        // bad option (trace-14.5).
+        raise_parts(&.{ "bad option \"", obj_bytes(words[1]), "\": must be add, info, or remove" });
+        return result_mod.from_globals(0);
+    }
     // ``trace add variable NAME OPS CMD`` — phase 6 implementation.
     if (str_eq(sub_p, sub_s.len, "add") and words.len >= 6) {
         const kind_s = obj_ensure_string(words[2]);
@@ -88,7 +353,16 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             install_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
-        // execution / command tracing — pass-through NOP.
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.add(exec_trace_bucket(words[3], true), parse_exec_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.add(exec_trace_bucket(words[3], true), parse_command_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace remove variable NAME OPS CMD``.
@@ -101,6 +375,16 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             _ = uninstall_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.remove(exec_trace_bucket(words[3], false), parse_exec_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.remove(exec_trace_bucket(words[3], false), parse_command_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace info variable NAME``.
@@ -109,6 +393,16 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
         if (is_variable_keyword(kind_p, kind_s.len)) {
             return result_mod.from_globals(query_var_trace(words[3]));
+        }
+        if (is_execution_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            const m = exec_trace.OP_ENTER | exec_trace.OP_LEAVE | exec_trace.OP_ENTERSTEP | exec_trace.OP_LEAVESTEP;
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3], false), m));
+        }
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            const m = exec_trace.OP_CMD_DELETE | exec_trace.OP_CMD_RENAME;
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3], false), m));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
@@ -230,8 +524,57 @@ fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
         var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
         return;
     }
+    maybe_create_array_for_trace_install(name);
     const canon = canonical_var_name(name);
     var_trace.add(canon, ops, cmd_prefix);
+    if (canon != name and canon != 0) tcl_obj_release(canon);
+}
+
+/// Drop every variable trace registered on ``name`` — the removal
+/// counterpart to :func:`install_var_trace`, routed the same way
+/// (per-frame chain for proc-locals, canonical-name directory
+/// otherwise).  Called by ``unset`` after the variable's unset
+/// callbacks have fired, so a later variable reusing the name doesn't
+/// inherit the stale trace (Tcl's documented ``unset`` semantics; see
+/// :func:`tcl_var_trace.remove_all`).  Probes both the as-written and
+/// FQ ``::name`` spellings for the directory case, mirroring the
+/// dual-form lookup the scalar fire path uses.
+pub fn remove_all_var_traces(name: i32) void {
+    if (is_local_trace_target(name)) {
+        const sn = obj_ensure_string(name);
+        if (frames.frame_depth > 0) {
+            var_trace.remove_all_in_list(
+                &frames.frame_trace_heads[frames.frame_depth - 1],
+                sn.ptr,
+                sn.len,
+            );
+        }
+        return;
+    }
+    const canon = canonical_var_name(name);
+    const sn = obj_ensure_string(canon);
+    if (sn.ptr != 0 and sn.len != 0) {
+        var_trace.remove_all(sn.ptr, sn.len);
+        // Also probe the alternate FQ / non-FQ spelling so a trace
+        // installed under ``::x`` is dropped when ``unset x`` runs
+        // (and vice versa) — matches fire_scalar_trace_op's dual probe.
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        const has_fq = sn.len >= 2 and sp[0] == ':' and sp[1] == ':';
+        if (has_fq) {
+            var_trace.remove_all(sn.ptr + 2, sn.len - 2);
+        } else {
+            const total: u32 = sn.len + 2;
+            const buf = obj.alloc(total);
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                dst[0] = ':';
+                dst[1] = ':';
+                for (0..sn.len) |k| dst[2 + k] = sp[k];
+                var_trace.remove_all(buf, total);
+                obj.free_sized(buf, total);
+            }
+        }
+    }
     if (canon != name and canon != 0) tcl_obj_release(canon);
 }
 
@@ -265,6 +608,34 @@ fn maybe_invalidate_searches_on_trace_install(name: i32) void {
     if (obj_helpers.obj_get_int(tcl_array_mod.array_element_exists(arr_name, key_obj)) == 0) {
         tcl_array_mod.array_invalidate_searches_for_obj(arr_name);
     }
+}
+
+/// When ``name`` parses as ``arr(key)`` and ``arr`` is not yet an
+/// array, create it as an empty array so element reads / unsets report
+/// ``no such element in array`` (and fire the just-installed trace)
+/// rather than ``no such variable`` — matching reference Tcl, which
+/// materialises the array when a trace is registered on one of its
+/// elements (trace-1.4 / trace-10.1).  Directory (global / top-level)
+/// case only; proc-local element traces take the per-frame path above.
+fn maybe_create_array_for_trace_install(name: i32) void {
+    const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len < 3) return;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[sn.len - 1] != ')') return;
+    var paren: i32 = -1;
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        if (sp[i] == '(') {
+            paren = @intCast(i);
+            break;
+        }
+    }
+    if (paren <= 0) return;
+    const paren_at: u32 = @intCast(paren);
+    const arr_name = obj_new_string(@bitCast(sn.ptr), @bitCast(paren_at));
+    defer tcl_obj_release(arr_name);
+    const tcl_array_mod = @import("../valtypes/tcl_array.zig");
+    tcl_array_mod.ensure_array_exists(arr_name);
 }
 
 /// Fire any ``array``-op variable trace on *name*.  Reference Tcl

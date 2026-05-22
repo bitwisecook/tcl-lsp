@@ -330,6 +330,23 @@ fn resolve_for_register(name_ptr: u32, name_len: u32) struct {
     return .{ .r = r, .existing = existing };
 }
 
+/// Fire a redefined command's ``delete`` trace (if any) and drop every
+/// command / execution trace keyed on its bucket.  Reference Tcl deletes
+/// the old command when ``proc`` re-registers an existing name, which
+/// invokes its delete trace and removes all traces before the new body
+/// is installed (trace-19.4 / 19.5 / 20.3).
+fn redefine_clear_command_traces(cmd: u32) void {
+    const exec_trace = @import("tcl_exec_trace.zig");
+    if (exec_trace.ops_for(cmd) == 0) return;
+    if ((exec_trace.ops_for(cmd) & exec_trace.OP_CMD_DELETE) != 0) {
+        const cmd_interp = @import("../cmds/tcl_cmd_interp.zig");
+        const fqn = cmd_interp.command_fqn_obj(cmd);
+        defer if (fqn != 0) obj.tcl_obj_release(fqn);
+        exec_trace.fire_command(cmd, exec_trace.OP_CMD_DELETE, fqn, 0);
+    }
+    exec_trace.remove_all_for(cmd);
+}
+
 /// Register an interpreted proc (body is Tcl source, func_idx = 0).
 /// params_obj and body_obj are TclObj handles (string representations).
 ///
@@ -385,6 +402,13 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
         cmd = alloc_command(sn.ptr, sn.len, hash);
         _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
         proc_count += 1;
+    } else {
+        // Redefining an existing command deletes the old one before
+        // installing the new body (C Tcl ``TclCreateObjCommandInNs``).
+        // Fire its ``delete`` command trace and drop every command /
+        // execution trace keyed on the bucket so the recreated command
+        // starts clean — trace-19.4 / 19.5 / 20.3.
+        redefine_clear_command_traces(cmd);
     }
 
     // Clear any CMD_IMPORTED bit — defining a proc with the same

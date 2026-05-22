@@ -16,6 +16,20 @@ def _emit_global(
     """
     for var_name in args:
         emitter._globals.add(var_name)
+        # Register the same-name global alias in the runtime frame too
+        # (mirrors what ``upvar`` / ``variable`` already do via
+        # ``frame_alias_*``).  The compiled read/write fast paths use the
+        # WASM-local mirror, so this is mainly for the interpreter-side
+        # dispatch that consults the frame: e.g. ``trace add variable x``
+        # must see ``x`` as a global so the trace lands in the global
+        # directory and survives the proc's return (trace-17.2 / 17.3).
+        # No-op at top level (``frame_alias_global`` bails when no frame
+        # is active), so only worth emitting inside a proc body.
+        if emitter._is_proc:
+            alias_idx = emitter._shared_imports.get("tcl_frame_alias_global")
+            if alias_idx is not None:
+                emitter._emit_obj_literal(var_name)
+                emitter._emit_call(alias_idx)
         gget_idx = emitter._shared_imports.get("tcl_global_get")
         if gget_idx is not None:
             local_idx = emitter._intern_local(var_name)
