@@ -60,6 +60,37 @@ class EditRange:
         return self.new_end - self.old_end
 
 
+def _common_prefix_len(a: str, b: str, hi: int) -> int:
+    """Largest ``k`` in ``[0, hi]`` with ``a[:k] == b[:k]``.
+
+    Binary search on slice equality: O(log hi) comparisons, each a C-speed
+    string compare, rather than a Python char-by-char loop — which matters
+    because this runs on every keystroke over the whole document.
+    """
+    lo = 0
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if a[:mid] == b[:mid]:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
+def _common_suffix_len(a: str, b: str, hi: int) -> int:
+    """Largest ``k`` in ``[0, hi]`` with ``a[len(a)-k:] == b[len(b)-k:]``."""
+    na = len(a)
+    nb = len(b)
+    lo = 0
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if a[na - mid :] == b[nb - mid :]:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
 def infer_edit_range(old: str, new: str) -> EditRange | None:
     """Infer the changed span between two full-source revisions.
 
@@ -72,15 +103,11 @@ def infer_edit_range(old: str, new: str) -> EditRange | None:
     n_old = len(old)
     n_new = len(new)
     limit = n_old if n_old < n_new else n_new
-    start = 0
-    while start < limit and old[start] == new[start]:
-        start += 1
-    i = n_old
-    j = n_new
-    while i > start and j > start and old[i - 1] == new[j - 1]:
-        i -= 1
-        j -= 1
-    return EditRange(start=start, old_end=i, new_end=j)
+    start = _common_prefix_len(old, new, limit)
+    # Common suffix, not crossing back past the prefix in either string.
+    suffix_max = min(n_old - start, n_new - start)
+    slen = _common_suffix_len(old, new, suffix_max)
+    return EditRange(start=start, old_end=n_old - slen, new_end=n_new - slen)
 
 
 def _shift_command(cmd: SegmentedCommand, offset_delta: int, line_delta: int) -> SegmentedCommand:
