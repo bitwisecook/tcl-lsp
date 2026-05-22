@@ -285,7 +285,7 @@ def test_query_options_is_frozen() -> None:
 
     opts = QueryOptions()
     with pytest.raises(FrozenInstanceError):
-        opts.merge = True  # type: ignore[misc]
+        setattr(opts, "merge", True)
 
 
 def test_session_is_reusable_across_queries() -> None:
