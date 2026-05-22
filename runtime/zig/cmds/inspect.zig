@@ -150,6 +150,33 @@ fn is_execution_keyword(p: [*]const u8, len: u32) bool {
     return true;
 }
 
+fn is_command_keyword(p: [*]const u8, len: u32) bool {
+    if (len < 3 or len > 7) return false;
+    const lit = "command";
+    var k: u32 = 0;
+    while (k < len) : (k += 1) {
+        if (p[k] != lit[k]) return false;
+    }
+    return true;
+}
+
+/// Parse a command-trace op list (``{delete rename}``) → OP_CMD_* mask.
+fn parse_command_ops(ops_obj: i32) u32 {
+    const exec_trace = @import("../interp/tcl_exec_trace.zig");
+    const s = obj_ensure_string(ops_obj);
+    if (s.ptr == 0 or s.len == 0) return 0;
+    var mask: u32 = 0;
+    const n = obj.list_count_elements(s.ptr, s.len);
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        const e = obj.list_element_at(s.ptr, s.len, i);
+        const ep: [*]const u8 = @ptrFromInt(s.ptr + e.start);
+        if (str_eq(ep, e.len, "delete")) mask |= exec_trace.OP_CMD_DELETE;
+        if (str_eq(ep, e.len, "rename")) mask |= exec_trace.OP_CMD_RENAME;
+    }
+    return mask;
+}
+
 /// Parse an execution-trace op list (``{enter leave enterstep
 /// leavestep}``) into the OP_* bitmask.
 fn parse_exec_ops(ops_obj: i32) u32 {
@@ -307,7 +334,11 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             exec_trace.add(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
-        // command tracing — pass-through NOP.
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.add(exec_trace_bucket(words[3]), parse_command_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace remove variable NAME OPS CMD``.
@@ -325,6 +356,11 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
             exec_trace.remove(exec_trace_bucket(words[3]), parse_exec_ops(words[4]), words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            exec_trace.remove(exec_trace_bucket(words[3]), parse_command_ops(words[4]), words[5]);
+            return result_mod.from_globals(obj_new_string(0, 0));
+        }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // ``trace info variable NAME``.
@@ -336,7 +372,13 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         }
         if (is_execution_keyword(kind_p, kind_s.len)) {
             const exec_trace = @import("../interp/tcl_exec_trace.zig");
-            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3])));
+            const m = exec_trace.OP_ENTER | exec_trace.OP_LEAVE | exec_trace.OP_ENTERSTEP | exec_trace.OP_LEAVESTEP;
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3]), m));
+        }
+        if (is_command_keyword(kind_p, kind_s.len)) {
+            const exec_trace = @import("../interp/tcl_exec_trace.zig");
+            const m = exec_trace.OP_CMD_DELETE | exec_trace.OP_CMD_RENAME;
+            return result_mod.from_globals(exec_trace.info(exec_trace_bucket(words[3]), m));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
     }

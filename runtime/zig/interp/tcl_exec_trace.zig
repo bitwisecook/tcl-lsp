@@ -26,6 +26,10 @@ pub const OP_ENTER: u32 = 1;
 pub const OP_LEAVE: u32 = 2;
 pub const OP_ENTERSTEP: u32 = 4;
 pub const OP_LEAVESTEP: u32 = 8;
+// Command traces (``trace add command``) share the bucket-keyed
+// registry but use a disjoint op space.
+pub const OP_CMD_DELETE: u32 = 16;
+pub const OP_CMD_RENAME: u32 = 32;
 
 const Entry = struct {
     bucket: u32,
@@ -233,6 +237,58 @@ fn fire_one(
     tcl_obj_release(script);
 }
 
+/// Fire command-trace callbacks (``rename`` / ``delete``) on
+/// ``bucket`` as ``CALLBACK oldName newName op``.  The callback's
+/// result is discarded (the rename/delete proceeds regardless).
+pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
+    if (count == 0) return;
+    const interp = @import("tcl_interp.zig");
+    const quote = @import("../valtypes/tcl_list_quote.zig");
+    const op_word: []const u8 = switch (op) {
+        OP_CMD_DELETE => "delete",
+        OP_CMD_RENAME => "rename",
+        else => return,
+    };
+    const old_s = obj_ensure_string(old_name);
+    var new_ptr: u32 = 0;
+    var new_len: u32 = 0;
+    if (new_name != 0) {
+        const ns = obj_ensure_string(new_name);
+        new_ptr = ns.ptr;
+        new_len = ns.len;
+    }
+    var i: u32 = 0;
+    while (i < count) : (i += 1) {
+        if (entries[i].bucket != bucket) continue;
+        if ((entries[i].ops & op) == 0) continue;
+        const cb = obj_ensure_string(entries[i].callback);
+        const size: u32 = cb.len + (1 + 2 * old_s.len + 2) + (1 + 2 * new_len + 2) + (1 + @as(u32, @intCast(op_word.len)) + 2);
+        const buf = alloc(size);
+        if (buf == 0) continue;
+        var off: u32 = 0;
+        if (cb.len > 0) {
+            const cbp: [*]const u8 = @ptrFromInt(cb.ptr);
+            var k: u32 = 0;
+            while (k < cb.len) : (k += 1) {
+                @as([*]u8, @ptrFromInt(buf))[off] = cbp[k];
+                off += 1;
+            }
+        }
+        off = append_sp_elem(buf, off, old_s.ptr, old_s.len, quote);
+        off = append_sp_elem(buf, off, new_ptr, new_len, quote);
+        off = append_sp_elem(buf, off, @intFromPtr(op_word.ptr), @intCast(op_word.len), quote);
+        const script = obj.obj_new_string_take(buf, off, size);
+        if (script == 0) {
+            obj.free_sized(buf, size);
+            continue;
+        }
+        suppress += 1;
+        _ = interp.tcl_eval(script);
+        if (suppress > 0) suppress -= 1;
+        tcl_obj_release(script);
+    }
+}
+
 fn append_sp_elem(buf: u32, off_in: u32, ptr: u32, len: u32, quote: anytype) u32 {
     var off = off_in;
     @as([*]u8, @ptrFromInt(buf))[off] = ' ';
@@ -240,15 +296,19 @@ fn append_sp_elem(buf: u32, off_in: u32, ptr: u32, len: u32, quote: anytype) u32
     return quote.list_elem_quote(buf, off, ptr, len);
 }
 
-/// Tcl list of ``{ops callback}`` pairs for ``trace info execution``.
-pub fn info(bucket: u32) i32 {
+/// Tcl list of ``{ops callback}`` pairs for ``trace info
+/// execution|command``.  ``op_mask`` restricts the result to entries
+/// (and rendered ops) in the requested op space.
+pub fn info(bucket: u32, op_mask: u32) i32 {
     const list_mod = @import("../valtypes/tcl_list.zig");
     var result = obj_new_string(0, 0);
     if (bucket == 0) return result;
     var i: u32 = 0;
     while (i < count) : (i += 1) {
         if (entries[i].bucket != bucket) continue;
-        const ops_str = ops_to_string(entries[i].ops);
+        const shown = entries[i].ops & op_mask;
+        if (shown == 0) continue;
+        const ops_str = ops_to_string(shown);
         var pair = list_mod.tcl_list(0, ops_str);
         const pair2 = list_mod.tcl_list(pair, entries[i].callback);
         tcl_obj_release(pair);
@@ -270,6 +330,8 @@ fn ops_to_string(ops: u32) i32 {
         .{ .op = OP_LEAVE, .s = "leave" },
         .{ .op = OP_ENTERSTEP, .s = "enterstep" },
         .{ .op = OP_LEAVESTEP, .s = "leavestep" },
+        .{ .op = OP_CMD_DELETE, .s = "delete" },
+        .{ .op = OP_CMD_RENAME, .s = "rename" },
     };
     for (pieces) |p| {
         if ((ops & p.op) == 0) continue;

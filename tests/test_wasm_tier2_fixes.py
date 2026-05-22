@@ -603,3 +603,39 @@ class TestTraceOpListValidation:
     def test_execution_op_list(self) -> None:
         stdout, _ = _run('proc x {} {}\nset rc [catch {trace add execution x {bogus} a} m]\nputs "$rc|$m"\n')
         assert stdout.strip() == '1|bad operation "bogus": must be enter, leave, enterstep, or leavestep'
+
+
+class TestCommandTraces:
+    """``trace add command CMD {rename delete} CB`` fires when CMD is
+    renamed or deleted, as ``CB oldFQN newFQN op`` (trace-20.x)."""
+
+    def test_delete_via_rename_empty(self) -> None:
+        src = (
+            "eval {proc traceCommand {o n op} { global info; set info [list $o $n $op] }\n"
+            "proc foo {} {}\n"
+            "trace add command foo delete traceCommand\n"
+            'rename foo ""\n'
+            "puts $info}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "::foo {} delete"
+
+    def test_rename(self) -> None:
+        src = (
+            "eval {proc traceCommand {o n op} { global info; set info [list $o $n $op] }\n"
+            "proc foo {} {}\n"
+            "trace add command foo rename traceCommand\n"
+            "rename foo bar\n"
+            "puts $info}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "::foo ::bar rename"
+
+    def test_info_command(self) -> None:
+        src = (
+            "eval {proc foo {} {}\n"
+            "trace add command foo {rename delete} cb\n"
+            "puts [trace info command foo]}\n"
+        )
+        stdout, _ = _run(src)
+        assert stdout.strip() == "{{delete rename} cb}"

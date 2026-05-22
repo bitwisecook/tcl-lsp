@@ -141,6 +141,26 @@ fn rename_builtin(
     return 0;
 }
 
+/// Build an owned ``::name``-qualified TclObj from a (possibly already
+/// qualified) command name.  Used for the new-name argument of a
+/// command rename trace.
+fn qualify_simple_name(ptr: u32, len: u32) i32 {
+    if (len >= 2) {
+        const p: [*]const u8 = @ptrFromInt(ptr);
+        if (p[0] == ':' and p[1] == ':') return obj_new_string(@bitCast(ptr), @bitCast(len));
+    }
+    const total: u32 = len + 2;
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(@bitCast(ptr), @bitCast(len));
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = ':';
+    dst[1] = ':';
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) dst[2 + i] = src[i];
+    return rt.obj_new_string_take(buf, total, total);
+}
+
 pub fn eval_rename(words: []const i32) i32 {
     // ``rename`` takes exactly two operands (oldName + newName).
     // Extra words are rejected with ``wrong # args`` rather than
@@ -230,6 +250,22 @@ pub fn eval_rename(words: []const i32) i32 {
                 _ = procs.unregister_command(new_s.ptr, new_s.len);
                 return 0;
             }
+        }
+    }
+
+    // Fire any ``trace add command`` callbacks (rename / delete) before
+    // the command goes away, with the resolved FQ old name and (for a
+    // rename) the new name (trace-20.x).  The callback's result is
+    // discarded.  After a delete the command's traces are dropped.
+    if (old_cmd != 0) {
+        const exec_trace = @import("../interp/tcl_exec_trace.zig");
+        const op = if (new_s.len == 0) exec_trace.OP_CMD_DELETE else exec_trace.OP_CMD_RENAME;
+        if ((exec_trace.ops_for(@bitCast(old_cmd)) & op) != 0) {
+            const old_fqn = command_fqn_obj(@bitCast(old_cmd));
+            defer if (old_fqn != 0) obj_mod.tcl_obj_release(old_fqn);
+            const new_fqn: i32 = if (new_s.len == 0) 0 else qualify_simple_name(new_s.ptr, new_s.len);
+            defer if (new_fqn != 0) obj_mod.tcl_obj_release(new_fqn);
+            exec_trace.fire_command(@bitCast(old_cmd), op, old_fqn, new_fqn);
         }
     }
 
