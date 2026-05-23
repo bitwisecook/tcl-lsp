@@ -7,16 +7,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.convert.as3 import _split_destination as _as3_split_destination
-from core.bigip.pcap_enrich import _split_destination as _pcap_split_destination
-from core.bigip.port_names import (
+from dialects.f5.bigip.convert.as3 import _split_destination as _as3_split_destination
+from dialects.f5.bigip.pcap_enrich import _split_destination as _pcap_split_destination
+from dialects.f5.bigip.port_names import (
     NAME_TO_PORT,
     PORT_TO_NAME,
     port_name_to_number,
     port_number_to_name,
     resolve_port,
 )
-from core.bigip.wireshark_profile import _vs_port_proto
+from dialects.f5.bigip.wireshark_profile import _vs_port_proto
 
 
 def test_table_loads_with_expected_size():

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.codegen.wasm import wasm_codegen_module
-from core.compiler.compilation_unit import compile_source
+from compiler.codegen.wasm import wasm_codegen_module
+from compiler.compilation_unit import compile_source
 
 
 def _compile_wat(source: str) -> str:

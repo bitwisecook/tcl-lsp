@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.bigip.model import DataGroupType, ProfileType
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.model import DataGroupType, ProfileType
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 # Basic parsing
 

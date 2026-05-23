@@ -4,7 +4,7 @@
 // Tcl exposes ``+``, ``-``, ``*``, ``==`` etc. as both expression
 // operators *and* normal commands under ``::tcl::mathop``.  The
 // expression-compiled forms are handled at codegen time
-// (``core/compiler/codegen/...``); this module covers the
+// (``compiler/codegen/...``); this module covers the
 // **command-form** invocations like::
 //
 //     ::tcl::mathop::== $a $b $c

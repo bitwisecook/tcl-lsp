@@ -31,9 +31,9 @@ from __future__ import annotations
 import io
 import textwrap
 
-from core.compiler.optimiser import optimise_source
-from vm.interp import TclInterp
-from vm.types import TclError
+from compiler.optimiser import optimise_source
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 # helpers
 

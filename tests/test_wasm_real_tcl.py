@@ -16,13 +16,13 @@ from pathlib import Path
 
 import pytest
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import DiagMap, wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import DiagMap, wasm_codegen_module
+from compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 
@@ -120,7 +120,7 @@ def _compile_tcl(
     needing a WASI preopen of the test fixtures.  Leave ``None`` to
     disable inlining (compatible with the historic behaviour).
     """
-    from core.compiler.source_inliner import inline_static_sources
+    from compiler.source_inliner import inline_static_sources
 
     ir_module = lower_to_ir(source)
     if source_dir is not None:
@@ -151,7 +151,7 @@ def _compile_tcl_with_diag(
     :func:`_compile_tcl` for details.  When omitted the runtime
     handles ``source`` calls via the WASI preopen as before.
     """
-    from core.compiler.source_inliner import inline_static_sources
+    from compiler.source_inliner import inline_static_sources
 
     ir_module = lower_to_ir(source)
     if source_dir is not None:

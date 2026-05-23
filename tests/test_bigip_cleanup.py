@@ -5,9 +5,9 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-from core.bigip.cleanup import compute_cleanup, report_to_dict
-from core.bigip.parser import parse_bigip_conf
-from core.commands.registry.runtime import active_signature_profile
+from compiler.registry.runtime import active_signature_profile
+from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def _run(source: str, **kwargs):

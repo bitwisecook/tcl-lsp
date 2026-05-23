@@ -226,7 +226,7 @@ def cmd_verify(args: list[str]) -> None:
     Runs each finding's .tcl file through both vm and vm_opt backends.
     Reports which findings still timeout/crash vs now pass.
     """
-    from fuzzing.harness import _run_vm
+    from tooling.fuzzing.harness import _run_vm
 
     show = "unfixed"
     category = None
@@ -338,7 +338,7 @@ def cmd_batch_mark(args: list[str]) -> None:
     Runs verification on unfixed findings in the category and marks
     those that no longer timeout/crash as fixed.
     """
-    from fuzzing.harness import _run_vm
+    from tooling.fuzzing.harness import _run_vm
 
     category = None
     fix_desc = None
@@ -402,7 +402,7 @@ def cmd_run(args: list[str]) -> None:
         print("Usage: run SEED [--timeout SECS] [--optimise]", file=sys.stderr)
         sys.exit(1)
 
-    from fuzzing.harness import _run_vm
+    from tooling.fuzzing.harness import _run_vm
 
     seed = args[0]
     timeout = 5.0

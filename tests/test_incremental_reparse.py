@@ -14,12 +14,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.command_segmenter import (
+from compiler.parsing.command_segmenter import (
     SegmentedCommand,
     TopLevelChunk,
     segment_top_level_chunks,
 )
-from core.parsing.incremental import (
+from compiler.parsing.incremental import (
     EditRange,
     incremental_top_level_chunks,
     infer_edit_range,
@@ -201,8 +201,8 @@ class TestChunkHashStaleness:
     def test_proc_cache_key_detects_bare_body_last_char(self):
         # A bare-word proc body whose last char changes (same length) must
         # produce a different proc cache key.
-        from core.compiler.interprocedural import _cache_key_for_proc
-        from core.compiler.lowering import lower_to_ir
+        from compiler.interprocedural import _cache_key_for_proc
+        from compiler.lowering import lower_to_ir
 
         src_a = "proc f {} abc\n"
         src_b = "proc f {} abd\n"

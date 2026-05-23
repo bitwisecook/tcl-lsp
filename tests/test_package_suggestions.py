@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-import lsp.commands as server_module
-import lsp.state as _lsp_state
-from lsp.features.code_actions import get_code_actions
-from lsp.features.package_suggestions import rank_package_suggestions
+import server.commands as server_module
+import server.state as _lsp_state
+from server.features.code_actions import get_code_actions
+from server.features.package_suggestions import rank_package_suggestions
 
 
 def _package_titles(actions: list[types.CodeAction]) -> list[str]:

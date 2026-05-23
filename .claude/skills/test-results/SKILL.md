@@ -10,7 +10,7 @@ allowed-tools: Bash, Read
 # Test Results Query
 
 Reads reference test results from `tests/test_reference/<version>/` (captured
-by `scripts/capture_reference_test_results.sh`) and provides quick lookups
+by `scripts/capture/test_results.sh`) and provides quick lookups
 at any granularity: individual test, group within a suite, or full suite.
 
 ## Usage
@@ -138,7 +138,7 @@ Cleanup:     unset -nocomplain x
 
 Reference data must be captured first:
 ```bash
-./scripts/capture_reference_test_results.sh
+./scripts/capture/test_results.sh
 ```
 
 $ARGUMENTS

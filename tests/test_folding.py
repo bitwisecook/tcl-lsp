@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.folding import _normalise_overlaps, get_folding_ranges
+from server.features.folding import _normalise_overlaps, get_folding_ranges
 
 
 class TestFoldingRanges:

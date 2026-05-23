@@ -6,8 +6,8 @@ import io
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestVMSet:
@@ -464,8 +464,8 @@ class TestVMDisassemble:
     """Tests for bytecode generation / disassembly."""
 
     def test_simple_set_disassembly(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x 42")
         text = format_module_asm(module_asm)
@@ -483,8 +483,8 @@ class TestVariableShapeBytecodeIdentity:
     """Variable-shape forms should compile to distinct bytecode paths."""
 
     def test_braced_scalar_like_array_name_uses_scalar_load(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x ${a(1)}")
         text = format_module_asm(module_asm)
@@ -493,8 +493,8 @@ class TestVariableShapeBytecodeIdentity:
         assert '"a(1)"' in text
 
     def test_unbraced_array_ref_uses_array_load(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x $a(1)")
         text = format_module_asm(module_asm)
@@ -503,8 +503,8 @@ class TestVariableShapeBytecodeIdentity:
         assert '"1"' in text
 
     def test_namespaced_array_forms_distinguish_scalar_like_vs_array_ref(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         scalar_like, _ = compile_script("set x ${::ns::arr(k)}")
         array_ref, _ = compile_script("set x $::ns::arr(k)")

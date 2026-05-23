@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.types import TclType, TypeKind
+from compiler.types import TclType, TypeKind
 
 from .helpers import analyse_types as _analyse
 from .helpers import var_type as _var_type

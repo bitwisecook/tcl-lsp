@@ -16,13 +16,13 @@ Compiler work spans lowering, CFG/SSA, core analyses, interprocedural summaries,
 
 ## File-path anchors
 
-- `core/compiler/lowering.py`
-- `core/compiler/cfg.py`
-- `core/compiler/ssa.py`
-- `core/compiler/core_analyses.py`
-- `core/compiler/interprocedural.py`
-- `core/compiler/optimiser/`
-- `core/compiler/codegen/` (package: `__init__.py`, `opcodes.py`, `layout.py`, `format.py`)
+- `compiler/lowering.py`
+- `compiler/cfg.py`
+- `compiler/ssa.py`
+- `compiler/core_analyses.py`
+- `compiler/interprocedural.py`
+- `compiler/optimiser/`
+- `compiler/codegen/` (package: `__init__.py`, `opcodes.py`, `layout.py`, `format.py`)
 
 ## Failure modes
 

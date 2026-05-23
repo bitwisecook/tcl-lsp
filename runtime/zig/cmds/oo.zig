@@ -131,7 +131,7 @@ fn eval_oo_noop(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(obj_new_string(0, 0));
 }
 
-// Arities mirror ``core/commands/registry/tcl/oo_*.py`` so the
+// Arities mirror ``dialects/tcl/oo_*.py`` so the
 // WASM-command-parity gate stays clean.  The Python registry is
 // the single source of truth; tightening here keeps the
 // scaffold's contract (no traps) without diverging from the

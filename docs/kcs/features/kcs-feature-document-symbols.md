@@ -20,7 +20,7 @@ Produces a hierarchical symbol tree with procs nested inside namespaces, variabl
 
 ## File-path anchors
 
-- `lsp/features/document_symbols.py`
+- `server/features/document_symbols.py`
 
 ## Failure modes
 

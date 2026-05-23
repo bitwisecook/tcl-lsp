@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tclpkg.version import Version, VersionError, max_version, parse_version
+from tooling.tclpkg.version import Version, VersionError, max_version, parse_version
 
 
 class TestParse:

@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from tclpkg.docker import (
+from tooling.tclpkg.docker import (
     DockerfileSpec,
     generate_dockerfile,
 )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bigip.irules_object_refs import (
+from dialects.f5.bigip.irules_object_refs import (
     DATA_GROUP_KINDS,
     IFILE_KINDS,
     PERSISTENCE_KINDS,

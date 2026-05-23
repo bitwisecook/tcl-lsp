@@ -16,7 +16,7 @@ name: CodeQL
 #
 # Triggers:
 #   - push to main: continuous analysis of trunk after every merge.
-#     Releases are tag-only (see `scripts/release.sh`); the release
+#     Releases are tag-only (see `scripts/release/tag.sh`); the release
 #     skill (`.claude/skills/release/SKILL.md`) waits for the run on
 #     the tag-candidate commit and refuses to tag if any open alert on
 #     main has security-severity high/critical.  That is the actual

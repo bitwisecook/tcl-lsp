@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def test_policy_minimal():

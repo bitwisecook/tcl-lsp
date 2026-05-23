@@ -1,6 +1,6 @@
 """End-to-end semantic tests for inline dialect stubs.
 
-These tests drive the full :func:`core.analysis.analyse` pipeline and
+These tests drive the full :func:`analyser.analyse` pipeline and
 assert on the *meaning* the stubs give a file — not just that a stub is
 parsed.  Each behaviour is paired with a negative control (the same
 source without the stub) so the assertions prove the stub is what does
@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
+from analyser import analyse
 
 
 def _codes(source: str) -> set[str]:
@@ -230,7 +230,7 @@ class TestExternalStubFiles:
 
     @staticmethod
     def _write_stub_file(tmp_path):
-        from core.analysis.stub_comments import parse_stubs_file
+        from compiler.registry.stub_comments import parse_stubs_file
 
         path = tmp_path / "eda.tcl.stubs"
         path.write_text(
@@ -243,7 +243,7 @@ class TestExternalStubFiles:
         return cmd_stubs
 
     def test_external_stubs_make_file_clean(self, tmp_path):
-        from core.analysis.stub_comments import ambient_stub_scope
+        from compiler.registry.stub_comments import ambient_stub_scope
 
         cmd_stubs = self._write_stub_file(tmp_path)
         with ambient_stub_scope(cmd_stubs):
@@ -256,7 +256,7 @@ class TestExternalStubFiles:
         assert "W210" in codes  # loop var / body not understood
 
     def test_external_stub_scope_does_not_leak(self, tmp_path):
-        from core.analysis.stub_comments import ambient_stub_scope
+        from compiler.registry.stub_comments import ambient_stub_scope
 
         cmd_stubs = self._write_stub_file(tmp_path)
         with ambient_stub_scope(cmd_stubs):
@@ -268,7 +268,7 @@ class TestExternalStubFiles:
         # An external stub's range points into the .tcl.stubs file, not the
         # document under analysis, so it must NOT raise W116/W117 against
         # the analysed source even when it shadows a built-in.
-        from core.analysis.stub_comments import ambient_stub_scope, parse_stubs_file
+        from compiler.registry.stub_comments import ambient_stub_scope, parse_stubs_file
 
         path = tmp_path / "shadow.tcl.stubs"
         path.write_text("stub set {varName:var value}\n", encoding="utf-8")
@@ -282,8 +282,8 @@ class TestExternalStubDiscovery:
     """Workspace init discovers and parses ``.tcl.stubs`` files."""
 
     def test_discovery_populates_workspace_stubs(self, tmp_path, monkeypatch):
-        import lsp.state as state
-        from lsp.workspace_init import _discover_workspace_stubs
+        import server.state as state
+        from server.workspace_init import _discover_workspace_stubs
 
         (tmp_path / "eda.tcl.stubs").write_text(
             "stub get_cells {pattern:pattern} -pure\n", encoding="utf-8"
@@ -301,8 +301,8 @@ class TestExternalStubDiscovery:
         assert {"get_cells", "get_ports"} <= names
 
     def test_discovery_skips_vcs_dirs(self, tmp_path, monkeypatch):
-        import lsp.state as state
-        from lsp.workspace_init import _discover_workspace_stubs
+        import server.state as state
+        from server.workspace_init import _discover_workspace_stubs
 
         git = tmp_path / ".git"
         git.mkdir()
@@ -316,8 +316,8 @@ class TestExternalStubDiscovery:
 
     def test_discovery_spans_multiple_roots(self, tmp_path, monkeypatch):
         # Multi-root workspaces: every base directory is searched.
-        import lsp.state as state
-        from lsp.workspace_init import _discover_workspace_stubs
+        import server.state as state
+        from server.workspace_init import _discover_workspace_stubs
 
         root_a = tmp_path / "a"
         root_b = tmp_path / "b"

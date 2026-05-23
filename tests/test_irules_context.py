@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lsp.features.irules_context import find_enclosing_when_event
+from server.features.irules_context import find_enclosing_when_event
 
 
 def test_find_enclosing_when_event_simple_block() -> None:

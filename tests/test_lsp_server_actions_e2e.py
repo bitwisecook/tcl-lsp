@@ -1,7 +1,7 @@
 """Server-layer end-to-end tests for tools, diagnostics, and applied fixes.
 
-These drive the actual ``lsp.commands`` workspace-command handlers and the
-``lsp.features.diagnostics`` provider — the same entry points the JSON-RPC
+These drive the actual ``server.commands`` workspace-command handlers and the
+``server.features.diagnostics`` provider — the same entry points the JSON-RPC
 dispatch calls — and assert on the *result of the transform*, not merely that
 a handler returned something.  Where a command rewrites source (fix-all,
 optimise, minify) the test re-checks the rewritten text so a semantic
@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-import lsp.commands as commands
-from lsp.features.diagnostics import get_diagnostics
-from lsp.state import workspace_state
+import server.commands as commands
+from server.features.diagnostics import get_diagnostics
+from server.state import workspace_state
 
 
 def _codes(diags: list[types.Diagnostic]) -> set[str]:

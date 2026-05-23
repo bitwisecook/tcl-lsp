@@ -148,7 +148,7 @@ _DISPATCH = {
 
 def _get_version() -> str:
     try:
-        from lsp._build_info import FULL_VERSION
+        from shared._build_info import FULL_VERSION
 
         return FULL_VERSION
     except ImportError:
@@ -213,7 +213,7 @@ def _detect_dialect(source: str) -> str:
 
 def _configure_dialect(dialect: str | None = None) -> None:
     """Configure the registry for the given dialect."""
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     configure_signatures(dialect=dialect or _session_dialect)
 
@@ -271,7 +271,7 @@ def _lsp_diagnostic_to_dict(d: Any) -> dict:
 
 def _proc_to_dict(proc_def: Any) -> dict:
     """Serialize a ProcDef, including structured docstring info."""
-    from core.formatting.docstring import parse_docstring
+    from tooling.formatter.docstring import parse_docstring
 
     params = []
     for p in proc_def.params:
@@ -431,7 +431,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
     from ai.shared.irule_analysis import ordered_events_as_dicts
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = [_diagnostic_to_dict(d) for d in result.diagnostics]
@@ -461,7 +461,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
 def _tool_validate(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     groups: dict[str, list[dict]] = {}
@@ -490,7 +490,7 @@ def _tool_validate(source: str, dialect: str = "") -> str:
 def _tool_review(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     security = [
@@ -517,7 +517,7 @@ def _tool_review(source: str, dialect: str = "") -> str:
 def _tool_find_legacy(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     patterns = []
@@ -549,16 +549,16 @@ def _tool_find_legacy(source: str, dialect: str = "") -> str:
 def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.common.optimisation_profiles import (
+    from compiler.optimiser import (
+        apply_optimisations,
+        find_optimisations,
+        optimise_source_multipass,
+    )
+    from shared.optimisation_profiles import (
         DEFAULT_ACTION_PROFILE,
         profile_from_name,
         profile_spec,
         profile_to_disabled,
-    )
-    from core.compiler.optimiser import (
-        apply_optimisations,
-        find_optimisations,
-        optimise_source_multipass,
     )
 
     try:
@@ -710,8 +710,9 @@ def _tool_explain_flow(
 ) -> str:
     from pathlib import Path
 
-    from core.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
-    from core.bigip.parser import parse_bigip_conf
+    from dialects.f5.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from tooling.f5.irule_simulation import simulate_irule_for_session
 
     pcap = Path(pcap_path).resolve()
     if not pcap.is_file():
@@ -739,7 +740,7 @@ def _tool_explain_flow(
             tshark_filter=tshark_filter,
             show_event_bodies=max_event_body_lines > 0,
             max_event_body_lines=max(max_event_body_lines, 1),
-            simulate=simulate,
+            simulator=simulate_irule_for_session if simulate else None,
         )
     except (OSError, ValueError) as exc:
         # Surface bad pcap / unreadable file as a structured JSON error
@@ -768,7 +769,7 @@ _SYNTHETIC_URI = "file:///source.tcl"
 def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.hover import get_hover
+    from server.features.hover import get_hover
 
     result = get_hover(source, line, character)
     if result is None:
@@ -791,7 +792,7 @@ def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> st
 def _tool_complete(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.completion import get_completions
+    from server.features.completion import get_completions
 
     items = get_completions(source, line, character)
     return json.dumps({"items": [_completion_item_to_dict(i) for i in items], "total": len(items)})
@@ -811,7 +812,7 @@ def _tool_complete(source: str, line: int, character: int, dialect: str = "") ->
 def _tool_goto_definition(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.definition import get_definition
+    from server.features.definition import get_definition
 
     locations = get_definition(source, _SYNTHETIC_URI, line, character)
     return json.dumps({"locations": [_lsp_location_to_dict(loc) for loc in locations]})
@@ -831,7 +832,7 @@ def _tool_goto_definition(source: str, line: int, character: int, dialect: str =
 def _tool_find_references(source: str, line: int, character: int, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.references import get_references
+    from server.features.references import get_references
 
     refs = get_references(source, _SYNTHETIC_URI, line, character)
     return json.dumps({"references": [_lsp_location_to_dict(r) for r in refs], "total": len(refs)})
@@ -849,7 +850,7 @@ def _tool_find_references(source: str, line: int, character: int, dialect: str =
 def _tool_symbols(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.document_symbols import get_document_symbols
+    from server.features.document_symbols import get_document_symbols
 
     syms = get_document_symbols(source)
     return json.dumps({"symbols": [_document_symbol_to_dict(s) for s in syms]})
@@ -880,8 +881,8 @@ def _tool_code_actions(
 
     from lsprotocol import types as lsp
 
-    from lsp.features.code_actions import get_code_actions
-    from lsp.features.diagnostics import get_diagnostics
+    from server.features.code_actions import get_code_actions
+    from server.features.diagnostics import get_diagnostics
 
     range_ = lsp.Range(
         start=lsp.Position(line=start_line, character=start_character),
@@ -927,8 +928,8 @@ def _tool_format_source(
     brace_style: str = "k_and_r",
     max_line_length: int = 120,
 ) -> str:
-    from core.formatting import format_tcl
-    from core.formatting.config import BraceStyle, FormatterConfig, IndentStyle
+    from tooling.formatter import format_tcl
+    from tooling.formatter.config import BraceStyle, FormatterConfig, IndentStyle
 
     config = FormatterConfig(
         indent_size=indent_size,
@@ -955,7 +956,7 @@ def _tool_format_source(
 def _tool_rename(source: str, line: int, character: int, new_name: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from lsp.features.rename import get_rename_edits
+    from server.features.rename import get_rename_edits
 
     result = get_rename_edits(source, _SYNTHETIC_URI, line, character, new_name)
     if result is None:
@@ -980,7 +981,7 @@ def _tool_rename(source: str, line: int, character: int, new_name: str, dialect:
 def _tool_event_info(event_name: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.commands.registry.info import lookup_event_info
+    from compiler.registry.info import lookup_event_info
 
     info = lookup_event_info(event_name, dialect="f5-irules")
 
@@ -1009,7 +1010,7 @@ def _tool_event_info(event_name: str) -> str:
 def _tool_command_info(command_name: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.commands.registry.info import lookup_command_info
+    from compiler.registry.info import lookup_command_info
 
     info = lookup_command_info(command_name, dialect="f5-irules")
     if not info.found:
@@ -1076,7 +1077,7 @@ def _tool_diagram(source: str, dialect: str = "") -> str:
 def _tool_call_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_call_graph
+    from analyser.semantic_graph import build_call_graph
 
     return json.dumps(build_call_graph(source))
 
@@ -1093,7 +1094,7 @@ def _tool_call_graph(source: str, dialect: str = "") -> str:
 def _tool_symbol_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_symbol_graph
+    from analyser.semantic_graph import build_symbol_graph
 
     return json.dumps(build_symbol_graph(source))
 
@@ -1110,7 +1111,7 @@ def _tool_symbol_graph(source: str, dialect: str = "") -> str:
 def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.semantic_graph import build_dataflow_graph
+    from analyser.semantic_graph import build_dataflow_graph
 
     return json.dumps(build_dataflow_graph(source))
 
@@ -1131,7 +1132,7 @@ def _tool_dataflow_graph(source: str, dialect: str = "") -> str:
 def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
 
     graph = extract_dataflow_graph(source)
     result = dataflow_graph_to_dict(graph)
@@ -1161,8 +1162,8 @@ def _tool_def_use_chains(source: str, dialect: str = "", variable: str = "") -> 
 def _tool_memory_aliases(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.compiler.compilation_unit import ensure_compilation_unit
-    from core.compiler.memory_ssa import MemorySSAFunction
+    from compiler.compilation_unit import ensure_compilation_unit
+    from compiler.memory_ssa import MemorySSAFunction
 
     cu = ensure_compilation_unit(source, context="mcp.memory_aliases")
     if cu is None:
@@ -1225,9 +1226,9 @@ def _tool_memory_aliases(source: str, dialect: str = "") -> str:
 def _tool_xc_translate(source: str, output_format: str = "both") -> str:
     _configure_dialect("f5-irules")
 
-    from core.xc.json_api import render_json
-    from core.xc.terraform import render_terraform
-    from core.xc.translator import translate_irule
+    from dialects.f5.xc.json_api import render_json
+    from dialects.f5.xc.terraform import render_terraform
+    from dialects.f5.xc.translator import translate_irule
 
     result = translate_irule(source)
 
@@ -1312,7 +1313,7 @@ def _tool_extract_variable(
     end_character: int,
     var_name: str = "result",
 ) -> str:
-    from core.refactoring._extract_variable import extract_variable
+    from tooling.refactoring._extract_variable import extract_variable
 
     result = extract_variable(
         source, start_line, start_character, end_line, end_character, var_name
@@ -1339,7 +1340,7 @@ def _tool_extract_variable(
     required=["source", "line", "character"],
 )
 def _tool_inline_variable(source: str, line: int, character: int) -> str:
-    from core.refactoring._inline_variable import inline_variable
+    from tooling.refactoring._inline_variable import inline_variable
 
     result = inline_variable(source, line, character)
     if result is None:
@@ -1364,7 +1365,7 @@ def _tool_inline_variable(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_if_to_switch(source: str, line: int, character: int) -> str:
-    from core.refactoring._if_to_switch import if_to_switch
+    from tooling.refactoring._if_to_switch import if_to_switch
 
     result = if_to_switch(source, line, character)
     if result is None:
@@ -1389,7 +1390,7 @@ def _tool_if_to_switch(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
-    from core.refactoring._switch_to_dict import switch_to_dict
+    from tooling.refactoring._switch_to_dict import switch_to_dict
 
     result = switch_to_dict(source, line, character)
     if result is None:
@@ -1414,7 +1415,7 @@ def _tool_switch_to_dict(source: str, line: int, character: int) -> str:
     required=["source", "line", "character"],
 )
 def _tool_brace_expr(source: str, line: int, character: int) -> str:
-    from core.refactoring._brace_expr import brace_expr
+    from tooling.refactoring._brace_expr import brace_expr
 
     result = brace_expr(source, line, character)
     if result is None:
@@ -1449,7 +1450,7 @@ def _tool_extract_datagroup(
 ) -> str:
     _configure_dialect("f5-irules")
 
-    from core.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
 
     result = extract_to_datagroup(source, line, character, dg_name=dg_name)
     if result is None:
@@ -1484,7 +1485,7 @@ def _tool_extract_datagroup(
 def _tool_suggest_datagroup_extractions(source: str) -> str:
     _configure_dialect("f5-irules")
 
-    from core.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     # Serialise — strip the static_result (not JSON-safe, use extract_datagroup to get it).
@@ -1522,12 +1523,12 @@ def _tool_refactor(
 ) -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.refactoring._brace_expr import brace_expr as _be
-    from core.refactoring._extract_datagroup import extract_to_datagroup as _edg
-    from core.refactoring._extract_variable import extract_variable as _ev
-    from core.refactoring._if_to_switch import if_to_switch as _its
-    from core.refactoring._inline_variable import inline_variable as _iv
-    from core.refactoring._switch_to_dict import switch_to_dict as _std
+    from tooling.refactoring._brace_expr import brace_expr as _be
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup as _edg
+    from tooling.refactoring._extract_variable import extract_variable as _ev
+    from tooling.refactoring._if_to_switch import if_to_switch as _its
+    from tooling.refactoring._inline_variable import inline_variable as _iv
+    from tooling.refactoring._switch_to_dict import switch_to_dict as _std
 
     available: list[dict] = []
     line = start_line
@@ -1572,7 +1573,7 @@ def _tool_refactor(
     required=["source"],
 )
 def _tool_tk_layout(source: str) -> str:
-    from core.tk.extract import extract_tk_layout
+    from dialects.tk.dialect.extract import extract_tk_layout
 
     layout = extract_tk_layout(source)
     return json.dumps(layout)
@@ -1602,8 +1603,8 @@ def _tool_generate_docstring(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
-    from core.analysis import analyse
-    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
+    from analyser import analyse
+    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
     proc_def = result.find_proc(proc_name)
@@ -1627,7 +1628,7 @@ def _tool_generate_docstring(
 )
 def _tool_read_proc_docs(source: str) -> str:
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
@@ -1656,8 +1657,8 @@ def _tool_update_docstrings(
     decoration: str = "false",
 ) -> str:
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis import analyse
-    from core.formatting.docstring import resolve_tag_style
+    from analyser import analyse
+    from tooling.formatter.docstring import resolve_tag_style
 
     tag = resolve_tag_style(style)
     dec = decoration.lower() in ("true", "1", "yes")
@@ -1687,7 +1688,7 @@ def _tool_update_docstrings(
 )
 def _tool_help(topic: str = "") -> str:
     try:
-        from core.help.kcs_db import list_features, search_help
+        from shared.help.kcs_db import list_features, search_help
 
         if topic:
             results = search_help(topic)
@@ -1734,7 +1735,7 @@ def _tool_help(topic: str = "") -> str:
 def _tool_set_dialect(dialect: str) -> str:
     global _session_dialect
 
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     old = _session_dialect
     changed = configure_signatures(dialect=dialect)
@@ -2091,7 +2092,7 @@ def _tool_unminify_error(
     minified_source: str = "",
     original_source: str = "",
 ) -> str:
-    from core.minifier import unminify_error
+    from tooling.minifier import unminify_error
 
     translated = unminify_error(
         error_message,
@@ -2169,9 +2170,9 @@ def _tool_irule_with_context(
         context_bundle_to_dict,
         context_bundle_to_text,
     )
-    from core.bigip.lint import _merge_configs
-    from core.bigip.parser import parse_bigip_conf
-    from explorer.verbs.f5._paths import load_irule_inputs
+    from dialects.f5.bigip.lint import _merge_configs
+    from dialects.f5.bigip.parser import parse_bigip_conf
+    from tooling.f5.verbs._paths import load_irule_inputs
 
     paths = list(config_paths or [])
     if not config_text and not paths:

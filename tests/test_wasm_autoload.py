@@ -81,7 +81,7 @@ class TestStdlibPrelude:
     """
 
     def _link(self, tcl_src: str, tmp_path, *, with_library: bool):
-        from core.compiler.codegen.wasm_link import wasm_link
+        from compiler.codegen.wasm.link import wasm_link
 
         prog = tmp_path / "prog.tcl"
         prog.write_text(tcl_src)
@@ -215,8 +215,8 @@ class TestStdlibPreludePruning:
         return lib
 
     def _bundled(self, src, lib):
-        from core.compiler.lowering import lower_to_ir
-        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+        from compiler.lowering import lower_to_ir
+        from compiler.stdlib_prelude import apply_stdlib_prelude
 
         module = lower_to_ir(src)
         before = set(module.procedures)
@@ -267,8 +267,8 @@ class TestStdlibPreludePruning:
     def test_multi_segment_file_join_path(self, tmp_path):
         """tclIndex entries with subdirectory file-join segments
         (``[file join $dir sub foo.tcl]``) resolve correctly."""
-        from core.compiler.lowering import lower_to_ir
-        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+        from compiler.lowering import lower_to_ir
+        from compiler.stdlib_prelude import apply_stdlib_prelude
 
         lib = tmp_path / "lib"
         (lib / "sub").mkdir(parents=True)
@@ -298,8 +298,8 @@ class TestPackageRequireBundling:
         return lib
 
     def _bundled(self, src, lib):
-        from core.compiler.lowering import lower_to_ir
-        from core.compiler.stdlib_prelude import apply_stdlib_prelude
+        from compiler.lowering import lower_to_ir
+        from compiler.stdlib_prelude import apply_stdlib_prelude
 
         module = lower_to_ir(src)
         before = set(module.procedures)

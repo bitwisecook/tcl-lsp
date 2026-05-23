@@ -12,13 +12,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import (
+from compiler.cfg import (
     CFGBranch,
     CFGGoto,
     CFGReturn,
     build_cfg,
 )
-from core.compiler.codegen import (
+from compiler.codegen.bytecode import (
     FunctionAsm,
     ModuleAsm,
     Op,
@@ -26,8 +26,8 @@ from core.compiler.codegen import (
     format_function_asm,
     format_module_asm,
 )
-from core.compiler.expr_ast import ExprRaw
-from core.compiler.ir import (
+from compiler.expr_ast import ExprRaw
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -39,7 +39,7 @@ from core.compiler.ir import (
     IRIncr,
     IRSwitch,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 # Helpers
 
@@ -1345,11 +1345,11 @@ proc fail {} {
         """``eval $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``eval {…}`` is relaxed to :class:`IRBlock` by the
-        barrier-relaxation gate (see ``core/compiler/lowering.py``);
+        barrier-relaxation gate (see ``compiler/lowering.py``);
         dynamic-body forms remain barriers because the interpreter
         must evaluate the runtime value.
         """
-        from core.compiler.ir import IRBlock
+        from compiler.ir import IRBlock
 
         ir = lower_to_ir("set body {set x 1}\neval $body")
         stmts = ir.top_level.statements
@@ -1363,10 +1363,10 @@ proc fail {} {
         """``uplevel 1 $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``uplevel 1 {…}`` is relaxed to :class:`IRUpFrame`
-        (see ``core/compiler/lowering.py::_relax_uplevel``); dynamic
+        (see ``compiler/lowering.py::_relax_uplevel``); dynamic
         bodies remain barriers.
         """
-        from core.compiler.ir import IRUpFrame
+        from compiler.ir import IRUpFrame
 
         ir = lower_to_ir("proc up {body} {\n    uplevel 1 $body\n}\n")
         proc = ir.procedures["::up"]

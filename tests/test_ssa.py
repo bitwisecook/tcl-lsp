@@ -7,12 +7,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_model import Range
-from core.compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
-from core.compiler.expr_ast import ExprRaw
-from core.compiler.ir import IRAssignConst, IRAssignExpr
-from core.compiler.lowering import lower_to_ir
-from core.compiler.ssa import (
+from analyser.semantic_model import Range
+from compiler.cfg import CFGBlock, CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from compiler.expr_ast import ExprRaw
+from compiler.ir import IRAssignConst, IRAssignExpr
+from compiler.lowering import lower_to_ir
+from compiler.ssa import (
     _compute_idom_fast,
     _dominators,
     _immediate_dominators,
@@ -20,7 +20,7 @@ from core.compiler.ssa import (
     _reachable_blocks,
     build_ssa,
 )
-from core.parsing.tokens import SourcePosition
+from shared.tokens import SourcePosition
 
 
 def _dummy_range() -> Range:
@@ -143,8 +143,8 @@ class TestBarrierVarWriteRoles:
         # tuple; SSA's barrier path skips the registry ``VAR_WRITE``
         # query for scope-alias commands as a safety net so any future
         # spec or lowering edit can't silently regress to partial defs.
-        from core.compiler.ir import IRBarrier
-        from core.compiler.ssa import _defs
+        from compiler.ir import IRBarrier
+        from compiler.ssa import _defs
 
         r = _dummy_range()
         for cmd in ("global", "variable"):
@@ -185,7 +185,7 @@ class TestSharedTraversal:
         # CFG a back edge is exactly one whose target dominates its source,
         # so identify back edges via the dominance relation and require
         # strict predecessor-before-successor ordering for every other edge.
-        from core.compiler.cfg import _block_successors
+        from compiler.cfg import _block_successors
 
         for cfg in self._cfgs():
             order = cfg.reverse_postorder()

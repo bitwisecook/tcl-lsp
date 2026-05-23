@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.gvn import find_redundant_computations
-from core.compiler.optimiser import (
+from compiler.gvn import find_redundant_computations
+from compiler.optimiser import (
     Optimisation,
     apply_optimisations,
     demorgan_transform,
@@ -21,7 +21,7 @@ from core.compiler.optimiser import (
     invert_expression,
     optimise_source,
 )
-from core.compiler.shimmer import (
+from compiler.shimmer import (
     ShimmerWarning,
     ThunkingWarning,
     find_shimmer_warnings,
@@ -1280,7 +1280,7 @@ class TestO119MultiSetPacking:
                 assert "a" not in parts[1:] or parts[0] != "lassign"
 
     def test_tcl9_skips_packing(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl9.0")
         try:
@@ -1823,12 +1823,12 @@ class TestEdgeCases:
 
 class TestPatternMatchSimplification:
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 
@@ -2123,12 +2123,12 @@ class TestO124UnusedIruleProcs:
     """O124: comment out unused procs in iRules."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 

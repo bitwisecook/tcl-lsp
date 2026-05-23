@@ -2,7 +2,7 @@
 
 import math
 
-from core.compiler.tcl_expr_eval import (
+from compiler.tcl_expr_eval import (
     eval_tcl_expr_str,
     format_tcl_value,
 )

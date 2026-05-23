@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.features.rename import get_rename_edits, prepare_rename
+from server.features.rename import get_rename_edits, prepare_rename
 
 TEST_URI = "file:///test.tcl"
 

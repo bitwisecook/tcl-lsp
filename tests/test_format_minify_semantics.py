@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from core.formatting import format_tcl
-from core.minifier import minify_tcl
-from core.parsing.command_segmenter import segment_commands
+from compiler.parsing.command_segmenter import segment_commands
+from tooling.formatter import format_tcl
+from tooling.minifier import minify_tcl
 
 _CORPUS = [
     "proc add {a b} {return [expr {$a+$b}]}\n",

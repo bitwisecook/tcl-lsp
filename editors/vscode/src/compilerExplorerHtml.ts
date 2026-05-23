@@ -26,7 +26,7 @@ function findCoreJs(): string {
   }
   throw new Error(
     `explorer-core.js not found at ${bundled} or ${source}. ` +
-      "Run 'make compile' or copy explorer/static/explorer-core.js to editors/vscode/out/.",
+      "Run 'make compile' or copy tooling/explorer/static/explorer-core.js to editors/vscode/out/.",
   );
 }
 

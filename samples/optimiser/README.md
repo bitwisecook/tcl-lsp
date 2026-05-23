@@ -121,9 +121,9 @@ source text reaches a fixpoint (no further changes).
 
 ```bash
 uv run python -c "
-from core.common.codes_all import *
-from core.common.optimisation_profiles import profile_to_disabled, OptimisationProfile
-from core.compiler.optimiser import optimise_source, optimise_source_multipass
+from server._codes_init import *
+from shared.optimisation_profiles import profile_to_disabled, OptimisationProfile
+from compiler.optimiser import optimise_source, optimise_source_multipass
 
 source = open('samples/optimiser/input.tcl').read()
 for p in [OptimisationProfile.READABILITY, OptimisationProfile.STANDARD, OptimisationProfile.FULL]:

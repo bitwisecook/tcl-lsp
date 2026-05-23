@@ -18,10 +18,10 @@ by construction.
 
 What this work *is* good for:
 
-- Triaging shared compiler / parser bugs in `core/parsing/` and
-  `core/compiler/`, where fixes propagate to both backends.
+- Triaging shared compiler / parser bugs in `compiler/parsing/` and
+  `compiler/`, where fixes propagate to both backends.
 - Tightening the Python-side command implementations under
-  `core/commands/` and `vm/commands/` whose specs the WASM parity
+  `compiler/` and `tooling/vm/commands/` whose specs the WASM parity
   gate (`make check-wasm-parity`) then enforces against
   `runtime/zig/`.
 - Keeping the Python VM honest as the cheaper iteration loop while
@@ -54,12 +54,12 @@ contract can never silently drift away from upstream.
    We do not patch the test.
 
 3. **Never edit `tmp/tcl9.0.3/library/init.tcl`** for the same reason.
-   If the boot path needs help, the help goes into `vm/`, not the
+   If the boot path needs help, the help goes into `tooling/vm/`, not the
    library.
 
-4. **No new monkey-patches in `vm/commands/tcltest_cmds.py` or
+4. **No new monkey-patches in `tooling/vm/commands/tcltest_cmds.py` or
    anywhere else.**  An existing `auto_load` / `parray` shim in
-   `_setup_real_tcltest` (`vm/commands/tcltest_cmds.py:583`) is a
+   `_setup_real_tcltest` (`tooling/vm/commands/tcltest_cmds.py:583`) is a
    debug breadcrumb left from when tcltest first booted; it is
    technical debt that **must be removed** before this slice ships,
    not a pattern to extend.  The fix is to make our VM's auto-load
@@ -114,7 +114,7 @@ make refresh-tcl9-vm-core-baseline
 python scripts/dev/run_tcl9_vm_core.py --stems parse basic info string set --no-baseline
 
 # Reproduce one stem in isolation, in a real CLI process:
-python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test
+python -m tooling.vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test
 
 # Run the gate explicitly (same as `make test-tcl9-vm-core`):
 RUN_VM_TCL9_CORE=1 uv run pytest tests/test_vm_tcl9_core_baseline.py -q
@@ -200,14 +200,14 @@ how a future reviewer can tell whether to revisit the classification.
    Start with Tier 1 (B0-host-exception) — they unblock the most tests
    per fix.
 2. **Reproduce in isolation.**
-   `python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test`
+   `python -m tooling.vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test`
    should reproduce the crash with the same `crash_type` /
    `crash_msg`.
 3. **Read the upstream contract.** The C source under
    `tmp/tcl9.0.3/generic/` (e.g. `tclParse.c`, `tclBasic.c`,
    `tclCmdAH.c`) is the spec.  Match its error wording and return-code
    path exactly.
-4. **Fix in `vm/`, `core/parsing/`, `core/compiler/`, or `core/commands/`.**
+4. **Fix in `tooling/vm/`, `compiler/parsing/`, `compiler/`, or `compiler/`.**
    Never in `tcltest.tcl`, never in `.test`, never in `init.tcl`,
    and never by adding a new monkey-patch.  Note: this gate does *not*
    see `runtime/zig/`; if the same bug exists on the WASM side, it

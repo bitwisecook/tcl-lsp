@@ -33,9 +33,9 @@ only after the server process is restarted.
 
 ## File-path anchors
 
-- `lsp/features/diagnostics.py`
-- `lsp/async_diagnostics.py`
-- `lsp/server.py`
+- `server/features/diagnostics.py`
+- `server/async_diagnostics.py`
+- `server/server.py`
 
 ## Failure modes
 

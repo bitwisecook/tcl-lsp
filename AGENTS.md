@@ -9,19 +9,65 @@ tool dialects.
 
 ## Repository layout
 
+The Python code is partitioned into seven concern packages with a fixed
+dependency direction enforced by `import-linter` (see `.importlinter`
+at the repo root). Each concern is also documented by `make
+lint-imports` errors when crossed.
+
 ```
-lsp/             Python LSP server runtime and feature wiring
-core/            Reusable Tcl parser/compiler/analysis modules
-vm/              Bytecode VM, interpreter, and REPL
-debugger/        Interactive Tcl debugger (CLI, VM/tclsh/tkinter backends)
-editors/vscode/  VS Code extension (TypeScript)
-editors/         Other editor integrations (Neovim, Zed, Emacs, Helix, Sublime, JetBrains)
-explorer/        Web-based compiler explorer (Pyodide GUI)
-tests/           Python test suite (pytest)
-scripts/         Build and release automation
-ai/              AI integrations (Claude skills, MCP server)
-samples/         Sample Tcl and iRules code
+shared/           Leaf utilities — Range/Token/SourcePosition, document
+                  buffer, source-map, ranges, codes, naming, dialect-
+                  agnostic text helpers.  Depends on nothing.
+compiler/         Tcl pipeline — lexer, parser, IR, lowering, passes,
+                  optimiser, codegen, WASM emitter, compiler-internal
+                  analyses (taint, var_escape, interprocedural,
+                  proc_arg_traits, var_scoping), command registry +
+                  per-command runtime, position lookup, Dialect enum.
+                  Consumes shared/.
+dialects/         Per-dialect command spec packs and dialect-aware
+                  data.  Sub-packages: stdlib/, tcl/, tcllib/, expect/,
+                  eda/<vendor>, f5/{bigip,irules,iapps,query,xc}/,
+                  tk/{dialect,specs}/.  Consumes shared/ and
+                  compiler.registry / compiler.parsing.
+analyser/         IDE-facing semantic model + checks — semantic_model,
+                  proc_lookup, var_scoping bridges, signature_scan,
+                  class_hierarchy, MRO, checks/, _analyser/,
+                  irules_checks, conf_wrapped, packages/,
+                  compiler_checks (the check orchestrator that runs
+                  over compiler IR).  Consumes shared/ + compiler/ +
+                  dialects/.
+server/           LSP protocol surface — pygls wiring (`server.py`),
+                  feature handlers (`features/`), workspace indexing
+                  (`workspace/`), diagnostics pipeline, LSP conversion
+                  helpers (`_lsp_conv.py`), `_codes_init.py` side-
+                  effect module.  Console-script entry point:
+                  ``tcl-lsp``.  Consumes everything below.
+tooling/          Developer tools that consume the compiler stack.
+                  Sub-packages:
+                    tcl/    — `tcl` CLI       (`tcl`)
+                    f5/     — `f5-query` CLI  (`f5-query`)
+                    wasm/   — Tcl→WASM CLI    (`tcl-wasm`)
+                    vm/     — bytecode VM     (`tcl-vm`)
+                    explorer/   — Pyodide web GUI + shared CLI verbs   (`tcl-explorer`)
+                    debugger/   — interactive debugger
+                    fuzzing/    — differential fuzzer
+                    tclpkg/     — Tcl package manager
+                    refactoring/  formatter/  minifier/  diagram/  irule_test/
+ai/               AI integrations — Claude skills, MCP server, irule
+                  context helpers.  Sits on top of server/tooling.
+
+editors/          Editor integrations (VS Code, Zed, JetBrains,
+                  Neovim, Emacs, Helix, Sublime).
+runtime/zig/      Zig-compiled WASM runtime that the compiler's WASM
+                  codegen targets.
+tests/            Pytest test suite — exempt from layering contracts.
+scripts/          Build, release, codegen, and dev automation.
+samples/          Sample Tcl, iRules, and BigIP configs.
+docs/             Design docs, KCS notes, references, perf reports.
 ```
+
+The six `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
+`f5-query`, `tcl-wasm`, `tcl-explorer`, `tcl-vm`.
 
 ## Prerequisites
 
@@ -114,11 +160,11 @@ The project uses GNU Make. Key targets:
 |--------------------|------------------------------------------|
 | `make ci-fast`     | **Fast CI gate** — mirrors what GitHub Actions runs on every PR (~10s wall clock): Ruff + ty (full scope) + WASM parity + editor settings check + LSP end-to-end pytest subset. This is the only thing CI runs on PRs. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language (Python via Ruff + ty, TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`). On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
-| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** |
+| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: optional dep check (or install when `AUTO_INSTALL_DEPS=1`) + `capture-bytecode-refs` + `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. Drives every phase through `scripts/dev/test-slow-runner.sh`, which keeps going past failures and prints one consolidated PASS/FAIL summary at the end. On success writes the committed `.test-slow.stamp` (CI PR gate) plus the local `tmp/check-all.stamp` and `tmp/test-slow.stamp`. **`git add .test-slow.stamp` and commit it with your PR.** |
 | `make verify-test-slow-stamp` | Verify the committed `.test-slow.stamp` matches the current tree — the same content-fingerprint check the GitHub `test-slow-stamp` PR job runs. Fails loudly if the tree changed since the last green `test-slow`. Note: running **any** make target other than this one, `test-slow`, or `help` deletes `.test-slow.stamp`, so re-run `make test-slow` (which rewrites it) as the final step before committing. |
 | `make install-test-deps` | One-shot setup: install **everything** `test-slow` needs (all of `ensure-test-deps` plus `uv`) **and** create the Python venv (`uv sync --extra dev`). The target to run on a fresh checkout before `make test-slow`. Same platform coverage as `ensure-test-deps`. |
 | `make ensure-test-deps` | Install the optional `test-slow` toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, `uv`, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.3/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_UV=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
-| `make capture-bytecode-refs` | Run `scripts/capture_reference_bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
+| `make capture-bytecode-refs` | Run `scripts/capture/bytecode.sh` to fill in any missing `tests/bytecode_reference/<ver>/*.disasm` files using a locally available `tclsh9.0`. No-op when the corpus is complete; soft-skips with guidance when `tclsh9.0` is missing. |
 | `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
 | `make check-rust`  | Rust format check + clippy on the Zed extension and any top-level Cargo workspace. Skip with `SKIP_CHECK_RUST=1`. |
 | `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
@@ -128,14 +174,36 @@ The project uses GNU Make. Key targets:
 | `make lint`        | All lint and style checks                |
 | `make format-py`   | Auto-fix Python formatting with Ruff     |
 | `make compile`     | Compile the TypeScript extension         |
-| `make vsix`        | Build the .vsix VS Code extension        |
+| `make build-editor-vsix`        | Build the .vsix VS Code extension        |
 | `make check-wasm-parity` | Verify WASM command parity (registry vs Zig runtime) against baseline |
 | `make snapshot-wasm-parity` | Refresh the WASM parity baseline after intentional registry/runtime changes |
+| `make publish-flow` | Print the release + marketplace publish cheat-sheet |
+
+The build is organised into **four layers** with a clear separation
+between them — see
+[`docs/design/contracts/release-and-publish.md`](docs/design/contracts/release-and-publish.md)
+for the full contract:
+
+1. **Entry points** — `Makefile` + `[project.scripts]` console scripts.
+2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,zipapp-main,dev}/*`.
+3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
+   artefact build → sign → attach to GitHub Release).
+4. **Publishing** — `make publish-*` from the maintainer's laptop,
+   never from CI.
+
+**Invariant: no marketplace tokens go into CI.**  Every push to VS Code
+Marketplace / JetBrains Marketplace / Package Control / zed-industries
+extensions runs from the maintainer's laptop using credentials in
+local environment variables or the macOS Keychain.  CI uses only
+GitHub's built-in `github.token` + sigstore OIDC for attestations.
+Adding `secrets.VSCE_PAT` (or similar) to any workflow violates the
+contract.
 
 ## WASM command parity
 
-The Python command registry (`core/commands/registry/tcl/`) is the
-**source of truth** for which Tcl 8.4-9.0 commands exist.  The Zig
+The per-command spec packs (`dialects/tcl/`, registered through
+`compiler.registry`) are the **source of truth** for which Tcl
+8.4-9.0 commands exist.  The Zig
 WASM runtime must be bit-for-bit aligned with it — same commands,
 same sub-commands, same arity bounds — and this alignment is enforced
 by a CI gate that runs on every `make prep-pr` and GitHub Actions
@@ -193,9 +261,9 @@ Zig entry — or vice versa — is a merge-blocking regression.
 
 ### Gate mechanics
 
-`scripts/check_wasm_command_parity.py` walks five locations:
+`scripts/check/wasm_command_parity.py` walks five locations:
 
-1. Python registry under `core/commands/registry/tcl/`
+1. Python command specs under `dialects/tcl/`
 2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)
 3. Zig fallback stubs (`dispatch/tcl_stub_fallback.zig`)
 4. Per-command `SubEntry` slices (`cmds/*.zig`)
@@ -235,7 +303,7 @@ requests via `package require`.  Today this is implemented as
 runtime variants — `zig build` produces both `tcl_runtime.wasm`
 (lean) and `tcl_runtime_with_<extname>.wasm` (with the extension's
 commands compiled into BUILTINS).  The bundler in
-:func:`core.compiler.codegen.wasm_link.wasm_link_bundled` picks the
+:func:`compiler.codegen.wasm.link.wasm_link_bundled` picks the
 right variant based on the `package require` calls it finds in the
 merged IR, then `wasm-merge`s it with the user-code module to
 produce a single bundled `.wasm`.
@@ -461,7 +529,7 @@ type:
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
     `strength-reduce`, `codegen`). The vocabulary lives in
-    [`core/help/kcs_db.py`](core/help/kcs_db.py) and is documented
+    [`shared/help/kcs_db.py`](shared/help/kcs_db.py) and is documented
     in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
@@ -495,7 +563,7 @@ link or define locally.
 | KCS style guide and templates | `docs/kcs/STYLE.md`, `docs/kcs/templates/` | — |
 | Architecture and pipeline walkthroughs | `docs/design/` | `compiler-architecture.md` |
 | Compiler pass, stage, or analysis internals | `docs/design/compiler/` | `cfg-construction.md` |
-| Module ownership or API contract | `docs/design/contracts/` | `core-lsp-shared-utility.md` |
+| Module ownership or API contract | `docs/design/contracts/` | `shared-utility-contracts.md` |
 | Design-doc templates | `docs/design/templates/` | `template-contract.md` |
 | Definitions of complex terms | `docs/GLOSSARY.md` | `CFG`, `SSA`, `lattice`, `shimmer` |
 
@@ -560,7 +628,7 @@ without restarting.
 A small set of features cannot follow this pattern because their handler
 registration changes the `ServerCapabilities` advertised during `initialize`,
 which alters client behaviour irreversibly for the session. These are listed
-in `_RESTART_REQUIRED_TOGGLES` in `lsp/server.py` and are registered
+in `_RESTART_REQUIRED_TOGGLES` in `server/server.py` and are registered
 conditionally at import time. Currently this set includes:
 
 - **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and
@@ -572,7 +640,7 @@ effect until the server process is restarted.
 
 ## Lexer token types
 
-The Tcl lexer (`core/parsing/lexer.py`) produces tokens with a `TokenType`
+The Tcl lexer (`compiler/parsing/lexer.py`) produces tokens with a `TokenType`
 enum. Key conventions that affect downstream consumers:
 
 - **`ESC`** — plain word fragment, possibly containing backslash escapes.
@@ -689,7 +757,7 @@ Zig ports mirror.
 
 ## Codegen and lowering fallback
 
-Lowering hooks in `core/compiler/lowering_hooks/` convert high-level Tcl
+Lowering hooks in `compiler/lowering_hooks/` convert high-level Tcl
 commands into IR nodes. When a hook encounters a construct it cannot
 safely specialise (e.g. `{*}` expansion in a structured command, or a
 `subst` template with unsupported backslash forms), it **falls through to
@@ -697,7 +765,7 @@ the generic `IRCall`** rather than producing incorrect specialised IR.
 
 This fallback-to-runtime pattern is intentional and preserves correctness.
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `core/compiler/codegen/_helpers.py`) are not
+`_parse_subst_template()` in `compiler/codegen/bytecode/_helpers.py`) are not
 incomplete — they are conservative by design. The runtime interpreter
 handles the full Tcl specification; the compiler only inlines what it can
 prove is safe.
@@ -706,7 +774,7 @@ See `docs/design/compiler/lowering-dispatch.md` for the dispatch hierarchy.
 
 ## Position infrastructure
 
-`DocumentBuffer` (`core/common/document_buffer.py`) is the per-document
+`DocumentBuffer` (`shared/document_buffer.py`) is the per-document
 position type. Use it instead of constructing `SourceMap` or calling
 `source.split("\n")` in hot paths:
 
@@ -717,17 +785,17 @@ position type. Use it instead of constructing `SourceMap` or calling
   construction (O(log n) bisect, no allocation).
 - `buf.chunk_line_range()` replaces `_chunk_line_range(source, chunk)`
   (O(log n) instead of O(offset)).
-- `position_from_offset()` (`core/common/ranges.py`) replaces
+- `position_from_offset()` (`shared/ranges.py`) replaces
   `position_from_relative()` when a `line_starts` array is available
   (O(log n) instead of O(text_len)).
 
-See `docs/kcs/kcs-core-lsp-shared-utility-contracts.md` for the full contract.
+See `docs/design/contracts/shared-utility-contracts.md` for the full contract.
 
 ## Command registry
 
-Command metadata lives on `CommandSpec` in `core/commands/registry/models.py`,
+Command metadata lives on `CommandSpec` in `compiler/registry/models.py`,
 **not** in hardcoded sets scattered across consumer modules. Each command is
-defined in its own file under `core/commands/registry/{irules,tcl,iapps}/`.
+defined in its own file under `dialects/{tcl,f5/irules,f5/iapps}/`.
 
 When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a boolean field to `CommandSpec`, a
@@ -767,11 +835,11 @@ analysis passes handle these at different levels:
 - **Subcommand dispatch** in the registry uses `SubCommand` entries on the
   parent spec. The `arg_role_resolver` on the parent inspects the
   subcommand word to assign roles.
-- **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
+- **Variable scoping** (`compiler/var_scoping.py`) has explicit
   handling for compound forms like `namespace upvar`, `dict set`,
-  `dict update`, etc. — these are not in `lsp/features/declaration.py`
+  `dict update`, etc. — these are not in `server/features/declaration.py`
   which only handles single-word commands (`global`, `variable`, `upvar`).
-- **Lowering** (`core/compiler/lowering_hooks/`) has per-command hooks
+- **Lowering** (`compiler/lowering_hooks/`) has per-command hooks
   that understand subcommand structure.
 
 When checking whether a compound command is handled, search all three
@@ -782,9 +850,9 @@ layers — not just the feature module closest to the symptom.
 - Test framework: **pytest** (configuration in `pyproject.toml`)
 - Tests live in `tests/` — run with `make test-py` or `uv run pytest tests/ -q`
 - VS Code extension tests: `make test-ext`
-- **iRule test framework** (`core/irule_test/`): simulates TMM for testing iRules
-  without hardware.  See `docs/kcs/kcs-irule-test-framework.md` for architecture.
-  Codegen: `python -m core.irule_test.codegen_mock_stubs` (after registry changes)
+- **iRule test framework** (`tooling/irule_test/`): simulates TMM for testing iRules
+  without hardware.  See `docs/design/contracts/irule-test-framework.md` for architecture.
+  Codegen: `python -m tooling.irule_test.codegen_mock_stubs` (after registry changes)
 - **WASM runtime tests** (`runtime/zig/test_*.zig`): unit tests for the Zig
   runtime, run with `cd runtime/zig && zig build test`. Tests that need to
   catch a Tcl-level error or set up a call frame use the fixture in

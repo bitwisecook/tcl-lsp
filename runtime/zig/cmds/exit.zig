@@ -61,7 +61,7 @@ pub const registrations = [_]reg.CmdEntry{
 
 /// Single-arg export for embedders that want the same ``exit`` /
 /// ``exit code`` behaviour without going through the Tcl word
-/// dispatcher.  ``core/commands/registry/tcl/exit.py`` deliberately
+/// dispatcher.  ``dialects/tcl/exit.py`` deliberately
 /// has no ``wasm_runtime_import``; the standard eval-fallback path
 /// dispatches via :data:`registrations` above.  This export exists
 /// purely so embedders that have already parsed the return code can

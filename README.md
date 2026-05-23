@@ -28,7 +28,7 @@ and communicates over stdio, making it compatible with any LSP client.
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
-| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
+| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/server/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
 | [Zed](editors/zed/) | Full extension (TOML + Rust) | Install from Zed extension registry | 16 built-in snippets, MCP context server, `/tcl-doc` and `/irule-event` slash commands |
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
@@ -80,7 +80,7 @@ Zero-plugin setup on Neovim 0.11+ using the native LSP client.  Also works
 with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 
 ```lua
--- ~/.config/nvim/lsp/tcl_lsp.lua  (Neovim 0.11+)
+-- ~/.config/nvim/server/tcl_lsp.lua  (Neovim 0.11+)
 return {
   cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
@@ -881,8 +881,8 @@ def _parse_yaml(source, *, uri, options=()):
 ```
 
 **Auto-discovered plugins** — drop any of the above into
-`$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
-`~/.config/f5q/plugins/*.py`) and the engine picks them up on the
+`$XDG_CONFIG_HOME/dialects/f5/query/plugins/*.py` (default
+`~/.config/dialects/f5/query/plugins/*.py`) and the engine picks them up on the
 first registry access, no import dance required.  Broken plugins
 warn to stderr and are skipped; `f5 q --help-plugins` shows what
 loaded.
@@ -1365,19 +1365,19 @@ rewrites, shimmer warnings, taint analysis, and bytecode.
 
 ```sh
 # Full exploration of a Tcl file
-uv run python -m explorer script.tcl
+uv run python -m tooling.explorer script.tcl
 
 # Focus on optimiser rewrites only
-uv run python -m explorer script.tcl --show opt
+uv run python -m tooling.explorer script.tcl --show opt
 
 # Inline source with optimised output
-uv run python -m explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+uv run python -m tooling.explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
 
 # Show only IR and CFG
-uv run python -m explorer script.tcl --show ir,cfg
+uv run python -m tooling.explorer script.tcl --show ir,cfg
 
 # iRules dialect with flow analysis
-uv run python -m explorer irule.tcl --dialect bigip --show irules
+uv run python -m tooling.explorer irule.tcl --dialect bigip --show irules
 ```
 
 Available views: `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
@@ -1423,13 +1423,13 @@ Compile Tcl scripts to WebAssembly (WAT text or binary WASM format).
 
 ```sh
 # Compile to human-readable WAT
-uv run python -m explorer.wasm_cli script.tcl --format wat
+uv run python -m tooling.wasm.main script.tcl --format wat
 
 # Compile to WASM binary with optimisations
-uv run python -m explorer.wasm_cli script.tcl -O --format wasm -o out.wasm
+uv run python -m tooling.wasm.main script.tcl -O --format wasm -o out.wasm
 
 # Compare optimised vs. unoptimised output
-uv run python -m explorer.wasm_cli --source 'set x [expr {1+2}]' --format both
+uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
 ```
 
 ### Compiler explorer (web GUI)
@@ -1455,16 +1455,16 @@ against Tcl 9.0.3 native test suites.
 
 ```sh
 # Execute a script
-uv run python -m vm script.tcl arg1 arg2
+uv run python -m tooling.vm script.tcl arg1 arg2
 
 # Interactive REPL
-uv run python -m vm
+uv run python -m tooling.vm
 
 # Inline evaluation
-uv run python -m vm -e 'puts [expr {6 * 7}]'
+uv run python -m tooling.vm -e 'puts [expr {6 * 7}]'
 
 # Show bytecode disassembly without executing
-uv run python -m vm --disassemble script.tcl
+uv run python -m tooling.vm --disassemble script.tcl
 ```
 
 ### Tcl debugger
@@ -1841,7 +1841,7 @@ normalised via `file normalize`, `PATH_JOINED` for values assembled via
 `file join`).  At join points, colours are intersected so only properties
 shared by all paths survive -- this suppresses false positives.
 
-The **Rendered Value Properties** pass (`core/compiler/rendered_properties.py`)
+The **Rendered Value Properties** pass (`compiler/rendered_properties.py`)
 runs before taint propagation and computes per-SSA-value string content
 properties after Tcl backslash substitution.  This enables precise detection
 of path separators (resolving escape sequences like `\x2f` to `/` before
@@ -2067,7 +2067,7 @@ Useful overrides:
 tcl-lsp/
   Makefile                Build system
   pyproject.toml          Python project metadata (hatchling)
-  lsp/                    Python LSP server
+  server/                    Python LSP server
     __main__.py           Entry point (python -m server)
     server.py             pygls server, handler wiring
     async_diagnostics.py  Background diagnostic scheduler (tiered publishing)
@@ -2176,7 +2176,7 @@ tcl-lsp/
       terraform.py        Terraform HCL generation
       json_api.py         JSON API for XC translation
       diagnostics.py      Migration diagnostics
-  explorer/               Compiler explorer (CLI + web GUI)
+  tooling/explorer/               Compiler explorer (CLI + web GUI)
     cli.py                CLI interface
     pipeline.py           Compilation pipeline wrapper
     serialise.py          Output serialisation (IR, CFG, SSA, optimiser)
@@ -2296,11 +2296,11 @@ source take effect on the next editor reload.
 
 ### Adding a new diagnostic check
 
-1. Add a check function to the appropriate submodule in `core/analysis/checks/`
+1. Add a check function to the appropriate submodule in `analyser/checks/`
    (e.g. `_security.py`, `_style.py`, `_domain.py`, `_syntax.py`) following
    the existing pattern -- each check receives the command name, argument
    texts, argument tokens, all tokens, and the source string.
-2. Register it in the `ALL_CHECKS` list in `core/analysis/checks/_orchestrator.py`.
+2. Register it in the `ALL_CHECKS` list in `analyser/checks/_orchestrator.py`.
 3. If the check can be auto-fixed, include a `CodeFix` in the diagnostic's
    `fixes` tuple.
 4. Add tests to `tests/test_checks.py`.
@@ -2308,14 +2308,12 @@ source take effect on the next editor reload.
 
 ### Adding a new formatter option
 
-1. Add the field to `FormatterConfig` in `core/formatting/config.py`.
-2. Handle it in `core/formatting/engine.py`.
+1. Add the field to `FormatterConfig` in `tooling/formatter/config.py`.
+2. Handle it in `tooling/formatter/engine.py`.
 3. Add `to_dict`/`from_dict` support if the field uses a non-primitive type.
 4. Add tests to `tests/test_formatter.py`.
-5. Keep consumers on core imports (`core/formatting/*`) and delete legacy
-   import paths in the same change.
-6. Run `tests/test_core_lift_consumers.py` to verify no downstream consumer is
-   importing shim modules.
+5. Import the formatter through its public API (`tooling.formatter`), then run
+   `make test` to verify.
 
 ## Configuration
 

@@ -36,9 +36,9 @@ def event_multiplicity(event_name: str) -> str:
     Returns one of ``"init"``, ``"once_per_connection"``,
     ``"per_request"``, or ``"unknown"``.
 
-    Delegates to :func:`core.commands.registry.namespace_data.event_multiplicity`.
+    Delegates to :func:`compiler.registry.namespace_data.event_multiplicity`.
     """
-    from core.commands.registry.namespace_data import (
+    from compiler.registry.namespace_data import (
         event_multiplicity as _event_multiplicity,
     )
 
@@ -50,7 +50,7 @@ def ordered_events(source: str) -> list[EventInfo]:
 
     Each entry includes its 1-based index and multiplicity.
     """
-    from core.commands.registry.namespace_data import order_events_for_file
+    from compiler.registry.namespace_data import order_events_for_file
 
     names = order_events_for_file(source)
     return [
@@ -82,9 +82,8 @@ def taint_warnings(source: str) -> list[dict[str, Any]]:
     ``sink_command``.
     """
     try:
-        from core.compiler.compile import compile_source
-
-        from core.compiler.taint import find_taint_warnings
+        from compiler.compilation_unit import compile_source
+        from compiler.taint import find_taint_warnings
 
         cu = compile_source(source)
         warnings = find_taint_warnings(source, cu)
@@ -116,7 +115,7 @@ def diagram_data(source: str) -> dict[str, Any]:
     dict with an ``"error"`` key on failure.
     """
     try:
-        from core.diagram.extract import extract_diagram_data
+        from tooling.diagram.extract import extract_diagram_data
 
         return extract_diagram_data(source)
     except Exception as exc:

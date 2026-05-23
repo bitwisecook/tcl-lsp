@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import textwrap
 
-from core.bigip.link_extract import extract_linked_bigip_objects
-from core.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.link_extract import extract_linked_bigip_objects
+from dialects.f5.bigip.parser import parse_bigip_conf
 
 
 def _node_by_header_prefix(result: dict, prefix: str) -> dict:

@@ -55,7 +55,7 @@ Pure Python implementation — no heavy SDK, no pydantic, no C extensions. Runs 
 ## File-path anchors
 
 - `ai/mcp/tcl_mcp_server.py`
-- `scripts/zipapp_mcp_main.py`
+- `scripts/zipapp-main/mcp.py`
 
 ## Failure modes
 

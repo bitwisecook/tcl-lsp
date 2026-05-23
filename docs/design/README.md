@@ -20,13 +20,9 @@ rules for the KCS/documentation split live in
 - [code-importing-examples.md](code-importing-examples.md) — reference
   patterns for Tcl code importing (package require, sourcing).
 
-## Planning documents
-
-- [kcs-completeness-plan.md](kcs-completeness-plan.md) — the phased plan
-  to bring the knowledge base to 100% coverage of diagnostic,
-  warning, and optimisation codes, with compiler-pass tagging and
-  strong cross-linking between KCS pages, the glossary, and the
-  design docs. Tracks scope, naming, templates, and the quality bar.
+> Past project-tracking documents (perf reports, phase trackers,
+> migration plans) are kept in [`../archive/`](../archive/) and are
+> not part of the current design surface.
 
 ## F5 BIG-IP CLI
 
@@ -51,7 +47,7 @@ rules for the KCS/documentation split live in
   every list-valued property without ``list_operators``, classified
   by emission style (real list / sub-block / uncertain), backing
   the curated override layer in
-  ``core/bigip/registry/specs/_base.py``.
+  ``dialects/f5/bigip/registry/specs/_base.py``.
 - [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
   decorator-based renderer plugin registry that powers
   ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
@@ -108,10 +104,6 @@ ownership matrices.
   TclObj refcount discipline, `OBJ_STR_CAP` ownership, the
   deferred-free queue, parse-cache invalidation, and the
   bump-allocator → libc-malloc routing rationale.
-- [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
-  phased plan for the Zig runtime: allocator hygiene, frame
-  management, string append capacity, tcltest correctness
-  unblockers, and per-phase acceptance gates.
 - [runtime/refcount-contract.md](runtime/refcount-contract.md) —
   ownership categories for every WASM-exported runtime function
   (callee-takes / caller-keeps / borrow), the linter that
@@ -173,12 +165,15 @@ are its rules, and what are the failure modes". One contract per file.
 
 - [command-registry-event-model.md](contracts/command-registry-event-model.md)
   — command and event registry ownership rules.
-- [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) —
+- [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
   shared helper ownership across core and LSP.
 - [formatter-engine.md](contracts/formatter-engine.md) — formatter
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
   and dependency direction.
+- [release-and-publish.md](contracts/release-and-publish.md) —
+  the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
+  invariant, and the release flow.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) —
   non-diagnostics LSP provider contracts and failure modes.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace

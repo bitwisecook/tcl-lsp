@@ -1,4 +1,4 @@
-"""Tests for ``core.parsing.subst_nocommands.subst_nocommands``.
+"""Tests for ``compiler.parsing.subst_nocommands.subst_nocommands``.
 
 Hand-calibrated against the ``tclsh 9.0`` ``subst -nocommands``
 output for each fixture.  The lowering pass (P7.3) uses this to
@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.subst_nocommands import subst_nocommands
+from compiler.parsing.subst_nocommands import subst_nocommands
 
 
 class TestSubstNocommandsPasses:

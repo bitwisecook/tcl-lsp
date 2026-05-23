@@ -9,10 +9,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.packages.auto_index import parse_tcl_index
-from core.packages.resolver import PackageResolver
-from lsp.workspace.scanner import BackgroundScanner
-from lsp.workspace.workspace_index import EntrySource, WorkspaceIndex
+from analyser.packages.auto_index import parse_tcl_index
+from analyser.packages.resolver import PackageResolver
+from server.workspace.scanner import BackgroundScanner
+from server.workspace.workspace_index import EntrySource, WorkspaceIndex
 
 # Parser unit tests
 
@@ -290,7 +290,7 @@ class TestWorkspaceIndexAutoIndex:
 
     def test_auto_index_is_background(self):
         idx = WorkspaceIndex()
-        from core.analysis.semantic_model import AnalysisResult
+        from analyser.semantic_model import AnalysisResult
 
         result = AnalysisResult()
         idx.update("file:///test.tcl", result, EntrySource.AUTO_INDEX)
@@ -298,7 +298,7 @@ class TestWorkspaceIndexAutoIndex:
 
     def test_remove_background_clears_auto_index(self):
         idx = WorkspaceIndex()
-        from core.analysis.semantic_model import AnalysisResult
+        from analyser.semantic_model import AnalysisResult
 
         result = AnalysisResult()
         idx.update("file:///test.tcl", result, EntrySource.AUTO_INDEX)

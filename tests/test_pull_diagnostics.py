@@ -10,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-import lsp.diagnostics_pipeline as _dp
-import lsp.server as server_module
+import server.diagnostics_pipeline as _dp
+import server.server as server_module
 
 
 def _reset_cache() -> None:

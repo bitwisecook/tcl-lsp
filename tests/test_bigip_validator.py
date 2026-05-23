@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.validator import validate_bigip_config
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.validator import validate_bigip_config
 
 
 def _codes(diagnostics: list) -> list[str]:

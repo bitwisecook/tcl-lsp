@@ -48,12 +48,12 @@ def main() -> None:
     print(f"File: {abs_path.name} ({n_lines} lines, {len(source)} bytes)")
 
     # Import server-side modules.
-    from core.analysis import analyse
-    from core.compiler.compilation_unit import compile_source
-    from core.parsing.command_segmenter import segment_top_level_chunks
-    from core.parsing.lexer import TclLexer
-    from lsp.features import semantic_tokens_full
-    from lsp.workspace.document_state import DocumentState
+    from analyser import analyse
+    from compiler.compilation_unit import compile_source
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+    from compiler.parsing.lexer import TclLexer
+    from server.features import semantic_tokens_full
+    from server.workspace.document_state import DocumentState
 
     if args.phase in ("all", "update"):
         print(f"\n{'=' * 60}")
@@ -187,12 +187,12 @@ def main() -> None:
 
 def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -> None:
     """Profile individual sub-phases of the update pipeline."""
-    from core.analysis import Analyser, analyse
-    from core.compiler.compilation_unit import compile_source
-    from core.compiler.lowering import lower_commands_to_ir
-    from core.parsing.command_segmenter import segment_top_level_chunks
-    from core.parsing.lexer import TclLexer
-    from lsp.features import semantic_tokens_full
+    from analyser import Analyser, analyse
+    from compiler.compilation_unit import compile_source
+    from compiler.lowering import lower_commands_to_ir
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+    from compiler.parsing.lexer import TclLexer
+    from server.features import semantic_tokens_full
 
     print(f"\n{'=' * 60}")
     print("Sub-phase breakdown")
@@ -228,7 +228,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
 
     # Chunk caches (profile this more deeply since it's the bottleneck)
     print("\n  _build_full_chunk_caches sub-profile:")
-    from core.common.document_buffer import DocumentBuffer
+    from shared.document_buffer import DocumentBuffer
 
     t_total_lower = 0.0
     t_total_analyse = 0.0
@@ -238,7 +238,7 @@ def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -
     analyser = Analyser()
     analyser._source = source
     buf = DocumentBuffer.from_source(source)
-    from lsp.features.diagnostics import compute_style_diagnostics_for_range
+    from server.features.diagnostics import compute_style_diagnostics_for_range
 
     for i, chunk in enumerate(chunks):
         cmds = list(chunk.commands)

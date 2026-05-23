@@ -20,7 +20,7 @@ clause in the compiler explorer, and when expanding the selection
 
 A braced word token starts on the opening `{` but its `end` sits on the last
 *inner* character; the matching closer is one position past `end`, and the
-token's `text` omits it. Semantic-model [`Range`](../../core/analysis/semantic_model.py)
+token's `text` omits it. Semantic-model [`Range`](../../analyser/semantic_model.py)
 ends are **inclusive** by convention, and word-token ranges follow an
 "inner-end" rule: the closer is **excluded**, and a consumer that wants to
 cover the whole word widens the range itself. This keeps the optimiser, SCCP,
@@ -34,7 +34,7 @@ range at the lowering layer breaks those consumers.
    tokens — many passes rely on the inner-end convention.
 2. A consumer that renders a highlight widens the range itself, the same way
    the diagnostics pipeline does, via
-   [`widen_range_for_closer`](../../core/common/ranges.py).
+   [`widen_range_for_closer`](../../shared/ranges.py).
 3. A whole-command range built from a token span is widened with
    `range_from_word_token` (closer derived from the token *type*, no source
    needed — required because nested bodies have absolute offsets but a
@@ -42,16 +42,16 @@ range at the lowering layer breaks those consumers.
 4. The compiler explorer front-end slices `src.substring(startOffset,
    endOffset)` with an **exclusive** end, so serialised ranges must convert
    the inclusive semantic-model end to exclusive (`+1`), matching
-   [`to_lsp_range`](../../core/common/lsp.py).
+   [`to_lsp_range`](../../server/_lsp_conv.py).
 
 ## File-path anchors
 
-- `core/common/ranges.py` — `widen_range_for_closer`, `range_from_word_token`, `widen_for_highlight`, `set_highlight_source`
-- `core/parsing/command_segmenter.py` — `_command_range`
-- `explorer/formatters.py` — `range_dict`
-- `explorer/serialise.py` — `serialise_result` sets the highlight source
-- `core/compiler/codegen/wasm/_ir.py` — `_range_to_explorer_dict`
-- `lsp/features/selection_range.py` — token-range widening
+- `shared/ranges.py` — `widen_range_for_closer`, `range_from_word_token`, `widen_for_highlight`, `set_highlight_source`
+- `compiler/parsing/command_segmenter.py` — `_command_range`
+- `tooling/cli/formatters.py` — `range_dict`
+- `tooling/cli/serialise.py` — `serialise_result` sets the highlight source
+- `compiler/codegen/wasm/_ir.py` — `_range_to_explorer_dict`
+- `server/features/selection_range.py` — token-range widening
 
 ## Failure modes
 
@@ -83,5 +83,5 @@ range at the lowering layer breaks those consumers.
 
 - [KCS index](README.md)
 - [range drift across passes](kcs-issue-range-drift.md)
-- [shared utility contracts](../design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../design/contracts/shared-utility-contracts.md)
 - [Glossary](../GLOSSARY.md)

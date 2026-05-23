@@ -22,7 +22,7 @@ asks "what does this property reference?" hits the same dispatch.
 ## Object kind catalogue
 
 Every object kind the registry understands is a curated entry in
-`core/bigip/registry/specs/`.  Hundreds of distinct kinds across:
+`dialects/f5/bigip/registry/specs/`.  Hundreds of distinct kinds across:
 
 - **`ltm.*`** — pool, virtual, monitor (40+ types), profile (60+
   types), node, rule, persistence, snatpool, policy, data-group,
@@ -57,7 +57,7 @@ class ValueSpec:
     def references(value, ctx)  -> Iterable[Reference]
 ```
 
-Concrete specs in `core/bigip/registry/value_specs.py`:
+Concrete specs in `dialects/f5/bigip/registry/value_specs.py`:
 
 ### Scalar foundations
 
@@ -110,7 +110,7 @@ Concrete specs in `core/bigip/registry/value_specs.py`:
 
 ## Pilot migration table
 
-The pilot table in `core/bigip/registry/pilot.py` opts properties
+The pilot table in `dialects/f5/bigip/registry/pilot.py` opts properties
 into the new dispatch.  Adding an entry is the unit of migration —
 projection, edit, parser, and reference layers all consult the
 table before falling back to the legacy `BigipPropertySpec` path.
@@ -140,13 +140,13 @@ Every :class:`Reference` the dispatch emits carries a
 reference token lives in the source.  The LSP layer consumes
 these for:
 
-- **Document links** — `lsp/features/_bigip_links.py` emits a
+- **Document links** — `server/features/_bigip_links.py` emits a
   `DocumentLink` per reference, with the range scoped to the
   reference token (not the surrounding property line).
-- **Go to definition** — `lsp/features/definition.py` walks every
+- **Go to definition** — `server/features/definition.py` walks every
   block's properties through the registry and picks the
   reference whose span covers the cursor offset.
-- **Semantic tokens** — `lsp/features/_semantic_tokens/_bigip.py`
+- **Semantic tokens** — `server/features/_semantic_tokens/_bigip.py`
   emits `object` tokens at every registry reference with a
   populated range.
 - **Reference / rename** — uses TMSH-path-bounded regex (already
@@ -186,11 +186,11 @@ the structured types so existing queries keep their shape.
 
 Adding a new typed value:
 
-1. Define the typed value in `core/bigip/types/` (`@dataclass(frozen=True, slots=True)`).
-2. Add a `*Spec` class in `core/bigip/registry/value_specs.py`
+1. Define the typed value in `dialects/f5/bigip/types/` (`@dataclass(frozen=True, slots=True)`).
+2. Add a `*Spec` class in `dialects/f5/bigip/registry/value_specs.py`
    implementing `parse` / `project` / `render` / `references`.
 3. Register the spec in the pilot table
-   (`core/bigip/registry/pilot.py`) keyed by
+   (`dialects/f5/bigip/registry/pilot.py`) keyed by
    `(module, object_type, property_name)`.
 4. Add audit tests in
    `tests/test_bigip_registry_value_specs.py`.

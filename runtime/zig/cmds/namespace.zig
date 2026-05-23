@@ -2904,7 +2904,7 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "namespace", .arity_min = 1, .arity_max = null, .handler = &eval_namespace },
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/namespace.py``.
+// Sub-command arities — mirrors ``dialects/tcl/namespace.py``.
 // Cross-checked against C Tcl 9.0 ``tclNamesp.c`` every ``Namespace*Cmd``.
 pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "children", .arity_min = 0, .arity_max = 2, .handler = &eval_namespace },

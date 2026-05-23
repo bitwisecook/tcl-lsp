@@ -2,9 +2,9 @@
 
 Builds the API reference site published to Read the Docs.  The
 config picks up every public symbol re-exported from
-:mod:`f5q` (which in turn forwards from :mod:`core.bigip.query`)
+:mod:`f5q` (which in turn forwards from :mod:`dialects.f5.query`)
 via ``sphinx.ext.autodoc`` and ``sphinx.ext.autosummary`` so
-the on-disk reference can't drift from what ``import f5q``
+the on-disk reference can't drift from what ``import dialects.f5.query``
 actually exposes.
 
 Build locally::
@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 # Make the in-repo packages importable so autodoc can introspect
-# them — ``f5q`` and ``core.bigip.query`` are both needed because
+# them — ``f5q`` and ``dialects.f5.query`` are both needed because
 # the public surface lives in the latter and is re-exported from the
 # former.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -121,7 +121,7 @@ html_theme_options = {
 }
 
 # Cleaner module-index display.
-modindex_common_prefix = ["f5q.", "core.bigip.query."]
+modindex_common_prefix = ["f5q.", "dialects.f5.query."]
 
 # Default role for `single-backtick` text is :py:obj: so DSL
 # fragments don't get treated as cross-references.

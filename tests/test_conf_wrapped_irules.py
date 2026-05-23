@@ -7,18 +7,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.conf_wrapped import (
+from analyser.conf_wrapped import (
     _shift_position,
     _shift_range,
     analyse_conf_wrapped,
 )
-from core.analysis.semantic_model import Range
-from core.bigip.rule_extract import find_embedded_rules, is_conf_wrapped_irules
-from core.commands.registry.runtime import configure_signatures
-from core.common.dialect import detect_dialect_from_source
-from core.parsing.tokens import SourcePosition
-from lsp.features.document_symbols import get_document_symbols
-from lsp.features.irules_context import find_enclosing_when_event
+from analyser.semantic_model import Range
+from compiler.registry.dialect import detect_dialect_from_source
+from compiler.registry.runtime import configure_signatures
+from dialects.f5.bigip.rule_extract import find_embedded_rules, is_conf_wrapped_irules
+from server.features.document_symbols import get_document_symbols
+from server.features.irules_context import find_enclosing_when_event
+from shared.tokens import SourcePosition
 
 # -- Detection ----------------------------------------------------------------
 
@@ -243,7 +243,7 @@ class TestRangeShifting:
         # dialect — configure_signatures alone doesn't set it, so scope the
         # iRules dialect explicitly; otherwise the diagnostic never fires and
         # the offset check is skipped.
-        from core.common.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             result, rules = analyse_conf_wrapped(src)

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.call_hierarchy import (
+from server.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
     prepare_call_hierarchy,
@@ -62,6 +62,34 @@ class TestIncomingCalls:
         assert len(calls) >= 1
         caller_names = {c.from_.name for c in calls}
         assert "main" in caller_names or "<top-level>" in caller_names
+
+    def test_cross_document_callers_included(self):
+        from analyser import analyse
+
+        # The proc is defined in one file and called from another.
+        def_uri = "file:///lib.tcl"
+        def_source = "proc greet {} { return }\n"
+        caller_uri = "file:///app.tcl"
+        caller_source = "proc main {} { greet }\n"
+
+        items = prepare_call_hierarchy(def_source, def_uri, 0, 6)
+        assert len(items) == 1
+
+        # Without the other document, the cross-file caller is missing.
+        local_only = incoming_calls(items[0], def_source, def_uri)
+        assert all(c.from_.name != "main" for c in local_only)
+
+        # Supplying the other document surfaces its caller, attributed to
+        # that file's URI.
+        with_extra = incoming_calls(
+            items[0],
+            def_source,
+            def_uri,
+            extra_documents=[(caller_uri, analyse(caller_source))],
+        )
+        main_calls = [c for c in with_extra if c.from_.name == "main"]
+        assert len(main_calls) == 1
+        assert main_calls[0].from_.uri == caller_uri
 
 
 class TestOutgoingCalls:
@@ -135,7 +163,7 @@ class TestNamespaceFormsCallHierarchy:
 
 class TestNestedNamespaceQualification:
     def test_nested_proc_qualified_with_full_path(self):
-        from core.analysis import analyse
+        from analyser import analyse
 
         source = textwrap.dedent("""\
             namespace eval a {

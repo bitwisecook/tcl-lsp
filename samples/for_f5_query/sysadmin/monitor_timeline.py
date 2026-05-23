@@ -2,10 +2,10 @@
 """Render an ASCII Gantt-style timeline of monitor up/down events.
 
 Thin shim around the canonical implementation in
-:mod:`core.bigip.query.renderers.gantt`.  Preserved so the documented
+:mod:`dialects.f5.query.renderers.gantt`.  Preserved so the documented
 ``| python3 sysadmin/monitor_timeline.py`` pipeline keeps working — new
 callers should prefer ``f5 query --render gantt`` or, from Python,
-``from f5q import Query; Query(...).run(...).render("gantt")``.
+``from dialects.f5.query import Query; Query(...).run(...).render("gantt")``.
 
 Reads stdin produced by:
 
@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 # Allow running directly from the samples directory without an install
-# — extend sys.path to the repo root so ``core.bigip.query.renderers``
+# — extend sys.path to the repo root so ``dialects.f5.query.renderers``
 # resolves.  The shim is dual-purposed: it works both as
 # ``uv run python samples/for_f5_query/sysadmin/monitor_timeline.py``
 # (from the repo) and as a standalone script users have copied out.
@@ -35,7 +35,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.bigip.query.renderers.gantt import render_gantt  # noqa: E402
+from dialects.f5.query.renderers.gantt import render_gantt  # noqa: E402
 
 _VALID_UNITS = (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60)
 _LEAP_SAFE_YEAR = 2020

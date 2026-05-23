@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-import f5q
+import dialects.f5.query as f5q
 
 SAMPLES = Path(__file__).resolve().parents[1] / "samples" / "for_f5_query"
 LTM_CONF = SAMPLES / "ltm.conf"

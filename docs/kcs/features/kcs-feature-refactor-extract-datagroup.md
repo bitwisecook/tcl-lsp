@@ -199,8 +199,8 @@ Type inference uses Python's `ipaddress` module for IP/CIDR detection, which nat
 
 ## File-path anchors
 
-- `core/refactoring/_extract_datagroup.py`
-- `lsp/features/code_actions.py`
+- `tooling/refactoring/_extract_datagroup.py`
+- `server/features/code_actions.py`
 - `ai/mcp/tcl_mcp_server.py`
 - `ai/claude/skills/irule-datagroup/SKILL.md`
 

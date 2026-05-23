@@ -11,6 +11,30 @@ dependencies = [
     "tomli>=2.0; python_version < '3.11'",
 ]
 
+# Console-script entry points.  Each maps a short shell command to a
+# ``module:function`` pair; installing the wheel (e.g. ``pip install
+# tcl-lsp``) puts these on the user's $PATH.
+#
+# Naming convention:
+#   tcl-lsp    — the LSP server itself (transport: stdio, JSON-RPC).
+#   tcl        — the general-purpose Tcl CLI (compile / run / analyse /
+#                  format / etc.).
+#   f5-query   — the F5 BigIP / iRules query CLI (jq-style DSL over
+#                  bigip.conf, iRules, GTM).
+#   tcl-wasm   — the WebAssembly compiler CLI (Tcl → wasm via the
+#                  compiler's WASM codegen + a Zig-built runtime).
+#   tcl-explorer — the compiler-explorer CLI (verbose dumps of IR,
+#                  CFG, SSA, codegen for a given input).
+#   tcl-vm     — direct access to the bytecode VM (run / disasm /
+#                  test).
+[project.scripts]
+tcl-lsp = "server.__main__:main"
+tcl = "tooling.tcl.main:main"
+f5-query = "tooling.f5.main:main"
+tcl-wasm = "tooling.wasm.main:main"
+tcl-explorer = "tooling.explorer.cli:main"
+tcl-vm = "tooling.vm.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
@@ -18,6 +42,10 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.11",
     "ty==0.0.37",
+    # Architectural dependency contracts — see `.importlinter`.  Keeps the
+    # seven-concern Python layout (shared/, compiler/, dialects/, analyser/,
+    # server/, tooling/, ai/) from drifting back into a tangle.
+    "import-linter>=2.0",
     # Available at runtime so ``scripts/print_version.py`` can compute the
     # wheel filename the Makefile expects (hatch-vcs is also a
     # ``[build-system].requires`` entry — listing it here just makes it
@@ -60,11 +88,26 @@ source = "vcs"
 raw-options = { local_scheme = "no-local-version" }
 
 [tool.hatch.build.hooks.vcs]
-version-file = "lsp/_version.py"
+version-file = "server/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lsp", "core", "explorer", "vm", "tclpkg", "f5q"]
-exclude = ["explorer/static", "core/bigip/data/scf_port_names.csv"]
+packages = [
+    "server",
+    "compiler",
+    "analyser",
+    "dialects",
+    "shared",
+    "tooling",
+    "ai",
+]
+exclude = [
+    "tooling/explorer/static",
+    "dialects/f5/bigip/data/scf_port_names.csv",
+    # Dev-only differential-fuzzer corpus (~15 MB) and its tests — never
+    # part of the shipped wheel.
+    "tooling/fuzzing/findings",
+    "tooling/fuzzing/tests",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,12 +127,12 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
-"lsp/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
+"server/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
 
 [tool.coverage.run]
-source = ["lsp", "core", "explorer"]
+source = ["server", "compiler", "analyser", "dialects", "shared", "tooling", "ai"]
 omit = [
-    "lsp/_build_info.py",
+    "shared/_build_info.py",
     "*/test_*",
     "*/__pycache__/*",
 ]

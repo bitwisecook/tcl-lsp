@@ -35,7 +35,7 @@ import wasmtime
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from core.runtime_wasm import DEFAULT_PATH as _RUNTIME_WASM  # noqa: E402
+from shared.runtime_wasm import DEFAULT_PATH as _RUNTIME_WASM  # noqa: E402
 
 os.environ.setdefault("TCL_LSP_RUNTIME_WASM", str(_RUNTIME_WASM))
 

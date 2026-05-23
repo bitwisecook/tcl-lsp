@@ -10,6 +10,7 @@ require.extensions[".md"] = (mod: NodeJS.Module, filename: string) => {
 };
 
 export async function run(): Promise<void> {
+  const failureMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-failures.json");
   const mocha = new Mocha({
     ui: "tdd",
     color: true,
@@ -35,6 +36,8 @@ export async function run(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const runner = mocha.run((failures) => {
       if (failures > 0) {
+        fs.mkdirSync(path.dirname(failureMarker), { recursive: true });
+        fs.writeFileSync(failureMarker, JSON.stringify({ failures }) + "\n", "utf8");
         reject(new Error(`${failures} test(s) failed.`));
       } else {
         resolve();

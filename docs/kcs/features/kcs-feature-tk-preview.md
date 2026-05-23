@@ -31,7 +31,7 @@ The Tk preview extracts the widget hierarchy from source code and renders it in 
 - `editors/vscode/src/tkPreviewPanel.ts`
 - `editors/vscode/src/tkPreviewPanelHtml.ts`
 - `editors/vscode/src/tkLivePreview.ts`
-- `core/tk/extract.py`
+- `dialects/tk/dialect/extract.py`
 
 ## Failure modes
 

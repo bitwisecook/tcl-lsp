@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.green_tree import (
+from compiler.parsing.green_tree import (
     Mode,
     NodeKind,
     active_scope,
@@ -16,7 +16,7 @@ from core.parsing.green_tree import (
     node_for,
     tokenise,
 )
-from core.parsing.tokens import TokenType
+from shared.tokens import TokenType
 
 
 class TestNodeBuilding:

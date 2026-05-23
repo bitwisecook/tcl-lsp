@@ -2,7 +2,7 @@
 
 Unit-level coverage of :func:`stub_to_command_sig` and
 :func:`stub_signature_scope` from
-:mod:`core.commands.registry.runtime`, plus end-to-end coverage that
+:mod:`compiler.registry.runtime`, plus end-to-end coverage that
 walks all the way down to the call-graph and unused-proc analyser.
 """
 
@@ -14,14 +14,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_graph import build_call_graph
-from core.analysis.semantic_model import (
-    Range,
-    SourcePosition,
+from analyser.semantic_graph import build_call_graph
+from analyser.semantic_model import (
     StubArgDef,
     StubCommandDef,
 )
-from core.commands.registry.runtime import (
+from compiler.registry.runtime import (
     SIGNATURES,
     arg_indices_for_role,
     body_arg_indices,
@@ -30,7 +28,9 @@ from core.commands.registry.runtime import (
     stub_signature_scope,
     stub_to_command_sig,
 )
-from core.commands.registry.signatures import ArgRole
+from compiler.registry.signatures import ArgRole
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition
 
 _ZERO = Range(
     start=SourcePosition(line=0, character=0, offset=0),
@@ -97,7 +97,7 @@ class TestStubToCommandSig:
         assert sig.arity.max == 2
 
     def test_args_tail_is_variadic_with_zero_or_more_extras(self):
-        from core.commands.registry.signatures import Arity
+        from compiler.registry.signatures import Arity
 
         sig = stub_to_command_sig(
             _stub(
@@ -113,7 +113,7 @@ class TestStubToCommandSig:
         assert sig.arity.max == Arity.ANY
 
     def test_args_only_is_pure_variadic(self):
-        from core.commands.registry.signatures import Arity
+        from compiler.registry.signatures import Arity
 
         sig = stub_to_command_sig(_stub("anything", ("args", "value", False)))
         assert sig.arity.min == 0
@@ -304,7 +304,7 @@ class TestSummaryCallsCoverage:
         # directly so a regression of issue #409 (calls only inside an
         # ``if`` condition or switch subject) would surface even if
         # downstream consumers change.
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             proc q {} {}
@@ -324,7 +324,7 @@ class TestSummaryCallsCoverage:
         assert "::s" in calls
 
     def test_stubbed_callback_call_is_recorded_on_caller_summary(self):
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin
@@ -607,8 +607,8 @@ class TestRealisticSqliteUsage:
         # it as ``ProcArgTrait.BODY``.  This is what makes the wrapper
         # pattern compose — callers of ``each_row`` inherit BODY
         # recognition on their callback arg.
-        from core.analysis.semantic_model import ProcArgTrait
-        from core.compiler.compilation_unit import compile_source
+        from analyser.semantic_model import ProcArgTrait
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin
@@ -679,8 +679,8 @@ class TestStubTraitInference:
         # ``ArgRole.BODY`` slot, the proc-arg trait inferencer should
         # mark that parameter as ``ProcArgTrait.BODY`` — exactly as it
         # does for built-in script-runners.
-        from core.analysis.semantic_model import ProcArgTrait
-        from core.compiler.compilation_unit import compile_source
+        from analyser.semantic_model import ProcArgTrait
+        from compiler.compilation_unit import compile_source
 
         source = textwrap.dedent("""\
             # tcl-lsp: stubs-begin

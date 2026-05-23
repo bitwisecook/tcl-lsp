@@ -19,7 +19,7 @@ Inlay hints show additional information such as parameter names and inferred typ
 
 ## File-path anchors
 
-- `lsp/features/inlay_hints.py`
+- `server/features/inlay_hints.py`
 
 ## Failure modes
 
