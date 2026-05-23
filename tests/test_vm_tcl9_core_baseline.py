@@ -34,7 +34,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HARNESS = REPO_ROOT / "scripts" / "run_tcl9_vm_core.py"
+HARNESS = REPO_ROOT / "scripts" / "dev" / "run_tcl9_vm_core.py"
 BASELINE = REPO_ROOT / "tests" / "baselines" / "tcl9-tcltest-vm" / "summary.json"
 REPORT = REPO_ROOT / "tmp" / "tcl9-vm-core-report.json"
 

@@ -10,7 +10,6 @@ import sys
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, TextIO
 
 from compiler.codegen.bytecode import FunctionAsm
@@ -96,8 +95,9 @@ class TclInterp:
     and executes it on the ``BytecodeVM`` stack machine.
     """
 
-    # Default path to the bundled Tcl library
-    _TCL_LIBRARY = str(Path(__file__).resolve().parent.parent / "tmp" / "tcl9.0.3" / "library")
+    # Platform discovery belongs in the make/dev tooling.  The VM consumes
+    # an explicit constructor value or the TCL_LIBRARY environment variable.
+    _TCL_LIBRARY = ""
 
     def __init__(
         self,
@@ -172,7 +172,7 @@ class TclInterp:
         }
 
         # Resolve the Tcl library path
-        self._tcl_library = tcl_library or self._TCL_LIBRARY
+        self._tcl_library = tcl_library or os.environ.get("TCL_LIBRARY", "") or self._TCL_LIBRARY
 
         # Initialise common Tcl variables
         self.global_frame.set_var("tcl_version", "9.0")
@@ -224,7 +224,7 @@ class TclInterp:
         if not self._is_safe:
             from .commands.tcltest_cmds import setup_tcltest
 
-            setup_tcltest(self)
+            setup_tcltest(self, reset_state=not source_init)
 
         # Mirror C Tcl's ``Tcl_CreateInterp``: pre-populate the
         # ``::tcl::*`` and ``::oo::*`` ensemble implementation

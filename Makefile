@@ -138,6 +138,10 @@ CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
 # Parallelism
 NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
+# Tcl script library discovery for VM gates.  The interpreter consumes
+# TCL_LIBRARY; this resolver owns platform/check-out detection.
+TCL_LIBRARY_RESOLVER := $(ROOT)scripts/dev/resolve-tcl-library.sh
+
 # Source-file lists for dependency tracking.  PY_SRCS walks every concern
 # package; build_zipapp.py picks the right subset per zipapp profile.
 PY_SRCS  := $(shell find $(addprefix $(ROOT),$(PY_PKGS)) -name '*.py' -not -path '*__pycache__*' -not -name '_build_info.py')
@@ -292,8 +296,10 @@ test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files throu
 		echo "==> SKIP_TEST_VM set — skipping VM tcltest suite"; \
 		exit 0; \
 	fi; \
+	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
 	echo "==> Running VM tcltest tests"; \
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
+	echo "==> TCL_LIBRARY=$$tcl_library"; \
+	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
 
 test-tcl9: $(UV_STAMP) test-tcl9-samples ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
 	@echo "==> Running Tcl 9 correctness harness"
@@ -312,14 +318,20 @@ test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (night
 		--tcl9-required --tcl9-report=tmp/tcl9-report-full.json
 
 test-tcl9-vm-core: $(UV_STAMP) ## Run the Tcl 9 core slice regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-vm/summary.json)
-	@echo "==> Running Tcl 9 core slice regression gate (real init.tcl + tcltest.tcl)"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && RUN_VM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_vm_tcl9_core_baseline.py -q
+	@set -eu; \
+	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
+	echo "==> Running Tcl 9 core slice regression gate (real init.tcl + tcltest.tcl)"; \
+	echo "==> TCL_LIBRARY=$$tcl_library"; \
+	mkdir -p $(ROOT)tmp; \
+	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" RUN_VM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_vm_tcl9_core_baseline.py -q
 
 refresh-tcl9-vm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-vm/ from the current VM (use after a confirmed fix)
-	@echo "==> Refreshing Tcl 9 core slice baseline"
-	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/dev/run_tcl9_vm_core.py --refresh-baseline
+	@set -eu; \
+	tcl_library="$$(REQUIRE_TCLTEST=1 bash $(TCL_LIBRARY_RESOLVER))"; \
+	echo "==> Refreshing Tcl 9 core slice baseline"; \
+	echo "==> TCL_LIBRARY=$$tcl_library"; \
+	mkdir -p $(ROOT)tmp; \
+	cd $(ROOT) && TCL_LIBRARY="$$tcl_library" $(UV) run --extra dev python scripts/dev/run_tcl9_vm_core.py --refresh-baseline
 
 test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-wasm/summary.json — production ship gate)
 	@echo "==> Running Tcl 9 core slice WASM regression gate (Zig runtime + WASM codegen, real init.tcl + tcltest.tcl)"

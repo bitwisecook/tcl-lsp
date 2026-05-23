@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from ipaddress import IPv4Address
 from textwrap import dedent
+from typing import cast
 
 from lsprotocol import types
 
@@ -57,6 +58,13 @@ _BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 def _diag_code(value: object) -> str:
     if isinstance(value, str):
         return value
+    if isinstance(value, dict):
+        nested = cast("dict[str, object]", value).get("value")
+        if isinstance(nested, str):
+            return nested
+    nested = getattr(value, "value", None)
+    if isinstance(nested, str):
+        return nested
     return str(value) if value is not None else ""
 
 

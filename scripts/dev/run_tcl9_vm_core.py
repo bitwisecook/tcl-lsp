@@ -9,10 +9,10 @@ lives at ``tests/external/run_tcl9_tests.py``.  See
 ``tests/baselines/tcl9-tcltest-vm/README.md`` for the full scope
 statement and hand-off rules.
 
-Sources the original ``tmp/tcl9.0.3/library/init.tcl`` and the original
-``tmp/tcl9.0.3/library/tcltest/tcltest.tcl`` unmodified, executes each
-test file via ``vm.interp.TclInterp``, and records pass / skip / fail
-counts plus a categorised failure dossier.
+Sources the original ``init.tcl`` and ``tcltest.tcl`` from
+``TCL_LIBRARY`` unmodified, executes each test file via
+``vm.interp.TclInterp``, and records pass / skip / fail counts plus a
+categorised failure dossier.
 
 **Hard rules** (see ``tests/baselines/tcl9-tcltest-vm/README.md`` for
 the full hand-off): never edit ``tcltest.tcl``, never edit any
@@ -72,6 +72,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TCL_TREE = REPO_ROOT / "tmp" / "tcl9.0.3"
 TESTS_DIR = TCL_TREE / "tests"
+TCL_LIBRARY = Path(os.environ.get("TCL_LIBRARY", str(TCL_TREE / "library")))
 
 OUT_REPORT = REPO_ROOT / "tmp" / "tcl9-vm-core-report.json"
 OUT_DOSSIER = REPO_ROOT / "tmp" / "tcl9-vm-core-categories.md"
@@ -243,7 +244,7 @@ def _boot_parent_interp():
 
     interp = TclInterp(source_init=True)
     setup_test_support(interp)
-    setup_tcltest(interp)
+    setup_tcltest(interp, reset_state=False)
     # Force tcltest.tcl to source now so the compile / load happens once.
     interp.eval("package require tcltest 2.5; namespace import -force ::tcltest::*")
     _INTERP = interp
@@ -640,8 +641,8 @@ def write_dossier(results: list[StemResult]) -> None:
     )
     lines.append("")
     lines.append(
-        "Sources used unmodified: `tmp/tcl9.0.3/library/init.tcl`, "
-        "`tmp/tcl9.0.3/library/tcltest/tcltest.tcl`, "
+        f"Sources used unmodified: `{TCL_LIBRARY / 'init.tcl'}`, "
+        f"`{TCL_LIBRARY / 'tcltest' / 'tcltest.tcl'}`, "
         "and every `.test` file in `tmp/tcl9.0.3/tests/`.\n"
     )
     lines.append("")
@@ -873,8 +874,8 @@ def write_dossier(results: list[StemResult]) -> None:
         "Read `tests/baselines/tcl9-tcltest-vm/README.md` first — it is "
         "the durable hand-off; the section below is a running summary.\n"
         "\n"
-        "- **Never** edit `tmp/tcl9.0.3/library/tcltest/tcltest.tcl`, "
-        "`tmp/tcl9.0.3/library/init.tcl`, or any `.test` file under "
+        f"- **Never** edit `{TCL_LIBRARY / 'tcltest' / 'tcltest.tcl'}`, "
+        f"`{TCL_LIBRARY / 'init.tcl'}`, or any `.test` file under "
         "`tmp/tcl9.0.3/tests/`.  Fix the compiler / runtime instead.\n"
         "- **No new monkey-patches.**  The existing `auto_load` / "
         "`parray` shim in `vm/commands/tcltest_cmds.py:583` "

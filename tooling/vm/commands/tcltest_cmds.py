@@ -149,6 +149,7 @@ def _run_test_old_style(interp: TclInterp, name: str, rest: list[str]) -> TclRes
 
     if not _check_constraints(constraints):
         _results["Skipped"] += 1
+        _sync_num_tests(interp)
         return TclResult()
 
     try:
@@ -518,32 +519,24 @@ def _cmd_error_channel(interp: TclInterp, args: list[str]) -> TclResult:
 # Registration
 
 
-def _find_tcltest_library() -> str | None:
-    """Locate the real tcltest.tcl in the Tcl library tree."""
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent
-        / "tmp"
-        / "tcl9.0.3"
-        / "library"
-        / "tcltest"
-        / "tcltest.tcl",
-        Path(__file__).resolve().parent.parent.parent
-        / "tmp"
-        / "tcl8.6.16"
-        / "library"
-        / "tcltest"
-        / "tcltest.tcl",
-    ]
-    for p in candidates:
-        if p.is_file():
-            return str(p)
+def _find_tcltest_library(interp: TclInterp) -> str | None:
+    """Locate the real tcltest.tcl under the interpreter's Tcl library."""
+    library = getattr(interp, "_tcl_library", "") or os.environ.get("TCL_LIBRARY", "")
+    if not library:
+        return None
+
+    tcltest = Path(library) / "tcltest" / "tcltest.tcl"
+    if tcltest.is_file():
+        return str(tcltest)
     return None
 
 
-_initialised = False
-
-
-def setup_tcltest(interp: TclInterp, *, use_real_library: bool = True) -> None:
+def setup_tcltest(
+    interp: TclInterp,
+    *,
+    use_real_library: bool = True,
+    reset_state: bool = True,
+) -> None:
     """Register tcltest as a loadable package in the interpreter.
 
     When *use_real_library* is True (the default) and the Tcl source
@@ -557,12 +550,10 @@ def setup_tcltest(interp: TclInterp, *, use_real_library: bool = True) -> None:
     library isn't found (e.g. offline environments without the Tcl
     source tree).
     """
-    global _initialised
-    if not _initialised:
+    if reset_state:
         _reset_state()
-        _initialised = True
 
-    real_tcltest = _find_tcltest_library() if use_real_library else None
+    real_tcltest = _find_tcltest_library(interp) if use_real_library else None
 
     if real_tcltest is not None:
         _setup_real_tcltest(interp, real_tcltest)
