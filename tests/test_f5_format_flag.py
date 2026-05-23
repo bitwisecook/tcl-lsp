@@ -4,7 +4,7 @@ Every config-emitting verb (``extract`` is covered separately because
 its input is a UCS archive) accepts ``--format scf`` (the historical
 output, unchanged) or ``--format tmsh`` (a `tmsh create` or
 `tmsh modify` script suitable for replay).  The shared helper lives in
-:mod:`explorer.verbs.f5._emit`.
+:mod:`tooling.f5.verbs._emit`.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from explorer.f5_cli import main
-from explorer.verbs.f5._emit import render_config
+from tooling.f5.main import main
+from tooling.f5.verbs._emit import render_config
 
 SAMPLE = (
     textwrap.dedent(

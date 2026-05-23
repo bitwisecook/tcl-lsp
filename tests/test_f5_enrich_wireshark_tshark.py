@@ -20,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.bigip.parser import parse_bigip_conf
-from core.bigip.wireshark_profile import build_wireshark_profile
+from dialects.f5.bigip.parser import parse_bigip_conf
+from dialects.f5.bigip.wireshark_profile import build_wireshark_profile
 
 pytestmark = [pytest.mark.slow]
 

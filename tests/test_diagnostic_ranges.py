@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from lsp.features.diagnostics import get_diagnostics
+from server.features.diagnostics import get_diagnostics
 
 
 def _covered(source: str, r: types.Range) -> str:

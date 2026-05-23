@@ -20,16 +20,16 @@ Range fidelity depends on preserving source `Range` from lowering through CFG/SS
 1. Producer passes own source ranges for emitted findings.
 2. Aggregation layer should not reconstruct ranges from message text.
 3. Range adjustments must be test-backed when pass logic changes.
-4. Offset/position conversion should route through shared mappers (`core/common/source_map.py`) where possible to avoid duplicate converter drift.
+4. Offset/position conversion should route through shared mappers (`shared/source_map.py`) where possible to avoid duplicate converter drift.
 
 ## File-path anchors
 
-- `core/compiler/lowering.py`
-- `core/compiler/ir.py`
-- `core/compiler/optimiser/`
-- `core/compiler/gvn.py`
-- `core/common/source_map.py`
-- `lsp/features/diagnostics.py`
+- `compiler/lowering.py`
+- `compiler/ir.py`
+- `compiler/optimiser/`
+- `compiler/gvn.py`
+- `shared/source_map.py`
+- `server/features/diagnostics.py`
 
 ## Failure modes
 
@@ -56,4 +56,4 @@ Range fidelity depends on preserving source `Range` from lowering through CFG/SS
 - [compiler KCS index](README.md)
 - [diagnostics integration](../../docs/design/compiler/diagnostics-integration.md)
 - [pass/fact ownership matrix](../../docs/design/compiler/pass-fact-ownership-matrix.md)
-- [shared utility contracts](../../docs/design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../../docs/design/contracts/shared-utility-contracts.md)

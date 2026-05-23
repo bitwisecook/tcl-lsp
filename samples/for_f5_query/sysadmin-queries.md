@@ -591,7 +591,7 @@ along with the pools, persistence profiles, and data-groups it
 touches."*
 
 **Query.** `.refs.pools` / `.refs.persists` / `.refs."data-groups"`
-are the edges `core.bigip.irules_refs.extract_irules_object_references`
+are the edges `dialects.f5.bigip.irules_refs.extract_irules_object_references`
 extracts from the iRule body — same engine `f5 grep` walks.
 
 ```

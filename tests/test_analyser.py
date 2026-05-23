@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 
 class TestProcAnalysis:
@@ -190,7 +190,7 @@ class TestDiagnostics:
     def test_switch_options_are_dialect_filtered(self):
         # vwait gained its option switches in Tcl 9.0; under 8.6 they are
         # not valid, so option-aware arity counting must reject them.
-        from core.common.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("tcl9.0"):
             # ``-variable`` is a real switch in 9.0 → skipped, 1 positional.
@@ -455,7 +455,7 @@ class TestDiagnostics:
 
     def test_proc_call_arg_expansion_disabled_for_tcl84(self):
         """In Tcl 8.4 dialect ``{*}`` is not expansion — E002 should still fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         source = textwrap.dedent("""\
             proc rgbToLab {r g b} { return 1 }
@@ -474,7 +474,7 @@ class TestDiagnostics:
 
     def test_proc_call_arg_expansion_disabled_for_f5_irules(self):
         """iRules is 8.4-based — ``{*}`` is not recognised as expansion."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         source = textwrap.dedent("""\
             proc myproc {x y z} { return $x }
@@ -498,8 +498,8 @@ class TestDiagnostics:
         ``_expand_syntax_active()`` rather than a mutable class attribute,
         so per-folder dialect resolution affects only the current scope.
         """
-        from core.commands.registry.runtime import configure_signatures
-        from core.parsing.lexer import _expand_syntax_active
+        from compiler.parsing.lexer import _expand_syntax_active
+        from compiler.registry.runtime import configure_signatures
 
         try:
             configure_signatures(dialect="tcl8.4")
@@ -690,8 +690,8 @@ class TestDiagnostics:
 
     def test_set_dual_shape_role_resolution(self):
         """``set`` resolver returns VAR_READ for 1-arg shape, VAR_WRITE for 2-arg."""
-        from core.commands.registry.runtime import arg_indices_for_role
-        from core.commands.registry.signatures import ArgRole
+        from compiler.registry.runtime import arg_indices_for_role
+        from compiler.registry.signatures import ArgRole
 
         # set x → read
         assert arg_indices_for_role("set", ["x"], ArgRole.VAR_WRITE) == set()
@@ -2190,7 +2190,7 @@ class TestW123UnresolvedCommand:
             baz x
         """)
         with patch(
-            "core.compiler.lowering.lower_to_ir",
+            "compiler.lowering.lower_to_ir",
             side_effect=RuntimeError("lowering failed"),
         ):
             result = analyse(source)
@@ -2682,7 +2682,7 @@ class TestCanonicalisationMatrixIRULE4005:
         # — that exclusion uses ``stmt.canonical_command == "::unset"``.
         # We assert the exclusion holds for bare/qualified/aliased
         # spellings.
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         try:

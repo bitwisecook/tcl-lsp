@@ -30,6 +30,6 @@ If a rule in codegen would improve diagnostics or quick-fix quality, model it as
 
 ## Related files
 
-- `core/compiler/codegen.py`
-- `core/compiler/lowering.py`
-- `core/compiler/compilation_unit.py`
+- `compiler/codegen.py`
+- `compiler/lowering.py`
+- `compiler/compilation_unit.py`

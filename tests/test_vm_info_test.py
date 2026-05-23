@@ -14,9 +14,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 

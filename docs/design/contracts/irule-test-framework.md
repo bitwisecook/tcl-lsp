@@ -8,7 +8,7 @@ BIG-IP device.
 
 ## Operational context
 
-`core/irule_test/` provides a complete TMM simulation: event
+`tooling/irule_test/` provides a complete TMM simulation: event
 orchestration, protocol state machines, command mocks, assertion DSL,
 and optional Python bridge.  Tests run with just `tclsh` (no Python
 needed for pure-Tcl usage) or via `tkinter.Tcl()` / subprocess from
@@ -77,27 +77,27 @@ User test script (Tcl or Python)
 ## File-path anchors
 
 ### Framework core (Tcl)
-- `core/irule_test/tcl/orchestrator.tcl` — event orchestrator, flow chains, assertion DSL
-- `core/irule_test/tcl/command_mocks.tcl` — hand-written command mocks (73 procs)
-- `core/irule_test/tcl/state_layers.tcl` — 10 protocol state namespaces
-- `core/irule_test/tcl/itest_core.tcl` — iRule loader and event firer
-- `core/irule_test/tcl/tmm_shim.tcl` — TMM environment simulation
-- `core/irule_test/tcl/expr_ops.tcl` — TMM expression operators
-- `core/irule_test/tcl/runner.tcl` — JSON protocol for subprocess bridge
-- `core/irule_test/tcl/scf_loader.tcl` — SCF/bigip.conf parser
-- `core/irule_test/tcl/example_test.tcl` — 4-scenario example test
+- `tooling/irule_test/tcl/orchestrator.tcl` — event orchestrator, flow chains, assertion DSL
+- `tooling/irule_test/tcl/command_mocks.tcl` — hand-written command mocks (73 procs)
+- `tooling/irule_test/tcl/state_layers.tcl` — 10 protocol state namespaces
+- `tooling/irule_test/tcl/itest_core.tcl` — iRule loader and event firer
+- `tooling/irule_test/tcl/tmm_shim.tcl` — TMM environment simulation
+- `tooling/irule_test/tcl/expr_ops.tcl` — TMM expression operators
+- `tooling/irule_test/tcl/runner.tcl` — JSON protocol for subprocess bridge
+- `tooling/irule_test/tcl/scf_loader.tcl` — SCF/bigip.conf parser
+- `tooling/irule_test/tcl/example_test.tcl` — 4-scenario example test
 
 ### Generated data (Tcl)
-- `core/irule_test/tcl/_event_data.tcl` — MASTER_ORDER, FLOW_CHAINS
-- `core/irule_test/tcl/_registry_data.tcl` — disabled commands, operators, command list
-- `core/irule_test/tcl/_mock_stubs.tcl` — 1188 auto-generated stub mocks
+- `tooling/irule_test/tcl/_event_data.tcl` — MASTER_ORDER, FLOW_CHAINS
+- `tooling/irule_test/tcl/_registry_data.tcl` — disabled commands, operators, command list
+- `tooling/irule_test/tcl/_mock_stubs.tcl` — 1188 auto-generated stub mocks
 
 ### Python bridge
-- `core/irule_test/bridge.py` — IruleTestSession, RequestResult, backends
-- `core/irule_test/topology.py` — SCF -> Tcl setup generator
-- `core/irule_test/codegen_event_data.py` — generates _event_data.tcl
-- `core/irule_test/codegen_registry_data.py` — generates _registry_data.tcl
-- `core/irule_test/codegen_mock_stubs.py` — generates _mock_stubs.tcl
+- `tooling/irule_test/bridge.py` — IruleTestSession, RequestResult, backends
+- `tooling/irule_test/topology.py` — SCF -> Tcl setup generator
+- `tooling/irule_test/codegen_event_data.py` — generates _event_data.tcl
+- `tooling/irule_test/codegen_registry_data.py` — generates _registry_data.tcl
+- `tooling/irule_test/codegen_mock_stubs.py` — generates _mock_stubs.tcl
 
 ### AI integration
 - `ai/claude/tcl_ai.py` — `cmd_generate_test` CLI subcommand
@@ -364,8 +364,8 @@ can plan multi-TMM test distributions before generating Tcl code.
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `Missing generated file` error | Codegen not run | `python -m core.irule_test.codegen_event_data` (or `_registry_data` / `_mock_stubs`) |
-| `_mock_stubs.tcl is stale` test failure | New commands added to registry | Regenerate with `python -m core.irule_test.codegen_mock_stubs` |
+| `Missing generated file` error | Codegen not run | `python -m tooling.irule_test.codegen_event_data` (or `_registry_data` / `_mock_stubs`) |
+| `_mock_stubs.tcl is stale` test failure | New commands added to registry | Regenerate with `python -m tooling.irule_test.codegen_mock_stubs` |
 | `tkinter.Tcl() not available` | Python built without `_tkinter` | Use `backend="subprocess"` or install tkinter |
 | iRule command returns empty string | Using stub mock | Write a hand-written mock in `command_mocks.tcl` |
 | Event not firing | Profile not configured | Check `::orch::configure -profiles {...}` |

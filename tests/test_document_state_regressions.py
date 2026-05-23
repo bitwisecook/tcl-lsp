@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.commands.registry.runtime import active_signature_profile, configure_signatures
-from lsp.workspace.document_state import DocumentState
+from compiler.registry.runtime import active_signature_profile, configure_signatures
+from server.workspace.document_state import DocumentState
 
 
 def test_tokens_property_uses_snapshot_cache() -> None:

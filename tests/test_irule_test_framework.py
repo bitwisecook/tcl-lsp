@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from core.bigip.model import (
+from dialects.f5.bigip.model import (
     BigipConfig,
     BigipDataGroup,
     BigipPool,
@@ -26,15 +26,15 @@ from core.bigip.model import (
     DataGroupType,
     ProfileType,
 )
-from core.bigip.types import BigipList, Destination, ListItem, ProfileAttachment
-from core.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
-from core.irule_test.codegen_event_data import _generate as generate_event_data
-from core.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
-from core.irule_test.codegen_registry_data import _generate as generate_registry_data
-from core.irule_test.topology import TopologyFromSCF
+from dialects.f5.bigip.types import BigipList, Destination, ListItem, ProfileAttachment
+from tooling.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
+from tooling.irule_test.codegen_event_data import _generate as generate_event_data
+from tooling.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
+from tooling.irule_test.codegen_registry_data import _generate as generate_registry_data
+from tooling.irule_test.topology import TopologyFromSCF
 
 # Path to the Tcl framework files
-TCL_DIR = Path(__file__).parent.parent / "core" / "irule_test" / "tcl"
+TCL_DIR = Path(__file__).parent.parent / "tooling" / "irule_test" / "tcl"
 
 # Skip integration tests if no tclsh available
 _tclsh = shutil.which("tclsh") or shutil.which("tclsh8.6") or shutil.which("tclsh8.5")
@@ -658,7 +658,7 @@ class TestEventDataCodegen:
         actual = (TCL_DIR / "_event_data.tcl").read_text()
         assert actual == expected, (
             "_event_data.tcl is stale. Regenerate with: "
-            "python -m core.irule_test.codegen_event_data"
+            "python -m tooling.irule_test.codegen_event_data"
         )
 
     def test_generated_file_has_master_order(self) -> None:
@@ -676,7 +676,7 @@ class TestEventDataCodegen:
 
     def test_generated_file_has_all_python_chains(self) -> None:
         """All 7 Python flow chains should appear in the generated Tcl."""
-        from core.commands.registry.namespace_data import FLOW_CHAINS
+        from compiler.registry.namespace_data import FLOW_CHAINS
 
         source = (TCL_DIR / "_event_data.tcl").read_text()
         for chain_id in FLOW_CHAINS:
@@ -703,7 +703,7 @@ class TestRegistryDataCodegen:
         actual = (TCL_DIR / "_registry_data.tcl").read_text()
         assert actual == expected, (
             "_registry_data.tcl is stale. Regenerate with: "
-            "python -m core.irule_test.codegen_registry_data"
+            "python -m tooling.irule_test.codegen_registry_data"
         )
 
     def test_has_disabled_commands(self) -> None:
@@ -754,7 +754,7 @@ class TestRegistryDataCodegen:
         assert "_gen_toplevel_commands" in source
 
     def test_operators_match_registry(self) -> None:
-        from core.commands.registry.operators import IRULES_OPERATOR_HOVER
+        from compiler.registry.operators import IRULES_OPERATOR_HOVER
 
         source = (TCL_DIR / "_registry_data.tcl").read_text()
         for op in IRULES_OPERATOR_HOVER:
@@ -1263,7 +1263,7 @@ class TestMockStubsCodegen:
         fresh = generate_mock_stubs()
         assert on_disk == fresh, (
             "_mock_stubs.tcl is stale -- regenerate with: "
-            "python -m core.irule_test.codegen_mock_stubs"
+            "python -m tooling.irule_test.codegen_mock_stubs"
         )
 
     def test_stubs_has_namespace_eval(self) -> None:
@@ -1279,8 +1279,8 @@ class TestMockStubsCodegen:
         combined = mocks_content + stubs_content
         all_procs = set(re.findall(r"proc\s+([\w_]+)\s", combined))
 
-        from core.commands.registry.command_registry import REGISTRY
-        from core.irule_test.codegen_mock_stubs import _mock_proc_name
+        from compiler.registry.command_registry import REGISTRY
+        from tooling.irule_test.codegen_mock_stubs import _mock_proc_name
 
         irule_cmds = REGISTRY.command_names(dialect="f5-irules")
         missing = []
@@ -1515,7 +1515,7 @@ when HTTP_REQUEST {
             _extract_variables,
             _infer_profiles,
         )
-        from core.commands.registry.namespace_data import order_events_for_file
+        from compiler.registry.namespace_data import order_events_for_file
 
         events = order_events_for_file(self.SAMPLE_IRULE)
         profiles = _infer_profiles(events)
@@ -1578,7 +1578,7 @@ when HTTP_REQUEST {
             _extract_variables,
             _infer_profiles,
         )
-        from core.commands.registry.namespace_data import order_events_for_file
+        from compiler.registry.namespace_data import order_events_for_file
 
         events = order_events_for_file(self.SAMPLE_IRULE)
         profiles = _infer_profiles(events)

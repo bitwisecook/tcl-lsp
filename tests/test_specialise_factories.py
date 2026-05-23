@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.ir import IRBlock, IRCall, IRReturn, IRScript
-from core.compiler.lowering import lower_to_ir
-from core.compiler.passes.specialise_factories import (
+from compiler.ir import IRBlock, IRCall, IRReturn, IRScript
+from compiler.lowering import lower_to_ir
+from compiler.passes.specialise_factories import (
     detect_factory_shape,
     specialise_factories,
 )

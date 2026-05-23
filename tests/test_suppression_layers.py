@@ -26,22 +26,22 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import Analyser, analyse
-from core.analysis._analyser._utils import (
+from analyser import Analyser, analyse
+from analyser._analyser._utils import (
     _FILE_DIRECTIVE_SCAN_LINES,
     parse_file_suppression,
     parse_noqa_line_suppressions,
 )
-from core.analysis.semantic_model import _FILE_SUPPRESS_KEY
-from core.common.user_config import (
+from analyser.semantic_model import _FILE_SUPPRESS_KEY
+from compiler.parsing.command_segmenter import segment_commands
+from server.features.diagnostics import _is_suppressed, get_basic_diagnostics, get_deep_diagnostics
+from shared.user_config import (
     PROJECT_CONFIG_FILENAME,
     find_project_config,
     get_all_settings,
     load_project_config,
     merge_settings_layers,
 )
-from core.parsing.command_segmenter import segment_commands
-from lsp.features.diagnostics import _is_suppressed, get_basic_diagnostics, get_deep_diagnostics
 
 
 def _codes(diags) -> list[str]:

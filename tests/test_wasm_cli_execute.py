@@ -1,6 +1,6 @@
 """End-to-end test: compile + link + run a Tcl script via the WASM CLI.
 
-Drives the real ``explorer.wasm_cli`` entry point (the same code the
+Drives the real ``tooling.wasm.main`` entry point (the same code the
 ``tcl-wasm`` zipapp ships) with ``--link`` to produce a self-contained
 ``.wasm``, then instantiates that binary under ``wasmtime`` and asserts
 the program actually executes — ``puts hello`` must print ``hello``.
@@ -26,7 +26,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.compiler.codegen.wasm.extensions import default_runtime_path  # noqa: E402
+from compiler.codegen.wasm.extensions import default_runtime_path  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -102,7 +102,7 @@ def test_cli_link_compiles_and_runs_puts_hello(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "explorer.wasm_cli",
+            "tooling.wasm.main",
             "--source",
             "puts hello",
             "--link",

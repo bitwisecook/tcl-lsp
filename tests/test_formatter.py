@@ -9,14 +9,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.formatting import BraceStyle, FormatterConfig, IndentStyle, format_tcl
-from core.formatting.engine import (
+from shared.tokens import TokenType
+from tooling.formatter import BraceStyle, FormatterConfig, IndentStyle, format_tcl
+from tooling.formatter.engine import (
     ArgKind,
     _identify_body_args,
     _reconstruct_raw,
     parse_commands,
 )
-from core.parsing.tokens import TokenType
 
 
 class TestFormatterConfig:
@@ -142,28 +142,28 @@ class TestParseCommands:
 
 class TestReconstruction:
     def test_reconstruct_esc(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.ESC, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "hello"
 
     def test_reconstruct_str(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.STR, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "{hello}"
 
     def test_reconstruct_cmd(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.CMD, text="expr 1+2", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "[expr 1+2]"
 
     def test_reconstruct_var(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.VAR, text="name", start=pos, end=pos)
@@ -171,7 +171,7 @@ class TestReconstruction:
 
     def test_reconstruct_braced_var(self):
         """${name} form is preserved when token byte span indicates braces."""
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         # For ${name}: start.offset=0 (at $), end.offset=5 (at 'e' in name)
         # Span (5 - 0) = 5 > len("name") = 4 → braced
@@ -182,7 +182,7 @@ class TestReconstruction:
 
     def test_reconstruct_expand(self):
         """{*} expansion prefix is reconstructed."""
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.EXPAND, text="", start=pos, end=pos)
@@ -1091,7 +1091,7 @@ class TestLongLineWrapping:
         )
         # Wrapping a ``when`` event body keys off the active dialect
         # recognising ``when``; scope it so the test is self-contained.
-        from core.common.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             result = format_tcl(source)
@@ -1295,7 +1295,7 @@ class TestBackslashContinuation:
             "}"
         )
         # ``when`` event-body wrapping is dialect-driven; scope it.
-        from core.common.dialect import dialect_scope
+        from compiler.registry.dialect import dialect_scope
 
         with dialect_scope("f5-irules"):
             result = format_tcl(source)
@@ -1448,7 +1448,7 @@ class TestLSPFormatting:
     def test_get_formatting_returns_text_edit(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1460,7 +1460,7 @@ class TestLSPFormatting:
     def test_get_formatting_no_change(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "puts hello\n"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1470,7 +1470,7 @@ class TestLSPFormatting:
     def test_get_formatting_respects_tab_size(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=2, insert_spaces=True)
@@ -1480,7 +1480,7 @@ class TestLSPFormatting:
     def test_get_formatting_uses_tabs(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=False)
@@ -1490,7 +1490,7 @@ class TestLSPFormatting:
     def test_range_formatting(self):
         from lsprotocol.types import FormattingOptions, Position, Range
 
-        from lsp.features.formatting import get_range_formatting
+        from server.features.formatting import get_range_formatting
 
         source = "set x 1\nproc foo {} {\nputs hi\n}\nset y 2"
         options = FormattingOptions(tab_size=4, insert_spaces=True)

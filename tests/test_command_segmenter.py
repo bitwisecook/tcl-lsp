@@ -7,9 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
-from core.parsing.command_segmenter import (
+from analyser import analyse
+from analyser.semantic_model import Range
+from compiler.parsing.command_segmenter import (
     SegmentedCommand,
     UnclosedDelimiter,
     _find_recovery_offset,
@@ -18,7 +18,7 @@ from core.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
 
 class TestSegmentCommands:
@@ -999,7 +999,7 @@ class TestDocumentStateIncremental:
     """Integration: DocumentState skips re-analysis for unchanged sources."""
 
     def test_skips_reanalysis_for_identical_source(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://a")
         state.update("set a 1\nset b 2")
@@ -1009,7 +1009,7 @@ class TestDocumentStateIncremental:
         assert state.analysis is analysis_1
 
     def test_reanalyses_on_change(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://b")
         state.update("set a 1")
@@ -1018,7 +1018,7 @@ class TestDocumentStateIncremental:
         assert state.analysis is not analysis_1
 
     def test_chunks_updated_on_change(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://c")
         state.update("set a 1")

@@ -19,7 +19,7 @@ Folding ranges are computed from the parsed AST, identifying proc bodies, namesp
 
 ## File-path anchors
 
-- `lsp/features/folding.py`
+- `server/features/folding.py`
 
 ## Failure modes
 

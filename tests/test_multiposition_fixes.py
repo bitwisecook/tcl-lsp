@@ -9,10 +9,10 @@ intended rewrite).
 
 from __future__ import annotations
 
-import lsp.commands as commands
-from core.parsing.command_segmenter import segment_commands
-from lsp.features.diagnostics import get_diagnostics
-from lsp.state import workspace_state
+import server.commands as commands
+from compiler.parsing.command_segmenter import segment_commands
+from server.features.diagnostics import get_diagnostics
+from server.state import workspace_state
 
 
 def _fix_all(uri: str) -> dict:

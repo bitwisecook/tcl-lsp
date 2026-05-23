@@ -1,6 +1,6 @@
 """Parity tripwire: BIG-IP semantic-tokens regex catalogue vs the projection.
 
-The semantic-tokens path in ``lsp/features/_semantic_tokens/_bigip.py``
+The semantic-tokens path in ``server/features/_semantic_tokens/_bigip.py``
 classifies BIG-IP keywords through ``_BIGIP_KEYWORD_TYPE`` and the
 ``_BIGIP_TOP_DECL_RE`` keyword set.  Both are hand-maintained and
 will drift away from the parser/projection over time — every
@@ -31,7 +31,7 @@ def test_semantic_tokens_keyword_catalogue_covers_headline_projection_kinds():
     long-tail of minimal kinds is allowed to stay regex-uncovered
     in v1.
     """
-    from lsp.features._semantic_tokens._bigip import (
+    from server.features._semantic_tokens._bigip import (
         _BIGIP_DECL_TYPE,
         _BIGIP_KEYWORD_TYPE,
     )
@@ -46,7 +46,7 @@ def test_semantic_tokens_keyword_catalogue_covers_headline_projection_kinds():
     assert not missing, (
         f"semantic-tokens keyword catalogue missing headline kinds: {missing}.  "
         "Either add the keyword to ``_BIGIP_KEYWORD_TYPE`` in "
-        "``lsp/features/_semantic_tokens/_bigip.py`` or fix the projection's "
+        "``server/features/_semantic_tokens/_bigip.py`` or fix the projection's "
         "TMSH spelling to match."
     )
 

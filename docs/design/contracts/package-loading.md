@@ -21,10 +21,10 @@ Three package sources are supported, plus the iRules cross-file equivalent:
 
 | Source  | `required_package` value | Registration location                         |
 |---------|--------------------------|-----------------------------------------------|
-| Stdlib  | e.g. `"http"`, `"msgcat"` | `core/commands/registry/stdlib/`               |
-| Tcllib  | derived from `tcllib_package` | `core/commands/registry/tcllib/`            |
-| Tk      | `"Tk"`                   | `core/commands/registry/tk/`                   |
-| iRules  | n/a (no packages on BIG-IP) | `lsp/workspace/workspace_index.py` globals  |
+| Stdlib  | e.g. `"http"`, `"msgcat"` | `compiler/registry/stdlib/`               |
+| Tcllib  | derived from `tcllib_package` | `compiler/registry/tcllib/`            |
+| Tk      | `"Tk"`                   | `compiler/registry/tk/`                   |
+| iRules  | n/a (no packages on BIG-IP) | `server/workspace/workspace_index.py` globals  |
 
 ## Decision rules / contracts
 
@@ -102,18 +102,18 @@ Three package sources are supported, plus the iRules cross-file equivalent:
 
 ## File-path anchors
 
-- `core/analysis/semantic_model.py` — `PackageRequire`, `active_package_names()`
-- `core/analysis/analyser.py` — package require extraction (~line 876)
-- `core/commands/registry/models.py` — `required_package`, `tcllib_package`, `supports_packages()`
-- `core/commands/registry/command_registry.py` — package filtering methods
-- `core/commands/registry/stdlib/` — stdlib command specs
-- `core/commands/registry/tcllib/` — tcllib command specs
-- `core/commands/registry/tk/` — Tk command specs
-- `core/tk/detection.py` — `has_tk_require()`
-- `core/packages/resolver.py` — `PackageResolver`, pkgIndex parsing
-- `lsp/workspace/workspace_index.py` — `EntrySource`, iRules globals
-- `lsp/features/package_suggestions.py` — `rank_package_suggestions()`
-- `lsp/server.py` — server-side resolve-and-index orchestration
+- `analyser/semantic_model.py` — `PackageRequire`, `active_package_names()`
+- `analyser/analyser.py` — package require extraction (~line 876)
+- `compiler/registry/models.py` — `required_package`, `tcllib_package`, `supports_packages()`
+- `compiler/registry/command_registry.py` — package filtering methods
+- `compiler/registry/stdlib/` — stdlib command specs
+- `compiler/registry/tcllib/` — tcllib command specs
+- `compiler/registry/tk/` — Tk command specs
+- `dialects/tk/dialect/detection.py` — `has_tk_require()`
+- `analyser/packages/resolver.py` — `PackageResolver`, pkgIndex parsing
+- `server/workspace/workspace_index.py` — `EntrySource`, iRules globals
+- `server/features/package_suggestions.py` — `rank_package_suggestions()`
+- `server/server.py` — server-side resolve-and-index orchestration
 
 ## Failure modes
 

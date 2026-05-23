@@ -41,7 +41,7 @@ literal/runtime-call write, and broke runtime fast paths that check
 **Tasks**:
 
 - [ ] Define `class Ownership(Enum): OWNED, BORROWED` in
-  `core/compiler/codegen/wasm/_ir.py` (or a dedicated
+  `compiler/codegen/wasm/_ir.py` (or a dedicated
   `_ownership.py`).
 - [ ] Change `_WasmEmitterValuesMixin._emit_value(value, *, was_braced)`
   return type from `None` to `Ownership`. Update the type stub in every
@@ -64,13 +64,13 @@ literal/runtime-call write, and broke runtime fast paths that check
 
 **Files**:
 
-- New: `core/compiler/codegen/wasm/_ownership.py` (the enum + small
+- New: `compiler/codegen/wasm/_ownership.py` (the enum + small
   helpers like `Ownership.OWNED.is_transferable`)
-- Modify: `core/compiler/codegen/wasm/_emitter/_values.py`
+- Modify: `compiler/codegen/wasm/_emitter/_values.py`
   (return-type changes)
 - Modify: every other emitter mixin under
-  `core/compiler/codegen/wasm/_emitter/` to thread the return up
-- Modify: `core/compiler/codegen/wasm/_emitter/cmds/*.py` (per-command
+  `compiler/codegen/wasm/_emitter/` to thread the return up
+- Modify: `compiler/codegen/wasm/_emitter/cmds/*.py` (per-command
   hooks all call `_emit_value`)
 
 **Test plan**:
@@ -114,7 +114,7 @@ and ownership is exactly +1 in the slot at all times.
 
 **Tasks**:
 
-- [ ] In `core/compiler/codegen/wasm/_emitter/_core.py` add:
+- [ ] In `compiler/codegen/wasm/_emitter/_core.py` add:
   ```python
   def _emit_local_set_owned(self, idx: int, source: Ownership) -> None:
       if not self._owned_local_wrap_active(idx):
@@ -149,8 +149,8 @@ and ownership is exactly +1 in the slot at all times.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
-- Modify: `core/compiler/codegen/wasm/_emitter/_variables.py` (export
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/codegen/wasm/_emitter/_variables.py` (export
   the helpers via the mixin's TYPE_CHECKING block)
 
 **Test plan**:
@@ -235,7 +235,7 @@ For each migration:
    site to the framed path via `frame_elision=False` on that proc).
 
 **Files**: many — every emitter file under
-`core/compiler/codegen/wasm/_emitter/`, plus the per-command hooks
+`compiler/codegen/wasm/_emitter/`, plus the per-command hooks
 under `cmds/*.py`. Roughly one file per migration commit.
 
 **Test plan**:
@@ -292,7 +292,7 @@ relative to default-substitution.
   because caller still owns) and transfers the literal's +1 to
   the slot.
 
-**Files**: `core/compiler/codegen/wasm/_emitter/_core.py`.
+**Files**: `compiler/codegen/wasm/_emitter/_core.py`.
 
 **Test plan**:
 
@@ -347,7 +347,7 @@ slightly wrong on one of the fall-through paths.
   emits `i32.const 0; END`), the cleanup goes between the
   `0` and the `END`. The `0` retain/release is null-safe.
 
-**Files**: `core/compiler/codegen/wasm/_emitter/_core.py`.
+**Files**: `compiler/codegen/wasm/_emitter/_core.py`.
 
 **Test plan**:
 
@@ -422,7 +422,7 @@ overflowing the wasm-time cap.
   variant of `tcl_cmd_lappend`)
 - Modify: `runtime/zig/valtypes/tcl_string.zig` (similar for
   `tcl_cmd_append`)
-- Modify: `core/compiler/codegen/wasm/_emitter/cmds/lappend_.py`,
+- Modify: `compiler/codegen/wasm/_emitter/cmds/lappend_.py`,
   `append_.py`, `dict_.py` to use the new variant when the slot
   is the source AND target.
 
@@ -461,7 +461,7 @@ they were net-negative under today's broken discipline:
   (`runtime/zig/valtypes/tcl_list_parse.zig` +
   `runtime/zig/valtypes/tcl_list.zig`).
 - Namespace-aware `_emit_re_register_proc` 
-  (`core/compiler/codegen/wasm/_emitter/_statements.py`).
+  (`compiler/codegen/wasm/_emitter/_statements.py`).
 
 **Why it matters**: These two fixes were measured at +50 / +49
 tests in isolation but −177 / −540 across other suites when
@@ -495,7 +495,7 @@ their downstream impact is bounded.
 
 - Modify: `runtime/zig/valtypes/tcl_list_parse.zig`,
   `runtime/zig/valtypes/tcl_list.zig`
-- Modify: `core/compiler/codegen/wasm/_emitter/_statements.py`
+- Modify: `compiler/codegen/wasm/_emitter/_statements.py`
 
 **Test plan**:
 

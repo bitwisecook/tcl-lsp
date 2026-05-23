@@ -19,13 +19,13 @@ The parsing layer tokenises source, segments commands, and performs recovery for
 
 ## File-path anchors
 
-- `core/parsing/command_segmenter.py`
-- `core/parsing/recovery.py`
-- `core/parsing/known_commands.py`
-- `core/parsing/argv.py`
-- `core/parsing/command_shapes.py`
-- `core/parsing/token_positions.py`
-- `core/parsing/tokens.py`
+- `compiler/parsing/command_segmenter.py`
+- `compiler/parsing/recovery.py`
+- `compiler/parsing/known_commands.py`
+- `compiler/parsing/argv.py`
+- `compiler/parsing/command_shapes.py`
+- `compiler/parsing/token_positions.py`
+- `shared/tokens.py`
 
 ## Failure modes
 
@@ -45,5 +45,5 @@ The parsing layer tokenises source, segments commands, and performs recovery for
 
 - [KCS index](../../../docs/design/README.md)
 - [lexing contracts](../../../docs/design/contracts/lexing.md)
-- [shared utility contracts](../../../docs/design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)
 - [compiler pipeline overview](../../../docs/design/compiler/compiler-pipeline-overview.md)

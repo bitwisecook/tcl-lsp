@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tclpkg.docker import (
+from tooling.tclpkg.docker import (
     DEFAULT_BASE_IMAGE,
     DEFAULT_TCL_VERSION,
     SUPPORTED_TCL_VERSIONS,
@@ -409,7 +409,7 @@ class TestDockerCLI:
     """Integration tests for the ``tcl docker`` CLI verb."""
 
     def test_docker_create_basic(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -430,7 +430,7 @@ class TestDockerCLI:
         assert "pkg sync" in content
 
     def test_docker_create_alpine_90(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -450,7 +450,7 @@ class TestDockerCLI:
         assert "9.0" in content
 
     def test_docker_create_with_entrypoint(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -469,7 +469,7 @@ class TestDockerCLI:
         assert 'CMD ["tclsh", "main.tcl"]' in content
 
     def test_docker_create_with_venv(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -488,7 +488,7 @@ class TestDockerCLI:
         assert "tcl.pyz venv create" in content
 
     def test_docker_create_no_packages(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -506,7 +506,7 @@ class TestDockerCLI:
         assert "pkg sync" not in content
 
     def test_docker_create_refuses_overwrite(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         output.write_text("existing")
@@ -522,7 +522,7 @@ class TestDockerCLI:
         assert exit_code == 1
 
     def test_docker_create_force_overwrite(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         output.write_text("existing")
@@ -543,7 +543,7 @@ class TestDockerCLI:
         import sys
         from io import StringIO
 
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         captured = StringIO()
@@ -570,7 +570,7 @@ class TestDockerCLI:
         assert "content" in data
 
     def test_docker_create_cli_version(self, tmp_path: Path) -> None:
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         output = tmp_path / "Dockerfile"
         exit_code = main(
@@ -592,7 +592,7 @@ class TestDockerCLI:
         import sys
         from io import StringIO
 
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         captured = StringIO()
         old_stdout = sys.stdout
@@ -609,7 +609,7 @@ class TestDockerCLI:
         import sys
         from io import StringIO
 
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         captured = StringIO()
         old_stdout = sys.stdout
@@ -628,7 +628,7 @@ class TestDockerCLI:
         import sys
         from io import StringIO
 
-        from explorer.tcl_cli import main
+        from tooling.tcl.main import main
 
         captured = StringIO()
         old_stdout = sys.stdout

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from ai.shared.docstring_ops import collect_proc_docs, insert_docstring_stubs
-from core.analysis.semantic_model import (
+from analyser.semantic_model import (
     AnalysisResult,
     ParamDef,
     ProcDef,
-    Range,
-    SourcePosition,
 )
+from shared.diagnostic import Range
+from shared.tokens import SourcePosition
 
 
 def _make_proc(name: str, line: int, doc: str = "", params: list | None = None) -> ProcDef:

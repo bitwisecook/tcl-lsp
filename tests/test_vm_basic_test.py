@@ -7,11 +7,13 @@ test numbering so failures can be cross-referenced.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from vm.commands.interp_cmds import reset_interp_state
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.commands.interp_cmds import reset_interp_state
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 @pytest.fixture(autouse=True)
@@ -39,6 +41,39 @@ def _tcltest_counts(interp: TclInterp) -> dict[str, int]:
     raw = interp.eval("array get ::tcltest::numTests").value
     parts = raw.split()
     return {parts[i]: int(parts[i + 1]) for i in range(0, len(parts), 2)}
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Tcl library resolution
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestTclLibraryResolution:
+    """The VM consumes explicit Tcl library configuration only."""
+
+    def test_tcl_library_comes_from_environment(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        library = tmp_path / "library"
+        library.mkdir()
+        monkeypatch.setenv("TCL_LIBRARY", str(library))
+
+        interp = TclInterp(source_init=False)
+
+        assert interp.eval("info library").value == str(library)
+
+    def test_explicit_tcl_library_overrides_environment(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        env_library = tmp_path / "env"
+        explicit_library = tmp_path / "explicit"
+        env_library.mkdir()
+        explicit_library.mkdir()
+        monkeypatch.setenv("TCL_LIBRARY", str(env_library))
+
+        interp = TclInterp(source_init=False, tcl_library=str(explicit_library))
+
+        assert interp.eval("info library").value == str(explicit_library)
 
 
 # ══════════════════════════════════════════════════════════════════

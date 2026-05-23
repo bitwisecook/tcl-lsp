@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.compiler.value_shapes import is_pure_var_ref, parse_command_substitution
-from core.compiler.var_refs import VarReferenceScanner, VarScanOptions
+from compiler.value_shapes import is_pure_var_ref, parse_command_substitution
+from compiler.var_refs import VarReferenceScanner, VarScanOptions
 
 
 def test_is_pure_var_ref_shapes() -> None:

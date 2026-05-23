@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bigip.irules_refs import extract_irules_object_references
+from dialects.f5.bigip.irules_refs import extract_irules_object_references
 
 
 def test_extract_irules_refs_for_pool_snatpool_and_datagroup() -> None:

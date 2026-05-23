@@ -22,10 +22,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
-from core.bigip.query._probes import PROBES_ENABLED
-from core.bigip.query.output import render
-from core.bigip.types import IPRange, PortSet
+from dialects.f5.bigip.types import IPRange, PortSet
+from dialects.f5.query import run_query
+from dialects.f5.query._probes import PROBES_ENABLED
+from dialects.f5.query.output import render
 
 # ---------------------------------------------------------------------------
 # PortSet
@@ -199,7 +199,7 @@ class TestJsonInputs:
         assert value == {"version": 7, "servers": ["a", "b"]}
 
     def test_json_load_raises_on_missing_file(self):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         with pytest.raises(QueryError, match="file not found"):
             run_query(
@@ -319,7 +319,7 @@ class TestHttpResponseHelpers:
     }
 
     def test_json_parse_round_trips_simple_values(self):
-        from core.bigip.query.builtins import _builtin_json_parse
+        from dialects.f5.query.builtins import _builtin_json_parse
 
         assert _builtin_json_parse("[1, 2, 3]") == [1, 2, 3]
         assert _builtin_json_parse('{"a": 1}') == {"a": 1}
@@ -327,27 +327,27 @@ class TestHttpResponseHelpers:
         assert _builtin_json_parse("null") is None
 
     def test_json_parse_raises_on_invalid_input(self):
-        from core.bigip.query.builtins import _builtin_json_parse
-        from core.bigip.query.errors import BuiltinError
+        from dialects.f5.query.builtins import _builtin_json_parse
+        from dialects.f5.query.errors import BuiltinError
 
         with pytest.raises(BuiltinError, match="invalid JSON"):
             _builtin_json_parse("not json at all")
 
     def test_http_status_returns_int(self):
-        from core.bigip.query.builtins import _builtin_http_status
+        from dialects.f5.query.builtins import _builtin_http_status
 
         assert _builtin_http_status(self._RESP_OK) == 200
         assert _builtin_http_status(self._RESP_404) == 404
 
     def test_http_body_returns_string(self):
-        from core.bigip.query.builtins import _builtin_http_body
+        from dialects.f5.query.builtins import _builtin_http_body
 
         body = _builtin_http_body(self._RESP_OK)
         assert isinstance(body, str)
         assert "version" in body
 
     def test_http_body_json_parses_json_payload(self):
-        from core.bigip.query.builtins import _builtin_http_body_json
+        from dialects.f5.query.builtins import _builtin_http_body_json
 
         parsed = _builtin_http_body_json(self._RESP_OK)
         assert parsed == {"version": 7, "items": [1, 2, 3]}
@@ -356,19 +356,19 @@ class TestHttpResponseHelpers:
         """A blank body (common on 204 No Content / 302 redirect)
         produces ``null`` rather than raising — keeps audit
         pipelines from blowing up on benign cases."""
-        from core.bigip.query.builtins import _builtin_http_body_json
+        from dialects.f5.query.builtins import _builtin_http_body_json
 
         assert _builtin_http_body_json(self._RESP_302) is None
 
     def test_http_body_json_raises_on_invalid_payload(self):
-        from core.bigip.query.builtins import _builtin_http_body_json
-        from core.bigip.query.errors import BuiltinError
+        from dialects.f5.query.builtins import _builtin_http_body_json
+        from dialects.f5.query.errors import BuiltinError
 
         with pytest.raises(BuiltinError, match="invalid JSON"):
             _builtin_http_body_json(self._RESP_404)  # body is "not found"
 
     def test_http_header_is_case_insensitive(self):
-        from core.bigip.query.builtins import _builtin_http_header
+        from dialects.f5.query.builtins import _builtin_http_header
 
         assert _builtin_http_header(self._RESP_OK, "Content-Type") == "application/json"
         assert _builtin_http_header(self._RESP_OK, "content-type") == "application/json"
@@ -376,13 +376,13 @@ class TestHttpResponseHelpers:
         assert _builtin_http_header(self._RESP_OK, "X-Missing") is None
 
     def test_http_headers_returns_dict(self):
-        from core.bigip.query.builtins import _builtin_http_headers
+        from dialects.f5.query.builtins import _builtin_http_headers
 
         h = _builtin_http_headers(self._RESP_OK)
         assert h == {"content-type": "application/json", "server": "nginx"}
 
     def test_status_class_predicates(self):
-        from core.bigip.query.builtins import (
+        from dialects.f5.query.builtins import (
             _builtin_http_client_error,
             _builtin_http_ok,
             _builtin_http_redirect,
@@ -408,7 +408,7 @@ class TestHttpResponseHelpers:
         """A response that failed before the server answered has
         ``status=None``.  Every class predicate must return
         ``False`` rather than raising."""
-        from core.bigip.query.builtins import (
+        from dialects.f5.query.builtins import (
             _builtin_http_client_error,
             _builtin_http_ok,
             _builtin_http_redirect,
@@ -425,7 +425,7 @@ class TestHttpResponseHelpers:
         """End-to-end: build a synthetic response inside the DSL
         with an object literal, then chain ``http_*`` helpers off
         the pipe.  Hyphenated keys need string quoting."""
-        from core.bigip.query import run_query
+        from dialects.f5.query import run_query
 
         cfg = "ltm node /Common/n {address 10.0.0.1}"
         # ``{"content-type": ...}`` form (key quoted because of the hyphen).
@@ -447,19 +447,19 @@ class TestHttpResponseHelpers:
 
 class TestProbeGate:
     def test_ping_raises_without_probes(self):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         with pytest.raises(QueryError, match="probes are disabled"):
             run_query('ping("127.0.0.1")', {"mem://x": _CFG})
 
     def test_portping_raises_without_probes(self):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         with pytest.raises(QueryError, match="probes are disabled"):
             run_query('portping("127.0.0.1", 22)', {"mem://x": _CFG})
 
     def test_url_get_raises_without_probes(self):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         with pytest.raises(QueryError, match="probes are disabled"):
             run_query('url_get("http://127.0.0.1/")', {"mem://x": _CFG})
@@ -527,7 +527,7 @@ def test_x509_parse_rejects_non_pem_input():
     self-signed fixture path needs ``cryptography`` and lives in
     the broader test-slow suite rather than the ci-fast bucket.
     """
-    from core.bigip.query.errors import QueryError
+    from dialects.f5.query.errors import QueryError
 
     with pytest.raises(QueryError, match="not a PEM certificate"):
         run_query('x509_parse("not a certificate at all")', {"mem://x": _CFG})

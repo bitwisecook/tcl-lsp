@@ -5,7 +5,7 @@ The `tcl` and `f5` CLIs are self-contained Python zipapps. Needs Python 3.10+.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install/install.sh | sh
 ```
 
 Works on macOS, Debian/Ubuntu, RHEL/Rocky/Alma, Fedora, Arch, Alpine.
@@ -14,7 +14,7 @@ Re-run the same line to update.
 To inspect first, or run unattended:
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh
+curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install/install.sh
 less install.sh
 TCL_LSP_ASSUME_YES=1 sh install.sh
 ```

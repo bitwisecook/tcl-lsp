@@ -36,7 +36,7 @@ The `q` alias is provided as a shorthand:
 f5 q '.ltm.virtual[] | .name' bigip.conf
 ```
 
-In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli query …`.
+In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m tooling.f5.main query …`.
 
 The DSL itself has three companion help screens, all served from the verb's own argparse so they work offline:
 

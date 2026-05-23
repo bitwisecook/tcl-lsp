@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bigip.object_registry import (
+from dialects.f5.bigip.object_registry import (
     build_bigip_object_registry,
     candidate_kinds_for_key,
     candidate_kinds_for_section_item,

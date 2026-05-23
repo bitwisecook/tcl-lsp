@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-import f5q
-from f5q import ObjectRef, Query, QueryError, QueryRow, QueryRun, run_query
+import dialects.f5.query as f5q
+from dialects.f5.query import ObjectRef, Query, QueryError, QueryRow, QueryRun, run_query
 
 SAMPLE_LTM = Path(__file__).resolve().parents[1] / "samples" / "for_f5_query" / "ltm.conf"
 
@@ -29,8 +29,8 @@ def _ltm_text() -> str:
 
 
 def test_f5q_re_exports_public_symbols() -> None:
-    """The ``f5q`` shim mirrors :mod:`core.bigip.query` 1:1."""
-    import core.bigip.query as core_query
+    """The ``f5q`` shim mirrors :mod:`dialects.f5.query` 1:1."""
+    import dialects.f5.query as core_query
 
     # Every name we promise in __all__ resolves to the same object.
     for name in f5q.__all__:
@@ -50,7 +50,7 @@ def test_renderer_decorator_round_trips() -> None:
         assert any(s.name == "plugin-under-test" for s in f5q.list_renderers())
     finally:
         # Tidy up so the next test sees a clean registry.
-        from core.bigip.query.renderers import _REGISTRY
+        from dialects.f5.query.renderers import _REGISTRY
 
         _REGISTRY.pop("plugin-under-test", None)
 
@@ -226,3 +226,76 @@ def test_query_error_propagates_unchanged() -> None:
     script catching the public base type Just Works."""
     with pytest.raises(QueryError):
         Query("this is not a valid query !!!").run(paths=[SAMPLE_LTM])
+
+
+# ---------------------------------------------------------------------------
+# Explicit session API (the ambient-free, PyO3-facing surface)
+# ---------------------------------------------------------------------------
+
+
+def test_session_api_matches_run_query() -> None:
+    """``run_query_in_session`` must produce the same result as the
+    keyword-argument :func:`run_query` it delegates to."""
+    from dialects.f5.query import (
+        QueryOptions,
+        prepare_query_session,
+        run_query_in_session,
+    )
+
+    sources = {"inline.conf": _ltm_text()}
+    expected = run_query(".ltm.virtual[] | .name", dict(sources))
+
+    session = prepare_query_session(sources, QueryOptions())
+    got = run_query_in_session(".ltm.virtual[] | .name", session)
+
+    assert got.values_per_file == expected.values_per_file
+
+
+def test_session_threads_options_merge_and_partitions() -> None:
+    """Options carried on the session reach the runner — a merge run
+    through the session matches the equivalent ``run_query(merge=True)``."""
+    from dialects.f5.query import (
+        QueryOptions,
+        prepare_query_session,
+        run_query_in_session,
+    )
+
+    sources = {"inline.conf": _ltm_text()}
+    opts = QueryOptions(merge=True, partitions={"inline.conf": "Common"})
+
+    via_session = run_query_in_session(
+        ".ltm.virtual[] | .name", prepare_query_session(sources, opts)
+    )
+    via_kwargs = run_query(
+        ".ltm.virtual[] | .name",
+        dict(sources),
+        merge=True,
+        partitions={"inline.conf": "Common"},
+    )
+
+    assert via_session.values_per_file == via_kwargs.values_per_file
+
+
+def test_query_options_is_frozen() -> None:
+    """``QueryOptions`` is immutable so a prepared session can be shared
+    across threads/contexts without aliasing surprises."""
+    from dataclasses import FrozenInstanceError
+
+    from dialects.f5.query import QueryOptions
+
+    opts = QueryOptions()
+    with pytest.raises(FrozenInstanceError):
+        setattr(opts, "merge", True)
+
+
+def test_session_is_reusable_across_queries() -> None:
+    """One prepared session can answer many read-only queries — the
+    property that lets a PyO3 caller hold a session and re-query."""
+    from dialects.f5.query import prepare_query_session, run_query_in_session
+
+    session = prepare_query_session({"inline.conf": _ltm_text()})
+    names = run_query_in_session(".ltm.virtual[] | .name", session)
+    pools = run_query_in_session(".ltm.pool[] | .name", session)
+
+    assert "web_vs" in names.values_per_file["inline.conf"]
+    assert isinstance(pools.values_per_file, dict)

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.document_symbols import get_document_symbols
+from server.features.document_symbols import get_document_symbols
 
 
 def _range_contains(outer: types.Range, inner: types.Range) -> bool:
@@ -216,7 +216,7 @@ class TestTclOOSymbols:
 
 class TestBigipDocumentSymbols:
     def test_outline_groups_by_module_and_kind(self):
-        from lsp.features._bigip_symbols import get_bigip_document_symbols
+        from server.features._bigip_symbols import get_bigip_document_symbols
 
         source = (
             "ltm pool /Common/p1 { description x }\n"
@@ -236,7 +236,7 @@ class TestBigipDocumentSymbols:
         assert pool_paths == ["/Common/p1", "/Common/p2"]
 
     def test_outline_empty_for_non_bigip_input(self):
-        from lsp.features._bigip_symbols import get_bigip_document_symbols
+        from server.features._bigip_symbols import get_bigip_document_symbols
 
         # Garbage input parses to an empty BigipConfig (no outline).
         out = get_bigip_document_symbols("this is not a bigip config\n")

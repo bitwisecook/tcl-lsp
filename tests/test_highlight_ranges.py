@@ -17,10 +17,10 @@ caught in aggregate.
 Two conventions matter:
 
 * The explorer front-end slices ``src.substring(startOffset, endOffset)`` —
-  an *exclusive* end (see ``explorer/static/index.html``
+  an *exclusive* end (see ``tooling/explorer/static/index.html``
   ``highlightSourceRanges``).
 * The semantic-model :class:`Range` end is *inclusive* (see
-  :func:`core.common.lsp.to_lsp_range`, which adds 1 to convert it).
+  :func:`server._lsp_conv.to_lsp_range`, which adds 1 to convert it).
 
 So a serialised ``endOffset`` is correct only when it is the exclusive end —
 the inclusive end plus one.
@@ -30,16 +30,16 @@ from __future__ import annotations
 
 import pytest
 
-from core.analysis.semantic_model import Range
-from core.common.ranges import (
+from analyser.semantic_model import Range
+from shared.ranges import (
     range_from_word_token,
     reset_highlight_source,
     set_highlight_source,
     widen_for_highlight,
 )
-from core.parsing.tokens import SourcePosition, Token, TokenType
-from explorer.pipeline import run_pipeline
-from explorer.serialise import serialise_result
+from shared.tokens import SourcePosition, Token, TokenType
+from tooling.cli.serialise import serialise_result
+from tooling.explorer.pipeline import run_pipeline
 
 # ── source corpus ──────────────────────────────────────────────────────
 
@@ -345,7 +345,7 @@ class TestRangeDictConversion:
     def test_inclusive_to_exclusive_end(self):
         # Without a highlight source, range_dict still converts the inclusive
         # semantic-model end to the exclusive end the front-end slices with.
-        from explorer.formatters import range_dict
+        from tooling.cli.formatters import range_dict
 
         rd = range_dict(Range(start=_pos(0), end=_pos(2)))
         assert rd["startOffset"] == 0
@@ -353,7 +353,7 @@ class TestRangeDictConversion:
         assert rd["endCol"] == 3
 
     def test_widens_and_converts_with_source(self):
-        from explorer.formatters import range_dict
+        from tooling.cli.formatters import range_dict
 
         source = "if {$condition} {body}\n"
         token = set_highlight_source(source)

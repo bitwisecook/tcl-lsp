@@ -9,28 +9,28 @@ variables/methods (TIP 500), properties (TIP 558), and configurable support.
 
 ## Architecture
 
-### LSP analysis layer (`core/analysis/`)
+### LSP analysis layer (`analyser/`)
 
 The analyser (`analyser.py`) recognises `oo::class create` and `oo::define`
 blocks during static analysis, building `ClassDef` entries in the semantic
 model.  These feed:
 
-- **Hover** (`lsp/features/hover.py`) -- shows class hierarchy, method
+- **Hover** (`server/features/hover.py`) -- shows class hierarchy, method
   signatures, and inherited methods.
-- **Go-to-definition** (`lsp/features/definition.py`) -- jumps to method
+- **Go-to-definition** (`server/features/definition.py`) -- jumps to method
   bodies and class definitions.
-- **Completion** (`lsp/features/completion.py`) -- suggests methods in `my`
+- **Completion** (`server/features/completion.py`) -- suggests methods in `my`
   and `self` contexts.
-- **Type hierarchy** (`lsp/features/type_hierarchy.py`) -- supertypes and
+- **Type hierarchy** (`server/features/type_hierarchy.py`) -- supertypes and
   subtypes for `oo::class` definitions.
 
-### MRO algorithm (`core/analysis/mro.py`)
+### MRO algorithm (`analyser/mro.py`)
 
 Method resolution order uses a linearisation matching C Tcl's algorithm
 (exposed as `tcloo_linearise`).  The MRO considers superclasses and mixins
 and caches results per class, invalidating when the class hierarchy changes.
 
-### VM runtime layer (`vm/oo.py`, `vm/commands/oo_cmds.py`)
+### VM runtime layer (`tooling/vm/oo.py`, `tooling/vm/commands/oo_cmds.py`)
 
 The `OORuntime` class manages the object/class registry at runtime:
 
@@ -43,7 +43,7 @@ The `OORuntime` class manages the object/class registry at runtime:
 - **Introspection** -- `info object`, `info class` subcommands for methods,
   mixins, filters, variables, superclasses, and instances.
 
-### Command handlers (`vm/commands/oo_cmds.py`)
+### Command handlers (`tooling/vm/commands/oo_cmds.py`)
 
 Registers `oo::class`, `oo::define`, `oo::objdefine`, and all definition
 subcommands (method, constructor, destructor, superclass, mixin, filter,
@@ -73,10 +73,10 @@ variable preservation.
 
 | File | Role |
 |------|------|
-| `vm/oo.py` | Core OO runtime (object/class registry, dispatch, MRO) |
-| `vm/commands/oo_cmds.py` | OO command handlers and define body parsing |
-| `vm/commands/info_cmds.py` | `info object`/`info class` introspection |
-| `vm/scope.py` | CallFrame with OO variable binding slots |
-| `core/analysis/mro.py` | MRO linearisation algorithm |
-| `core/analysis/analyser.py` | Static OO analysis (class/method extraction) |
+| `tooling/vm/oo.py` | Core OO runtime (object/class registry, dispatch, MRO) |
+| `tooling/vm/commands/oo_cmds.py` | OO command handlers and define body parsing |
+| `tooling/vm/commands/info_cmds.py` | `info object`/`info class` introspection |
+| `tooling/vm/scope.py` | CallFrame with OO variable binding slots |
+| `analyser/mro.py` | MRO linearisation algorithm |
+| `analyser/analyser.py` | Static OO analysis (class/method extraction) |
 | `tests/test_vm_oo_test.py` | Native test runner with known-failure tracking |

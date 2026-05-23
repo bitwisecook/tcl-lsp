@@ -7,10 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
-from lsp.features.diagnostics import get_diagnostics
+from analyser import analyse
+from analyser.semantic_model import Severity
+from compiler.registry.runtime import configure_signatures
+from server.features.diagnostics import get_diagnostics
 
 
 def _diag_with_code(source: str, code: str):
@@ -346,7 +346,7 @@ class TestStringCompareInExpr:
 
 def _taint_diag_with_code(source: str, code: str):
     """Return all taint warnings matching a specific code."""
-    from core.compiler.taint import find_taint_warnings
+    from compiler.taint import find_taint_warnings
 
     return [w for w in find_taint_warnings(source) if w.code == code]
 
@@ -354,7 +354,7 @@ def _taint_diag_with_code(source: str, code: str):
 class TestPathConcatenation:
     """W201 -- manual path concatenation instead of file join.
 
-    W201 now runs in the taint system (core/compiler/taint/_path_concat.py),
+    W201 now runs in the taint system (compiler/taint/_path_concat.py),
     so tests use _taint_diag_with_code() instead of _diag_with_code().
     """
 
@@ -1075,7 +1075,7 @@ class TestNamespaceShadowedArity:
 
     @staticmethod
     def _arity_codes(source):
-        from core.compiler.compiler_checks import run_compiler_checks
+        from analyser.compiler_checks import run_compiler_checks
 
         return [d for d in run_compiler_checks(source) if d.code in ("E002", "E003")]
 
@@ -1804,7 +1804,7 @@ class TestNonAscii:
         assert len(diags) == 0
 
     def test_strict_mode_flags_all_non_ascii(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("strict")
@@ -1817,7 +1817,7 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_common_mode_allows_symbols(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("common")
@@ -1832,7 +1832,7 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_off_mode_disables_w108(self):
-        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
+        from analyser.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
         prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("off")
@@ -2178,7 +2178,7 @@ class TestCrossEventScope:
 
     @staticmethod
     def _diag_codes_with_cu(source: str) -> list[str]:
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         cu = compile_source(source)
         configure_signatures(dialect="f5-irules")
@@ -2187,7 +2187,7 @@ class TestCrossEventScope:
 
     @staticmethod
     def _diags_with_cu(source: str, code: str):
-        from core.compiler.compilation_unit import compile_source
+        from compiler.compilation_unit import compile_source
 
         cu = compile_source(source)
         configure_signatures(dialect="f5-irules")
@@ -2623,7 +2623,7 @@ class TestInterpEvalInjection:
 class TestDestructiveFileOps:
     """W313 -- file delete/rename/mkdir with variable path.
 
-    W313 now runs in the taint pipeline (core/compiler/taint/_sinks.py),
+    W313 now runs in the taint pipeline (compiler/taint/_sinks.py),
     so tests use _taint_diag_with_code() instead of _diag_with_code().
     """
 

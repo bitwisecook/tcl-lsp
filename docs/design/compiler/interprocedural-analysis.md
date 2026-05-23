@@ -13,7 +13,7 @@ first collecting local facts (`ProcLocalSummary`), then running a transitive
 closure over the call graph to propagate effects.  Summaries are consumed by
 ICIP, ADCE, and taint analysis.
 
-Source: [`core/compiler/interprocedural.py`](../../../core/compiler/interprocedural.py)
+Source: [`compiler/interprocedural.py`](../../../compiler/interprocedural.py)
 
 ## Content
 

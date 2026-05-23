@@ -6,7 +6,7 @@ External scripts can run queries, build them up progressively,
 render results through plugins or inline callables, and ship
 reusable extensions (renderers, DSL builtins, side-input parsers)
 via one-line decorators auto-loaded from
-`$XDG_CONFIG_HOME/f5q/plugins/`.
+`$XDG_CONFIG_HOME/dialects/f5/query/plugins/`.
 
 ```python
 import f5q

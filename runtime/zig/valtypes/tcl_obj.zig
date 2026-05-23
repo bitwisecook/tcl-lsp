@@ -1354,7 +1354,7 @@ pub fn obj_new_braced_string(src: u32, len: u32) i32 {
     // match → fast-path through the regular string-copy
     // constructor (preserves the inline-string optimisation).
     // Matches the codegen-side ``_braced_lineconts`` helper in
-    // ``core/compiler/codegen/wasm/_emitter/_values.py``.
+    // ``compiler/codegen/wasm/_emitter/_values.py``.
     var has_bs_nl = false;
     var i: u32 = 0;
     while (i + 1 < len) : (i += 1) {

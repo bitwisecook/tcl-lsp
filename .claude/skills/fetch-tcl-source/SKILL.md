@@ -48,8 +48,8 @@ Each source tree also contains `generic/`, `library/`, `doc/`, and build files.
 ## When to use
 
 - At the start of a cloud session that needs Tcl test files
-- Before running `scripts/capture_reference_test_results.sh`
-- Before running `scripts/capture_reference_bytecode.sh`
+- Before running `scripts/capture/test_results.sh`
+- Before running `scripts/capture/bytecode.sh`
 - When investigating Tcl test suite behaviour across versions
 
 ## Notes

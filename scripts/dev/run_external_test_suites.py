@@ -38,13 +38,13 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Ensure repo root is on sys.path so we can import vm/ and core/
+# Ensure repo root is on sys.path so the seven concern packages are importable
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from vm.commands import tcltest_cmds  # noqa: E402
-from vm.commands.test_support_cmds import setup_test_support  # noqa: E402
-from vm.interp import TclInterp  # noqa: E402
+from tooling.vm.commands import tcltest_cmds  # noqa: E402
+from tooling.vm.commands.test_support_cmds import setup_test_support  # noqa: E402
+from tooling.vm.interp import TclInterp  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Project definitions
@@ -433,7 +433,7 @@ def run_test_file(
                     pass  # Best effort
 
         # Set up tcltest (uses real tcltest.tcl if available)
-        from vm.commands.tcltest_cmds import setup_tcltest
+        from tooling.vm.commands.tcltest_cmds import setup_tcltest
 
         setup_tcltest(interp)
 
@@ -538,9 +538,9 @@ def run_test_file_wasm(
     compiles to a valid WASM module.  Full execution requires a WASM
     runtime linked against the Zig Tcl runtime.
     """
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
-    from core.compiler.lowering import lower_to_ir
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm import WasmOp, wasm_codegen_module
+    from compiler.lowering import lower_to_ir
 
     result = TestFileResult(
         file=str(test_file.relative_to(checkout_dir)),

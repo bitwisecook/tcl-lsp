@@ -16,12 +16,12 @@ all-editors, MCP, analyser
 
 ## Operational context
 
-Resolves proc calls, variable references, namespace-qualified names, and BIG-IP cross-object references to their definition locations. Uses shared proc-reference matching from `core/analysis/proc_lookup.py`.
+Resolves proc calls, variable references, namespace-qualified names, and BIG-IP cross-object references to their definition locations. Uses shared proc-reference matching from `analyser/proc_lookup.py`.
 
 ## File-path anchors
 
-- `lsp/features/definition.py`
-- `core/analysis/proc_lookup.py`
+- `server/features/definition.py`
+- `analyser/proc_lookup.py`
 
 ## Failure modes
 

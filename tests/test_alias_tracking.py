@@ -31,14 +31,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.compiler.cfg import build_cfg
-from core.compiler.lowering import lower_to_ir
-from core.compiler.memory_ssa import build_memory_ssa
-from core.compiler.ssa import build_ssa
-from core.compiler.taint import find_taint_warnings
-from lsp.features.references import get_references
-from lsp.features.rename import get_rename_edits, prepare_rename
+from analyser import analyse
+from compiler.cfg import build_cfg
+from compiler.lowering import lower_to_ir
+from compiler.memory_ssa import build_memory_ssa
+from compiler.ssa import build_ssa
+from compiler.taint import find_taint_warnings
+from server.features.references import get_references
+from server.features.rename import get_rename_edits, prepare_rename
 
 TEST_URI = "file:///alias.tcl"
 

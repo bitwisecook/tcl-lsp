@@ -14,10 +14,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
-from lsp.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
+from analyser import analyse
+from compiler.parsing.lexer import TclLexer
+from server.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
+from shared.tokens import TokenType
 
 from .helpers import lex
 
@@ -625,7 +625,7 @@ class TestCatchBodySetInCondition:
                 }
             }
         """)
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         result = analyse(source)

@@ -9,18 +9,18 @@ the next.
 ## Context
 
 Every Tcl source string passes through 7 stages, each producing typed
-dataclasses.  All types live under `core/` and are frozen dataclasses
+dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 
-Source: [`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
-[`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py),
-[`core/compiler/ir.py`](../../../core/compiler/ir.py),
-[`core/compiler/cfg.py`](../../../core/compiler/cfg.py),
-[`core/compiler/ssa.py`](../../../core/compiler/ssa.py),
-[`core/compiler/core_analyses.py`](../../../core/compiler/core_analyses.py),
-[`core/compiler/codegen/_types.py`](../../../core/compiler/codegen/_types.py),
-[`core/compiler/compilation_unit.py`](../../../core/compiler/compilation_unit.py)
+Source: [`shared/tokens.py`](../../../shared/tokens.py),
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py),
+[`compiler/ir.py`](../../../compiler/ir.py),
+[`compiler/cfg.py`](../../../compiler/cfg.py),
+[`compiler/ssa.py`](../../../compiler/ssa.py),
+[`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
+[`compiler/codegen/bytecode/_types.py`](../../../compiler/codegen/bytecode/_types.py),
+[`compiler/compilation_unit.py`](../../../compiler/compilation_unit.py)
 
 ## Content
 

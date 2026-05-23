@@ -16,7 +16,7 @@ Every registered code must be classified into exactly one bucket:
 Codes reach their diagnostic producer through different entry points; a
 ``Case``/``FiresCase`` selects one via boolean flags:
 
-- default — ``lsp.features.diagnostics.get_diagnostics`` (the editor path)
+- default — ``server.features.diagnostics.get_diagnostics`` (the editor path)
 - ``dialect`` — the same, under a ``dialect_scope`` (e.g. ``f5-irules``)
 - ``xc`` — enable XC translatability diagnostics
 - ``bigip`` — parse a BIG-IP ``.conf`` and run ``get_bigip_diagnostics``
@@ -37,10 +37,10 @@ from typing import Any
 
 import pytest
 
-import core.common.codes_all  # noqa: F401 — registers every code
-from core.common.codes import all_codes
-from core.common.dialect import dialect_scope
-from lsp.features.diagnostics import get_diagnostics
+import server._codes_init  # noqa: F401 — registers every code
+from compiler.registry.dialect import dialect_scope
+from server.features.diagnostics import get_diagnostics
+from shared.codes import all_codes
 
 
 @dataclass(frozen=True)
@@ -91,25 +91,25 @@ def _run(
     recovery: bool = False,
 ) -> list[Any]:
     if recovery:
-        from core.parsing.recovery import segment_with_recovery
+        from compiler.parsing.recovery import segment_with_recovery
 
         _cmds, diags = segment_with_recovery(source)
         return list(diags)
     if bigip:
-        from core.bigip.diagnostics import get_bigip_diagnostics
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.diagnostics import get_bigip_diagnostics
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         return get_bigip_diagnostics(parse_bigip_conf(source))
     if iapp:
-        from core.bigip.apl_model import parse_apl
-        from core.bigip.iapp_diagnostics import validate_iapp_presentation
+        from dialects.f5.bigip.apl_model import parse_apl
+        from dialects.f5.bigip.iapp_diagnostics import validate_iapp_presentation
 
         with dialect_scope("f5-iapps"):
             return validate_iapp_presentation(parse_apl(source))
     if analyse_raw:
         # Internal diagnostics are filtered out of get_diagnostics; read them
         # straight off the analyser result instead.
-        from core.analysis import analyse
+        from analyser import analyse
 
         if dialect is not None:
             with dialect_scope(dialect):
@@ -1014,12 +1014,12 @@ CROSSFILE: dict[str, CrossFileCase] = {
 
 
 def _crossfile_matches(case: CrossFileCase, code: str, *, clean: bool) -> list[Any]:
-    from core.bigip.apl_model import parse_apl
-    from core.bigip.iapp_diagnostics import (
+    from dialects.f5.bigip.apl_model import parse_apl
+    from dialects.f5.bigip.iapp_diagnostics import (
         validate_iapp_implementation,
         validate_iapp_presentation,
     )
-    from core.bigip.iapp_vars import extract_iapp_var_refs
+    from dialects.f5.bigip.iapp_vars import extract_iapp_var_refs
 
     apl_src = case.clean_apl if clean else case.apl
     impl_src = case.clean_impl if clean else case.impl

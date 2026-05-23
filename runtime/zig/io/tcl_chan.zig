@@ -1410,7 +1410,7 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
 //
 // The args TclObj arrives as a Tcl list assembled by either
 // :file:`cmds/chan.zig:eval_fconfigure` (eval-fallback path) or
-// :file:`core/compiler/codegen/wasm/_emitter/cmds/fconfigure_.py`
+// :file:`compiler/codegen/wasm/_emitter/cmds/fconfigure_.py`
 // (codegen literal path).  Both producers emit canonical Tcl list
 // elements via ``list_quote.list_elem_quote_nth`` so empty values
 // (``{}``) and values containing braces / whitespace round-trip

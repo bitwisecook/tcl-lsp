@@ -1,7 +1,7 @@
 ;; -*- lexical-binding: t -*-
 ;;; Smoke-test for tcl-lsp-record-bug.el.
 ;;
-;; Loads the recorder, drives a short eglot session against `uv run python -m lsp`,
+;; Loads the recorder, drives a short eglot session against `uv run python -m server`,
 ;; calls every public command, and prints a summary of the resulting .eld file.
 
 (require 'eglot)
@@ -21,7 +21,7 @@
 (setq eglot-server-programs
       `((tcl-mode . ("uv" "run" "--directory"
                      ,(or (getenv "TCL_LSP_REPO") default-directory)
-                     "--no-dev" "python" "-m" "lsp"))))
+                     "--no-dev" "python" "-m" "server"))))
 
 (let* ((repo (or (getenv "TCL_LSP_REPO") default-directory))
        (dir (expand-file-name "tmp/eglot_test" repo))

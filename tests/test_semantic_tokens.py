@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from lsp.features import (
+from analyser import analyse
+from server.features import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
     semantic_tokens_full,
@@ -1141,8 +1141,8 @@ class TestE100StrayBracketRecovery:
         no stray ``]`` is present, so no virtual CMD should be
         injected into argv.
         """
-        from core.parsing.tokens import SourcePosition, Token, TokenType
-        from lsp.features import _recover_stray_close_bracket_in_flush
+        from server.features import _recover_stray_close_bracket_in_flush
+        from shared.tokens import SourcePosition, Token, TokenType
 
         def pos(offset: int) -> SourcePosition:
             return SourcePosition(line=0, character=offset, offset=offset)

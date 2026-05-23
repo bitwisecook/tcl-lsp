@@ -14,8 +14,8 @@ the ``namespace eval`` variable they name.
 
 from __future__ import annotations
 
-from lsp.features.references import get_references
-from lsp.features.symbol_resolution import find_var_at_position
+from server.features.references import get_references
+from server.features.symbol_resolution import find_var_at_position
 
 URI = "file:///forms.tcl"
 

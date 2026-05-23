@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query import run_query
-from core.bigip.query._inputs import (
+from dialects.f5.query import run_query
+from dialects.f5.query._inputs import (
     InputSpec,
     parse_csv,
     parse_f5log,
@@ -44,7 +44,7 @@ class TestJSONL:
 
     def test_parse_quotes_line_number_on_error(self):
         text = '{"a": 1}\nnot-json\n{"a": 2}\n'
-        from core.bigip.query._inputs import InputError
+        from dialects.f5.query._inputs import InputError
 
         with pytest.raises(InputError, match="line 2"):
             parse_jsonl(text)
@@ -146,7 +146,7 @@ class TestCSV:
         ]
 
     def test_csv_load_supplied_headers_must_be_strings(self, tmp_path: Path):
-        from core.bigip.query.errors import QueryError
+        from dialects.f5.query.errors import QueryError
 
         p = tmp_path / "x.csv"
         p.write_text("a,b\n")
@@ -173,7 +173,7 @@ class TestCSV:
 
 class TestCSVInputFlagParsing:
     def test_header_suffix_is_split_from_final_simple_segment(self):
-        from explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.f5.verbs.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             ["nats=/tmp/nats.csv:internal,external"],
@@ -184,7 +184,7 @@ class TestCSVInputFlagParsing:
         assert bindings == {"nats": ("/tmp/nats.csv", ["internal", "external"])}
 
     def test_path_colon_is_not_always_a_header_separator(self):
-        from explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.f5.verbs.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             ["nats=/tmp/source:archive/nats.csv"],
@@ -195,7 +195,7 @@ class TestCSVInputFlagParsing:
         assert bindings == {"nats": ("/tmp/source:archive/nats.csv", None)}
 
     def test_windows_style_path_is_not_treated_as_headers(self):
-        from explorer.verbs.f5.query import _parse_input_bindings
+        from tooling.f5.verbs.query import _parse_input_bindings
 
         bindings, err = _parse_input_bindings(
             [r"nats=C:\exports\nats.csv"],

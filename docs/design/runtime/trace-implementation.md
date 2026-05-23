@@ -20,7 +20,7 @@ A real implementation needs a hook on every `var` mutation site.
 The runtime touches vars through three layers:
 
 1. **Compiled-side direct writes.**  `_emit_var_write_obj_impl` in
-   `core/compiler/codegen/wasm/_emitter/_variables.py` emits
+   `compiler/codegen/wasm/_emitter/_variables.py` emits
    `tcl_global_set` / `tcl_local_set` / `_emit_owned_local_write`
    / `tcl_array_set` for set-shaped operations.  Each of those
    call sites is an opportunity to invoke a write trace.

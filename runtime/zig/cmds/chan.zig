@@ -197,7 +197,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // Per-command sub-tables.  Arities mirror
-// ``core/commands/registry/tcl/chan.py``; the parity check enforces
+// ``dialects/tcl/chan.py``; the parity check enforces
 // every entry here matches the Python ``SubCommand.arity`` declaration.
 // The handler pointer is metadata-only — runtime dispatch happens
 // inside :func:`eval_chan` (and similarly inside the bare-command

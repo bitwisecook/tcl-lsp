@@ -71,7 +71,7 @@ class TestBarrierBracedBracketArg:
         # → tcl trap: unknown command: abc123
 
     Fix is in
-    :mod:`core.compiler.codegen.wasm._emitter._statements`'s
+    :mod:`compiler.codegen.wasm._emitter._statements`'s
     ``case IRBarrier(...)`` arm: extract ``tokens`` from the match
     and pass it to ``_emit_eval_fallback``.
     """

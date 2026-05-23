@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lsp.features.document_links import get_document_links
+from server.features.document_links import get_document_links
 
 
 class TestDocumentLinks:
@@ -42,7 +42,7 @@ class TestDocumentLinks:
 
 class TestBigipDocumentLinks:
     def test_irule_body_pool_ref_emits_link(self):
-        from lsp.features._bigip_links import get_bigip_document_links
+        from server.features._bigip_links import get_bigip_document_links
 
         source = (
             "ltm pool /Common/web_pool { }\n"
@@ -57,7 +57,7 @@ class TestBigipDocumentLinks:
         assert "/tmp/x.conf" in links[0].target
 
     def test_irule_body_unresolved_ref_still_emits_link_without_target(self):
-        from lsp.features._bigip_links import get_bigip_document_links
+        from server.features._bigip_links import get_bigip_document_links
 
         # Reference present but no matching definition — link still
         # emitted (so the user can see the range was recognised), but
@@ -72,7 +72,7 @@ class TestBigipDocumentLinks:
         """Migrated TMSH properties expose document links pointing at
         the exact reference token (not the whole property line) so
         editor click-to-navigate lands precisely on the path."""
-        from lsp.features._bigip_links import get_bigip_document_links
+        from server.features._bigip_links import get_bigip_document_links
 
         source = (
             "ltm monitor http /Common/http_probe { }\n"
@@ -102,7 +102,7 @@ class TestBigipDocumentLinks:
         /Common/clientssl { ... } }``) get individual links — the
         ListSpec records per-item ranges that the link layer
         consumes directly."""
-        from lsp.features._bigip_links import get_bigip_document_links
+        from server.features._bigip_links import get_bigip_document_links
 
         source = (
             "ltm virtual /Common/v {\n"
@@ -121,7 +121,7 @@ class TestBigipDocumentLinks:
         assert "Go to /Common/http" in tooltips
 
     def test_no_irule_no_links(self):
-        from lsp.features._bigip_links import get_bigip_document_links
+        from server.features._bigip_links import get_bigip_document_links
 
         source = "ltm pool /Common/p { }\n"
         links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
@@ -130,7 +130,7 @@ class TestBigipDocumentLinks:
 
 class TestBigipReferencesAndRename:
     def test_references_finds_decl_and_irule_body_use(self):
-        from lsp.features._bigip_refs import get_bigip_references
+        from server.features._bigip_refs import get_bigip_references
 
         src = (
             "ltm pool /Common/web_pool { }\n"
@@ -151,7 +151,7 @@ class TestBigipReferencesAndRename:
         assert {r.range.start.line for r in refs} == {0, 2}
 
     def test_prepare_rename_returns_token_range(self):
-        from lsp.features._bigip_refs import prepare_bigip_rename
+        from server.features._bigip_refs import prepare_bigip_rename
 
         src = "ltm pool /Common/web_pool { }\n"
         rng = prepare_bigip_rename(src, line=0, character=13)
@@ -160,7 +160,7 @@ class TestBigipReferencesAndRename:
         assert rng.end.character > rng.start.character
 
     def test_prepare_rename_returns_none_off_path(self):
-        from lsp.features._bigip_refs import prepare_bigip_rename
+        from server.features._bigip_refs import prepare_bigip_rename
 
         src = "ltm pool /Common/web_pool { }\n"
         # Cursor on the bare ``pool`` keyword (not a TMSH path).
@@ -168,7 +168,7 @@ class TestBigipReferencesAndRename:
         assert rng is None
 
     def test_rename_edits_produce_workspace_edit_per_file(self):
-        from lsp.features._bigip_refs import get_bigip_rename_edits
+        from server.features._bigip_refs import get_bigip_rename_edits
 
         src = (
             "ltm pool /Common/web_pool { }\n"

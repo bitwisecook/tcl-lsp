@@ -26,9 +26,9 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 
 ## File-path anchors
 
-- `lsp/async_diagnostics.py` (`DiagnosticScheduler`)
-- `lsp/features/diagnostics.py` (`get_diagnostics`, phase-aware collection)
-- `lsp/workspace/document_state.py` (document version + CU cache interactions)
+- `server/async_diagnostics.py` (`DiagnosticScheduler`)
+- `server/features/diagnostics.py` (`get_diagnostics`, phase-aware collection)
+- `server/workspace/document_state.py` (document version + CU cache interactions)
 
 ## Failure modes
 

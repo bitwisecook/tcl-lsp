@@ -70,14 +70,14 @@ AliasInfo
 
 | Consumer | Entry Point | Format |
 |----------|-------------|--------|
-| Compiler explorer | `explorer/pipeline.py` | JSON dict via `dataflow_graph_to_dict()` |
+| Compiler explorer | `tooling/explorer/pipeline.py` | JSON dict via `dataflow_graph_to_dict()` |
 | MCP tools | `ai/mcp/tcl_mcp_server.py` | JSON dict |
 | AI skills | `ai/claude/tcl_ai.py` | Mermaid string |
 | CLI | `ai/claude/tcl_ai.py` | Mermaid string |
 
 ## Module Location
 
-- **Source**: `core/compiler/dataflow_graph.py`
+- **Source**: `compiler/dataflow_graph.py`
 - **Entry point**: `extract_dataflow_graph(source, cu=None)`
 - **Per-function**: `extract_function_dataflow(name, ssa, analysis)`
 - **Tests**: `tests/test_dataflow_graph.py`

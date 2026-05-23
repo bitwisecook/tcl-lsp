@@ -1,10 +1,10 @@
 # Green token tree and incremental reparse
 
 > **Status:** All five phases are implemented and shipped. The flat memo has
-> been subsumed by `core/parsing/green_tree.py` (phases 1–2); the segmenter,
+> been subsumed by `compiler/parsing/green_tree.py` (phases 1–2); the segmenter,
 > `compiler_checks`, and `var_refs` consume it, with `compiler_checks`
 > descending command substitutions and bodies through the tree. Incremental
-> reparse from edit-range inference lives in `core/parsing/incremental.py`
+> reparse from edit-range inference lives in `compiler/parsing/incremental.py`
 > (phases 3–4). Unterminated descended regions are tagged `NodeKind.ERROR`
 > (phase 5). Tracking issue: #477.
 >
@@ -47,7 +47,7 @@ subsystem re-lexed the bytes it cared about, in the mode it needed.
 
 Phase 1 (shipped, then subsumed by phase 2 — see
 [lexing-segmentation.md](lexing-segmentation.md#shared-tokenisation-memo-now-the-green-token-tree))
-introduced a per-analysis memo (the former `core/parsing/token_cache.py`
+introduced a per-analysis memo (the former `compiler/parsing/token_cache.py`
 module, now removed and folded into `green_tree.py`), keyed by
 `(base_offset, base_line, base_col, insidequote, text)`. It cut
 `TclLexer.get_token` calls roughly in half on the trigger corpus and gave a
@@ -83,7 +83,7 @@ incremental reparse that fixes (2).
 
 **Non-goals**
 
-- Replacing the expression tokeniser (`core/parsing/expr_lexer.py`). Expression
+- Replacing the expression tokeniser (`compiler/parsing/expr_lexer.py`). Expression
   regions are attached to the tree as opaque `expr`-mode nodes whose contents
   are produced by the existing Pratt path; the tree owns *where* an expression
   is, not *how* it parses.
@@ -102,7 +102,7 @@ incremental reparse that fixes (2).
 > for shifting. The description below reflects the implementation.
 
 A `GreenNode` owns the tokenisation of one region, tagged with its `Mode`.
-Concretely (`core/parsing/green_tree.py`):
+Concretely (`compiler/parsing/green_tree.py`):
 
 ```
 GreenNode
@@ -199,8 +199,8 @@ their contract.
 ## C. Edit-range inference — *shipped*
 
 pygls is configured for **FULL** text sync, so `did_change`
-(`lsp/lifecycle.py`) receives the entire new source, not edit ranges.
-`infer_edit_range(old, new)` (`core/parsing/incremental.py`) recovers the
+(`server/lifecycle.py`) receives the entire new source, not edit ranges.
+`infer_edit_range(old, new)` (`compiler/parsing/incremental.py`) recovers the
 changed span by a common-prefix / common-suffix diff:
 
 ```
@@ -230,7 +230,7 @@ new_source, edit)` rebuilds the chunk list for the new source:
    at/after `old_end` sit on lines strictly below the edit, so shifting their
    tokens/ranges by `(offset_delta, line_delta)` is exact — columns are
    unchanged because those tokens are on later lines. Shifting is integer
-   arithmetic via `core/parsing/token_positions.py`, far cheaper than
+   arithmetic via `compiler/parsing/token_positions.py`, far cheaper than
    re-lexing.
 3. **Window re-segmentation.** Only the span from one byte past the previous
    command's last character through the *first* post-edit command is
@@ -266,7 +266,7 @@ offset/column/comment drift.
 
 ## E. Error-recovery nodes — *shipped*
 
-`segment_with_recovery` (`core/parsing/recovery.py`) parses twice on
+`segment_with_recovery` (`compiler/parsing/recovery.py`) parses twice on
 unterminated delimiters, injecting `VirtualToken`s (E201/E202/E203) on the
 second pass; that recovery mechanism is **preserved unchanged** — it remains
 the authority for top-level recovery and virtual-token insertions stay
@@ -358,20 +358,20 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Pointers
 
-- Green tree (phases 1–2): [`core/parsing/green_tree.py`](../../../core/parsing/green_tree.py)
-- Incremental reparse (phases 3–4): [`core/parsing/incremental.py`](../../../core/parsing/incremental.py)
-- Offset-shift helpers (phase 4): [`core/parsing/token_positions.py`](../../../core/parsing/token_positions.py)
-- Lexer / modes: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py),
-  [`core/parsing/expr_lexer.py`](../../../core/parsing/expr_lexer.py),
-  [`core/parsing/tokens.py`](../../../core/parsing/tokens.py)
-- Segmentation: [`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py)
-- Recovery: [`core/parsing/recovery.py`](../../../core/parsing/recovery.py)
-- Re-lexing consumers: [`core/compiler/compiler_checks.py`](../../../core/compiler/compiler_checks.py),
-  [`core/compiler/var_refs.py`](../../../core/compiler/var_refs.py)
-- Pipeline: [`core/compiler/lowering.py`](../../../core/compiler/lowering.py)
-- LSP sync / caches: [`lsp/lifecycle.py`](../../../lsp/lifecycle.py),
-  [`lsp/workspace/document_state.py`](../../../lsp/workspace/document_state.py),
-  [`core/common/document_buffer.py`](../../../core/common/document_buffer.py)
+- Green tree (phases 1–2): [`compiler/parsing/green_tree.py`](../../../compiler/parsing/green_tree.py)
+- Incremental reparse (phases 3–4): [`compiler/parsing/incremental.py`](../../../compiler/parsing/incremental.py)
+- Offset-shift helpers (phase 4): [`compiler/parsing/token_positions.py`](../../../compiler/parsing/token_positions.py)
+- Lexer / modes: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py),
+  [`compiler/parsing/expr_lexer.py`](../../../compiler/parsing/expr_lexer.py),
+  [`shared/tokens.py`](../../../shared/tokens.py)
+- Segmentation: [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py)
+- Recovery: [`compiler/parsing/recovery.py`](../../../compiler/parsing/recovery.py)
+- Re-lexing consumers: [`analyser/compiler_checks.py`](../../../analyser/compiler_checks.py),
+  [`compiler/var_refs.py`](../../../compiler/var_refs.py)
+- Pipeline: [`compiler/lowering.py`](../../../compiler/lowering.py)
+- LSP sync / caches: [`server/lifecycle.py`](../../../server/lifecycle.py),
+  [`server/workspace/document_state.py`](../../../server/workspace/document_state.py),
+  [`shared/document_buffer.py`](../../../shared/document_buffer.py)
 
 ## Related docs
 

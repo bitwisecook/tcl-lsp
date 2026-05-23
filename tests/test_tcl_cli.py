@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from explorer import tcl_cli
-from explorer.tcl_cli import main
+from tooling.tcl import main as tcl_cli
+from tooling.tcl.main import main
 
 
 def _run(args: list[str], capsys) -> tuple[int, str, str]:

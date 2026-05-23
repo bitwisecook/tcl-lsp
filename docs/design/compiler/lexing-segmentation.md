@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py) (`tokenise_all` at line 494),
-[`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
-[`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py) (`segment_commands` at line 390)
+Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 494),
+[`shared/tokens.py`](../../../shared/tokens.py),
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 390)
 
 ## Content
 
@@ -93,7 +93,7 @@ more runtime args) from a literal `*${list}` word.
 
 The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
 `configure_signatures()` in
-[`core/commands/registry/runtime.py`](../../../core/commands/registry/runtime.py)
+[`compiler/registry/runtime.py`](../../../compiler/registry/runtime.py)
 sets the flag based on the active dialect:
 
 - **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
@@ -104,8 +104,8 @@ sets the flag based on the active dialect:
   braced literal `{*}` concatenated with `$x`.
 
 Arity checks at both the analyser (`_check_proc_call_arity` in
-`core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
-`core/compiler/compiler_checks.py`) treat each expanded word as an
+`analyser/analyser.py`) and the IR layer (`_check_simple_arity` in
+`compiler/compiler_checks.py`) treat each expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or
@@ -151,9 +151,9 @@ paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The original per-analysis memo (`core/parsing/token_cache.py` /
+The original per-analysis memo (`compiler/parsing/token_cache.py` /
 `tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
-green token tree** in `core/parsing/green_tree.py` — see
+green token tree** in `compiler/parsing/green_tree.py` — see
 [green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
 analysis-scoped intern index, with the same correctness rules:
 

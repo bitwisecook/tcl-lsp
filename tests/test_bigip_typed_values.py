@@ -1,10 +1,10 @@
-"""Unit tests for the typed BIG-IP scalar values in ``core.bigip.types``."""
+"""Unit tests for the typed BIG-IP scalar values in ``dialects.f5.bigip.types``."""
 
 from __future__ import annotations
 
 import pytest
 
-from core.bigip.types import (
+from dialects.f5.bigip.types import (
     FQDN,
     Destination,
     Folder,
@@ -579,7 +579,7 @@ class TestPoolMemberTypedField:
     """``BigipPoolMember.address`` is now a typed :class:`Address`."""
 
     def test_ipv4_address_is_typed(self):
-        from core.bigip.model import BigipPoolMember
+        from dialects.f5.bigip.model import BigipPoolMember
 
         m = BigipPoolMember(
             name="/Common/10.0.0.1:80",
@@ -590,7 +590,7 @@ class TestPoolMemberTypedField:
         assert m.address.is_ipv4
 
     def test_fqdn_address_is_typed(self):
-        from core.bigip.model import BigipPoolMember
+        from dialects.f5.bigip.model import BigipPoolMember
 
         m = BigipPoolMember(
             name="/Common/host.example.com:443",
@@ -600,7 +600,7 @@ class TestPoolMemberTypedField:
         assert isinstance(m.address, FQDN)
 
     def test_empty_address_is_none(self):
-        from core.bigip.model import BigipPoolMember
+        from dialects.f5.bigip.model import BigipPoolMember
 
         m = BigipPoolMember(name="/Common/x")
         assert m.address is None
@@ -608,7 +608,7 @@ class TestPoolMemberTypedField:
     def test_parser_populates_typed_pool_member(self):
         """End-to-end round-trip: a TMSH ``ltm pool`` member parses
         into a typed :class:`Address`, no string detour."""
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = (
             "ltm pool /Common/p1 {\n"
@@ -631,7 +631,7 @@ class TestVirtualServerTypedField:
     """``BigipVirtualServer.destination`` is now a typed :class:`Destination`."""
 
     def test_destination_is_typed(self):
-        from core.bigip.model import BigipVirtualServer
+        from dialects.f5.bigip.model import BigipVirtualServer
 
         vs = BigipVirtualServer(
             name="vs1",
@@ -648,7 +648,7 @@ class TestVirtualServerTypedField:
         """End-to-end: ``ltm virtual`` parses into a typed
         :class:`Destination` directly.
         """
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = (
             "ltm virtual /Common/vs1 {\n"
@@ -672,7 +672,7 @@ class TestNodeTypedField:
     """``BigipNode.address`` is :class:`Address`; ``.fqdn`` is :class:`FQDN`."""
 
     def test_parser_populates_typed_node(self):
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "ltm node /Common/n1 { address 10.0.0.1 }\n"
         config = parse_bigip_conf(src)
@@ -681,7 +681,7 @@ class TestNodeTypedField:
         assert str(node.address) == "10.0.0.1"
 
     def test_parser_populates_node_fqdn(self):
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "ltm node /Common/n2 { fqdn { name host.example.com } }\n"
         config = parse_bigip_conf(src)
@@ -694,14 +694,14 @@ class TestDslRendersTypedFieldsAsStrings:
     """The DSL surface keeps emitting strings via the typed=True FieldSpec."""
 
     def test_vs_destination(self):
-        from core.bigip.query.runner import run_query
+        from dialects.f5.query.runner import run_query
 
         src = "ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 }\n"
         result = run_query('.ltm.virtual["/Common/vs1"].destination', {"mem://1": src})
         assert result.values_per_file["mem://1"] == ["/Common/10.0.0.1:80"]
 
     def test_pool_member_address(self):
-        from core.bigip.query.runner import run_query
+        from dialects.f5.query.runner import run_query
 
         src = (
             "ltm pool /Common/p1 {\n"
@@ -714,7 +714,7 @@ class TestDslRendersTypedFieldsAsStrings:
         assert result.values_per_file["mem://1"] == ["10.0.0.1"]
 
     def test_node_address(self):
-        from core.bigip.query.runner import run_query
+        from dialects.f5.query.runner import run_query
 
         src = "ltm node /Common/n1 { address 10.0.0.1 }\n"
         result = run_query('.ltm.node["/Common/n1"].address', {"mem://1": src})
@@ -727,7 +727,7 @@ class TestNetSelfTypedField:
         (was a raw string).  The parser populates it directly; consumers
         no longer re-parse the CIDR.
         """
-        from core.bigip.model import BigipNetSelf
+        from dialects.f5.bigip.model import BigipNetSelf
 
         s = BigipNetSelf(
             name="self1",
@@ -746,7 +746,7 @@ class TestNetRouteTypedField:
         """``BigipNetRoute.network`` / ``.gw`` are now typed
         :class:`Network` / :class:`IPAddress` (were raw strings).
         """
-        from core.bigip.model import BigipNetRoute
+        from dialects.f5.bigip.model import BigipNetRoute
 
         r = BigipNetRoute(
             name="r1",
@@ -762,7 +762,7 @@ class TestNetRouteTypedField:
         assert IPAddress.parse(str(r.gw)) == r.gw
 
     def test_default_route_carries_flag_not_network(self):
-        from core.bigip.model import BigipNetRoute
+        from dialects.f5.bigip.model import BigipNetRoute
 
         r = BigipNetRoute(
             name="default",
@@ -777,7 +777,7 @@ class TestNetRouteTypedField:
         """End-to-end round-trip: a TMSH ``net route`` stanza parses
         directly into typed :class:`Network` / :class:`IPAddress`
         fields, no string detour."""
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "net route /Common/r1 { network 10.0.0.0/8 gw 192.168.1.1 }\n"
         config = parse_bigip_conf(src)
@@ -789,7 +789,7 @@ class TestNetRouteTypedField:
         assert not r.is_default_route
 
     def test_parser_populates_default_route_flag(self):
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "net route /Common/default_route { network default gw 192.168.1.1 }\n"
         config = parse_bigip_conf(src)
@@ -806,7 +806,7 @@ class TestNetRouteTypedField:
         assert isinstance(r.gw, IPAddress)
 
     def test_parser_populates_typed_fields_for_net_self(self):
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "net self /Common/self1 { address 10.0.0.1/24 vlan /Common/internal }\n"
         config = parse_bigip_conf(src)
@@ -827,7 +827,7 @@ class TestNetRouteTypedField:
         typed value back to its canonical text before exposing it.
         Existing queries that match against the string value keep
         working."""
-        from core.bigip.query.runner import run_query
+        from dialects.f5.query.runner import run_query
 
         src = "net route /Common/r1 { network 10.0.0.0/8 gw 192.168.1.1 }\n"
         result = run_query('.net.route["/Common/r1"].network', {"mem://1": src})
@@ -841,7 +841,7 @@ class TestVirtualAddressTypedField:
     derives the combined CIDR from ``address`` + ``mask``."""
 
     def test_host_address_plus_mask_becomes_network(self):
-        from core.bigip.model import BigipVirtualAddress
+        from dialects.f5.bigip.model import BigipVirtualAddress
 
         va = BigipVirtualAddress(
             name="va1",
@@ -854,7 +854,7 @@ class TestVirtualAddressTypedField:
         assert va.network_typed.prefix_length == 24
 
     def test_parser_populates_typed_virtual_address(self):
-        from core.bigip.parser import parse_bigip_conf
+        from dialects.f5.bigip.parser import parse_bigip_conf
 
         src = "ltm virtual-address /Common/10.0.0.1 { address 10.0.0.1 mask 255.255.255.0 }\n"
         config = parse_bigip_conf(src)

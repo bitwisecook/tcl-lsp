@@ -236,6 +236,6 @@ Three layers, each live:
 - Wired ``rename`` / ``interp alias`` built-ins in
   ``tcl_interp.zig``.
 - Compiler fallback updates in
-  ``core/compiler/codegen/wasm/_imports.py``.
+  ``compiler/codegen/wasm/_imports.py``.
 - Zig 0.16 build-compat fixes (``build.zig`` new Module API +
   ``callconv(.C)`` → ``callconv(.c)``).

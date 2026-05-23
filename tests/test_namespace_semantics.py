@@ -12,10 +12,10 @@ These exercise item-7 requirements that span namespaces:
 
 from __future__ import annotations
 
-import lsp.commands as commands
-from lsp.features.call_hierarchy import incoming_calls, prepare_call_hierarchy
-from lsp.features.references import get_references
-from lsp.state import workspace_state
+import server.commands as commands
+from server.features.call_hierarchy import incoming_calls, prepare_call_hierarchy
+from server.features.references import get_references
+from server.state import workspace_state
 
 URI = "file:///ns.tcl"
 

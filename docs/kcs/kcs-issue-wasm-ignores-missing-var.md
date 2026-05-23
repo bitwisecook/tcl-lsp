@@ -23,7 +23,7 @@ VM and reference Tcl do?
   returned 0, the comparison was true, and `incr` operated on the
   same null TclObj.  This drove a measurable fraction of the
   `wasm-timeout` finding cluster.
-- The Python VM (`vm/scope.py`) and `vm_opt` correctly raised the
+- The Python VM (`tooling/vm/scope.py`) and `vm_opt` correctly raised the
   standard error; only the compiled WASM path was lenient.
 
 ## Answer
@@ -46,7 +46,7 @@ The fix lives in three places:
    adds `global_get_or_error` — strict variants of the existing
    lookups that delegate to the lenient form and raise via
    `var_unset_error` when the lookup resolves to a NULL TclObj.
-3. [`core/compiler/codegen/wasm/_emitter/_variables.py`](../../core/compiler/codegen/wasm/_emitter/_variables.py)
+3. [`compiler/codegen/wasm/_emitter/_variables.py`](../../compiler/codegen/wasm/_emitter/_variables.py)
    `_emit_var_read_obj` now routes every user-visible variable read
    through the strict variants.  The proc-local mirror path emits an
    inline `i32.eqz` check that calls `tcl_var_unset_error` on the
@@ -105,7 +105,7 @@ Reusing one slot keeps the locals count constant.
 
 ## Regression coverage
 
-[`fuzzing/tests/test_fuzz_findings.py`](../../fuzzing/tests/test_fuzz_findings.py)
+[`tooling/fuzzing/tests/test_fuzz_findings.py`](../../tooling/fuzzing/tests/test_fuzz_findings.py)
 `TestBatch6WasmIgnoresMissingVar` parametrises the four seed scripts
 (`1774200012`, `1774200028`, `1774200037`, `1774200068`) whose
 mismatch was directly the missing-variable behaviour and asserts
@@ -137,7 +137,7 @@ The fix lives in two places:
    initialises to `0` before adding.  The strict-integer contract
    still applies to non-empty values that fail the integer parse
    (a string `"abc"` or a float `"5.0"` still raises).
-2. [`core/compiler/codegen/wasm/_emitter/_variables.py`](../../core/compiler/codegen/wasm/_emitter/_variables.py)
+2. [`compiler/codegen/wasm/_emitter/_variables.py`](../../compiler/codegen/wasm/_emitter/_variables.py)
    adds `_emit_var_read_obj_lenient` — a lenient counterpart of
    `_emit_var_read_obj` that returns 0 (null TclObj) for an unset
    variable instead of raising.  The three `IRIncr` emit sites

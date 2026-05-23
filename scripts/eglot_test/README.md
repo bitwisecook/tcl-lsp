@@ -43,7 +43,7 @@ data file you can inspect before sending.
 A batch-mode harness that:
 
 1. Auto-installs eglot 1.23 from GNU ELPA into `tmp/elpa/`
-2. Spins up `uv run python -m lsp` per scenario
+2. Spins up `uv run python -m server` per scenario
 3. Performs a sequence of in-buffer edits (sending didChange to eglot,
    which then exchanges semanticTokens/full and /full/delta with the
    server)

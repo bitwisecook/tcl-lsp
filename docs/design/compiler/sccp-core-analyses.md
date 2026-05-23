@@ -13,8 +13,8 @@ Constant Propagation) over the SSA graph, producing a `FunctionAnalysis`
 with constant values, type information, liveness, dead stores, unreachable
 blocks, constant branches, read-before-set, and unused variables.
 
-Source: [`core/compiler/core_analyses.py`](../../../core/compiler/core_analyses.py) (`analyse_function` at line 1210, `FunctionAnalysis` at line 176),
-[`core/compiler/types.py`](../../../core/compiler/types.py)
+Source: [`compiler/core_analyses.py`](../../../compiler/core_analyses.py) (`analyse_function` at line 1210, `FunctionAnalysis` at line 176),
+[`compiler/types.py`](../../../compiler/types.py)
 
 ## Content
 

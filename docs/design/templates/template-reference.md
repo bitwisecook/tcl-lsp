@@ -15,8 +15,8 @@
 
 ## File-path anchors
 
-- `core/...`
-- `lsp/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
+- `server/...`
 - `docs/...`
 
 ## Failure modes

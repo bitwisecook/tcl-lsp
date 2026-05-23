@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from core.common.dialect import dialect_scope
-from core.parsing.command_segmenter import segment_commands
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.registry.dialect import dialect_scope
 
 # {*} is special from Tcl 8.5 on (and in 8.5-based dialects such as f5-iapps);
 # it is inert in Tcl 8.4 and the 8.4-based F5 iRules dialect.
@@ -57,7 +57,7 @@ class TestExpansionAffectsArity:
 
     @pytest.mark.parametrize("dialect", _EXPANDS)
     def test_expanded_args_suppress_arity_error(self, dialect):
-        from lsp.features.diagnostics import get_diagnostics
+        from server.features.diagnostics import get_diagnostics
 
         with dialect_scope(dialect):
             # ``incr`` takes 1-2 args; the expanded word is an unknown count,
@@ -71,7 +71,7 @@ class TestExpansionAffectsArity:
 
     @pytest.mark.parametrize("dialect", _INERT)
     def test_literal_brace_word_counts_as_one_arg(self, dialect):
-        from lsp.features.diagnostics import get_diagnostics
+        from server.features.diagnostics import get_diagnostics
 
         with dialect_scope(dialect):
             # Here ``{*}$pair`` is a single literal word, so ``incr`` sees
@@ -89,7 +89,7 @@ class TestExpansionListSemantics:
     and constant-list folding must refuse a list containing an expansion."""
 
     def _codes(self, source: str, dialect: str) -> set[str]:
-        from lsp.features.diagnostics import get_diagnostics
+        from server.features.diagnostics import get_diagnostics
 
         with dialect_scope(dialect):
             return {

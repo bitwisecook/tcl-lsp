@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_graph import (
+from analyser.semantic_graph import (
     build_call_graph,
     build_dataflow_graph,
     build_semantic_graph_bundle,
@@ -307,11 +307,11 @@ class TestSemanticGraphBundle:
 
     def test_bundle_compiles_once(self):
         source = "set x [expr {1 + 2}]\n"
-        from core.compiler import compilation_unit as cu_module
+        from compiler import compilation_unit as cu_module
 
         real_compile_source = cu_module.compile_source
         with patch(
-            "core.compiler.compilation_unit.compile_source", wraps=real_compile_source
+            "compiler.compilation_unit.compile_source", wraps=real_compile_source
         ) as mocked_compile:
             build_semantic_graph_bundle(source)
             assert mocked_compile.call_count == 1

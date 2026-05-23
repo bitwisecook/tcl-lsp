@@ -30,11 +30,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from lsprotocol import types
 
-import lsp.lifecycle as _lifecycle
-import lsp.settings as _lsp_settings
-import lsp.state as _lsp_state
-from core.formatting import FormatterConfig
-from lsp.feature_config import FeatureConfig
+import server.lifecycle as _lifecycle
+import server.settings as _lsp_settings
+import server.state as _lsp_state
+from server.feature_config import FeatureConfig
+from tooling.formatter import FormatterConfig
 
 
 @pytest.fixture
@@ -276,7 +276,7 @@ class TestDidChangeWorkspaceFolders:
     def test_added_folder_initialises_per_folder_configs(self, reset_state, monkeypatch, tmp_path):
         folder_uri = f"file://{tmp_path}/proj-a"
         monkeypatch.setattr(_lsp_settings, "_pull_and_apply_configuration", lambda: None)
-        monkeypatch.setattr("core.common.user_config.load_project_config", lambda _path: None)
+        monkeypatch.setattr("shared.user_config.load_project_config", lambda _path: None)
 
         _lifecycle.on_did_change_workspace_folders(_folders_event(added=[folder_uri]))
 
@@ -306,7 +306,7 @@ class TestDidChangeWorkspaceFolders:
             "_pull_and_apply_configuration",
             lambda: called.append(True),
         )
-        monkeypatch.setattr("core.common.user_config.load_project_config", lambda _path: None)
+        monkeypatch.setattr("shared.user_config.load_project_config", lambda _path: None)
 
         _lifecycle.on_did_change_workspace_folders(
             _folders_event(added=[f"file://{tmp_path}/added"])

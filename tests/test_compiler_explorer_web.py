@@ -12,7 +12,7 @@ pytest.importorskip("flask", reason="flask not installed")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
-    from explorer.web import app  # noqa: E402
+    from tooling.explorer.web import app  # noqa: E402
 except ModuleNotFoundError:
     pytest.skip("explorer.web module not available", allow_module_level=True)
 

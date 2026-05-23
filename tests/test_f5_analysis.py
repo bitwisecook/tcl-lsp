@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-from explorer.f5_cli import main
+from tooling.f5.main import main
 
 SAMPLE_CONF = Path(__file__).resolve().parent.parent / "samples" / "bigip" / "bigip.conf"
 

@@ -7,7 +7,7 @@ expected entry.
 
 ## Decision rules / contracts
 
-1. Cache location: ``~/.cache/tcl-lsp/tclpkg/cas/sha256/<ab>/<hash>/tree/``.
+1. Cache location: ``~/.cache/tcl-lsp/tooling/tclpkg/cas/sha256/<ab>/<hash>/tree/``.
 2. ``<ab>`` is the first two hex characters of the SHA-256 digest (sharding).
 3. Integrity string format: ``sha256-<base64url-no-pad>`` (SRI-compatible).
 4. Hash computed over the canonicalised worktree, NOT raw archive bytes.
@@ -20,14 +20,14 @@ expected entry.
    hash is a no-op.
 8. Materialisation into ``lib/`` uses symlinks by default; falls back to copy
    on platforms that restrict symlinks.
-9. ``_cache_dir()`` at ``core/common/user_config.py`` follows
+9. ``_cache_dir()`` at ``shared/user_config.py`` follows
    ``$XDG_CACHE_HOME`` / macOS / Windows conventions.
 
 ## File-path anchors
 
-- ``tclpkg/cas.py`` — ``integrity_of_tree()``, ``ContentAddressableStore``
-- ``core/common/user_config.py`` — ``_cache_dir()``
+- ``tooling/tclpkg/cas.py`` — ``integrity_of_tree()``, ``ContentAddressableStore``
+- ``shared/user_config.py`` — ``_cache_dir()``
 
 ## Test anchors
 
-- ``tests/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise
+- ``tests/tooling/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise

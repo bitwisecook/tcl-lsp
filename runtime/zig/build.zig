@@ -134,7 +134,7 @@ pub fn build(b: *std.Build) void {
     // ``tcl_runtime_with_tcltest.wasm`` — the runtime with the Tcl 9
     // tcltest C-tier ``test*`` commands compiled in.  Built as a
     // sibling artifact so the post-codegen bundler at
-    // ``core/compiler/codegen/wasm/_bundle.py`` can pick it over the
+    // ``compiler/codegen/wasm/_bundle.py`` can pick it over the
     // lean ``tcl_runtime.wasm`` whenever the user's program does
     // ``package require Tcltest``.  Programs that don't get the lean
     // runtime — tcltest never enters their bundle.

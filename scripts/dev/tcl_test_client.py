@@ -16,21 +16,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from core.analysis import analyse
-    from core.analysis.semantic_model import Diagnostic, Severity
-    from core.common.source_map import offset_to_line_col as _offset_to_line_col
-    from core.parsing.lexer import TclLexer
-    from core.parsing.tokens import TokenType
+    from analyser import analyse
+    from analyser.semantic_model import Diagnostic, Severity
+    from compiler.parsing.lexer import TclLexer
+    from shared.source_map import offset_to_line_col as _offset_to_line_col
+    from shared.tokens import TokenType
 except ModuleNotFoundError:
     # Allow running this file directly from anywhere.
     ROOT = Path(__file__).resolve().parents[2]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from core.analysis import analyse
-    from core.analysis.semantic_model import Diagnostic, Severity
-    from core.common.source_map import offset_to_line_col as _offset_to_line_col
-    from core.parsing.lexer import TclLexer
-    from core.parsing.tokens import TokenType
+    from analyser import analyse
+    from analyser.semantic_model import Diagnostic, Severity
+    from compiler.parsing.lexer import TclLexer
+    from shared.source_map import offset_to_line_col as _offset_to_line_col
+    from shared.tokens import TokenType
 
 
 class Ansi:
@@ -260,7 +260,7 @@ def _build_word(fragments: list[TokenView]) -> WordNode:
 
 def _resolve_body_args(cmd: CommandNode) -> None:
     """If words in *cmd* are BODY arguments per SIGNATURES, recursively expand them."""
-    from core.commands.registry.runtime import body_arg_indices
+    from compiler.registry.runtime import body_arg_indices
 
     if not cmd.words:
         return
@@ -286,7 +286,7 @@ def _expand_body_word(word: WordNode) -> None:
 
 def _resolve_expression_args(cmd: CommandNode) -> None:
     """If words in *cmd* are EXPR arguments, parse expression sub-language."""
-    from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+    from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
     if not cmd.words:
         return
@@ -301,7 +301,7 @@ def _resolve_expression_args(cmd: CommandNode) -> None:
 
 def _expand_expression_word(word: WordNode) -> None:
     """Expand command substitutions that appear inside expression arguments."""
-    from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
+    from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
 
     for fragment in word.fragments:
         if fragment.type is not TokenType.STR or not fragment.text.strip():

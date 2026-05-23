@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from core.common.document_buffer import (
+from shared.document_buffer import (
     DocumentBuffer,
     compute_line_starts,
 )
-from core.parsing.tokens import SourcePosition
+from shared.tokens import SourcePosition
 
 # compute_line_starts
 
@@ -184,7 +184,7 @@ class TestChunkLineRange:
         source = "proc foo {} {\n    set x 1\n}\n\nproc bar {} {\n    set y 2\n}\n"
         buf = DocumentBuffer.from_source(source)
 
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:
@@ -240,7 +240,7 @@ class TestChunkLineRangeCompat:
     def test_semicolon_separated(self):
         source = "set x 1; set y 2\n"
         buf = DocumentBuffer.from_source(source)
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:
@@ -260,7 +260,7 @@ class TestChunkLineRangeCompat:
     def test_proc_with_body(self):
         source = "proc foo {a b} {\n    set x $a\n    return $x\n}\n"
         buf = DocumentBuffer.from_source(source)
-        from core.parsing.command_segmenter import segment_top_level_chunks
+        from compiler.parsing.command_segmenter import segment_top_level_chunks
 
         chunks = segment_top_level_chunks(source)
         for chunk in chunks:
@@ -282,7 +282,7 @@ class TestChunkLineRangeCompat:
 
 class TestDocumentStateBuffer:
     def test_buffer_property(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://file.tcl")
         state.source = "set x 1\nset y 2\n"
@@ -291,7 +291,7 @@ class TestDocumentStateBuffer:
         assert buf.line_starts == compute_line_starts(state.source)
 
     def test_buffer_caches(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://file.tcl")
         state.source = "set x 1\n"
@@ -300,7 +300,7 @@ class TestDocumentStateBuffer:
         assert buf1 is buf2  # same instance
 
     def test_buffer_invalidated_on_source_change(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://file.tcl")
         state.source = "set x 1\n"
@@ -312,14 +312,14 @@ class TestDocumentStateBuffer:
         assert buf2.source == "set y 2\n"
 
     def test_lines_delegates_to_buffer(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://file.tcl")
         state.source = "line1\nline2\nline3"
         assert state.lines == ["line1", "line2", "line3"]
 
     def test_update_source_quick_invalidates_buffer(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://file.tcl")
         state.source = "set x 1\n"

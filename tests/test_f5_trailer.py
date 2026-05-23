@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.f5_trailer import (
+from dialects.f5.bigip.f5_trailer import (
     DPT_HDR_MAGIC,
     DPT_TLV_HDR_LEN,
     LEGACY_TYPE_HIGH,

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.ir import (
+from compiler.ir import (
     IRAssignConst,
     IRAssignValue,
     IRFor,
     IRForeach,
     IRWhile,
 )
-from core.compiler.lowering import lower_to_ir
-from core.compiler.passes.licm import licm_module
+from compiler.lowering import lower_to_ir
+from compiler.passes.licm import licm_module
 
 
 def _module(source: str):
@@ -205,8 +205,8 @@ class TestPipelineIntegration:
     """Confirm the LICM pass is invoked through ``wasm_codegen_module``."""
 
     def test_licm_flag_off_preserves_loop_body(self):
-        from core.compiler.cfg import build_cfg
-        from core.compiler.codegen.wasm import wasm_codegen_module
+        from compiler.cfg import build_cfg
+        from compiler.codegen.wasm import wasm_codegen_module
 
         source = 'for {set i 0} {$i < 3} {incr i} {\n  set guard "k"\n}\n'
         ir = lower_to_ir(source)

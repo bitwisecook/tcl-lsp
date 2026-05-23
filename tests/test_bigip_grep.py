@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from core.bigip.grep import compute_grep, report_to_dict
-from core.bigip.parser import parse_bigip_conf
-from core.commands.registry.runtime import active_signature_profile
-from explorer import f5_cli
+from compiler.registry.runtime import active_signature_profile
+from dialects.f5.bigip.grep import compute_grep, report_to_dict
+from dialects.f5.bigip.parser import parse_bigip_conf
+from tooling.f5 import main as f5_cli
 
 
 def _run(source: str, pattern: str, **kwargs):

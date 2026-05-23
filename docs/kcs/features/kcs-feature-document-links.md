@@ -19,7 +19,7 @@ The provider scans comments and string literals for URLs and file paths, making 
 
 ## File-path anchors
 
-- `lsp/features/document_links.py`
+- `server/features/document_links.py`
 
 ## Failure modes
 

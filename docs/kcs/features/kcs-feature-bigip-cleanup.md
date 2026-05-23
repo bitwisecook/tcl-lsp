@@ -39,7 +39,7 @@ f5 cleanup --keep /Common/important_pool bigip.conf
 f5 cleanup --no-keep-common bigip.conf
 ```
 
-In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli cleanup …`.
+In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m tooling.f5.main cleanup …`.
 
 #### Shell completion
 
@@ -100,7 +100,7 @@ ltm virtual /Common/vs_kept {
 }
 ```
 
-### Output (`f5 cleanup --no-keep-common bigip.conf` or `python -m explorer.f5_cli cleanup --no-keep-common bigip.conf`)
+### Output (`f5 cleanup --no-keep-common bigip.conf` or `python -m tooling.f5.main cleanup --no-keep-common bigip.conf`)
 
 ```
 # tcl-lsp BIG-IP cleanup

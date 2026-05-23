@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
+from analyser import analyse
 
 
 def _is_tcl_9(tclsh_path: str) -> bool:

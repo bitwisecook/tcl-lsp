@@ -37,7 +37,7 @@ running stub example elsewhere — as a concrete target.
 
 ### 1. Decide the home
 
-Pick the directory under `core/commands/registry/` that matches the
+Pick the directory under `compiler/registry/` that matches the
 package's distribution shape:
 
 | Distribution shape | Folder | Loader |
@@ -53,7 +53,7 @@ sqlite3`, so it belongs under `stdlib/`.
 
 ### 2. Create the package module
 
-Add `core/commands/registry/stdlib/sqlite3_.py` (the trailing
+Add `compiler/registry/stdlib/sqlite3_.py` (the trailing
 underscore matches the convention used for module names that would
 otherwise clash with the standard library or built-ins):
 
@@ -123,7 +123,7 @@ the *instance command*, which is created dynamically. See section 4.
 
 ### 3. Wire it into the loader
 
-Add the module to `core/commands/registry/stdlib/__init__.py`:
+Add the module to `compiler/registry/stdlib/__init__.py`:
 
 ```python
 from . import sqlite3_  # noqa: F401
@@ -148,7 +148,7 @@ the registry only knows fixed names. There are two strategies:
 $name ?path?` invocations and synthesise an instance command with the
 right signature into the per-analysis overlay. This is similar in
 spirit to how `oo::class create Foo` is recognised. It requires a
-small lowering hook in `core/compiler/lowering_hooks/` that watches
+small lowering hook in `compiler/lowering_hooks/` that watches
 for `sqlite3` calls and registers `$name` with a `SubcommandSig`
 overlay carrying the `eval` / `transaction` / `function` /
 `onecolumn` / `cache` subcommands. The overlay shape mirrors the
@@ -198,7 +198,7 @@ return CommandSpec(
 | `taint_hints()` (class method) | Per-command taint flow, declared via override on `CommandDef`. |
 | `tcllib_package` / `required_package` | Gates the command on a matching `package require`. |
 
-The full field reference is in `core/commands/registry/models.py`
+The full field reference is in `compiler/registry/models.py`
 and the design notes in `docs/design/compiler/command-registry.md`.
 
 ### 6. Add tests
@@ -207,7 +207,7 @@ Each new package gets a focused test file under `tests/`:
 
 ```python
 # tests/test_registry_sqlite3.py
-from core.commands.registry import REGISTRY
+from compiler.registry import REGISTRY
 
 def test_sqlite3_factory_registered():
     spec = REGISTRY.get_any("sqlite3")
@@ -232,7 +232,7 @@ alongside the registry change — CI will fail if they're stale.
 
 ## How to tell it worked
 
-- `python -c "from core.commands.registry import REGISTRY; print(REGISTRY.get_any('sqlite3'))"`
+- `python -c "from compiler.registry import REGISTRY; print(REGISTRY.get_any('sqlite3'))"`
   returns a `CommandSpec`, not `None`.
 - A Tcl file containing `package require sqlite3` followed by
   `sqlite3 db :memory:` no longer raises the W315 "unresolved command"

@@ -10,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.analysis import analyse
-from lsp.features.document_highlight import get_document_highlights
+from analyser import analyse
+from server.features.document_highlight import get_document_highlights
 
 
 def _highlights(source: str, line: int, character: int, uri: str = "file:///test.tcl"):

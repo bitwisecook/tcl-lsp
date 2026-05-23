@@ -313,7 +313,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // ``file <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/file.py``.  Cross-checked against
+// ``dialects/tcl/file.py``.  Cross-checked against
 // ``generic/tclFCmd.c`` + ``generic/tclFileName.c`` in C Tcl 9.0 —
 // each sub-command's handler enforces its arity via
 // ``Tcl_WrongNumArgs``.  ``pwd`` and ``cd`` have no sub-commands.

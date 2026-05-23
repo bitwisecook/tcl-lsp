@@ -187,7 +187,7 @@ the Command's import-machinery slots independent.
 ## 7. Compiler: conservative proc-index flush
 
 `_collect_dynamically_modified_procs` in
-[`core/compiler/codegen/wasm/__init__.py`](../../../core/compiler/codegen/wasm/__init__.py)
+[`compiler/codegen/wasm/__init__.py`](../../../compiler/codegen/wasm/__init__.py)
 now returns `(affected, full_flush)`.  When it sees any of
 `interp create` / `interp eval` / `interp delete` anywhere in the
 IR, `full_flush` is set.  The caller responds by clearing

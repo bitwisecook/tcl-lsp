@@ -1330,7 +1330,7 @@ pub fn compare_for_minmax(a: i32, b: i32) i32 {
 // emitter previously inlined ``i64.shl`` / ``i64.and`` / ``i64.or`` /
 // ``i64.xor`` directly, which silently truncated floats and accepted
 // negative shift counts (WASM masks the count by 63).  These helpers
-// are called from ``core/compiler/codegen/wasm/_emitter/_expressions.py``
+// are called from ``compiler/codegen/wasm/_emitter/_expressions.py``
 // to recover the missing domain checks.
 
 /// Build ``cannot use floating-point value "X" as <position> operand of "<op>"``
