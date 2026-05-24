@@ -771,6 +771,7 @@ def _barrier_aware_env_for_block(
     if block is None or ssa_block is None:
         return None
 
+    env: dict[str, int | float | bool | str]
     loop_meta = cfg.loop_nodes.get(block_name)
     if loop_meta is not None:
         loop_start_block, loop_stmt = loop_meta
@@ -782,9 +783,10 @@ def _barrier_aware_env_for_block(
             lv = values.get((name, ver), UNKNOWN)
             if lv.kind is LatticeKind.CONST and isinstance(lv.value, (int, bool, str)):
                 start_env[name] = lv.value
-        env = summarise_static_for_ir(loop_stmt, initial_constants=start_env)
-        if env is None:
+        summarised = summarise_static_for_ir(loop_stmt, initial_constants=start_env)
+        if summarised is None:
             return None
+        env = summarised
     else:
         env = {}
         for name, ver in ssa_block.entry_versions.items():
