@@ -113,7 +113,7 @@ class FormatterConfig:
     @classmethod
     def from_dict(cls, data: dict) -> FormatterConfig:
         """Deserialise from a dict (e.g., LSP workspace settings)."""
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         for f in fields(cls):
             if f.name in data:
                 val = data[f.name]
