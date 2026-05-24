@@ -120,7 +120,7 @@ class FormatterConfig:
                 if f.name in _ENUM_FIELDS and isinstance(val, str):
                     val = _ENUM_FIELDS[f.name][val.upper()]
                 kwargs[f.name] = val
-        return cls(**kwargs)
+        return cls(**kwargs)  # ty: ignore[invalid-argument-type]  # dynamic deserialisation: enum fields are coerced from their string names just above
 
     def replace(self, **changes) -> FormatterConfig:
         """Return a copy with the given fields replaced."""

@@ -821,7 +821,7 @@ def _barrier_aware_env_for_block(
                 else:
                     env.pop(name, None)
 
-    return env
+    return env  # ty: ignore[invalid-return-type]  # env values are guarded to int/bool/str by the isinstance checks above; the loop-branch widening from summarise_static_for_ir is over-broad
 
 
 def _evaluate_branch_decision(
