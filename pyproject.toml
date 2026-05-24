@@ -4,10 +4,10 @@ dynamic = ["version"]
 description = "A Tcl Language Server Protocol implementation"
 requires-python = ">=3.10"
 dependencies = [
-    "pygls>=2.0",
-    "lsprotocol>=2024.0.0",
+    "pygls>=2.1",
+    "lsprotocol>=2025.0.0",
     "jinja2>=3.1",
-    "argcomplete>=3.0",
+    "argcomplete>=3.6",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -37,37 +37,37 @@ tcl-vm = "tooling.vm.__main__:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=6.0",
+    "pytest>=9.0",
+    "pytest-cov>=7.0",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.11",
-    "ty==0.0.37",
+    "ruff>=0.15",
+    "ty==0.0.39",
     # Architectural dependency contracts — see `.importlinter`.  Keeps the
     # seven-concern Python layout (shared/, compiler/, dialects/, analyser/,
     # server/, tooling/, ai/) from drifting back into a tangle.
-    "import-linter>=2.0",
+    "import-linter>=2.11",
     # Available at runtime so ``scripts/print_version.py`` can compute the
     # wheel filename the Makefile expects (hatch-vcs is also a
     # ``[build-system].requires`` entry — listing it here just makes it
     # importable from the dev env).
     "hatch-vcs>=0.5",
-    "wasmtime>=20.0",
-    "flask>=3.0",
+    "wasmtime>=44.0",
+    "flask>=3.1",
     # Used by the test-slow TLS / x509 suites that spin up an HTTPS
     # server with a generated self-signed cert and exercise
     # ``url_get`` / ``tls_handshake`` / ``cert_load`` against it.
     # Also unlocks PKCS#12 parsing in ``cert_load``.
-    "cryptography>=42.0",
+    "cryptography>=48.0",
 ]
 # Sphinx + autodoc + furo theme — for building the f5q Python API
 # reference (``docs/sphinx/``).  Read the Docs uses this extras
 # group via ``.readthedocs.yaml``; locally, build with
 # ``uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html``.
 docs = [
-    "sphinx>=7.0",
-    "myst-parser>=2.0",
-    "sphinx-autodoc-typehints>=1.25",
-    "furo>=2024.1.29",
+    "sphinx>=8.0",
+    "myst-parser>=4.0",
+    "sphinx-autodoc-typehints>=3.0",
+    "furo>=2025.12.19",
 ]
 
 [build-system]
@@ -154,5 +154,5 @@ output = "tmp/coverage/python/coverage.xml"
 
 [dependency-groups]
 dev = [
-    "ty==0.0.37",
+    "ty==0.0.39",
 ]
