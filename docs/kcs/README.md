@@ -89,6 +89,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-bind-sublime-tcl-commands.md](kcs-howto-bind-sublime-tcl-commands.md)
+  — add keyboard shortcuts for the Tcl package's commands in Sublime
+  Text using the bundled example keymap.
 - [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
   — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
   factory-created instance commands) so the call graph, arity checker,
