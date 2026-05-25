@@ -20,9 +20,7 @@ with a superset of its features across all Tcl dialects.
 
 Install LSP from Package Control:
 
-> **Install Package Control > LSP**
-
-(Command Palette → **Package Control: Install Package** → **LSP**.)
+> Command Palette → **Package Control: Install Package** → **LSP**
 
 ## Installation
 
@@ -219,9 +217,9 @@ see [How do I bind keys to the Tcl commands in Sublime Text?](../../docs/kcs/kcs
 ## Disabling the context menu
 
 The package adds a few entries (Format Document, Minify Document, Unminify
-Error, Apply Safe Quick Fixes) to the editor right-click menu. They are
-gated to Tcl and iRules files (`source.tcl`, `source.irule`) so they don't
-appear in other file types.
+Error, Apply Safe Quick Fixes) to the editor right-click menu. They only
+appear in Tcl and iRules files — each command's `is_visible` check hides
+it in other file types.
 
 If you'd rather not have them at all, you can override the menu: create the
 file `Packages/Tcl/Context.sublime-menu` (use **Browse Packages…** from the

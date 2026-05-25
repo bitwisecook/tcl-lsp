@@ -441,6 +441,28 @@ class TclFixAllSafeIssuesCommand(sublime_plugin.TextCommand):
         return _is_tcl_view(self.view)
 
 
+class TclFormatDocumentCommand(sublime_plugin.TextCommand):
+    """Scope-gated wrapper around lsp_format_document.
+
+    Sublime gates context-menu visibility through a command's
+    is_visible() (the ``context`` key works for key bindings, not menus),
+    so the menu uses this wrapper to keep Format Document out of non-Tcl
+    buffers while the palette can still call lsp_format_document directly.
+    """
+
+    def run(self, edit):
+        # type: (sublime.Edit) -> None
+        self.view.run_command("lsp_format_document")
+
+    def is_enabled(self):
+        # type: () -> bool
+        return _HAS_LSP
+
+    def is_visible(self):
+        # type: () -> bool
+        return _is_tcl_view(self.view)
+
+
 class TclMinifyDocumentCommand(sublime_plugin.TextCommand):
     """Minify the current Tcl document."""
 
@@ -515,6 +537,10 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
         # type: () -> bool
         return _HAS_LSP
+
+    def is_visible(self):
+        # type: () -> bool
+        return _is_tcl_view(self.window.active_view())
 
 
 # Dialect sync — automatically update the LSP dialect when the user
