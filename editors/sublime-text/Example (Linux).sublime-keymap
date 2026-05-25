@@ -1,0 +1,29 @@
+[
+	// Example key bindings for the Tcl package (Linux).
+	//
+	// These are commented out so they don't clash with your own
+	// bindings. Copy any you want into your user keymap (the right-hand
+	// pane in Preferences > Package Settings > Tcl > Key Bindings) and
+	// uncomment them.
+
+	// Format the current document.
+	// {"keys": ["ctrl+alt+f"], "command": "lsp_format_document"},
+
+	// Apply all safe quick fixes.
+	// {"keys": ["ctrl+alt+q"], "command": "tcl_fix_all_safe_issues"},
+
+	// Apply all optimisation suggestions.
+	// {"keys": ["ctrl+alt+o"], "command": "tcl_optimise_document"},
+
+	// Minify the current document.
+	// {"keys": ["ctrl+alt+m"], "command": "tcl_minify_document"},
+
+	// Translate a minified error message back to original names.
+	// {"keys": ["ctrl+alt+u"], "command": "tcl_unminify_error"},
+
+	// Choose the active Tcl dialect.
+	// {"keys": ["ctrl+alt+d"], "command": "tcl_select_dialect"},
+
+	// Restart the Tcl language server.
+	// {"keys": ["ctrl+alt+r"], "command": "tcl_restart_server"},
+]
