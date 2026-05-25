@@ -577,8 +577,15 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
 
 def _is_tcl_view(view):
     # type: (sublime.View) -> bool
-    """Return True if the view is a Tcl or iRules file."""
+    """Return True if the view holds one of our package's syntaxes.
+
+    Matches by scope rather than syntax-file path so it covers every
+    dialect the package ships — the EDA, Expect, iApp and Tcl-version
+    grammars all declare ``source.tcl``; iRules use ``source.irule`` and
+    F5 iApp APL uses ``source.apl``.
+    """
     if view is None:
         return False
-    syntax = view.settings().get("syntax", "")
-    return "Tcl" in syntax or "iRule" in syntax
+    sel = view.sel()
+    point = sel[0].b if sel else 0
+    return view.match_selector(point, "source.tcl, source.irule, source.apl")

@@ -212,7 +212,7 @@ commented-out example keymap on the left and your own user keymap on the
 right. Copy any binding you want into the right-hand pane and uncomment it.
 
 For a step-by-step walkthrough and the full list of bindable commands,
-see [How do I bind keys to the Tcl commands in Sublime Text?](../../docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
+see [How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
 
 ## Disabling the context menu
 
