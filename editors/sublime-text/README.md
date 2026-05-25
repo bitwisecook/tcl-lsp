@@ -6,6 +6,24 @@ Full Tcl and iRules language support for Sublime Text, powered by
 **Replaces** [sublime-iRules](https://github.com/billchurch/sublime-iRules)
 with a superset of its features across all Tcl dialects.
 
+## Requirements
+
+- **Sublime Text** 4 (build 4107+)
+- **Python 3.10+** on your system PATH — the LSP server runs as a Python
+  process. The `.sublime-package` bundles the server and all its Python
+  dependencies, so no `pip install` is needed; you only need an
+  interpreter installed.
+- The **[LSP](https://packagecontrol.io/packages/LSP)** package — install
+  it **first**, before this package, for full language-server features
+  (diagnostics, completions, hover, formatting, code actions, and more).
+  Syntax highlighting, snippets, and settings work without it.
+
+Install LSP from Package Control:
+
+> **Install Package Control > LSP**
+
+(Command Palette → **Package Control: Install Package** → **LSP**.)
+
 ## Installation
 
 ### Via Package Control (recommended, once tcl-lsp is on the channel)
@@ -187,6 +205,33 @@ If the bundled server is not found or you want to use a different version:
 }
 ```
 
+### Key bindings
+
+This package ships **no** key bindings by default, to avoid clashing with
+your own. Example bindings for every command live in
+**Preferences > Package Settings > Tcl > Key Bindings**, which opens the
+commented-out example keymap on the left and your own user keymap on the
+right. Copy any binding you want into the right-hand pane and uncomment it.
+
+## Disabling the context menu
+
+The package adds a few entries (Format Document, Minify Document, Unminify
+Error, Apply Safe Quick Fixes) to the editor right-click menu. They are
+gated to Tcl and iRules files (`source.tcl`, `source.irule`) so they don't
+appear in other file types.
+
+If you'd rather not have them at all, you can override the menu: create the
+file `Packages/Tcl/Context.sublime-menu` (use **Browse Packages…** from the
+menu to find your `Packages` directory) and put an empty list in it to
+remove every entry:
+
+```json
+[]
+```
+
+Anything you put in that file replaces the bundled context menu, so you can
+also keep only the entries you want.
+
 ## Command Palette
 
 | Command | Description |
@@ -241,12 +286,6 @@ This package is a drop-in replacement for
 3. All `.irul` and `.irule` files automatically use the new syntax
 4. The built-in formatter is now powered by the LSP server and supports
    all Tcl dialects, not just iRules
-
-## Requirements
-
-- **Sublime Text** 4 (build 4107+)
-- **Python 3.10+** on your system PATH (for the LSP server process)
-- **LSP** package from Package Control (recommended, not required)
 
 ## Licence
 
