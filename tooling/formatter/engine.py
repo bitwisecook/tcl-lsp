@@ -1178,7 +1178,6 @@ def _enforce_braced_variables_in_arg(arg: CommandArg) -> None:
             # Instead, we'll do the rewrite at reconstruction time.
             pass
     # This is handled in _reconstruct_arg_with_braced_vars
-    pass
 
 
 def _reconstruct_arg_with_braced_vars(arg: CommandArg) -> str:

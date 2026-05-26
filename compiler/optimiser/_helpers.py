@@ -203,7 +203,6 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
     )
 
     saw_word = False
-    end_offset = start
     prev_in_quote = False
 
     while True:

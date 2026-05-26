@@ -1,4 +1,4 @@
-"""Packet/byte decoding: pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5 trailer."""
+"""Packet/byte decoding (pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5 trailer)."""
 
 from __future__ import annotations
 

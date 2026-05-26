@@ -151,21 +151,19 @@ jobs:
         with:
           node-version: "lts/*"
 
-      # The repo doesn't commit `package-lock.json`, so setup-node's
-      # built-in `cache: 'npm'` (which needs a lockfile) won't work.
-      # Cache the npm metadata directory instead so `npm install` skips
-      # the network for tarballs it already has.  Key on package.json so
-      # the cache invalidates whenever declared deps change.
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
       - name: Cache npm registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
 
       - name: Install npm dependencies
-        run: cd editors/vscode && npm install
+        run: cd editors/vscode && npm ci
 
       - name: Lint TypeScript
         run: cd editors/vscode && npm run lint
@@ -283,21 +281,19 @@ jobs:
         with:
           node-version: "lts/*"
 
-      # The repo doesn't commit `package-lock.json`, so setup-node's
-      # built-in `cache: 'npm'` (which needs a lockfile) won't work.
-      # Cache the npm metadata directory instead so `npm install` skips
-      # the network for tarballs it already has.  Key on package.json so
-      # the cache invalidates whenever declared deps change.
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
       - name: Cache npm registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
 
       - name: Install npm dependencies
-        run: cd editors/vscode && npm install
+        run: cd editors/vscode && npm ci
 
       - name: Build and verify VSIX
         run: make package-vsix

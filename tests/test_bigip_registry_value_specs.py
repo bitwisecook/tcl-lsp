@@ -136,7 +136,8 @@ def test_bigip_list_behaves_like_mutable_python_list():
     values[1:2] = ["/Common/c", "/Common/d"]
 
     assert list(values) == ["/Common/z", "/Common/c", "/Common/d"]
-    assert values.pop() == "/Common/d"
+    popped = values.pop()
+    assert popped == "/Common/d"
     assert list(values) == ["/Common/z", "/Common/c"]
 
 

@@ -120,7 +120,13 @@ def main() -> None:
         prof = cProfile.Profile()
         prof.enable()
         t0 = time.perf_counter()
-        state._build_full_chunk_caches(source, chunks)
+        state._build_full_chunk_caches(
+            source,
+            chunks,
+            None,
+            state.compilation_unit,
+            analysis=state.analysis,
+        )
         t1 = time.perf_counter()
         prof.disable()
 

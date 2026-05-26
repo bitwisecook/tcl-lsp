@@ -581,7 +581,7 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
         interp,
         "::oo::Helpers",
         _OO_HELPERS_SUBCMDS,
-        lambda sub: _oo_helpers_stub(sub),
+        _oo_helpers_stub,
     )
     _register_namespace(
         interp,

@@ -247,7 +247,6 @@ from .state import (  # noqa: E402
     _semantic_token_results,
     _semantic_token_results_lock,
     background_scanner,
-    feature_config,
     workspace_index,
     workspace_state,
 )
@@ -1010,7 +1009,7 @@ def on_signature_help(
 def on_workspace_symbol(
     params: types.WorkspaceSymbolParams,
 ) -> list[types.WorkspaceSymbol]:
-    if not feature_config.workspace_symbols_enabled:
+    if not _state.feature_config.workspace_symbols_enabled:
         return []
     return get_workspace_symbols(params.query, workspace_index)
 

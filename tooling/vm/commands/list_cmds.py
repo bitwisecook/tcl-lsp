@@ -197,7 +197,7 @@ def _cmd_lsort(interp: TclInterp, args: list[str]) -> TclResult:
                 float(item)
             except ValueError:
                 raise TclError(f'expected floating-point number but got "{item}"') from None
-        result = sorted(lst, key=lambda s: float(s), reverse=not ascending)
+        result = sorted(lst, key=float, reverse=not ascending)
     elif nocase:
         result = sorted(lst, key=str.lower, reverse=not ascending)
     else:
