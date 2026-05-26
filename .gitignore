@@ -42,17 +42,25 @@ editors/vscode/.vscode-test/
 .vscode-test/
 shared/_build_info.py
 server/_version.py
+# Generated build metadata under the packaged lsp/ tree (mirrors the
+# shared/_build_info.py + server/_version.py generated files above).
+# Listed after the `!/lsp/` un-ignore at the top so these specific
+# generated files stay untracked even though the lsp/ dir is included.
+/lsp/_build_info.py
+/lsp/_version.py
 tooling/explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock
-editors/vscode/package-lock.json
 .claude/settings.local.json
 .claude/worktrees/
 docs/screenshots/.shell-ready
 docs/screenshots/.ai-done
 docs/screenshots/.ai-started
 docs/screenshots/.ai-success
-.vscode/
+
+# NB: editor/IDE/OS cruft (.idea/, .vscode/, *.swp, *~, .DS_Store,
+# *.sublime-workspace, .codex, …) is intentionally NOT listed here — it
+# belongs in a personal global gitignore (core.excludesfile), not the repo.
 
 # JetBrains plugin build artifacts
 editors/jetbrains/build/

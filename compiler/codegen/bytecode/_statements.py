@@ -220,7 +220,7 @@ class _StatementsMixin:
                     for part in nested[:-1]:
                         self._push_var_ref(part)
                     self._push_lit(nested[-1])
-                    for _v in reversed(nested[:-1]):
+                    for _ in range(len(nested) - 1):
                         self._emit(Op.STORE_STK)
                     self._store_var(name)
                     self._emit(Op.POP)

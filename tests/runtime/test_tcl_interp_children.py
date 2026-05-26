@@ -181,10 +181,12 @@ def test_delete_unlinks_from_parent(runtime: RuntimeHandle):
     root = runtime.root()
     runtime.create_child(root, "victim")
     assert runtime.lookup(root, "victim") != 0
-    assert runtime.delete(root, "victim") == 1
+    deleted = runtime.delete(root, "victim")
+    assert deleted == 1
     assert runtime.lookup(root, "victim") == 0
     # Second delete is a no-op.
-    assert runtime.delete(root, "victim") == 0
+    deleted_again = runtime.delete(root, "victim")
+    assert deleted_again == 0
 
 
 def test_eval_swaps_current_interp(runtime: RuntimeHandle):

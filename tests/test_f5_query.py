@@ -6767,7 +6767,6 @@ def test_audit_followup_dispatch_bugs_resolved():
     ("monitor "):`` never fired.  This test verifies the dispatch
     now produces populated containers.
     """
-    cfg = parse_query  # noqa: F841 — placeholder to keep imports stable
     from dialects.f5.bigip.parser import parse_bigip_conf
 
     cfg = parse_bigip_conf(_AUDIT_FOLLOWUP_CONF)
@@ -8522,8 +8521,6 @@ def test_vscode_extension_registers_scf_as_tcl_bigip():
     arbitrary ``.scf`` files — the BIG-IP testsrc directories
     ship hundreds of named-by-host SCFs that previously opened as
     plaintext."""
-    import json
-
     pkg = json.loads(
         (Path(__file__).resolve().parent.parent / "editors" / "vscode" / "package.json").read_text()
     )

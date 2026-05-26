@@ -356,8 +356,9 @@ class _WasmEmitterOptMixin(_Base):
             if name in visited:
                 continue
             # Outer loop header — stop the walk here so we don't wrap
-            # around through the outer loop back to `header`.
-            if name in self._active_loop_headers and name != header:
+            # around through the outer loop back to `header`.  (name ==
+            # header already returned True above, so name != header here.)
+            if name in self._active_loop_headers:
                 continue
             visited.add(name)
             blk = self._cfg.blocks.get(name)

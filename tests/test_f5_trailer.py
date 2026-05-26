@@ -185,11 +185,6 @@ def test_classify_real_ipv6_returns_v6():
 
 def test_classify_f5_route_domain_treated_as_v4():
     """The F5 route-domain wrapper holds an IPv4 in its last 4 bytes."""
-    bytes16 = (
-        bytes.fromhex("262000000c10f50100")  # 9 bytes of fixed prefix; we only
-        # actually need the first 10 bytes to match — Wireshark's prefix is
-        # 10 bytes total.  Build it correctly:
-    )
     bytes16 = bytes.fromhex("262000000c10f5010000")  # 10 bytes prefix
     bytes16 += b"\x00\x05"  # route domain id = 5
     bytes16 += b"\x0a\x00\x00\x01"  # 10.0.0.1

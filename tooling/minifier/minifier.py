@@ -1995,7 +1995,7 @@ _WORD_OPS = re.compile(r"\b(eq|ne|in|ni)\b")
 _EXPR_TOKEN = re.compile(
     r"""
     "(?:[^"\\]|\\.)*"    # double-quoted string
-    | \[(?:[^\[\]]|\[(?:[^\[\]])*\])*\]  # [...] command substitution (1 level)
+    | \[(?:[^\[\]]|\[(?:[^\[\]])*\])*\]  # bracketed command substitution (1 nesting level)
     | \$[\w:]+            # variable reference
     | [\w.]+              # number or function name
     | [+\-*/%<>=!&|^?:~]+ # symbolic operator(s)

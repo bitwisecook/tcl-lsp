@@ -352,10 +352,10 @@ def collect_registry_commands() -> dict[str, dict]:
             elif TCL_DIALECTS & spec_dialects:
                 in_tcl = True
                 inter = TCL_DIALECTS & spec_dialects
+                # ``applicable_dialects is None`` means "all dialects"; keep
+                # it as-is (all ∪ inter == all). Only widen a concrete set.
                 if applicable_dialects is not None:
                     applicable_dialects |= inter
-                elif not in_tcl:
-                    applicable_dialects = set(inter)
             if "wasm" in spec.codegens:
                 has_wasm = True
             # First spec with validation.arity wins — later dialect packs

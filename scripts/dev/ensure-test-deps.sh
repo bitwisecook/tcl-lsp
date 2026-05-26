@@ -421,15 +421,15 @@ ensure_node() {
     fi
 
     # Project-local tsc lives in editors/vscode/node_modules/.bin/tsc and
-    # is what the diagnostic-manifest tests look for.  Run npm install
-    # there if it hasn't been done yet.
+    # is what the diagnostic-manifest tests look for.  Run a hash-pinned
+    # `npm ci` (lockfile is committed) there if it hasn't been done yet.
     local ext_dir="$REPO_ROOT/editors/vscode"
     if [ -f "$ext_dir/package.json" ] && [ ! -x "$ext_dir/node_modules/.bin/tsc" ]; then
         if [ "$CHECK_ONLY" -eq 1 ]; then
-            note_missing "editors/vscode/node_modules (would run npm install)"
+            note_missing "editors/vscode/node_modules (would run npm ci)"
         else
-            info "Running npm install in editors/vscode (project tsc)"
-            (cd "$ext_dir" && npm install --no-audit --no-fund >/dev/null)
+            info "Running npm ci in editors/vscode (project tsc)"
+            (cd "$ext_dir" && npm ci --no-audit --no-fund >/dev/null)
         fi
     fi
 }

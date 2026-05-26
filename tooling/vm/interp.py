@@ -1054,8 +1054,6 @@ class TclInterp:
     @staticmethod
     def _validate_numeric_literal(text: str) -> None:
         """Raise TclError for invalid prefix literals like 0o289."""
-        import re
-
         s = text.strip().lstrip("+-")
         if re.match(r"0[oO]", s):
             try:

@@ -1245,8 +1245,8 @@ class BytecodeVM:
                 case Op.STR_REPLACE:
                     # string replace string first last ?newString?
                     new = stack.pop()
-                    s = stack.pop()
-                    stack.append(new)  # TODO: proper string replace
+                    stack.pop()  # TODO: proper string replace (discards source string)
+                    stack.append(new)
 
                 case Op.STR_TRIM:
                     chars = stack.pop() if stack else None

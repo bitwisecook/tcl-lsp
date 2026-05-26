@@ -253,7 +253,7 @@ def _sort_proc_sections(disasm_text: str) -> str:
         sections.append("\n".join(current))
     if len(sections) <= 1:
         return disasm_text
-    proc_sections = sorted(sections[1:], key=lambda s: _normalise_instructions(s))
+    proc_sections = sorted(sections[1:], key=_normalise_instructions)
     return "\n\n".join([sections[0]] + proc_sections)
 
 

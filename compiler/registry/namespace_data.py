@@ -1982,6 +1982,8 @@ _PROFILE_DIRECTIVE_RE = re.compile(
 # Build a regex that matches all known event names from EVENT_PROPS.
 # This is derived from the registry data at module load time rather than
 # being hardcoded separately.
+# NB: keep the explicit lambda — `key=len` makes the type checker widen
+# the inferred element type to `Sized`, breaking the `list[str]` annotation.
 _event_names: list[str] = sorted(EVENT_PROPS, key=lambda n: len(n), reverse=True)
 _ALL_EVENT_NAMES_PATTERN = "|".join(_event_names)
 _WHEN_EVENT_RE = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)")

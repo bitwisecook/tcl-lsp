@@ -449,7 +449,6 @@ def _rewrite_expr(node, rename: dict[str, str]):
         # ``text`` field carries the source token (``$x`` or
         # ``${x}``).  Update it textually so downstream emitters
         # that fall back on text get a coherent value.
-        new_text = node.text
         if "{" in node.text:
             new_text = node.text.replace("{" + node.name + "}", "{" + new_name + "}")
         else:

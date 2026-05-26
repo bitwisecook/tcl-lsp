@@ -1499,7 +1499,6 @@ def _cmd_oo_define(interp: TclInterp, args: list[str]) -> TclResult:
     oo = _get_oo_runtime(interp)
     cls = _resolve_class(interp, oo, class_name)
 
-    body_result = TclResult()
     if len(args) == 2:
         # Body form: oo::define Dog { method bark {} { ... } }
         # Special case: "self" alone returns the class name (TIP #470)
