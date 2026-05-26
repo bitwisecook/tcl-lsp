@@ -57,10 +57,10 @@ docs/screenshots/.shell-ready
 docs/screenshots/.ai-done
 docs/screenshots/.ai-started
 docs/screenshots/.ai-success
-.vscode/
 
-# JetBrains / IntelliJ IDE metadata (user/machine-specific) anywhere in the tree
-.idea/
+# NB: editor/IDE/OS cruft (.idea/, .vscode/, *.swp, *~, .DS_Store,
+# *.sublime-workspace, .codex, …) is intentionally NOT listed here — it
+# belongs in a personal global gitignore (core.excludesfile), not the repo.
 
 # JetBrains plugin build artifacts
 editors/jetbrains/build/
@@ -75,8 +75,6 @@ shared/help/kcs_help.db
 
 # Local build artefacts
 tmp/
-# Codex CLI local marker file
-.codex
 editors/jetbrains/.intellijPlatform/
 perf_history.sqlite3
 
