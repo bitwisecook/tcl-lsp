@@ -1982,7 +1982,7 @@ _PROFILE_DIRECTIVE_RE = re.compile(
 # Build a regex that matches all known event names from EVENT_PROPS.
 # This is derived from the registry data at module load time rather than
 # being hardcoded separately.
-_event_names: list[str] = sorted(EVENT_PROPS, key=lambda n: len(n), reverse=True)
+_event_names: list[str] = sorted(EVENT_PROPS, key=len, reverse=True)
 _ALL_EVENT_NAMES_PATTERN = "|".join(_event_names)
 _WHEN_EVENT_RE = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)")
 

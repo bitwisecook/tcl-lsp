@@ -76,7 +76,7 @@ def _split_bytecode_sections(disasm_text: str) -> list[str]:
     # proc body sections by their instruction content so that comparison
     # is independent of proc body ordering.
     top = sections[0]
-    procs = sorted(sections[1:], key=lambda s: _section_sort_key(s))
+    procs = sorted(sections[1:], key=_section_sort_key)
     return [top] + procs
 
 

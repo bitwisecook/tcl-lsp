@@ -1663,8 +1663,8 @@ class LtmPolicyRuleSpec(_BaseSpec):
     through the same path.
     """
 
-    action_spec: LtmPolicyActionSpec = field(default_factory=lambda: LtmPolicyActionSpec())
-    condition_spec: LtmPolicyConditionSpec = field(default_factory=lambda: LtmPolicyConditionSpec())
+    action_spec: LtmPolicyActionSpec = field(default_factory=LtmPolicyActionSpec)
+    condition_spec: LtmPolicyConditionSpec = field(default_factory=LtmPolicyConditionSpec)
 
     def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
         if value is None:

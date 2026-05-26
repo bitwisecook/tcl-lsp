@@ -331,7 +331,7 @@ def plugin_loaded():
         register_plugin(TclLsp)
         print("Tcl: registered LSP server plugin")
     else:
-        sublime.set_timeout(lambda: _suggest_lsp_install(), 3000)
+        sublime.set_timeout(_suggest_lsp_install, 3000)
 
 
 def plugin_unloaded():

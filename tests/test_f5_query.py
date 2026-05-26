@@ -8521,8 +8521,6 @@ def test_vscode_extension_registers_scf_as_tcl_bigip():
     arbitrary ``.scf`` files — the BIG-IP testsrc directories
     ship hundreds of named-by-host SCFs that previously opened as
     plaintext."""
-    import json
-
     pkg = json.loads(
         (Path(__file__).resolve().parent.parent / "editors" / "vscode" / "package.json").read_text()
     )
