@@ -45,7 +45,6 @@ server/_version.py
 tooling/explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock
-editors/vscode/package-lock.json
 .claude/settings.local.json
 .claude/worktrees/
 docs/screenshots/.shell-ready
