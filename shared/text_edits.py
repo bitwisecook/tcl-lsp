@@ -71,7 +71,7 @@ def build_file_join_fix(path_expr: str) -> str | None:
     if " " in text:
         return None
 
-    parts = [part for part in re.split(r"[/\\\\]+", text) if part]
+    parts = [part for part in re.split(r"[/\\]+", text) if part]
     if len(parts) < 2:
         return None
 

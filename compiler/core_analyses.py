@@ -543,8 +543,9 @@ def _try_fold_cmd_subst(
             return None
         args_text = parts[1] if len(parts) > 1 else ""
 
-    if fold_fn is None:
-        return None
+    # Narrow Optional for the type checker: every reachable path above
+    # either returned or assigned a non-None fold_fn.
+    assert fold_fn is not None
 
     # Split into individual arguments first (respecting braces/quotes),
     # then resolve variable references in each arg individually.

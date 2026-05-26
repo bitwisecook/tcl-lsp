@@ -220,7 +220,6 @@ def _split_folder_prefix(text: str) -> tuple[Folder | None, str]:
         # ``/Common`` alone — no host segment.  Treat as no folder.
         return None, text
     folder_segments = [parts[0]]
-    host_index = 1
     for i in range(1, len(parts)):
         seg = parts[i]
         if seg.startswith("[") or _looks_like_address(seg):

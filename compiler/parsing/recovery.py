@@ -156,7 +156,6 @@ def _detect_missing_bracket_at_comment(
             # CMD text starts at tok.start.offset + 1 in the full file,
             # which is local source index (tok.start.offset + 1 - base_offset).
             local_bracket_start = tok.start.offset - base_offset
-            virtual_offset = local_bracket_start + 1 + insert_text_idx
 
             # Compute the newline offset for the virtual token.
             # The virtual ] goes at the position of the \n so that _parse_command

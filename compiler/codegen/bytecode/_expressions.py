@@ -217,7 +217,6 @@ class _ExpressionsMixin:
             case _:
                 self._push_lit(str(node))
                 return False  # unknown — not guaranteed numeric
-                self._emit(Op.EXPR_STK)
 
     # -- switch jumpTable --
 
