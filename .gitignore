@@ -42,6 +42,12 @@ editors/vscode/.vscode-test/
 .vscode-test/
 shared/_build_info.py
 server/_version.py
+# Generated build metadata under the packaged lsp/ tree (mirrors the
+# shared/_build_info.py + server/_version.py generated files above).
+# Listed after the `!/lsp/` un-ignore at the top so these specific
+# generated files stay untracked even though the lsp/ dir is included.
+/lsp/_build_info.py
+/lsp/_version.py
 tooling/explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock
@@ -52,6 +58,9 @@ docs/screenshots/.ai-done
 docs/screenshots/.ai-started
 docs/screenshots/.ai-success
 .vscode/
+
+# JetBrains / IntelliJ IDE metadata (user/machine-specific) anywhere in the tree
+.idea/
 
 # JetBrains plugin build artifacts
 editors/jetbrains/build/
@@ -66,6 +75,8 @@ shared/help/kcs_help.db
 
 # Local build artefacts
 tmp/
+# Codex CLI local marker file
+.codex
 editors/jetbrains/.intellijPlatform/
 perf_history.sqlite3
 
