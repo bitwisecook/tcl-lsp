@@ -20,7 +20,6 @@ from lsprotocol import types
 import server.server as server_module
 import server.state as _state
 from server.feature_config import FeatureConfig
-from server.state import workspace_state
 
 
 def _fold(uri: str) -> list[types.FoldingRange]:
@@ -50,11 +49,11 @@ class TestFoldingHandler:
             '    puts "Bye $name"\n'  # 9
             "}\n"  # 10
         )
-        workspace_state.open(uri, source)
+        _state.workspace_state.open(uri, source)
         try:
             spans = _spans(_fold(uri))
         finally:
-            workspace_state.close(uri)
+            _state.workspace_state.close(uri)
 
         Region = types.FoldingRangeKind.Region
         Comment = types.FoldingRangeKind.Comment
@@ -69,11 +68,11 @@ class TestFoldingHandler:
         """Every returned range is whole-line and non-degenerate."""
         uri = "file:///folding-wellformed.tcl"
         source = "proc demo {} {\n    if {1} {\n        puts hi\n    }\n}\n"
-        workspace_state.open(uri, source)
+        _state.workspace_state.open(uri, source)
         try:
             ranges = _fold(uri)
         finally:
-            workspace_state.close(uri)
+            _state.workspace_state.close(uri)
         assert ranges
         for r in ranges:
             assert r.end_line > r.start_line, r
@@ -82,7 +81,7 @@ class TestFoldingHandler:
     def test_disabled_via_config_returns_empty(self, monkeypatch):
         uri = "file:///folding-disabled.tcl"
         source = "proc foo {} {\n    puts hi\n    puts bye\n}\n"
-        workspace_state.open(uri, source)
+        _state.workspace_state.open(uri, source)
         monkeypatch.setattr(
             _state,
             "config_for_uri",
@@ -91,4 +90,4 @@ class TestFoldingHandler:
         try:
             assert _fold(uri) == []
         finally:
-            workspace_state.close(uri)
+            _state.workspace_state.close(uri)
