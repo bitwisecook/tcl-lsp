@@ -23,6 +23,7 @@ wins, so later collectors never double-fold the same lines):
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from lsprotocol import types
@@ -228,7 +229,7 @@ def _collect_comment_folds(
 
 
 def _emit_continuation_runs(
-    tokens: list[Token],
+    tokens: Sequence[Token],
     lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
