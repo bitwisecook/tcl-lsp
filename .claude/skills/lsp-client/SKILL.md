@@ -40,6 +40,7 @@ The script auto-detects the `tcl-lsp/` server directory.  Override with
 | `code-actions` | `<file.tcl> <l> <c> <el> <ec>` | Show code actions in a 0-based range |
 | `optimize` | `<file.tcl>` | Show optimization suggestions and rewritten source |
 | `symbols` | `<file.tcl>` | Show document symbol hierarchy (procs, events, namespaces, variables) |
+| `folding` | `<file.tcl>` | Show folding ranges (blocks, `#region` markers, import groups, comments) |
 | `diagram` | `<file.tcl>` | Extract control flow diagram data from compiler IR |
 | `event-info` | `<EVENT_NAME>` | Show iRules event registry metadata (no file needed) |
 | `command-info` | `<COMMAND_NAME>` | Show iRules command registry metadata (no file needed) |
@@ -94,6 +95,19 @@ Shows each optimization and the fully rewritten source.
     Variable result (line 26)
 ```
 Hierarchical display of events, procs, namespaces, and variables.
+
+### Folding Ranges
+```
+=== Folding Ranges (4) ===
+  lines    0–3    region
+  lines    1–2    imports
+  lines    5–6    comment
+  lines    7–9    region
+```
+Line numbers are 0-based and `endLine` is inclusive (the `startLine` stays
+visible when collapsed). Kinds: `region` (braced/bracketed/quoted blocks and
+`#region`/`#endregion` markers), `imports` (`package require`/`source`/`load`
+runs), `comment` (consecutive `#` lines).
 
 ### Diagram Data
 Shows events in canonical firing order with multiplicity and priority,
@@ -203,6 +217,7 @@ python3 .claude/skills/lsp-client/lsp_client.py diagnostics tcl-lsp/editors/vsco
 python3 .claude/skills/lsp-client/lsp_client.py hover tcl-lsp/editors/vscode/testFixture/procs.tcl 1 6
 python3 .claude/skills/lsp-client/lsp_client.py optimize tcl-lsp/samples/for_screenshots/22-optimiser-before.tcl
 python3 .claude/skills/lsp-client/lsp_client.py symbols tcl-lsp/samples/for_screenshots/ai-scene.irul
+python3 .claude/skills/lsp-client/lsp_client.py folding tcl-lsp/editors/vscode/testFixture/folding.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagram tcl-lsp/samples/for_screenshots/ai-scene.irul
 python3 .claude/skills/lsp-client/lsp_client.py event-info HTTP_REQUEST
 python3 .claude/skills/lsp-client/lsp_client.py command-info HTTP::uri

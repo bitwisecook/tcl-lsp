@@ -1,190 +1,225 @@
-"""Folding range provider -- proc bodies, namespaces, comment blocks, control structures."""
+"""Folding range provider.
+
+Emits whole-line folding ranges (VS Code advertises ``lineFoldingOnly`` so
+``startCharacter`` / ``endCharacter`` are ignored).  ``FoldingRange.end_line``
+is *inclusive*; ``start_line`` stays visible when the range is collapsed.
+
+Folds produced, in priority order (the first collector to claim a line span
+wins, so later collectors never double-fold the same lines):
+
+* **region markers** -- ``#region`` / ``#endregion`` comment pairs (Region).
+* **blocks** -- any multi-line braced ``{...}`` body or data literal,
+  bracketed ``[...]`` command substitution, and quoted ``"..."`` string
+  (Region).  This covers proc / namespace / control-flow bodies *and* plain
+  multi-line lists, dicts, ``switch`` arms, and strings uniformly.
+* **import groups** -- runs of ``package require`` / ``source`` / ``load``
+  lines (Imports).
+* **comment blocks** -- runs of ``#`` comment lines, incl. license headers
+  (Comment).
+* **line continuations** -- commands stretched across lines by a trailing
+  ``\\`` (Region).
+"""
 
 from __future__ import annotations
 
+import re
+from typing import TYPE_CHECKING
+
 from lsprotocol import types
 
-from analyser.semantic_model import AnalysisResult, Scope
-from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.green_tree import tokenise
-from compiler.registry.runtime import iter_body_arguments
 from shared.tokens import Token, TokenType
+
+if TYPE_CHECKING:
+    from analyser.semantic_model import AnalysisResult
 
 # Lexer text for a backslash-newline line continuation: a literal ``\``
 # followed by the newline it joins across.
 _CONTINUATION = "\\\n"
 
+# Characters that close a foldable block on the *same* line as its last byte
+# of content (``}`` brace body, ``]`` command substitution, ``"`` string).
+_BLOCK_CLOSERS = '}]"'
 
-def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
-    """Return a fold end line that leaves the closing ``}`` visible.
+# Region markers, matching the regexes VS Code's language-configuration uses
+# (``^\s*#\s*region\b`` / ``^\s*#\s*endregion\b``).  Emitting them from the
+# server makes region folding work in editors that don't read the VS Code
+# language-configuration (Zed, Neovim, Emacs, Sublime, Helix).
+_REGION_START = re.compile(r"^\s*#\s*region\b")
+_REGION_END = re.compile(r"^\s*#\s*endregion\b")
 
-    A braced body token ends at the character immediately before its closing
-    ``}``.  When that character is a newline, ``}`` is on ``end_line + 1`` and
-    ``end_line`` is already the correct fold end (VS Code keeps the line after
-    ``end_line`` visible).  When ``}`` sits on the same line as the last byte
-    of content -- e.g. ``} else {`` or a trailing ``}`` on the same line as
-    inner text -- the unadjusted fold would cover the separator line and
-    collide with the next sibling body's fold range, producing the
-    non-hierarchical overlap VS Code's folding tree-builder rejects.  Moving
-    the fold end up one line in that case keeps siblings disjoint.
+# Import-like commands whose consecutive runs fold as an ``imports`` group.
+_IMPORT_RE = re.compile(r"^\s*(?:package\s+require|source|load)\b")
 
-    Incomplete bodies (no closing ``}`` yet -- common while the user is still
-    typing) don't need the adjustment: there is no separator line to preserve,
-    and decrementing would collapse the fold range away mid-edit.
+
+def _adjust_block_end_line(source: str, end_offset: int, end_line: int) -> int:
+    """Return a fold end line that leaves a block's closing delimiter visible.
+
+    A braced/bracketed/quoted token ends at the character immediately before
+    its closer.  When that character is a newline the closer sits on
+    ``end_line + 1`` and ``end_line`` is already correct (VS Code keeps the
+    line after ``end_line`` visible).  When the closer sits on the same line
+    as the last byte of content -- e.g. ``} else {`` or a trailing ``}`` /
+    ``]`` / ``"`` on the same line as inner text -- the unadjusted fold would
+    cover the separator line and collide with the next sibling's fold range,
+    producing the non-hierarchical overlap VS Code's folding tree-builder
+    rejects.  Moving the fold end up one line keeps siblings disjoint.
+
+    Incomplete blocks (no closer yet -- common while the user is still typing)
+    don't need the adjustment: there is no separator line to preserve, and
+    decrementing would collapse the fold range away mid-edit.
     """
     if end_offset < 0 or end_offset >= len(source):
         return end_line
     if source[end_offset] == "\n":
         return end_line
-    # Only adjust when there is an actual closing ``}`` right after the
-    # content -- otherwise the body is unterminated and the fold should span
-    # what the user has so far.
-    if end_offset + 1 < len(source) and source[end_offset + 1] == "}":
+    if end_offset + 1 < len(source) and source[end_offset + 1] in _BLOCK_CLOSERS:
         return end_line - 1
     return end_line
 
 
-def _collect_scope_folds(
-    scope: Scope,
+def _emit(
+    start_line: int,
+    end_line: int,
+    kind: types.FoldingRangeKind,
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
-    source: str,
 ) -> None:
-    """Emit folding ranges from the scope tree (procs and namespaces)."""
-    for proc_def in scope.procs.values():
-        br = proc_def.body_range
-        if br.start.line < br.end.line:
-            end_line = _adjust_body_end_line(source, br.end.offset, br.end.line)
-            if end_line > br.start.line:
-                key = (br.start.line, end_line)
-                if key not in seen:
-                    seen.add(key)
-                    ranges.append(
-                        types.FoldingRange(
-                            start_line=br.start.line,
-                            end_line=end_line,
-                            kind=types.FoldingRangeKind.Region,
-                        )
-                    )
-
-    for child in scope.children:
-        if child.kind == "namespace" and child.body_range is not None:
-            br = child.body_range
-            if br.start.line < br.end.line:
-                end_line = _adjust_body_end_line(source, br.end.offset, br.end.line)
-                if end_line > br.start.line:
-                    key = (br.start.line, end_line)
-                    if key not in seen:
-                        seen.add(key)
-                        ranges.append(
-                            types.FoldingRange(
-                                start_line=br.start.line,
-                                end_line=end_line,
-                                kind=types.FoldingRangeKind.Region,
-                            )
-                        )
-        _collect_scope_folds(child, seen, ranges, source)
+    """Append a fold if it spans >1 line and no fold already claims its span."""
+    if end_line <= start_line:
+        return
+    key = (start_line, end_line)
+    if key in seen:
+        return
+    seen.add(key)
+    ranges.append(types.FoldingRange(start_line=start_line, end_line=end_line, kind=kind))
 
 
-def _collect_comment_folds(
+def _is_quoted_string(full_source: str, tok: Token) -> bool:
+    """Whether *tok* is a double-quoted word (its span opens with ``"``)."""
+    start = tok.start.offset
+    return 0 <= start < len(full_source) and full_source[start] == '"'
+
+
+def _collect_block_folds(
+    full_source: str,
     source: str,
+    base_offset: int,
+    base_line: int,
+    base_col: int,
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
     *,
-    lines: list[str] | None = None,
+    depth: int = 0,
 ) -> None:
-    """Emit folding ranges for consecutive comment-line blocks."""
-    if lines is None:
-        lines = source.split("\n")
-    block_start: int | None = None
+    """Fold every multi-line braced/bracketed/quoted token, recursively.
 
+    Walks the token stream and emits a Region fold for each ``{...}`` brace
+    word (proc / namespace / control-flow body *or* a data literal such as a
+    list or dict), each ``[...]`` command substitution, and each ``"..."``
+    string that spans more than one line.  Recurses into the contents of brace
+    and bracket tokens so nested bodies / literals also fold.  ``full_source``
+    is always the original document text -- token offsets are absolute, so
+    delimiter look-ahead and recursion anchoring index into it directly.
+    """
+    if depth > 25:
+        return
+    tokens, _ = tokenise(source, base_offset, base_line, base_col)
+    for tok in tokens:
+        if tok.start.line >= tok.end.line:
+            continue
+        if tok.type in (TokenType.STR, TokenType.CMD):
+            end_line = _adjust_block_end_line(full_source, tok.end.offset, tok.end.line)
+            _emit(tok.start.line, end_line, types.FoldingRangeKind.Region, seen, ranges)
+            # Recurse into the body content regardless of whether the outer
+            # fold survived -- an inner multi-line block may still be foldable
+            # when the enclosing token collapses to a single effective line.
+            # Content begins one character past the opening delimiter, which is
+            # where the lexer anchors a STR/CMD body (mirrors the command
+            # segmenter's base-position logic).
+            _collect_block_folds(
+                full_source,
+                tok.text,
+                tok.start.offset + 1,
+                tok.start.line,
+                tok.start.character + 1,
+                seen,
+                ranges,
+                depth=depth + 1,
+            )
+        elif tok.type is TokenType.ESC and _is_quoted_string(full_source, tok):
+            end_line = _adjust_block_end_line(full_source, tok.end.offset, tok.end.line)
+            _emit(tok.start.line, end_line, types.FoldingRangeKind.Region, seen, ranges)
+
+
+def _collect_region_folds(
+    lines: list[str],
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Fold ``#region`` / ``#endregion`` marker pairs (nesting-aware)."""
+    stack: list[int] = []
     for i, line in enumerate(lines):
-        stripped = line.lstrip()
-        if stripped.startswith("#"):
+        if _REGION_END.match(line):
+            if stack:
+                start = stack.pop()
+                _emit(start, i, types.FoldingRangeKind.Region, seen, ranges)
+        elif _REGION_START.match(line):
+            stack.append(i)
+
+
+def _collect_import_folds(
+    lines: list[str],
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Fold consecutive ``package require`` / ``source`` / ``load`` runs."""
+    block_start: int | None = None
+    for i, line in enumerate(lines):
+        if _IMPORT_RE.match(line):
             if block_start is None:
                 block_start = i
         else:
-            if block_start is not None and i - block_start >= 2:
-                key = (block_start, i - 1)
-                if key not in seen:
-                    seen.add(key)
-                    ranges.append(
-                        types.FoldingRange(
-                            start_line=block_start,
-                            end_line=i - 1,
-                            kind=types.FoldingRangeKind.Comment,
-                        )
-                    )
+            if block_start is not None:
+                _emit(block_start, i - 1, types.FoldingRangeKind.Imports, seen, ranges)
             block_start = None
-
-    # Handle trailing comment block at end of file
     if block_start is not None:
-        end = len(lines) - 1
-        if end - block_start >= 1:
-            key = (block_start, end)
-            if key not in seen:
-                seen.add(key)
-                ranges.append(
-                    types.FoldingRange(
-                        start_line=block_start,
-                        end_line=end,
-                        kind=types.FoldingRangeKind.Comment,
-                    )
-                )
+        _emit(block_start, len(lines) - 1, types.FoldingRangeKind.Imports, seen, ranges)
 
 
-def _collect_body_folds(
-    source: str,
+def _collect_comment_folds(
+    lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
-    *,
-    original_source: str,
-    body_token: Token | None = None,
-    depth: int = 0,
 ) -> None:
-    """Recursively segment commands and emit folds for multi-line BODY args."""
-    if depth > 20:
-        return
+    """Fold runs of consecutive ``#`` comment lines (>=2 lines).
 
-    for cmd in segment_commands(source, body_token):
-        if not cmd.argv:
-            continue
-        for body in iter_body_arguments(cmd.name, cmd.args, cmd.arg_tokens):
-            if body.token.type is not TokenType.STR:
-                continue
-            if body.token.start.line < body.token.end.line:
-                end_line = _adjust_body_end_line(
-                    original_source,
-                    body.token.end.offset,
-                    body.token.end.line,
-                )
-                if end_line > body.token.start.line:
-                    key = (body.token.start.line, end_line)
-                    if key not in seen:
-                        seen.add(key)
-                        ranges.append(
-                            types.FoldingRange(
-                                start_line=body.token.start.line,
-                                end_line=end_line,
-                                kind=types.FoldingRangeKind.Region,
-                            )
-                        )
-                # Recurse into the body regardless of whether the outer fold
-                # was adjusted away -- inner multi-line bodies may still be
-                # foldable even when the enclosing token collapses to a
-                # single effective line.
-                _collect_body_folds(
-                    body.text,
-                    seen,
-                    ranges,
-                    original_source=original_source,
-                    body_token=body.token,
-                    depth=depth + 1,
-                )
+    Region markers (``#region`` / ``#endregion``) break a comment run so they
+    surface as Region folds rather than being absorbed into a comment block.
+    """
+
+    def is_comment(line: str) -> bool:
+        stripped = line.lstrip()
+        if not stripped.startswith("#"):
+            return False
+        return not (_REGION_START.match(line) or _REGION_END.match(line))
+
+    block_start: int | None = None
+    for i, line in enumerate(lines):
+        if is_comment(line):
+            if block_start is None:
+                block_start = i
+        else:
+            if block_start is not None:
+                _emit(block_start, i - 1, types.FoldingRangeKind.Comment, seen, ranges)
+            block_start = None
+    if block_start is not None:
+        _emit(block_start, len(lines) - 1, types.FoldingRangeKind.Comment, seen, ranges)
 
 
 def _collect_continuation_folds(
     source: str,
+    lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
 ) -> None:
@@ -196,42 +231,40 @@ def _collect_continuation_folds(
                    $b \\
                    $c
 
-    is a single logical command spread over several physical lines.  The
-    lexer represents each backslash-newline join between words as a
-    ``SEP`` token whose text is exactly ``"\\\\\\n"``; a token starting on
-    line *L* means line *L* continues onto line *L + 1*.  Consecutive
-    continued lines form one run, so a fold spanning the run collapses the
-    whole command down to its first line (matching the legacy Tcl editor
-    plugin behaviour requested in #493).
+    is a single logical command spread over several physical lines.  The lexer
+    represents each backslash-newline join between words as a ``SEP`` token
+    whose text is exactly ``"\\\\\\n"``; a token starting on line *L* means line
+    *L* continues onto line *L + 1*.  Consecutive continued lines form one run,
+    so a fold spanning the run collapses the whole command down to its first
+    line (the behaviour requested in #493).
 
-    Continuations inside braces, quotes, or comments are carried within
-    the enclosing token rather than surfacing as a ``SEP`` join, so they
-    are left to the body/comment collectors and don't double-fold here.
+    Continuations inside braces, quotes, or brackets are carried within the
+    enclosing token, so they fold via the block collector rather than here.
     """
-    tokens, _ = tokenise(source, 0, 0, 0)
-    continued_lines = sorted(
+    continued = sorted(
         {
             tok.start.line
-            for tok in tokens
+            for tok in tokenise(source, 0, 0, 0)[0]
             if tok.type is TokenType.SEP and tok.text == _CONTINUATION
         }
     )
-    if not continued_lines:
+    if not continued:
         return
 
-    run_start = prev = continued_lines[0]
-    for line in continued_lines[1:]:
+    run_start = prev = continued[0]
+    for line in continued[1:]:
         if line == prev + 1:
             prev = line
             continue
-        _emit_continuation_run(run_start, prev, seen, ranges)
+        _emit_continuation_run(run_start, prev, lines, seen, ranges)
         run_start = prev = line
-    _emit_continuation_run(run_start, prev, seen, ranges)
+    _emit_continuation_run(run_start, prev, lines, seen, ranges)
 
 
 def _emit_continuation_run(
     run_start: int,
     run_end: int,
+    lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
 ) -> None:
@@ -239,19 +272,14 @@ def _emit_continuation_run(
 
     Each line in the run ends with a continuation, so the command's final
     physical line is ``run_end + 1`` -- the line the last ``\\`` joins onto.
+    A trailing backslash with no following content (``foo \\`` at end of file)
+    points past the last real line; trim blank trailing lines so a dangling
+    continuation doesn't produce a degenerate fold over empty space.
     """
     end_line = run_end + 1
-    key = (run_start, end_line)
-    if key in seen:
-        return
-    seen.add(key)
-    ranges.append(
-        types.FoldingRange(
-            start_line=run_start,
-            end_line=end_line,
-            kind=types.FoldingRangeKind.Region,
-        )
-    )
+    while end_line > run_start and (end_line >= len(lines) or not lines[end_line].strip()):
+        end_line -= 1
+    _emit(run_start, end_line, types.FoldingRangeKind.Region, seen, ranges)
 
 
 def _normalise_overlaps(
@@ -262,7 +290,7 @@ def _normalise_overlaps(
     VS Code builds a folding tree from the returned ranges and silently drops
     or misplaces ranges that partially overlap (share a boundary line without
     one containing the other).  The collectors already try to avoid this via
-    ``_adjust_body_end_line``, but a belt-and-suspenders post-pass keeps the
+    ``_adjust_block_end_line``, but a belt-and-suspenders post-pass keeps the
     output well-formed even if a new collector forgets the invariant.
 
     ``FoldingRange.end_line`` is inclusive, so two ranges that share a
@@ -356,21 +384,22 @@ def get_folding_ranges(
 ) -> list[types.FoldingRange]:
     """Return folding ranges for a Tcl source file.
 
-    When ``analysis`` is ``None`` the scope-based collector is skipped.
-    It's redundant with the syntactic body-argument walker for the
-    common proc/namespace/control-structure cases, so omitting it
-    lets the LSP handler serve fold ranges immediately after
-    ``didOpen`` — before the background analyse() task populates
-    ``state.analysis`` — without blocking the event loop on a
-    synchronous full analysis pass.
+    Folding is purely syntactic -- it works on source tokens and lines alone,
+    so it serves results immediately after ``didOpen`` without waiting on the
+    background analyse() task.  ``analysis`` is accepted for call-site
+    compatibility but is no longer needed: the block collector folds proc /
+    namespace / control-flow bodies (and every other multi-line brace) without
+    a semantic model.
     """
+    if lines is None:
+        lines = source.split("\n")
     ranges: list[types.FoldingRange] = []
     seen: set[tuple[int, int]] = set()
 
-    if analysis is not None:
-        _collect_scope_folds(analysis.global_scope, seen, ranges, source)
-    _collect_comment_folds(source, seen, ranges, lines=lines)
-    _collect_body_folds(source, seen, ranges, original_source=source)
-    _collect_continuation_folds(source, seen, ranges)
+    _collect_region_folds(lines, seen, ranges)
+    _collect_block_folds(source, source, 0, 0, 0, seen, ranges)
+    _collect_import_folds(lines, seen, ranges)
+    _collect_comment_folds(lines, seen, ranges)
+    _collect_continuation_folds(source, lines, seen, ranges)
 
     return _normalise_overlaps(ranges)
