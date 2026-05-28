@@ -47,6 +47,27 @@ suite("Folding Ranges", () => {
     assert.ok(nsRange, "Should have a folding range covering the namespace block");
   });
 
+  test("backslash line-continuation command is foldable", async () => {
+    await activate(docUri);
+
+    const ranges = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+
+    assert.ok(ranges && ranges.length > 0, "Should have folding ranges");
+
+    // The MyProcCall command is continued across the last three lines
+    // (0-indexed 16..18); folding it collapses to the first of those lines.
+    const contRange = ranges.find((r) => r.start === 16 && r.end === 18);
+    assert.ok(
+      contRange,
+      `Should have a folding range covering the continued command, got ${JSON.stringify(
+        ranges.map((r) => [r.start, r.end]),
+      )}`,
+    );
+  });
+
   test("all folding ranges have valid line numbers", async () => {
     await activate(docUri);
 

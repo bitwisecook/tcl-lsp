@@ -6,8 +6,13 @@ from lsprotocol import types
 
 from analyser.semantic_model import AnalysisResult, Scope
 from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import iter_body_arguments
 from shared.tokens import Token, TokenType
+
+# Lexer text for a backslash-newline line continuation: a literal ``\``
+# followed by the newline it joins across.
+_CONTINUATION = "\\\n"
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
@@ -178,6 +183,77 @@ def _collect_body_folds(
                 )
 
 
+def _collect_continuation_folds(
+    source: str,
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Emit folds for commands stretched across lines by ``\\``-continuations.
+
+    A command such as ::
+
+        MyProcCall $a \\
+                   $b \\
+                   $c
+
+    is a single logical command spread over several physical lines.  The
+    lexer represents each backslash-newline join between words as a
+    ``SEP`` token whose text is exactly ``"\\\\\\n"``; a token starting on
+    line *L* means line *L* continues onto line *L + 1*.  Consecutive
+    continued lines form one run, so a fold spanning the run collapses the
+    whole command down to its first line (matching the legacy Tcl editor
+    plugin behaviour requested in #493).
+
+    Continuations inside braces, quotes, or comments are carried within
+    the enclosing token rather than surfacing as a ``SEP`` join, so they
+    are left to the body/comment collectors and don't double-fold here.
+    """
+    tokens, _ = tokenise(source, 0, 0, 0)
+    continued_lines = sorted(
+        {
+            tok.start.line
+            for tok in tokens
+            if tok.type is TokenType.SEP and tok.text == _CONTINUATION
+        }
+    )
+    if not continued_lines:
+        return
+
+    run_start = prev = continued_lines[0]
+    for line in continued_lines[1:]:
+        if line == prev + 1:
+            prev = line
+            continue
+        _emit_continuation_run(run_start, prev, seen, ranges)
+        run_start = prev = line
+    _emit_continuation_run(run_start, prev, seen, ranges)
+
+
+def _emit_continuation_run(
+    run_start: int,
+    run_end: int,
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Emit a fold for a run of continued lines ``run_start..run_end``.
+
+    Each line in the run ends with a continuation, so the command's final
+    physical line is ``run_end + 1`` -- the line the last ``\\`` joins onto.
+    """
+    end_line = run_end + 1
+    key = (run_start, end_line)
+    if key in seen:
+        return
+    seen.add(key)
+    ranges.append(
+        types.FoldingRange(
+            start_line=run_start,
+            end_line=end_line,
+            kind=types.FoldingRangeKind.Region,
+        )
+    )
+
+
 def _normalise_overlaps(
     ranges: list[types.FoldingRange],
 ) -> list[types.FoldingRange]:
@@ -295,5 +371,6 @@ def get_folding_ranges(
         _collect_scope_folds(analysis.global_scope, seen, ranges, source)
     _collect_comment_folds(source, seen, ranges, lines=lines)
     _collect_body_folds(source, seen, ranges, original_source=source)
+    _collect_continuation_folds(source, seen, ranges)
 
     return _normalise_overlaps(ranges)

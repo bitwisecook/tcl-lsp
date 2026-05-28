@@ -13,3 +13,7 @@ namespace eval ::myns {
         return 42
     }
 }
+
+MyProcCall $var1 \
+           $var2 \
+           $var3

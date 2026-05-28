@@ -224,6 +224,46 @@ class TestFoldingRanges:
                 f"{b.start_line}..{b.end_line} still share a line"
             )
 
+    def test_line_continuation_fold(self):
+        """Regression for #493: a backslash-continued command folds to line 0."""
+        source = textwrap.dedent("""\
+            MyProcCall $var1 \\
+                       $var2 \\
+                       $var3
+        """)
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        # The three physical lines collapse to the first line.
+        assert any(r.start_line == 0 and r.end_line == 2 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
+
+    def test_line_continuation_two_lines(self):
+        """A single continuation still produces a fold over both lines."""
+        source = "set x $a \\\n    $b\n"
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        assert any(r.start_line == 0 and r.end_line == 1 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
+
+    def test_separate_continuation_runs(self):
+        """Two distinct continued commands yield two separate folds."""
+        source = "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n"
+        ranges = get_folding_ranges(source)
+        spans = {
+            (r.start_line, r.end_line) for r in ranges if r.kind == types.FoldingRangeKind.Region
+        }
+        assert (0, 1) in spans, spans
+        assert (3, 4) in spans, spans
+
+    def test_escaped_backslash_is_not_a_continuation(self):
+        """A literal ``\\\\`` at end of line is not a line continuation."""
+        source = "puts foo\\\\\nputs bar\n"
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        assert region_ranges == [], region_ranges
+
     def test_normalise_overlaps_shared_boundary_trims_earlier(self):
         """Two sibling ranges sharing a boundary line must become disjoint."""
         ranges = [
