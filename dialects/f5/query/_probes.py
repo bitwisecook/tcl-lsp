@@ -108,14 +108,22 @@ def ping(ip: str, *, timeout_s: float = 2.0) -> dict[str, Any]:
 
 
 def _parse_ping_rtt(stdout: str) -> float | None:
-    """Pull the ``time=NN ms`` value out of ``ping``'s first reply line."""
+    """Pull the RTT out of ``ping``'s output."""
     for line in stdout.splitlines():
         if "time=" in line:
             try:
                 bit = line.split("time=", 1)[1].split()[0]
                 return float(bit.rstrip("ms"))
             except (ValueError, IndexError):
-                return None
+                pass
+    for line in stdout.splitlines():
+        if "min/avg/max" in line and "=" in line:
+            try:
+                stats = line.split("=", 1)[1].strip()
+                avg = stats.split("/")[1]
+                return float(avg)
+            except (ValueError, IndexError):
+                pass
     return None
 
 
