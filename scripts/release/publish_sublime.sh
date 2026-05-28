@@ -40,7 +40,7 @@
 # This script never creates the repo for you.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REPO="bitwisecook/tcl-lsp"
 MIRROR_REPO="${TCL_LSP_SUBLIME_MIRROR_REPO:-bitwisecook/tcl-lsp-sublime-text}"
 STAGE_DIR="$ROOT/build/sublime-stage"

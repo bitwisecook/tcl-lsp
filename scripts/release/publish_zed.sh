@@ -34,7 +34,7 @@
 # adds the submodule and the `[tcl]` block in extensions.toml.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UPSTREAM="zed-industries/extensions"
 EXT_NAME="tcl"
 EXT_PATH="extensions/${EXT_NAME}"
