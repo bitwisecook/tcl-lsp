@@ -264,6 +264,34 @@ class TestFoldingRanges:
         region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
         assert region_ranges == [], region_ranges
 
+    def test_continuation_inside_body_folds(self):
+        """Regression for PR #494 review: a ``\\``-continued command inside a
+        braced body folds, not just top-level ones."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                MyProcCall $a \\
+                           $b \\
+                           $c
+            }
+        """)
+        ranges = get_folding_ranges(source)
+        spans = {(r.start_line, r.end_line) for r in ranges}
+        assert (0, 3) in spans, spans  # the proc body
+        assert (1, 3) in spans, spans  # the continued command inside it
+
+    def test_continuation_inside_nested_body_folds(self):
+        """Continuations fold even when nested several blocks deep."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                if {1} {
+                    cmd $a \\
+                        $b
+                }
+            }
+        """)
+        spans = {(r.start_line, r.end_line) for r in get_folding_ranges(source)}
+        assert (2, 3) in spans, spans  # the continued command in the if body
+
     def test_dangling_continuation_at_eof_no_degenerate_fold(self):
         """A trailing ``\\`` with nothing after it must not fold empty space."""
         source = "foo a \\\n"

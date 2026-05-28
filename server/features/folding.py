@@ -107,6 +107,7 @@ def _collect_block_folds(
     base_offset: int,
     base_line: int,
     base_col: int,
+    lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
     *,
@@ -121,10 +122,18 @@ def _collect_block_folds(
     and bracket tokens so nested bodies / literals also fold.  ``full_source``
     is always the original document text -- token offsets are absolute, so
     delimiter look-ahead and recursion anchoring index into it directly.
+
+    Backslash-newline continuation folds are emitted from this same walk:
+    each level's token stream surfaces the ``SEP`` join tokens at that nesting
+    depth, so a ``\\``-continued command inside a proc / ``if`` / namespace
+    body folds just like a top-level one (the inner ``SEP`` tokens are only
+    visible once we recurse into the body, where the enclosing braces are no
+    longer a single opaque ``STR`` token).
     """
     if depth > 25:
         return
     tokens, _ = tokenise(source, base_offset, base_line, base_col)
+    _emit_continuation_runs(tokens, lines, seen, ranges)
     for tok in tokens:
         if tok.start.line >= tok.end.line:
             continue
@@ -143,6 +152,7 @@ def _collect_block_folds(
                 tok.start.offset + 1,
                 tok.start.line,
                 tok.start.character + 1,
+                lines,
                 seen,
                 ranges,
                 depth=depth + 1,
@@ -217,13 +227,13 @@ def _collect_comment_folds(
         _emit(block_start, len(lines) - 1, types.FoldingRangeKind.Comment, seen, ranges)
 
 
-def _collect_continuation_folds(
-    source: str,
+def _emit_continuation_runs(
+    tokens: list[Token],
     lines: list[str],
     seen: set[tuple[int, int]],
     ranges: list[types.FoldingRange],
 ) -> None:
-    """Emit folds for commands stretched across lines by ``\\``-continuations.
+    """Fold commands stretched across lines by ``\\``-continuations.
 
     A command such as ::
 
@@ -238,13 +248,14 @@ def _collect_continuation_folds(
     so a fold spanning the run collapses the whole command down to its first
     line (the behaviour requested in #493).
 
-    Continuations inside braces, quotes, or brackets are carried within the
-    enclosing token, so they fold via the block collector rather than here.
+    *tokens* is one nesting level's token stream (the whole document at the top
+    level, or a braced/bracketed body's contents when called from the recursive
+    block walk), so continuations fold at every depth.
     """
     continued = sorted(
         {
             tok.start.line
-            for tok in tokenise(source, 0, 0, 0)[0]
+            for tok in tokens
             if tok.type is TokenType.SEP and tok.text == _CONTINUATION
         }
     )
@@ -397,9 +408,9 @@ def get_folding_ranges(
     seen: set[tuple[int, int]] = set()
 
     _collect_region_folds(lines, seen, ranges)
-    _collect_block_folds(source, source, 0, 0, 0, seen, ranges)
+    # The block walk also emits continuation folds at every nesting level.
+    _collect_block_folds(source, source, 0, 0, 0, lines, seen, ranges)
     _collect_import_folds(lines, seen, ranges)
     _collect_comment_folds(lines, seen, ranges)
-    _collect_continuation_folds(source, lines, seen, ranges)
 
     return _normalise_overlaps(ranges)
