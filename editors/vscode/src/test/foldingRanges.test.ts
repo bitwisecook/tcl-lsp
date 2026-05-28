@@ -47,6 +47,88 @@ suite("Folding Ranges", () => {
     assert.ok(nsRange, "Should have a folding range covering the namespace block");
   });
 
+  test("backslash line-continuation command is foldable", async () => {
+    await activate(docUri);
+
+    const ranges = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+
+    assert.ok(ranges && ranges.length > 0, "Should have folding ranges");
+
+    // The MyProcCall command is continued across the last three lines
+    // (0-indexed 16..18); folding it collapses to the first of those lines.
+    const contRange = ranges.find((r) => r.start === 16 && r.end === 18);
+    assert.ok(
+      contRange,
+      `Should have a folding range covering the continued command, got ${JSON.stringify(
+        ranges.map((r) => [r.start, r.end]),
+      )}`,
+    );
+  });
+
+  test("multi-line data literal is foldable", async () => {
+    await activate(docUri);
+
+    const ranges = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+
+    // `set things { ... }` spans 0-indexed lines 20..23; the braced literal
+    // folds with its closing `}` line left visible (ends at 22).
+    const listRange = ranges.find((r) => r.start === 20 && r.end === 22);
+    assert.ok(
+      listRange,
+      `Should fold the multi-line data literal, got ${JSON.stringify(
+        ranges.map((r) => [r.start, r.end]),
+      )}`,
+    );
+  });
+
+  test("#region / #endregion markers fold with Region kind", async () => {
+    await activate(docUri);
+
+    const ranges = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+
+    // The #region/#endregion pair spans 0-indexed lines 25..28.
+    const regionRange = ranges.find((r) => r.start === 25 && r.end === 28);
+    assert.ok(
+      regionRange,
+      `Should fold the #region block, got ${JSON.stringify(ranges.map((r) => [r.start, r.end]))}`,
+    );
+    assert.strictEqual(
+      regionRange!.kind,
+      vscode.FoldingRangeKind.Region,
+      "region marker fold should carry Region kind",
+    );
+  });
+
+  test("consecutive package require lines fold as Imports", async () => {
+    await activate(docUri);
+
+    const ranges = (await vscode.commands.executeCommand(
+      "vscode.executeFoldingRangeProvider",
+      docUri,
+    )) as vscode.FoldingRange[];
+
+    // The two trailing `package require` lines are 0-indexed 30..31.
+    const importsRange = ranges.find((r) => r.start === 30 && r.end === 31);
+    assert.ok(
+      importsRange,
+      `Should fold the import group, got ${JSON.stringify(ranges.map((r) => [r.start, r.end]))}`,
+    );
+    assert.strictEqual(
+      importsRange!.kind,
+      vscode.FoldingRangeKind.Imports,
+      "import-group fold should carry Imports kind",
+    );
+  });
+
   test("all folding ranges have valid line numbers", async () => {
     await activate(docUri);
 

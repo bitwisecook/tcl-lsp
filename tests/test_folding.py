@@ -224,6 +224,207 @@ class TestFoldingRanges:
                 f"{b.start_line}..{b.end_line} still share a line"
             )
 
+    def test_line_continuation_fold(self):
+        """Regression for #493: a backslash-continued command folds to line 0."""
+        source = textwrap.dedent("""\
+            MyProcCall $var1 \\
+                       $var2 \\
+                       $var3
+        """)
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        # The three physical lines collapse to the first line.
+        assert any(r.start_line == 0 and r.end_line == 2 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
+
+    def test_line_continuation_two_lines(self):
+        """A single continuation still produces a fold over both lines."""
+        source = "set x $a \\\n    $b\n"
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        assert any(r.start_line == 0 and r.end_line == 1 for r in region_ranges), [
+            (r.start_line, r.end_line) for r in region_ranges
+        ]
+
+    def test_separate_continuation_runs(self):
+        """Two distinct continued commands yield two separate folds."""
+        source = "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n"
+        ranges = get_folding_ranges(source)
+        spans = {
+            (r.start_line, r.end_line) for r in ranges if r.kind == types.FoldingRangeKind.Region
+        }
+        assert (0, 1) in spans, spans
+        assert (3, 4) in spans, spans
+
+    def test_escaped_backslash_is_not_a_continuation(self):
+        """A literal ``\\\\`` at end of line is not a line continuation."""
+        source = "puts foo\\\\\nputs bar\n"
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        assert region_ranges == [], region_ranges
+
+    def test_continuation_inside_body_folds(self):
+        """Regression for PR #494 review: a ``\\``-continued command inside a
+        braced body folds, not just top-level ones."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                MyProcCall $a \\
+                           $b \\
+                           $c
+            }
+        """)
+        ranges = get_folding_ranges(source)
+        spans = {(r.start_line, r.end_line) for r in ranges}
+        assert (0, 3) in spans, spans  # the proc body
+        assert (1, 3) in spans, spans  # the continued command inside it
+
+    def test_continuation_inside_nested_body_folds(self):
+        """Continuations fold even when nested several blocks deep."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                if {1} {
+                    cmd $a \\
+                        $b
+                }
+            }
+        """)
+        spans = {(r.start_line, r.end_line) for r in get_folding_ranges(source)}
+        assert (2, 3) in spans, spans  # the continued command in the if body
+
+    def test_dangling_continuation_at_eof_no_degenerate_fold(self):
+        """A trailing ``\\`` with nothing after it must not fold empty space."""
+        source = "foo a \\\n"
+        ranges = get_folding_ranges(source)
+        assert ranges == [], ranges
+
+    # ── block folds: data literals, strings, substitutions ───────────────
+
+    def _regions(self, source: str) -> set[tuple[int, int]]:
+        return {
+            (r.start_line, r.end_line)
+            for r in get_folding_ranges(source)
+            if r.kind == types.FoldingRangeKind.Region
+        }
+
+    def test_multiline_data_list_folds(self):
+        """A multi-line braced data literal folds like any other block."""
+        source = textwrap.dedent("""\
+            set mylist {
+                apple
+                banana
+                cherry
+            }
+        """)
+        assert (0, 3) in self._regions(source), self._regions(source)
+
+    def test_multiline_quoted_string_folds(self):
+        source = 'set s "line1\nline2\nline3"\n'
+        # The closing ``"`` shares line 2 with content, so the fold ends at the
+        # line before it (closing delimiter stays visible), collapsing line 1.
+        assert (0, 1) in self._regions(source), self._regions(source)
+
+    def test_multiline_command_substitution_folds(self):
+        source = "set x [foo \\\n   bar \\\n   baz]\n"
+        assert (0, 1) in self._regions(source), self._regions(source)
+
+    def test_switch_arms_fold_individually(self):
+        """Each multi-line ``switch`` arm folds, not just the outer block."""
+        source = textwrap.dedent("""\
+            switch $x {
+                a {
+                    puts one
+                }
+                b {
+                    puts two
+                }
+            }
+        """)
+        regions = self._regions(source)
+        assert (1, 2) in regions, regions  # arm a
+        assert (4, 5) in regions, regions  # arm b
+
+    def test_foreach_list_and_body_both_fold(self):
+        source = textwrap.dedent("""\
+            foreach x {
+                a
+                b
+            } {
+                puts $x
+                puts done
+            }
+        """)
+        regions = self._regions(source)
+        assert (0, 2) in regions, regions  # the varlist literal
+        assert (3, 5) in regions, regions  # the body
+
+    # ── region markers ───────────────────────────────────────────────────
+
+    def test_region_markers_fold(self):
+        source = textwrap.dedent("""\
+            #region Helpers
+            proc a {} { return 1 }
+            proc b {} { return 2 }
+            #endregion
+        """)
+        region_ranges = [
+            r for r in get_folding_ranges(source) if r.kind == types.FoldingRangeKind.Region
+        ]
+        assert any(r.start_line == 0 and r.end_line == 3 for r in region_ranges), region_ranges
+
+    def test_region_markers_with_spaces(self):
+        """``# region`` / ``# endregion`` (with a space) also match."""
+        source = "# region X\nset a 1\nset b 2\n# endregion\n"
+        assert (0, 3) in self._regions(source), self._regions(source)
+
+    def test_nested_regions(self):
+        source = textwrap.dedent("""\
+            # region outer
+            set a 1
+            # region inner
+            set b 2
+            # endregion
+            set c 3
+            # endregion
+        """)
+        regions = self._regions(source)
+        assert (0, 6) in regions, regions
+        assert (2, 4) in regions, regions
+
+    def test_region_comments_inside_stay_comment_block(self):
+        """Comment lines inside a region fold as a Comment block, not absorbed."""
+        source = "#region X\n# note one\n# note two\n#endregion\n"
+        ranges = get_folding_ranges(source)
+        kinds = {(r.start_line, r.end_line): r.kind for r in ranges}
+        assert kinds.get((0, 3)) == types.FoldingRangeKind.Region, kinds
+        assert kinds.get((1, 2)) == types.FoldingRangeKind.Comment, kinds
+
+    def test_unmatched_region_marker_does_not_fold(self):
+        source = "#region X\nset a 1\nset b 2\n"
+        assert self._regions(source) == set(), self._regions(source)
+
+    # ── import groups ────────────────────────────────────────────────────
+
+    def test_import_group_folds(self):
+        source = textwrap.dedent("""\
+            package require Tcl
+            package require http
+            source lib.tcl
+
+            puts hi
+        """)
+        import_ranges = [
+            r for r in get_folding_ranges(source) if r.kind == types.FoldingRangeKind.Imports
+        ]
+        assert any(r.start_line == 0 and r.end_line == 2 for r in import_ranges), import_ranges
+
+    def test_single_import_no_fold(self):
+        source = "package require Tcl\nputs hi\n"
+        import_ranges = [
+            r for r in get_folding_ranges(source) if r.kind == types.FoldingRangeKind.Imports
+        ]
+        assert import_ranges == [], import_ranges
+
     def test_normalise_overlaps_shared_boundary_trims_earlier(self):
         """Two sibling ranges sharing a boundary line must become disjoint."""
         ranges = [
