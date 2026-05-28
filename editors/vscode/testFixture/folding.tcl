@@ -13,3 +13,20 @@ namespace eval ::myns {
         return 42
     }
 }
+
+MyProcCall $var1 \
+           $var2 \
+           $var3
+
+set things {
+    apple
+    banana
+}
+
+#region Config
+set a 1
+set b 2
+#endregion
+
+package require Tcl
+package require http
