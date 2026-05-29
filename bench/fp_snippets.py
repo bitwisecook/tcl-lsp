@@ -658,6 +658,862 @@ register(
 )
 
 
+# PR 2 / DS family — dead-store / unused (W220/W211) determinations.
+
+
+register(
+    "FP-DS-01",
+    _Entry(
+        label="incr/append/lappend inside cmd-sub: read-modify-write keeps init live",
+        proc="::f",
+        vars=("i",),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Tcl semantics: `incr i $j` is a *read-modify-write* of `i` — it reads\n"
+            "the prior value, adds $j, writes back.  When it appears inside a cmd-sub\n"
+            "(`lappend r [incr i $j]`), the read is otherwise invisible to the outer\n"
+            "word scanner, so the feeding `set i 0` looked dead (W220) and `i` looked\n"
+            "unused (W211).  Fix: `command_sub_read_modify_write_names` in\n"
+            "compiler/var_refs.py recovers incr/append/lappend targets nested in cmd-subs\n"
+            "and treats them as reads of the prior version (commit cd98a579 et al.)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # incr inside the cmd-sub reads `i` (the prior value) — so the
+                # feeding `set i 0` is alive, not a dead store.
+                set i 0
+                foreach j {1 2 3} { lappend r [incr i $j] }
+                return $r
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-02",
+    _Entry(
+        label="reads inside [expr {...}] command-sub recovered as real uses",
+        proc="::f",
+        vars=("w", "i"),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Tcl semantics: `incr i [expr {$w}]` evaluates the expr cmd-sub which reads\n"
+            "$w at run time — so $w is genuinely *used*.  Pre-fix the expr body was opaque\n"
+            "to the outer word scanner, so a `set w …` immediately before the incr looked\n"
+            "dead / unused.  Fix (commit 16df8c4a): `statement_cmd_sub_read_names` walks\n"
+            "IRAssignExpr/IRExprEval/IRReturn expr ASTs collecting variable reads under\n"
+            "cmd-sub barriers so the feeding def is kept live."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # $w is read inside the [expr {...}] cmd-sub — `set w 5` is NOT
+                # a dead store, and `w` is NOT unused.
+                set w 5
+                set i 0
+                incr i [expr {$w}]
+                return $i
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-03",
+    _Entry(
+        label="eval {literal-body} reads recovered (eval runs in caller scope)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Tcl semantics: `eval {puts $x}` runs the braced body in the *caller* scope —\n"
+            "the $x read is a real read of the caller-local `x`.  Pre-fix the eval body\n"
+            "was an opaque IRCall barrier, so a feeding `set x 1` looked dead / unused.\n"
+            "Fix (commit 6f69c86b): `eval_body_read_names` in compiler/var_refs.py walks\n"
+            "literal `eval {...}` and `namespace eval ns {...}` bodies recovering reads\n"
+            "(including those nested inside `[expr {...}]` and `[set y ...]`)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # eval's braced body runs in the current scope; `$x` read here is
+                # a real read of the local `x`.
+                set x 1
+                eval {puts $x}
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-04",
+    _Entry(
+        label="traced variables excluded from dead-store / unused (soundness)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Tcl semantics: `trace add variable x write cb` (and the 8.4 form\n"
+            "`trace variable x w cb`) install a write-trace callback on `x`.  Any\n"
+            "subsequent `set x …` is *observable* via the callback — even if no later\n"
+            "read appears in this proc.  So the write is NOT a dead store, and `x` is\n"
+            "NOT unused.  Pre-fix the dead-store analysis ignored traces.  Fix\n"
+            "(commit 6ced305d): collect `traced_var_names` from `trace add variable` /\n"
+            "`trace variable` calls in compiler/var_refs.py; both _dead_store and\n"
+            "_unused exempt them name-level."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # The write is observable through the callback — must NOT fire
+                # W220 (dead-store) or W211 (unused).
+                trace add variable x write cb
+                set x 1
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-05",
+    _Entry(
+        label="CFGReturn read is a real use ($x kept live by `return $x`)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Tcl semantics: `return $x` reads `x` and propagates its value as the proc's\n"
+            "return value.  The terminator-level read used to be invisible to the outer\n"
+            "name-level recovery (CFGReturn carries a value expression but not a uses\n"
+            "set on the last block-statement), so a `set x 1` immediately followed by\n"
+            "`return $x` looked dead / unused.  Fix (return-read recovery): include\n"
+            "CFGReturn value-expression reads when building the variable use-set;\n"
+            "see compiler/var_refs.py terminator handling."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # return $x reads $x — `set x 1` is NOT a dead store, `x` is NOT unused.
+                set x 1
+                return $x
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-06",
+    _Entry(
+        label="array-element dead-store distinction: $a(k) write is not killed by $a(j) write",
+        proc="::f",
+        vars=(),
+        show=("ssa", "dead", "unused"),
+        notes=(
+            "Phase 8G / 8D: with the ARRAY_ELEM Place model, distinct array-element\n"
+            "writes are distinct memory locations, so `set a(k) 1; set a(j) 2; puts $a(k)`\n"
+            "does NOT make `set a(k) 1` a dead store — `set a(j) 2` writes a different\n"
+            "Place.  Pre-Phase-8 the analysis tracked whole-array kills, so the first\n"
+            "write looked overwritten by the second.  Corpus: W220 −88, W211 −2, O109 −66.\n"
+            "Sound because the 8E refinement (`dynamic` is an alias-target wildcard, not\n"
+            "a *name* wildcard) keeps overlap suppress-only.\n\n"
+            "Note: literal keys `k` / `j` are syntactically distinct, so the bench shows\n"
+            "no spurious dead-store — exactly the pre-FP-DS-06 verdict that proves the\n"
+            "Place model preserves the necessary disjointness."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # k and j are distinct array element Places — set a(k) is NOT
+                # killed by set a(j); the read of $a(k) makes the first write live.
+                set a(k) 1
+                set a(j) 2
+                puts $a(k)
+            }
+            """
+        ),
+    ),
+)
+
+
+# PR 3 / SH family — shimmer (S100/S101/S102) determinations.
+
+
+register(
+    "FP-SH-01",
+    _Entry(
+        label="OVERDEFINED values do not trigger shimmer (conservative suppression)",
+        proc="::top",
+        vars=("x",),
+        show=("ssa", "values"),
+        notes=(
+            "Shimmer (S100/S101/S102) reports a value flowing into an operator it\n"
+            "wasn't created for — STRING into arithmetic, INT into string compare, etc.\n"
+            "When the SCCP lattice resolves a value to OVERDEFINED (e.g. an unknown\n"
+            "command return), the type is *unknown* — issuing a shimmer warning would\n"
+            "be unsound.  The shimmer pass treats OVERDEFINED and UNKNOWN as exemptions\n"
+            "(analyser/checks/_shimmer.py).  This locks the conservative behaviour in."
+        ),
+        source=_dedent(
+            """
+            # x has unknown type (cmd return) -> OVERDEFINED -> no shimmer warning.
+            set x [unknownCmd]
+            set y [expr {$x + 1}]
+            return $y
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-02",
+    _Entry(
+        label="scope-alias declarations typed OVERDEFINED (not STRING) — kills shimmer FPs",
+        proc="::f",
+        vars=("v",),
+        show=("ssa", "values"),
+        notes=(
+            "Pre-fix (commit adfc6d84): scope-alias declarations (`variable name`,\n"
+            "`global name`, `upvar 1 src dst`) defaulted their declared local to\n"
+            "TclType.STRING in the type lattice.  But an alias's intrep is determined\n"
+            "by whatever the *target* is (which may be set externally), not by the\n"
+            "alias-declaration spelling — STRING was an unsound guess that triggered\n"
+            "spurious S100/S101 the first time the alias hit an arithmetic op.  Fix:\n"
+            "type alias declarations as OVERDEFINED (truly unknown), exempting them from\n"
+            "the shimmer pass like FP-SH-01.  Same principle as SCCP's `force-OVERDEFINED-\n"
+            "for-escaping` rule in core_analyses.py."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # `variable v` declares an alias — type is unknown (OVERDEFINED),
+                # NOT STRING, so `expr {$v + 1}` must NOT fire S100.
+                variable v
+                return [expr {$v + 1}]
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-03",
+    _Entry(
+        label="phi joins are hash-seed-independent (deterministic shimmer)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa", "values"),
+        notes=(
+            "Pre-fix (commit b08f2c47): SSA type-propagation joined types via a Python\n"
+            "set iteration order at phi nodes, so the resulting joined type depended on\n"
+            "PYTHONHASHSEED.  A loop-merged value could randomly come out STRING or\n"
+            "INT, making shimmer warnings nondeterministic across runs.  Fix: sort\n"
+            "phi-source type entries by a canonical key before reducing — the join is\n"
+            "now stable.  The bench locks the verdict in by computing the lattice on a\n"
+            "loop-merged variable (the historically flaky case)."
+        ),
+        source=_dedent(
+            """
+            proc f {n} {
+                # x is joined at the loop header from two INT branches; the join
+                # must come out INT every run (no flake) -> no S101.
+                set x 0
+                for {set i 0} {$i < $n} {incr i} {
+                    if {$i > 5} { set x 1 } else { set x 2 }
+                }
+                return [expr {$x + 1}]
+            }
+            """
+        ),
+    ),
+)
+
+
+# PR 4 / OBJ family — object dispatch (W307/W308) + snit modelling.
+
+
+register(
+    "FP-OBJ-01",
+    _Entry(
+        label="snit self-references ($self/$type/$selfns/$win) — not stray non-literal commands",
+        proc="::f",  # placeholder proc inside source; snit class-level
+        vars=(),
+        show=("ssa",),
+        dialect="tcl8.6",
+        notes=(
+            "tclsh / snit semantics: inside a `snit::type` / `snit::widget` method body,\n"
+            "`$self foo` dispatches *method* `foo` on the current object; `$type bar`\n"
+            "dispatches a typemethod; `$selfns` is the per-instance namespace; `$win`\n"
+            "is the widget's window path.  Dispatching on any of these is method dispatch,\n"
+            "not the stray non-literal command word W307 was designed to catch.  Fix\n"
+            "(snit modelling): `compiler.snit` collects the snit-reserved set and registers\n"
+            "the type/widget body as a ClassDef; analyser/checks/_object_dispatch.py exempts\n"
+            "the reserved names inside the type body.\n\n"
+            "Bench note: snit bodies don't render through `::f`-style snapshots; this entry\n"
+            "is locked in by the test pair (no per-line SSA evidence needed beyond the\n"
+            "verdict that the diagnostic does/doesn't fire)."
+        ),
+        source=_dedent(
+            """
+            # Bench placeholder: snit modelling sits outside the per-proc snapshot.
+            # The FP-OBJ-01 verdict is locked in by tests/test_fp_obj.py only.
+            proc f {} { return ok }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-02",
+    _Entry(
+        label="snit::widgetadaptor $hull dispatch — widgetadaptor delegation idiom",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "`snit::widgetadaptor` exposes the underlying widget through `$hull`;\n"
+            "`$hull configure -bg red` is the canonical delegation pattern (tclsh +\n"
+            "snit-verified).  The snit-reserved set includes `hull` so it joins\n"
+            "`self`/`type`/`selfns`/`win` in being exempt from W307 inside the body.\n\n"
+            "Locked in by tests/test_fp_obj.py; per-proc bench rendering doesn't fit."
+        ),
+        source=_dedent(
+            """
+            # See note in FP-OBJ-01 — snit modelling is class-level.
+            proc f {} { return ok }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-03",
+    _Entry(
+        label="snit component dispatch ($myexporter export ...) — instance-var method dispatch",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "`component myexporter` declares an instance-var holding a sub-object\n"
+            "command.  Inside a snit method body, `$myexporter export $self $fmt`\n"
+            "dispatches on a known object — same kind as `$self`/`$hull`, just user-\n"
+            "declared.  Pre-fix the analyser couldn't distinguish `component`-declared\n"
+            "vars from arbitrary instance vars and W307 fired for every `$var cmd`.\n"
+            "Fix: the type-body inventory in `compiler.snit` collects `component` /\n"
+            "`variable` / `option` / `typevariable` declarations into a per-type set;\n"
+            "instance-var dispatches inside the body are exempt.\n\n"
+            "Locked in by tests/test_fp_obj.py; class-level construct, no per-proc bench."
+        ),
+        source=_dedent(
+            """
+            proc f {} { return ok }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-04",
+    _Entry(
+        label="namespaced-factory provenance: set t [::struct::tree] — object handle",
+        proc="::f",
+        vars=("t",),
+        show=("ssa", "values"),
+        notes=(
+            "tcllib idiom: `::struct::tree` (with no args, or with a name arg) returns\n"
+            "a command name for the new tree object; calling `$t walk root` dispatches\n"
+            "to the object's method.  Pre-fix, the analyser saw `$t` as a non-literal\n"
+            "command word and fired W307.  Fix (commit 880c3a15): provenance — a var\n"
+            "assigned from a *namespaced* command substitution (`[::ns::factory …]` /\n"
+            "`[ns::factory …]`) is tagged as an object handle; the dispatch is\n"
+            "exempted.  Pure-bare unknown commands (`[foo bar]`) are NOT exempted —\n"
+            "see FP-OBJ-XX (control test) in tests/test_fp_obj.py.  This is analyser-\n"
+            "only provenance, no type-lattice change, so no shimmer collateral."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # ::struct::tree is a namespaced factory; $t is an object handle.
+                set t [::struct::tree mytree]
+                $t walk root
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-05",
+    _Entry(
+        label="snit instance dispatch (set o [Foo create %AUTO%]; $o m) — typed OBJECT",
+        proc="::use",
+        vars=("a",),
+        show=("ssa", "values"),
+        notes=(
+            "Pre-fix the analyser couldn't see that `Foo create %AUTO%` returns an\n"
+            "instance of the locally-defined snit type, so dispatching on the result\n"
+            "(`$a bump`) fired W307.  Fix: local snit-type definitions are registered\n"
+            "in `compilation_unit.snit_types`; a var initialised from a call to that\n"
+            "type's create-form (or the create-shorthand `Foo %AUTO%`) is typed OBJECT\n"
+            "and its dispatch is exempted.  Also exempts W308 method validation since\n"
+            "snit method dispatch goes through delegation/hull/options and isn't\n"
+            "soundly resolvable to the declared set."
+        ),
+        source=_dedent(
+            """
+            snit::type ::Counter { method bump {} { return 1 } }
+            proc use {} {
+                # `Counter create %AUTO%` returns a snit instance; $a bump is
+                # method dispatch, not a stray non-literal command.
+                set a [Counter create %AUTO%]
+                $a bump
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-06",
+    _Entry(
+        label="snit private proc body is analysed (not silently dropped)",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "A `proc` declared inside a `snit::type` body is a type-private proc — its\n"
+            "body must still be analysed (tclsh + snit-verified: the proc runs when\n"
+            "called from the type's methods).  Pre-fix the analyser stopped at the\n"
+            "type body, dropping the inner proc's body and any genuine diagnostics it\n"
+            "would have raised.  Fix: snit::type/widget bodies register inner procs\n"
+            "with the analyser pipeline so their bodies receive the usual treatment.\n\n"
+            "Locked in by tests/test_fp_obj.py — verifies W216 fires inside the proc body."
+        ),
+        source=_dedent(
+            """
+            # Class-level body; per-proc snapshot doesn't fit.
+            proc f {} { return ok }
+            """
+        ),
+    ),
+)
+
+
+# PR 5 / RCH family — reachability (O107) determinations.
+
+
+register(
+    "FP-RCH-01",
+    _Entry(
+        label="while 1 { break }: break-after is reachable (not O107 dead code)",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Pre-fix: `break`/`continue` were modelled as jump statements, not CFG\n"
+            "edges, so the loop-exit block was reachable only via the loop header's\n"
+            "exit edge — which SCCP prunes as dead when the condition is `1`.  Code\n"
+            "AFTER `while 1 { … break … }` was wrongly flagged O107 (unreachable\n"
+            "dead code), and DCE was *unsound* — it could delete still-reachable\n"
+            "statements.  Fix: SCCP now feeds the `break → loop-exit` edge into the\n"
+            "reachability worklist, so the post-loop block stays reachable."
+        ),
+        source=_dedent(
+            """
+            proc f {c} {
+                # while 1 with a conditional `break` -> `puts after` IS reachable.
+                while 1 { if {$c} break }
+                puts after
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RCH-02",
+    _Entry(
+        label="try handler body is reachable (analysis-only exception edges)",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Pre-fix: `try { … } on error {e opts} { … }` lowered without a CFG\n"
+            "predecessor edge into the handler block — the handler body was a CFG\n"
+            "island, so every statement in it fired O107.  Fix: SSA construction adds\n"
+            "*analysis-only* exception edges from the try body into each handler;\n"
+            "codegen ignores them so default bytecode stays tclsh-identical, but the\n"
+            "analyser sees a reachable handler.  See compiler/ssa.py exception-edge\n"
+            "construction."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # `on error` handler body is reachable; no O107 on `set y 1`.
+                try {
+                    set x [doThing]
+                } on error {e opts} {
+                    set y 1
+                    puts $y
+                }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RCH-03",
+    _Entry(
+        label="on ok inherits body-defined SSA versions (no W210 on body-set var)",
+        proc="::f",
+        vars=("vdata",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`on ok` runs *after* the try body completes normally, so any var set in\n"
+            "the body is defined when the handler runs (tclsh-verified).  Pre-fix the\n"
+            "handler block didn't inherit body SSA versions — it saw `vdata#0`\n"
+            "(sentinel-before-any-def) and fired W210 'read before set'.  Fix: the\n"
+            "ok-path exception edge feeds the body's last-version map into the handler\n"
+            "phi inputs, matching the natural sequential control flow."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # `on ok` runs after the body completes; $vdata IS defined.
+                try {
+                    set vdata [getData]
+                } on ok {} {
+                    return $vdata
+                }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RCH-04",
+    _Entry(
+        label="genuine infinite-loop (no break) -> code after IS unreachable (TP control)",
+        proc="::f",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "TP / control test: an infinite loop with NO `break` (or `return` /\n"
+            "uncaught exception) really does make the post-loop statements unreachable.\n"
+            "O107 must still fire here — proves FP-RCH-01's fix isn't blanket-\n"
+            "suppressing all post-loop reachability claims."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # No break / return -> `puts after` IS dead code.
+                while 1 { puts x }
+                puts after
+            }
+            """
+        ),
+    ),
+)
+
+
+# PR 6 / INJ family — injection / style (W101/W105/W301/T102) determinations.
+
+
+register(
+    "FP-INJ-01",
+    _Entry(
+        label="uplevel 1 $body (bare var) is the safe idiom — NOT W301",
+        proc="::f",
+        vars=("body",),
+        show=("ssa",),
+        notes=(
+            "Tcl semantics: `uplevel 1 $body` evaluates `$body` once in the target\n"
+            "frame; the value is the script source.  Braces would block the variable\n"
+            "expansion (`uplevel 1 {$body}` evaluates the literal text `$body`, not\n"
+            "the variable's contents) — so W301's 'use braces' advice is wrong for\n"
+            "this idiom.  Fix: W301 recognises the `$single_var` form as the safe\n"
+            'case; only quoted-interpolation / multi-arg-concat forms (`"$cmd $arg"`)\n'
+            "are flagged.  See analyser/checks/_uplevel.py."
+        ),
+        source=_dedent(
+            """
+            proc f {body} {
+                # The canonical `uplevel 1 $body` pattern — must NOT fire W301.
+                uplevel 1 $body
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-INJ-02",
+    _Entry(
+        label="eval [list ...] is safe — list-canonical form, NOT W101",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "`eval [list set $varname $value]` is the canonical-safe form: `[list …]`\n"
+            "produces a list whose elements survive `eval`'s concatenation/re-parse\n"
+            "without double substitution.  W101 (eval injection) deliberately exempts\n"
+            "this form — the registry classifies `list` / `linsert` / `split` /\n"
+            "`lreplace` / etc. as list-returning canonical-safe commands.  See\n"
+            "analyser/checks/_eval.py."
+        ),
+        source=_dedent(
+            """
+            # Canonical safe form — eval of a list-returning cmd-sub.  No W101.
+            eval [list set $varname $value]
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-INJ-03",
+    _Entry(
+        label="T102 suppression: HTTP::uri PATH_PREFIXED -> no option injection",
+        proc="::top",
+        vars=(),
+        show=("ssa", "values"),
+        dialect="irules",
+        notes=(
+            "iRules semantics: `HTTP::uri` and `HTTP::path` return strings that\n"
+            "*always* begin with `/` (path-anchored) — there's no way an attacker can\n"
+            "make them start with `-`, so feeding them to a command that takes an\n"
+            "option terminator (`regexp $uri …`) cannot cause option injection.  Fix:\n"
+            "the taint pass tags HTTP::uri / HTTP::path values with the PATH_PREFIXED\n"
+            "colour; T102 (option injection) is suppressed for any propagated value\n"
+            "carrying that colour.  See compiler/taint/_sinks.py:_check_t102."
+        ),
+        source=_dedent(
+            """
+            set uri [HTTP::uri]
+            regexp $uri test
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-INJ-04",
+    _Entry(
+        label="T102 TP control: literal '-' prefix [HTTP::path] still warns",
+        proc="::top",
+        vars=(),
+        show=("ssa", "values"),
+        dialect="irules",
+        notes=(
+            "TP / control: prepending a fixed `-` literal to an HTTP::path value\n"
+            "*does* produce an option-like string; the path-prefix safety from\n"
+            "FP-INJ-03 doesn't apply when the attacker-controlled value is concatenated\n"
+            "after a fixed `-`.  T102 must still fire.  Locks in the suppression's\n"
+            "lower bound — it doesn't blanket-exempt every HTTP-derived value."
+        ),
+        source=_dedent(
+            """
+            set foo "-[HTTP::path]"
+            regexp $foo test
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-INJ-05",
+    _Entry(
+        label='eval "$cmd $x" -> W101 with code-action rewrite to eval [list ...]',
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            'TP: `eval "$cmd $x"` performs *double substitution* — every embedded\n'
+            "`$var` and `[cmd]` is substituted by eval's re-parse on top of the outer\n"
+            "substitution, which is the canonical Tcl injection vulnerability.  W101\n"
+            "fires; the LSP code-action rewrites the call to the safe form `eval\n"
+            "[list $cmd $x]` so `[list …]` quoting prevents double substitution.\n"
+            "Locked in by tests/test_fp_inj.py — verifies both the diagnostic fires\n"
+            "*and* the code-action produces the expected replacement text."
+        ),
+        source=_dedent(
+            """
+            # Top-level. eval of a non-list cmd-sub -> W101 + quick-fix.
+            set x foo
+            eval "process $x"
+            """
+        ),
+    ),
+)
+
+
+# PR 7 / BND family — bounds / intervals (W230/W231/W232/W233).
+
+
+register(
+    "FP-BND-01",
+    _Entry(
+        label="W231 lset dynamic out-of-range loop index ($j > length) fires",
+        proc="::f",
+        vars=("j",),
+        show=("ssa", "values", "dead"),
+        notes=(
+            "Phase-3 interval domain: a loop variable `j ∈ [4, 8]` against `set l\n"
+            "{a b c}` (length 3) is provably > length on every iteration — tclsh\n"
+            'errors with `index "4" out of range`.  Pre-Phase-3 the bounds check was\n'
+            "purely literal-arg (FP-NAB-01); now it consults the interval lattice for\n"
+            "dynamic indices too.  See compiler/interval_bounds.py and\n"
+            "analyser/_analyser/_diag_interval_bounds.py."
+        ),
+        source=_dedent(
+            """
+            proc f {v} {
+                # j is bounded [4, 8]; list length 3 -> every iteration is OOR.
+                set l {a b c}
+                for {set j 4} {$j < 9} {incr j} { lset l $j $v }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-BND-02",
+    _Entry(
+        label="W231 dynamic append-slot ($j == length) IS silent (FP guard)",
+        proc="::f",
+        vars=("j",),
+        show=("ssa", "values"),
+        notes=(
+            "FP guard for the W231 dynamic check: the dynamic-index path must mirror\n"
+            "the literal-index path's `> length` (not `>= length`) comparison so the\n"
+            "interval-tracked append slot stays silent.  Pre-fix the dynamic check\n"
+            "used `>=` and fired W231 for `set j 3; lset l $j $v` on a 3-element list\n"
+            "— which is the legal append slot (FP-NAB-01).  Fix: interval_bounds.py\n"
+            "uses the same strict comparator."
+        ),
+        source=_dedent(
+            """
+            proc f {v} {
+                # j == length -> APPEND slot; must NOT fire W231.
+                set l {a b c}
+                set j 3
+                lset l $j $v
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-BND-03",
+    _Entry(
+        label="W232 string index past end ($i >= length) fires (string smell)",
+        proc="::f",
+        vars=("i",),
+        show=("ssa", "values"),
+        notes=(
+            'Phase-3: `string index $s $i` returns `""` silently when `$i` is out of\n'
+            "range (tclsh-verified) — same severity tier as W230 (lindex smell), NOT\n"
+            "W231 (lset error).  The interval domain tracks string-length per\n"
+            'SSA-version (compiler/interval_bounds.py) so a constant-`set s "hello"`\n'
+            "+ constant-`set i 10` is provably OOR."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # i (10) > string length (5) -> tclsh returns ""; W232 smell.
+                set s "hello"
+                set i 10
+                return [string index $s $i]
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-BND-04",
+    _Entry(
+        label="W233 division by a provably-zero divisor (constant $d=0) fires",
+        proc="::f",
+        vars=("d",),
+        show=("ssa", "values"),
+        notes=(
+            "Phase-3: `expr {10 / $d}` with `set d 0` is a tclsh divide-by-zero\n"
+            "runtime error.  The interval domain proves `d == 0` (CONST lattice)\n"
+            "and the deep-finding pass emits W233.  Locked in here; FP-BND-05 is the\n"
+            "matching FP-guard for short-circuited dead arms."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # $d == 0 (CONST) -> tclsh divide-by-zero; W233 fires.
+                set d 0
+                return [expr {10 / $d}]
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-BND-05",
+    _Entry(
+        label="W233 FP guard: dead ternary arm / short-circuit `1 || 1/0` is silent",
+        proc="::f",
+        vars=(),
+        show=("ssa", "values"),
+        notes=(
+            "Tcl `expr` is lazy: the dead arm of `?:` and the short-circuited operand\n"
+            "of `&&`/`||` never execute, so a `1/0` in those positions is NOT a runtime\n"
+            "error (tclsh 9.0.3-verified: `expr {0 ? 1/0 : 7}` returns 7, `expr {1 ||\n"
+            "1/0}` returns 1).  W233 must respect short-circuit semantics in the expr\n"
+            "AST walker; firing here would be a FP.  See compiler/intervals.py\n"
+            "expression eval + the W233 deep-finding entrypoint."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # `0 ? 1/0 : 7` -> dead arm; tclsh returns 7; W233 must NOT fire.
+                return [expr {0 ? 1/0 : 7}]
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)

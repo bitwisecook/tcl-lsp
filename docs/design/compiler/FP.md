@@ -52,13 +52,13 @@ Open findings that still false-positive today carry a passing TP test plus an
 ## Families (one section per slice / eventual PR)
 
 - **NAB — Not-a-bug / confirm-correct audits** ([§NAB](#nab--not-a-bug--confirm-correct-audits))
-- **RBS — Read-before-set (W210/W213/W214)** *(planned, PR 1)*
-- **DS — Dead-store / unused (W220/W211)** *(planned, PR 2)*
-- **SH — Shimmer (S100/S101/S102)** *(planned, PR 3)*
-- **OBJ — Object dispatch (W307/W308)** *(planned, PR 4)*
-- **RCH — Reachability (O107)** *(planned, PR 5)*
-- **INJ — Injection / style (W101/W105/W301/T102)** *(planned, PR 6)*
-- **BND — Bounds / intervals (W230/W231/W232/W233)** *(planned, PR 7)*
+- **RBS — Read-before-set (W210/W213/W214)** ([§RBS](#rbs--read-before-set-w210w213w214))
+- **DS — Dead-store / unused (W220/W211)** ([§DS](#ds--dead-store--unused-w220w211))
+- **SH — Shimmer (S100/S101/S102)** ([§SH](#sh--shimmer-s100s101s102))
+- **OBJ — Object dispatch (W307/W308) + snit modelling** ([§OBJ](#obj--object-dispatch-w307w308--snit-modelling))
+- **RCH — Reachability (O107)** ([§RCH](#rch--reachability-o107))
+- **INJ — Injection / style (W101/W105/W301/T102)** ([§INJ](#inj--injection--style-w101w105w301t102))
+- **BND — Bounds / intervals (W230/W231/W232/W233)** ([§BND](#bnd--bounds--intervals-w230w231w232w233))
 
 ---
 
@@ -1757,6 +1757,1811 @@ body-write mechanism, here applied through the qualified path).
   (TP — a body-read of a never-bound var still fires W210)
 
 ---
+
+## DS — dead-store / unused (W220/W211)
+
+These entries lock in the analyser's recovery of *real* reads that live in
+otherwise-opaque constructs — command substitutions, expr cmd-subs, eval
+bodies, the return terminator, write-traces, and (Phase 8G) distinct
+ARRAY_ELEM Places.  Each FP test pairs with a TP control proving the fix
+doesn't over-suppress.
+
+### FP-DS-01 — incr/append/lappend inside cmd-sub: read-modify-write keeps init live
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_01_*`
+- **Codes:** W220, W211
+- **Corpus:** anything with an accumulator-in-cmd-sub idiom (tcllib's `foreach j … { lappend r [incr i $j] }` shape recurs throughout the lists / structures modules).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # incr inside the cmd-sub reads `i` (the prior value) — so the
+    # feeding `set i 0` is alive, not a dead store.
+    set i 0
+    foreach j {1 2 3} { lappend r [incr i $j] }
+    return $r
+}
+```
+
+#### Per-line reasoning
+
+1. `set i 0` — assigns version 1 of `i`.
+2. `foreach j {1 2 3}` — opens a loop; `j` is the loop var (defined per iteration).
+3. `lappend r [incr i $j]` — the cmd-sub runs `incr i $j`, which **reads** the prior `i#1` and writes `i#2`.  This makes `set i 0` alive.
+4. `return $r` — reads `r`.
+
+Pre-fix the outer word scanner saw `lappend r [incr i $j]` as one opaque cmd-sub; the read of `i` inside was invisible, so `set i 0` looked dead.
+
+#### tclsh ground truth
+
+```
+% set i 0; foreach j {1 2 3} { lappend r [incr i $j] }; puts "r=$r i=$i"
+r=1 3 6 i=6
+```
+`incr` modifies `i` in place — both the read of the prior value and the write of the new value are observable.
+
+#### Compiler evidence
+
+```
+--- FP-DS-01: incr/append/lappend inside cmd-sub: read-modify-write keeps init live
+regen: python -m bench.fp_snippets --id FP-DS-01
+function ::f
+  block entry_1
+    [0] AssignConst 'i' value='0'  defs={i#1}  uses={}
+    term Goto
+  block foreach_header_2
+    phi  SSAPhi(name='j', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
+    phi  SSAPhi(name='r', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
+    [0] Call cmd='foreach'  defs={j#2}  uses={}
+    term Branch ExprRaw(text='<foreach_has_next>')
+  block foreach_body_3
+    [0] Call cmd='lappend'  defs={r#2}  uses={j#2, r#1}
+    term Goto
+  block foreach_end_4
+    term Return ${r}
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`command_sub_read_modify_write_names` in `compiler/var_refs.py` recognises `incr` / `append` / `lappend` targets nested in command substitutions and treats them as reads of the prior version.  `_dead_store` / `_unused` then keep `i` live.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_01_init_kept_live_by_cmdsub_incr` (FP)
+- `tests/test_fp_ds.py::test_FP_DS_01_genuine_dead_store_still_fires` (TP)
+
+---
+
+### FP-DS-02 — reads inside [expr {...}] command-sub recovered as real uses
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_02_*`
+- **Codes:** W220, W211
+- **Corpus:** any `incr i [expr {…}]` or `return [expr {… $v …}]` idiom where the only read of a feeding `set` lives inside an expr command substitution (tcllib's iteration helpers across `lazyseq`, `struct::list`).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # $w is read inside the [expr {...}] cmd-sub — `set w 5` is NOT
+    # a dead store, and `w` is NOT unused.
+    set w 5
+    set i 0
+    incr i [expr {$w}]
+    return $i
+}
+```
+
+#### Per-line reasoning
+
+1. `set w 5` — assigns version 1 of `w`.
+2. `set i 0` — assigns version 1 of `i`.
+3. `incr i [expr {$w}]` — the cmd-sub evaluates the expr, **reading $w**; the resulting value is the increment amount.  This read is the only use of `w` in the proc.
+4. `return $i` — reads `i`.
+
+Pre-fix expressions inside command substitutions were opaque to the outer word scanner; the `$w` read was invisible so `set w 5` looked dead and `w` looked unused.
+
+#### tclsh ground truth
+
+```
+% set w 5; set i 0; incr i [expr {$w}]; puts "i=$i"
+i=5
+```
+
+#### Compiler evidence
+
+```
+--- FP-DS-02: reads inside [expr {...}] command-sub recovered as real uses
+regen: python -m bench.fp_snippets --id FP-DS-02
+function ::f
+  block entry_1
+    [0] AssignConst 'w' value='5'  defs={w#1}  uses={}
+    [1] AssignConst 'i' value='0'  defs={i#1}  uses={}
+    [2] Incr 'i'  defs={i#2}  uses={i#1}
+    term Return ${i}
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`statement_cmd_sub_read_names` walks `IRAssignExpr` / `IRExprEval` / `IRReturn` value-expression ASTs collecting variable reads under cmd-sub barriers.  Combined with FP-DS-01 (read-modify-write recovery) the feeding `set w 5` stays live.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_02_expr_cmdsub_read_keeps_def_live` (FP)
+- `tests/test_fp_ds.py::test_FP_DS_02_no_expr_cmdsub_read_still_fires` (TP)
+
+---
+
+### FP-DS-03 — eval {literal-body} reads recovered (eval runs in caller scope)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_03_*`
+- **Codes:** W220, W211
+- **Corpus:** anywhere `eval {literal body}` is used as a cheap macro form (event-handler dispatch idioms, dialect-specific wrappers).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # eval's braced body runs in the current scope; `$x` read here is
+    # a real read of the local `x`.
+    set x 1
+    eval {puts $x}
+}
+```
+
+#### Per-line reasoning
+
+1. `set x 1` — assigns version 1 of `x`.
+2. `eval {puts $x}` — the braced body is a literal string; eval re-parses and runs it in the **caller** scope.  `$x` is a read of the local `x`.
+
+Pre-fix the eval body was an opaque IRCall barrier; reads inside it weren't projected to the caller, so `set x 1` looked dead / unused.
+
+#### tclsh ground truth
+
+```
+% set x 1; eval {puts $x}
+1
+```
+The braced body re-enters the parser at run time and `$x` refers to the caller-scope `x`.
+
+#### Compiler evidence
+
+```
+--- FP-DS-03: eval {literal-body} reads recovered (eval runs in caller scope)
+regen: python -m bench.fp_snippets --id FP-DS-03
+function ::f
+  block entry_1
+    [0] AssignConst 'x' value='1'  defs={x#1}  uses={}
+    [1] Block  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`eval_body_read_names` in `compiler/var_refs.py` walks literal `eval {…}` and `namespace eval ns {…}` bodies recovering reads (including those nested inside `[expr {…}]` and `[set y …]`).  `_dead_store` / `_unused` consume the recovered name set.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_03_eval_body_read_kept_live` (FP)
+- `tests/test_fp_ds.py::test_FP_DS_03_eval_body_without_read_still_fires` (TP)
+
+---
+
+### FP-DS-04 — traced variables excluded from dead-store / unused (soundness)
+
+- **Verdict:** FALSE POSITIVE (soundness fix)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_04_*`
+- **Codes:** W220, W211
+- **Corpus:** any callback-driven Tcl code (Tk binding handlers, EDA testbench dispatchers, tcllib's `notifier` patterns).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # The write is observable through the callback — must NOT fire
+    # W220 (dead-store) or W211 (unused).
+    trace add variable x write cb
+    set x 1
+}
+```
+
+#### Per-line reasoning
+
+1. `trace add variable x write cb` — installs a write-trace callback on the local `x`.  Any subsequent `set x …` fires `cb`.
+2. `set x 1` — writes `x`.  This write is **observable** via the callback.
+
+So even with no in-proc read of `x`, the write has an externally-visible side effect and is NOT dead / unused.  Pre-fix the dead-store analysis ignored traces — a soundness gap, not just a precision one.
+
+#### tclsh ground truth
+
+```
+% proc cb {args} { puts "TRACE: $args" }
+% trace add variable x write cb; set x 1
+TRACE: x {} write
+```
+The callback fires as part of `set x 1`'s evaluation.
+
+#### Compiler evidence
+
+```
+--- FP-DS-04: traced variables excluded from dead-store / unused (soundness)
+regen: python -m bench.fp_snippets --id FP-DS-04
+function ::f
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='trace'  defs={x#1}  uses={}
+    [2] AssignConst 'x' value='1'  defs={x#2}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/var_refs.py` collects `traced_var_names` from `trace add variable` and the Tcl-8.4 `trace variable` form.  `_dead_store` and `_unused` exempt the traced names entirely.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_04_traced_var_no_w220` (FP, 8.5+ form)
+- `tests/test_fp_ds.py::test_FP_DS_04_84_form_also_excluded` (FP, 8.4 form)
+- `tests/test_fp_ds.py::test_FP_DS_04_untraced_unrelated_var_still_fires` (TP control)
+
+---
+
+### FP-DS-05 — CFGReturn read is a real use ($x kept live by `return $x`)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_05_return_read_counts`
+- **Codes:** W220, W211
+- **Corpus:** every proc that returns a freshly-bound value (`set r [doThing]; return $r`) — extremely common.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # return $x reads $x — `set x 1` is NOT a dead store, `x` is NOT unused.
+    set x 1
+    return $x
+}
+```
+
+#### Per-line reasoning
+
+1. `set x 1` — assigns version 1 of `x`.
+2. `return $x` — the CFGReturn terminator's value expression reads `$x`.
+
+Pre-fix the terminator-level read wasn't projected back into the variable use-set, so `set x 1` looked like a dead store with no consumer.
+
+#### tclsh ground truth
+
+```
+% proc f {} { set x 1; return $x }
+% f
+1
+```
+
+#### Compiler evidence
+
+```
+--- FP-DS-05: CFGReturn read is a real use ($x kept live by `return $x`)
+regen: python -m bench.fp_snippets --id FP-DS-05
+function ::f
+  block entry_1
+    [0] AssignConst 'x' value='1'  defs={x#1}  uses={}
+    term Return ${x}
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+Use-set building in `compiler/var_refs.py` includes CFGReturn value-expression reads when constructing the per-block uses map.  `_dead_store` reads from this map and recognises the terminator-level use.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_05_return_read_counts` (FP)
+
+---
+
+### FP-DS-06 — array-element dead-store distinction: $a(k) write is not killed by $a(j) write
+
+- **Verdict:** FALSE POSITIVE (now fixed, Phase 8G)
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_06_array_elem_writes_distinct`
+- **Codes:** W220, W211, O109
+- **Corpus:** any keyed-by-element pattern (tcllib's `dict`-builders, iRules' `set ::tbl(\$client) val` patterns, snit option storage).  Corpus impact: **W220 −88, W211 −2, O109 −66** on first measurement.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # k and j are distinct array element Places — set a(k) is NOT
+    # killed by set a(j); the read of $a(k) makes the first write live.
+    set a(k) 1
+    set a(j) 2
+    puts $a(k)
+}
+```
+
+#### Per-line reasoning
+
+1. `set a(k) 1` — writes the ARRAY_ELEM Place `a / k` (version 1 of `a`).
+2. `set a(j) 2` — writes the ARRAY_ELEM Place `a / j` (version 2 of `a`).  These are *distinct* Places: `k` and `j` are literally different keys.
+3. `puts $a(k)` — reads the ARRAY_ELEM Place `a / k`.
+
+Pre-Phase-8 the analysis tracked whole-array kills, so `set a(j) 2` "killed" the prior `set a(k) 1`.  Phase 8 introduces the Place model: ARRAY_ELEM Places overlap *only* when the indices are identical (literal == literal) OR when at least one is dynamic (in which case overlap is suppress-only after the 8E refinement).
+
+#### tclsh ground truth
+
+```
+% set a(k) 1; set a(j) 2; puts $a(k)
+1
+```
+Different keys are different slots.
+
+#### Compiler evidence
+
+```
+--- FP-DS-06: array-element dead-store distinction: $a(k) write is not killed by $a(j) write
+regen: python -m bench.fp_snippets --id FP-DS-06
+function ::f
+  block entry_1
+    [0] AssignConst 'a(k)' value='1'  defs={a#1}  uses={}
+    [1] AssignConst 'a(j)' value='2'  defs={a#2}  uses={}
+    [2] Call cmd='puts'  defs={}  uses={a#2}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  dead_stores: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/place.py`'s `overlap()` relation: two ARRAY_ELEM Places overlap iff they share name + a non-disjoint key set.  Literal `k` and `j` are disjoint → no overlap → no kill → first write stays alive.  See `analyser/checks/_array_dead_store.py` for the W220 check that consumes the Place model.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_06_array_elem_writes_distinct` (FP)
+- `tests/test_fp_ds.py::test_FP_DS_06_same_element_overwrite_still_fires` (OPEN xfail — flips when must-alias kills land)
+
+---
+
+
+## SH — shimmer (S100/S101/S102)
+
+Shimmer fires when a value of one Tcl intrep flows into an operator that
+wants another (STRING into arithmetic, INT into eq, etc.).  These entries
+lock in the conservative suppressions (OVERDEFINED / scope-alias) and the
+determinism property of the phi-join (no PYTHONHASHSEED flake).
+
+### FP-SH-01 — OVERDEFINED values do not trigger shimmer (conservative suppression)
+
+- **Verdict:** FALSE POSITIVE (conservative suppression)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_01_*`
+- **Codes:** S100, S101, S102
+- **Corpus:** any code that consumes an unknown-command return (the bulk of integration glue and event-handler bodies).
+
+#### Reproducer
+
+```tcl
+# x has unknown type (cmd return) -> OVERDEFINED -> no shimmer warning.
+set x [unknownCmd]
+set y [expr {$x + 1}]
+return $y
+```
+
+#### Per-line reasoning
+
+1. `set x [unknownCmd]` — the SCCP lattice cannot resolve `unknownCmd`'s return, so `x#1` is OVERDEFINED.
+2. `set y [expr {$x + 1}]` — `$x` flows into arithmetic.
+
+Pre-fix logic: STRING-typed `$x` in arithmetic → S100.  But `x` isn't STRING — it's *unknown*.  A shimmer claim would be unsound.
+
+The conservative rule is to suppress shimmer for OVERDEFINED / UNKNOWN values; the cost is missing genuine STRING-in-arithmetic when type inference can't see far enough, but that's preferable to false-claiming a type the code doesn't have.
+
+#### tclsh ground truth
+
+N/A (this is a static-analysis precision decision, not a runtime check)
+
+#### Compiler evidence
+
+```
+--- FP-SH-01: OVERDEFINED values do not trigger shimmer (conservative suppression)
+regen: python -m bench.fp_snippets --id FP-SH-01
+function ::top
+  block entry_1
+    [0] AssignValue 'x' value='[unknownCmd]'  defs={x#1}  uses={}
+    [1] AssignExpr 'y'  defs={y#1}  uses={x#1}
+    term Return ${y}
+  values (SCCP lattice)
+    x#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_shimmer.py`'s entry filter skips values whose `LatticeKind` is `OVERDEFINED` or `UNKNOWN`.  See also the `force-OVERDEFINED-for-escaping` rule in `compiler/core_analyses.py` that pushes values to OVERDEFINED on call-out — the same sound-but-imprecise tradeoff at the call-graph boundary.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_01_overdefined_silent` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_01_string_arith_still_fires` (TP control)
+
+---
+
+### FP-SH-02 — scope-alias declarations typed OVERDEFINED (not STRING) — kills shimmer FPs
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_02_*`
+- **Codes:** S100, S101, S102
+- **Corpus:** every proc using `variable` / `global` / `upvar` to expose a namespace or caller variable (extremely common in tcllib's namespace-eval modules).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # `variable v` declares an alias — type is unknown (OVERDEFINED),
+    # NOT STRING, so `expr {$v + 1}` must NOT fire S100.
+    variable v
+    return [expr {$v + 1}]
+}
+```
+
+#### Per-line reasoning
+
+1. `variable v` — declares `v` as a local alias for the current namespace's `::ns::v` slot.  The local's intrep is whatever the storage holds — externally determined.
+2. `expr {$v + 1}` — arithmetic on `$v`.
+
+Pre-fix `variable v` defaulted `v#1` to TclType.STRING (an unsound guess based on declaration spelling, not actual content).  S100 fired the first time anything used `$v` in arithmetic.
+
+Fix: type alias declarations as OVERDEFINED (truly unknown) so they fall under the FP-SH-01 conservative suppression.
+
+#### tclsh ground truth
+
+N/A — static precision decision; runtime would show whatever intrep the namespace storage carries.
+
+#### Compiler evidence
+
+```
+--- FP-SH-02: scope-alias declarations typed OVERDEFINED (not STRING) — kills shimmer FPs
+regen: python -m bench.fp_snippets --id FP-SH-02
+function ::f
+  block entry_1
+    [0] Call cmd='variable'  defs={v#1}  uses={}
+    term Return [expr {$v + 1}]
+  values (SCCP lattice)
+    v#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py` types the def from `variable` / `global` / `upvar` as TypeLattice.OVERDEFINED instead of STRING.  This was commit `adfc6d84` in the parser/compiler-algorithms branch.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_02_variable_alias_no_shimmer` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_02_global_alias_no_shimmer` (FP — global)
+
+---
+
+### FP-SH-03 — phi joins are hash-seed-independent (deterministic shimmer)
+
+- **Verdict:** DETERMINISM PROPERTY (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_03_*`
+- **Codes:** S100, S101, S102
+- **Corpus:** loop-merged values across the corpus (the historical flake source was tcllib's `struct::set` accumulators).
+
+#### Reproducer
+
+```tcl
+proc f {n} {
+    # x is joined at the loop header from two INT branches; the join
+    # must come out INT every run (no flake) -> no S101.
+    set x 0
+    for {set i 0} {$i < $n} {incr i} {
+        if {$i > 5} { set x 1 } else { set x 2 }
+    }
+    return [expr {$x + 1}]
+}
+```
+
+#### Per-line reasoning
+
+1. `set x 0` — `x#1: INT`.
+2. The for-loop header creates `x#2 = phi(x#1, x#3)`.  Both incoming branches (the if-then and if-else) write INT — `set x 1`, `set x 2`.
+3. The phi join over `{INT, INT}` must produce INT.
+
+Pre-fix the join iterated over a set whose iteration order depended on PYTHONHASHSEED; the reducing fold could pick a different "winning" type per run, occasionally yielding STRING.  The downstream `expr {$x + 1}` would then sporadically fire S101.
+
+#### tclsh ground truth
+
+N/A — determinism property of the analyser, not Tcl semantics.
+
+#### Compiler evidence
+
+```
+--- FP-SH-03: phi joins are hash-seed-independent (deterministic shimmer)
+regen: python -m bench.fp_snippets --id FP-SH-03
+function ::f
+  block entry_1
+    [0] AssignConst 'x' value='0'  defs={x#1}  uses={}
+    [1] AssignConst 'i' value='0'  defs={i#1}  uses={}
+    term Goto
+  block for_header_2
+    phi  SSAPhi(name='i', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    phi  SSAPhi(name='x', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$i', name='i', start=0, end=1), right=ExprVar(text='$n', name='n', start=5, end=6))
+  block for_body_3
+    term Branch ExprBinary(op=<BinOp.GT: '>'>, left=ExprVar(text='$i', name='i', start=0, end=1), right=ExprLiteral(text='5', start=5, end=5))
+  block for_step_4
+    [0] Incr 'i'  defs={i#3}  uses={i#2}
+    term Goto
+  block for_end_5
+    term Return [expr {$x + 1}]
+  block if_end_6
+    phi  SSAPhi(name='x', version=3, incoming={'if_next_8': 4, 'if_then_7': 5})
+    term Goto
+  block if_then_7
+    [0] AssignConst 'x' value='1'  defs={x#5}  uses={}
+    term Goto
+  block if_next_8
+    [0] AssignConst 'x' value='2'  defs={x#4}  uses={}
+    term Goto
+  values (SCCP lattice)
+    x#1: CONST(0)
+    x#2: CONSTSET([0, 1, 2])
+    x#3: CONSTSET([1, 2])
+    x#4: CONST(2)
+    x#5: CONST(1)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py` sorts phi-source type entries by a canonical key before reducing the join.  The fix was commit `b08f2c47` (`Make SSA type-propagation phi joins deterministic`).
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_03_phi_join_deterministic` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_03_genuine_phi_string_int_still_fires` (smoke / OVERDEFINED path)
+
+---
+
+
+## OBJ — object dispatch (W307/W308) + snit modelling
+
+W307 catches stray non-literal command words (`$x foo`); W308 validates
+method names against the declared set.  Both have to be aware of object
+handles — snit self-references, snit components, namespaced factory
+returns, local snit instances — or every such dispatch false-positives.
+These entries also cover the snit body modelling (private procs are
+analysed, instance vars are exempt from RBS).
+
+### FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) — not stray non-literal commands
+
+- **Verdict:** FALSE POSITIVE (now fixed, snit modelling)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_01_*`
+- **Codes:** W307
+- **Corpus:** every snit::type / snit::widget body that uses self-dispatch — pt::*, struct::*, grammar::*, tklib megawidget patterns.
+
+#### Reproducer
+
+```tcl
+# Bench placeholder: snit modelling sits outside the per-proc snapshot.
+# The FP-OBJ-01 verdict is locked in by tests/test_fp_obj.py only.
+proc f {} { return ok }
+```
+
+#### Per-line reasoning
+
+Inside a snit::type / snit::widget method body, `$self`, `$type`, `$selfns`, `$win` are **reserved variables** with specific runtime semantics:
+
+* `$self foo` — dispatches method `foo` on the current object.
+* `$type bar` — dispatches typemethod `bar`.
+* `$selfns` — the per-instance Tcl namespace (used to scope vars).
+* `$win` — the window path for snit::widget.
+
+Pre-fix these looked like generic `$var cmd` non-literal-command dispatches and fired W307.  Fix: register the snit-reserved set in the body's exempt list.
+
+#### tclsh ground truth
+
+```
+% snit::type T { method m {} { return "I am [$self info type]" }
+ method n {} { $self m }
+}
+% T create t
+% t n
+I am ::T
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-01: snit self-references ($self/$type/$selfns/$win) — not stray non-literal commands
+regen: python -m bench.fp_snippets --id FP-OBJ-01
+function ::f
+  block entry_1
+    term Return ok
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/snit.py` defines the SNIT_RESERVED constant `{self, type, selfns, win, hull, ...}`.  `analyser/checks/_object_dispatch.py` exempts those names when the enclosing scope is a snit type / widget body.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_01_self_dispatch_no_w307` (FP, all 4 self-refs)
+- `tests/test_fp_obj.py::test_FP_OBJ_01_self_ref_outside_snit_still_w307` (TP — same names in vanilla proc still warn)
+
+---
+
+### FP-OBJ-02 — snit::widgetadaptor $hull dispatch — widgetadaptor delegation idiom
+
+- **Verdict:** FALSE POSITIVE (now fixed, snit modelling)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_02_widgetadaptor_hull_no_w307`
+- **Codes:** W307
+- **Corpus:** every `snit::widgetadaptor` body (tklib's adaptor widgets, BWidget-based components).
+
+#### Reproducer
+
+```tcl
+# See note in FP-OBJ-01 — snit modelling is class-level.
+proc f {} { return ok }
+```
+
+#### Per-line reasoning
+
+`snit::widgetadaptor` is the snit form for wrapping a single underlying Tk widget; the underlying widget is exposed as `$hull`.  `$hull configure -bg red` delegates to the underlying widget.  Same exemption as FP-OBJ-01 — `hull` joins the reserved set.
+
+#### tclsh ground truth
+
+```
+% snit::widgetadaptor MyW { ... method m {} { $hull configure -bg red }
+ }
+```
+`$hull configure …` is the canonical pattern; snit's docs specify it explicitly.
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-02: snit::widgetadaptor $hull dispatch — widgetadaptor delegation idiom
+regen: python -m bench.fp_snippets --id FP-OBJ-02
+function ::f
+  block entry_1
+    term Return ok
+```
+
+#### Why the analyser reaches that verdict
+
+`SNIT_RESERVED` in `compiler/snit.py` includes `hull`.  Same dispatch-check exemption as FP-OBJ-01.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_02_widgetadaptor_hull_no_w307` (FP)
+
+---
+
+### FP-OBJ-03 — snit component dispatch ($myexporter export ...) — instance-var method dispatch
+
+- **Verdict:** FALSE POSITIVE (now fixed, snit body inventory)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_03_*`
+- **Codes:** W307
+- **Corpus:** tcllib's parsers (`pt::*`), grammar engines (`grammar::*`), and aggregate types (`struct::*`) heavily use this idiom.
+
+#### Reproducer
+
+```tcl
+proc f {} { return ok }
+```
+
+#### Per-line reasoning
+
+User-declared instance vars (`variable v`, `component c`, `option -o`, `typevariable t`) hold values the user can dispatch on.  Inside a method / constructor / typemethod body, `$myexporter export …` is method dispatch on a known-object instance var — pre-fix the analyser couldn't distinguish these from arbitrary `$var cmd` calls.
+
+Fix: the snit body inventory collects every declared instance var / component / option / typevariable into a per-type set; dispatches on those names inside the body are exempt.
+
+#### tclsh ground truth
+
+```
+% snit::type T { component myexp
+ method m {} { $myexp export 1 }
+ }
+% T create t
+% t configure -myexp [exporter create %AUTO%]
+% t m
+```
+The component name resolves to the exporter object at run time.
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-03: snit component dispatch ($myexporter export ...) — instance-var method dispatch
+regen: python -m bench.fp_snippets --id FP-OBJ-03
+function ::f
+  block entry_1
+    term Return ok
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/snit.py` records the type's `variable` / `component` / `option` / `typevariable` declarations into a `BodyInventory` keyed on type name.  The W307 check exempts dispatches whose target name is in that inventory when the enclosing scope is the type body.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_03_component_dispatch_no_w307` (FP, component)
+- `tests/test_fp_obj.py::test_FP_OBJ_03_constructor_dispatch_no_w307` (FP, constructor)
+- `tests/test_fp_obj.py::test_FP_OBJ_03_typemethod_dispatch_no_w307` (FP, typevariable in typemethod)
+
+---
+
+### FP-OBJ-04 — namespaced-factory provenance: set t [::struct::tree] — object handle
+
+- **Verdict:** FALSE POSITIVE (now fixed, analyser-only provenance)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_04_*`
+- **Codes:** W307
+- **Corpus:** tcllib's factory idiom is pervasive: `::struct::tree`, `::struct::matrix`, `::struct::queue`, `pt::rde`, `grammar::*` etc.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # ::struct::tree is a namespaced factory; $t is an object handle.
+    set t [::struct::tree mytree]
+    $t walk root
+}
+```
+
+#### Per-line reasoning
+
+tcllib's standard pattern: `::struct::tree mytree` is a constructor that creates and returns the new tree's command name.  Subsequent `$t walk root` is dispatch on the new object.  Pre-fix the analyser saw `$t` as an unknown command word.
+
+Provenance fix: a var assigned from a *namespaced* command substitution (`[::ns::factory …]` or `[ns::factory …]`) is tagged as an object handle; W307 is exempt for dispatches on that var **within the same proc** (no cross-proc leakage).  This is *analyser-only* provenance — no change to the type lattice — so the shimmer pass is unaffected.
+
+#### tclsh ground truth
+
+```
+% ::struct::tree mytree
+::mytree
+% mytree walk root pre {n} { puts $n }
+root
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-04: namespaced-factory provenance: set t [::struct::tree] — object handle
+regen: python -m bench.fp_snippets --id FP-OBJ-04
+function ::f
+  block entry_1
+    [0] AssignValue 't' value='[::struct::tree mytree]'  defs={t#1}  uses={}
+    [1] Call cmd='${t}'  defs={}  uses={t#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    t#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/object_provenance.py` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `analyser/checks/_object_dispatch.py` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_factory_no_w307` (FP, `::struct::tree`)
+- `tests/test_fp_obj.py::test_FP_OBJ_04_short_namespace_form_no_w307` (FP, `struct::matrix`)
+- `tests/test_fp_obj.py::test_FP_OBJ_04_bare_unknown_command_still_w307` (TP — bare-name still warns)
+- `tests/test_fp_obj.py::test_FP_OBJ_04_factory_does_not_leak_across_procs` (TP — per-proc scoping)
+
+---
+
+### FP-OBJ-05 — snit instance dispatch (set o [Foo create %AUTO%]; $o m) — typed OBJECT
+
+- **Verdict:** FALSE POSITIVE (now fixed, snit instance provenance)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_05_*`
+- **Codes:** W307, W308
+- **Corpus:** every local snit type used in tests / examples / integration glue.
+
+#### Reproducer
+
+```tcl
+snit::type ::Counter { method bump {} { return 1 } }
+proc use {} {
+    # `Counter create %AUTO%` returns a snit instance; $a bump is
+    # method dispatch, not a stray non-literal command.
+    set a [Counter create %AUTO%]
+    $a bump
+}
+```
+
+#### Per-line reasoning
+
+A locally-defined `snit::type ::Counter { method bump {} { … } }` is in scope, so calling `Counter create %AUTO%` returns a known-object instance.  Pre-fix the analyser had no record of `Counter` being a snit type and fired W307 on the dispatch.
+
+Fix: `compilation_unit.snit_types` records each locally-declared snit type's name + method set; vars initialised from a call to a recorded type's create-form (or the create-shorthand `Foo %AUTO%`) are typed OBJECT.  W307 + W308 are both exempt — W308 because snit's method-dispatch goes through delegation / hull / options / built-ins (not soundly resolvable to the declared set).
+
+#### tclsh ground truth
+
+```
+% snit::type Counter { method bump {} { return 1 }
+}
+% set a [Counter create %AUTO%]
+::counter1
+% $a bump
+1
+```
+The result of `Counter create %AUTO%` is an object command name.
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-05: snit instance dispatch (set o [Foo create %AUTO%]; $o m) — typed OBJECT
+regen: python -m bench.fp_snippets --id FP-OBJ-05
+function ::use
+  block entry_1
+    [0] AssignValue 'a' value='[Counter create %AUTO%]'  defs={a#1}  uses={}
+    [1] Call cmd='${a}'  defs={}  uses={a#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    a#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/snit.py` builds the type's create-form receiver: any `[Foo create ARGS]` or `[Foo ARGS]` (the create-shorthand) where `Foo` is a registered snit type produces an instance-typed value.  Receiver dispatches inherit the exemption.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_auto_no_w307` (FP, %AUTO%)
+- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_named_no_w307` (FP, named)
+- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_shorthand_no_w307` (FP, shorthand)
+- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_instance_no_w308` (FP, W308 exempt)
+
+---
+
+### FP-OBJ-06 — snit private proc body is analysed (not silently dropped)
+
+- **Verdict:** CONFIRM-CORRECT (snit body analysis depth)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_06_private_proc_body_analysed`
+- **Codes:** W216 (used as a positive marker)
+- **Corpus:** any snit type with internal helper procs (struct::matrix, struct::graph internal helpers).
+
+#### Reproducer
+
+```tcl
+# Class-level body; per-proc snapshot doesn't fit.
+proc f {} { return ok }
+```
+
+#### Per-line reasoning
+
+A `proc Helper {a} { … }` declared inside a `snit::type` body is a **type-private proc** (callable only from the type's methods).  Pre-fix worry: the snit body wrapping might cause the analyser to drop the inner proc and miss genuine diagnostics in its body.
+
+The verdict on audit: the analyser DOES descend into the body — proven here by `info exists ${a}($a)` firing W216 (scalar-vs-array smell) inside the proc.  This locks in the depth contract.
+
+#### tclsh ground truth
+
+```
+% snit::type T { proc Helper {a} { return [info exists ${a}($a)] }
+ method m {a} { return [Helper $a] }
+}
+% T create t
+% t m foo
+0  # exists test is well-formed; W216 is a *static-analysis* smell about the form
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-06: snit private proc body is analysed (not silently dropped)
+regen: python -m bench.fp_snippets --id FP-OBJ-06
+function ::f
+  block entry_1
+    term Return ok
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/snit.py` registers inner `proc` declarations with the analyser pipeline; the body is compiled and walked through every check.  This entry exists to lock the contract — a refactor that silently drops the body would catch the W216 disappearance.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_06_private_proc_body_analysed` (TP / depth lock-in)
+
+---
+
+
+## RCH — reachability (O107)
+
+`break` / `continue` are jump statements, not CFG edges; `try` handlers
+were CFG islands.  Without analysis-only edges, post-loop blocks and
+handler bodies looked unreachable (false O107 + unsound DCE).  These
+entries lock in the SCCP `break → loop-exit` edge feed and the SSA
+exception-edge inheritance into try handlers.
+
+### FP-RCH-01 — while 1 { break }: break-after is reachable (not O107 dead code)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_01_*`
+- **Codes:** O107
+- **Corpus:** every event-loop / consumer that uses `while 1 { wait_for_work; if {$done} break }` — extremely common.
+
+#### Reproducer
+
+```tcl
+proc f {c} {
+    # while 1 with a conditional `break` -> `puts after` IS reachable.
+    while 1 { if {$c} break }
+    puts after
+}
+```
+
+#### Per-line reasoning
+
+1. `while 1 { if {$c} break }` — the loop header has condition `1` (constant true).
+2. `puts after` — appears after the loop.
+
+Pre-fix: `break` was modelled as a jump statement, not a CFG edge.  So the only edge into the loop-exit block was the header's exit edge — which SCCP prunes as dead when the condition is constant-true.  The post-loop block was unreachable in the reachability worklist → O107 fired on `puts after`, AND DCE was unsound (could delete still-reachable code).
+
+Fix: SCCP feeds the `break → loop-exit` edge into reachability so the post-loop block stays alive.
+
+#### tclsh ground truth
+
+```
+% set c 1; while 1 { if {$c} break }; puts after
+after
+```
+
+#### Compiler evidence
+
+```
+--- FP-RCH-01: while 1 { break }: break-after is reachable (not O107 dead code)
+regen: python -m bench.fp_snippets --id FP-RCH-01
+function ::f
+  block entry_1
+    term Goto
+  block while_header_2
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block while_body_3
+    term Branch ExprVar(text='$c', name='c', start=0, end=1)
+  block while_end_4
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block if_end_5
+    term Goto
+  block if_then_6
+    [0] Call cmd='break'  defs={}  uses={}
+    term Goto
+  block if_next_7
+    term Goto
+  block exit_8
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/sccp.py` (or `compiler/optimiser/_helpers.py` — see the reachability worklist) treats `break` / `continue` as CFG edges into their enclosing loop's exit / latch block when feeding reachability.  The bytecode lowering still emits the jump as a statement so default-bytecode codegen stays tclsh-identical.
+
+#### Tests
+
+- `tests/test_fp_rch.py::test_FP_RCH_01_while1_break_after_reachable` (FP, while)
+- `tests/test_fp_rch.py::test_FP_RCH_01_for_true_break_reachable` (FP, for-true)
+- `tests/test_fp_rch.py::test_FP_RCH_01_nested_loop_break_reachable` (FP, nested)
+
+---
+
+### FP-RCH-02 — try handler body is reachable (analysis-only exception edges)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_02_*`
+- **Codes:** O107
+- **Corpus:** every `try`/`on error`/`on ok` use across the corpus — error-handling wrappers in tcllib's `fileutil`, iRules error logging.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # `on error` handler body is reachable; no O107 on `set y 1`.
+    try {
+        set x [doThing]
+    } on error {e opts} {
+        set y 1
+        puts $y
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. `try { set x [doThing] }` — body block.
+2. `on error {e opts} { set y 1; puts $y }` — handler block.
+
+Pre-fix the handler block had no CFG predecessor edge from the body — it was a CFG island.  Every statement in it fired O107 ('unreachable dead code').  Fix: SSA construction adds analysis-only exception edges from the body to each handler; the handler is reachable in the analyser's view.
+
+#### tclsh ground truth
+
+```
+% try { error fail } on error {e opts} { set y 1; puts $y }
+1
+```
+
+#### Compiler evidence
+
+```
+--- FP-RCH-02: try handler body is reachable (analysis-only exception edges)
+regen: python -m bench.fp_snippets --id FP-RCH-02
+function ::f
+  block entry_1
+    term Goto
+  block try_body_2
+    [0] AssignValue 'x' value='[doThing]'  defs={x#1}  uses={}
+    term Goto
+  block try_end_3
+    term Goto
+  block try_ok_4
+    term Goto
+  block try_handler_5
+    [0] Call cmd='try'  defs={e#1, opts#1}  uses={}
+    [1] AssignConst 'y' value='1'  defs={y#1}  uses={}
+    [2] Call cmd='puts'  defs={}  uses={y#1}
+    term Goto
+  block exit_6
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/ssa.py` adds exception edges from the try body to each handler block during SSA construction.  The edges are tagged 'analysis-only' so codegen ignores them and default-bytecode lowering stays tclsh-identical.
+
+#### Tests
+
+- `tests/test_fp_rch.py::test_FP_RCH_02_handler_body_reachable` (FP)
+- `tests/test_fp_rch.py::test_FP_RCH_02_handler_var_not_unset` (FP — handler-bound `e` is defined)
+
+---
+
+### FP-RCH-03 — on ok inherits body-defined SSA versions (no W210 on body-set var)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_reads_body_var`
+- **Codes:** W210
+- **Corpus:** `try { set v [doThing] } on ok {} { use $v }` is the common-case fallback for ensuring a body completed before consuming its result.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # `on ok` runs after the body completes; $vdata IS defined.
+    try {
+        set vdata [getData]
+    } on ok {} {
+        return $vdata
+    }
+}
+```
+
+#### Per-line reasoning
+
+`on ok` runs only **after** the body completes normally (no error).  At that point any var the body set is defined.  Pre-fix the handler block didn't inherit body SSA versions — it saw `vdata#0` (sentinel "before any def") and fired W210.
+
+Fix: the ok-path exception edge feeds the body's last-version map into the handler's phi inputs, mirroring natural sequential control flow.
+
+#### tclsh ground truth
+
+```
+% try { set vdata 42 } on ok {} { puts $vdata }
+42
+```
+
+#### Compiler evidence
+
+```
+--- FP-RCH-03: on ok inherits body-defined SSA versions (no W210 on body-set var)
+regen: python -m bench.fp_snippets --id FP-RCH-03
+function ::f
+  block entry_1
+    term Goto
+  block try_body_2
+    [0] AssignValue 'vdata' value='[getData]'  defs={vdata#1}  uses={}
+    term Goto
+  block try_end_3
+    term Goto
+  block try_ok_4
+    term Goto
+  block try_handler_5
+    term Return ${vdata}
+  block exit_6
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/ssa.py`'s phi placement for try-handler blocks consults the body's exit-version map for the ok edge; on-error inherits the pre-try state (since the body may not have set the var before erroring).
+
+#### Tests
+
+- `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_reads_body_var` (FP)
+- `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_unset_var_still_fires` (smoke / no-crash control)
+
+---
+
+### FP-RCH-04 — genuine infinite-loop (no break) -> code after IS unreachable (TP control)
+
+- **Verdict:** TRUE POSITIVE (control)
+- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_04_infinite_loop_dead_code_fires`
+- **Codes:** O107
+- **Corpus:** genuine infinite-loop antipatterns (typically a regression / leftover during development).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # No break / return -> `puts after` IS dead code.
+    while 1 { puts x }
+    puts after
+}
+```
+
+#### Per-line reasoning
+
+`while 1 { puts x }` has no `break` / `return` / uncaught exception in the body, so control never reaches the post-loop block.  `puts after` IS dead code; O107 fires.
+
+This control test ensures the FP-RCH-01 fix doesn't blanket-suppress all post-loop reachability — only the specific case where a `break` edge feeds in.
+
+#### tclsh ground truth
+
+```
+% while 1 { puts x }
+(infinite output, never reaches `puts after`)
+```
+
+#### Compiler evidence
+
+```
+--- FP-RCH-04: genuine infinite-loop (no break) -> code after IS unreachable (TP control)
+regen: python -m bench.fp_snippets --id FP-RCH-04
+function ::f
+  block entry_1
+    term Goto
+  block while_header_2
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block while_body_3
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block while_end_4
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block exit_5
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+With no `break` to feed an edge into the loop-exit block, the SCCP-pruned constant-true header edge is the ONLY potential predecessor; reachability correctly marks the post-loop block dead.
+
+#### Tests
+
+- `tests/test_fp_rch.py::test_FP_RCH_04_infinite_loop_dead_code_fires` (TP)
+
+---
+
+
+## INJ — injection / style (W101/W105/W301/T102)
+
+Tcl's substitution model makes `eval` and `uplevel` style decisions
+high-stakes: the safe canonical forms (`uplevel 1 $body`,
+`eval [list …]`) must stay silent or every safe idiom warns; the genuine-
+risk forms (quoted interpolation, double substitution) must still warn or
+the check loses value.  T102 (option injection) uses taint colours
+(PATH_PREFIXED for HTTP::uri / HTTP::path) for the same FP-vs-TP trade.
+
+### FP-INJ-01 — uplevel 1 $body (bare var) is the safe idiom — NOT W301
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_01_*`
+- **Codes:** W301
+- **Corpus:** every callback-passing API in tcllib (`fileutil::traverse`, `htmlparse::*`, snit's `delegate`-via-uplevel patterns).
+
+#### Reproducer
+
+```tcl
+proc f {body} {
+    # The canonical `uplevel 1 $body` pattern — must NOT fire W301.
+    uplevel 1 $body
+}
+```
+
+#### Per-line reasoning
+
+`uplevel 1 $body` evaluates `$body` ONCE in the caller frame; the value is the script source.  Pre-fix W301 ('use braces') wrongly recommended `uplevel 1 {$body}` — but braces block the variable expansion, so the braced form evaluates the literal text `$body` (not the variable's contents).
+
+Fix: W301 recognises the `$single_var` form as safe; only quoted-interpolation forms (`"$cmd $arg"`) or multi-arg concatenation get flagged.
+
+#### tclsh ground truth
+
+```
+% set body { puts hi }
+% uplevel 1 $body
+hi
+% uplevel 1 {$body}   ;# fires `invalid command name "$body"` — would be the W301 suggested replacement
+```
+
+#### Compiler evidence
+
+```
+--- FP-INJ-01: uplevel 1 $body (bare var) is the safe idiom — NOT W301
+regen: python -m bench.fp_snippets --id FP-INJ-01
+function ::f
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='uplevel'  defs={}  uses={body#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_uplevel.py` walks the second-arg word: a single `WordSubst` whose source is a single `$var` (no surrounding quoted text) is the safe form; any quoted-text + `$var` mixture is the risky form.
+
+#### Tests
+
+- `tests/test_fp_inj.py::test_FP_INJ_01_bare_var_no_w301` (FP)
+- `tests/test_fp_inj.py::test_FP_INJ_01_quoted_interpolation_still_w301` (TP)
+
+---
+
+### FP-INJ-02 — eval [list ...] is safe — list-canonical form, NOT W101
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_02_*`
+- **Codes:** W101
+- **Corpus:** every dynamic-call wrapper in tcllib (`namespace ensemble` setup, dispatcher patterns).
+
+#### Reproducer
+
+```tcl
+# Canonical safe form — eval of a list-returning cmd-sub.  No W101.
+eval [list set $varname $value]
+```
+
+#### Per-line reasoning
+
+`eval [list set $varname $value]` is the **canonical-safe** form: `[list …]` produces a list whose elements survive `eval`'s concatenation/re-parse without double substitution.
+
+Fix: the W101 check exempts list-returning canonical commands (`list`, `linsert`, `lreplace`, `split`, `concat`, etc.) — see the canonical-safe set in the registry.
+
+#### tclsh ground truth
+
+```
+% set varname x; set value 1
+% eval [list set $varname $value]
+1
+% set x
+1
+```
+The list-quoted form passes `$varname` and `$value` as exactly-one-word each, no double substitution.
+
+#### Compiler evidence
+
+```
+--- FP-INJ-02: eval [list ...] is safe — list-canonical form, NOT W101
+regen: python -m bench.fp_snippets --id FP-INJ-02
+function ::top
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='eval'  defs={}  uses={value#0, varname#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_eval.py` recognises the canonical-safe cmd-sub set (sourced from the command registry).  Any `eval [CANONICAL_SAFE_CMD …]` is exempt.
+
+#### Tests
+
+- `tests/test_fp_inj.py::test_FP_INJ_02_eval_list_clean` (FP, `eval [list …]`)
+- `tests/test_fp_inj.py::test_FP_INJ_02_eval_linsert_clean` (FP, `eval [linsert …]`)
+- `tests/test_fp_inj.py::test_FP_INJ_02_eval_string_concat_still_w101` (TP control)
+
+---
+
+### FP-INJ-03 — T102 suppression: HTTP::uri PATH_PREFIXED -> no option injection
+
+- **Verdict:** FALSE POSITIVE (now fixed, taint colour suppression)
+- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_03_*`
+- **Codes:** T102
+- **Corpus:** every iRule that consumes `HTTP::uri` / `HTTP::path` (most iRules in any production deployment).
+
+#### Reproducer
+
+```tcl
+set uri [HTTP::uri]
+regexp $uri test
+```
+
+#### Per-line reasoning
+
+iRules semantics: `HTTP::uri` and `HTTP::path` return strings that **always** begin with `/` (path-anchored — the F5 documentation guarantees this).  No attacker-controlled input can make them start with `-`, so feeding them to a command with an option terminator (`regexp $uri …`) cannot trigger option injection.
+
+Fix: the taint pass tags `HTTP::uri` / `HTTP::path` (and the related IP::*_addr / TCP::*_port sources) with the **PATH_PREFIXED** taint colour; T102 suppresses any value carrying that colour.  The colour propagates through copy assignments and non-dash literal concatenations.
+
+#### tclsh ground truth
+
+```
+HTTP::uri  -> "/some/path?x=1"   ; HTTP::path -> "/some/path"
+```
+No path-anchored value can start with `-`, so `regexp` cannot misinterpret it as an option.
+
+#### Compiler evidence
+
+```
+--- FP-INJ-03: T102 suppression: HTTP::uri PATH_PREFIXED -> no option injection
+regen: python -m bench.fp_snippets --id FP-INJ-03
+function ::top
+  block entry_1
+    [0] AssignValue 'uri' value='[HTTP::uri]'  defs={uri#1}  uses={}
+    [1] Call cmd='regexp'  defs={}  uses={uri#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    uri#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_sinks.py:_check_t102` consults the value's taint colour set; values with `PATH_PREFIXED` are exempt.  The source assignments tag the colour in `compiler/taint/_api.py`'s seed step.
+
+#### Tests
+
+- `tests/test_fp_inj.py::test_FP_INJ_03_http_uri_no_t102` (FP)
+- `tests/test_fp_inj.py::test_FP_INJ_03_http_path_no_t102` (FP)
+- `tests/test_fp_inj.py::test_FP_INJ_03_path_prefixed_copy_suppresses` (FP — colour propagates)
+- `tests/test_fp_inj.py::test_FP_INJ_03_literal_non_dash_prefix_no_t102` (FP — fixed non-dash prefix)
+
+---
+
+### FP-INJ-04 — T102 TP control: literal '-' prefix [HTTP::path] still warns
+
+- **Verdict:** TRUE POSITIVE (control)
+- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_04_*`
+- **Codes:** T102
+- **Corpus:** combine-iRule patterns that rewrite paths with a literal prefix — common in URL canonicalisation rules.
+
+#### Reproducer
+
+```tcl
+set foo "-[HTTP::path]"
+regexp $foo test
+```
+
+#### Per-line reasoning
+
+Prepending a fixed `-` to an HTTP-derived value (`"-[HTTP::path]"`) produces an option-LIKE string.  The path-prefix safety from FP-INJ-03 was specifically that the value *itself* couldn't start with `-`; once you concatenate a `-` literal before it, that guarantee evaporates.
+
+T102 must still fire here — this control test proves FP-INJ-03's suppression isn't blanket-exempting every HTTP-derived value.
+
+#### tclsh ground truth
+
+```
+"-[HTTP::path]"  -> "-/some/path"
+```
+That's an option-LIKE string a careless consumer could misinterpret.
+
+#### Compiler evidence
+
+```
+--- FP-INJ-04: T102 TP control: literal '-' prefix [HTTP::path] still warns
+regen: python -m bench.fp_snippets --id FP-INJ-04
+function ::top
+  block entry_1
+    [0] AssignValue 'foo' value='-[HTTP::path]'  defs={foo#1}  uses={}
+    [1] Call cmd='regexp'  defs={}  uses={foo#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    foo#1: OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_path_concat.py` clears PATH_PREFIXED when a literal `-` prefix is prepended; T102's suppression no longer applies.  Generic (non-PATH_PREFIXED) tainted data also still fires (see `test_FP_INJ_04_generic_taint_still_warns`).
+
+#### Tests
+
+- `tests/test_fp_inj.py::test_FP_INJ_04_dash_prefix_still_warns` (TP)
+- `tests/test_fp_inj.py::test_FP_INJ_04_generic_taint_still_warns` (TP, generic taint)
+
+---
+
+### FP-INJ-05 — eval "$cmd $x" -> W101 with code-action rewrite to eval [list ...]
+
+- **Verdict:** TRUE POSITIVE (with code-action)
+- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_05_*`
+- **Codes:** W101
+- **Corpus:** any dynamic-command-build pattern using string-concat to assemble the call (legacy Tcl idioms before `eval [list …]` was popularised).
+
+#### Reproducer
+
+```tcl
+# Top-level. eval of a non-list cmd-sub -> W101 + quick-fix.
+set x foo
+eval "process $x"
+```
+
+#### Per-line reasoning
+
+`eval "process $x"` performs DOUBLE substitution: every embedded `$var` and `[cmd]` is substituted twice — once by the outer parser, once again by eval's re-parse of the resulting string.  This is the canonical Tcl-injection vulnerability: any value of `$x` containing `[` or `$` will get re-evaluated.
+
+W101 fires; the LSP code-action rewrites the call to the safe form `eval [list process $x]` so `[list …]` quoting prevents double substitution.
+
+#### tclsh ground truth
+
+```
+% set x {[exec /bin/rm -rf /]}    ;# attacker-controlled
+% eval "process $x"               ;# DOUBLE-SUBSTITUTED: runs the inner [exec …]
+```
+
+#### Compiler evidence
+
+```
+--- FP-INJ-05: eval "$cmd $x" -> W101 with code-action rewrite to eval [list ...]
+regen: python -m bench.fp_snippets --id FP-INJ-05
+function ::top
+  block entry_1
+    [0] AssignValue 'x' value='foo'  defs={x#1}  uses={}
+    [1] InterpBoundary  defs={}  uses={}
+    [2] Barrier cmd='eval'  defs={}  uses={x#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_eval.py` fires W101 for double-quoted string-form eval; the matching code-action (`server/features/code_actions.py`) extracts the command name + args from the quoted-form parse and emits the `eval [list …]` replacement.
+
+#### Tests
+
+- `tests/test_fp_inj.py::test_FP_INJ_05_eval_string_fires_w101` (TP, fires)
+- `tests/test_fp_inj.py::test_FP_INJ_05_code_action_rewrites_to_eval_list` (TP, code-action contract — the rewrite text is exercised more thoroughly in `tests/test_checks.py::TestEvalInjection`)
+
+---
+
+
+## BND — bounds / intervals (W230/W231/W232/W233)
+
+Phase-3 interval-domain entries: dynamic lindex / lset / string index /
+expr divide that's *provably* out-of-range / divide-by-zero against the
+tracked interval lattice.  The broader corpus lives in
+`tests/test_interval_bounds.py` (~30 tests covering escape sequences,
+Unicode, guard narrowing, etc.); these are the curated FP.md must-keeps.
+
+### FP-BND-01 — W231 lset dynamic out-of-range loop index ($j > length) fires
+
+- **Verdict:** TRUE POSITIVE (Phase-3 dynamic bounds)
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_01_loop_index_past_append_slot_fires`
+- **Codes:** W231
+- **Corpus:** typo'd loop ranges past the list length (the bug that motivated Phase 3 — found by inspection in tcllib's `struct::list`).
+
+#### Reproducer
+
+```tcl
+proc f {v} {
+    # j is bounded [4, 8]; list length 3 -> every iteration is OOR.
+    set l {a b c}
+    for {set j 4} {$j < 9} {incr j} { lset l $j $v }
+}
+```
+
+#### Per-line reasoning
+
+1. `set l {a b c}` — list with literal length 3.  The interval domain tracks the literal-list length per SSA version.
+2. `for {set j 4} {$j < 9} {incr j}` — loop induction variable `j` has range `[4, 8]`.
+3. `lset l $j $v` — every value of `j` in `[4, 8]` is strictly > 3 (list length).  tclsh errors with `index "4" out of range` (then never gets to 5 etc.).
+
+W231 fires once with `$j` in the message (the dynamic-index form, sourced from the interval-domain proof).
+
+#### tclsh ground truth
+
+```
+% set l {a b c}; for {set j 4} {$j < 9} {incr j} { lset l $j x }
+list index out of range
+```
+
+#### Compiler evidence
+
+```
+--- FP-BND-01: W231 lset dynamic out-of-range loop index ($j > length) fires
+regen: python -m bench.fp_snippets --id FP-BND-01
+function ::f
+  block entry_1
+    [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
+    [1] AssignConst 'j' value='4'  defs={j#1}  uses={}
+    term Goto
+  block for_header_2
+    phi  SSAPhi(name='j', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$j', name='j', start=0, end=1), right=ExprLiteral(text='9', start=5, end=5))
+  block for_body_3
+    [0] Call cmd='lset'  defs={l#2}  uses={j#2, v#0}
+    term Goto
+  block for_step_4
+    [0] Incr 'j'  defs={j#3}  uses={j#2}
+    term Goto
+  block for_end_5
+    term Goto
+  block exit_6
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    j#1: CONST(4)
+    j#2: OVERDEFINED
+    j#3: OVERDEFINED
+  dead_stores
+    DeadStore(block='entry_1', statement_index=0, variable='l', version=1)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/interval_bounds.py` consumes the SSA interval lattice for `j` and the literal list-length for `l`; emits the W231 finding via `analyser/_analyser/_diag_interval_bounds.py`.  The check uses `>` (not `>=`) to permit the append slot (FP-BND-02 / FP-NAB-01).
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_01_loop_index_past_append_slot_fires` (TP)
+
+---
+
+### FP-BND-02 — W231 dynamic append-slot ($j == length) IS silent (FP guard)
+
+- **Verdict:** FALSE POSITIVE (FP guard)
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_02_*`
+- **Codes:** W231
+- **Corpus:** every lset-append idiom (struct::list, struct::matrix's column-add helpers).
+
+#### Reproducer
+
+```tcl
+proc f {v} {
+    # j == length -> APPEND slot; must NOT fire W231.
+    set l {a b c}
+    set j 3
+    lset l $j $v
+}
+```
+
+#### Per-line reasoning
+
+`lset l $j $v` with `set j 3` against `l = {a b c}` is the **dynamic append slot**: `j == length` is legal lset (it appends).  The dynamic check must mirror the literal-index path's `> length` (not `>= length`) comparison.
+
+Pre-fix the dynamic check used `>=` and fired W231 for the append slot.  Fix: `interval_bounds.py`'s lset entry uses `> length` so the append slot stays silent — parallel to FP-NAB-01.
+
+#### tclsh ground truth
+
+```
+% set l {a b c}; set j 3; lset l $j X; puts $l
+a b c X
+```
+
+#### Compiler evidence
+
+```
+--- FP-BND-02: W231 dynamic append-slot ($j == length) IS silent (FP guard)
+regen: python -m bench.fp_snippets --id FP-BND-02
+function ::f
+  block entry_1
+    [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
+    [1] AssignConst 'j' value='3'  defs={j#1}  uses={}
+    [2] Call cmd='lset'  defs={l#2}  uses={j#1, v#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    j#1: CONST(3)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/interval_bounds.py` uses strict `>` in the lset OOR comparison; matches the literal-arg check in `analyser/checks/_bounds.py`.
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_02_dynamic_append_slot_silent` (FP)
+- `tests/test_fp_bnd.py::test_FP_BND_02_in_range_dynamic_silent` (FP control)
+
+---
+
+### FP-BND-03 — W232 string index past end ($i >= length) fires (string smell)
+
+- **Verdict:** TRUE POSITIVE (Phase-3 dynamic bounds)
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_03_*`
+- **Codes:** W232
+- **Corpus:** string-extraction patterns where the index is past the source string (off-by-one bugs caught in tcllib's `textutil::*` modules).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # i (10) > string length (5) -> tclsh returns ""; W232 smell.
+    set s "hello"
+    set i 10
+    return [string index $s $i]
+}
+```
+
+#### Per-line reasoning
+
+1. `set s "hello"` — string with literal length 5.  The interval domain tracks string-length per SSA version (in Tcl character units, with backslash-escapes resolved).
+2. `set i 10` — `i#1: CONST(10)`.
+3. `string index $s $i` — `i (10) > length (5)`; tclsh returns `""` silently.
+
+This is a smell-tier W232 (severity matches W230 for lindex; not the error tier W231 for lset).
+
+#### tclsh ground truth
+
+```
+% set s "hello"; set i 10; puts "result=>'[string index $s $i]'"
+result=>''
+```
+No error — just an empty result.
+
+#### Compiler evidence
+
+```
+--- FP-BND-03: W232 string index past end ($i >= length) fires (string smell)
+regen: python -m bench.fp_snippets --id FP-BND-03
+function ::f
+  block entry_1
+    [0] AssignValue 's' value='hello'  defs={s#1}  uses={}
+    [1] AssignConst 'i' value='10'  defs={i#1}  uses={}
+    term Return [string index $s $i]
+  values (SCCP lattice)
+    i#1: CONST(10)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/interval_bounds.py` tracks `string_length_map[ssa_version]` for each literal-set + `string` builtin; W232 fires when `i ∈ [length, +∞)`.  Backslash-escape resolution mirrors tclsh's character-count behaviour (see `tests/test_interval_bounds.py::TestDynamicStringIndex` for the escape-handling edge cases).
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_03_string_index_past_end_fires` (TP)
+- `tests/test_fp_bnd.py::test_FP_BND_03_idx_equals_length_fires` (TP, idx == length is also OOR)
+- `tests/test_fp_bnd.py::test_FP_BND_03_in_range_silent` (FP control)
+- `tests/test_fp_bnd.py::test_FP_BND_03_unknown_string_silent` (FP control, unknowns)
+
+---
+
+### FP-BND-04 — W233 division by a provably-zero divisor (constant $d=0) fires
+
+- **Verdict:** TRUE POSITIVE (Phase-3 deep finding)
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_04_*`
+- **Codes:** W233
+- **Corpus:** off-by-one or zero-init bugs in arithmetic expressions (typical: forgotten loop-variable init).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # $d == 0 (CONST) -> tclsh divide-by-zero; W233 fires.
+    set d 0
+    return [expr {10 / $d}]
+}
+```
+
+#### Per-line reasoning
+
+`expr {10 / $d}` with `set d 0` is a tclsh divide-by-zero runtime error.  The interval domain proves `d#1: CONST(0)` and the deep-finding pass emits W233 (severity: error).
+
+#### tclsh ground truth
+
+```
+% set d 0; expr {10 / $d}
+divide by zero
+% expr {1 / 0}
+divide by zero
+% expr {5 % 0}
+divide by zero
+```
+
+#### Compiler evidence
+
+```
+--- FP-BND-04: W233 division by a provably-zero divisor (constant $d=0) fires
+regen: python -m bench.fp_snippets --id FP-BND-04
+function ::f
+  block entry_1
+    [0] AssignConst 'd' value='0'  defs={d#1}  uses={}
+    term Return [expr {10 / $d}]
+  values (SCCP lattice)
+    d#1: CONST(0)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/intervals.py`'s expression evaluator detects division and modulo with `divisor.contains_zero()`; the deep-finding pass at `analyser/_analyser/_diag_interval_bounds.py` consumes the proof.
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_04_const_zero_divisor_fires` (TP, const variable)
+- `tests/test_fp_bnd.py::test_FP_BND_04_literal_div_zero_fires` (TP, literal 1/0)
+- `tests/test_fp_bnd.py::test_FP_BND_04_literal_mod_zero_fires` (TP, literal 5%0)
+- `tests/test_fp_bnd.py::test_FP_BND_04_nonzero_divisor_silent` (FP control)
+- `tests/test_fp_bnd.py::test_FP_BND_04_unknown_divisor_silent` (FP control, unknown)
+
+---
+
+### FP-BND-05 — W233 FP guard: dead ternary arm / short-circuit `1 || 1/0` is silent
+
+- **Verdict:** FALSE POSITIVE (FP guard, short-circuit semantics)
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_05_*`
+- **Codes:** W233
+- **Corpus:** defensive programming idioms — `expr {$d != 0 ? $x / $d : 0}` and friends.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # `0 ? 1/0 : 7` -> dead arm; tclsh returns 7; W233 must NOT fire.
+    return [expr {0 ? 1/0 : 7}]
+}
+```
+
+#### Per-line reasoning
+
+Tcl `expr` is **lazy**: the dead arm of `?:` and the short-circuited operand of `&&` / `||` are never evaluated.  So:
+
+* `expr {0 ? 1/0 : 7}` — the `1/0` is in the dead `?` arm; never evaluated; result is 7.
+* `expr {1 || 1/0}` — `||` short-circuits on `1`; `1/0` never evaluates; result is 1.
+* `expr {0 && 1/0}` — `&&` short-circuits on `0`; `1/0` never evaluates; result is 0.
+* `if {$d != 0} { 1 / $d }` — the SCCP-pruned branch where `d == 0` doesn't reach the division.
+
+W233 must respect short-circuit semantics; firing in any of these positions would be a false positive.
+
+#### tclsh ground truth
+
+```
+% expr {0 ? 1/0 : 7}
+7
+% expr {1 || 1/0}
+1
+% expr {0 && 1/0}
+0
+```
+
+#### Compiler evidence
+
+```
+--- FP-BND-05: W233 FP guard: dead ternary arm / short-circuit `1 || 1/0` is silent
+regen: python -m bench.fp_snippets --id FP-BND-05
+function ::f
+  block entry_1
+    term Return [expr {0 ? 1/0 : 7}]
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/intervals.py`'s expression-AST walker honours short-circuit semantics for `?:` / `&&` / `||` — it doesn't evaluate the unreachable operand.  The `if`-guard case is covered by SCCP branch pruning.
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_05_dead_ternary_arm_silent` (FP, ternary)
+- `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_or_silent` (FP, ||)
+- `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_and_silent` (FP, &&)
+- `tests/test_fp_bnd.py::test_FP_BND_05_guard_excludes_zero_silent` (FP, if-guard)
+
+---
+
 
 ## Conventions for adding entries (for future PR slices)
 
