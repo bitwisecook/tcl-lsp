@@ -234,6 +234,24 @@ def _reuse_edit_in_braced_body(
     if any(c in old_edit for c in "{}\\") or any(c in new_edit for c in "{}\\"):
         return None
 
+    # Brace-free edited text is not enough: an edit *adjacent* to an existing
+    # backslash-escape can change brace nesting without the edited text itself
+    # containing any brace/backslash.  e.g. splicing a space into ``\{`` yields
+    # ``\ {`` — the brace was escaped (inert) and is now a live open brace.
+    # Bail whenever the splice could alter escaping/nesting at either boundary:
+    #   * a backslash immediately *before* the edit (it now escapes a different
+    #     char — the first spliced char rather than what followed it), or
+    #   * a brace/backslash sitting immediately *at* the boundary on either side
+    #     (its escaping could flip as the adjacent text changes).
+    # (Explicit per-char comparison, not ``slice in "{}\\"``: an empty slice at
+    # EOF is a substring of every string and would wrongly match.)
+    if start > 0 and old_source[start - 1] == "\\":
+        return None
+    after_old = old_source[old_end : old_end + 1]
+    after_new = new_source[edit.new_end : edit.new_end + 1]
+    if after_old in ("{", "}", "\\") or after_new in ("{", "}", "\\"):
+        return None
+
     # Locate the unique chunk whose tile contains the whole edit.
     target = -1
     for i, chunk in enumerate(old_chunks):

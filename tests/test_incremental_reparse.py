@@ -298,6 +298,12 @@ _SNIPPETS = [
     "puts [string length $s]\n",
     "\n",
     "namespace eval ns {\n    variable v 0\n}\n",
+    # Escaped braces: a random edit landing adjacent to a ``\\{``/``\\}`` can
+    # flip brace nesting, exercising the brace-fast-path's escape-adjacency
+    # guard (incremental must still equal full).
+    "set lit \\{\n",
+    "set lit \\}\n",
+    "namespace eval ns {\n    set lit \\{\n    set y 2\n}\n",
 ]
 
 

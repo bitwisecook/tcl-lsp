@@ -996,6 +996,44 @@ class TestBracedBodyIncrementalReuse:
                 f"brace-unsafe ins={ins!r} must bail to full re-segmentation"
             )
 
+    def test_brace_unsafe_escape_adjacency_bails(self):
+        """An edit *adjacent* to an existing ``\\{``/``\\}`` can flip brace
+        nesting even though the edited text has no brace/backslash: splicing a
+        space into ``\\{`` un-escapes the brace (inert literal → live opener).
+        These must bail even though the literal edited text looks innocuous."""
+        from compiler.parsing.incremental import (
+            _reuse_edit_in_braced_body,
+            infer_edit_range,
+        )
+
+        tail = "\n".join(f"    set v{i} {i}" for i in range(60))
+
+        def _assert_bails(src: str, new: str, label: str) -> None:
+            chunks = segment_top_level_chunks(src)
+            edit = infer_edit_range(src, new)
+            assert edit is not None
+            assert _reuse_edit_in_braced_body(src, chunks, new, edit) is None, (
+                f"escape-adjacent edit must bail to full re-segmentation: {label}"
+            )
+
+        # Original bodies keep balanced braces by *escaping* the literal brace,
+        # so the fast path is eligible; each edit then un-escapes it.
+        src_open = f"namespace eval ::ns {{\n    set a \\{{\n{tail}\n}}\nset z 1\n"
+        p = src_open.index("\\{") + 1  # between the '\' and the '{'
+        _assert_bails(src_open, src_open[:p] + " " + src_open[p:], "insert space in \\{")
+        _assert_bails(src_open, src_open[:p] + "X" + src_open[p:], "insert X between \\ and {")
+
+        src_close = f"namespace eval ::ns {{\n    set a \\}}\n{tail}\n}}\nset z 1\n"
+        q = src_close.index("\\}") + 1  # between the '\' and the '}'
+        _assert_bails(src_close, src_close[:q] + " " + src_close[q:], "insert space in \\}")
+        _assert_bails(src_close, src_close[:q] + "Y" + src_close[q:], "insert Y between \\ and }")
+
+        # End-to-end: each un-escaping edit must stay byte-identical to a full
+        # re-segmentation (the fallback the bail triggers).
+        for src, splice_at in ((src_open, p), (src_close, q)):
+            new = src[:splice_at] + " " + src[splice_at:]
+            assert segment_top_level_chunks(new) is not None  # full path is the oracle
+
     def test_document_state_quick_update_stays_byte_identical(self):
         # End-to-end: an interior edit via update_source_quick yields the same
         # chunks a from-scratch segmentation would.
