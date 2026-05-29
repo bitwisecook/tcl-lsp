@@ -11,5 +11,11 @@ proc p_eval_body {} { set x 1; eval {puts $x} }
 proc p_traced {} { trace add variable x write cb; set x 1 }
 
 # Anchor: a non-lifecycle diagnostic (W100 unbraced expr) so the test can
-# observe that analysis ran on this document.
+# observe that analysis ran on this document.  `a`/`b` are set and `y` is read
+# here so the anchor itself contributes no lifecycle diagnostic (otherwise the
+# unset `$a`/`$b` would fire W210 and the unused `y` would fire W211/W220,
+# defeating the "no false lifecycle diagnostics" assertion).
+set a 1
+set b 2
 set y [expr $a + $b]
+puts $y
