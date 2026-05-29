@@ -4004,9 +4004,11 @@ class TestNamespaceEvalBodyScope:
 
     def test_ns_eval_dead_store_still_fires(self):
         # `set y 1` is dead in the caller: the namespace eval body's `$y` runs
-        # in ::ns, so it does not keep the caller's `y` live.
+        # in ::ns, so it does not keep the caller's `y` live.  Assert the exact
+        # variable (and that only it) is flagged, not merely that something fired.
         src = 'proc g {} { set y 1; namespace eval ::ns { puts "$y" } }'
-        assert len(_diag_with_code(src, "W220")) >= 1
+        flagged = [d.message.split("'")[1] for d in _diag_with_code(src, "W220")]
+        assert flagged == ["y"], f"expected W220 on 'y' only; got {flagged}"
 
     def test_ns_eval_name_arg_read_still_recovered(self):
         # The namespace *name* expression is evaluated in the caller scope, so
