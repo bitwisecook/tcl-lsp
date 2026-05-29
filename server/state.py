@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import logging
 import multiprocessing
+import os
 import threading
 from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING
@@ -361,24 +362,70 @@ editor_config_settings_per_folder: dict[str, dict] = {}
 project_config_settings_per_folder: dict[str, dict] = {}
 
 _process_pool: ProcessPoolExecutor | None = None
+_deep_pool: ProcessPoolExecutor | None = None
+
+# Cold full builds scale with the machine (a multi-root workspace / a
+# git-checkout that reopens several tabs submits several multi-second builds at
+# once; a 2-worker cap made a trivial file wait behind them).  Deep diagnostics
+# get a *separate* small pool so a cold-build storm can't starve every open
+# document's deep pass — the two no longer share a queue (head-of-line blocking).
+_COLD_POOL_WORKERS = max(2, min(4, (os.cpu_count() or 4) - 1))
+_DEEP_POOL_WORKERS = 2
+
+
+def _forkserver_context():
+    """A "forkserver" multiprocessing context (avoids fork deadlocks when a
+    thread holds a lock at fork time); ``None`` on platforms without it."""
+    try:
+        return multiprocessing.get_context("forkserver")
+    except ValueError:
+        return None  # Windows — use default
 
 
 def _get_process_pool() -> ProcessPoolExecutor:
-    """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis.
+    """Lazy pool for cold full builds (``_analyse_document_fresh``).
 
-    Uses "forkserver" on platforms that support it to avoid deadlocks
-    when forking a multi-threaded process (asyncio + pygls threads).
-    The default "fork" start method can deadlock when a thread holds
-    a lock at fork time.
+    Kept separate from :func:`_get_deep_pool` so a burst of multi-second cold
+    builds cannot block deep diagnostics workspace-wide.
     """
     global _process_pool
     if _process_pool is None:
-        try:
-            ctx = multiprocessing.get_context("forkserver")
-        except ValueError:
-            ctx = None  # Windows — use default
-        _process_pool = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
+        _process_pool = ProcessPoolExecutor(
+            max_workers=_COLD_POOL_WORKERS, mp_context=_forkserver_context()
+        )
     return _process_pool
+
+
+def _reset_process_pool() -> None:
+    """Tear down the cold-build pool so the next build gets a fresh one.
+
+    Used to poison-and-recreate after a wedged build (ceiling exceeded) or a
+    ``BrokenProcessPool``.  ``shutdown(wait=False, cancel_futures=True)`` releases
+    queued-but-unstarted futures immediately and stops new work landing on a
+    wedged worker; an already-running orphaned build can't be cancelled but is no
+    longer referenced and is reclaimed when its process exits.
+    """
+    global _process_pool
+    pool, _process_pool = _process_pool, None
+    if pool is not None:
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
+
+
+def _get_deep_pool() -> ProcessPoolExecutor:
+    """Lazy pool for deep diagnostics (``_run_deep_diagnostics``).
+
+    Separate from the cold-build pool (:func:`_get_process_pool`) so deep passes
+    stay responsive while large files cold-build.
+    """
+    global _deep_pool
+    if _deep_pool is None:
+        _deep_pool = ProcessPoolExecutor(
+            max_workers=_DEEP_POOL_WORKERS, mp_context=_forkserver_context()
+        )
+    return _deep_pool
 
 
 # Tracks which (resolver, package_name) pairs have already had their source

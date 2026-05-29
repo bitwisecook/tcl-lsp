@@ -148,6 +148,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         analysis = _analyse(source)
         # After the if, x could be INT (from before) or STRING (from body)

@@ -135,6 +135,32 @@ def on_minify_document(
     }
 
 
+def on_minimize_diagnostic(uri: str, code: str, rename: bool = True) -> dict | None:
+    """Reduce the document to a minimal reproducer for diagnostic *code*.
+
+    Returns the minimised source (identifiers renamed to short ``a b c …``
+    names unless *rename* is False) plus reduction stats, for the client to
+    show in a new buffer / copy to the clipboard for a bug report.
+    """
+    from server.features.minimize import minimize_diagnostic
+
+    source = _state._get_doc_source(uri)
+    if source is None:
+        return None
+    try:
+        result = minimize_diagnostic(source, code, rename=rename)
+    except ValueError:
+        return {"code": code, "reproduces": False, "source": "", "error": f"{code} does not fire"}
+    return {
+        "code": result.code,
+        "source": result.source,
+        "originalLines": result.original_lines,
+        "reducedLines": result.reduced_lines,
+        "renamed": result.renamed,
+        "reproduces": result.reproduces,
+    }
+
+
 def on_unminify_error(
     error_message: str,
     symbol_map: str,
@@ -1053,17 +1079,19 @@ def _switch_dialect(dialect: str) -> dict:
         except RuntimeError:
             loop = None
 
-        from server.diagnostics_pipeline import _publish_diagnostics, _publish_diagnostics_sync
+        from server.diagnostics_pipeline import (
+            _publish_diagnostics_sync,
+            spawn_publish_diagnostics,
+        )
 
         for uri, state in _state.workspace_state.items():
             if loop is not None:
-                loop.create_task(
-                    _publish_diagnostics(
-                        uri,
-                        state.source,
-                        state.version,
-                        force_reanalyse=True,
-                    )
+                spawn_publish_diagnostics(
+                    uri,
+                    state.source,
+                    state.version,
+                    force_reanalyse=True,
+                    loop=loop,
                 )
             else:
                 _publish_diagnostics_sync(
@@ -1150,6 +1178,7 @@ def register(server_instance: LanguageServer) -> None:
     configure(server_instance)
     server_instance.command("tcl-lsp.optimiseDocument")(on_optimise_document)
     server_instance.command("tcl-lsp.minifyDocument")(on_minify_document)
+    server_instance.command("tcl-lsp.minimizeDiagnostic")(on_minimize_diagnostic)
     server_instance.command("tcl-lsp.unminifyError")(on_unminify_error)
     server_instance.command("tcl-lsp.describeIruleEvent")(on_describe_irule_event)
     server_instance.command("tcl-lsp.describeIruleCommand")(on_describe_irule_command)

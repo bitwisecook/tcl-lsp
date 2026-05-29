@@ -731,6 +731,14 @@ def get_basic_diagnostics(
     if workspace_context and workspace_context.alias_names_by_uri:
         _ws_alias_tails = _inherited_aliases(uri, workspace_context)
 
+    # Tcl's package machinery sets the variable ``dir`` (the directory holding
+    # the index file) before sourcing any ``pkgIndex.tcl``, so a ``$dir`` read
+    # there is the ambient package var, not a real read-before-set.  Suppress
+    # that one name in that one file kind (gated on the document URI).
+    _is_pkgindex = bool(uri) and uri.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1] == (
+        "pkgIndex.tcl"
+    )
+
     diags: list[types.Diagnostic] = []
     for d in result.diagnostics:
         if disabled_diagnostics and d.code in disabled_diagnostics:
@@ -744,6 +752,14 @@ def get_basic_diagnostics(
                 continue
             if _ws_alias_tails is not None and cmd in _ws_alias_tails:
                 continue
+        # pkgIndex.tcl: the ambient ``dir`` variable is read-before-set only in
+        # appearance — the package loader provides it.
+        if (
+            _is_pkgindex
+            and d.code == "W210"
+            and d.message.startswith("Variable 'dir' is read before")
+        ):
+            continue
         diags.append(_to_lsp_diagnostic(d, uri=uri))
         if (
             optimiser_enabled
@@ -812,6 +828,7 @@ def _run_deep_diagnostics(
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
     generic_variable_patterns: list[str] | None = None,
+    shimmer_target_procs: frozenset[str] | None = None,
 ) -> list[types.Diagnostic]:
     """Subprocess-safe wrapper for deep diagnostics.
 
@@ -819,6 +836,10 @@ def _run_deep_diagnostics(
     Rebuilds the CompilationUnit from source (no pre-built CU or
     analysis needed) so the only data crossing the process boundary
     is the source string and config flags.
+
+    *shimmer_target_procs* (a set of qnames, or ``None`` for all) restricts the
+    body-local shimmer pass to the procs the incremental memoizer flagged dirty;
+    the caller reuses re-offset cached shimmer for the rest.
     """
     import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
@@ -837,6 +858,7 @@ def _run_deep_diagnostics(
         disabled_optimisations=disabled_optimisations,
         uri=uri,
         generic_variable_patterns=generic_variable_patterns,
+        shimmer_target_procs=shimmer_target_procs,
     )
 
 
@@ -854,6 +876,7 @@ def get_deep_diagnostics(
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
     generic_variable_patterns: list[str] | None = None,
+    shimmer_target_procs: frozenset[str] | None = None,
 ) -> list[types.Diagnostic]:
     """Return deep diagnostics: optimiser, shimmer, taint, iRules flow, GVN.
 
@@ -947,7 +970,7 @@ def get_deep_diagnostics(
                 diags.append(_optimisation_to_diagnostic(opt))
     time.sleep(0)  # Yield GIL between deep diagnostic passes
     if shimmer_enabled:
-        for w in find_shimmer_warnings(source, cu=cu):
+        for w in find_shimmer_warnings(source, cu=cu, target_procs=shimmer_target_procs):
             if disabled_diagnostics and w.code in disabled_diagnostics:
                 continue
             if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):

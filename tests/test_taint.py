@@ -392,6 +392,54 @@ class TestOptionInjection:
         ws = _taint_warnings('set x "pattern"\nregexp $x test', "T102")
         assert len(ws) == 0
 
+    def test_tainted_subject_after_literal_pattern_no_warning(self):
+        """A literal pattern ends switch scanning, so a tainted *subject*
+        string in a later positional slot can't be misread as a switch — no
+        T102 (was a false positive)."""
+        ws = _taint_warnings(
+            "set x [read $fd]\nregexp {version ([0-9]+)} $x -> m",
+            "T102",
+        )
+        assert len(ws) == 0
+
+    def test_regsub_tainted_subject_after_literal_pattern_no_warning(self):
+        """`regsub -all {literal} $subject {}` — `$subject` is positional after
+        the literal pattern, not a switch position."""
+        ws = _taint_warnings(
+            "set x [read $fd]\nset y [regsub -all {/\\*.*?\\*/} $x {}]",
+            "T102",
+        )
+        assert len(ws) == 0
+
+    def test_unset_literal_name_no_warning(self):
+        """`unset name` takes a literal variable name that cannot start with
+        '-', so even a tainted var by that name is not option-injectable."""
+        ws = _taint_warnings(
+            "set thelongname [read $fd]\nunset thelongname",
+            "T102",
+        )
+        assert len(ws) == 0
+
+    def test_regexp_tainted_pattern_still_warns(self):
+        """A tainted *pattern* (leading substitution, could expand to '-x')
+        remains a T102 candidate even when a later positional is literal."""
+        ws = _taint_warnings(
+            "set x [read $fd]\nregexp $x hello",
+            "T102",
+        )
+        assert len(ws) == 1
+        assert ws[0].variable == "x"
+        assert "regexp" in ws[0].sink_command
+
+    def test_switch_after_dash_option_no_warning_for_literal_arg(self):
+        """`regexp -nocase {literal} $subject` — after the `-nocase` switch the
+        literal pattern ends scanning, so the tainted subject is safe."""
+        ws = _taint_warnings(
+            "set x [read $fd]\nregexp -nocase {ab} $x",
+            "T102",
+        )
+        assert len(ws) == 0
+
 
 # iRules HTTP output sinks (IRULE3001/3002)
 

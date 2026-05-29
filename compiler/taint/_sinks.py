@@ -100,6 +100,59 @@ def _has_option_terminator(args: tuple[str, ...], scan_start: int) -> bool:
     return False
 
 
+def _arg_can_be_option(arg: str) -> bool:
+    """Return True when *arg* could expand to a string beginning with ``-``.
+
+    Only an argument whose first character is ``-`` (a literal switch) or a
+    leading substitution (``$``/``[`` or a ``{*}`` expansion, whose runtime
+    value is unknown) can be (mis)interpreted as a switch.  An argument
+    beginning with any other literal character (e.g. a regexp's brace-stripped
+    pattern ``version ([0-9]+)``) is a definite positional and cannot start
+    with ``-``.  The check is leading-character only because lowering strips
+    braces, so embedded ``[``/``$`` no longer indicate substitution.
+    """
+    if not arg:
+        return False
+    return arg[0] in "-$[" or arg.startswith("{*}")
+
+
+def _option_scan_region(
+    args: tuple[str, ...],
+    scan_start: int,
+    options_with_values: frozenset[str],
+) -> set[int]:
+    """Return the arg indexes still within the option-scanning region.
+
+    Tcl scans for ``-switch`` arguments from *scan_start* until the first
+    *definite positional* argument — a literal that cannot begin with ``-``
+    (e.g. a regexp's literal pattern) — or ``--``.  Only an argument inside
+    this region can be misinterpreted as an option if it expands to a ``-…``
+    string, so only such arguments are T102 (option-injection) candidates.  A
+    literal ``-option`` that takes a value also consumes the following arg.  A
+    leading-substitution argument is ambiguous: it stays in the region but
+    cannot be proven to *end* it, so scanning conservatively continues past it
+    (over-warning in genuinely ambiguous cases, which is sound for a security
+    check).
+    """
+    region: set[int] = set()
+    i = scan_start
+    n = len(args)
+    while i < n:
+        arg = args[i]
+        if arg == "--":
+            region.add(i)
+            break
+        if not _arg_can_be_option(arg):
+            # Definite positional literal → option scanning ends here.
+            break
+        region.add(i)
+        if arg.startswith("-") and arg in options_with_values and i + 1 < n:
+            i += 2
+            continue
+        i += 1
+    return region
+
+
 def _stmt_command_args(stmt) -> tuple[str, tuple[str, ...]] | None:
     """Return ``(command, args)`` for sink classification and arg inspection."""
     if isinstance(stmt, (IRCall, IRBarrier)):
@@ -410,6 +463,20 @@ def _find_taint_sinks(
             if not sinks:
                 continue
 
+            # T102 (option injection) only applies to a var actually within the
+            # option-scanning region — a definite positional literal before the
+            # var (e.g. a regexp's literal pattern) ends switch parsing, so a
+            # tainted string in a later positional slot can't be misread as a
+            # switch.  Compute the region once for this statement.
+            t102_region: set[int] | None = None
+            if any(code == "T102" for code, _ in sinks) and parsed is not None:
+                _cmd, _cmd_args = parsed
+                profile = REGISTRY.resolve_option_terminator(_cmd, _cmd_args)
+                if profile is not None:
+                    t102_region = _option_scan_region(
+                        _cmd_args, profile.scan_start, profile.options_with_values
+                    )
+
             # Check each used variable for taint.
             for name, ver in uses.items():
                 t = taints.get((name, ver), _UNTAINTED)
@@ -417,6 +484,10 @@ def _find_taint_sinks(
                     for code, cmd_label in sinks:
                         if _should_suppress_sink_warning(code, stmt, name, t):
                             continue
+                        if code == "T102" and t102_region is not None:
+                            var_idxs = _stmt_var_arg_indexes(stmt, name)
+                            if not any(i in t102_region for i in var_idxs):
+                                continue
                         template = _OUTPUT_MESSAGES.get(code)
                         if template is not None:
                             message = template.format(var=name, cmd=cmd_label)

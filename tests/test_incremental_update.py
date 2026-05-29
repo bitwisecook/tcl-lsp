@@ -285,6 +285,98 @@ class TestIncrementalDocumentState:
         assert state.compilation_unit is not None
         assert "::foo" in state.compilation_unit.procedures
 
+
+def _diag_tuples(state):
+    """Diagnostics as (code, start_line, start_char, end_line, end_char) — the
+    positions the previous code-only comparison missed."""
+    a = state.analysis
+    assert a is not None
+    return sorted(
+        (
+            d.code,
+            d.range.start.line,
+            d.range.start.character,
+            d.range.end.line,
+            d.range.end.character,
+        )
+        for d in a.diagnostics
+    )
+
+
+def _assert_incremental_equals_full(source1, source2):
+    """Incremental (update s1 then s2) must equal a full rebuild of s2 —
+    byte-for-byte on diagnostic code AND range (line/char)."""
+    inc = DocumentState(uri="inc")
+    inc.update(source1)
+    inc.update(source2)
+    full = DocumentState(uri="full")
+    full.update(source2)
+    assert _diag_tuples(inc) == _diag_tuples(full)
+
+
+class TestIncrementalStaleness:
+    """Incremental ≡ full on diagnostic *positions*, not just codes — the cases
+    a code-only comparison let through (chunk-cache / proc-cache / snapshot
+    staleness).  Each scenario was a confirmed divergence before the fix."""
+
+    def test_blank_line_before_proc_shifts_diag(self):
+        # A proc whose body is unchanged but which moved down a line: the proc
+        # cache must not reuse it with the old line number (W210 on $x).
+        _assert_incremental_equals_full(
+            "proc f {} { puts $x }\n",
+            "\nproc f {} { puts $x }\n",
+        )
+
+    def test_blank_line_between_chunks_shifts(self):
+        _assert_incremental_equals_full(
+            "set a 1\nproc f {} { puts $x }\n",
+            "set a 1\n\nproc f {} { puts $x }\n",
+        )
+
+    def test_dialect_directive_added_reanalyses(self):
+        # Adding a `# tcl-dialect:` directive must re-analyse under the new
+        # dialect, not keep the stale (default-dialect) diagnostics.
+        _assert_incremental_equals_full(
+            "set x 1\nHTTP::respond 200\n",
+            "# tcl-dialect: f5-irules\nset x 1\nHTTP::respond 200\n",
+        )
+
+    def test_dialect_directive_replaced_same_length(self):
+        # A same-length dialect switch (no position shift) must still re-analyse
+        # (the dialect is not in the chunk/proc cache keys).
+        _assert_incremental_equals_full(
+            "# tcl-dialect: tcl8.4\nlassign {1 2} a b\n",
+            "# tcl-dialect: tcl8.6\nlassign {1 2} a b\n",
+        )
+
+    def test_oo_define_removed_clears_method(self):
+        # Removing a later `oo::define` that added a method must not leave the
+        # method in the (shared) ClassDef snapshot — `$o extra` should warn W308.
+        _assert_incremental_equals_full(
+            "oo::class create Foo { method m {} {} }\n"
+            "set o [Foo new]\n$o extra\noo::define Foo { method extra {} {} }\n",
+            "oo::class create Foo { method m {} {} }\nset o [Foo new]\n$o extra\n",
+        )
+
+    def test_objdefine_state_survives_tail_edit(self):
+        # oo::objdefine adds an object-specific method; editing a *later* line
+        # must not drop that cumulative state (else a false W308 appears).
+        base = (
+            "oo::class create C { method m {} {} }\n"
+            "set o [C new]\n"
+            "oo::objdefine $o { method extra {} {} }\n"
+            "$o extra\n"
+        )
+        _assert_incremental_equals_full(base + "set tail 1\n", base + "set tail 2\n")
+
+    def test_same_length_body_edit_keeps_positions(self):
+        # Editing a proc body without changing line structure keeps every other
+        # proc's positions identical (regression guard against over-shifting).
+        _assert_incremental_equals_full(
+            "proc a {} { puts $x }\nproc b {} { puts $y }\n",
+            "proc a {} { puts $z }\nproc b {} { puts $y }\n",
+        )
+
     def test_irules_like_source(self):
         """Test with iRules-like source (when blocks)."""
         source1 = "set x 10\nset y 20\n"
@@ -293,6 +385,71 @@ class TestIncrementalDocumentState:
         state.update(source1)
         state.update(source2)
         assert state.analysis is not None
+
+
+# A realistic, well-formed multi-proc document — the kind of file the issue
+# #481 seeded-guard asks for (not an adversarial micro-repro).  Several procs,
+# comments, an array, a loop; nothing here should warn, so any incremental
+# divergence shows up as a position drift on a *clean* file.
+_WELL_FORMED = """\
+# A small, well-formed library.
+namespace eval ::demo {
+    variable counter 0
+}
+
+proc ::demo::reset {} {
+    variable counter
+    set counter 0
+}
+
+proc ::demo::bump {{by 1}} {
+    variable counter
+    incr counter $by
+    return $counter
+}
+
+proc ::demo::sum {items} {
+    set total 0
+    foreach n $items {
+        incr total $n
+    }
+    return $total
+}
+"""
+
+
+class TestIncrementalRealisticGuard:
+    """Seeded `inc == full` guard on realistic / well-formed input (issue #481).
+
+    Kept fast (in-process, no corpus dependency) so it lives outside test-slow.
+    Each edit is a shape a real editing session produces — a blank line above,
+    a blank line in the middle, and an intra-line keystroke that shifts no
+    lines (the case the line+char proc-cache key deliberately keeps cached)."""
+
+    def test_blank_line_inserted_at_top(self):
+        _assert_incremental_equals_full(_WELL_FORMED, "\n" + _WELL_FORMED)
+
+    def test_blank_line_inserted_mid_document(self):
+        edited = _WELL_FORMED.replace(
+            "proc ::demo::sum {items} {",
+            "\nproc ::demo::sum {items} {",
+        )
+        _assert_incremental_equals_full(_WELL_FORMED, edited)
+
+    def test_intra_line_edit_keeps_positions(self):
+        # `{by 1}` -> `{by 2}`: no line shifts, so the line+char proc-cache key
+        # legitimately reuses every other proc; positions must still match full.
+        edited = _WELL_FORMED.replace("{{by 1}}", "{{by 2}}")
+        _assert_incremental_equals_full(_WELL_FORMED, edited)
+
+    def test_body_grows_by_a_line(self):
+        # Adding a line inside one proc shifts every following proc down one
+        # line — the staleness bug's core scenario, now on a clean file.
+        edited = _WELL_FORMED.replace(
+            "    set total 0\n",
+            "    set total 0\n    set scratch 0\n",
+        )
+        _assert_incremental_equals_full(_WELL_FORMED, edited)
 
 
 class TestStyleDiagnosticCaching:
@@ -494,3 +651,281 @@ class TestDeepDiagnosticCaching:
         assert state.get_cached_deep_diagnostics() is not None
         state.update(source)
         assert state.get_cached_deep_diagnostics() is not None
+
+
+class TestProcCacheOffsetInvalidation:
+    """A same-line edit *before* a proc shifts every absolute byte offset inside
+    it while leaving its line/character stable. The cached ``FunctionUnit`` must
+    NOT be reused, or optimiser/code-action offset data (``startOffset`` /
+    ``endOffset``) points at stale bytes. Regression for the proc-cache key
+    omitting ``start.offset``."""
+
+    def test_same_line_prefix_edit_refreshes_optimiser_offsets(self):
+        from compiler.optimiser import find_optimisations
+
+        body = "proc f {} { set dead 1 ; return 2 }\n"
+        src1 = "set a 1\n" + body
+        # Longer first line, same line count: proc f stays at line 1, char 0,
+        # but every byte offset inside it shifts.
+        src2 = "set aaaaaaaaaa 1\n" + body
+
+        inc = DocumentState(uri="inc")
+        inc.update(src1)
+        inc.update(src2)
+        full = DocumentState(uri="full")
+        full.update(src2)
+        inc_cu = inc.compilation_unit
+        full_cu = full.compilation_unit
+        assert inc_cu is not None and full_cu is not None
+
+        # Precondition: proc position (line/char) is identical in both sources —
+        # only the byte offset differs, so only the offset key component matters.
+        inc_proc = inc_cu.ir_module.procedures["::f"].range.start
+        full_proc = full_cu.ir_module.procedures["::f"].range.start
+        assert (inc_proc.line, inc_proc.character) == (full_proc.line, full_proc.character)
+
+        def opt_offsets(cu):
+            return sorted(
+                (o.code, o.range.start.offset, o.range.end.offset)
+                for o in find_optimisations(src2, cu=cu)
+            )
+
+        # Incremental must match a full rebuild of src2 — not carry src1 offsets.
+        assert opt_offsets(inc_cu) == opt_offsets(full_cu)
+
+        # And the dead-store optimisation's offsets slice to the dead store in src2.
+        opts = {o.code: o for o in find_optimisations(src2, cu=inc_cu)}
+        o = opts["O126"]
+        assert src2[o.range.start.offset : o.range.end.offset + 1].strip() == "set dead 1"
+
+
+class TestSnapshotConsistency:
+    """A captured ``state.snap`` is an immutable, internally-consistent view:
+    its source/analysis/compilation_unit all come from one update and a later
+    snapshot swap (a concurrent did_change) cannot change them. This is the
+    invariant the hover handler relies on to avoid mixing two document versions
+    by reading version/analysis/source/cu as separate live properties."""
+
+    def test_captured_snapshot_survives_concurrent_swap(self):
+        state = DocumentState(uri="snap://t.tcl")
+        state.update("set x 1\nproc f {} { return 1 }\n")
+        snap = state.snap
+        src0 = snap.source
+        ana0 = snap.analysis
+        cu0 = snap.compilation_unit
+        ver0 = snap.version
+        assert ana0 is not None and cu0 is not None
+
+        # Simulate a did_change interleaving mid-hover: the live snapshot is
+        # swapped (quick update clears analysis), but the captured snap is frozen.
+        state.update_source_quick("totally different source\n", version=99)
+
+        assert snap.source == src0
+        assert snap.analysis is ana0
+        assert snap.compilation_unit is cu0
+        assert snap.version == ver0
+        # The captured source and analysis are mutually consistent (same update).
+        assert snap.analysis is ana0 and snap.source == src0
+        # The live state has moved on independently.
+        assert state.snap.source == "totally different source\n"
+        assert state.snap.version == 99
+
+    def test_semantic_token_cache_reads_passed_snapshot(self):
+        # The semantic-tokens handler captures state.snap once and passes it to
+        # get_semantic_token_cache(snap); that must read the captured snapshot's
+        # chunks, not the live one a concurrent did_change may have replaced.
+        state = DocumentState(uri="snap://tok.tcl")
+        state.update("set x 1\nset y 2\n")  # two chunks
+        snap_old = state.snap
+        assert len(snap_old.chunks) == 2
+
+        # Concurrent edit swaps the live snapshot to a single-chunk document.
+        state.update_source_quick("set only 1\n", version=2)
+        assert len(state.snap.chunks) == 1
+
+        info_old = state.get_semantic_token_cache(snap_old)
+        assert info_old is not None
+        # Ranges reflect the captured snapshot's two chunks, not the live one.
+        assert len(info_old[1]) == 2
+
+    def test_store_semantic_token_cache_skips_stale_chunks(self):
+        # Tokens computed for an old snapshot must not be grafted by index onto
+        # chunks whose text changed since (store writeback guard).
+        state = DocumentState(uri="snap://tok-store.tcl")
+        state.update("set x 1\nset y 2\n")
+        old = state.snap
+        assert len(old.chunks) == 2
+        # Edit chunk 0 only; chunk 1 ("set y 2") keeps its hash.
+        state.update("set xxxxx 1\nset y 2\n")
+        cur = state.snap
+        assert cur.chunks[0].source_hash != old.chunks[0].source_hash
+        assert cur.chunks[1].source_hash == old.chunks[1].source_hash
+
+        tok0 = [(0, 0, 1, 1, 1)]
+        tok1 = [(1, 0, 1, 1, 2)]
+        state.store_semantic_token_cache([tok0, tok1], old)
+        caches = state.snap.chunk_caches
+        # chunk 0 changed since the tokens were computed → not grafted.
+        assert caches[0] is None or caches[0].semantic_tokens_abs != tok0
+        # chunk 1 unchanged → tokens written.
+        assert caches[1] is not None and caches[1].semantic_tokens_abs == tok1
+
+
+class TestProcCacheKnownClassInvalidation:
+    """Adding/changing a class definition *elsewhere* must invalidate an
+    otherwise-unchanged proc whose object-type facts depend on the class set
+    (``[C new]`` resolves to a different OBJECT type once ``C`` is known).
+    Regression for the proc-cache key omitting the known-classes fingerprint."""
+
+    def test_class_added_after_proc_refreshes_object_facts(self):
+        proc = "proc uses {} { set o [C new] ; return $o }\n"
+        src1 = proc
+        # Class added AFTER the proc: the proc's position/body/context are all
+        # unchanged, so only the known-classes set differs.
+        src2 = proc + "oo::class create C { }\n"
+
+        inc = DocumentState(uri="inc")
+        inc.update(src1)
+        inc.update(src2)
+        full = DocumentState(uri="full")
+        full.update(src2)
+        inc_cu = inc.compilation_unit
+        full_cu = full.compilation_unit
+        assert inc_cu is not None and full_cu is not None
+
+        # Precondition: proc unchanged in position.
+        inc_proc = inc_cu.ir_module.procedures["::uses"].range.start
+        assert (inc_proc.line, inc_proc.character, inc_proc.offset) == (0, 0, 0)
+
+        def o_types(cu):
+            fa = cu.procedures["::uses"].analysis
+            return {(n, v): repr(t) for (n, v), t in fa.types.items() if n == "o"}
+
+        # The known class is now visible, so o's object type must match a full
+        # rebuild — not the stale facts cached when C was unknown.
+        assert o_types(inc_cu) == o_types(full_cu)
+        assert "::C" in next(iter(o_types(full_cu).values()))
+
+
+class TestQuickUpdatePreservesIncrementalPath:
+    """A did_change quick update clears analysis but preserves an incremental
+    base, so the follow-up update() takes the incremental path (reusing cached
+    artefacts) instead of the cold fresh rebuild — and stays byte-for-byte
+    equal to a full rebuild.  Regression for update_source_quick forcing every
+    warm edit through _analyse_document_fresh."""
+
+    def test_quick_then_update_is_incremental_not_fresh(self):
+        src1 = "proc alpha {} { puts $x }\nproc beta {} { return 2 }\n"
+        # One-chunk edit: only beta's body changes; alpha is untouched.
+        src2 = "proc alpha {} { puts $x }\nproc beta {} { return 7 }\n"
+
+        st = DocumentState(uri="warm")
+        st.update(src1)
+        cu1 = st.compilation_unit
+        assert cu1 is not None
+        alpha1 = cu1.procedures["::alpha"]
+
+        # Mirror the pipeline's warm did_change flow: quick update, then update.
+        st.update_source_quick(src2, version=2)
+        assert st.analysis is None  # quick cleared analysis ...
+        # ... but the pipeline's is_fresh predicate is False (an incremental
+        # base survives), so it routes to update() rather than fresh analysis.
+        assert st.can_analyse_incrementally is True
+
+        st.update(src2, version=2)
+        cu2 = st.compilation_unit
+        assert cu2 is not None
+
+        # alpha (before the edit) is the *same* FunctionUnit object — proof the
+        # incremental path reused the cached base rather than rebuilding every
+        # proc fresh (a fresh rebuild constructs all FunctionUnits anew).
+        assert cu2.procedures["::alpha"] is alpha1
+        assert cu2.procedures["::beta"] is not None
+        assert st.analysis is not None
+
+        # Correctness: identical diagnostics to a from-scratch rebuild of src2.
+        full = DocumentState(uri="full")
+        full.update(src2)
+        assert _diag_tuples(st) == _diag_tuples(full)
+
+    def test_consecutive_quick_updates_keep_oldest_analysed_base(self):
+        # Two quick updates before any full update: the analysed base from the
+        # last full analysis must survive so the eventual update() is incremental.
+        st = DocumentState(uri="warm2")
+        st.update("proc a {} { return 1 }\nproc b {} { return 2 }\n")
+        cu1 = st.compilation_unit
+        assert cu1 is not None
+        a1 = cu1.procedures["::a"]
+        st.update_source_quick("proc a {} { return 1 }\nproc b {} { return 3 }\n", version=2)
+        st.update_source_quick("proc a {} { return 1 }\nproc b {} { return 4 }\n", version=3)
+        assert st.can_analyse_incrementally is True
+        st.update("proc a {} { return 1 }\nproc b {} { return 4 }\n", version=3)
+        cu2 = st.compilation_unit
+        assert cu2 is not None
+        assert cu2.procedures["::a"] is a1  # unchanged proc reused across the run
+        full = DocumentState(uri="full2")
+        full.update("proc a {} { return 1 }\nproc b {} { return 4 }\n")
+        assert _diag_tuples(st) == _diag_tuples(full)
+
+
+class TestDialectQuickUpdateInvalidation:
+    """A same-length source-level dialect switch must invalidate cached
+    analysis even though chunk hashes are unchanged.  Regression for
+    update_source_quick refreshing dialect_hint before update() could compare
+    it, so the change went unnoticed and stale analysis was reused."""
+
+    def test_same_length_dialect_switch_matches_full(self):
+        s1 = "# tcl-dialect: tcl8.4\nlassign {1 2} a b\n"
+        # Same length, dialect bumped to 8.6 (where lassign is a builtin).
+        s2 = "# tcl-dialect: tcl8.6\nlassign {1 2} a b\n"
+        assert len(s1) == len(s2)
+
+        inc = DocumentState(uri="dialect-inc")
+        inc.update(s1)
+        inc.update_source_quick(s2, version=2)
+        inc.update(s2, version=2)
+
+        full = DocumentState(uri="dialect-full")
+        full.update(s2)
+
+        assert _diag_tuples(inc) == _diag_tuples(full)
+        # No stale W002 (lassign-not-in-8.4) carried over from the 8.4 analysis.
+        assert all(code != "W002" for (code, *_rest) in _diag_tuples(inc))
+
+
+class TestSemanticTokenFlagConsistency:
+    """In-thread semantic-token precompute (full and incremental) must use the
+    same tokenizer flags as the subprocess full build.  Regression for the
+    in-thread paths computing is_irules from the .irul/.irule extension only,
+    omitting is_irules_dialect()/is_bigip_conf/is_apl — so an iRules file
+    identified by dialect got different cached tokens than a fresh analysis."""
+
+    _SRC = "# tcl-dialect: f5-irules\nwhen HTTP_REQUEST {\n  HTTP::respond 200\n}\nset a 1\n"
+
+    @staticmethod
+    def _subprocess_tokens(src, version=1):
+        from server.workspace.document_state import _analyse_document_fresh
+
+        ref = _analyse_document_fresh(
+            source=src, version=version, line_length=120, dialect="f5-irules", uri="file:///x.tcl"
+        )
+        return [cc.semantic_tokens_abs if cc else None for cc in ref["chunk_caches"]]
+
+    def test_full_inthread_tokens_match_subprocess(self):
+        st = DocumentState(uri="file:///x.tcl")
+        st.update(self._SRC)
+        assert st.dialect_hint == "f5-irules"  # inferred from the directive
+        info = st.get_semantic_token_cache()
+        assert info is not None
+        ref = self._subprocess_tokens(self._SRC)
+        assert any(ref), "fixture must produce semantic tokens"
+        assert info[0] == ref
+
+    def test_incremental_tokens_match_subprocess(self):
+        v2 = self._SRC.replace("set a 1", "set a 2")  # same-length edit to the last chunk
+        st = DocumentState(uri="file:///x.tcl")
+        st.update(self._SRC)
+        st.update(v2)  # incremental: only the last chunk is dirty
+        info = st.get_semantic_token_cache()
+        assert info is not None
+        assert info[0] == self._subprocess_tokens(v2, version=2)

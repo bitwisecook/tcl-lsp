@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shared import rebase
 from shared.diagnostic import Range
 from shared.tokens import SourcePosition, Token, TokenType
 
@@ -69,30 +70,18 @@ def token_content_base(token: Token) -> tuple[int, int, int]:
 def shift_position(pos: SourcePosition, offset_delta: int, line_delta: int) -> SourcePosition:
     """Return a new ``SourcePosition`` with offset and line shifted by deltas.
 
-    Character (column) is unchanged because the position within its line
-    is the same — only the absolute offset and line number move.
+    Character (column) is unchanged because the position within its line is the
+    same — only the absolute offset and line number move.  This is the
+    canonical :func:`shared.rebase.shift_position` with ``base_char=0``.
     """
-    return SourcePosition(
-        line=pos.line + line_delta,
-        character=pos.character,
-        offset=pos.offset + offset_delta,
-    )
+    return rebase.shift_position(pos, base_line=line_delta, base_char=0, base_offset=offset_delta)
 
 
 def shift_token(tok: Token, offset_delta: int, line_delta: int) -> Token:
     """Return a new ``Token`` with start/end positions shifted."""
-    return Token(
-        type=tok.type,
-        text=tok.text,
-        start=shift_position(tok.start, offset_delta, line_delta),
-        end=shift_position(tok.end, offset_delta, line_delta),
-        in_quote=tok.in_quote,
-    )
+    return rebase.shift_token(tok, base_line=line_delta, base_char=0, base_offset=offset_delta)
 
 
 def shift_range(r: Range, offset_delta: int, line_delta: int) -> Range:
     """Return a new ``Range`` with start/end positions shifted."""
-    return Range(
-        start=shift_position(r.start, offset_delta, line_delta),
-        end=shift_position(r.end, offset_delta, line_delta),
-    )
+    return rebase.shift_range(r, base_line=line_delta, base_char=0, base_offset=offset_delta)

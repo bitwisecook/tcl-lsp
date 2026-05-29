@@ -3813,19 +3813,26 @@
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
             "order": 28
           },
+          "tclLsp.diagnostics.W233": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
+            "order": 29
+          },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 30
+            "order": 31
           }
         }
       },
@@ -4918,7 +4925,6 @@
     "@vscode/vsce": {
       "@azure/msal-node": "^5.1.5"
     },
-    "brace-expansion": "^5.0.6",
     "lodash": "^4.18.1"
   }
 }

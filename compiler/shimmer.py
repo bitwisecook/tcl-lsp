@@ -27,7 +27,7 @@ from shared.naming import normalise_var_name as _normalise_var_name
 from shared.tokens import SourcePosition
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
-from .compilation_unit import CompilationUnit, ensure_compilation_unit
+from .compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
 from .execution_intent import CommandSubstitutionIntent, FunctionExecutionIntent
 from .expr_ast import (
     BinOp,
@@ -38,7 +38,7 @@ from .expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from .ir import IRAssignExpr, IRAssignValue, IRCall, IRIncr
+from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRIncr
 from .ssa import SSAFunction, SSAValueKey, SSAVersion
 from .types import TclType, TypeKind, TypeLattice
 from .value_shapes import parse_command_substitution
@@ -463,6 +463,73 @@ def _narrow_range(r: Range) -> Range:
     )
 
 
+def _empty_literal_versions(ssa: SSAFunction, name: str) -> set[SSAVersion]:
+    """SSA versions of ``name`` defined by an empty literal (``set x {}`` / ``""``).
+
+    The empty literal is the typeless-empty value — a fresh object that is
+    simultaneously a valid empty string, list and dict.  An assignment to it
+    (the accumulator-*reset* idiom ``set row {}`` at the top of an outer loop,
+    then filled by ``lappend``) drops the prior value rather than coercing its
+    intrep, so it is not a shimmer/thunk cost and must not be counted as a
+    distinct type at the merge point.
+    """
+    versions: set[SSAVersion] = set()
+    for ssa_block in ssa.blocks.values():
+        for s in ssa_block.statements:
+            ver = s.defs.get(name)
+            if ver is None:
+                continue
+            stmt = s.statement
+            if isinstance(stmt, (IRAssignConst, IRAssignValue)) and stmt.value == "":
+                versions.add(ver)
+    return versions
+
+
+def _loop_body_def_types(
+    ssa: SSAFunction,
+    loop_blocks: set[str],
+    name: str,
+    types: dict[SSAValueKey, TypeLattice],
+) -> set[TclType]:
+    """Distinct intreps the variable ``name`` is *defined as* inside the loop.
+
+    A loop-header phi only observes the variable's value at the *end* of the
+    body (the back-edge incoming version), so it cannot tell a one-time
+    accumulator promotion (``set r {}``; body does ``lappend r …`` once →
+    LIST forever) from genuine per-iteration oscillation (``set x [expr …]``;
+    then ``set x "s"`` — two type-distinct defs *within* one iteration).  This
+    scans every statement def of ``name`` across the loop blocks and collects
+    the KNOWN types, so ``len(...) >= 2`` distinguishes the two.
+    """
+    body_types: set[TclType] = set()
+    for bn in loop_blocks:
+        ssa_block = ssa.blocks.get(bn)
+        if ssa_block is None:
+            continue
+        for s in ssa_block.statements:
+            ver = s.defs.get(name)
+            if ver is None:
+                continue
+            stmt = s.statement
+            # The empty literal ``{}`` / ``""`` is the typeless-empty value
+            # (a fresh object that is simultaneously a valid empty string,
+            # list and dict).  The accumulator-reset idiom — ``set row {}``
+            # at the top of an outer loop, filled by ``lappend`` — is *not*
+            # an intrep conversion: the old value is dropped, not coerced.
+            # Excluding it stops the reset being counted as a second type.
+            if isinstance(stmt, (IRAssignConst, IRAssignValue)) and stmt.value == "":
+                continue
+            t = types.get((name, ver))
+            # Count only KNOWN-typed defs.  A SHIMMERED *def* (e.g.
+            # ``set t [expr {min(max($k,$lo),$hi)}]`` where an operand is
+            # imprecisely typed STRING) is type-inference uncertainty about a
+            # single assignment, not two real assignments — counting its two
+            # candidate types would manufacture a phantom oscillation.
+            if t is not None and t.kind is TypeKind.KNOWN and t.tcl_type is not None:
+                body_types.add(t.tcl_type)
+    return body_types
+
+
 def _build_def_ranges(
     ssa: SSAFunction,
     cfg: CFGFunction,
@@ -525,12 +592,27 @@ def _find_phi_shimmers(
             # Classify incoming edges by the type they contribute.
             from_range: Range | None = None  # where it was from_type
             to_range: Range | None = None  # where it becomes to_type
+            entry_types: set[TclType] = set()  # types from non-loop (entry) edges
+            body_types: set[TclType] = set()  # types from loop (body) edges
+            nonempty_known: set[TclType] = set()  # KNOWN types from non-empty incomings
+            has_shimmered_incoming = False
+            empty_vers = _empty_literal_versions(ssa, phi.name)
             for _pred, incoming_ver in phi.incoming.items():
                 if incoming_ver <= 0:
                     continue
                 inc_type = types.get((phi.name, incoming_ver))
                 if inc_type is None or inc_type.kind is TypeKind.UNKNOWN:
                     continue
+                in_body = _pred in loop_blocks
+                if (
+                    inc_type.kind is TypeKind.KNOWN
+                    and inc_type.tcl_type is not None
+                    and incoming_ver not in empty_vers
+                ):
+                    (body_types if in_body else entry_types).add(inc_type.tcl_type)
+                    nonempty_known.add(inc_type.tcl_type)
+                elif inc_type.kind is TypeKind.SHIMMERED:
+                    has_shimmered_incoming = True
                 inc_range = def_ranges.get((phi.name, incoming_ver))
                 if inc_range is None:
                     continue
@@ -547,6 +629,29 @@ def _find_phi_shimmers(
                         to_range = inc_range
                     elif from_range is None:
                         from_range = inc_range
+
+            # A loop-header phi is SHIMMERED whenever the entry type differs from
+            # the stable body type — but the empty-string accumulator idiom
+            # (``set r {}; foreach … {lappend r …}``) promotes ``r`` STRING→LIST
+            # exactly once and then stabilises; that is not a per-iteration
+            # (S101) cost.  Only keep the loop shimmer when the body re-introduces
+            # an entry type (re-shimmers each iteration) or itself produces ≥2
+            # types.  (Out-of-loop S100 single-shimmers are always reported.)
+            if in_loop:
+                all_body_types = body_types | _loop_body_def_types(
+                    ssa, loop_blocks, phi.name, types
+                )
+                oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
+                if not oscillates:
+                    continue
+            elif not has_shimmered_incoming and len(nonempty_known) <= 1:
+                # Out-of-loop branch merge whose only SHIMMERED appearance comes
+                # from an empty-literal incoming (``set r {}`` on one arm,
+                # ``set r [list …]`` on another): the empty value is the typeless
+                # value (valid empty string/list/dict), so the merge is not a real
+                # intrep conversion.  A genuine merge has ≥2 distinct non-empty
+                # types, or a SHIMMERED incoming propagating a real prior shimmer.
+                continue
 
             # Primary range = where it becomes to_type; fall back to
             # from_range or the old heuristic.
@@ -639,6 +744,9 @@ def _find_thunking(
             entry_range: Range | None = None
             entry_type_name: str | None = None
             has_body_incoming = False
+            entry_types: set[TclType] = set()
+            body_types: set[TclType] = set()
+            empty_vers = _empty_literal_versions(ssa, phi.name)
 
             for pred, incoming_ver in phi.incoming.items():
                 if incoming_ver <= 0:
@@ -646,10 +754,18 @@ def _find_thunking(
                 incoming_type = types.get((phi.name, incoming_ver))
                 if incoming_type is None:
                     continue
+                # An empty-literal incoming (``set x {}``) is the typeless reset,
+                # not a real type at the merge — skip its type contribution so the
+                # nested accumulator-reset idiom (``set row {}`` in an outer loop,
+                # ``lappend row …`` in an inner loop, the flat loop-block set making
+                # the reset look like a body edge) is not counted as oscillation.
+                is_empty = incoming_ver in empty_vers
                 inc_range = def_ranges.get((phi.name, incoming_ver))
                 if pred in loop_blocks:
-                    if incoming_type.kind is TypeKind.KNOWN:
+                    if incoming_type.kind is TypeKind.KNOWN and not is_empty:
                         has_body_incoming = True
+                        if incoming_type.tcl_type is not None:
+                            body_types.add(incoming_type.tcl_type)
                         if body_range is None and inc_range is not None:
                             body_range = inc_range
                             body_type_name = (
@@ -658,6 +774,12 @@ def _find_thunking(
                                 else None
                             )
                 else:
+                    if (
+                        incoming_type.kind is TypeKind.KNOWN
+                        and incoming_type.tcl_type is not None
+                        and not is_empty
+                    ):
+                        entry_types.add(incoming_type.tcl_type)
                     if entry_range is None and inc_range is not None:
                         entry_range = inc_range
                         entry_type_name = (
@@ -667,6 +789,19 @@ def _find_thunking(
                         )
 
             if not has_body_incoming:
+                continue
+
+            # A loop-header phi is SHIMMERED whenever the entry type differs from
+            # the body-exit type — but that includes the *one-time* promotion of
+            # an empty-string accumulator (``set r {}; foreach … {lappend r …}``):
+            # ``r`` is STRING once (the entry) then LIST forever (the body
+            # stabilises).  That is not per-iteration oscillation.  Genuine
+            # thunking requires the body to *re-introduce* the entry type (so the
+            # phi re-shimmers each iteration) or to produce ≥2 conflicting types
+            # itself.  Otherwise the var stabilises at the body type → suppress.
+            all_body_types = body_types | _loop_body_def_types(ssa, loop_blocks, phi.name, types)
+            oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
+            if not oscillates:
                 continue
 
             # Primary range = body definition (where oscillation is
@@ -917,14 +1052,28 @@ def _find_expr_shimmers(
 def find_shimmer_warnings(
     source: str,
     cu: CompilationUnit | None = None,
+    *,
+    target_procs: frozenset[str] | None = None,
 ) -> list[ShimmerWarning | ThunkingWarning]:
-    """Run the full compiler pipeline and return shimmer/thunking diagnostics."""
+    """Run the full compiler pipeline and return shimmer/thunking diagnostics.
+
+    Shimmer is **body-local**: each proc's warnings depend only on its own
+    ``FunctionUnit`` (cfg/ssa/types), never on other procs.  When *target_procs*
+    is given, emit only for the top level + those proc qnames (the incremental
+    path reuses cached warnings for the rest); ``None`` emits for everything.
+    """
     cu = ensure_compilation_unit(source, cu, logger=log, context="shimmer")
     if cu is None:
         return []
 
     all_warnings: list[ShimmerWarning | ThunkingWarning] = []
-    for fu in [cu.top_level, *cu.procedures.values()]:
+    units: list[tuple[str | None, FunctionUnit]] = [(None, cu.top_level)]
+    units.extend((qname, fu) for qname, fu in cu.procedures.items())
+    for qname, fu in units:
+        if target_procs is not None and qname is not None and qname not in target_procs:
+            continue
+        if fu.complexity_guarded:
+            continue  # deep analysis skipped for this body (see core_analyses)
         executable = set(fu.cfg.blocks) - fu.analysis.unreachable_blocks
         loops = _loop_body_blocks(fu.cfg)
         dr = _build_def_ranges(fu.ssa, fu.cfg)

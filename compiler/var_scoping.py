@@ -60,6 +60,8 @@ def variable_declaration_indices(args: Sequence[object]) -> list[int]:
 def upvar_local_declaration_indices(
     command: str,
     args: Sequence[object],
+    *,
+    allow_dynamic_target: bool = False,
 ) -> list[int]:
     """Return indices of the *local-alias* tokens in an ``upvar`` command.
 
@@ -107,12 +109,21 @@ def upvar_local_declaration_indices(
     # are the ones we report; skip any pair where either side looks like
     # a substituted reference (starts with ``$``) since the compiler's
     # aliasing logic does the same.
+    #
+    # ``allow_dynamic_target`` relaxes this for *escaping* detection: a
+    # dynamic *target* (``upvar 1 $name var``) still creates a real local
+    # alias (``var``) whose writes escape the frame — we just don't know
+    # *which* outer variable it binds.  Since escaping only needs the local
+    # alias name (which is literal), report it even when the target is
+    # ``$``-substituted; the local alias itself must still be literal.
     result: list[int] = []
     pairs_start = offset
     for i in range(pairs_start, len(args) - 1, 2):
         caller_text = _arg_text(args[i])
         local_text = _arg_text(args[i + 1])
-        if caller_text.startswith("$") or local_text.startswith("$"):
+        if local_text.startswith("$"):
+            continue
+        if caller_text.startswith("$") and not allow_dynamic_target:
             continue
         result.append(i + 1)
     return result

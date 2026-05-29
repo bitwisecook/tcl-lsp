@@ -27,15 +27,24 @@ pytestmark = pytest.mark.slow
 # be updated (removing the entry) to keep CI green.
 # ---------------------------------------------------------------------------
 
-KNOWN_FAILURES_OO: set[str] = set(
-    # oo.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_OO: set[str] = {
+    # Pre-existing VM TclOO gaps (deterministic; identical optimised/non-optimised,
+    # so the optimiser introduces no regression). oo.test used to crash at startup
+    # (expect_zero_total); it now runs 96 tests with these 7 known failures.
+    "oo-34.2",  # introspection: configuresupport readable/writable property cmds absent
+    "oo-34.10",
+    "oo-35.7.1",  # unknown-method dispatch on destroyed/forwarded object
+    "oo-35.7.2",
+    "oo-38.3",  # private/variable declaration semantics
+    "oo-38.4",
+    "oo-38.5",
+}
 
 # ---------------------------------------------------------------------------
 # Known failures — ooNext2.test
 # ---------------------------------------------------------------------------
 
-KNOWN_FAILURES_OO_NEXT2: set[str] = set()
+KNOWN_FAILURES_OO_NEXT2: set[str] = set()  # runs clean: 62 total, 0 failed
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +175,7 @@ class TestOONative:
 
     def test_oo_test(self) -> None:
         results = _run_test_file("oo.test", optimise=False)
-        _check_results(results, KNOWN_FAILURES_OO, "oo.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_OO, "oo.test")
 
 
 class TestOONext2Native:
@@ -174,7 +183,7 @@ class TestOONext2Native:
 
     def test_oo_next2_test(self) -> None:
         results = _run_test_file("ooNext2.test", optimise=False)
-        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test")
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +196,7 @@ class TestOOOptimised:
 
     def test_oo_test_optimised(self) -> None:
         results = _run_test_file("oo.test", optimise=True)
-        _check_results(results, KNOWN_FAILURES_OO, "oo.test [optimised]", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_OO, "oo.test [optimised]")
 
 
 class TestOONext2Optimised:
@@ -195,6 +204,4 @@ class TestOONext2Optimised:
 
     def test_oo_next2_test_optimised(self) -> None:
         results = _run_test_file("ooNext2.test", optimise=True)
-        _check_results(
-            results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]", expect_zero_total=True
-        )
+        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]")

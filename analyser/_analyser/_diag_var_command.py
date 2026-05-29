@@ -10,12 +10,22 @@ else:
 
 from compiler.compilation_unit import CompilationUnit
 from compiler.ir import (
+    IRAssignValue,
     IRBarrier,
     IRCall,
 )
 from compiler.parsing.known_commands import known_command_names
+from compiler.value_shapes import parse_command_substitution
 
 from ..semantic_model import Diagnostic, Severity
+
+# snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
+# ``$win``/``$hull`` used as a command word are object dispatch, but *only*
+# inside a snit type body (``$hull configure`` is the widgetadaptor delegation
+# idiom).  Outside a snit body these are ordinary variable names, so the
+# exemption must be scoped (see the membership check at the use site) — a
+# vanilla ``proc f {} { set self …; $self foo }`` must still get W307.
+_OO_SELF_REFS = frozenset({"self", "type", "selfns", "win", "hull"})
 
 
 class _AnalyserDiagVarCommandMixin(_Base):
@@ -181,7 +191,6 @@ class _AnalyserDiagVarCommandMixin(_Base):
             import re as _re
 
             _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
-            from compiler.ir import IRAssignValue
 
             for qname, fu_unit in _all_fus_named:
                 func_cs = _func_constsets.setdefault(qname, {})
@@ -249,6 +258,56 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     # Top-level: covers entire source.
                     dict_with_ranges.append((0, 2**31))
 
+        # Object-factory provenance (W307 suppression).  A variable assigned
+        # from a *namespaced* command substitution (``set obj [::struct::tree
+        # …]``, ``set p [pt::rde …]``, ``grammar::me::tcl``) overwhelmingly
+        # holds an object/ensemble command name in tcllib idiom — dispatching on
+        # it (``$obj method``) is object dispatch, not a stray non-literal
+        # command.  Collected name-level (suppress-only, so over-approximation
+        # is safe) and — unlike typing the result OBJECT in the lattice — it
+        # does NOT perturb shimmer/type analysis (the value's real intrep when
+        # used as data is untouched).
+        # Scoped to the *defining* proc's body range (start, end, names): a
+        # factory assignment in one proc must not suppress a same-named variable
+        # in another proc, where it may hold anything (incl. user input).
+        factory_object_ranges: list[tuple[int, int, set[str]]] = []
+        for qname, fu_unit in _all_fus:
+            names: set[str] = set()
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if isinstance(stmt, IRAssignValue) and stmt.name:
+                        parsed = parse_command_substitution(stmt.value)
+                        if parsed is not None and "::" in parsed[0]:
+                            names.add(stmt.name)
+            if names:
+                ir_proc = cu.ir_module.procedures.get(qname)
+                if ir_proc is not None:
+                    factory_object_ranges.append(
+                        (ir_proc.range.start.offset, ir_proc.range.end.offset, names)
+                    )
+                else:
+                    factory_object_ranges.append((0, 2**31, names))  # top-level
+
+        # snit instance-variable / component dispatch (W307 suppression).  A
+        # snit type's instance variables and components frequently hold object
+        # handles (``component myparser`` / ``variable myparser`` assigned
+        # ``[pt::rde …]`` in the constructor).  Dispatch on them — including
+        # from type-private procs that ``upvar`` the instance var — is object
+        # dispatch.  Their factory assignment lives inside the snit body (an IR
+        # barrier), so it never reaches the compiler CU; recover it from the
+        # snit ClassDefs the analyser built.  Scoped to each type's body range
+        # so a same-named scalar elsewhere is unaffected.
+        snit_var_ranges: list[tuple[int, int, frozenset[str]]] = []
+        snit_body_ranges: list[tuple[int, int]] = []
+        for class_def in self.result.all_classes.values():
+            if "snit::" in class_def.metaclass:
+                br = class_def.body_range
+                snit_body_ranges.append((br.start.offset, br.end.offset))
+                if class_def.variables:
+                    snit_var_ranges.append(
+                        (br.start.offset, br.end.offset, frozenset(class_def.variables))
+                    )
+
         for (
             var_name,
             method_name,
@@ -256,6 +315,15 @@ class _AnalyserDiagVarCommandMixin(_Base):
             in_method,
             cmd_word_single,
         ) in self._var_command_sites:
+            # snit's reserved object/type self-references (``$self foo``,
+            # ``$type bar``, ``$selfns``, ``$win``, ``$hull configure``) are
+            # object dispatch — but only inside a snit type body.  Scoped to the
+            # snit body range (or a modelled method scope), so a same-named
+            # variable in a vanilla proc / top-level script still gets W307.
+            if var_name in _OO_SELF_REFS:
+                _sr = site_range.start.offset
+                if in_method or any(s <= _sr <= e for s, e in snit_body_ranges):
+                    continue
             class_names = all_types.get(var_name)
             if class_names:
                 # Variable is a TclOO object — validate the method if we have
@@ -278,6 +346,15 @@ class _AnalyserDiagVarCommandMixin(_Base):
                         cd = self.result.all_classes.get(cls)
                         if cd is not None:
                             has_local_class = True
+                            # snit method resolution is too dynamic to validate
+                            # soundly — instances respond to delegated methods,
+                            # hull/component forwards, options-as-methods and
+                            # snit built-ins (info/destroy/configure/cget) — so
+                            # suppress W308 for snit types (W307 dispatch is
+                            # still suppressed via the OBJECT typing).
+                            if "snit::" in cd.metaclass:
+                                found = True
+                                break
                             if (
                                 method_name in cd.methods
                                 or method_name in cd.class_methods
@@ -365,7 +442,20 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # dict-with where $var is very likely an object from dict
                 # unpacking.
                 in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
-                if not in_method and not in_dict_with and "W307" not in self._disabled_diagnostics:
+                _off = site_range.start.offset
+                is_factory_object = any(
+                    s <= _off <= e and var_name in names for s, e, names in factory_object_ranges
+                )
+                is_snit_member = any(
+                    s <= _off <= e and var_name in names for s, e, names in snit_var_ranges
+                )
+                if (
+                    not in_method
+                    and not in_dict_with
+                    and not is_factory_object
+                    and not is_snit_member
+                    and "W307" not in self._disabled_diagnostics
+                ):
                     self.result.diagnostics.append(
                         Diagnostic(
                             range=site_range,

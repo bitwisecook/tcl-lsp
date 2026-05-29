@@ -58,6 +58,12 @@ class CommandSubstitutionIntent:
     escape: EscapeClass
     shimmer_pressure: int
     invocation_shape: InvocationShape = InvocationShape.COMMAND_SUBSTITUTION
+    # True when any argument uses ``{*}`` expansion: the lexer drops the EXPAND
+    # token and the expanded word collapses to one arg, so ``args`` no longer
+    # reflects the runtime arity (``[list {*}{a b}]`` is one arg but two
+    # elements).  Consumers that count args (e.g. interval-bounds list lengths)
+    # must not infer arity when this is set.
+    has_expansion: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,10 +135,17 @@ def _parse_command_substitution(value: str) -> CommandSubstitutionIntent | None:
 
     lexer = TclLexer(inner)
     saw_command_terminator = False
+    has_expansion = False
     while True:
         tok = lexer.get_token()
         if tok is None:
             break
+        if tok.type is TokenType.EXPAND:
+            # ``{*}`` prefix: the following word expands at runtime, so the arg
+            # count no longer reflects the element count.  Only flag it — fall
+            # through so the empty EXPAND token still starts a new word exactly
+            # as before (the next token merges onto it).
+            has_expansion = True
         if tok.type in (TokenType.COMMENT, TokenType.SEP):
             prev_type = tok.type
             continue
@@ -164,6 +177,7 @@ def _parse_command_substitution(value: str) -> CommandSubstitutionIntent | None:
         side_effect=_classify_side_effect(command, args),
         escape=_classify_escape(command, categories),
         shimmer_pressure=_shimmer_pressure(categories),
+        has_expansion=has_expansion,
     )
 
 

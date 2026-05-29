@@ -1041,3 +1041,27 @@ class TestIpConversionCursorOutOfRange:
         )
         actions = get_code_actions(source, cursor, _NO_DIAG_CONTEXT)
         assert isinstance(actions, list)
+
+
+class TestEvalListQuickFix:
+    """W101 offers a quick-fix rewriting `eval "cmd $x"` to the safe
+    `eval [list cmd $x]` form (verified vs C tclsh: the list form is not
+    re-parsed and cannot inject), surfaced through the LSP code-action path."""
+
+    def test_eval_string_to_list_action(self):
+        from analyser import analyse
+
+        source = 'eval "process $x"'
+        w101 = next(d for d in analyse(source).diagnostics if d.code == "W101")
+        diagnostic = _diag(
+            "W101",
+            w101.message,
+            start_line=w101.range.start.line,
+            start_char=w101.range.start.character,
+            end_line=w101.range.end.line,
+            end_char=w101.range.end.character,
+        )
+        context = types.CodeActionContext(diagnostics=[diagnostic])
+        actions = get_code_actions(source, diagnostic.range, context, package_names=[])
+        snippets = _action_snippets(actions)
+        assert any("[list process $x]" in s for s in snippets), snippets

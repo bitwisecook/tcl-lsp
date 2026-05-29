@@ -9,8 +9,8 @@ a single file share procs and RULE_INIT variables (flat sharing).
 from __future__ import annotations
 
 from dialects.f5.bigip.rule_extract import EmbeddedRule, find_embedded_rules
+from shared import rebase
 from shared.document_buffer import DocumentBuffer
-from shared.tokens import SourcePosition
 
 from . import Analyser
 from .semantic_model import (
@@ -24,7 +24,6 @@ from .semantic_model import (
     PackageRequire,
     ProcDef,
     PropertyDef,
-    Range,
     RegexPattern,
     Scope,
     SourceTarget,
@@ -33,36 +32,10 @@ from .semantic_model import (
     VarDef,
 )
 
-
-def _shift_position(
-    pos: SourcePosition, base_line: int, base_char: int, base_offset: int
-) -> SourcePosition:
-    """Shift *pos* by a base line/character/offset.
-
-    For line 0, column is shifted by *base_char*; subsequent lines
-    only shift by *base_line* (their column is relative to the body,
-    which already starts at column 0 on its own line).
-    The byte offset is always shifted by *base_offset*.
-    """
-    if pos.line == 0:
-        return SourcePosition(
-            line=pos.line + base_line,
-            character=pos.character + base_char,
-            offset=pos.offset + base_offset,
-        )
-    return SourcePosition(
-        line=pos.line + base_line,
-        character=pos.character,
-        offset=pos.offset + base_offset,
-    )
-
-
-def _shift_range(rng: Range, base_line: int, base_char: int, base_offset: int) -> Range:
-    """Shift both endpoints of *rng*."""
-    return Range(
-        start=_shift_position(rng.start, base_line, base_char, base_offset),
-        end=_shift_position(rng.end, base_line, base_char, base_offset),
-    )
+# The leaf position/range shift is the canonical rebase primitive shared with
+# the incremental reparse and the AnchorTable-driven analysis rebase.
+_shift_position = rebase.shift_position
+_shift_range = rebase.shift_range
 
 
 def _shift_scope(scope: Scope, base_line: int, base_char: int, base_offset: int) -> Scope:

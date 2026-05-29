@@ -82,7 +82,10 @@ class TestDefUsePhi:
         assert phi_chain.use_count >= 1
 
     def test_phi_incoming_edges_are_uses(self):
-        source = "if {$cond} {set a 1} else {set a 2}"
+        # ``a`` must be *read* after the merge or there is no reader for a
+        # phi to feed (semi-pruned SSA correctly places none); the phi-incoming
+        # use-tracking under test only applies when the merged value is used.
+        source = "if {$cond} {set a 1} else {set a 2}\nputs $a"
         du, _ = _build(source)
 
         # a#1 and a#2 should have PHI_INCOMING uses
@@ -162,7 +165,8 @@ class TestDefUseResultMethods:
         assert du.chain_for("nonexistent", 99) is None
 
     def test_has_phi_use(self):
-        source = "if {$cond} {set a 1} else {set a 2}"
+        # Read ``a`` after the merge so a phi is genuinely needed.
+        source = "if {$cond} {set a 1} else {set a 2}\nputs $a"
         du, _ = _build(source)
         # At least one branch definition should have a phi use
         a_defs = du.reaching_defs("a")

@@ -294,6 +294,22 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
 )
 
 
+def _snapshot_read(uri: str):
+    """Capture one document snapshot for a request handler.
+
+    Returns ``(snap, source)`` where ``snap`` is the document's immutable
+    ``_StateSnapshot`` (or ``None`` when untracked) and ``source`` is
+    ``snap.source`` (falling back to the pygls workspace when untracked).
+    Reading ``source`` / ``analysis`` / ``buffer`` / ``conf_wrapped`` /
+    ``embedded_rules`` from this single ``snap`` keeps a handler consistent if a
+    concurrent did_change swaps the live snapshot mid-request.
+    """
+    state = workspace_state.get(uri)
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
+    return snap, source
+
+
 @server.feature(
     types.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
     types.SemanticTokensRegistrationOptions(
@@ -310,15 +326,18 @@ def on_semantic_tokens_full(
     if not _state.config_for_uri(params.text_document.uri).semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
-    # Try to use per-chunk semantic token cache.
+    # One snapshot for source + analysis + chunk-cache + buffer + conf-wrapped,
+    # so a concurrent did_change can't mix two versions into one token set.
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
+    analysis = snap.analysis if snap else None
+    # Try to use per-chunk semantic token cache (from the same snapshot).
     chunk_token_cache = None
     chunk_line_ranges = None
     cache_status = "no_state"
-    if state is not None:
-        cache_info = state.get_semantic_token_cache()
+    if state is not None and snap is not None:
+        cache_info = state.get_semantic_token_cache(snap)
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
             cache_status = (
@@ -326,8 +345,8 @@ def on_semantic_tokens_full(
             )
         else:
             cache_status = "no_cache"
-    ls = state.buffer.line_starts if state is not None else None
-    is_cw = state is not None and state.conf_wrapped
+    ls = snap.buffer.line_starts if snap and snap.buffer is not None else None
+    is_cw = snap is not None and snap.conf_wrapped
     data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -338,9 +357,10 @@ def on_semantic_tokens_full(
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
     )
-    # Write back computed tokens to chunk cache.
+    # Write back computed tokens to chunk cache (only where the snapshot the
+    # tokens were computed for still matches the live chunk).
     if state is not None and chunk_token_cache is not None:
-        state.store_semantic_token_cache(chunk_token_cache)
+        state.store_semantic_token_cache(chunk_token_cache, snap)
     # Store result for delta support (P8).
     result_id = str(next(_semantic_token_result_counter))
     with _semantic_token_results_lock:
@@ -381,18 +401,19 @@ def on_semantic_tokens_delta(
 
     old_data = prev[1]
 
-    # Compute fresh tokens.
-    source = _get_doc_source(uri)
+    # Compute fresh tokens from a single captured snapshot.
     state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
+    analysis = snap.analysis if snap else None
     chunk_token_cache = None
     chunk_line_ranges = None
-    if state is not None:
-        cache_info = state.get_semantic_token_cache()
+    if state is not None and snap is not None:
+        cache_info = state.get_semantic_token_cache(snap)
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
-    ls = state.buffer.line_starts if state is not None else None
-    is_cw_delta = state is not None and state.conf_wrapped
+    ls = snap.buffer.line_starts if snap and snap.buffer is not None else None
+    is_cw_delta = snap is not None and snap.conf_wrapped
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
@@ -404,7 +425,7 @@ def on_semantic_tokens_delta(
         line_starts=ls,
     )
     if state is not None and chunk_token_cache is not None:
-        state.store_semantic_token_cache(chunk_token_cache)
+        state.store_semantic_token_cache(chunk_token_cache, snap)
 
     # Store new result.
     result_id = str(next(_semantic_token_result_counter))
@@ -458,21 +479,21 @@ def on_completion(
     if not _state.config_for_uri(params.text_document.uri).completion_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
     return get_completions(
         source,
         params.position.line,
         params.position.character,
-        analysis=analysis,
+        analysis=snap.analysis if snap else None,
         workspace_procs=workspace_index.all_proc_names(),
         workspace_rule_init_vars=workspace_index.all_rule_init_var_names(),
         workspace_command_usage=workspace_index.command_usage_counts(),
         workspace_proc_usage=workspace_index.proc_usage_counts(),
         formatter_config=_state.formatter_config_for_uri(uri),
-        lines=state.lines if state else None,
-        embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
+        embedded_rules=snap.embedded_rules if snap and snap.conf_wrapped else None,
     )
 
 
@@ -545,7 +566,12 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
             return None
 
     state = workspace_state.get(uri)
-    version = state.version if state else None
+    # Capture one immutable snapshot and read version/analysis/source/lines/cu
+    # all from it: a concurrent did_change (update_source_quick) can swap the
+    # document's snapshot between reads, so reading these fields separately off
+    # the live state could mix data from two document versions into one hover.
+    snap = state.snap if state else None
+    version = snap.version if snap else None
     cache_key = (uri, version, line, character)
     hit, cached = _hover_cache_get(cache_key)
     if hit:
@@ -556,13 +582,11 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         )
         return cached
 
-    analysis = state.analysis if state else None
+    analysis = snap.analysis if snap else None
     if analysis is None:
         # Fresh analysis is still pending in the diagnostics pipeline.
         # Return quickly instead of duplicating the parse on the request
         # thread; the next hover will pick up the cached analysis.
-        # ``_get_doc_source`` can fall back to a pygls workspace lookup,
-        # so it is only called once we know we are going to compute.
         log.debug(
             "[timing] hover %.0fms (no analysis, uri=%s)",
             (time.perf_counter() - t0) * 1000,
@@ -570,14 +594,16 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         )
         return None
 
-    source = _get_doc_source(uri)
-    lines = state.lines if state else None
+    # All from the captured snapshot, so source/lines/cu match ``analysis``.
+    source = snap.source
+    lines = snap.buffer.lines if snap.buffer is not None else None
     result = await asyncio.to_thread(
         get_hover,
         source,
         line,
         character,
         analysis=analysis,
+        cu=snap.compilation_unit,
         lines=lines,
         analyse_if_missing=False,
     )
@@ -633,9 +659,11 @@ def on_definition(
     if not _state.config_for_uri(params.text_document.uri).definition_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
     state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
+    analysis = snap.analysis if snap else None
+    lines = snap.buffer.lines if snap and snap.buffer else None
 
     if _dp._is_bigip_conf(uri):
         cfgs = background_scanner.bigip_configs
@@ -649,7 +677,7 @@ def on_definition(
             params.position.character,
             current_config=current_cfg,
             workspace_configs=cfgs,
-            lines=state.lines if state else None,
+            lines=lines,
         )
         if bigip_locations:
             return bigip_locations
@@ -734,14 +762,13 @@ def on_type_definition(
     if not _state.config_for_uri(params.text_document.uri).type_definition_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # Pass None when analysis hasn't completed yet; the feature function
     # will run a throwaway analyse() inline.  This matches the behaviour
     # of on_references / on_definition and keeps the feature working on
     # slow CI runners where activate() may return before the fire-and-
-    # forget did_open task has populated state.analysis.
-    analysis = state.analysis if state else None
+    # forget did_open task has populated the analysis.
+    analysis = snap.analysis if snap else None
     return get_type_definition(
         source,
         uri,
@@ -763,11 +790,10 @@ def on_declaration(
     if not _state.config_for_uri(params.text_document.uri).declaration_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # See on_type_definition for the rationale behind passing analysis=None
-    # when state.analysis has not been populated yet.
-    analysis = state.analysis if state else None
+    # when analysis has not been populated yet.
+    analysis = snap.analysis if snap else None
     return get_declaration(
         source,
         uri,
@@ -788,14 +814,13 @@ def on_references(
     if not _state.config_for_uri(params.text_document.uri).references_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     include_decl = params.context.include_declaration if params.context else True
     # BIG-IP files: walk every indexed config and emit one Location
     # per token-bounded occurrence of the path-shaped token at the
     # cursor.  Tcl files keep their existing var/proc/class path.
-    is_cw = state is not None and state.conf_wrapped
+    is_cw = snap is not None and snap.conf_wrapped
     if _dp._is_bigip_conf(uri) and not is_cw:
         scanner = getattr(_state, "background_scanner", None)
         ws_configs = scanner.bigip_configs if scanner else None
@@ -830,11 +855,10 @@ def on_document_highlight(
     if not _state.config_for_uri(params.text_document.uri).document_highlight_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # See on_type_definition for the rationale behind passing analysis=None
-    # when state.analysis has not been populated yet.
-    analysis = state.analysis if state else None
+    # when analysis has not been populated yet.
+    analysis = snap.analysis if snap else None
     return get_document_highlights(
         source,
         uri,
@@ -855,22 +879,21 @@ def on_document_symbol(
     if not _state.config_for_uri(params.text_document.uri).document_symbols_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
-    chunks = state.chunks if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
+    chunks = snap.chunks if snap else None
     # BIG-IP / SCF files outline the parsed object inventory grouped
     # module → kind → object.  Conf-wrapped iRule files keep the Tcl
     # path because the user is editing iRule bodies, not the
     # surrounding stanza.
-    is_cw = state is not None and state.conf_wrapped
+    is_cw = snap is not None and snap.conf_wrapped
     if _dp._is_bigip_conf(uri) and not is_cw:
         return get_bigip_document_symbols(source)
     return get_document_symbols(
         source,
         analysis=analysis,
         chunks=chunks,
-        embedded_rules=state.embedded_rules if state and is_cw else None,
+        embedded_rules=snap.embedded_rules if snap and is_cw else None,
     )
 
 
@@ -891,9 +914,13 @@ def on_folding_range(
     # cover proc/namespace/control-structure bodies.  Returning ``[]``
     # while analysis is still running would leave VS Code with a cached
     # empty result and no fold markers until the next didChange.
-    source = _get_doc_source(uri)
-    analysis = state.analysis if state else None
-    return get_folding_ranges(source, analysis=analysis, lines=state.lines if state else None)
+    snap = state.snap if state else None
+    source = snap.source if snap else _get_doc_source(uri)
+    return get_folding_ranges(
+        source,
+        analysis=snap.analysis if snap else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
+    )
 
 
 # Rename
@@ -910,10 +937,9 @@ def on_rename(
     if not _state.config_for_uri(params.text_document.uri).rename_enabled:
         return None
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
-    is_cw = state is not None and state.conf_wrapped
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
+    is_cw = snap is not None and snap.conf_wrapped
     if _dp._is_bigip_conf(uri) and not is_cw:
         scanner = getattr(_state, "background_scanner", None)
         ws_configs = scanner.bigip_configs if scanner else None
@@ -945,10 +971,9 @@ def on_prepare_rename(
     if not _state.config_for_uri(params.text_document.uri).rename_enabled:
         return None
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
-    is_cw = state is not None and state.conf_wrapped
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
+    is_cw = snap is not None and snap.conf_wrapped
     if _dp._is_bigip_conf(uri) and not is_cw:
         bigip_range = prepare_bigip_rename(
             source,
@@ -990,9 +1015,8 @@ def on_signature_help(
     if not _state.config_for_uri(params.text_document.uri).signature_help_enabled:
         return None
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_signature_help(
         source,
         params.position.line,
@@ -1026,12 +1050,15 @@ def on_inlay_hint(
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
+    snap = state.snap if state else None
+    if snap is not None and snap.analysis is None:
         return []
-    source = _get_doc_source(uri)
-    analysis = state.analysis if state else None
+    source = snap.source if snap else _get_doc_source(uri)
     return get_inlay_hints(
-        source, params.range, analysis=analysis, lines=state.lines if state else None
+        source,
+        params.range,
+        analysis=snap.analysis if snap else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
     )
 
 
@@ -1046,9 +1073,8 @@ def on_prepare_call_hierarchy(
     if not _state.config_for_uri(params.text_document.uri).call_hierarchy_enabled:
         return []
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_call_hierarchy(
         source,
         uri,
@@ -1119,9 +1145,8 @@ def on_incoming_calls(
         return []
     item = params.item
     uri = item.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     extra = _cross_document_incoming(item, uri, analysis)
     return get_incoming_calls(item, source, uri, analysis=analysis, extra_documents=extra)
 
@@ -1135,9 +1160,8 @@ def on_outgoing_calls(
         return []
     item = params.item
     uri = item.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_outgoing_calls(item, source, uri, analysis=analysis)
 
 
@@ -1150,9 +1174,8 @@ def on_prepare_type_hierarchy(
     params: types.TypeHierarchyPrepareParams,
 ) -> list[types.TypeHierarchyItem]:
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return prepare_type_hierarchy(
         source,
         uri,
@@ -1169,9 +1192,8 @@ def on_supertypes(
 ) -> list[types.TypeHierarchyItem]:
     item = params.item
     uri = item.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_supertypes(item, analysis=analysis, source=source)
 
 
@@ -1182,9 +1204,8 @@ def on_subtypes(
 ) -> list[types.TypeHierarchyItem]:
     item = params.item
     uri = item.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_subtypes(item, analysis=analysis, source=source)
 
 
@@ -1199,11 +1220,10 @@ def on_implementation(
     if not _state.config_for_uri(params.text_document.uri).implementation_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # See on_type_definition for the rationale behind passing analysis=None
     # when state.analysis has not been populated yet.
-    analysis = state.analysis if state else None
+    analysis = snap.analysis if snap else None
     return get_implementations(
         source,
         uri,
@@ -1225,9 +1245,8 @@ def on_document_link(
     if not _state.config_for_uri(params.text_document.uri).document_links_enabled:
         return []
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
-    is_cw = state is not None and state.conf_wrapped
+    snap, source = _snapshot_read(uri)
+    is_cw = snap is not None and snap.conf_wrapped
     # BIG-IP / SCF files emit object-reference links from the
     # parser's iRule scanner (same path ``f5 grep`` uses).  Tcl
     # files keep their existing ``source`` / ``package require``
@@ -1247,9 +1266,9 @@ def on_document_link(
         )
     # Return empty when analysis hasn't completed — get_document_links
     # would call analyse(source) synchronously, blocking the event loop.
-    if state is not None and state.analysis is None:
+    if snap is not None and snap.analysis is None:
         return []
-    analysis = state.analysis if state else None
+    analysis = snap.analysis if snap else None
     return get_document_links(source, analysis=analysis)
 
 
@@ -1264,11 +1283,10 @@ def on_code_lens(
     if not _state.config_for_uri(params.text_document.uri).code_lens_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # See on_type_definition for the rationale behind passing analysis=None
     # when state.analysis has not been populated yet.
-    analysis = state.analysis if state else None
+    analysis = snap.analysis if snap else None
     return get_code_lenses(source, uri, analysis)
 
 
@@ -1319,11 +1337,13 @@ def on_selection_range(
     if not _state.config_for_uri(params.text_document.uri).selection_range_enabled:
         return None
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
-    analysis = state.analysis if state else None
+    snap, source = _snapshot_read(uri)
+    analysis = snap.analysis if snap else None
     return get_selection_ranges(
-        source, list(params.positions), analysis=analysis, lines=state.lines if state else None
+        source,
+        list(params.positions),
+        analysis=analysis,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
     )
 
 
@@ -1338,11 +1358,10 @@ def on_linked_editing_range(
     if not _state.config_for_uri(params.text_document.uri).linked_editing_range_enabled:
         return None
     uri = params.text_document.uri
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     # See on_type_definition for the rationale behind passing analysis=None
     # when state.analysis has not been populated yet.
-    analysis = state.analysis if state else None
+    analysis = snap.analysis if snap else None
     return get_linked_editing_ranges(
         source,
         params.position.line,
@@ -1374,19 +1393,18 @@ def on_code_action(
     if not _state.config_for_uri(params.text_document.uri).code_actions_enabled:
         return None
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
+    snap, source = _snapshot_read(uri)
     # BIG-IP files get a separate code-action provider that wraps
     # the query engine's rename/cascade machinery as quick-fix
     # entries (no analysis dependency, parses the source directly).
-    is_cw = state is not None and state.conf_wrapped
+    is_cw = snap is not None and snap.conf_wrapped
     if _dp._is_bigip_conf(uri) and not is_cw:
         return get_bigip_code_actions(source, uri=uri, range_=params.range) or None
     # Skip code actions when analysis hasn't completed yet — running
     # analyse(source) synchronously here would block the event loop
     # for the entire analysis duration.  Code actions depend on
     # diagnostics, which aren't available until analysis finishes.
-    if state is not None and state.analysis is None:
+    if snap is not None and snap.analysis is None:
         return None
     actions = get_code_actions(
         source,
@@ -1394,7 +1412,7 @@ def on_code_action(
         params.context,
         uri=uri,
         package_names=_state.package_resolver_for_uri(uri).all_package_names(),
-        lines=state.lines if state else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
     )
     # Fill in the correct document URI for each action's edit
     for action in actions:
@@ -1423,13 +1441,12 @@ def on_formatting(
     params: types.DocumentFormattingParams,
 ) -> list[types.TextEdit] | None:
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
+    snap, source = _snapshot_read(uri)
     edits = get_formatting(
         source,
         params.options,
         _state.formatter_config_for_uri(uri),
-        lines=state.lines if state else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
     )
     return edits or None
 
@@ -1445,14 +1462,13 @@ def on_range_formatting(
     params: types.DocumentRangeFormattingParams,
 ) -> list[types.TextEdit] | None:
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
-    state = workspace_state.get(uri)
+    snap, source = _snapshot_read(uri)
     edits = get_range_formatting(
         source,
         params.range,
         params.options,
         _state.formatter_config_for_uri(uri),
-        lines=state.lines if state else None,
+        lines=snap.buffer.lines if snap and snap.buffer else None,
     )
     return edits or None
 
@@ -1469,8 +1485,7 @@ def on_will_save_wait_until(
     cfg = _state.config_for_uri(uri)
     if not cfg.will_save_wait_until_enabled:
         return None
-    state = workspace_state.get(uri)
-    source = _get_doc_source(uri)
+    snap, source = _snapshot_read(uri)
     from tooling.formatter.config import IndentStyle
 
     fmt_cfg = _state.formatter_config_for_uri(uri)
@@ -1478,5 +1493,7 @@ def on_will_save_wait_until(
         tab_size=fmt_cfg.indent_size,
         insert_spaces=fmt_cfg.indent_style == IndentStyle.SPACES,
     )
-    edits = get_formatting(source, options, fmt_cfg, lines=state.lines if state else None)
+    edits = get_formatting(
+        source, options, fmt_cfg, lines=snap.buffer.lines if snap and snap.buffer else None
+    )
     return edits or None

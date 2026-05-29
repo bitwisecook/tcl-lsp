@@ -318,6 +318,15 @@ def check_unbraced_body(
         if _first_token_is_braced(tok):
             continue
 
+        # A command-substitution body — e.g. ``eval [list puts $a]`` (the
+        # recommended *safe* form), ``eval [linsert $cmd 0 puts]``,
+        # ``uplevel [buildScript]`` — is produced dynamically and parsed once
+        # by the consumer: there is no double-substitution risk (verified:
+        # ``eval [list puts $a]`` does not re-substitute ``$a``) and it cannot
+        # be braced (``eval {[list …]}`` changes the meaning).  Don't flag it.
+        if tok.type is TokenType.CMD:
+            continue
+
         # Skip if body looks like a single bare word (e.g. a proc name,
         # which some commands accept as an alternative form).
         if " " not in text.strip() and not _has_substitution(text, tok):
@@ -510,20 +519,31 @@ def check_string_list_confusion(
     # Check if any appended value starts/ends with space (common list-building pattern)
     for i in range(1, len(args)):
         text = args[i]
-        if text.startswith(" ") or text.endswith(" "):
-            tok = arg_tokens[i] if i < len(arg_tokens) else arg_tokens[0]
-            return [
-                Diagnostic(
-                    range=range_from_token(tok),
-                    message=(
-                        "append with space-separated values looks like list "
-                        "construction. Use [lappend] instead to safely handle "
-                        "values containing spaces, braces, or backslashes."
-                    ),
-                    severity=Severity.HINT,
-                    code="W104",
-                )
-            ]
+        if not (text.startswith(" ") or text.endswith(" ")):
+            continue
+        # A pure separator (``", "`` / ``": "`` / ``" "``) joins values into a
+        # string — it is not element-by-element list construction, so [lappend]
+        # is not the fix.  Likewise a value with a newline/tab is formatted text
+        # (a message / generated script), not a list.  Only flag a value that
+        # carries actual element content (a word or ``$``/``[`` substitution).
+        if any(s in text for s in ("\n", "\t", "\\n", "\\t")):
+            continue
+        stripped = text.strip()
+        if not stripped or not any(c.isalnum() or c in "$[" for c in stripped):
+            continue
+        tok = arg_tokens[i] if i < len(arg_tokens) else arg_tokens[0]
+        return [
+            Diagnostic(
+                range=range_from_token(tok),
+                message=(
+                    "append with space-separated values looks like list "
+                    "construction. Use [lappend] instead to safely handle "
+                    "values containing spaces, braces, or backslashes."
+                ),
+                severity=Severity.HINT,
+                code="W104",
+            )
+        ]
 
     return []
 

@@ -102,6 +102,14 @@ class _AnalyserDiagsMixin(_Base):
             analysis: FunctionAnalysis,
         ) -> None: ...
 
+        def _emit_interval_bounds_diagnostics(
+            self,
+            cfg: CFGFunction,
+            ssa: SSAFunction,
+            analysis: FunctionAnalysis,
+            intent: Any,
+        ) -> None: ...
+
         def _emit_racy_static_diagnostics(
             self,
             fu: FunctionUnit,
@@ -160,8 +168,16 @@ class _AnalyserDiagsMixin(_Base):
             extra_known_defined_vars=self._globals_written_by_procs(cu),
             ssa=cu.top_level.ssa,
         )
+        self._emit_interval_bounds_diagnostics(
+            cu.top_level.cfg,
+            cu.top_level.ssa,
+            cu.top_level.analysis,
+            cu.top_level.execution_intent,
+        )
         conn = cu.connection_scope
         for qname, fu in cu.procedures.items():
+            if fu.complexity_guarded:
+                continue  # deep analysis skipped for pathologically large bodies
             cross_vars: frozenset[str] = frozenset()
             if conn is not None and qname.startswith("::when::"):
                 cross_vars = conn.cross_event_defs | conn.cross_event_imports
@@ -171,6 +187,7 @@ class _AnalyserDiagsMixin(_Base):
                 cross_event_vars=cross_vars,
                 ssa=fu.ssa,
             )
+            self._emit_interval_bounds_diagnostics(fu.cfg, fu.ssa, fu.analysis, fu.execution_intent)
             ir_proc = ir_module.procedures.get(qname)
             if ir_proc is not None:
                 self._emit_unused_param_diagnostics(ir_proc, fu.analysis)

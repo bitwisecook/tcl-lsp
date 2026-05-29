@@ -33,7 +33,13 @@ from compiler.ir import (
 from compiler.lowering import lower_to_ir
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.green_tree import GreenNode, descend_token, node_for, tokenise
+from compiler.parsing.green_tree import (
+    GreenNode,
+    descend_command,
+    descend_token,
+    node_for,
+    tokenise,
+)
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -44,7 +50,6 @@ from compiler.registry.runtime import (
     CommandSig,
     SubcommandSig,
     arg_indices_for_role,
-    iter_body_arguments,
 )
 from shared.codes import diag
 from shared.diagnostic import Diagnostic, Range, Severity
@@ -65,6 +70,15 @@ diag(
     section="security",
     ai_category="style",
 )
+
+
+# Source-byte ceiling for deep proc-body analysis (the analyser/IR-walk
+# analogue of the CFG-block complexity guard in ``compiler.ssa``).  Bodies above
+# this are machine-generated dispatch tables (fumagic's ``filetypes.tcl``
+# analyze proc is ~1.1 MB); deep-walking them costs tens of seconds for
+# negligible findings.  Single source of truth — imported by the analyser
+# proc-body walk so the two guards stay in lockstep.
+_DEEP_ANALYSIS_BODY_BYTES = 262144
 
 
 def iter_ir_statements(script: IRScript):
@@ -318,17 +332,13 @@ class _CompilerCheckRunner:
         prev_event = self._current_event
         if cmd_name == "when" and args:
             self._current_event = args[0]
-        for body in iter_body_arguments(cmd_name, args, arg_tokens):
-            if body.token.type is not TokenType.STR:
-                continue
-            if not body.text.strip():
-                continue
+        for child in descend_command(cmd_name, args, arg_tokens, self._source):
             # switch list-form body (`switch x {pattern body ...}`) is a Tcl
             # list, not a script. Parse pairs and recurse into each body arm.
-            if cmd_name == "switch" and _switch_list_body_index(args) == body.index:
-                self._recurse_switch_list_body(body.text, body.token)
+            if cmd_name == "switch" and _switch_list_body_index(args) == child.index:
+                self._recurse_switch_list_body(child.text, child.token)
                 continue
-            self._process_node(descend_token(body.token, self._source))
+            self._process_node(child.node)
         if cmd_name == "when":
             self._current_event = prev_event
 
@@ -983,6 +993,12 @@ def run_compiler_checks(
     stmts: list[IRStatement] = []
     stmts.extend(iter_ir_statements(ir_module.top_level))
     for proc in ir_module.procedures.values():
+        # Complexity guard: skip pathologically large (generated) bodies — the
+        # analyser-walk / SSA / dataflow guards skip them too, so compiler
+        # checks stay consistent and don't recurse tens of thousands of
+        # nested statements for negligible findings.
+        if proc.range.end.offset - proc.range.start.offset > _DEEP_ANALYSIS_BODY_BYTES:
+            continue
         stmts.extend(iter_ir_statements(proc.body))
     stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
 

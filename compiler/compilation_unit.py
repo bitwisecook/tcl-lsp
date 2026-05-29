@@ -15,14 +15,21 @@ from compiler.interprocedural import (
     ProcLocalSummary,
     analyse_interprocedural_ir,
 )
+from shared.naming import normalise_qualified_name
 
-from .cfg import CFGFunction, CFGModule, build_cfg_function, prepare_cfg_context
+from .cfg import (
+    CFGFunction,
+    CFGModule,
+    build_cfg_function,
+    cfg_context_fingerprint,
+    prepare_cfg_context,
+)
 from .connection_scope import ConnectionScope, build_connection_scope
 from .core_analyses import FunctionAnalysis, analyse_function
 from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
-from .ir import IRBarrier, IRCall, IRModule, IRStatement
+from .ir import IRBarrier, IRBlock, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
-from .ssa import SSAFunction, build_ssa
+from .ssa import _DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
 
 _oo_metaclass_cache: frozenset[str] | None = None
 
@@ -36,44 +43,86 @@ def _oo_metaclasses() -> frozenset[str]:
     return _oo_metaclass_cache
 
 
-def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
-    """Extract user-defined TclOO class names from IR statements.
+# snit type-definers (tcllib).  ``snit::type Name body`` makes ``Name`` a
+# class whose instances are created via ``Name create x`` / ``Name %AUTO%`` /
+# (widgets) ``Name .path`` — recognised in ``_return_type_for_command`` so the
+# created object's variable is typed ``OBJECT`` (suppresses W307 dispatch FPs).
+_SNIT_DEFINERS: frozenset[str] = frozenset(
+    {
+        "snit::type",
+        "snit::widget",
+        "snit::widgetadaptor",
+        "::snit::type",
+        "::snit::widget",
+        "::snit::widgetadaptor",
+    }
+)
 
-    Scans ``oo::class create ClassName`` (and similar metaclass) patterns
-    in the top-level script and procedure bodies.
+
+def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
+    """Extract user-defined TclOO / snit class names from IR statements.
+
+    Scans ``oo::class create ClassName`` (and similar metaclass) patterns plus
+    ``snit::type Name`` / ``snit::widget`` / ``snit::widgetadaptor`` in the
+    top-level script and procedure bodies.
     """
     names: set[str] = set()
 
-    def _scan(stmts: tuple[IRStatement, ...]) -> None:
+    def _qualify(name: str, namespace: str) -> str:
+        # Absolute names live at the global root; relative names resolve against
+        # the enclosing namespace (mirrors tclsh ``create`` and the analyser's
+        # ``_qualify_oo_name``).  normalise collapses any doubled ``::``.
+        if name.startswith("::"):
+            return normalise_qualified_name(name)
+        return normalise_qualified_name(f"{namespace}::{name}")
+
+    def _scan(stmts: tuple[IRStatement, ...], namespace: str = "::") -> None:
         for stmt in stmts:
+            if isinstance(stmt, IRBlock):
+                # ``namespace eval ns {…}`` — recurse with the block's namespace
+                # so a relative ``oo::class create Foo`` inside it is recorded as
+                # ``::ns::Foo`` (was ``::Foo``, so a relative ``[Foo new]`` in the
+                # namespace never matched → W307 instead of object typing).
+                _scan(stmt.body.statements, stmt.namespace or namespace)
+                continue
             cmd: str = ""
             args: tuple[str, ...] = ()
-            if isinstance(stmt, IRCall):
-                cmd, args = stmt.command, stmt.args
-            elif isinstance(stmt, IRBarrier):
+            if isinstance(stmt, (IRCall, IRBarrier)):
                 cmd, args = stmt.command, stmt.args
             if (
                 cmd in _oo_metaclasses()
                 and len(args) >= 2
                 and args[0] in ("create", "createWithNamespace")
             ):
-                class_name = args[1]
-                names.add(f"::{class_name}" if not class_name.startswith("::") else class_name)
+                names.add(_qualify(args[1], namespace))
+            elif cmd in _SNIT_DEFINERS and args:
+                names.add(_qualify(args[0], namespace))
 
     _scan(ir_module.top_level.statements)
-    for proc in ir_module.procedures.values():
-        _scan(proc.body.statements)
+    for qname, proc in ir_module.procedures.items():
+        # A class created in a proc body is named relative to the proc's own
+        # namespace (``proc ::ns::p {} { oo::class create C }`` ⇒ ``::ns::C``).
+        proc_ns = normalise_qualified_name(qname).rsplit("::", 1)[0] or "::"
+        _scan(proc.body.statements, proc_ns)
     return frozenset(names)
 
 
 @dataclass(frozen=True, slots=True)
 class FunctionUnit:
-    """Pre-computed artefacts for a single function."""
+    """Pre-computed artefacts for a single function.
+
+    ``complexity_guarded`` is the single source of truth for the deep-analysis
+    complexity guard: when True (CFG block count OR proc body bytes over the
+    ceiling), ``ssa``/``analysis`` are trivial and **every** per-proc diagnostic
+    pass must skip this function (consult the flag, not the cfg, so byte-large-
+    but-block-light generated bodies are guarded consistently).
+    """
 
     cfg: CFGFunction
     ssa: SSAFunction
     analysis: FunctionAnalysis
     execution_intent: FunctionExecutionIntent
+    complexity_guarded: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +136,10 @@ class CompilationUnit:
     procedures: dict[str, FunctionUnit]
     interproc: InterproceduralAnalysis
     connection_scope: ConnectionScope | None = None
+    # The TclOO/snit class-name set the per-proc analyses were built under;
+    # cache builders fingerprint it so a class change elsewhere invalidates
+    # unchanged procs (see ``known_classes_fingerprint``).
+    known_classes: frozenset[str] = frozenset()
 
 
 def ensure_compilation_unit(
@@ -133,6 +186,10 @@ def _proc_cache_key(
     start_offset: int,
     end_offset: int,
     stub_fingerprint: int = 0,
+    context_fingerprint: int = 0,
+    start_line: int = 0,
+    start_char: int = 0,
+    known_classes_fp: int = 0,
 ) -> tuple[str, int] | None:
     """Build a procedure cache key from source offsets.
 
@@ -141,6 +198,25 @@ def _proc_cache_key(
     / ``ArgRole.EXPR`` for the commands the proc invokes — adding,
     removing, or changing a stub must invalidate cached summaries
     even when the proc body text is unchanged.
+
+    ``context_fingerprint`` covers the module-global CFG-construction context
+    (``cfg_context_fingerprint``): a caller's CFG/analysis depends on which
+    callees write back into the caller frame via ``upvar``, so a callee edit
+    that changes that must invalidate the caller even though its text is
+    unchanged.
+
+    ``known_classes_fp`` covers the TclOO/snit class-name set fed to
+    ``analyse_function``: ``[ClassName new]`` propagates an OBJECT type only
+    when ``ClassName`` is known, so adding/renaming a class elsewhere must
+    invalidate an otherwise-unchanged proc's cached object-type facts.
+
+    The proc's **start line/char AND byte offset** are all part of the key. The
+    cached ``FunctionUnit``'s CFG/SSA carry *absolute* source positions — both
+    the LSP-visible line/char *and* byte offsets that flow into optimiser /
+    code-action edit data (``startOffset``/``endOffset``). A same-line length
+    change *before* a proc leaves its line/char stable but shifts every absolute
+    offset inside it, so keying on line/char alone would wrongly reuse a unit
+    whose offsets are now stale; including ``start_offset`` invalidates it.
     """
     if start_offset < 0 or end_offset < start_offset or end_offset > len(source):
         return None
@@ -148,7 +224,31 @@ def _proc_cache_key(
     # end-exclusive at end_offset+1 — otherwise a same-length edit to the
     # proc's final character leaves the hash unchanged and the cached unit is
     # wrongly reused.  Must stay in lockstep with _build_proc_cache's slice.
-    return (qname, hash((source[start_offset : end_offset + 1], stub_fingerprint)))
+    return (
+        qname,
+        hash(
+            (
+                source[start_offset : end_offset + 1],
+                stub_fingerprint,
+                context_fingerprint,
+                start_line,
+                start_char,
+                start_offset,
+                known_classes_fp,
+            )
+        ),
+    )
+
+
+def known_classes_fingerprint(known_classes: frozenset[str]) -> int:
+    """Stable per-process fingerprint of the TclOO/snit class-name set.
+
+    Folded into proc-cache keys (and the incremental shimmer body hash) so that
+    adding, removing, or renaming a class definition invalidates an unchanged
+    proc whose object-type facts depend on the class set.  Exposed so cache
+    builders outside :func:`compile_source` produce matching keys.
+    """
+    return hash(tuple(sorted(known_classes)))
 
 
 def compute_stub_fingerprint(source: str) -> int:
@@ -261,13 +361,16 @@ def _compile_source_inner(
     # recognise ``[ClassName new]`` as returning an OBJECT instance.
     if not known_classes:
         known_classes = _extract_class_names(ir_module)
+    known_classes_fp = known_classes_fingerprint(known_classes)
 
     upvar_procs, all_proc_params = prepare_cfg_context(ir_module)
+    context_fingerprint = cfg_context_fingerprint(upvar_procs, all_proc_params)
     top_cfg = build_cfg_function(
         "::top",
         ir_module.top_level,
         upvar_procs=upvar_procs,
         proc_params=all_proc_params,
+        faithful_exceptions=True,
     )
     top_ssa = build_ssa(top_cfg)
     top_analysis = analyse_function(top_cfg, top_ssa, known_classes=known_classes)
@@ -287,6 +390,10 @@ def _compile_source_inner(
             ir_proc.range.start.offset,
             ir_proc.range.end.offset,
             stub_fingerprint=stub_fingerprint,
+            context_fingerprint=context_fingerprint,
+            start_line=ir_proc.range.start.line,
+            start_char=ir_proc.range.start.character,
+            known_classes_fp=known_classes_fp,
         )
 
         # Try the proc cache before rebuilding CFG + SSA + analysis.
@@ -297,21 +404,38 @@ def _compile_source_inner(
                 proc_cfgs[qname] = cached.cfg
                 continue
 
+        # Decide the byte-size half of the complexity guard *before* SSA /
+        # dataflow: a flat generated command list is block-light (so the
+        # block-count guard inside build_ssa/analyse_function never fires) yet
+        # byte-huge, and running the full O(blocks·vars) SSA + SCCP/taint/
+        # liveness walk on it costs seconds for near-zero findings.  Thread the
+        # decision in as a skip flag so those passes return trivial results,
+        # rather than computing them and discarding via the guard afterwards.
+        body_bytes = ir_proc.range.end.offset - ir_proc.range.start.offset
+        byte_guarded = body_bytes > _DEEP_ANALYSIS_BODY_BYTES
+
         cfg = build_cfg_function(
             qname,
             ir_proc.body,
             upvar_procs=upvar_procs,
             proc_params=all_proc_params,
+            faithful_exceptions=True,
         )
         proc_cfgs[qname] = cfg
-        ssa = build_ssa(cfg)
+        ssa = build_ssa(cfg, force_guard=byte_guarded)
         proc_params = frozenset(ir_proc.params)
-        analysis = analyse_function(cfg, ssa, params=proc_params, known_classes=known_classes)
+        analysis = analyse_function(
+            cfg, ssa, params=proc_params, known_classes=known_classes, force_guard=byte_guarded
+        )
+        # Single complexity-guard decision consulted by every per-proc
+        # diagnostic pass: byte-heavy (decided above) OR block-heavy.
+        guarded = byte_guarded or is_complexity_guarded(cfg)
         proc_units[qname] = FunctionUnit(
             cfg=cfg,
             ssa=ssa,
             analysis=analysis,
             execution_intent=build_function_execution_intent(cfg),
+            complexity_guarded=guarded,
         )
         time.sleep(0)  # Yield GIL between procedures
 
@@ -324,6 +448,7 @@ def _compile_source_inner(
         prune_local_cache=prune_interproc_cache,
         proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
         stub_fingerprint=stub_fingerprint,
+        context_fingerprint=context_fingerprint,
         deep_param_traits=deep_param_traits,
     )
 
@@ -338,4 +463,5 @@ def _compile_source_inner(
         procedures=proc_units,
         interproc=interproc,
         connection_scope=conn_scope,
+        known_classes=known_classes,
     )

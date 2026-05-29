@@ -11,12 +11,23 @@ from compiler.parsing.green_tree import (
     Mode,
     NodeKind,
     active_scope,
+    descend_command,
     descend_token,
     green_tree_scope,
     node_for,
     tokenise,
 )
 from shared.tokens import TokenType
+
+
+def _single_command(src):
+    """Group a one-command source into (cmd_name, args, arg_tokens)."""
+    toks = [
+        t
+        for t in node_for(src).tokens
+        if t.type not in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT)
+    ]
+    return toks[0].text, [t.text for t in toks[1:]], toks[1:]
 
 
 class TestNodeBuilding:
@@ -66,6 +77,32 @@ class TestDescent:
         assert child.kind is NodeKind.BRACKETED
         first = next(t for t in child.tokens if t.type not in (TokenType.SEP, TokenType.EOL))
         assert first.start.offset == cmd.start.offset + 1
+
+
+class TestDescendCommand:
+    def test_resolves_body_to_script_node(self):
+        src = "proc p {x} {set x 1}"
+        cmd_name, args, arg_tokens = _single_command(src)
+        children = descend_command(cmd_name, args, arg_tokens, src)
+        assert len(children) == 1
+        child = children[0]
+        assert child.node.mode is Mode.SCRIPT
+        assert child.node.kind is NodeKind.BRACED
+        # Equivalent to the direct descent it replaces.
+        assert child.node.tokens == descend_token(child.token, src).tokens
+
+    def test_expr_arg_not_returned_only_body(self):
+        # `if` has an EXPR condition and a BODY; only the body is descended.
+        src = "if {$x > 1} {puts hi}"
+        cmd_name, args, arg_tokens = _single_command(src)
+        children = descend_command(cmd_name, args, arg_tokens, src)
+        assert len(children) == 1
+        assert "puts" in children[0].text
+
+    def test_empty_body_skipped(self):
+        src = "proc p {} {}"
+        cmd_name, args, arg_tokens = _single_command(src)
+        assert descend_command(cmd_name, args, arg_tokens, src) == []
 
 
 class TestModeTagging:

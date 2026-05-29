@@ -328,3 +328,118 @@ class TestDocumentStateBuffer:
         buf2 = state.buffer
         assert buf1 is not buf2
         assert buf2.source == "set y 2\n"
+
+    def test_update_source_quick_buffer_matches_fresh(self):
+        # The rope-reusing quick path must yield position mappings identical to
+        # a from-scratch build of the new source.
+        from server.workspace.document_state import DocumentState
+
+        state = DocumentState(uri="test://file.tcl")
+        state.source = "proc f {} {\n  set x 1\n}\n"
+        _ = state.buffer  # materialise the initial rope so the edit reuses it
+        new_src = "\nproc f {} {\n  set x 1\n  set y 2\n}\n"
+        state.update_source_quick(new_src, version=2)
+        buf = state.buffer
+        want = DocumentBuffer.from_source(new_src)
+        assert buf.source == new_src
+        assert buf.rope.text == new_src
+        for off in range(len(new_src) + 1):
+            assert buf.offset_to_line_col(off) == want.offset_to_line_col(off), off
+
+    def test_full_update_reuses_quick_path_buffer(self):
+        # The full-analysis update must carry the quick path's rope-backed
+        # buffer through rather than rebuilding the position index from scratch.
+        from server.workspace.document_state import DocumentState
+
+        state = DocumentState(uri="test://file.tcl")
+        state.source = "proc f {} { set x 1 }\n"
+        _ = state.buffer
+        new_src = "\nproc f {} { set x 1 }\n"
+        state.update_source_quick(new_src, version=2)
+        quick_buf = state.buffer
+        state.update(new_src, version=2)
+        assert state.buffer is quick_buf
+        assert state.buffer.rope.text == new_src
+
+
+class TestFromEditEquivalence:
+    """A rope-spliced ``from_edit`` buffer must be byte-identical to a fresh
+    ``from_source`` buffer — same text and same mapping at every offset.  This
+    is the safety net for reusing the rope across edits in
+    ``update_source_quick`` (the rope is correctness-critical: a wrong splice
+    would mis-place every diagnostic/hover position)."""
+
+    CASES = [
+        ("set x 1\n", "set y 2\n"),  # same-length replace
+        ("set x 1\n", "\nset x 1\n"),  # insert blank line above
+        ("set x 1\n", "set x 1\nset y 2\n"),  # append a line
+        ("proc f {} {\n  set x 1\n}\n", "proc f {} {\n  set x 1\n  set y 2\n}\n"),  # mid insert
+        ("abc\ndef\nghi\n", "abc\nghi\n"),  # delete a line
+        ("hello world", "hello"),  # truncate, no trailing newline
+        ("a\nb\nc", "a\nB\nc"),  # single-char change mid-document
+        ("", "new content\n"),  # grow from empty
+        ("old\n", ""),  # shrink to empty
+    ]
+
+    @staticmethod
+    def _via_edit(old_src: str, new_src: str) -> DocumentBuffer:
+        from compiler.parsing.incremental import infer_edit_range
+        from shared.rope import RopeEdit
+
+        prev = DocumentBuffer.from_source(old_src, version=1)
+        edit = infer_edit_range(old_src, new_src)
+        assert edit is not None, f"no edit inferred for {old_src!r} -> {new_src!r}"
+        line_delta = new_src[edit.start : edit.new_end].count("\n") - old_src[
+            edit.start : edit.old_end
+        ].count("\n")
+        return DocumentBuffer.from_edit(
+            prev,
+            new_src,
+            RopeEdit(edit.start, edit.old_end, edit.new_end, line_delta),
+            version=2,
+        )
+
+    def test_equivalence_across_edits(self):
+        for old_src, new_src in self.CASES:
+            got = self._via_edit(old_src, new_src)
+            want = DocumentBuffer.from_source(new_src, version=2)
+            assert got.source == new_src, (old_src, new_src)
+            assert got.rope.text == new_src, (old_src, new_src)  # splice reproduced the text
+            assert got.line_starts == want.line_starts, (old_src, new_src)
+            assert got.lines == want.lines, (old_src, new_src)
+            for off in range(len(new_src) + 1):
+                assert got.offset_to_line_col(off) == want.offset_to_line_col(off), (
+                    old_src,
+                    new_src,
+                    off,
+                )
+
+    def test_chained_edits_stay_consistent(self):
+        # Apply several edits in sequence, reusing each result's rope — the
+        # production pattern across consecutive keystrokes.
+        from compiler.parsing.incremental import infer_edit_range
+        from shared.rope import RopeEdit
+
+        buf = DocumentBuffer.from_source("proc f {} {}\n", version=1)
+        steps = [
+            "proc f {} {}\nset a 1\n",
+            "proc f {} {}\nset a 1\nset b 2\n",
+            "proc f {x} {}\nset a 1\nset b 2\n",
+            "set b 2\n",
+        ]
+        for i, new_src in enumerate(steps, start=2):
+            edit = infer_edit_range(buf.source, new_src)
+            assert edit is not None
+            line_delta = new_src[edit.start : edit.new_end].count("\n") - buf.source[
+                edit.start : edit.old_end
+            ].count("\n")
+            buf = DocumentBuffer.from_edit(
+                buf,
+                new_src,
+                RopeEdit(edit.start, edit.old_end, edit.new_end, line_delta),
+                version=i,
+            )
+            want = DocumentBuffer.from_source(new_src)
+            assert buf.rope.text == new_src
+            for off in range(len(new_src) + 1):
+                assert buf.offset_to_line_col(off) == want.offset_to_line_col(off), (new_src, off)

@@ -217,6 +217,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W233",
+    section: "warning",
+    description:
+      "Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
+    defaultEnabled: true,
+  },
+  {
     code: "W240",
     section: "warning",
     description: "Loop condition is a constant false — body never executes.",

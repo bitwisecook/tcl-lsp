@@ -40,9 +40,16 @@ from typing import TYPE_CHECKING
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
-from compiler.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
+from compiler.registry.runtime import (
+    FOLD_HINTS,
+    FOLD_SUBCOMMAND_HINTS,
+    TYPE_HINTS,
+    scope_alias_commands,
+)
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from shared.naming import normalise_qualified_name as _normalise_qualified_name
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.naming import split_array_name
 from shared.tokens import TokenType
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
@@ -55,6 +62,7 @@ from .expr_ast import (
     ExprRaw,
     ExprTernary,
     ExprUnary,
+    command_texts_in_expr_node,
     expr_text,
     vars_in_expr_node,
 )
@@ -64,13 +72,34 @@ from .ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
+    IRExprEval,
     IRIncr,
     IRModule,
     IRStatement,
 )
 from .lowering import lower_to_ir
-from .ssa import SSAFunction, SSAStatement, SSAValueKey, build_ssa, value_use_blocks
+from .place import LOCAL_NS, Place, PlaceKind, overlap
+from .place_bridge import (
+    build_resolve_context,
+    def_places,
+    read_places,
+    terminator_read_places,
+)
+from .ssa import (
+    _COMPLEXITY_GUARD_BLOCKS,
+    SSAFunction,
+    SSAStatement,
+    SSAValueKey,
+    build_ssa,
+    dynamic_target_name_reads,
+    expr_substitution_read_names,
+    is_complexity_guarded,  # noqa: F401  (re-exported for diagnostic-pass guards)
+    statement_cmd_sub_write_names,
+    statement_read_names,
+    value_use_blocks,
+)
 from .static_loops import (
     evaluate_expr_with_constants,
     summarise_static_for_ir,
@@ -79,7 +108,7 @@ from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
-from .var_refs import VarReferenceScanner
+from .var_refs import VarReferenceScanner, body_write_names, existence_test_names
 
 if TYPE_CHECKING:
     from .def_use import DefUseResult
@@ -857,6 +886,18 @@ def _sccp(
 ]:
     preds = _compute_predecessors(cfg)
 
+    # Global / namespace / upvar-aliased / traced variables are shared mutable
+    # state observable and writable from other scopes, traces, and source
+    # files.  Their value is therefore never a compile-time constant: folding
+    # through one would be unsound across any opaque call (``set ::g 5; mut;
+    # [expr {$::g + 1}]`` must NOT fold to 6 — ``mut`` may have rewritten
+    # ``::g``).  Force every such definition to OVERDEFINED so SCCP never
+    # propagates a constant through it; the read is still tracked for liveness.
+    _escaping = _escaping_var_names(cfg)
+
+    def _is_externally_mutable(name: str) -> bool:
+        return name.startswith("::") or name in _escaping
+
     executable_blocks: set[str] = {cfg.entry} if cfg.entry in cfg.blocks else set()
     executable_edges: set[tuple[str, str]] = set()
     values: dict[SSAValueKey, LatticeValue] = {}
@@ -871,6 +912,54 @@ def _sccp(
             if lv.kind is not LatticeKind.OVERDEFINED:
                 non_overdefined.add(key)
     order = cfg.reverse_postorder()
+
+    # ``try`` body→handler throw edges (analysis builds): the handler is
+    # reachable when the block holding the ``try`` is, even though no CFG
+    # terminator points to it.  SSA already gives the handler the pre-``try``
+    # versions via these same edges; mirror them in SCCP reachability so the
+    # handler body is not falsely "unreachable" (O107).
+    exc_targets: dict[str, list[str]] = {}
+    for _frm, _handler in cfg.exception_edges:
+        exc_targets.setdefault(_frm, []).append(_handler)
+
+    # `break` reachability (analysis-only).  `break`/`continue` are modelled as
+    # plain jump *statements* (codegen emits them as jumps), not CFG edges — so
+    # a `break` inside a constant-condition loop (`while 1 { … break … }`)
+    # leaves the loop-exit block reachable only via the header's exit edge,
+    # which SCCP prunes as dead (the condition is always true).  The exit block
+    # is then wrongly unreachable (a false O107 + an unsound DCE).  Precompute,
+    # per block that contains a `break`, the *innermost* enclosing loop's exit
+    # block, and feed that as an extra executable edge in the fixpoint below.
+    break_exits: dict[str, str] = {}
+    if any(
+        isinstance(s.statement, IRCall) and s.statement.canonical_command == "::break"
+        for sb in ssa.blocks.values()
+        for s in sb.statements
+    ):
+        from .loops import NaturalLoop, build_loop_forest
+
+        forest = build_loop_forest(cfg, ssa)
+        # innermost loop per block = smallest body set containing it.
+        innermost: dict[str, NaturalLoop] = {}
+        for loop in sorted(forest.loops, key=lambda lp: len(lp.blocks)):
+            for b in loop.blocks:
+                innermost.setdefault(b, loop)
+        for bn2, sb2 in ssa.blocks.items():
+            if not any(
+                isinstance(s.statement, IRCall) and s.statement.canonical_command == "::break"
+                for s in sb2.statements
+            ):
+                continue
+            loop = innermost.get(bn2)
+            if loop is None:
+                continue
+            hdr = cfg.blocks.get(loop.header)
+            if hdr is None or not isinstance(hdr.terminator, CFGBranch):
+                continue
+            t = hdr.terminator
+            exit_b = t.false_target if t.false_target not in loop.blocks else t.true_target
+            if exit_b in cfg.blocks:
+                break_exits[bn2] = exit_b
 
     def set_value(key: SSAValueKey, candidate: LatticeValue) -> bool:
         old = values.get(key, UNKNOWN)
@@ -993,7 +1082,10 @@ def _sccp(
                             changed = True
                         continue
                     for var, ver in s.defs.items():
-                        val = _evaluate_def(s.statement, s, values)
+                        if _is_externally_mutable(var):
+                            val = OVERDEFINED
+                        else:
+                            val = _evaluate_def(s.statement, s, values)
                         if set_value((var, ver), val):
                             changed = True
 
@@ -1006,6 +1098,15 @@ def _sccp(
                             targets = (tt, ft)
                     case _:
                         targets = ()
+                # A `break` in this (executable) block reaches the innermost
+                # loop's exit even when the header's normal exit edge is pruned.
+                brk_exit = break_exits.get(bn)
+                if brk_exit is not None:
+                    targets = (*targets, brk_exit)
+                # A `try` body block reaches its handler(s) via the throw path.
+                exc = exc_targets.get(bn)
+                if exc:
+                    targets = (*targets, *exc)
                 for tgt in targets:
                     edge = (bn, tgt)
                     if edge not in executable_edges:
@@ -1157,6 +1258,98 @@ def _vars_in_return(value: str) -> set[str]:
     return set(_RETURN_VAR_SCANNER.scan_script(value))
 
 
+def _ir_statement_words(ir_stmt: IRStatement) -> list[str]:
+    """Return the text words of *ir_stmt* that may contain ``[expr {...}]``
+    command substitutions (for expr-internal read recovery)."""
+    if isinstance(ir_stmt, (IRCall, IRBarrier)):
+        words = [ir_stmt.command, *ir_stmt.args]
+        return [w for w in words if w]
+    if isinstance(ir_stmt, IRAssignValue):
+        return [ir_stmt.value] if ir_stmt.value else []
+    if isinstance(ir_stmt, IRIncr):
+        return [ir_stmt.amount] if ir_stmt.amount else []
+    return []
+
+
+def _block_local_reads(stmt: IRStatement, names: set[str]) -> None:
+    """Collect reads inside an ``IRBlock`` (``eval``/``namespace eval``) body.
+
+    An ``IRBlock`` body is spliced into the enclosing scope (plain ``eval``
+    runs in the current scope), but the block is opaque to the CFG, so reads
+    like ``$x`` in ``eval {puts $x}`` never reach ``stmt.uses`` and the
+    assignment feeding them looks dead/unused.  Collect those reads name-level
+    (suppress-only, so safe even for ``namespace eval``'s different scope).
+    """
+    if not isinstance(stmt, IRBlock):
+        return
+    for inner in stmt.body.statements:
+        names.update(statement_read_names(inner))
+        names |= expr_substitution_read_names(_ir_statement_words(inner))
+        _block_local_reads(inner, names)
+
+
+def _extra_local_reads(cfg: CFGFunction, considered: set[str]) -> frozenset[str]:
+    """Variable names read in places the shallow ``stmt.uses`` scan misses —
+    inside ``[expr {...}]`` command substitutions (e.g. ``incr i [expr {$x}]``),
+    inside a BODY-role script nested in a substitution (``$sock`` in
+    ``[catch {close $sock} e]``, including such a ``[catch]`` in an ``if`` /
+    ``while`` condition or an expr-valued assignment), and inside
+    ``eval``/``namespace eval`` (``IRBlock``) bodies.  Used name-level by the
+    dead-store / set-but-never-used / unused-param checks to suppress false
+    positives."""
+    names: set[str] = set()
+    for bn, block in cfg.blocks.items():
+        if bn not in considered:
+            continue
+        for stmt in block.statements:
+            names |= expr_substitution_read_names(_ir_statement_words(stmt))
+            # A dynamic assignment/incr target (``set $X v``, ``set ${tok}(k) v``,
+            # ``incr $C``) reads the name variable — recover it so the value
+            # feeding the name isn't seen as a dead store.
+            names |= dynamic_target_name_reads(stmt)
+            # Expr-valued statements (``set x [expr {…}]`` / bare ``expr``)
+            # carry their command substitutions in a parsed expr AST, not in a
+            # word — recover reads hidden in those subs' EXPR/BODY scripts.
+            if isinstance(stmt, (IRAssignExpr, IRExprEval)):
+                names |= expr_substitution_read_names(command_texts_in_expr_node(stmt.expr))
+            _block_local_reads(stmt, names)
+        term = block.terminator
+        # ``if`` / ``while`` / ``for`` conditions are exprs that may embed a
+        # substitution whose body reads vars (``if {[catch {f $x} e]} …``).
+        if isinstance(term, CFGBranch):
+            names |= expr_substitution_read_names(command_texts_in_expr_node(term.condition))
+        if isinstance(term, CFGReturn):
+            if term.value:
+                names |= expr_substitution_read_names([term.value])
+            if term.expr is not None:
+                names |= expr_substitution_read_names(command_texts_in_expr_node(term.expr))
+    return frozenset(names)
+
+
+def _place_read_names(cfg: CFGFunction, ctx, considered: set[str]) -> frozenset[str]:
+    """Names read anywhere in the function, resolved structurally via the
+    IR→Place bridge — the single-source replacement for the ad-hoc
+    :func:`_extra_local_reads` recovery (expr command-subs, dynamic target/index
+    name vars, ``eval`` bodies, branch/return command-subs).
+
+    Returned name-level for the dead-store / set-but-never-used / unused-param
+    suppression sets: an over-approximation is sound there (it can only suppress
+    a finding, never create one) and never feeds SSA ``uses`` / read-before-set.
+    """
+    names: set[str] = set()
+    for bn, block in cfg.blocks.items():
+        if bn not in considered:
+            continue
+        for stmt in block.statements:
+            for p in read_places(stmt, ctx):
+                if p.name:
+                    names.add(p.name)
+        for p in terminator_read_places(block.terminator, ctx):
+            if p.name:
+                names.add(p.name)
+    return frozenset(names)
+
+
 def _collect_used_names(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -1164,6 +1357,8 @@ def _collect_used_names(
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
     include_return_vars: bool = False,
+    resolve_ctx=None,
+    place_read_names: frozenset[str] | None = None,
 ) -> set[str]:
     """Collect all variable names that appear as uses across the function.
 
@@ -1201,6 +1396,19 @@ def _collect_used_names(
                         continue
                     used_names.add(phi.name)
 
+    # Reads the shallow stmt.uses scan misses.  Two complementary recoverers,
+    # unioned so neither's blind spot leaks a false "unused": the legacy per-word
+    # deep scanner (`_extra_local_reads`) descends arbitrary nested scripts even
+    # for unregistered commands, while the Place bridge resolves structurally and
+    # recovers reads the deep scanner misses (e.g. ``upvar``-output params read
+    # via the alias).  Both only *add* reads, so this can only suppress a finding.
+    used_names |= _extra_local_reads(cfg, set(considered))
+    if place_read_names is None:
+        if resolve_ctx is None:
+            resolve_ctx = build_resolve_context(cfg)
+        place_read_names = _place_read_names(cfg, resolve_ctx, set(considered))
+    used_names |= place_read_names
+
     return used_names
 
 
@@ -1208,11 +1416,14 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
     """Local names that alias storage outside the current frame.
 
     Covers ``upvar`` (incl. ``upvar #0`` and multi-pair forms),
-    ``namespace upvar``, ``global``, and ``variable``.  A write to such a
-    name is observable in another scope (the caller's frame, a namespace,
-    or the global frame), so it must never be reported as a dead store
-    (W220) or set-but-never-used variable (W211), nor eliminated by DCE,
-    even when the local analysis sees no local read.
+    ``namespace upvar``, ``global``, ``variable``, and **variables under a
+    ``trace``** (``trace add variable NAME ...`` / 8.4 ``trace variable
+    NAME ...``).  A write to such a name is observable elsewhere — in another
+    scope (caller frame / namespace / global) or via a trace callback that
+    fires on the write (verified: a write trace fires on ``set``) — so it must
+    never be reported as a dead store (W220) or set-but-never-used variable
+    (W211), nor eliminated by DCE, even when the local analysis sees no local
+    read.
 
     Uses the shared :mod:`compiler.var_scoping` grammar so every alias
     form is recognised identically to memory-SSA alias detection — a single
@@ -1231,7 +1442,7 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
             if not isinstance(stmt, (IRCall, IRBarrier)):
                 continue
             args = stmt.args
-            for i in upvar_local_declaration_indices(stmt.command, args):
+            for i in upvar_local_declaration_indices(stmt.command, args, allow_dynamic_target=True):
                 if 0 <= i < len(args):
                     names.add(_normalise_var_name(args[i]))
             if stmt.canonical_command == "::global":
@@ -1242,7 +1453,80 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
                 for i in variable_declaration_indices(args):
                     if 0 <= i < len(args):
                         names.add(_normalise_var_name(args[i]))
+            elif stmt.canonical_command == "::trace":
+                # `trace add variable NAME ...` (8.5+) or `trace variable NAME
+                # ...` (8.4): any trace makes accesses to NAME observable, so
+                # its writes are not dead.  Conservative — covers all ops.
+                target: str | None = None
+                if len(args) >= 3 and args[0] == "add" and args[1] == "variable":
+                    target = args[2]
+                elif len(args) >= 2 and args[0] == "variable":
+                    target = args[1]
+                if target is not None:
+                    nm = _normalise_var_name(target)
+                    if nm:
+                        names.add(nm)
     return frozenset(names)
+
+
+def _reportable_local(place: Place) -> bool:
+    """A def *place* that a dead-store / unused-variable check may report.
+
+    Subsumes the three legacy name-string guards (`::`-prefix global,
+    a dynamic-target skip, and the ``escaping_names``
+    membership test): a write is reportable only when it targets a plain
+    proc-*local* scalar/array (not a global/namespace var → ``ns != LOCAL_NS``,
+    not an ``upvar`` alias or instance var → wrong ``kind``, not under a
+    ``trace`` → ``observed``, and not a dynamic/runtime-named target →
+    ``UNKNOWN``/``dynamic``).  Anything else is observable outside the frame or
+    untrackable, so it must never be flagged."""
+    if place.kind not in (PlaceKind.SCALAR, PlaceKind.ARRAY_ELEM, PlaceKind.ARRAY_WHOLE):
+        return False
+    # ``owner`` is set when an array element's *base* binds through an ``upvar``
+    # alias or an instance var (``upvar #1 cursors cursors; set cursors($i) …`` —
+    # the element lives in the caller's frame); such a write escapes the frame.
+    return place.ns == LOCAL_NS and not place.observed and not place.dynamic and not place.owner
+
+
+def _def_place(ir_stmt: IRStatement, ctx) -> Place | None:
+    """The single def place of an assignment statement (``None`` if not a
+    single-target assignment)."""
+    places = def_places(ir_stmt, ctx)
+    return places[0] if len(places) == 1 else None
+
+
+def _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks):
+    """A lazy predicate: is an ``ARRAY_ELEM``/``DICT_PATH`` def-place observed by
+    any read in the function under ``place.overlap``?
+
+    Array elements / dict paths fold to one SSA name with a single strong-update
+    version stream (``set a(k) 1`` then ``set a(j) 2`` makes the a(k) write look
+    dead because ``$a(k)`` reads the *latest* name version), so the
+    version-precise ``used`` set cannot see element granularity.  The sound
+    fallback is ``overlap`` (version-insensitive) — 8E-refined so a dynamic
+    upvar-aliased array no longer overlaps *unrelated* arrays, and a possibly-
+    aliased local is conservatively kept (the suppress-only contract).  Shared
+    by ``_dead_stores`` (W220) and ``_unused_variables`` (W211) so the analyser
+    and the optimiser DCE (O109/O126, which read those lists) stay consistent.
+    Computed lazily — only when an element/dict candidate is actually hit."""
+    cache: list[Place] | None = None
+
+    def observed(p_def: Place) -> bool:
+        nonlocal cache
+        if cache is None:
+            rps: list[Place] = []
+            for b2 in considered_blocks:
+                sb2 = ssa.blocks.get(b2)
+                if sb2 is None:
+                    continue
+                for s2 in sb2.statements:
+                    rps.extend(read_places(s2.statement, resolve_ctx))
+                term2 = cfg.blocks[b2].terminator
+                rps.extend(terminator_read_places(term2, resolve_ctx))
+            cache = rps
+        return any(overlap(p_def, rp) for rp in cache)
+
+    return observed
 
 
 def _dead_stores(
@@ -1251,9 +1535,31 @@ def _dead_stores(
     *,
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
-    escaping_names: frozenset[str] = frozenset(),
+    resolve_ctx=None,
 ) -> tuple[DeadStore, ...]:
+    if resolve_ctx is None:
+        resolve_ctx = build_resolve_context(cfg)
     considered_blocks = set(executable_blocks) if executable_blocks is not None else set(cfg.blocks)
+    # Names read in positions the version-precise `used` set can't see —
+    # command-subs / EXPR-or-BODY-role scripts the shallow scan misses (per-word
+    # deep-minus-shallow).  A write to such a name is not a dead store even when
+    # its version looks unused, so suppress at name level.  (This stays on the
+    # per-word recovery: the Place bridge's whole-function read set can't
+    # reproduce the per-word "deep-only" distinction a dead store needs — a name
+    # read shallowly at one site and only deep at another must still suppress.)
+    expr_sub_reads = _extra_local_reads(cfg, considered_blocks)
+    # Array elements / dict paths fold to one SSA name with a single
+    # strong-update version stream (``set a(k) 1`` then ``set a(j) 2`` makes the
+    # a(k) write look dead because ``$a(k)`` reads the *latest* name version).
+    # The version-precise ``used`` set therefore cannot see element granularity;
+    # fall back to the sound ``place.overlap`` relation (version-insensitive):
+    # an element/dict write is observed if *any* read-place could alias it.
+    # 8E's refined overlap keeps this precise — a dynamic upvar-aliased array no
+    # longer overlaps unrelated arrays, so this no longer over-suppresses.
+    # Over-approximating (may miss a genuine same-element reassignment) but never
+    # falsely flags; computed lazily (only when an element/dict candidate hits).
+    _element_observed = _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks)
+
     used: set[SSAValueKey] = set()
     for bn, block in ssa.blocks.items():
         if bn not in considered_blocks:
@@ -1265,6 +1571,18 @@ def _dead_stores(
         if isinstance(term, CFGBranch):
             term_uses = _condition_use_versions(term.condition, block.exit_versions)
             used.update((n, v) for n, v in term_uses.items())
+        elif isinstance(term, CFGReturn) and not term.braced:
+            # ``return $x`` / ``return [expr {...}]`` reads its variables at the
+            # block's exit versions — exactly like a branch condition.  Without
+            # this, an assignment whose only consumer is the return value is
+            # wrongly reported as a dead store (W220).
+            ret_names: set[str] = set()
+            if term.value is not None:
+                ret_names |= _vars_in_return(term.value)
+            if term.expr is not None:
+                ret_names |= vars_in_expr_node(term.expr)
+            for name in ret_names:
+                used.add((name, block.exit_versions.get(name, 0)))
 
     for bn, block in ssa.blocks.items():
         if bn not in considered_blocks:
@@ -1287,14 +1605,23 @@ def _dead_stores(
                 key = (n, v)
                 if key in used:
                     continue
-                # Global variables are consumed externally.
-                if n.startswith("::"):
-                    continue
-                # upvar/global/variable aliases escape the local frame —
-                # a write is observable in another scope.
-                if n in escaping_names:
-                    continue
                 ir_stmt = stmt.statement
+                # A write is reportable only if it targets a plain proc-local
+                # scalar/array — not a global/namespace/upvar/instance/traced or
+                # dynamic (runtime-named) place.  Subsumes the legacy `::`-prefix,
+                # dynamic-target, and escaping guards via the Place.
+                place = _def_place(ir_stmt, resolve_ctx)
+                if place is None or not _reportable_local(place):
+                    continue
+                # Element / dict writes can't trust the folded-name `used` set —
+                # use place-overlap (8E-refined) instead.
+                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH) and _element_observed(
+                    place
+                ):
+                    continue
+                # Read inside a command-substituted expr (missed by stmt.uses).
+                if n in expr_sub_reads:
+                    continue
                 if isinstance(ir_stmt, IRAssignConst):
                     dead.append(DeadStore(block=bn, statement_index=idx, variable=n, version=v))
                 elif isinstance(ir_stmt, IRAssignValue) and "[" not in ir_stmt.value:
@@ -1331,6 +1658,87 @@ _IMPLICIT_VARS = frozenset(
         "static",
     }
 )
+
+
+def _existence_test_names_in_fn(cfg: CFGFunction, considered: set[str]) -> frozenset[str]:
+    """Variable names tested via ``info exists``/``array exists`` anywhere in the
+    function — bare statements, command substitutions in values/conditions, and
+    expr-embedded tests.  Such a name is being checked for existence (legal when
+    unset), so read-before-set must exempt it."""
+    names: set[str] = set()
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            if isinstance(stmt, (IRCall, IRBarrier)):
+                if (
+                    stmt.canonical_command in ("::info", "::array")
+                    and len(stmt.args) >= 2
+                    and stmt.args[0] == "exists"
+                ):
+                    base, _ = split_array_name(stmt.args[1])
+                    if base and "$" not in base and "[" not in base:
+                        names.add(_normalise_var_name(base))
+                # Scan args that may carry an existence test — a command sub
+                # (``[info exists x]``) or an un-lowered body/expr text kept as
+                # a barrier arg (``while {…} {… info exists x …}``).
+                for a in stmt.args:
+                    if "exists" in a:
+                        names |= existence_test_names(a)
+            elif isinstance(stmt, IRAssignValue):
+                if "[" in stmt.value:
+                    names |= existence_test_names(stmt.value)
+            elif isinstance(stmt, (IRAssignExpr, IRExprEval)):
+                for ct in command_texts_in_expr_node(stmt.expr):
+                    names |= existence_test_names(ct)
+        term = block.terminator
+        if isinstance(term, CFGBranch):
+            for ct in command_texts_in_expr_node(term.condition):
+                names |= existence_test_names(ct)
+        elif isinstance(term, CFGReturn):
+            if term.value and "[" in term.value:
+                names |= existence_test_names(term.value)
+            if term.expr is not None:
+                for ct in command_texts_in_expr_node(term.expr):
+                    names |= existence_test_names(ct)
+    return frozenset(names)
+
+
+def _qualified_variable_alias_tails(cfg: CFGFunction, considered: set[str]) -> frozenset[str]:
+    """Local-alias tail names linked by a *qualified* ``variable`` declaration.
+
+    ``variable ns::tail`` (and the dynamic-prefix form ``variable
+    ${name}::children`` common in ``struct::tree`` and other generic ADTs)
+    links a local variable named by the **tail** (``children``) to the
+    namespace variable — verified in tclsh: ``variable ${name}::children``
+    then ``$children`` reads ``${name}::children``.  The declaration's def is
+    recorded under the qualified spelling (and the ``$``-prefixed dynamic form
+    is dropped entirely by ``variable_declaration_indices``), so the bare
+    ``$children`` read shows up as a spurious version-0 read-before-set.
+    Exempt the static tail (suppress-only, name-level)."""
+    names: set[str] = set()
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            if not isinstance(stmt, (IRCall, IRBarrier)):
+                continue
+            if stmt.canonical_command != "::variable":
+                continue
+            # ``variable`` alternates (name, value?) pairs — names at even args.
+            for i in range(0, len(stmt.args), 2):
+                text = stmt.args[i]
+                if "::" not in text:
+                    # Unqualified: the def is already recorded under the bare
+                    # name and matches the read — nothing to recover.
+                    continue
+                tail = text.rsplit("::", 1)[-1]
+                base, _ = split_array_name(tail)
+                if base and "$" not in base and "[" not in base and "{" not in base:
+                    names.add(_normalise_var_name(base))
+    return frozenset(names)
 
 
 def _read_before_set(
@@ -1388,6 +1796,63 @@ def _read_before_set(
                 if phi.version > 0:
                     explicitly_defined.add(phi.name)
 
+    # Variables written by command substitutions (``set e [catch {...} msg
+    # opts]`` writes ``msg``/``opts``) are invisible to SSA def tracking — the
+    # ``[...]`` is one opaque value word — so a later ``$msg`` read shows up as
+    # a spurious version-0 read-before-set.  Collect those written names and
+    # exempt them (name-level, like the dict-with exemption above).
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            cs_writes = statement_cmd_sub_write_names(stmt)
+            if cs_writes:
+                skip = skip | cs_writes
+
+    # Variables tested with ``info exists``/``array exists`` are the canonical
+    # test-before-use idiom — referencing an unset var there is legal (returns
+    # 0), so it must never count as an uninitialised read.  Exempt those names
+    # function-wide (name-level, suppress-only).
+    skip = skip | _existence_test_names_in_fn(cfg, considered)
+
+    # `variable ns::tail` / `variable ${name}::children` links a local alias
+    # named by the static tail (tclsh-verified); exempt those names.
+    skip = skip | _qualified_variable_alias_tails(cfg, considered)
+
+    # An *un-lowered* loop keeps its body opaque to the CFG, so the body's
+    # reads are recovered name-level (→ version-0 uses) but its writes/loop-vars
+    # are not — making every body-local variable look read-before-set.  Two
+    # cases stay un-lowered: a *frozen* loop (``while``/``for`` with a
+    # command-substitution condition, e.g. ``while {[gets $fp line] >= 0} {…}``,
+    # an IRBarrier for tclsh-parity codegen) and a *fully-qualified* builtin
+    # (``::foreach {k v} $d {…}`` — the lowering dispatch matches only bare
+    # names, so it stays an IRCall).  Recover their body writes and loop vars to
+    # balance the read recovery (name-level, suppress-only).
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt in block.statements:
+            if not isinstance(stmt, (IRCall, IRBarrier)):
+                continue
+            cc = stmt.canonical_command
+            if cc not in ("::while", "::for", "::foreach", "::lmap") or not stmt.args:
+                continue
+            args = list(stmt.args)
+            for a in args:
+                skip = skip | body_write_names(a)
+            # foreach/lmap loop variables live in the varlist args at even
+            # positions before the trailing body (``::foreach {k v} $d body``).
+            if cc in ("::foreach", "::lmap") and len(args) >= 3:
+                for i in range(0, len(args) - 1, 2):
+                    for v in args[i].split():
+                        base, _ = split_array_name(v)
+                        if base and "$" not in base and "[" not in base:
+                            nm = _normalise_var_name(base)
+                            if nm:
+                                skip = skip | {nm}
+
     # Track which version-0 variables we've already reported to avoid
     # duplicate warnings for the same variable in the same function.
     reported: set[str] = set()
@@ -1411,7 +1876,13 @@ def _read_before_set(
                 # no explicit definition — they were likely unpacked.
                 if _has_dict_with and name not in explicitly_defined:
                     continue
-                if name.startswith("::") or name.startswith("static::"):
+                # A ``::`` anywhere marks a namespace-qualified reference
+                # (Tcl local names cannot contain ``::``) — e.g. a direct read
+                # of a namespace var ``array names ${name}::parent`` resolves
+                # to ``{name}::parent``.  Such storage lives in its namespace,
+                # not this frame, so the local read-before-set check never
+                # applies (covers the former ``::``/``static::`` prefixes too).
+                if "::" in name:
                     continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))
@@ -1426,11 +1897,38 @@ def _read_before_set(
                     continue
                 if name in skip or name in reported:
                     continue
-                if name.startswith("::") or name.startswith("static::"):
+                # A ``::`` anywhere marks a namespace-qualified reference
+                # (Tcl local names cannot contain ``::``) — e.g. a direct read
+                # of a namespace var ``array names ${name}::parent`` resolves
+                # to ``{name}::parent``.  Such storage lives in its namespace,
+                # not this frame, so the local read-before-set check never
+                # applies (covers the former ``::``/``static::`` prefixes too).
+                if "::" in name:
                     continue
                 reported.add(name)
                 # Use statement_index=-1 and block to signal condition-level use.
                 # The range comes from the terminator itself.
+                result.append(ReadBeforeSet(block=bn, statement_index=-1, variable=name))
+
+        # Return values read variables too — ``return $x`` / ``return [expr
+        # {$x+1}]`` error in tclsh when x is unset, so a version-0 read in a
+        # return terminator is read-before-set just like a branch condition.
+        elif isinstance(term, CFGReturn):
+            return_reads: set[str] = set()
+            if term.value is not None:
+                return_reads |= _vars_in_return(term.value)
+            if term.expr is not None:
+                return_reads |= vars_in_expr_node(term.expr)
+            for name in return_reads:
+                if ssa_block.exit_versions.get(name, 0) != 0:
+                    continue
+                if name in skip or name in reported:
+                    continue
+                if _has_dict_with and name not in explicitly_defined:
+                    continue
+                if "::" in name:
+                    continue
+                reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=-1, variable=name))
 
     return tuple(result)
@@ -1446,7 +1944,8 @@ def _unused_variables(
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
     params: frozenset[str] = frozenset(),
-    escaping_names: frozenset[str] = frozenset(),
+    resolve_ctx=None,
+    place_read_names: frozenset[str] | None = None,
 ) -> tuple[UnusedVariable, ...]:
     """Find variables that are set but never used across the entire function.
 
@@ -1455,6 +1954,8 @@ def _unused_variables(
     meaning the variable is entirely pointless.
     """
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
+    if resolve_ctx is None:
+        resolve_ctx = build_resolve_context(cfg)
 
     used_names = _collect_used_names(
         cfg,
@@ -1462,12 +1963,18 @@ def _unused_variables(
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
         include_return_vars=True,
+        resolve_ctx=resolve_ctx,
+        place_read_names=place_read_names,
     )
 
     # Now find variables that are defined but never used.
     # Report at the first definition site.
     reported: set[str] = set()
     result: list[UnusedVariable] = []
+    # Same element/dict overlap fallback as ``_dead_stores`` — so W211 and the
+    # optimiser's O126 (which reads ``unused_variables``) agree with W220/O109
+    # on element-granular and possibly-aliased writes.
+    _element_observed = _make_element_observed(cfg, ssa, resolve_ctx, considered)
 
     order = cfg.reverse_postorder()
     for bn in order:
@@ -1485,18 +1992,24 @@ def _unused_variables(
                     continue
                 if name.startswith("_"):
                     continue
-                # Global variables are consumed externally.
-                if name.startswith("::"):
-                    continue
-                # upvar/global/variable aliases escape the local frame —
-                # a write is observable in another scope.
-                if name in escaping_names:
-                    continue
                 # Only report for safe (side-effect-free) assignments.
                 ir_stmt = stmt.statement
                 if isinstance(ir_stmt, IRBarrier):
                     continue
                 if isinstance(ir_stmt, IRCall):
+                    continue
+                # Reportable only for a plain proc-local scalar/array place —
+                # subsumes the `::`-prefix, dynamic-target, and
+                # `escaping_names` guards (global/ns/upvar/instance/traced/dynamic
+                # all resolve to a non-reportable Place).
+                place = _def_place(ir_stmt, resolve_ctx)
+                if place is None or not _reportable_local(place):
+                    continue
+                # Element/dict writes that overlap a read (incl. via a dynamic
+                # alias) are observed even though the folded name is never read.
+                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH) and _element_observed(
+                    place
+                ):
                     continue
                 reported.add(name)
                 result.append(UnusedVariable(block=bn, statement_index=idx, variable=name))
@@ -1510,6 +2023,8 @@ def _unused_parameters(
     params: frozenset[str],
     *,
     executable_blocks: set[str] | None = None,
+    resolve_ctx=None,
+    place_read_names: frozenset[str] | None = None,
 ) -> tuple[str, ...]:
     """Find proc parameters that are never read in the function body.
 
@@ -1524,6 +2039,8 @@ def _unused_parameters(
         ssa,
         executable_blocks=executable_blocks,
         include_return_vars=True,
+        resolve_ctx=resolve_ctx,
+        place_read_names=place_read_names,
     )
 
     result: list[str] = []
@@ -1549,17 +2066,35 @@ def _return_type_for_command(
     command: str,
     args: tuple[str, ...],
     known_classes: frozenset[str] = frozenset(),
+    namespace: str = "::",
 ) -> TypeLattice:
     """Look up the return type of a command from TYPE_HINTS.
 
     When *known_classes* is provided, user-defined TclOO class names
     followed by ``new`` or ``create`` are recognised as returning
-    ``TypeLattice.object_of(class_name)``.
+    ``TypeLattice.object_of(class_name)``.  *namespace* is the call site's
+    enclosing namespace, used to resolve a *relative* class name (``[Foo new]``
+    inside ``namespace eval ns`` → ``::ns::Foo``).
     """
     hint = TYPE_HINTS.get(command)
     if hint is None:
-        # Check TclOO class constructors.
-        if args and args[0] in ("new", "create"):
+        # Check TclOO / snit class constructors.  ``new``/``create`` cover
+        # TclOO and snit's explicit ``Type create name``; ``%AUTO%`` and a
+        # leading ``.`` (a Tk widget path) cover snit's other instance-creation
+        # idioms (``Type %AUTO%``, ``Widget .path``).
+        #
+        # Known imprecision (low impact): only ``snit::widget`` /
+        # ``snit::widgetadaptor`` support ``Type .path`` instance creation; a
+        # plain ``snit::type Foo`` does not, so ``Foo .config`` is not really an
+        # instance and should not be typed OBJECT here.  ``known_classes`` is a
+        # flat name set with no definer-kind, so the ``.``-prefix branch can't
+        # distinguish them without threading a widget-class subset through every
+        # ``_return_type_for_command`` caller.  Deferred — ``Type .x`` on a
+        # non-widget snit type is virtually never written, and the only effect is
+        # an over-suppressed W307 on the (non-existent) result's dispatch.
+        if args and (
+            args[0] in ("new", "create") or args[0] == "%AUTO%" or args[0].startswith(".")
+        ):
             # Try the command as-is (qualified) and with :: prefix.
             if known_classes:
                 if command in known_classes:
@@ -1567,6 +2102,13 @@ def _return_type_for_command(
                 qualified = f"::{command}" if not command.startswith("::") else command
                 if qualified in known_classes:
                     return TypeLattice.object_of(qualified)
+                # A relative name resolves against the call-site namespace:
+                # ``[Foo new]`` inside ``namespace eval ns`` constructs
+                # ``::ns::Foo`` (tclsh), so try that spelling too.
+                if namespace != "::" and not command.startswith("::"):
+                    ns_qualified = _normalise_qualified_name(f"{namespace}::{command}")
+                    if ns_qualified in known_classes:
+                        return TypeLattice.object_of(ns_qualified)
             # ``new`` is unique to TclOO — treat unknown commands calling
             # ``new`` as external class constructors so the type lattice
             # suppresses W307 for ``$obj method`` patterns.
@@ -1605,6 +2147,7 @@ def _evaluate_type_def(
     values: dict[SSAValueKey, LatticeValue],
     types: dict[SSAValueKey, TypeLattice],
     known_classes: frozenset[str] = frozenset(),
+    namespace: str = "::",
 ) -> TypeLattice:
     """Determine the type of a variable definition."""
     match stmt:
@@ -1637,7 +2180,7 @@ def _evaluate_type_def(
                 if parts:
                     cmd_name = parts[0]
                     cmd_args = tuple(parts[1].split()) if len(parts) > 1 else ()
-                    return _return_type_for_command(cmd_name, cmd_args, known_classes)
+                    return _return_type_for_command(cmd_name, cmd_args, known_classes, namespace)
             # String interpolation or complex value → STRING
             if "$" in value or "[" in value:
                 return TypeLattice.of(TclType.STRING)
@@ -1648,7 +2191,7 @@ def _evaluate_type_def(
             return TypeLattice.of(TclType.INT)
 
         case IRCall(command=cmd, args=call_args) if stmt.defs:
-            return _return_type_for_command(cmd, call_args, known_classes)
+            return _return_type_for_command(cmd, call_args, known_classes, namespace)
 
         case _:
             return _TYPE_OVERDEFINED
@@ -1665,8 +2208,20 @@ def _type_propagation(
     """Run type propagation over the SSA graph."""
     preds = _compute_predecessors(cfg)
 
+    # The function's own namespace (``::ns`` for a proc ``::ns::p``; ``::`` for
+    # top-level or a global proc) resolves *relative* class names at command
+    # substitutions inside it — ``[Foo new]`` in ``::ns::p`` constructs
+    # ``::ns::Foo`` (tclsh), so object typing must look there.
+    namespace = _normalise_qualified_name(cfg.name).rsplit("::", 1)[0] or "::"
+
     types: dict[SSAValueKey, TypeLattice] = {}
     order = cfg.reverse_postorder()
+    # Scope-alias declaration commands (``global``/``variable``/``upvar``/
+    # ``namespace upvar``) import an *externally-determined* variable; the
+    # alias's intrep is unknown (the value lives in another scope), so its def
+    # must be OVERDEFINED rather than the command's nominal STRING return type.
+    # Computed once here to keep the registry scan out of the hot per-def loop.
+    alias_cmds = scope_alias_commands()
     # Forward dataflow worklist: when a value's type changes, re-enqueue
     # only the blocks that read it (precomputed def→use map) instead of
     # re-scanning every block each pass.
@@ -1693,8 +2248,13 @@ def _type_propagation(
             continue
         changed_keys.clear()
 
-        # Phi nodes
-        incoming_exec_preds = [p for p in preds.get(bn, set()) if (p, bn) in executable_edges]
+        # Phi nodes.  Sort the predecessor list: ``preds`` holds *sets*, so an
+        # unsorted iteration order is hash-seed-dependent — and ``type_join`` is
+        # not associative across >2 incompatible types (numeric promotion can
+        # collapse two numerics into one, so the order in which a STRING and two
+        # numerics merge decides SHIMMERED-vs-OVERDEFINED).  Sorting makes the
+        # fold deterministic across runs.
+        incoming_exec_preds = sorted(p for p in preds.get(bn, set()) if (p, bn) in executable_edges)
         for phi in ssa_block.phis:
             if bn == cfg.entry:
                 continue
@@ -1719,8 +2279,23 @@ def _type_propagation(
                 for var, ver in s.defs.items():
                     set_type((var, ver), _TYPE_OVERDEFINED)
                 continue
+            # canonicalisation: bucket-iii — ``namespace upvar`` lowers to an
+            # IRCall whose ``command`` is the bare ``namespace`` (the compound
+            # lives in ``scope_alias_commands()`` as ``"namespace upvar"``), so
+            # the subcommand must be matched on the literal here.
+            if isinstance(stmt, IRCall) and (
+                stmt.command in alias_cmds
+                # canonicalisation: bucket-iii — ``namespace upvar`` lowers to command ``namespace``
+                or (stmt.command == "namespace" and stmt.args and stmt.args[0] == "upvar")
+            ):
+                # Alias declaration: the imported variable's intrep is external
+                # and unknown — widen to OVERDEFINED so use-site/merge shimmer
+                # checks do not fire on a nominally-STRING-typed alias.
+                for var, ver in s.defs.items():
+                    set_type((var, ver), _TYPE_OVERDEFINED)
+                continue
             for var, ver in s.defs.items():
-                inferred = _evaluate_type_def(stmt, s, values, types, known_classes)
+                inferred = _evaluate_type_def(stmt, s, values, types, known_classes, namespace)
                 set_type((var, ver), inferred)
 
         for key in changed_keys:
@@ -1742,7 +2317,26 @@ def analyse_function(
     params: frozenset[str] = frozenset(),
     param_constants: dict[SSAValueKey, LatticeValue] | None = None,
     known_classes: frozenset[str] = frozenset(),
+    force_guard: bool = False,
 ) -> FunctionAnalysis:
+    # Complexity guard: a pathologically large body (almost always machine-
+    # generated — e.g. fumagic's 33 940-block nested-if/emit dispatch tree)
+    # would cost tens of seconds of SCCP/type/taint/liveness dataflow for
+    # near-zero useful findings.  Skip deep analysis above the block ceiling and
+    # return a trivial (all-reachable, no-facts) analysis; downstream per-proc
+    # diagnostic passes then emit nothing for it.  Callers that want to surface
+    # this consult ``is_complexity_guarded(cfg)``.  *force_guard* lets the caller
+    # skip the dataflow when it has already decided the body is too large (e.g.
+    # byte-huge but block-light), matching the block-count short-circuit.
+    if force_guard or len(cfg.blocks) > _COMPLEXITY_GUARD_BLOCKS:
+        return FunctionAnalysis(
+            live_in={},
+            live_out={},
+            dead_stores=(),
+            unreachable_blocks=set(),
+            constant_branches=(),
+            values={},
+        )
     values, executable_blocks, executable_edges, constant_branches = _sccp(
         cfg, ssa, param_constants=param_constants
     )
@@ -1759,13 +2353,17 @@ def analyse_function(
     inferred_taints = taint_propagation(cfg, ssa, executable_blocks, executable_edges)
 
     live_in, live_out = _liveness(cfg, ssa)
-    escaping_names = _escaping_var_names(cfg)
+    resolve_ctx = build_resolve_context(cfg)
+    # Structural read-name recovery (command-subs, dynamic names, eval bodies) —
+    # computed once via the Place bridge and shared by every name-level
+    # suppression consumer below.
+    place_read_names = _place_read_names(cfg, resolve_ctx, set(executable_blocks))
     dead = _dead_stores(
         cfg,
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
-        escaping_names=escaping_names,
+        resolve_ctx=resolve_ctx,
     )
     reachable_cfg = set(cfg.blocks)
     unreachable = reachable_cfg - executable_blocks
@@ -1782,13 +2380,16 @@ def analyse_function(
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
         params=params,
-        escaping_names=escaping_names,
+        resolve_ctx=resolve_ctx,
+        place_read_names=place_read_names,
     )
     unused_p = _unused_parameters(
         cfg,
         ssa,
         params,
         executable_blocks=executable_blocks,
+        resolve_ctx=resolve_ctx,
+        place_read_names=place_read_names,
     )
 
     # Build def-use chains and memory-SSA (graceful degradation on error).

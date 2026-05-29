@@ -386,3 +386,39 @@ class TestAliasHover:
         assert "Alias" in text
         assert "puts" in text
         assert "stdout" in text
+
+
+class TestInferVarReusesCachedCU:
+    """``_infer_var_type`` / ``_infer_var_taint`` must yield identical results
+    whether they read the cached ``CompilationUnit`` (the live hover path) or
+    recompute the analysis from source (the fallback) — otherwise reusing the
+    cache would silently change hover output."""
+
+    SNIPPETS = [
+        ('set x 1\nset x "str$x"\n', "x"),  # shimmer between int and string
+        ("proc f {} { set y 0 ; set y [expr {$y + 1}] ; return $y }\n", "y"),  # int in a proc
+        ("set p [exec something]\n", "p"),  # tainted source
+        ("set untyped $env(HOME)\n", "untyped"),
+    ]
+
+    def test_type_matches_source_path(self):
+        from compiler.compilation_unit import compile_source
+        from server.features.hover import _infer_var_type
+
+        for src, var in self.SNIPPETS:
+            cu = compile_source(src)
+            assert _infer_var_type(src, var, cu=cu) == _infer_var_type(src, var, cu=None), (
+                src,
+                var,
+            )
+
+    def test_taint_matches_source_path(self):
+        from compiler.compilation_unit import compile_source
+        from server.features.hover import _infer_var_taint
+
+        for src, var in self.SNIPPETS:
+            cu = compile_source(src)
+            assert _infer_var_taint(src, var, cu=cu) == _infer_var_taint(src, var, cu=None), (
+                src,
+                var,
+            )

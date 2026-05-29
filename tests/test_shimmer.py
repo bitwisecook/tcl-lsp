@@ -153,6 +153,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         # There should be a SHIMMERED phi for x.
@@ -167,6 +168,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         shimmer = [
@@ -188,6 +190,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         shimmer = [

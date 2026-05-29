@@ -66,6 +66,23 @@ class _AnalyserDiagChannelMixin(_Base):
                         if var_type is not None and var_type.kind == TypeKind.KNOWN:
                             if var_type.tcl_type == TclType.CHANNEL:
                                 continue  # Confirmed channel — ok
+                            # A channel handle (``sock1``, ``file3``, ``stdout``)
+                            # is an opaque *string*, so a STRING (or other
+                            # string-ish) type is NOT proof of a non-channel:
+                            # channels round-tripped through a var/array/param
+                            # legitimately type as STRING.  Only types that
+                            # genuinely cannot be a channel handle — numerics and
+                            # collections — are real misuses.
+                            _CHANNEL_INCOMPATIBLE = {
+                                TclType.INT,
+                                TclType.DOUBLE,
+                                TclType.BOOLEAN,
+                                TclType.NUMERIC,
+                                TclType.LIST,
+                                TclType.DICT,
+                            }
+                            if var_type.tcl_type not in _CHANNEL_INCOMPATIBLE:
+                                continue
                             # Known non-channel type → warn
                             stmt_range = getattr(ir_stmt, "range", None)
                             if stmt_range is not None:

@@ -61,35 +61,51 @@ class EditRange:
         return self.new_end - self.old_end
 
 
+# Window size for the block-wise prefix/suffix scans below.  Each step compares
+# at most this many characters per side (a single C-speed string compare), so
+# peak allocation is bounded regardless of document size.
+_SCAN_BLOCK = 4096
+
+
 def _common_prefix_len(a: str, b: str, hi: int) -> int:
     """Largest ``k`` in ``[0, hi]`` with ``a[:k] == b[:k]``.
 
-    Binary search on slice equality: O(log hi) comparisons, each a C-speed
-    string compare, rather than a Python char-by-char loop — which matters
-    because this runs on every keystroke over the whole document.
+    Block-wise forward scan: compare bounded ``_SCAN_BLOCK``-sized windows (each
+    a single C-speed string compare) until one differs, then pin down the exact
+    divergence char-by-char within that block.  This runs on every keystroke, so
+    it avoids the old binary search whose every probe sliced an ``O(mid)`` whole
+    prefix — allocating up to ``a[:hi // 2]`` on the very first comparison.
     """
-    lo = 0
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if a[:mid] == b[:mid]:
-            lo = mid
-        else:
-            hi = mid - 1
-    return lo
+    i = 0
+    while i < hi:
+        end = min(i + _SCAN_BLOCK, hi)
+        if a[i:end] == b[i:end]:
+            i = end
+            continue
+        while i < end and a[i] == b[i]:
+            i += 1
+        return i
+    return hi
 
 
 def _common_suffix_len(a: str, b: str, hi: int) -> int:
-    """Largest ``k`` in ``[0, hi]`` with ``a[len(a)-k:] == b[len(b)-k:]``."""
+    """Largest ``k`` in ``[0, hi]`` with ``a[len(a)-k:] == b[len(b)-k:]``.
+
+    Block-wise backward scan mirroring :func:`_common_prefix_len`: bounded
+    windows from each string's tail, then a char-by-char pinpoint on divergence.
+    """
     na = len(a)
     nb = len(b)
-    lo = 0
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if a[na - mid :] == b[nb - mid :]:
-            lo = mid
-        else:
-            hi = mid - 1
-    return lo
+    i = 0
+    while i < hi:
+        end = min(i + _SCAN_BLOCK, hi)
+        if a[na - end : na - i] == b[nb - end : nb - i]:
+            i = end
+            continue
+        while i < end and a[na - 1 - i] == b[nb - 1 - i]:
+            i += 1
+        return i
+    return hi
 
 
 def infer_edit_range(old: str, new: str) -> EditRange | None:

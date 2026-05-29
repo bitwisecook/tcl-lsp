@@ -272,7 +272,9 @@ class TestPhiMergeTypes:
 
     def test_incompatible_types_shimmer(self):
         """INT vs STRING branches → SHIMMERED or OVERDEFINED at phi."""
-        source = "set x 1\nif {$cond} {\n    set x hello\n}"
+        # `x` is read after the merge so the phi (and its shimmer) is genuine;
+        # semi-pruned SSA correctly omits a phi for a never-read merged value.
+        source = "set x 1\nif {$cond} {\n    set x hello\n}\nputs $x"
         analysis = _analyse(source)
         all_types = {ver: t for (name, ver), t in analysis.types.items() if name == "x"}
         shimmer_versions = [

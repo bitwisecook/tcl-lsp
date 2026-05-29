@@ -354,6 +354,12 @@ FIXTURES: dict[str, Case] = {
         "5",
         "set l {a b}\nlset l 1 x\n",
     ),
+    "W233": Case(
+        "set x [expr {1 / 0}]\n",
+        "expr {1 / 0}",
+        "set x [expr {1 / 2}]\n",
+        contains=True,
+    ),
     "W301": Case(
         'uplevel "set $x 1"\n',
         "set $x 1",
@@ -587,8 +593,11 @@ FIXTURES: dict[str, Case] = {
         "set x 1\n",
     ),
     "O107": Case(
-        "while {1} {break}\nputs after\nset z 1\n",
-        "set z 1",
+        # An infinite loop with NO break — code after it is genuinely
+        # unreachable.  (A `while 1 {... break ...}` loop's exit IS reachable
+        # via the break, so that is no longer flagged — see TestO107BreakReach.)
+        "while {1} {puts x}\nputs after\n",
+        "puts after",
         "puts hi\nputs there\n",
     ),
     "IRULE1003": Case(

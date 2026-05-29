@@ -115,7 +115,17 @@ def _scan_commands(
             if ArgRole.EXPR in roles:
                 traits[source_param].add(ProcArgTrait.EXPR)
             if ArgRole.VAR_WRITE in roles:
-                traits[source_param].add(ProcArgTrait.VAR_WRITE)
+                # This branch only ever sees the ``$param`` *substitution* form
+                # (``_extract_var_name`` requires it), so the command writes a
+                # variable in the CURRENT scope *named by the param's value*
+                # (``set $p …``, ``variable $p``, ``incr $p``) — it does NOT
+                # write back to the caller's passed variable (verified: in Tcl
+                # only ``upvar`` to a caller frame writes back).  So the param
+                # is read for its name, not written; a real write-back is
+                # recorded via the upvar-alias path in ``_scan_commands``.
+                # Marking VAR_WRITE here would make the call site treat ``f $p``
+                # as defining (not reading) ``p`` → false unused/dead-store.
+                traits[source_param].add(ProcArgTrait.VAR_READ)
             if ArgRole.VAR_READ in roles:
                 traits[source_param].add(ProcArgTrait.VAR_READ)
 
@@ -184,7 +194,14 @@ def _scan_commands(
                 if var_idx < len(cmd_args):
                     vn = _extract_var_name(cmd_args[var_idx])
                     if vn and vn in param_set:
-                        traits[vn].add(ProcArgTrait.VAR_WRITE)
+                        # The name-arg is the ``$param`` substitution form
+                        # (``_extract_var_name`` only matches that), so the
+                        # param's VALUE names a variable in the CURRENT scope
+                        # (``set $p …``, ``variable $p``) — not a write-back to
+                        # the caller's passed variable.  The param is read for
+                        # its name; only an ``upvar``-to-caller alias write
+                        # (handled below) is a real VAR_WRITE.
+                        traits[vn].add(ProcArgTrait.VAR_READ)
 
         # Track writes through upvar aliases
         if cmd_name in ("set", "incr", "append", "lappend") and cmd_args:
@@ -328,8 +345,21 @@ def _handle_upvar(
     in ``_scan_commands`` upgrades it to VAR_WRITE.
     """
     start = 0
+    level = "1"  # `upvar` default level is the immediate caller's frame
     if args and (args[0].isdigit() or args[0].startswith("#")):
+        level = args[0]
         start = 1
+
+    # A write through the alias is a write-back to the CALLER's variable named
+    # by the param ONLY for level 1 (the default).  For level 0 (the proc's own
+    # frame), ``#N`` (absolute/global), or 2+ (further up the stack), the
+    # param's VALUE is used as a variable name in a NON-caller frame — verified
+    # in tclsh: `proc w {p} {upvar 0 $p x; set x 1}` leaves the caller's `p`
+    # untouched.  So such a param is READ (a name source), not a write-back of
+    # the caller's passed variable; registering the alias would wrongly upgrade
+    # it to VAR_WRITE and make the call site treat `$p` as a def, not a read
+    # (false "unused variable"/dead-store).
+    caller_frame = level == "1"
 
     i = start
     while i + 1 < len(args):
@@ -341,9 +371,11 @@ def _handle_upvar(
         my_vn = _extract_var_name(my_var)
 
         if other_vn and other_vn in param_set:
-            # Start as VAR_READ; upgraded to VAR_WRITE if alias is written.
+            # Start as VAR_READ; upgraded to VAR_WRITE if alias is written
+            # (only when the alias targets the caller's frame).
             traits[other_vn].add(ProcArgTrait.VAR_READ)
-            upvar_aliases[my_var] = other_vn
+            if caller_frame:
+                upvar_aliases[my_var] = other_vn
 
         if my_vn and my_vn in param_set:
             traits[my_vn].add(ProcArgTrait.VAR_WRITE)

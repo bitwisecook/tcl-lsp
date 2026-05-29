@@ -486,10 +486,11 @@ def check_string_index_out_of_range(
     diagnostics: list[Diagnostic] = []
 
     if sub in ("index", "insert"):
-        # Single-index subcommands.  ``string index`` returns empty on
-        # any out-of-range hit; ``string insert`` is only flagged on
-        # plain negative literals (Tcl silently clamps other overshoots
-        # to a sensible position).
+        # Single-index subcommands.  ``string index`` returns empty on any
+        # out-of-range hit (negative or past-end), so it is the only one flagged.
+        # ``string insert`` clamps every out-of-range index to a valid position
+        # — a negative index *prepends* (tclsh 9.0.3: ``string insert abc -1 X``
+        # → ``Xabc``), so it is never empty or a no-op and must not warn.
         pos = 2
         idx_text = args[pos]
         idx_tok = arg_tokens[pos]
@@ -497,13 +498,11 @@ def check_string_index_out_of_range(
             return diagnostics
         stripped = idx_text.strip()
 
-        if _INT_RE.match(stripped) and int(stripped) < 0:
+        if sub == "index" and _INT_RE.match(stripped) and int(stripped) < 0:
             diagnostics.append(
                 Diagnostic(
                     range=Range(start=idx_tok.start, end=idx_tok.end),
-                    message=(
-                        f"string {sub}: index '{stripped}' is negative; result is empty or a no-op."
-                    ),
+                    message=(f"string {sub}: index '{stripped}' is negative; result is empty."),
                     severity=Severity.WARNING,
                     code="W232",
                 )
@@ -762,7 +761,14 @@ def check_loop_termination(
     # consistent with W240/W241 (and IRULE5003); the condition is what
     # cannot be proven to change, not the body.
     var = _extract_counter_name(cond_text)
-    if var is not None:
+    # A command substitution in the condition can drive termination via side
+    # effects the shallow scan can't model — `while {[gets $f line] >= 0}`
+    # ends at EOF, `while {[$stream get] ne ""}` ends when the stream drains —
+    # or mutate the counter through an alias (`while {[llength $args] > 1}`
+    # with the body doing `Pop args` via upvar).  In all these the "counter" we
+    # extract (often just an argument to the command, e.g. the channel `$f`) is
+    # not what bounds the loop, so don't claim termination is unprovable.
+    if var is not None and "[" not in cond_text:
         modifies = _loop_modifies_var(var, step_text, body_text)
         if not modifies:
             diagnostics.append(

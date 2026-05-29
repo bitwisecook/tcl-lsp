@@ -29,6 +29,101 @@ def _run_source(source: str, capsys, *, extra: list[str] | None = None) -> tuple
     return _run(args, capsys)
 
 
+class TestGreenTreeView:
+    def test_greentree_view_shows_mode_tagged_regions(self, capsys):
+        code, out = _run_source("proc f {} { puts hi }", capsys, extra=["--show", "greentree"])
+        assert code == 0
+        assert "green-tree" in out
+        assert "root [script]" in out
+        assert "braced [script]" in out  # the proc body region
+
+    def test_greentree_in_all_views(self):
+        assert "greentree" in ALL_VIEWS
+
+
+class TestLoopsView:
+    def test_loops_view_lists_natural_loop(self, capsys):
+        src = (
+            "proc f {n} { set s 0; "
+            "for {set i 0} {$i < $n} {incr i} { set s [expr {$s + $i}] }; "
+            "return $s }"
+        )
+        code, out = _run_source(src, capsys, extra=["--show", "loops"])
+        assert code == 0
+        assert "loops" in out
+        assert "function ::f" in out
+        assert "header" in out and "block(s)" in out
+
+    def test_loops_view_reports_no_loops(self, capsys):
+        code, out = _run_source("set x 1\nputs $x", capsys, extra=["--show", "loops"])
+        assert code == 0
+        assert "(no loops)" in out
+
+    def test_loops_in_all_views(self):
+        assert "loops" in ALL_VIEWS
+
+
+class TestIntervalsView:
+    def test_intervals_view_shows_bounded_range(self, capsys):
+        src = "proc f {} { set n 5; set m [expr {$n + 3}]; return $m }"
+        code, out = _run_source(src, capsys, extra=["--show", "intervals"])
+        assert code == 0
+        assert "intervals" in out
+        assert "function ::f" in out
+        # n folds to [5,5] and m = n+3 to [8,8].
+        assert "m#1: [8, 8]" in out
+
+    def test_intervals_view_widens_loop_induction(self, capsys):
+        src = "proc f {} { for {set i 0} {$i < 10} {incr i} { puts $i } }"
+        code, out = _run_source(src, capsys, extra=["--show", "intervals"])
+        assert code == 0
+        # The loop-header phi is widened: lower bound stays 0, upper goes +inf
+        # (sound; guard-based narrowing to [0,9] is future work).
+        assert "i#2: [0, +inf]" in out
+
+    def test_intervals_in_all_views(self):
+        assert "intervals" in ALL_VIEWS
+
+
+class TestBoundsView:
+    def test_bounds_view_shows_lset_out_of_range(self, capsys):
+        src = "proc g {v} { set l {a b c}\n for {set j 4} {$j < 9} {incr j} { lset l $j $v } }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "bounds" in out
+        assert "W231" in out
+        assert "past_append" in out
+
+    def test_bounds_view_shows_lindex_out_of_range(self, capsys):
+        src = "proc h {} { set j 5\n set x [lindex {a b} $j] }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "W230" in out
+        assert "past_end" in out
+
+    def test_bounds_view_silent_in_range(self, capsys):
+        src = "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { set x [lindex $l $j] } }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "no provable out-of-range" in out
+
+    def test_bounds_view_shows_divide_by_zero(self, capsys):
+        src = "proc f {} { set d 0\n return [expr {10 / $d}] }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "W233" in out
+
+    def test_bounds_in_all_views(self):
+        assert "bounds" in ALL_VIEWS
+
+    def test_types_view_annotates_range(self, capsys):
+        # The types view shows the Phase 3 integer interval inline.
+        src = "proc f {} { set n 5\n set m [expr {$n + 3}]\n return $m }"
+        code, out = _run_source(src, capsys, extra=["--show", "types"])
+        assert code == 0
+        assert "range [8, 8]" in out
+
+
 # LineIndex unit tests
 
 

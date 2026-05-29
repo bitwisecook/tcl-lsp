@@ -15,7 +15,6 @@ Usage:
     python3 lsp_client.py code-actions <file.tcl> <line> <col> <end_line> <end_col>
     python3 lsp_client.py optimize <file.tcl>
     python3 lsp_client.py symbols <file.tcl>
-    python3 lsp_client.py folding <file.tcl>
     python3 lsp_client.py diagram <file.tcl>
     python3 lsp_client.py event-info <EVENT_NAME>
     python3 lsp_client.py command-info <COMMAND_NAME>
@@ -757,17 +756,6 @@ def print_symbols(symbols: list[dict] | None) -> None:
         print(f"  {indent}{sym['kind']} {sym['name']}{detail} (line {sym['line']})")
 
 
-def print_folding(ranges: list[dict] | None) -> None:
-    """Print folding ranges (start/end lines are 0-based, end is inclusive)."""
-    if not ranges:
-        print("=== Folding Ranges (0) ===")
-        return
-    print(f"=== Folding Ranges ({len(ranges)}) ===")
-    for r in sorted(ranges, key=lambda r: (r.get("startLine", 0), r.get("endLine", 0))):
-        kind = r.get("kind", "—")
-        print(f"  lines {r['startLine']:>4}–{r['endLine']:<4} {kind}")
-
-
 def print_event_info(result: dict | None) -> None:
     """Print iRules event registry metadata."""
     print("=== Event Info ===")
@@ -1027,17 +1015,6 @@ def cmd_symbols(client: LspClient, uri: str) -> None:
         },
     )
     print_symbols(result)
-
-
-def cmd_folding(client: LspClient, uri: str) -> None:
-    """Request and display folding ranges."""
-    result = client.send_request(
-        "textDocument/foldingRange",
-        {
-            "textDocument": {"uri": uri},
-        },
-    )
-    print_folding(result)
 
 
 def cmd_diagram(client: LspClient, content: str) -> None:
@@ -1461,10 +1438,6 @@ examples:
     p = sub.add_parser("symbols", help="Show document symbol hierarchy")
     p.add_argument("file", help="Tcl file to analyze")
 
-    # folding
-    p = sub.add_parser("folding", help="Show folding ranges (blocks, regions, imports, comments)")
-    p.add_argument("file", help="Tcl file to analyze")
-
     # diagram
     p = sub.add_parser("diagram", help="Extract control flow diagram data from compiler IR")
     p.add_argument("file", help="Tcl/iRule file to analyze")
@@ -1573,8 +1546,6 @@ examples:
                     cmd_optimize(client, uri, content)
                 case "symbols":
                     cmd_symbols(client, uri)
-                case "folding":
-                    cmd_folding(client, uri)
                 case "diagram":
                     cmd_diagram(client, content)
                 case "context":

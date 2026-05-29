@@ -20,6 +20,7 @@ from shared.naming import (
 from shared.ranges import range_from_token
 from shared.tokens import Token, TokenType
 
+from ..compiler_checks import _DEEP_ANALYSIS_BODY_BYTES as _ANALYSER_BODY_GUARD_BYTES
 from ..semantic_model import (
     Diagnostic,
     ProcDef,
@@ -88,6 +89,15 @@ class _AnalyserProcMixin(_Base):
         shadow_name = normalised_proc if normalised_proc in self._builtin_names else None
         if shadow_name is None and normalised_qual in self._builtin_names:
             shadow_name = normalised_qual
+        # Only *core global* built-ins are shadow-worthy: those are unqualified
+        # (`set`, `exit`, `dict`, …).  A namespace-qualified match
+        # (`::base64::encode`, `::snit::type`, `::msgcat::mcunknown`) is a
+        # library/package command living in its own namespace — defining it
+        # there is the package's own definition or a deliberate override, not
+        # shadowing a built-in — so don't flag it (avoids ~namespaced-command
+        # false positives, esp. in tcllib package sources).
+        if shadow_name is not None and "::" in shadow_name:
+            shadow_name = None
         if shadow_name is not None:
             dialect_label = f" ({self._builtin_dialect})" if self._builtin_dialect else ""
             self.result.diagnostics.append(
@@ -132,15 +142,25 @@ class _AnalyserProcMixin(_Base):
                 warn_if_unused=False,
             )
 
-        # Save/restore _last_comment around body analysis so that
-        # comments inside the body do not bleed to the next proc.
-        saved_comment = self._last_comment
-        body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
-        self._analyse_body(body, proc_scope, body_token=body_tok)
-        self._last_comment = saved_comment
+        # Complexity guard: a pathologically large (almost always machine-
+        # generated) proc body — e.g. fumagic's 1.1 MB nested-if/emit dispatch
+        # tree — costs tens of seconds to deep-walk for negligible findings.
+        # The proc itself is still recorded above (so it resolves as a command,
+        # hover/refs to the *name* work); only its body is left un-walked.
+        # Mirrors the CFG-block guard in compiler.ssa / core_analyses so the
+        # compile + diagnostic side skips the same bodies.
+        body_guarded = len(body) > _ANALYSER_BODY_GUARD_BYTES
+        if not body_guarded:
+            # Save/restore _last_comment around body analysis so that
+            # comments inside the body do not bleed to the next proc.
+            saved_comment = self._last_comment
+            body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
+            self._analyse_body(body, proc_scope, body_token=body_tok)
+            self._last_comment = saved_comment
 
-        # Infer proc argument traits from body usage.
-        if params and body:
+        # Infer proc argument traits from body usage (also walks the body — skip
+        # for complexity-guarded bodies).
+        if params and body and not body_guarded:
             param_names = tuple(p.name for p in params)
             try:
                 proc_def.param_traits = infer_param_traits(param_names, body)

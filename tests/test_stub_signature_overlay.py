@@ -694,3 +694,35 @@ class TestStubTraitInference:
         cu = compile_source(source)
         wrap = cu.interproc.procedures["::wrap"]
         assert ProcArgTrait.BODY in wrap.param_traits.get("body", frozenset())
+
+
+class TestVarRefScannerOverlayEpoch:
+    """VarReferenceScanner caches by source text, but the scan consults the
+    active signature overlay (arg_indices_for_role).  A shared scanner used
+    before and inside a stub scope must not reuse the pre-stub result.
+    Regression for the cache key omitting the overlay epoch."""
+
+    def test_shared_scanner_sees_stub_after_caching_empty(self):
+        from compiler.var_refs import VarReferenceScanner, VarScanOptions
+
+        # `matched` is a var_read arg of the stubbed `complex` command.
+        stub = _stub("complex", ("out", "value", False), ("matched", "var_read", False))
+        scanner = VarReferenceScanner(VarScanOptions(include_var_read_roles=True))
+
+        # Scan before the stub exists — caches the (empty) result.
+        before = scanner.scan_script("complex out matched")
+        assert "matched" not in before
+
+        # Same scanner, same text, now inside the stub scope: must re-scan.
+        with stub_signature_scope([stub]):
+            inside = scanner.scan_script("complex out matched")
+        assert "matched" in inside
+
+        # A fresh scanner inside the scope agrees (sanity on the expected value).
+        fresh = VarReferenceScanner(VarScanOptions(include_var_read_roles=True))
+        with stub_signature_scope([stub]):
+            fresh_inside = fresh.scan_script("complex out matched")
+        assert inside == fresh_inside
+
+        # Leaving the scope reverts to the pre-stub result.
+        assert "matched" not in scanner.scan_script("complex out matched")

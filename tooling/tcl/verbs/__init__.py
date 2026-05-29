@@ -23,6 +23,7 @@ def load_verbs() -> None:
         graphs,
         highlight,
         lookup,
+        minimize,
         misc,
         transform,
     )

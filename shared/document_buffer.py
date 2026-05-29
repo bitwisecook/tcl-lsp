@@ -1,17 +1,23 @@
 """Shared per-document position infrastructure.
 
 ``DocumentBuffer`` is the single source of truth for source text, version,
-and line-start metadata.  Every LSP feature handler should use it instead
-of recomputing ``source.split("\\n")`` or constructing ad-hoc ``SourceMap``
+and position mapping.  Every LSP feature handler should use it instead of
+recomputing ``source.split("\\n")`` or constructing ad-hoc ``SourceMap``
 instances.
+
+Position mapping is backed by a :class:`shared.rope.Rope` (a persistent
+balanced tree): ``offset``↔``(line, col)`` are O(log n), and an edit can be
+applied in O(log n) with structural reuse of the unchanged remainder via
+:meth:`DocumentBuffer.from_edit`.  The flat ``line_starts`` tuple is still
+available (lazily) for the few consumers that read it directly.
 """
 
 from __future__ import annotations
 
-from bisect import bisect_right
 from dataclasses import dataclass, field
 
 from shared.diagnostic import Range
+from shared.rope import Rope, RopeEdit
 from shared.tokens import SourcePosition
 
 
@@ -30,15 +36,16 @@ class DocumentBuffer:
 
     Replaces scattered ``source.split("\\n")``, ``SourceMap(source)``,
     ``_chunk_line_range(source, chunk)``, and ``position_from_relative()``
-    calls with a single cached object.
+    calls with a single cached object backed by a :class:`Rope`.
     """
 
     source: str
     version: int | None
-    line_starts: tuple[int, ...]
+    rope: Rope
 
     # Lazily cached derived data.
     _lines: list[str] | None = field(default=None, repr=False)
+    _line_starts: tuple[int, ...] | None = field(default=None, repr=False)
 
     # Constructors
 
@@ -48,12 +55,27 @@ class DocumentBuffer:
         source: str,
         version: int | None = None,
     ) -> DocumentBuffer:
-        """Create a buffer with a freshly computed line-starts index."""
-        return cls(
-            source=source,
-            version=version,
-            line_starts=compute_line_starts(source),
-        )
+        """Create a buffer with a freshly built rope (O(len(source)))."""
+        return cls(source=source, version=version, rope=Rope.from_text(source))
+
+    @classmethod
+    def from_edit(
+        cls,
+        prev: DocumentBuffer,
+        new_source: str,
+        edit: RopeEdit,
+        version: int | None = None,
+    ) -> DocumentBuffer:
+        """Create the post-edit buffer reusing *prev*'s rope structure.
+
+        Applies *edit* to ``prev.rope`` in O(log n + |edit|), sharing every
+        untouched subtree by reference — the incremental path that avoids
+        re-scanning the whole document on each keystroke.  *edit* must describe
+        the change from ``prev.source`` to *new_source*.
+        """
+        replacement = new_source[edit.start : edit.new_end]
+        new_rope = prev.rope.replace(edit.start, edit.old_end, replacement)
+        return cls(source=new_source, version=version, rope=new_rope)
 
     # Cached properties
 
@@ -64,37 +86,29 @@ class DocumentBuffer:
             self._lines = self.source.split("\n")
         return self._lines
 
-    # Position conversion
+    @property
+    def line_starts(self) -> tuple[int, ...]:
+        """Flat line-starts tuple, computed lazily (for direct consumers)."""
+        if self._line_starts is None:
+            self._line_starts = compute_line_starts(self.source)
+        return self._line_starts
+
+    # Position conversion (delegated to the rope; O(log n))
 
     def offset_to_position(self, offset: int) -> SourcePosition:
-        """O(log n) offset → (line, character, offset) via bisect."""
-        safe = max(0, min(offset, len(self.source)))
-        line = bisect_right(self.line_starts, safe) - 1
-        line = max(0, line)
-        col = safe - self.line_starts[line]
+        """offset → (line, character, offset), clamped to the document."""
+        n = len(self.source)
+        safe = 0 if offset < 0 else (n if offset > n else offset)
+        line, col = self.rope.offset_to_line_col(safe)
         return SourcePosition(line=line, character=col, offset=safe)
 
     def position_to_offset(self, line: int, character: int) -> int:
-        """O(1) (line, character) → offset, with clamping."""
-        if not self.line_starts:
-            return 0
-        safe_line = max(0, min(line, len(self.line_starts) - 1))
-        line_start = self.line_starts[safe_line]
-        # Clamp character to line length.
-        if safe_line + 1 < len(self.line_starts):
-            line_end = self.line_starts[safe_line + 1] - 1  # exclude '\n'
-        else:
-            line_end = len(self.source)
-        line_length = max(0, line_end - line_start)
-        safe_char = max(0, min(character, line_length))
-        return line_start + safe_char
+        """(line, character) → offset, with clamping."""
+        return self.rope.line_col_to_offset(line, character)
 
     def offset_to_line_col(self, offset: int) -> tuple[int, int]:
-        """O(log n) offset → (line, col) tuple (no SourcePosition alloc)."""
-        safe = max(0, min(offset, len(self.source)))
-        line = bisect_right(self.line_starts, safe) - 1
-        line = max(0, line)
-        return line, safe - self.line_starts[line]
+        """offset → (line, col) tuple (no SourcePosition alloc)."""
+        return self.rope.offset_to_line_col(offset)
 
     def range_from_offsets(self, start: int, end_inclusive: int) -> Range:
         """Build a Range from inclusive source offsets."""

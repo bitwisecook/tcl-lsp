@@ -204,6 +204,23 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
 
     saw_word = False
     prev_in_quote = False
+    # Brace nesting *within this command's words*, relative to the command
+    # start.  A ``}`` that drives this below zero closes an *enclosing* body
+    # (e.g. the switch arm in ``one {set y 2}``), so the command ends just
+    # before it — even when that brace is glued to the last word (``2}`` lexes
+    # as one bareword token, so the standalone-``}`` check below never sees it).
+    brace_balance = 0
+
+    def _enclosing_close_index(text: str) -> int | None:
+        bal = brace_balance
+        for i, ch in enumerate(text):
+            if ch == "{":
+                bal += 1
+            elif ch == "}":
+                bal -= 1
+                if bal < 0:
+                    return i
+        return None
 
     while True:
         tok = lexer.get_token()
@@ -223,21 +240,24 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
                 continue
             end_offset = tok.start.offset - 1
             break
-        # A standalone "}" is a body-closing brace, not a command word.
-        # A "}" inside a double-quoted string (e.g. `append result "}"`) is
-        # just a string argument — it has shift>0 (leading quote delimiter)
-        # or follows a token that is still inside a quoted word.
+        # A "}" that closes an enclosing body is not part of this command —
+        # whether it stands alone (``}``) or is glued to the final word
+        # (``2}`` in ``one {set y 2}``).  A "}" inside a double-quoted string
+        # (`append result "}"`) has shift>0 / in_quote and must not count.
         if (
-            tok.text == "}"
-            and tok.type is TokenType.ESC
+            tok.type is TokenType.ESC
             and not prev_in_quote
+            and not tok.in_quote
             and token_content_shift(tok) == 0
         ):
-            if not saw_word:
-                return None
-            # End the command range before the closing brace.
-            end_offset = tok.start.offset - 1
-            break
+            rel = _enclosing_close_index(tok.text)
+            if rel is not None:
+                if not saw_word and rel == 0:
+                    return None
+                # End the command range just before the enclosing close brace.
+                end_offset = tok.start.offset + rel - 1
+                break
+            brace_balance += tok.text.count("{") - tok.text.count("}")
         saw_word = True
         prev_in_quote = tok.in_quote
 

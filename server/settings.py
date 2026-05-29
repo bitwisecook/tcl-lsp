@@ -729,7 +729,7 @@ def _apply_merged_settings_now() -> None:
 
     import server.diagnostics_pipeline as _dp
 
-    _publish_diagnostics = _dp._publish_diagnostics
+    spawn_publish_diagnostics = _dp.spawn_publish_diagnostics
     _publish_diagnostics_sync = _dp._publish_diagnostics_sync
     _publish_diags_to_client = _dp._publish_diags_to_client
 
@@ -755,13 +755,12 @@ def _apply_merged_settings_now() -> None:
             pre_apply_doc_resolution.get(uri) != new_resolution
         )
         if doc_force_reanalyse and loop is not None:
-            loop.create_task(
-                _publish_diagnostics(
-                    uri,
-                    doc_state.source,
-                    doc_state.version,
-                    force_reanalyse=True,
-                )
+            spawn_publish_diagnostics(
+                uri,
+                doc_state.source,
+                doc_state.version,
+                force_reanalyse=True,
+                loop=loop,
             )
         elif doc_state.analysis is not None:
             _publish_diagnostics_sync(
