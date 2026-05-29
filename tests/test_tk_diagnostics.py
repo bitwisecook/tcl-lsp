@@ -163,3 +163,45 @@ class TestNoDiagnosticsWithoutTk:
         result = analyse(source)
         diags = check_tk_diagnostics(source, result)
         assert diags == []
+
+
+class TestTkGateWhitespaceVariants:
+    """The cheap pre-``analyse()`` gate in ``get_diagnostics`` must recognise a
+    ``package require Tk`` written with any word separator, not just a single
+    space — the lexer splits words on ``\\t``/multiple spaces/``;`` and a
+    backslash-newline continuation, so those are all real requires (tclsh
+    tokenises identically).  Missing them silently dropped TK100x (the pre-A8
+    unconditional analyse() caught them)."""
+
+    _BASE = (
+        "package require Tk\n"
+        "frame .f\n"
+        "button .f.b1 -text Hello\n"
+        "button .f.b2 -text World\n"
+        "pack .f.b1 -side left\n"
+        "grid .f.b2 -row 0 -column 0\n"
+    )
+
+    @staticmethod
+    def _tk_codes(src: str) -> set[str]:
+        from server.features.diagnostics import get_diagnostics
+
+        return {d.code for d in get_diagnostics(src) if d.code.startswith("TK")}
+
+    def test_single_space_fires_tk1001(self):
+        assert "TK1001" in self._tk_codes(self._BASE)
+
+    def test_tab_separated_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package\trequire Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_double_space_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package  require Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_line_continued_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package \\\n    require Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_non_tk_file_still_silent(self):
+        assert self._tk_codes("set x 1\nputs hello\n") == set()

@@ -1033,12 +1033,16 @@ def get_deep_diagnostics(
 
     # Tk-specific diagnostics (only when ``package require Tk`` is present).
     # A literal ``package require Tk`` — the only thing has_tk_require detects —
-    # must contain both tokens in the source, so this cheap necessary-condition
-    # gate skips the otherwise-wasted full analyse() for the common non-Tk file
-    # (the deep path passes analysis=None, and analysis is used only by the Tk
-    # check below).  When Tk *might* be required we run analyse() — the Tk check
-    # needs the analysis anyway.
-    if "package require" in source and "Tk" in source:
+    # must mention all three tokens in the source, so this cheap necessary-
+    # condition gate skips the otherwise-wasted full analyse() for the common
+    # non-Tk file (the deep path passes analysis=None, and analysis is used only
+    # by the Tk check below).  When Tk *might* be required we run analyse() — the
+    # Tk check needs the analysis anyway.  The tokens are checked *separately*
+    # (not the substring ``"package require"``): the lexer splits words on any of
+    # ``\t\n\r\x0b\x0c;`` and a backslash-newline continuation, so
+    # ``package\trequire Tk`` / ``package  require Tk`` / a line-continued form
+    # are all real requires that the substring test would miss → TK100x dropped.
+    if "package" in source and "require" in source and "Tk" in source:
         if analysis is None:
             analysis = analyse(source, cu=cu)
         if has_tk_require(analysis):
