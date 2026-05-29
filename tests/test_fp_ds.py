@@ -218,4 +218,7 @@ def test_FP_DS_smoke_analyse_pipeline():
         FP_DS_06_REPRO,
     ):
         result = analyse(src)
-        assert result is not None
+        # Beyond "didn't raise": assert the analyse contract — every repro
+        # yields a well-formed diagnostics list (not merely some non-None
+        # object), so a pipeline that silently returned a stub would fail here.
+        assert isinstance(result.diagnostics, list)

@@ -124,12 +124,13 @@ def test_FP_RCH_03_on_ok_unset_var_still_fires():
         "    }\n"
         "}\n"
     )
-    # The reachability + RBS fix shouldn't suppress a real RBS in the handler.
-    # We tolerate either W210 firing OR the analyser conservatively skipping —
-    # this control just exists to verify no crash, since handler-RBS coverage
-    # is partial (see review-findings-deferred.md F.x).
-    diags = get_diagnostics(src)
-    assert diags is not None  # no-crash check
+    # The reachability + RBS fix must NOT blanket-suppress a genuine
+    # read-before-set inside the handler: `$vneversetbeforetry` is never set on
+    # any path into the `on ok` body, so W210 still fires (tclsh: "can't read
+    # ... no such variable").  This pins that the SSA-inheritance fix kept real
+    # handler RBS reporting alive.
+    codes = {d.code for d in get_diagnostics(src)}
+    assert "W210" in codes, codes
 
 
 # FP-RCH-04 — genuine infinite loop (no break) → O107 IS reported

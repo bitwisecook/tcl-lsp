@@ -113,10 +113,11 @@ def test_FP_SH_03_phi_join_deterministic():
 
 
 def test_FP_SH_03_genuine_phi_string_int_still_fires():
-    """TP control: a phi that merges STRING and INT is genuinely OVERDEFINED;
-    if the type were now over-precise we'd miss the real STRING-in-arith.
-    The verdict here can vary (SHIMMER or none) depending on whether the
-    analyser bubbles to OVERDEFINED — we assert merely no crash."""
+    """TP control: a loop that reassigns `x` to a STRING on one arm and an INT
+    on the other genuinely thrashes its internal rep per iteration, then feeds
+    `$x` into `expr` — exactly the per-iteration string↔int shimmer the loop
+    detectors exist to flag.  This pins that the accumulator-FP suppression
+    (FP-SH-01) did NOT over-suppress a real oscillation."""
     src = (
         "proc f {n} {\n"
         "    set x 0\n"
@@ -126,7 +127,6 @@ def test_FP_SH_03_genuine_phi_string_int_still_fires():
         "    return [expr {$x + 1}]\n"
         "}\n"
     )
-    # Just ensure no crash; the join may go OVERDEFINED (suppressed by FP-SH-01)
-    # or produce a STRING that fires S100 — both are valid outcomes today.
-    diags = get_diagnostics(src)
-    assert diags is not None
+    # A genuine per-iteration loop shimmer (S101/S102) must still fire here.
+    codes = {d.code for d in get_diagnostics(src)}
+    assert codes & {"S100", "S101", "S102"}, codes
