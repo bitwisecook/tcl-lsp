@@ -21,7 +21,25 @@ from .ssa import BlockName, SSAFunction
 
 
 def dominates(ssa: SSAFunction, dominator: BlockName, node: BlockName) -> bool:
-    """Return True if *dominator* dominates *node* in the SSA dominator tree."""
+    """Return True if *dominator* dominates *node* in the SSA dominator tree.
+
+    O(1) via the dominator tree's Euler-tour interval labels: *dominator* is an
+    ancestor of *node* (the dominance relation, reflexive) iff its
+    ``[dom_in, dom_out]`` interval contains ``node``'s ``dom_in``.  This is
+    called inside nested loops by the interval/bounds (``refine_interval``),
+    loop-forest, and GVN-LICM passes, so the prior O(tree-depth) idom-chain walk
+    per call compounded badly on wide guard-chained procs.
+
+    Falls back to the idom-chain walk when the labels are absent (the
+    complexity-guarded trivial SSA) or a node is outside the dominator tree, so
+    the result is identical to the historical walk in every case.
+    """
+    dom_in = ssa.dom_in
+    if dom_in:
+        d_in = dom_in.get(dominator)
+        n_in = dom_in.get(node)
+        if d_in is not None and n_in is not None:
+            return d_in <= n_in <= ssa.dom_out[dominator]
     current: BlockName | None = node
     while current is not None:
         if current == dominator:

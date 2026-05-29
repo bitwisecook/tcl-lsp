@@ -19,7 +19,7 @@ The resulting ``SSAFunction`` is consumed by SCCP and liveness in
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeAlias
 
 from compiler.registry.runtime import (
@@ -658,6 +658,15 @@ class SSAFunction:
     idom: dict[BlockName, BlockName | None]
     dominance_frontier: dict[BlockName, tuple[BlockName, ...]]
     dominator_tree: dict[BlockName, tuple[BlockName, ...]]
+    # Euler-tour interval labels over the dominator tree (preorder entry time
+    # ``dom_in`` and max-subtree-entry ``dom_out``).  They make dominance an
+    # O(1) interval test — ``dominates(d, n)`` iff
+    # ``dom_in[d] <= dom_in[n] <= dom_out[d]`` — instead of an idom-chain walk
+    # (see :func:`compiler.loops.dominates`, called in nested loops by the
+    # interval/bounds, loop-forest, and GVN-LICM passes).  Empty on the
+    # complexity-guarded trivial SSA; ``dominates`` then falls back to the walk.
+    dom_in: dict[BlockName, int] = field(default_factory=dict)
+    dom_out: dict[BlockName, int] = field(default_factory=dict)
 
 
 def value_use_blocks(ssa: SSAFunction) -> dict[SSAValueKey, set[BlockName]]:
@@ -860,6 +869,48 @@ def _dom_tree(idom: dict[str, str | None]) -> dict[str, list[str]]:
     for children in tree.values():
         children.sort()
     return tree
+
+
+def _dom_numbering(entry: str, tree: dict[str, list[str]]) -> tuple[dict[str, int], dict[str, int]]:
+    """Euler-tour interval labels over the dominator *tree* rooted at *entry*.
+
+    ``dom_in[v]`` is the preorder visit index; ``dom_out[v]`` is the largest
+    ``dom_in`` in ``v``'s subtree.  Then ``d`` dominates ``n`` exactly when
+    ``dom_in[d] <= dom_in[n] <= dom_out[d]`` — the textbook ancestor-interval
+    test, identical in result to walking ``n`` up the idom chain to ``d``.
+
+    Iterative (explicit stack) like the rename walk below, so a deep dominator
+    chain in a large generated body can't overflow the recursion limit.
+    """
+    dom_in: dict[str, int] = {}
+    dom_out: dict[str, int] = {}
+    if entry not in tree:
+        return dom_in, dom_out
+    counter = 0
+    dom_in[entry] = counter
+    counter += 1
+    # Each frame: [node, next-child-index].
+    stack: list[list] = [[entry, 0]]
+    while stack:
+        frame = stack[-1]
+        node, ci = frame[0], frame[1]
+        children = tree.get(node, ())
+        if ci < len(children):
+            frame[1] += 1
+            child = children[ci]
+            dom_in[child] = counter
+            counter += 1
+            stack.append([child, 0])
+        else:
+            # Post-order: subtree max is this node's index joined with each
+            # child's already-finalised dom_out.
+            out = dom_in[node]
+            for c in children:
+                if dom_out[c] > out:
+                    out = dom_out[c]
+            dom_out[node] = out
+            stack.pop()
+    return dom_in, dom_out
 
 
 def _nonlocal_names(cfg: CFGFunction, reachable: set[str]) -> set[str]:
@@ -1093,6 +1144,7 @@ def build_ssa(cfg: CFGFunction, *, force_guard: bool = False) -> SSAFunction:
             exit_versions=dict(exit_versions[bn]),
         )
 
+    dom_in, dom_out = _dom_numbering(cfg.entry, tree)
     return SSAFunction(
         name=cfg.name,
         entry=cfg.entry,
@@ -1100,4 +1152,6 @@ def build_ssa(cfg: CFGFunction, *, force_guard: bool = False) -> SSAFunction:
         idom=idom,
         dominance_frontier={bn: tuple(sorted(v)) for bn, v in df.items()},
         dominator_tree={bn: tuple(children) for bn, children in tree.items()},
+        dom_in=dom_in,
+        dom_out=dom_out,
     )
