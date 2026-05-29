@@ -1,5 +1,16 @@
 # Semi-pruned SSA — investigation and deferral
 
+> **STATUS (resolved — now shipped).** Semi-pruned SSA is now **enabled**:
+> `compiler/ssa.py:_phi_vars` places phis only for non-local names (computed
+> with the def-sites in one pass by `_nonlocal_names_and_defsites`).  The
+> blocker below — the +244 false `W220`/`W211` from reads the use-tracker
+> missed — was closed by the structural read recovery (`compiler/var_refs.py`
+> scanners + the Place bridge) that now tracks those previously-invisible reads
+> (e.g. `$w` in `::tcl::idna::punydecode` is clean).  The SSA / GVN / shimmer /
+> interval / dead-store suites pass with it on.  This note is retained for the
+> investigation history; the sections below describe the *deferred* state, not
+> the current one.
+
 ## Goal
 
 Reduce phi nodes by switching `compiler/ssa.py:_phi_vars` from **minimal** SSA

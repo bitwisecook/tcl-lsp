@@ -55,9 +55,16 @@ and the dominance literature above.
 **Where.** `compiler/loops.py` (`build_loop_forest`, `NaturalLoop`,
 `LoopForest`).
 
-**Adaptation.** Built once per function from the SSA dominator info and shared
-by GVN/LICM, shimmer, and the interval domain's widening points, replacing three
-previously-independent back-edge detectors.
+**Adaptation.** The single natural-loop source for GVN/LICM and the interval
+domain's widening points, built from the SSA dominator info.  Because dominance
+queries are O(1) (Euler-tour interval labels on the dominator tree, see above),
+re-deriving the forest per consumer is cheap, so it is recomputed rather than
+cached on the `FunctionUnit`.  Shimmer keeps a *separate* any-cycle detector
+(`compiler/shimmer.py:_loop_body_blocks`): it must count a block reachable only
+through a `try`→handler exception edge as "in a loop", which the dominance-based
+natural-loop construction classifies differently (the two sets diverge on ~0.3%
+of corpus functions — all `try`/coroutine bodies), so the two detectors are
+intentionally not unified.
 
 ## Sparse Conditional Constant Propagation (SCCP)
 
@@ -82,14 +89,19 @@ files — folding through them is unsound across any opaque call (e.g.
 Improvements to the Construction and Destruction of Static Single Assignment
 Form," *Software: Practice and Experience* 28(8):859–881, 1998.
 
-**Where.** `compiler/ssa.py` (`_nonlocal_names` — implemented, gated off; see
-`semi-pruned-ssa-deferred.md`).
+**Where.** `compiler/ssa.py` (`_nonlocal_names_and_defsites`, `_phi_vars`).
 
-**Adaptation.** The non-local (upward-exposed-use) set is computed over the
-Tcl CFG including branch-condition and `return`-value reads.  Currently gated
-off pending two output-equivalence sub-issues (phi-merge shimmer on never-read
-vars; a switch-arm dead-store elimination range bug) — documented in the
-deferral note.
+**Adaptation.** The non-local (upward-exposed-use) set is computed over the Tcl
+CFG including branch-condition and `return`-value reads, in the same pass that
+collects def-sites.  **Shipped** — phis are placed only for non-local names
+(≈20% fewer phis on the corpus, so smaller SCCP/type/liveness/taint fixpoints).
+The output-equivalence gap that originally deferred it — false `W220`/`W211`
+where the only read of a variable sat in a form the use-tracker missed (e.g.
+`$w` in `::tcl::idna::punydecode`) — was closed by the structural read recovery
+(`compiler/var_refs.py` + the Place bridge), so dropping the now-dead phis no
+longer surfaces a latent false positive; the SSA / GVN / shimmer / interval /
+dead-store suites pass with it enabled.  See `semi-pruned-ssa-deferred.md` for
+the investigation history.
 
 ## Abstract interpretation — interval domain with widening/narrowing
 
