@@ -141,3 +141,29 @@ class TestSupersessionAfterAnalysis:
         finally:
             dp._release_publish_state(uri)
             _state.workspace_state.close(uri)
+
+
+class TestDidCloseEvictsPullDiagCache:
+    """did_close (via _release_publish_state) must evict the pull-model
+    diagnostics cache; otherwise every ever-opened URI keeps a full diagnostics
+    list + result id resident for the whole session (an unbounded leak)."""
+
+    def test_pull_diag_caches_evicted_on_release(self):
+        from lsprotocol import types
+
+        uri = "file:///pull_cache_leak.tcl"
+        dp._pull_diag_cache[uri] = [
+            types.Diagnostic(
+                range=types.Range(types.Position(0, 0), types.Position(0, 1)),
+                message="x",
+                code="W100",
+            )
+        ]
+        dp._pull_diag_result_ids[uri] = "tcl-lsp-diag-test"
+        dp._publish_latest_version[uri] = 1
+
+        dp._release_publish_state(uri)
+
+        assert uri not in dp._pull_diag_cache
+        assert uri not in dp._pull_diag_result_ids
+        assert uri not in dp._publish_latest_version

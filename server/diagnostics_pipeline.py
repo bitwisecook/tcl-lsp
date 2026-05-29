@@ -92,9 +92,17 @@ def _superseded(uri: str, version: int | None) -> bool:
 
 
 def _release_publish_state(uri: str) -> None:
-    """Drop a document's writer lock + version tracker (call on did_close)."""
+    """Drop a document's per-URI state (call on did_close).
+
+    Includes the pull-model diagnostics cache: without this, every ever-opened
+    URI kept a full diagnostics list (and its result id) resident for the life
+    of the session — a slow, unbounded leak across a long editing session that
+    opens many files.
+    """
     _publish_locks.pop(uri, None)
     _publish_latest_version.pop(uri, None)
+    _pull_diag_cache.pop(uri, None)
+    _pull_diag_result_ids.pop(uri, None)
 
 
 # asyncio keeps only a *weak* reference to the result of ``create_task`` /
