@@ -654,10 +654,16 @@ def _scan_ir_body_with_side(
 ) -> None:
     """Classify commands in *ir_body*, recursing into nested side-switches."""
     for cmd, rng, ir_stmt in _iter_ir_commands(ir_body):
-        # ``clientside { ... }`` / ``serverside { ... }`` — lower the body
-        # and recurse with the switched side context.
+        # ``clientside`` / ``serverside`` / ``peer`` ``{ ... }`` — lower the
+        # body and recurse with the switched side context.  ``peer`` evaluates
+        # under the *opposite* side of the current one.
         if REGISTRY.is_side_switch(cmd):
-            inner_side = "client" if cmd == "clientside" else "server"
+            if cmd == "clientside":
+                inner_side = "client"
+            elif cmd == "serverside":
+                inner_side = "server"
+            else:  # peer — the opposite-side context
+                inner_side = "server" if current_side == "client" else "client"
             if isinstance(ir_stmt, (IRCall, IRBarrier)):
                 inner_ir = _lower_side_switch_body(ir_stmt)
                 if inner_ir is not None:

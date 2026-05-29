@@ -900,6 +900,22 @@ class TestIrulesNestingScriptBody:
         assert arg_indices_for_role("serverside", args, ArgRole.BODY) == {0}
         assert body_kind_for_command("serverside", args) is BodyKind.INLINE
 
+    def test_peer_script_is_inline_body(self):
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{TCP::collect}"]
+        # ``peer`` is the third side-switch — its script is an INLINE body.
+        assert arg_indices_for_role("peer", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("peer", args) is BodyKind.INLINE
+        assert REGISTRY.is_side_switch("peer")
+
     def test_clientside_serverside_query_form_has_no_body(self):
         from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
@@ -941,7 +957,7 @@ class TestIrulesNestingScriptBody:
 
         # ``X (NESTING_SCRIPT)?`` — the bare query form (0 args) or a single
         # optional nesting script, never more.  (Previously unbounded.)
-        for name in ("clientside", "serverside"):
+        for name in ("clientside", "serverside", "peer"):
             validation = REGISTRY.validation(name, "f5-irules")
             assert validation is not None, name
             assert validation.arity.min == 0, name

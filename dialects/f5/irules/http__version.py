@@ -54,6 +54,14 @@ class HttpVersionCommand(CommandDef):
                 examples=('when HTTP_RESPONSE {\n  HTTP::version "1.1"\n}'),
                 return_value="Returns the HTTP version of the request or response",
             ),
+            # TODO: the version value is a closed set ('0.9' | '1.0' | '1.1')
+            # but is not yet constrained — add ``arg_values`` so the setter
+            # offers those completions, and a ``validation_hook`` to flag an
+            # invalid version.  The set is HTTP/1.x only: HTTP/2 is the separate
+            # ``HTTP2::`` namespace (and HTTP/3 would be its own), so 2.0/3.0
+            # must NOT be added here.  Audit other specs whose value argument
+            # is a closed set for the same gap (FLOW::priority FLOW_PRIORITY,
+            # HTTP::respond status, etc.).
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,

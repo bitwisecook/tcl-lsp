@@ -190,10 +190,21 @@ class TestNestingScriptBodyAnalysis:
         assert len(diags) == 1
         assert "HTTP::respond" in diags[0].message
 
-    def test_clientside_serverside_accept_zero_or_one_argument(self):
+    def test_wrong_event_command_in_peer_body_warns(self):
+        # ``peer`` is the third side-switch; its script body is analysed too.
+        src = 'when CLIENT_ACCEPTED {\n    peer { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_side_switch_commands_accept_zero_or_one_argument(self):
         # The bare query form and a single nesting script are valid; extra
         # top-level words are E003 "too many arguments" (arity 0..1).
-        for cmd, event in (("clientside", "CLIENT_ACCEPTED"), ("serverside", "SERVER_CONNECTED")):
+        for cmd, event in (
+            ("clientside", "CLIENT_ACCEPTED"),
+            ("serverside", "SERVER_CONNECTED"),
+            ("peer", "SERVER_CONNECTED"),
+        ):
             assert _diag_with_code(f"when {event} priority 5 {{ {cmd} }}", "E003") == []
             assert (
                 _diag_with_code(
@@ -204,6 +215,22 @@ class TestNestingScriptBodyAnalysis:
             diags = _diag_with_code(f"when {event} priority 5 {{ {cmd} a b c }}", "E003")
             assert len(diags) == 1
             assert cmd in diags[0].message
+
+    def test_peer_collect_satisfies_opposite_side_payload(self):
+        # ``peer { TCP::collect }`` in a server-side event collects on the
+        # *client* side, satisfying CLIENT_DATA's payload requirement — so no
+        # IRULE1005 fires.
+        from compiler.irules_flow import find_irules_flow_warnings
+
+        src = (
+            "when SERVER_CONNECTED priority 5 {\n"
+            "    peer { TCP::collect }\n"
+            "}\n"
+            "when CLIENT_DATA priority 5 {\n"
+            "    TCP::payload\n"
+            "}"
+        )
+        assert [w for w in find_irules_flow_warnings(src) if w.code == "IRULE1005"] == []
 
 
 # IRULE2001: Deprecated matchclass
