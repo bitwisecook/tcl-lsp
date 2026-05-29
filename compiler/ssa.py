@@ -913,16 +913,25 @@ def _dom_numbering(entry: str, tree: dict[str, list[str]]) -> tuple[dict[str, in
     return dom_in, dom_out
 
 
-def _nonlocal_names(cfg: CFGFunction, reachable: set[str]) -> set[str]:
-    """Semi-pruned SSA (Briggs et al. 1998): names with an *upward-exposed* use.
+def _nonlocal_names_and_defsites(
+    cfg: CFGFunction, reachable: set[str]
+) -> tuple[set[str], dict[str, set[str]]]:
+    """Semi-pruned SSA (Briggs et al. 1998) in one pass: the *non-local* names
+    (upward-exposed use) **and** every variable's def-site blocks.
 
     A variable is *non-local* if some block reads it before (re)defining it in
     that block — i.e. the read could observe a value flowing in from a
     predecessor, so a phi at a merge is meaningful.  A name only ever read after
     its in-block definition (or never read) needs no phi: dropping it changes no
     use/value/liveness result, only removes a dead phi.
+
+    The phi placement also needs each variable's def-site blocks; collecting them
+    here (instead of a second walk in :func:`_phi_vars`) computes ``_defs(stmt)``
+    once per statement.  ``defsites`` is unfiltered (all defined names); the
+    caller restricts phi placement to the non-local names.
     """
     nonlocal_names: set[str] = set()
+    defsites: dict[str, set[str]] = {}
     for bn in reachable:
         block = cfg.blocks[bn]
         defined_here: set[str] = set()
@@ -930,7 +939,10 @@ def _nonlocal_names(cfg: CFGFunction, reachable: set[str]) -> set[str]:
             for u in _uses(stmt):
                 if u not in defined_here:
                     nonlocal_names.add(u)
-            defined_here.update(_defs(stmt))
+            d = _defs(stmt)
+            for var in d:
+                defsites.setdefault(var, set()).add(bn)
+            defined_here.update(d)
         term = block.terminator
         if isinstance(term, CFGBranch):
             for u in vars_in_expr_node(term.condition):
@@ -945,7 +957,7 @@ def _nonlocal_names(cfg: CFGFunction, reachable: set[str]) -> set[str]:
                 for u in vars_in_expr_node(term.expr):
                     if u not in defined_here:
                         nonlocal_names.add(u)
-    return nonlocal_names
+    return nonlocal_names, defsites
 
 
 def _phi_vars(
@@ -957,14 +969,8 @@ def _phi_vars(
     # names — Briggs et al. 1998.  A phi for a purely-local name has no reader,
     # so dropping it removes only dead phis (≈40% of minimal-SSA phis) without
     # changing any use/value/liveness/diagnostic.
-    nonlocal_names = _nonlocal_names(cfg, reachable)
-    defsites: dict[str, set[str]] = {}
-    for bn in reachable:
-        block = cfg.blocks[bn]
-        for stmt in block.statements:
-            for var in _defs(stmt):
-                if var in nonlocal_names:
-                    defsites.setdefault(var, set()).add(bn)
+    nonlocal_names, all_defsites = _nonlocal_names_and_defsites(cfg, reachable)
+    defsites = {var: sites for var, sites in all_defsites.items() if var in nonlocal_names}
 
     phi: dict[str, set[str]] = {bn: set() for bn in cfg.blocks}
     for var, sites in defsites.items():
