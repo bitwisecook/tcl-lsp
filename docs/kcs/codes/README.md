@@ -108,6 +108,10 @@ for historical reference.
 - [W216 — broken brace-form array element reference](kcs-diagnostic-w216-broken-brace-array-element-reference.md)
 - [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
 
+## Information (I-codes)
+
+- [I230 — constant existence check / unreachable branch](kcs-diagnostic-i230-constant-existence-check.md)
+
 ## Shimmer (S-codes)
 
 - [S100 — shimmer outside loop](kcs-diagnostic-s100-shimmer-outside-loop.md)

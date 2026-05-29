@@ -51,6 +51,27 @@ ConstantBranch(
 - The not-taken target is marked unreachable.
 - O112 (constant condition elimination) is triggered.
 
+### Existence-check folding (`info exists` / `array exists`)
+
+`_ExistenceFolder` rewrites `[info exists X]` / `[array exists X]`
+sub-expressions in a branch condition to a `0`/`1` literal before the branch
+decision is taken, so an existence guard becomes an ordinary constant branch
+(feeding `I230` + DCE):
+
+- **absent** — a use at SSA version 0 of a plain local scalar that is not a
+  parameter and not frame-escaping (`global`/`variable`/`upvar`) → fold to
+  `0`. (`array exists` also folds `0`.)
+- **present** — a use whose reaching version is a real assignment, or a
+  parameter → `info exists` folds to `1` (a scalar `set` does not prove
+  `array exists`, so that stays unfolded).
+- **`unset`** version → fold to `0`.
+
+The fold is gated per function: it is disabled whenever any statement could
+create or destroy a local invisibly (any barrier/`IRBlock`/`IRUpFrame`, an
+`IRCall` with an UNKNOWN-target write, a dynamic barrier, or an inline `BODY`
+argument). Array elements (`A(k)`) and qualified names (`::ns::X`) are never
+folded. This keeps the rewrite sound for DCE/codegen.
+
 ### Unreachable blocks
 
 Blocks that are never reached (due to constant branches, code after
@@ -95,6 +116,14 @@ store.  SCCP marks it in `FunctionAnalysis.dead_stores`.
 
 If a variable is read at version 0 (never defined before use), it appears
 in `FunctionAnalysis.read_before_set` → diagnostic W103.
+
+Existence checks are excluded: `info exists X` / `array exists X` test a
+variable rather than reading its value, so the check reference itself is never
+a read-before-set. A check also narrows the region it dominates —
+`_existence_narrowed_blocks` records, for each block, the names a dominating
+guard proves to exist (the true region of `if {[info exists X]}`, or the false
+region of a negated guard), and reads of those names there are suppressed. The
+opposite branch keeps version 0, so a read there is still flagged.
 
 ### Unused variables
 

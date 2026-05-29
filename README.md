@@ -1794,7 +1794,7 @@ For the complete reference, see
 | Code | Description | Quick-fix |
 |------|-------------|-----------|
 | H300 | Possible paste error -- repeated assignment to same variable with same value | |
-| W210 | Variable read before set (with case-mismatch suggestion when applicable) | |
+| W210 | Variable read before set (with case-mismatch suggestion when applicable; `info exists`/`array exists` are existence tests, not reads, so they are excluded and instead fold to a constant branch where provable) | |
 | W211 | Variable set but never used (with case-mismatch suggestion when applicable) | |
 | W212 | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.) | |
 | W213 | `unset` on variable that may not exist -- use `unset -nocomplain` | |

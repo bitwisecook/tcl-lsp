@@ -40,6 +40,16 @@ puts $x
 
 Assign the variable before using it.
 
+## Existence checks are not reads
+
+`[info exists X]` and `[array exists X]` *test* whether a variable is set — they
+do not read its value — so they never raise `W210`. A check also informs the
+branches it guards: inside `if {[info exists X]} { … }` the variable is known to
+exist, so reading `$X` there is safe; on the `else` side it is still unset, so a
+read there is still flagged. When the variable is provably absent (or present),
+the check is folded to a constant and reported as
+[`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
+
 ## How to suppress
 
 Add `# noqa: W210` at the end of the offending line.
