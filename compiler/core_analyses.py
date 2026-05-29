@@ -47,6 +47,7 @@ from compiler.registry.runtime import (
     scope_alias_commands,
 )
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from shared.naming import is_unqualified_var_name as _is_unqualified_var_name
 from shared.naming import normalise_qualified_name as _normalise_qualified_name
 from shared.naming import normalise_var_name as _normalise_var_name
 from shared.naming import split_array_name
@@ -55,13 +56,17 @@ from shared.tokens import TokenType
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import (
+    BinOp,
     ExprBinary,
     ExprCall,
     ExprCommand,
+    ExprLiteral,
     ExprNode,
     ExprRaw,
+    ExprString,
     ExprTernary,
     ExprUnary,
+    UnaryOp,
     command_texts_in_expr_node,
     expr_text,
     vars_in_expr_node,
@@ -77,6 +82,7 @@ from .ir import (
     IRExprEval,
     IRIncr,
     IRModule,
+    IRReturn,
     IRStatement,
 )
 from .lowering import lower_to_ir
@@ -108,7 +114,7 @@ from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
-from .var_refs import VarReferenceScanner, body_write_names, existence_test_names
+from .var_refs import VarReferenceScanner, body_write_names
 
 if TYPE_CHECKING:
     from .def_use import DefUseResult
@@ -146,6 +152,70 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     cmd = commands[0]
     args_text = inner[cmd.argv[1].start.offset :].rstrip() if len(cmd.argv) >= 2 else ""
     return cmd.texts[0], args_text
+
+
+def _parse_existence_check(cmd_text: str) -> tuple[str, str] | None:
+    """Parse ``[info exists X]`` / ``[array exists X]`` into ``(kind, raw_target)``.
+
+    *kind* is ``"info"`` or ``"array"`` and *raw_target* is the **unnormalised**
+    argument text (e.g. ``"X"``, ``"A(k)"``, ``"::ns::X"``).  Returns ``None``
+    when the text is not an existence check.  Callers that fold or narrow must
+    pass *raw_target* through :func:`_existence_scalar_name` so that array
+    elements and qualified names are excluded — only a plain local scalar's
+    existence is locally decidable.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base not in ("info", "array"):
+        return None
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+    if len(parts) != 2 or parts[0] != "exists":
+        return None
+    return base, parts[1].strip()
+
+
+def _existence_scalar_name(raw_target: str) -> str | None:
+    """Return the normalised name when *raw_target* is a plain local scalar.
+
+    Array elements (``A(k)``), namespace-qualified names (``::ns::X``,
+    ``ns::X``), and dynamic targets (``$name``) are not locally decidable and
+    yield ``None``.
+    """
+    if not _is_unqualified_var_name(raw_target):
+        return None
+    name = _normalise_var_name(raw_target)
+    return name or None
+
+
+def _existence_skip_name(raw_target: str) -> str | None:
+    """Like :func:`_existence_scalar_name` but also accepts a literal array
+    element, returning its **base** name.
+
+    For *read-before-set* suppression this is sound: ``info exists a(b)`` is a
+    valid Tcl existence check that does not require ``a`` to be set
+    (tclsh-verified — returns 0 cleanly when ``a`` is unset), so the base ``a``
+    must not be flagged W210 there.  A *dynamic* index (``a($k)``) still reads
+    ``k`` to form the name and is left reportable.
+
+    Kept separate from the scalar form so the constant-folding / dead-arm path
+    (``[info exists a(b)]`` → I230) stays strict: an array-element check is
+    NOT locally folded to true/false (the base may or may not be set, and even
+    if it is the element may not be — soundness gate
+    ``test_array_element_is_not_folded``).
+    """
+    name = _existence_scalar_name(raw_target)
+    if name is not None:
+        return name
+    base, index = split_array_name(raw_target)
+    if base and index is not None and "$" not in index and "[" not in index:
+        return _existence_scalar_name(base)
+    return None
 
 
 def _expr_has_command(node: ExprNode) -> bool:
@@ -856,13 +926,275 @@ def _barrier_aware_env_for_block(
     return env
 
 
+def _is_bounded_scope_decl(stmt: IRStatement) -> bool:
+    """True when *stmt* only declares its named ``global``/``variable``/``upvar``
+    target(s) — a bounded effect captured by :func:`_escaping_var_names`, not an
+    arbitrary local creation."""
+    if not isinstance(stmt, (IRCall, IRBarrier)):
+        return False
+    from compiler.var_scoping import (
+        global_declaration_indices,
+        upvar_local_declaration_indices,
+        variable_declaration_indices,
+    )
+
+    args = stmt.args
+    if upvar_local_declaration_indices(stmt.command, args):
+        return True
+    if stmt.canonical_command == "::global" and global_declaration_indices(args):
+        return True
+    if stmt.canonical_command == "::variable" and variable_declaration_indices(args):
+        return True
+    return False
+
+
+def _command_mutates_locals(cmd_text: str) -> bool:
+    """True when the ``[cmd ...]`` substitution could create, modify, or remove
+    a local variable.
+
+    Such effects are invisible to SSA when the command is nested inside a
+    value/expression (``set y [set X 1]``) rather than a top-level statement, so
+    the existence folder must treat statements containing them as opaque.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return True  # multi-command / unparseable — assume it can
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    try:
+        args = tuple(_split_command_args(args_text))
+    except Exception:
+        return True
+    # ``unset`` / ``array unset`` change a variable's existence without a write
+    # target that side-effect analysis records.
+    if base == "unset" or (base == "array" and args and args[0] == "unset"):
+        return True
+    from compiler.registry.runtime import ArgRole, arg_indices_for_role
+    from compiler.side_effects import SideEffectTarget, classify_side_effects
+
+    # A command that runs an inline body could create locals (``[if {…} {set X …}]``).
+    if arg_indices_for_role(cmd_name, list(args), ArgRole.BODY):
+        return True
+    se = classify_side_effects(cmd_name, args)
+    if se.dynamic_barrier:
+        return True
+    return (
+        SideEffectTarget.VARIABLE in se.write_targets
+        or SideEffectTarget.UNKNOWN in se.write_targets
+    )
+
+
+def _word_mutation_free(text: str) -> bool:
+    """True when evaluating word/script *text* cannot create/modify/remove a
+    local — i.e. no command substitution within it does so."""
+    if "[" not in text:
+        return True
+    try:
+        tokens = TclLexer(text).tokenise_all()
+    except Exception:
+        return False
+    for tok in tokens:
+        if tok.type is TokenType.CMD:
+            if _command_mutates_locals(f"[{tok.text}]"):
+                return False
+            if not _word_mutation_free(tok.text):  # nested substitutions
+                return False
+    return True
+
+
+def _expr_mutation_free(node: ExprNode) -> bool:
+    """True when evaluating expression *node* cannot create/modify/remove a local."""
+    match node:
+        case ExprCommand(text=text) | ExprRaw(text=text):
+            return _word_mutation_free(text)
+        case ExprBinary(left=left, right=right):
+            return _expr_mutation_free(left) and _expr_mutation_free(right)
+        case ExprUnary(operand=operand):
+            return _expr_mutation_free(operand)
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            return _expr_mutation_free(cond) and _expr_mutation_free(tb) and _expr_mutation_free(fb)
+        case ExprCall(args=args):
+            return all(_expr_mutation_free(a) for a in args)
+        case _:
+            return True
+
+
+def _is_existence_transparent(stmt: IRStatement) -> bool:
+    """True when *stmt* cannot create or destroy a local variable in a way the
+    analysis cannot see — the precondition for folding existence checks.
+
+    A value/expression statement whose value contains a command substitution
+    that could create a local (``set y [set X 1]``) is *not* transparent: the
+    nested write produces no SSA definition, so the folder would otherwise
+    mistake the created variable for an absent one.
+    """
+    if isinstance(stmt, IRAssignConst):
+        return True
+    if isinstance(stmt, IRAssignValue):
+        return _word_mutation_free(stmt.value)
+    if isinstance(stmt, (IRAssignExpr, IRExprEval)):
+        return _expr_mutation_free(stmt.expr)
+    if isinstance(stmt, IRIncr):
+        return stmt.amount is None or _word_mutation_free(stmt.amount)
+    if isinstance(stmt, IRReturn):
+        if stmt.value is not None and not _word_mutation_free(stmt.value):
+            return False
+        if stmt.expr is not None and not _expr_mutation_free(stmt.expr):
+            return False
+        return True
+    if isinstance(stmt, IRCall):
+        if _is_bounded_scope_decl(stmt):
+            return True
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.side_effects import SideEffectTarget, classify_side_effects
+
+        se = classify_side_effects(stmt.command, stmt.args)
+        if se.dynamic_barrier or SideEffectTarget.UNKNOWN in se.write_targets:
+            return False
+        # A command that runs an inline body in this scope (``namespace eval``,
+        # ``clientside``, …) could set locals the analysis never sees.
+        if arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY):
+            return False
+        # A nested command substitution in an argument can create a local too
+        # (``puts [set X 1]``).
+        return all(_word_mutation_free(arg) for arg in stmt.args)
+    # IRBarrier, IRBlock, IRUpFrame, IRSwitch, IRCatch, IRTry, IRForeach, … —
+    # opaque to local-variable creation.
+    return False
+
+
+def _existence_def_kind(stmt: IRStatement) -> str:
+    """Classify the definition a statement produces for existence reasoning:
+    ``"real"`` (a genuine assignment → exists), ``"unset"`` (→ absent), or
+    ``"unknown"`` (alias/proc-call/array-unset → undecidable)."""
+    if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
+        return "real"
+    if isinstance(stmt, (IRCall, IRBarrier)) and stmt.canonical_command == "::unset":
+        return "unset"
+    return "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class _ExistenceFolder:
+    """Folds ``[info exists X]`` / ``[array exists X]`` to a constant when the
+    variable is provably absent or present in a single function.
+
+    ``foldable`` is the per-function gate: ``False`` whenever any statement
+    could create/destroy a local invisibly (dynamic ``eval``/``uplevel``,
+    body-executing commands, unknown procs, …), in which case nothing folds.
+    """
+
+    foldable: bool
+    params: frozenset[str]
+    escaping: frozenset[str]
+    version_kind: dict[SSAValueKey, str]
+
+    @staticmethod
+    def build(cfg: CFGFunction, ssa: SSAFunction, params: frozenset[str]) -> "_ExistenceFolder":
+        foldable = all(
+            _is_existence_transparent(stmt)
+            for block in cfg.blocks.values()
+            for stmt in block.statements
+        )
+        version_kind: dict[SSAValueKey, str] = {}
+        if foldable:
+            for bn, block in cfg.blocks.items():
+                ssa_block = ssa.blocks.get(bn)
+                if ssa_block is None:
+                    continue
+                for idx, ir_stmt in enumerate(block.statements):
+                    if idx >= len(ssa_block.statements):
+                        continue
+                    kind = _existence_def_kind(ir_stmt)
+                    for name, ver in ssa_block.statements[idx].defs.items():
+                        if ver > 0:
+                            version_kind[(name, ver)] = kind
+        return _ExistenceFolder(foldable, params, _escaping_var_names(cfg), version_kind)
+
+    def _classify(self, name: str, version: int) -> bool | None:
+        """Return ``True`` (exists), ``False`` (absent), or ``None`` (unknown)."""
+        if not self.foldable:
+            return None
+        if version == 0:
+            if name in self.params:
+                return True
+            if name in self.escaping:
+                return None
+            return False
+        kind = self.version_kind.get((name, version))
+        if kind == "real":
+            return True
+        if kind == "unset":
+            return False
+        return None
+
+    def fold_command(self, cmd_text: str, uses: dict[str, int]) -> str | None:
+        parsed = _parse_existence_check(cmd_text)
+        if parsed is None:
+            return None
+        kind, raw_target = parsed
+        name = _existence_scalar_name(raw_target)
+        if name is None:
+            return None
+        verdict = self._classify(name, uses.get(name, 0))
+        if verdict is None:
+            return None
+        # A scalar assignment proves ``info exists`` but not ``array exists``.
+        if kind == "array" and verdict:
+            return None
+        return "1" if verdict else "0"
+
+    def fold_condition(self, condition: ExprNode, uses: dict[str, int]) -> ExprNode:
+        if not self.foldable:
+            return condition
+        return _fold_existence_in_expr(condition, uses, self)
+
+
+def _fold_existence_in_expr(
+    expr: ExprNode, uses: dict[str, int], folder: "_ExistenceFolder"
+) -> ExprNode:
+    """Replace foldable existence-check substitutions in *expr* with ``0``/``1``
+    literals.  ``info exists`` has no side effects, so the replacement is exact."""
+    if isinstance(expr, ExprCommand):
+        verdict = folder.fold_command(expr.text, uses)
+        if verdict is not None:
+            return ExprLiteral(text=verdict, start=expr.start, end=expr.end)
+        return expr
+    if isinstance(expr, ExprBinary):
+        return ExprBinary(
+            expr.op,
+            _fold_existence_in_expr(expr.left, uses, folder),
+            _fold_existence_in_expr(expr.right, uses, folder),
+        )
+    if isinstance(expr, ExprUnary):
+        return ExprUnary(expr.op, _fold_existence_in_expr(expr.operand, uses, folder))
+    if isinstance(expr, ExprTernary):
+        return ExprTernary(
+            _fold_existence_in_expr(expr.condition, uses, folder),
+            _fold_existence_in_expr(expr.true_branch, uses, folder),
+            _fold_existence_in_expr(expr.false_branch, uses, folder),
+        )
+    if isinstance(expr, ExprCall):
+        return ExprCall(
+            expr.function,
+            tuple(_fold_existence_in_expr(a, uses, folder) for a in expr.args),
+            expr.start,
+            expr.end,
+        )
+    return expr
+
+
 def _evaluate_branch_decision(
     cfg: CFGFunction,
     ssa: SSAFunction,
     block_name: str,
     condition: ExprNode,
     values: dict[SSAValueKey, LatticeValue],
+    folder: "_ExistenceFolder | None" = None,
 ) -> bool | None:
+    if folder is not None:
+        uses0 = _condition_use_versions(condition, ssa.blocks[block_name].exit_versions)
+        condition = folder.fold_condition(condition, uses0)
     env = _barrier_aware_env_for_block(cfg, ssa, block_name, values)
     if env is not None:
         result = evaluate_expr_with_constants(expr_text(condition), env)
@@ -881,10 +1213,15 @@ def _sccp(
     ssa: SSAFunction,
     *,
     param_constants: dict[SSAValueKey, LatticeValue] | None = None,
+    params: frozenset[str] = frozenset(),
 ) -> tuple[
     dict[SSAValueKey, LatticeValue], set[str], set[tuple[str, str]], tuple[ConstantBranch, ...]
 ]:
     preds = _compute_predecessors(cfg)
+    # Fold ``[info exists X]`` / ``[array exists X]`` to a constant when the
+    # variable is provably absent or present, so branches guarded by an
+    # existence check resolve to a single edge (feeding I230 + DCE).
+    existence_folder = _ExistenceFolder.build(cfg, ssa, params)
 
     # Global / namespace / upvar-aliased / traced variables are shared mutable
     # state observable and writable from other scopes, traces, and source
@@ -1015,7 +1352,9 @@ def _sccp(
         # (live-in roots seeded above; undefined phi inputs joined as ⊥
         # below), so a still-UNKNOWN operand genuinely means "not yet
         # computed", never "unknowable".
-        decision = _evaluate_branch_decision(cfg, ssa, block_name, condition, values)
+        decision = _evaluate_branch_decision(
+            cfg, ssa, block_name, condition, values, existence_folder
+        )
         if decision is True:
             return (tt,)
         if decision is False:
@@ -1133,6 +1472,7 @@ def _sccp(
             bn,
             term.condition,
             values,
+            existence_folder,
         )
         if decision is None:
             continue
@@ -1715,51 +2055,6 @@ _IMPLICIT_VARS = frozenset(
 )
 
 
-def _existence_test_names_in_fn(cfg: CFGFunction, considered: set[str]) -> frozenset[str]:
-    """Variable names tested via ``info exists``/``array exists`` anywhere in the
-    function — bare statements, command substitutions in values/conditions, and
-    expr-embedded tests.  Such a name is being checked for existence (legal when
-    unset), so read-before-set must exempt it."""
-    names: set[str] = set()
-    for bn in considered:
-        block = cfg.blocks.get(bn)
-        if block is None:
-            continue
-        for stmt in block.statements:
-            if isinstance(stmt, (IRCall, IRBarrier)):
-                if (
-                    stmt.canonical_command in ("::info", "::array")
-                    and len(stmt.args) >= 2
-                    and stmt.args[0] == "exists"
-                ):
-                    base, _ = split_array_name(stmt.args[1])
-                    if base and "$" not in base and "[" not in base:
-                        names.add(_normalise_var_name(base))
-                # Scan args that may carry an existence test — a command sub
-                # (``[info exists x]``) or an un-lowered body/expr text kept as
-                # a barrier arg (``while {…} {… info exists x …}``).
-                for a in stmt.args:
-                    if "exists" in a:
-                        names |= existence_test_names(a)
-            elif isinstance(stmt, IRAssignValue):
-                if "[" in stmt.value:
-                    names |= existence_test_names(stmt.value)
-            elif isinstance(stmt, (IRAssignExpr, IRExprEval)):
-                for ct in command_texts_in_expr_node(stmt.expr):
-                    names |= existence_test_names(ct)
-        term = block.terminator
-        if isinstance(term, CFGBranch):
-            for ct in command_texts_in_expr_node(term.condition):
-                names |= existence_test_names(ct)
-        elif isinstance(term, CFGReturn):
-            if term.value and "[" in term.value:
-                names |= existence_test_names(term.value)
-            if term.expr is not None:
-                for ct in command_texts_in_expr_node(term.expr):
-                    names |= existence_test_names(ct)
-    return frozenset(names)
-
-
 def _qualified_variable_alias_tails(cfg: CFGFunction, considered: set[str]) -> frozenset[str]:
     """Local-alias tail names linked by a *qualified* ``variable`` declaration.
 
@@ -1796,6 +2091,388 @@ def _qualified_variable_alias_tails(cfg: CFGFunction, considered: set[str]) -> f
     return frozenset(names)
 
 
+def _iter_expr_commands(expr: ExprNode, out: list[ExprCommand]) -> None:
+    """Collect every ``ExprCommand`` node reachable in *expr* (no short-circuit
+    pruning — we want all existence checks, taken or not)."""
+    if isinstance(expr, ExprCommand):
+        out.append(expr)
+    elif isinstance(expr, ExprBinary):
+        _iter_expr_commands(expr.left, out)
+        _iter_expr_commands(expr.right, out)
+    elif isinstance(expr, ExprUnary):
+        _iter_expr_commands(expr.operand, out)
+    elif isinstance(expr, ExprTernary):
+        _iter_expr_commands(expr.condition, out)
+        _iter_expr_commands(expr.true_branch, out)
+        _iter_expr_commands(expr.false_branch, out)
+    elif isinstance(expr, ExprCall):
+        for arg in expr.args:
+            _iter_expr_commands(arg, out)
+
+
+def _collect_existence_in_word(text: str, out: set[str]) -> None:
+    """Find ``[info exists X]`` / ``[array exists X]`` substitutions inside a
+    word and add their targets to *out* (recursing into nested substitutions)."""
+    if "[" not in text:
+        return
+    try:
+        tokens = TclLexer(text).tokenise_all()
+    except Exception:
+        return
+    for tok in tokens:
+        if tok.type is TokenType.CMD:
+            parsed = _parse_existence_check(f"[{tok.text}]")
+            if parsed is not None:
+                # Only a literal plain-scalar target is existence-tested without
+                # a value read; a dynamic target like ``info exists $name``
+                # reads ``name`` to form the name, so it must stay reportable.
+                nm = _existence_skip_name(parsed[1])
+                if nm:
+                    out.add(nm)
+            else:
+                _collect_existence_in_word(tok.text, out)
+
+
+def _existence_checks_in_expr(expr: ExprNode) -> set[str]:
+    """Names existence-checked (``info``/``array exists``) anywhere in *expr*."""
+    names: set[str] = set()
+    cmds: list[ExprCommand] = []
+    _iter_expr_commands(expr, cmds)
+    for c in cmds:
+        parsed = _parse_existence_check(c.text)
+        if parsed is not None:
+            nm = _existence_skip_name(parsed[1])
+            if nm:
+                names.add(nm)
+    return names
+
+
+def _existence_checks_in_stmt(stmt: IRStatement) -> set[str]:
+    """Names existence-checked by *stmt* itself — the check reference does not
+    read the variable's value, so it is never a read-before-set."""
+    names: set[str] = set()
+    if isinstance(stmt, (IRCall, IRBarrier)):
+        args = stmt.args
+        if (
+            stmt.canonical_command in ("::info", "::array")
+            and len(args) >= 2
+            and args[0] == "exists"
+        ):
+            nm = _existence_skip_name(args[1])
+            if nm:
+                names.add(nm)
+        for arg in args:
+            _collect_existence_in_word(arg, names)
+    value = getattr(stmt, "value", None)
+    if isinstance(value, str):
+        _collect_existence_in_word(value, names)
+    expr = getattr(stmt, "expr", None)
+    if expr is not None and not isinstance(expr, str):
+        names |= _existence_checks_in_expr(expr)
+    return names
+
+
+# ``info vars`` / ``info locals`` are existence probes too — they return the
+# matching visible variable names rather than reading a value.  Only an exact
+# (non-glob) name is statically decidable; a glob pattern would need a
+# variable-lifetime matrix we do not have, so those are skipped.
+
+
+def _info_vars_exact_target(cmd_text: str) -> str | None:
+    """``[info vars X]`` / ``[info locals X]`` → exact local name ``X``."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "info":
+        return None
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+    if len(parts) != 2 or parts[0] not in ("vars", "locals"):
+        return None
+    return _existence_skip_name(parts[1])
+
+
+def _is_info_vars_full_list(cmd_text: str) -> bool:
+    """True when *cmd_text* is exactly ``[info vars]`` / ``[info locals]``."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return False
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "info":
+        return False
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return False
+    return parts in (["vars"], ["locals"])
+
+
+def _split_command_args(args_text: str) -> list[str]:
+    """Split a command's argument text into words, keeping ``[cmd]``, ``{str}``
+    and ``$var`` substitutions as single words (unlike ``_split_tcl_list``,
+    which treats ``[`` / ``]`` as ordinary characters)."""
+    words: list[str] = []
+    prev_sep = True
+    try:
+        tokens = TclLexer(args_text).tokenise_all()
+    except Exception:
+        return []
+    for tok in tokens:
+        if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
+            prev_sep = True
+            continue
+        piece = tok.text
+        if tok.type is TokenType.CMD:
+            piece = f"[{tok.text}]"
+        elif tok.type is TokenType.STR:
+            piece = f"{{{tok.text}}}"
+        elif tok.type is TokenType.VAR:
+            piece = f"${tok.text}"
+        if prev_sep or not words:
+            words.append(piece)
+        else:
+            words[-1] += piece
+        prev_sep = False
+    return words
+
+
+_LSEARCH_SAFE_OPTS = frozenset({"-exact", "-glob", "-sorted"})
+
+
+def _lsearch_info_vars_needle(cmd_text: str) -> str | None:
+    """``[lsearch ?-exact? [info vars] X]`` → exact needle name ``X``.
+
+    Only option flags that do not change which exact name matches are allowed
+    (``-regexp`` / ``-nocase`` / ``-all`` etc. would be unsound).
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "lsearch":
+        return None
+    parts = _split_command_args(args_text)
+    options = [p for p in parts if p.startswith("-")]
+    if any(opt not in _LSEARCH_SAFE_OPTS for opt in options):
+        return None
+    positional = [p for p in parts if not p.startswith("-")]
+    if len(positional) != 2 or not _is_info_vars_full_list(positional[0]):
+        return None
+    return _existence_skip_name(positional[1])
+
+
+def _llength_info_vars_target(cmd_text: str) -> str | None:
+    """``[llength [info vars X]]`` → exact name ``X`` (truthy ⇒ X exists)."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "llength":
+        return None
+    return _info_vars_exact_target(args_text.strip())
+
+
+def _is_empty_string_literal(node: ExprNode) -> bool:
+    if not isinstance(node, ExprString):
+        return False
+    text = node.text
+    return text in ("", '""', "{}") or (len(text) >= 2 and text[0] in '"{' and text[1:-1] == "")
+
+
+def _int_const(node: ExprNode) -> int | None:
+    if isinstance(node, ExprLiteral):
+        try:
+            return int(node.text)
+        except ValueError:
+            return None
+    if (
+        isinstance(node, ExprUnary)
+        and node.op is UnaryOp.NEG
+        and isinstance(node.operand, ExprLiteral)
+    ):
+        try:
+            return -int(node.operand.text)
+        except ValueError:
+            return None
+    return None
+
+
+def _catch_pure_read_target(cmd_text: str) -> str | None:
+    """``[catch {set _ $X}]`` → ``X``, when the body is exactly a pure read of a
+    single plain scalar.
+
+    A zero result (no error) proves the read succeeded, so ``X`` exists and is
+    scalar-readable.  A non-zero result is ambiguous (the variable could be
+    missing *or* be an array read as a scalar), so callers only use the
+    succeeded (false) branch.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "catch":
+        return None
+    words = _split_command_args(args_text)
+    # body, plus optional result / options variable names (Tcl 8.5+).
+    if not (1 <= len(words) <= 3):
+        return None
+    body = words[0]
+    if not (len(body) >= 2 and body[0] == "{" and body[-1] == "}"):
+        return None
+    inner = _split_command_args(body[1:-1].strip())
+    if len(inner) != 3 or inner[0] != "set" or not inner[2].startswith("$"):
+        return None
+    return _existence_skip_name(inner[2][1:])
+
+
+_SWAP_COMPARISON = {
+    BinOp.GT: BinOp.LT,
+    BinOp.LT: BinOp.GT,
+    BinOp.GE: BinOp.LE,
+    BinOp.LE: BinOp.GE,
+    BinOp.EQ: BinOp.EQ,
+    BinOp.NE: BinOp.NE,
+}
+
+
+def _lsearch_found_when_true(op: BinOp, value: int, cmd_on_left: bool) -> bool | None:
+    """For ``[lsearch …] <op> <value>``, does *true* mean the needle was found
+    (index ≥ 0)?  Returns ``True`` (found), ``False`` (not found), or ``None``."""
+    if not cmd_on_left:
+        op = _SWAP_COMPARISON.get(op, op)
+    if (
+        (op is BinOp.GT and value == -1)
+        or (op is BinOp.GE and value == 0)
+        or (op is BinOp.NE and value == -1)
+    ):
+        return True
+    if (
+        (op is BinOp.EQ and value == -1)
+        or (op is BinOp.LT and value == 0)
+        or (op is BinOp.LE and value == -1)
+    ):
+        return False
+    return None
+
+
+def _comparison_existence(expr: ExprBinary) -> tuple[set[str], set[str]] | None:
+    """Existence facts proved by a comparison: ``[info vars X] ne ""`` and
+    ``[lsearch [info vars] X] > -1`` (and their negative/`eq`/`==` variants)."""
+    # ``[info vars X] ne|eq ""``
+    for cmd_side, other in ((expr.left, expr.right), (expr.right, expr.left)):
+        if isinstance(cmd_side, ExprCommand) and _is_empty_string_literal(other):
+            name = _info_vars_exact_target(cmd_side.text)
+            if name is not None:
+                if expr.op in (BinOp.STR_NE, BinOp.NE):
+                    return {name}, set()
+                if expr.op in (BinOp.STR_EQ, BinOp.EQ):
+                    return set(), {name}
+    # ``[lsearch [info vars] X] > -1`` (membership search)
+    for cmd_side, other in ((expr.left, expr.right), (expr.right, expr.left)):
+        if isinstance(cmd_side, ExprCommand):
+            needle = _lsearch_info_vars_needle(cmd_side.text)
+            value = _int_const(other)
+            if needle is not None and value is not None:
+                found = _lsearch_found_when_true(expr.op, value, cmd_side is expr.left)
+                if found is True:
+                    return {needle}, set()
+                if found is False:
+                    return set(), {needle}
+    return None
+
+
+def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
+    """Return ``(exists_if_true, exists_if_false)`` — names a condition proves
+    to exist when it evaluates true vs false.
+
+    A bare ``[info exists X]`` proves ``X`` when true; ``!`` swaps the arms;
+    ``&&`` proves its operands' positive facts only when the whole thing is
+    true; ``||`` proves their negative facts only when the whole thing is
+    false.  ``info vars`` / ``info locals`` membership idioms
+    (``ne ""``, ``[llength …]``, ``[lsearch [info vars] …] > -1``) are also
+    recognised.  Everything else proves nothing.
+    """
+    if isinstance(expr, ExprCommand):
+        parsed = _parse_existence_check(expr.text)
+        name = _existence_scalar_name(parsed[1]) if parsed is not None else None
+        if name is None:
+            name = _llength_info_vars_target(expr.text)
+        if name is not None:
+            return {name}, set()
+        # ``catch {set _ $X}`` — a zero (false) result proves X exists.
+        catch_var = _catch_pure_read_target(expr.text)
+        if catch_var is not None:
+            return set(), {catch_var}
+        return set(), set()
+    if isinstance(expr, ExprUnary) and expr.op in (UnaryOp.NOT, UnaryOp.WORD_NOT):
+        true_set, false_set = _existence_implications(expr.operand)
+        return false_set, true_set
+    if isinstance(expr, ExprBinary):
+        comparison = _comparison_existence(expr)
+        if comparison is not None:
+            return comparison
+        left_true, left_false = _existence_implications(expr.left)
+        right_true, right_false = _existence_implications(expr.right)
+        # The right operand is evaluated after the left; if it can mutate a
+        # local (e.g. ``[info exists X] && [unset X; expr 1]``) the left's facts
+        # may no longer hold when control reaches the branch, so drop them.
+        right_safe = _expr_mutation_free(expr.right)
+        if expr.op in (BinOp.AND, BinOp.WORD_AND):
+            carry = left_true if right_safe else set()
+            return carry | right_true, set()
+        if expr.op in (BinOp.OR, BinOp.WORD_OR):
+            carry = left_false if right_safe else set()
+            return set(), carry | right_false
+    return set(), set()
+
+
+def _block_dominates(ssa: SSAFunction, dominator: str, node: str) -> bool:
+    """True when *dominator* dominates *node* in the SSA dominator tree."""
+    current: str | None = node
+    while current is not None:
+        if current == dominator:
+            return True
+        current = ssa.idom.get(current)
+    return False
+
+
+def _existence_narrowed_blocks(
+    cfg: CFGFunction, ssa: SSAFunction, considered: set[str]
+) -> dict[str, set[str]]:
+    """Map each block to the names a dominating existence guard proves to exist.
+
+    For ``if {[info exists X]} { … }`` the true successor's dominated region
+    knows ``X`` exists; a read there is not a read-before-set.  The false region
+    of a *negated* guard is handled symmetrically.  Only edges whose successor
+    is entered solely from the guard are used, so the proof is sound.
+    """
+    preds = _compute_predecessors(cfg)
+    known: dict[str, set[str]] = {}
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None or not isinstance(block.terminator, CFGBranch):
+            continue
+        exists_true, exists_false = _existence_implications(block.terminator.condition)
+        for target, names in (
+            (block.terminator.true_target, exists_true),
+            (block.terminator.false_target, exists_false),
+        ):
+            if not names or preds.get(target) != {bn}:
+                continue
+            for d in considered:
+                if _block_dominates(ssa, target, d):
+                    known.setdefault(d, set()).update(names)
+    return known
+
+
 def _read_before_set(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -1810,6 +2487,9 @@ def _read_before_set(
     """
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
     skip = _IMPLICIT_VARS | params
+    # A dominating ``info exists`` / ``array exists`` guard proves a variable
+    # exists in its true region, so a read there is not a read-before-set.
+    narrowed = _existence_narrowed_blocks(cfg, ssa, considered)
 
     # dict with/update creates local variables from dict keys at runtime.
     # We cannot know which variables statically, so suppress
@@ -1865,11 +2545,12 @@ def _read_before_set(
             if cs_writes:
                 skip = skip | cs_writes
 
-    # Variables tested with ``info exists``/``array exists`` are the canonical
-    # test-before-use idiom — referencing an unset var there is legal (returns
-    # 0), so it must never count as an uninitialised read.  Exempt those names
-    # function-wide (name-level, suppress-only).
-    skip = skip | _existence_test_names_in_fn(cfg, considered)
+    # ``info exists``/``array exists`` guards — main's #502 added per-block flow-
+    # sensitive narrowing (``_existence_narrowed_blocks`` above; consulted via
+    # ``block_known`` in the per-statement loop) and ``_existence_checks_in_stmt``
+    # for the bare-statement form, both strictly more precise than stage-1's
+    # earlier function-wide name-level skip (which over-suppressed in the false
+    # arm of a guard).  We've dropped the broad skip and rely on the narrowing.
 
     # `variable ns::tail` / `variable ${name}::children` links a local alias
     # named by the static tail (tclsh-verified); exempt those names.
@@ -1921,7 +2602,10 @@ def _read_before_set(
         if ssa_block is None:
             continue
 
+        block_known = narrowed.get(bn, frozenset())
+
         for idx, stmt in enumerate(ssa_block.statements):
+            occ_checks: set[str] | None = None
             for name, ver in stmt.uses.items():
                 if ver != 0:
                     continue
@@ -1939,6 +2623,15 @@ def _read_before_set(
                 # applies (covers the former ``::``/``static::`` prefixes too).
                 if "::" in name:
                     continue
+                # Proven to exist here by a dominating existence guard.
+                if name in block_known:
+                    continue
+                # The statement is itself an existence check of this name
+                # (``info exists X``) — that does not read the value.
+                if occ_checks is None:
+                    occ_checks = _existence_checks_in_stmt(cfg.blocks[bn].statements[idx])
+                if name in occ_checks:
+                    continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))
 
@@ -1946,6 +2639,7 @@ def _read_before_set(
         # The condition's variable versions come from exit_versions.
         term = cfg.blocks[bn].terminator
         if isinstance(term, CFGBranch):
+            cond_checks = _existence_checks_in_expr(term.condition)
             for name in vars_in_expr_node(term.condition):
                 ver = ssa_block.exit_versions.get(name, 0)
                 if ver != 0:
@@ -1959,6 +2653,8 @@ def _read_before_set(
                 # not this frame, so the local read-before-set check never
                 # applies (covers the former ``::``/``static::`` prefixes too).
                 if "::" in name:
+                    continue
+                if name in block_known or name in cond_checks:
                     continue
                 reported.add(name)
                 # Use statement_index=-1 and block to signal condition-level use.
@@ -2397,7 +3093,7 @@ def analyse_function(
             values={},
         )
     values, executable_blocks, executable_edges, constant_branches = _sccp(
-        cfg, ssa, param_constants=param_constants
+        cfg, ssa, param_constants=param_constants, params=params
     )
     inferred_types = _type_propagation(
         cfg, ssa, values, executable_blocks, executable_edges, known_classes

@@ -65,6 +65,7 @@ for historical reference.
 - [W124 — invalid IP literal](kcs-diagnostic-w124-invalid-ip-literal.md)
 - [W125 — orphaned control flow](kcs-diagnostic-w125-orphaned-control-flow.md)
 - [W126 — non-channel argument](kcs-diagnostic-w126-non-channel-argument.md)
+- [W127 — value not in allowed set](kcs-diagnostic-w127-value-not-in-allowed-set.md)
 - [W130 — package not in lockfile](kcs-diagnostic-w130-package-not-in-lockfile.md)
 - [W131 — lockfile out of sync](kcs-diagnostic-w131-lockfile-out-of-sync.md)
 - [W132 — integrity mismatch](kcs-diagnostic-w132-integrity-mismatch.md)
@@ -106,6 +107,10 @@ for historical reference.
 - [W215 — variable name unreachable via $-substitution](kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
 - [W216 — broken brace-form array element reference](kcs-diagnostic-w216-broken-brace-array-element-reference.md)
 - [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
+
+## Information (I-codes)
+
+- [I230 — constant existence check / unreachable branch](kcs-diagnostic-i230-constant-existence-check.md)
 
 ## Shimmer (S-codes)
 
