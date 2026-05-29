@@ -186,7 +186,11 @@ class TestTkGateWhitespaceVariants:
     def _tk_codes(src: str) -> set[str]:
         from server.features.diagnostics import get_diagnostics
 
-        return {d.code for d in get_diagnostics(src) if d.code.startswith("TK")}
+        return {
+            d.code
+            for d in get_diagnostics(src)
+            if isinstance(d.code, str) and d.code.startswith("TK")
+        }
 
     def test_single_space_fires_tk1001(self):
         assert "TK1001" in self._tk_codes(self._BASE)
