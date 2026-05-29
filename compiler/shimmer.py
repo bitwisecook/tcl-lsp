@@ -530,6 +530,43 @@ def _loop_body_def_types(
     return body_types
 
 
+def _build_shimmer_name_index(
+    ssa: SSAFunction,
+    types: dict[SSAValueKey, TypeLattice],
+    loop_blocks: set[str],
+) -> tuple[dict[str, set[SSAVersion]], dict[str, set[TclType]]]:
+    """One pass producing the two per-name maps the phi/thunking passes need.
+
+    ``_empty_literal_versions(ssa, name)`` and ``_loop_body_def_types(ssa,
+    loop_blocks, name, types)`` each rescan every def of ``name`` and were called
+    once *per phi*, so the work was O(phis × blocks × stmts).  Both depend only
+    on ``name`` (the thunking/phi passes pass the same function-wide
+    ``loop_blocks`` for every phi), so compute them once here:
+
+    * ``empty_by_name`` — versions of each name defined by the empty literal
+      (``set x {}`` / ``""``), over the *whole* function;
+    * ``loop_body_types`` — the KNOWN intreps each name is *defined as* inside
+      the loop blocks (empty literal excluded).
+
+    Byte-for-byte equal to the per-call helpers (same predicates, hoisted)."""
+    empty_by_name: dict[str, set[SSAVersion]] = {}
+    loop_body_types: dict[str, set[TclType]] = {}
+    for bn, ssa_block in ssa.blocks.items():
+        in_loop = bn in loop_blocks
+        for s in ssa_block.statements:
+            stmt = s.statement
+            is_empty = isinstance(stmt, (IRAssignConst, IRAssignValue)) and stmt.value == ""
+            for name, ver in s.defs.items():
+                if is_empty:
+                    empty_by_name.setdefault(name, set()).add(ver)
+                    continue
+                if in_loop:
+                    t = types.get((name, ver))
+                    if t is not None and t.kind is TypeKind.KNOWN and t.tcl_type is not None:
+                        loop_body_types.setdefault(name, set()).add(t.tcl_type)
+    return empty_by_name, loop_body_types
+
+
 def _build_def_ranges(
     ssa: SSAFunction,
     cfg: CFGFunction,
@@ -567,11 +604,15 @@ def _find_phi_shimmers(
     executable_blocks: set[str],
     loop_blocks: set[str],
     def_ranges: dict[SSAValueKey, Range] | None = None,
+    empty_by_name: dict[str, set[SSAVersion]] | None = None,
+    loop_body_types: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Find phi nodes where the merged type is SHIMMERED."""
     warnings: list[ShimmerWarning] = []
     if def_ranges is None:
         def_ranges = _build_def_ranges(ssa, cfg)
+    if empty_by_name is None or loop_body_types is None:
+        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks)
 
     for bn in executable_blocks:
         ssa_block = ssa.blocks.get(bn)
@@ -596,7 +637,7 @@ def _find_phi_shimmers(
             body_types: set[TclType] = set()  # types from loop (body) edges
             nonempty_known: set[TclType] = set()  # KNOWN types from non-empty incomings
             has_shimmered_incoming = False
-            empty_vers = _empty_literal_versions(ssa, phi.name)
+            empty_vers = empty_by_name.get(phi.name, frozenset())
             for _pred, incoming_ver in phi.incoming.items():
                 if incoming_ver <= 0:
                     continue
@@ -638,9 +679,7 @@ def _find_phi_shimmers(
             # an entry type (re-shimmers each iteration) or itself produces ≥2
             # types.  (Out-of-loop S100 single-shimmers are always reported.)
             if in_loop:
-                all_body_types = body_types | _loop_body_def_types(
-                    ssa, loop_blocks, phi.name, types
-                )
+                all_body_types = body_types | loop_body_types.get(phi.name, set())
                 oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
                 if not oscillates:
                     continue
@@ -708,6 +747,8 @@ def _find_thunking(
     executable_blocks: set[str],
     loop_blocks: set[str],
     def_ranges: dict[SSAValueKey, Range] | None = None,
+    empty_by_name: dict[str, set[SSAVersion]] | None = None,
+    loop_body_types: dict[str, set[TclType]] | None = None,
 ) -> list[ThunkingWarning]:
     """Find variables that oscillate between types across loop iterations.
 
@@ -718,6 +759,8 @@ def _find_thunking(
     warnings: list[ThunkingWarning] = []
     if def_ranges is None:
         def_ranges = _build_def_ranges(ssa, cfg)
+    if empty_by_name is None or loop_body_types is None:
+        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks)
 
     # Loop headers are blocks that have a back edge (predecessor is in loop).
     # We identify them as blocks that have a predecessor which is also in
@@ -746,7 +789,7 @@ def _find_thunking(
             has_body_incoming = False
             entry_types: set[TclType] = set()
             body_types: set[TclType] = set()
-            empty_vers = _empty_literal_versions(ssa, phi.name)
+            empty_vers = empty_by_name.get(phi.name, frozenset())
 
             for pred, incoming_ver in phi.incoming.items():
                 if incoming_ver <= 0:
@@ -799,7 +842,7 @@ def _find_thunking(
             # thunking requires the body to *re-introduce* the entry type (so the
             # phi re-shimmers each iteration) or to produce ≥2 conflicting types
             # itself.  Otherwise the var stabilises at the body type → suppress.
-            all_body_types = body_types | _loop_body_def_types(ssa, loop_blocks, phi.name, types)
+            all_body_types = body_types | loop_body_types.get(phi.name, set())
             oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
             if not oscillates:
                 continue
@@ -1077,6 +1120,9 @@ def find_shimmer_warnings(
         executable = set(fu.cfg.blocks) - fu.analysis.unreachable_blocks
         loops = _loop_body_blocks(fu.cfg)
         dr = _build_def_ranges(fu.ssa, fu.cfg)
+        # Per-name empty-literal versions + loop-body KNOWN types, computed once
+        # and shared by the phi + thunking passes (was recomputed per phi).
+        empty_by_name, loop_body_types = _build_shimmer_name_index(fu.ssa, fu.analysis.types, loops)
         all_warnings.extend(
             _find_use_site_shimmers(
                 fu.execution_intent,
@@ -1104,6 +1150,8 @@ def find_shimmer_warnings(
                 executable,
                 loops,
                 dr,
+                empty_by_name,
+                loop_body_types,
             )
         )
         all_warnings.extend(
@@ -1114,6 +1162,8 @@ def find_shimmer_warnings(
                 executable,
                 loops,
                 dr,
+                empty_by_name,
+                loop_body_types,
             )
         )
 
