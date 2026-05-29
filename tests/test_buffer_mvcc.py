@@ -217,3 +217,71 @@ def test_document_state_quick_update_registers_and_reclaims_versions():
     # Only the current version (119) should remain resident — older quick-update
     # versions are unpinned and reclaimed.
     assert live == {119}, f"expected only the current version live; got {sorted(live)}"
+
+
+def _giant_body_interior_offset(source: str) -> int:
+    """Offset strictly inside the dominant braced body (the namespace eval body
+    in filetypes.tcl) — a brace-safe interior edit point."""
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+
+    chunks = segment_top_level_chunks(source)
+    giant = max(chunks, key=lambda c: c.end_offset - c.start_offset)
+    body = giant.commands[0].argv[-1]
+    return (body.start.offset + 1 + body.end.offset) // 2
+
+
+@pytest.mark.slow
+def test_mvcc_document_path_tens_of_thousands_of_edits_no_leak():
+    """Punish the MVCC through the *real document edit path* at scale.
+
+    Drive 20,000 brace-safe interior edits of the 1.3 MB filetypes.tcl through
+    update_source_quick — exercising the rope splice + incremental segmentation
+    + weak MVCC version registry together (only feasible since the brace-safe
+    body-splice fast path made each edit ~5 ms instead of a ~184 ms full re-lex).
+
+    Invariants under the storm:
+    * no version leak — periodic GC must keep the resident version count O(1)
+      (a strong-ref registry or a buffer cache that never released would retain
+      ~20k versions of a >1 MB document, tens of GB, and OOM);
+    * byte-identity — the incrementally-maintained chunks stay identical to a
+      from-scratch segmentation (sampled periodically, the expensive check);
+    * throughput — a loose ceiling flags an O(n)-per-edit regression.
+    """
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+
+    source = _big_source(1_000_000)
+    assert len(source) >= 1_000_000, "stress test needs a multi-MB source"
+
+    st = DocumentState(uri="file:///stress_doc_filetypes.tcl")
+    st.update_source_quick(source, 1)
+    _ = st.buffer
+
+    cur = source
+    base = _giant_body_interior_offset(source)
+    peak_live = len(dict(st._versions))
+    n_edits = 20_000
+    t0 = time.perf_counter()
+    for k in range(2, n_edits + 2):
+        pos = base + (k * 131) % 50_000  # rotating interior, brace-safe region
+        ins = f"z{k} "
+        cur = cur[:pos] + ins + cur[pos:]
+        st.update_source_quick(cur, k)
+        if k % 2_000 == 0:
+            _ = st.buffer  # materialise + exercise the spliced rope
+            gc.collect()
+            peak_live = max(peak_live, len(dict(st._versions)))
+            # Byte-identity: incrementally-maintained chunks == full re-segment.
+            assert [c.source_hash for c in st.chunks] == [
+                c.source_hash for c in segment_top_level_chunks(cur)
+            ], f"incremental chunks diverged from full segmentation at edit {k}"
+    elapsed = time.perf_counter() - t0
+    gc.collect()
+    peak_live = max(peak_live, len(dict(st._versions)))
+
+    assert peak_live <= 4, f"document version registry leaked: peak_live={peak_live}"
+    assert st.source == cur and len(cur) > len(source)
+    # 20k edits at ~5-6 ms each ≈ 2 min; a generous ceiling catches an
+    # O(n)-per-edit (full re-lex) regression that would push it to ~1 h.
+    assert elapsed < 360.0, (
+        f"20k document edits took {elapsed:.0f}s (per-edit no longer ~O(log n)?)"
+    )
