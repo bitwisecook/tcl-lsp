@@ -25,6 +25,10 @@ User-facing compiler troubleshooting and how-tos live in
 - [review-findings-deferred.md](review-findings-deferred.md) — verified-real
   external code-review findings that remain deferred, with root cause and fix
   approach.
+- [FP.md](FP.md) — false-positive / true-positive determination catalog: for
+  each precision decision (shipped or open), a trimmed real-corpus reproducer,
+  a line-by-line walkthrough of why it's FP/TP/not-a-bug, the SSA / SCCP /
+  bounds evidence, and a paired must-fire + must-stay-silent regression test.
 
 ## Pipeline stages
 
