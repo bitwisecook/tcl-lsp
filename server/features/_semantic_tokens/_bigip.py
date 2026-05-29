@@ -25,6 +25,16 @@ from ._constants import (
 
 log = logging.getLogger(__name__)
 
+
+def _buffer_or_build(buffer: DocumentBuffer | None, source: str) -> DocumentBuffer:
+    """Reuse the caller-supplied live document buffer when it matches *source*,
+    else build one.  Lets the semantic-tokens handler pass its single spliced
+    buffer down so the bigip collectors don't each rebuild the O(n) rope."""
+    if buffer is not None and buffer.source == source:
+        return buffer
+    return DocumentBuffer.from_source(source)
+
+
 # BIG-IP semantic highlighting patterns
 _BIGIP_OBJECT_PATH_RE = re.compile(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.:%-]+)+")
 _BIGIP_IPV4_RE = re.compile(
@@ -428,6 +438,7 @@ def _collect_irules_object_tokens(
 def _collect_registry_property_ref_tokens(
     tokens: list[tuple[int, int, int, int, int]],
     source: str,
+    buffer: DocumentBuffer | None = None,
 ) -> None:
     """Emit ``object``-type semantic tokens for every reference the
     registry's value-spec dispatch surfaces — exact byte spans on
@@ -442,7 +453,7 @@ def _collect_registry_property_ref_tokens(
     coverage doesn't double-emit tokens.
     """
     seen: set[tuple[int, int, int, int, int]] = set()
-    buffer = DocumentBuffer.from_source(source)
+    buffer = _buffer_or_build(buffer, source)
     for block in _extract_blocks(source):
         generic = _parse_generic_header(block.header)
         if generic is None:
@@ -489,10 +500,11 @@ def _collect_registry_property_ref_tokens(
 def _collect_bigip_embedded_irules_object_tokens(
     tokens: list[tuple[int, int, int, int, int]],
     source: str,
+    buffer: DocumentBuffer | None = None,
 ) -> None:
     """Collect semantic tokens for object refs inside embedded ``ltm rule`` bodies."""
     seen: set[tuple[int, int, int, int, int]] = set()
-    buf = DocumentBuffer.from_source(source)
+    buf = _buffer_or_build(buffer, source)
     for rule in find_embedded_rules(source):
         rule_module = "gtm" if rule.header.startswith("gtm ") else "ltm"
         body_start = buf.offset_to_position(rule.body_start_offset - 1)
@@ -671,6 +683,7 @@ def _collect_embedded_tcl_tokens(
     tokens: list[tuple[int, int, int, int, int]],
     source: str,
     regex_positions: frozenset[tuple[int, int]] = frozenset(),
+    buffer: DocumentBuffer | None = None,
 ) -> list[tuple[int, int]]:
     """Collect full Tcl tokens for embedded iRule and iApp bodies in bigip.conf.
 
@@ -683,7 +696,7 @@ def _collect_embedded_tcl_tokens(
     tokenised so the caller can filter overlapping tokens from the
     whole-file pass.
     """
-    buf = DocumentBuffer.from_source(source)
+    buf = _buffer_or_build(buffer, source)
     body_ranges: list[tuple[int, int]] = []
 
     # Embedded iRules (ltm rule / gtm rule)

@@ -346,6 +346,14 @@ def on_semantic_tokens_full(
         else:
             cache_status = "no_cache"
     ls = snap.buffer.line_starts if snap and snap.buffer is not None else None
+    # Reuse this snapshot's live spliced buffer (consistent with the captured
+    # source) so the bigip collectors don't rebuild the O(n) rope; matched on
+    # source so a torn snapshot can never feed a mismatched buffer.
+    buf = (
+        snap.buffer
+        if snap is not None and snap.buffer is not None and snap.buffer.source == source
+        else None
+    )
     is_cw = snap is not None and snap.conf_wrapped
     data = semantic_tokens_full(
         source,
@@ -356,6 +364,7 @@ def on_semantic_tokens_full(
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
+        buffer=buf,
     )
     # Write back computed tokens to chunk cache (only where the snapshot the
     # tokens were computed for still matches the live chunk).
@@ -413,6 +422,11 @@ def on_semantic_tokens_delta(
         if cache_info is not None:
             chunk_token_cache, chunk_line_ranges = cache_info
     ls = snap.buffer.line_starts if snap and snap.buffer is not None else None
+    buf = (
+        snap.buffer
+        if snap is not None and snap.buffer is not None and snap.buffer.source == source
+        else None
+    )
     is_cw_delta = snap is not None and snap.conf_wrapped
     new_data = semantic_tokens_full(
         source,
@@ -423,6 +437,7 @@ def on_semantic_tokens_delta(
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
+        buffer=buf,
     )
     if state is not None and chunk_token_cache is not None:
         state.store_semantic_token_cache(chunk_token_cache, snap)
