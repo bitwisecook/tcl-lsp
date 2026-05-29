@@ -52,9 +52,10 @@ the check is folded to a constant and reported as
 
 The same branch narrowing applies to the `info vars` / `info locals` membership
 idioms for a single exact name: `[info vars X] ne ""`,
-`[llength [info vars X]]`, and `[lsearch [info vars] X] > -1`. (`info globals`
-is not used — it proves the *global* exists, not the bare-`$X` local — and glob
-patterns are not statically decidable.)
+`[llength [info vars X]]`, and `[lsearch [info vars] X] > -1`; and to
+`catch {set _ $X}`, whose no-error (false) branch proves `$X` was readable.
+(`info globals` is not used — it proves the *global* exists, not the bare-`$X`
+local — and glob patterns are not statically decidable.)
 
 ## How to suppress
 

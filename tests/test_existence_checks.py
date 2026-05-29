@@ -214,6 +214,30 @@ class TestInfoVarsNarrowing:
         assert "X" in self._flagged('if {[info vars X*] ne ""} { puts $X }')
 
 
+class TestCatchNarrowing:
+    """``catch {set _ $X}`` signals existence on its succeeded (false) branch."""
+
+    def _flagged(self, body: str) -> set[str]:
+        src = f"proc p {{}} {{ eval $cmd; {body} }}"
+        return {d.message.split("'")[1] for d in get_diagnostics(src) if str(d.code) == "W210"}
+
+    def test_false_branch_knows_it_exists(self):
+        assert "X" not in self._flagged("if {[catch {set _ $X}]} { puts a } else { puts $X }")
+
+    def test_negated_true_branch_use_is_safe(self):
+        assert "X" not in self._flagged("if {![catch {set _ $X}]} { puts $X }")
+
+    def test_result_var_form(self):
+        assert "X" not in self._flagged("if {[catch {set _ $X} e]} { puts a } else { puts $X }")
+
+    def test_failed_branch_is_ambiguous_and_still_flagged(self):
+        # catch != 0 could mean missing *or* an array read as a scalar.
+        assert "X" in self._flagged("if {[catch {set _ $X}]} { puts $X }")
+
+    def test_non_pure_body_is_not_narrowed(self):
+        assert "X" in self._flagged("if {[catch {someproc $X}]} { puts a } else { puts $X }")
+
+
 class TestAnalysisLevel:
     """Direct assertions on the core analysis result."""
 

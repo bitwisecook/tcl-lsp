@@ -130,9 +130,14 @@ to a single exact (non-glob) name: `[info vars X]` / `[info locals X]`
 compared with `""` (`ne`/`eq`), `[llength [info vars X]]`, and
 `[lsearch [info vars] X] > -1` / `>= 0` / `!= -1`. `info globals` is *not*
 narrowed (it proves the global exists, not the bare-`$X` local), and unsound
-`lsearch` options (`-regexp`, `-nocase`, …) are rejected. Narrowing is a
-runtime fact (the guard passed), so unlike the fold it needs no foldability
-gate.
+`lsearch` options (`-regexp`, `-nocase`, …) are rejected. `catch {set _ $X}`
+is recognised too: a zero (no-error) result proves the read succeeded, so the
+*false* branch knows `X` exists — the true (error) branch is ambiguous (missing
+*or* an array read as a scalar) and proves nothing. Narrowing is a runtime fact
+(the guard passed), so unlike the fold it needs no foldability gate.
+
+The exact-name shape test goes through `shared.naming.is_unqualified_var_name`
+(built on the lexer's `is_bare_var_name`), not a local regex.
 
 ### Unused variables
 

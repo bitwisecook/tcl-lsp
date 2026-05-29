@@ -42,6 +42,7 @@ from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.runtime import FOLD_HINTS, FOLD_SUBCOMMAND_HINTS, TYPE_HINTS
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
+from shared.naming import is_unqualified_var_name as _is_unqualified_var_name
 from shared.naming import normalise_var_name as _normalise_var_name
 from shared.tokens import TokenType
 
@@ -125,12 +126,6 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     return cmd.texts[0], args_text
 
 
-# A plain, unqualified local scalar name — the only shape whose existence is
-# locally decidable.  Namespace-qualified (``::ns::x``, ``ns::x``), array
-# element (``a(k)``), and dynamic (``$name``) targets are excluded.
-_EXISTENCE_LOCAL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
 def _parse_existence_check(cmd_text: str) -> tuple[str, str] | None:
     """Parse ``[info exists X]`` / ``[array exists X]`` into ``(kind, raw_target)``.
 
@@ -164,7 +159,7 @@ def _existence_scalar_name(raw_target: str) -> str | None:
     ``ns::X``), and dynamic targets (``$name``) are not locally decidable and
     yield ``None``.
     """
-    if not _EXISTENCE_LOCAL_RE.match(raw_target):
+    if not _is_unqualified_var_name(raw_target):
         return None
     name = _normalise_var_name(raw_target)
     return name or None
@@ -1773,6 +1768,35 @@ def _int_const(node: ExprNode) -> int | None:
     return None
 
 
+def _catch_pure_read_target(cmd_text: str) -> str | None:
+    """``[catch {set _ $X}]`` → ``X``, when the body is exactly a pure read of a
+    single plain scalar.
+
+    A zero result (no error) proves the read succeeded, so ``X`` exists and is
+    scalar-readable.  A non-zero result is ambiguous (the variable could be
+    missing *or* be an array read as a scalar), so callers only use the
+    succeeded (false) branch.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "catch":
+        return None
+    words = _split_command_args(args_text)
+    # body, plus optional result / options variable names (Tcl 8.5+).
+    if not (1 <= len(words) <= 3):
+        return None
+    body = words[0]
+    if not (len(body) >= 2 and body[0] == "{" and body[-1] == "}"):
+        return None
+    inner = _split_command_args(body[1:-1].strip())
+    if len(inner) != 3 or inner[0] != "set" or not inner[2].startswith("$"):
+        return None
+    return _existence_scalar_name(inner[2][1:])
+
+
 _SWAP_COMPARISON = {
     BinOp.GT: BinOp.LT,
     BinOp.LT: BinOp.GT,
@@ -1847,6 +1871,10 @@ def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
             name = _llength_info_vars_target(expr.text)
         if name is not None:
             return {name}, set()
+        # ``catch {set _ $X}`` — a zero (false) result proves X exists.
+        catch_var = _catch_pure_read_target(expr.text)
+        if catch_var is not None:
+            return set(), {catch_var}
         return set(), set()
     if isinstance(expr, ExprUnary) and expr.op in (UnaryOp.NOT, UnaryOp.WORD_NOT):
         true_set, false_set = _existence_implications(expr.operand)
