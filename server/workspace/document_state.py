@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -669,16 +670,43 @@ class DocumentState:
     # so ``update()`` must compare the new source's dialect against *this* —
     # not against ``dialect_hint`` — to notice a source-level dialect change.
     _analysed_dialect: str | None = field(default=None, repr=False)
+    # MVCC version registry: version -> that version's rope-backed buffer, held
+    # *weakly*.  The single live buffer all consumers should read is whichever
+    # version is current; an in-flight reader (request handler / analysis task)
+    # that captured an older version keeps it alive only while it holds it, and
+    # Python's GC reclaims any version no longer referenced — the immutable rope
+    # means a still-pinned older version shares structure with the current one,
+    # so coexisting in-flight versions are cheap.  Never holds a strong ref, so
+    # it cannot itself leak old versions.
+    _versions: weakref.WeakValueDictionary[int, DocumentBuffer] = field(
+        default_factory=weakref.WeakValueDictionary, repr=False
+    )
+
+    def _register_version(self, buf: DocumentBuffer | None) -> None:
+        """Record *buf* in the weak MVCC registry (no-op for None / no version)."""
+        if buf is not None and isinstance(buf.version, int):
+            self._versions[buf.version] = buf
+
+    def buffer_for_version(self, version: int) -> DocumentBuffer | None:
+        """The rope-backed buffer for document *version*, if still live.
+
+        Held weakly: returns ``None`` once every in-flight reader of that
+        version has dropped it (GC reclaimed it).  Lets background / in-flight
+        work look a version up without pinning it — the caller pins it for the
+        duration of its work simply by holding the returned buffer."""
+        return self._versions.get(version)
 
     def _swap_snapshot(self, snapshot: _StateSnapshot) -> None:
         """Install a fully-built state snapshot under the document lock."""
         with self._lock:
             self._snap = snapshot
+            self._register_version(snapshot.buffer)
 
     def _replace_snapshot(self, **changes: Any) -> None:
         """Replace the current snapshot with selected fields changed."""
         with self._lock:
             self._snap = replace(self._snap, **changes)
+            self._register_version(self._snap.buffer)
 
     def refresh_dialect_hint(self, source: str) -> None:
         """Refresh the per-document dialect hint from metadata and source."""
@@ -851,6 +879,7 @@ class DocumentState:
                 if snap.buffer is None or snap.buffer.source != snap.source:
                     buffer = DocumentBuffer.from_source(snap.source, snap.version)
                     self._snap = replace(snap, buffer=buffer)
+                    self._register_version(buffer)
                     return buffer
         return snap.buffer
 

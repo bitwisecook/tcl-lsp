@@ -30,13 +30,25 @@ def compute_line_starts(source: str) -> tuple[int, ...]:
     return tuple(starts)
 
 
-@dataclass(slots=True)
+@dataclass
 class DocumentBuffer:
     """Shared per-document position infrastructure.
 
     Replaces scattered ``source.split("\\n")``, ``SourceMap(source)``,
     ``_chunk_line_range(source, chunk)``, and ``position_from_relative()``
     calls with a single cached object backed by a :class:`Rope`.
+
+    Intentionally *not* a ``slots`` dataclass: instances must be weak-
+    referenceable so the per-document MVCC version registry
+    (:class:`~server.workspace.document_state.DocumentState`) can hold each
+    version's buffer *weakly* — a version is reclaimed by Python's GC as soon as
+    no in-flight reader (request handler / analysis task) still holds it, while
+    the immutable rope's structural sharing keeps any still-pinned older version
+    cheap (it shares every untouched subtree with the current one).  Only
+    O(open documents) buffers are live at once, so the per-instance ``__dict__``
+    is negligible.  (``slots=True, weakref_slot=True`` would be the slotted
+    equivalent, but the type checker's bundled stubs don't yet model
+    ``weakref_slot``.)
     """
 
     source: str
