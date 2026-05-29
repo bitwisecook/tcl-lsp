@@ -995,18 +995,19 @@ def print_bounds(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None
     the container length, and why it is out of range — so a finding (and the
     interval reasoning behind it) is explainable next to the ``intervals`` view.
     """
-    from compiler.interval_bounds import find_divide_by_zero, find_interval_bounds
+    from compiler.interval_bounds import find_interval_findings
 
     print()
     print(style("bounds", Ansi.BOLD, use_colour))
     for snap in snapshots:
         if snap.cfg is None or snap.ssa is None or snap.analysis is None:
             continue
-        findings = find_interval_bounds(
-            snap.cfg, snap.ssa, snap.execution_intent, snap.analysis.values
-        )
+        # Both passes share one interval fixpoint (find_interval_bounds and
+        # find_divide_by_zero each recompute it otherwise — paid twice here).
         executable = set(snap.cfg.blocks) - snap.analysis.unreachable_blocks
-        divzero = find_divide_by_zero(snap.cfg, snap.ssa, snap.analysis.values, executable)
+        findings, divzero = find_interval_findings(
+            snap.cfg, snap.ssa, snap.execution_intent, snap.analysis.values, executable
+        )
         print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
         if not findings and not divzero:
             print(style("  (no provable out-of-range / divide-by-zero)", Ansi.DIM, use_colour))

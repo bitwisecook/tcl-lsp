@@ -231,9 +231,13 @@ def minimize_diagnostic(
 
     # 1. Structural reduction over lines.
     reduced = "\n".join(_ddmin(source.split("\n"), lambda u: fires("\n".join(u))))
-    reduced = _dedent(reduced)
-    if not fires(reduced):  # dedent must not change the result
-        reduced = "\n".join(_ddmin(source.split("\n"), lambda u: fires("\n".join(u))))
+    # Dedent must not change the result.  If it does (a rare brace/heredoc-
+    # sensitive case), revert to the already-minimised pre-dedent text — it is
+    # known to fire — rather than re-running the whole ddmin from the *original*
+    # source, which both doubles the work and discards the reduction.
+    dedented = _dedent(reduced)
+    if fires(dedented):
+        reduced = dedented
 
     # 2. Verify-gated identifier rename.
     did_rename = False

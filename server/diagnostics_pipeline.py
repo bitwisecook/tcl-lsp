@@ -479,16 +479,31 @@ async def _publish_diagnostics_inner(
             from compiler.registry.runtime import _dialect_var, _extra_commands_var
             from server.workspace.document_state import _analyse_document_fresh
 
-            if len(source) > _SMALL_BUILD_MAX_BYTES:
+            lane = "cold" if len(source) > _SMALL_BUILD_MAX_BYTES else "small"
+
+            # Cheap pre-submission supersession check: if a newer edit was
+            # already requested while this build queued behind the writer lock,
+            # don't even acquire a pool worker for a result we'd discard at line
+            # ~540 anyway.  Submitting it would occupy a (scarce) subprocess slot
+            # the newer build needs, so the live edit queues behind a corpse.
+            if _superseded(uri, version):
+                log.info(
+                    "[timing] _publish_diagnostics abandoned (superseded before "
+                    "%s submit: newest req v%s, this v%s)",
+                    lane,
+                    _publish_latest_version.get(uri),
+                    version,
+                )
+                return
+
+            if lane == "cold":
                 pool = _state._get_process_pool()
                 reset_pool = _state._reset_process_pool
                 ceiling = _COLD_BUILD_CEILING_S
-                lane = "cold"
             else:
                 pool = _state._get_small_pool()
                 reset_pool = _state._reset_small_pool
                 ceiling = _SMALL_BUILD_CEILING_S
-                lane = "small"
 
             # The build runs in its lane's pool and is abandoned if a newer edit
             # supersedes it.  A generous wall-clock ceiling guards a wedged build
@@ -728,6 +743,18 @@ async def _publish_diagnostics_inner(
     )
 
     async def _deep_coro() -> list[types.Diagnostic]:
+        # Cheap pre-submission supersession check: the deep coro is scheduled and
+        # may sit behind earlier work before it runs.  If a newer edit already
+        # arrived, don't burn a deep-pool worker on a result ``_guarded_publish``
+        # will discard anyway — submitting it queues the live edit behind a corpse.
+        if _superseded(uri, version):
+            log.info(
+                "[timing] deep build abandoned (superseded before submit: "
+                "newest req v%s, this v%s)",
+                _publish_latest_version.get(uri),
+                version,
+            )
+            return []
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(

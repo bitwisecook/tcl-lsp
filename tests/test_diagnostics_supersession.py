@@ -143,6 +143,49 @@ class TestSupersessionAfterAnalysis:
             _state.workspace_state.close(uri)
 
 
+class TestSupersededBeforeSubmit:
+    """A build already superseded *before* it submits to the pool must not burn a
+    worker on a result that ``_superseded`` would discard after analysis anyway —
+    submitting it would occupy a scarce subprocess slot the live edit needs, so
+    the newer build queues behind a corpse.  The guard returns without invoking
+    the analysis at all."""
+
+    def test_superseded_cold_build_not_submitted(self, monkeypatch):
+        uri = "file:///supersede_before_submit.tcl"
+        server = _FakeServer()
+        monkeypatch.setattr(dp, "_server", server)
+        # Force the cold lane so the guard sits in front of _get_process_pool.
+        monkeypatch.setattr(dp, "_SMALL_BUILD_MAX_BYTES", -1)
+        monkeypatch.setattr(_state.diagnostic_scheduler, "schedule_async", lambda *a, **k: None)
+
+        analysed: list[int | None] = []
+        real_fresh = document_state._analyse_document_fresh
+
+        def tracking_fresh(**kwargs):
+            analysed.append(kwargs.get("version"))
+            return real_fresh(**kwargs)
+
+        monkeypatch.setattr(document_state, "_analyse_document_fresh", tracking_fresh)
+
+        def _no_pool():
+            raise AssertionError("pool must not be requested for a build superseded before submit")
+
+        monkeypatch.setattr(_state, "_get_process_pool", _no_pool)
+
+        try:
+            # A newer version (v5) is already the latest-requested when this v1
+            # build reaches its submit point.  Call _locked directly to bypass
+            # the lock-entry supersession check and exercise the pre-submission
+            # guard inside the fresh-build branch.
+            dp._publish_latest_version[uri] = 5
+            asyncio.run(dp._publish_diagnostics_locked(uri, "set x 1\n", version=1))
+            assert analysed == [], "a superseded build must not run analysis"
+            assert all(v != 1 for (_u, v) in server.published), server.published
+        finally:
+            dp._release_publish_state(uri)
+            _state.workspace_state.close(uri)
+
+
 class TestDidCloseEvictsPullDiagCache:
     """did_close (via _release_publish_state) must evict the pull-model
     diagnostics cache; otherwise every ever-opened URI keeps a full diagnostics

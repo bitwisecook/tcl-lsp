@@ -8,8 +8,24 @@ instances.
 Position mapping is backed by a :class:`shared.rope.Rope` (a persistent
 balanced tree): ``offset``↔``(line, col)`` are O(log n), and an edit can be
 applied in O(log n) with structural reuse of the unchanged remainder via
-:meth:`DocumentBuffer.from_edit`.  The flat ``line_starts`` tuple is still
-available (lazily) for the few consumers that read it directly.
+:meth:`DocumentBuffer.from_edit`.
+
+RAM model (why the apparent duplication is bounded and intentional):
+  * ``source`` is the canonical text string — the contract many feature
+    handlers depend on (they slice it directly), so it is kept eagerly.
+  * ``rope`` is a *structural* second copy: its per-line chunks enable the
+    O(log n) edit + cross-version sharing above, so an old version that is
+    still pinned shares every untouched subtree with the current one rather
+    than holding an independent full copy.
+  * ``lines`` and ``line_starts`` are **lazy** flat caches — each is built
+    (and a full split / index allocated) only the first time a direct
+    consumer reads it on this version, never speculatively.  They exist
+    because the rope answers point queries in O(log n) but several handlers
+    want the whole flat index in one call (``server.py`` line slicing,
+    ``definition.py`` offset lookup); recomputing per call would be worse.
+Because only O(open documents) buffers are live at once (older versions are
+GC'd once unreferenced — see the class docstring), this duplication is a small
+constant per open file, not a per-edit leak.
 """
 
 from __future__ import annotations
@@ -100,7 +116,12 @@ class DocumentBuffer:
 
     @property
     def line_starts(self) -> tuple[int, ...]:
-        """Flat line-starts tuple, computed lazily (for direct consumers)."""
+        """Flat line-starts tuple, computed lazily (for direct consumers).
+
+        Materialised on first access only (see the module RAM-model note): the
+        rope answers single point queries in O(log n), but a handler that wants
+        the whole index in one shot (e.g. ``definition.py``) reads this instead.
+        """
         if self._line_starts is None:
             self._line_starts = compute_line_starts(self.source)
         return self._line_starts
