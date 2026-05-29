@@ -39,7 +39,7 @@ from .expr_ast import (
     ExprTernary,
     ExprUnary,
 )
-from .intervals import Interval, _eval_expr, compute_intervals, refine_interval
+from .intervals import Interval, _eval_expr, _literal_int, compute_intervals, refine_interval
 from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall, IRExprEval, IRReturn
 from .parsing.substitution import backslash_subst
 from .ssa import SSAFunction, SSAValueKey
@@ -222,25 +222,56 @@ def _parse_index_sub(text: str) -> _Candidate | None:
 # dead sub-expression.  A *guaranteed*-runtime diagnostic (divide-by-zero W233,
 # or an out-of-range smell) must therefore never be drawn from a sub-expression
 # that may not execute.
-_LAZY_BINOPS = frozenset({BinOp.AND, BinOp.OR, BinOp.WORD_AND, BinOp.WORD_OR})
+#
+# A lazy arm whose guard is a **compile-time constant** is the opposite case: it
+# is *forced* to run, so ``expr {1 && 1/0}`` / ``expr {0 || 1/0}`` /
+# ``expr {1 ? 1/0 : 7}`` genuinely raise at run time and a guaranteed-error
+# finding drawn from the forced arm is sound.  :func:`_walk_eager` resolves a
+# constant guard to walk exactly the forced arm; a *non-constant* guard leaves
+# the arm maybe-dead and it stays skipped (no false positive).
+_AND_BINOPS = frozenset({BinOp.AND, BinOp.WORD_AND})
+_OR_BINOPS = frozenset({BinOp.OR, BinOp.WORD_OR})
+_LAZY_BINOPS = _AND_BINOPS | _OR_BINOPS
 
 
 def _walk_eager(expr: ExprNode, visit: Callable[[ExprNode], None]) -> None:
-    """Visit *expr* and every **unconditionally-evaluated** sub-expression.
+    """Visit *expr* and every **guaranteed-to-evaluate** sub-expression.
 
-    Skips the short-circuit (right) operand of ``&&``/``||``/``and``/``or`` and
-    both arms of a ternary — those run only when selected, so a guaranteed-error
-    diagnostic must not be drawn from them.
+    The short-circuit (right) operand of ``&&``/``||``/``and``/``or`` and the
+    arms of a ternary run only when selected.  This walk resolves a
+    **constant** guard so a *forced* lazy arm is still visited (its sub-tree is
+    guaranteed to run, so a guaranteed-error diagnostic drawn from it is sound):
+
+    * ``a && b`` — ``b`` is forced iff ``a`` is a constant **true**;
+    * ``a || b`` — ``b`` is forced iff ``a`` is a constant **false**;
+    * ``c ? t : f`` — ``t`` forced iff ``c`` constant-true, ``f`` iff constant-false.
+
+    A *non-constant* guard leaves the arm maybe-dead, so it is skipped and no
+    guaranteed-error finding is drawn from it (preserves the dead-arm
+    suppressions, e.g. FP-BND-05).  The constant test is env-independent
+    (``_literal_int`` over a literal / bool keyword), so this is sound for the
+    candidate-collection callers that have no interval environment.
     """
     visit(expr)
     if isinstance(expr, ExprBinary):
         _walk_eager(expr.left, visit)
         if expr.op not in _LAZY_BINOPS:
             _walk_eager(expr.right, visit)
+            return
+        guard = _literal_int(expr.left)
+        if guard is None:
+            return  # maybe-dead RHS — leave it skipped
+        forced = (guard != 0) if expr.op in _AND_BINOPS else (guard == 0)
+        if forced:
+            _walk_eager(expr.right, visit)
     elif isinstance(expr, ExprUnary):
         _walk_eager(expr.operand, visit)
     elif isinstance(expr, ExprTernary):
         _walk_eager(expr.condition, visit)
+        cond = _literal_int(expr.condition)
+        if cond is None:
+            return  # both arms maybe-dead — leave them skipped
+        _walk_eager(expr.true_branch if cond != 0 else expr.false_branch, visit)
     elif isinstance(expr, ExprCall):
         for a in expr.args:
             _walk_eager(a, visit)

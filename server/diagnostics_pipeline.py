@@ -503,6 +503,14 @@ async def _publish_diagnostics_inner(
                             # ContextVar, so forward them explicitly for the
                             # subprocess to re-establish (mirrors dialect).
                             stub_commands=tuple(_state.workspace_stub_commands),
+                            # Forward the line-ending config and the (small,
+                            # picklable) workspace diagnostic context so the cold
+                            # build's basic diagnostics match the in-thread
+                            # phase1: line-ending checks + W120/W123 workspace
+                            # filtering.  Without these a large file's cold build
+                            # diverged from a small file's in-thread build.
+                            line_ending=_state.formatter_config_for_uri(uri).line_ending,
+                            workspace_context=_build_workspace_diagnostic_context(),
                         ),
                     ),
                     timeout=_COLD_BUILD_CEILING_S,
@@ -663,9 +671,13 @@ async def _publish_diagnostics_inner(
     _scheduled_version = version
 
     from compiler.registry.dialect import active_dialect
+    from compiler.registry.runtime import _extra_commands_var
     from server.features.diagnostics import _run_deep_diagnostics
 
     _dialect = active_dialect()
+    # Snapshot the per-folder command overlay in the parent (the worker can't
+    # read the parent's ContextVar) so the deep pass re-establishes it.
+    _extra_commands = tuple(_extra_commands_var.get())
     # Deep diagnostics run in their OWN pool, separate from cold builds, so a
     # storm of multi-second cold builds can't starve every document's deep pass.
     _pool = _state._get_deep_pool()
@@ -708,6 +720,13 @@ async def _publish_diagnostics_inner(
                     uri=uri,
                     generic_variable_patterns=_generic_var_patterns,
                     shimmer_target_procs=_shimmer_targets,
+                    # The deep pool's workers don't share the parent's
+                    # ContextVars, so forward the per-folder command overlay and
+                    # workspace .tcl.stubs for the worker to re-establish — the
+                    # same context the parent applies via dialect_scope(...,
+                    # extra_commands) + ambient_stub_scope (issue #407).
+                    extra_commands=_extra_commands,
+                    stub_commands=tuple(_state.workspace_stub_commands),
                 ),
             )
         except BrokenProcessPool:

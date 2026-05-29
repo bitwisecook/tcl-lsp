@@ -297,10 +297,12 @@ def read_places(stmt: IRStatement, ctx: ResolveContext) -> tuple[Place, ...]:
                 # script kept as an arg is scanned brace-aware as a whole word.
                 add_refs(arg)
         add_refs(stmt.command)
-    elif isinstance(stmt, IRBlock):
-        # ``eval``/``namespace eval`` body is opaque to the CFG but its reads
-        # run in (or escape to) the enclosing scope — recover them so the value
-        # feeding a ``$x`` inside ``eval {puts $x}`` isn't seen as dead.
+    elif isinstance(stmt, IRBlock) and stmt.caller_scope:
+        # A plain ``eval {…}`` body is opaque to the CFG but runs in the
+        # enclosing scope — recover its reads so the value feeding a ``$x``
+        # inside ``eval {puts $x}`` isn't seen as dead.  A ``namespace eval ns
+        # {…}`` body (``caller_scope=False``) runs in ``ns``, so its unqualified
+        # reads are not caller-local reads and are intentionally not recovered.
         for inner in stmt.body.statements:
             out.extend(read_places(inner, ctx))
 

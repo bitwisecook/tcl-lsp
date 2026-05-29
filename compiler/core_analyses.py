@@ -1274,13 +1274,19 @@ def _ir_statement_words(ir_stmt: IRStatement) -> list[str]:
 def _block_local_reads(stmt: IRStatement, names: set[str]) -> None:
     """Collect reads inside an ``IRBlock`` (``eval``/``namespace eval``) body.
 
-    An ``IRBlock`` body is spliced into the enclosing scope (plain ``eval``
-    runs in the current scope), but the block is opaque to the CFG, so reads
-    like ``$x`` in ``eval {puts $x}`` never reach ``stmt.uses`` and the
-    assignment feeding them looks dead/unused.  Collect those reads name-level
-    (suppress-only, so safe even for ``namespace eval``'s different scope).
+    A plain ``eval {…}`` body runs in the **current** scope, but the block is
+    opaque to the CFG, so reads like ``$x`` in ``eval {puts $x}`` never reach
+    ``stmt.uses`` and the assignment feeding them looks dead/unused — recover
+    those reads name-level.
+
+    A ``namespace eval ns {…}`` body (``caller_scope=False``) runs in ``ns``,
+    not the caller frame: an unqualified ``$x`` there resolves in ``ns`` (Tcl
+    errors ``can't read "x"`` when absent), so it is *not* a read of the
+    caller's local ``x``.  Recovering it would wrongly suppress a genuine
+    unused-parameter (W214) / dead-store finding, so the whole sub-tree is
+    skipped (everything lexically inside runs in ``ns`` or deeper).
     """
-    if not isinstance(stmt, IRBlock):
+    if not isinstance(stmt, IRBlock) or not stmt.caller_scope:
         return
     for inner in stmt.body.statements:
         names.update(statement_read_names(inner))

@@ -237,6 +237,38 @@ class TestDivideByZero:
         # errors in tclsh, so this must still fire.
         assert len(_codes("proc f {} { return [expr {1/0 && 1}] }", "W233")) == 1
 
+    # A lazy arm whose guard is a *compile-time constant* is FORCED to run, so a
+    # `1/0` there is a guaranteed runtime error and must fire.  Verified in tclsh
+    # 9.0.3: `expr {1 && 1/0}`, `expr {0 || 1/0}`, `expr {1 ? 1/0 : 7}` all raise
+    # `divide by zero`.  (Complements the dead-arm suppressions above.)
+    def test_forced_and_rhs_div_zero_fires(self):
+        # LHS is constant-true, so the && RHS is always evaluated.
+        assert len(_codes("proc f {} { return [expr {1 && 1/0}] }", "W233")) == 1
+
+    def test_forced_or_rhs_div_zero_fires(self):
+        # LHS is constant-false, so the || RHS is always evaluated.
+        assert len(_codes("proc f {} { return [expr {0 || 1/0}] }", "W233")) == 1
+
+    def test_forced_true_ternary_arm_div_zero_fires(self):
+        # Condition is constant-true, so the then-arm is always evaluated.
+        assert len(_codes("proc f {} { return [expr {1 ? 1/0 : 7}] }", "W233")) == 1
+
+    def test_forced_false_ternary_arm_div_zero_fires(self):
+        # Condition is constant-false, so the else-arm is always evaluated.
+        assert len(_codes("proc f {} { return [expr {0 ? 7 : 1/0}] }", "W233")) == 1
+
+    def test_bool_keyword_guard_forces_arm(self):
+        # `true`/`false`/`yes`/`no`/`on`/`off` are constant guards too.
+        assert len(_codes("proc f {} { return [expr {true && 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {no || 1/0}] }", "W233")) == 1
+
+    def test_nonconstant_guard_arm_stays_silent(self):
+        # A *non-constant* guard leaves the arm maybe-dead — no guaranteed error,
+        # so W233 must stay silent (preserves the dead-arm discipline).
+        assert _codes("proc f {c} { return [expr {$c && 1/0}] }", "W233") == []
+        assert _codes("proc f {c} { return [expr {$c || 1/0}] }", "W233") == []
+        assert _codes("proc f {c} { return [expr {$c ? 1/0 : 7}] }", "W233") == []
+
 
 class TestUnreachableBoundsSuppressed:
     """Dynamic-bounds findings must not fire from statically unreachable blocks

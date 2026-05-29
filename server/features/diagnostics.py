@@ -829,6 +829,8 @@ def _run_deep_diagnostics(
     uri: str | None = None,
     generic_variable_patterns: list[str] | None = None,
     shimmer_target_procs: frozenset[str] | None = None,
+    extra_commands: tuple[str, ...] = (),
+    stub_commands: tuple = (),
 ) -> list[types.Diagnostic]:
     """Subprocess-safe wrapper for deep diagnostics.
 
@@ -840,11 +842,20 @@ def _run_deep_diagnostics(
     *shimmer_target_procs* (a set of qnames, or ``None`` for all) restricts the
     body-local shimmer pass to the procs the incremental memoizer flagged dirty;
     the caller reuses re-offset cached shimmer for the rest.
+
+    The subprocess does not share ContextVars with the parent, so the
+    per-folder ``extra_commands`` (dialect/EDA command overlay, issue #407) and
+    the workspace ``.tcl.stubs`` must be forwarded and re-applied here — exactly
+    as ``_analyse_document_fresh`` does for the cold build.  Without this the
+    deep pass (optimiser / taint / GVN) re-lexes against a bare registry and
+    can mis-resolve folder-scoped or stub-declared commands.
     """
     import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
+    from compiler.registry.stub_comments import set_ambient_stubs
 
-    configure_signatures(dialect=dialect)
+    configure_signatures(dialect=dialect, extra_commands=list(extra_commands))
+    set_ambient_stubs(stub_commands)
     return get_deep_diagnostics(
         source,
         suppressed,

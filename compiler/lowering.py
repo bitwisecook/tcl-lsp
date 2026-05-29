@@ -2372,6 +2372,9 @@ class _Lowerer:
                         namespace=child_ns,
                         source_args=tuple(args),
                         source_tokens=cmd.cmd_tokens,
+                        # Body runs in child_ns, not the caller frame — its
+                        # unqualified reads are not caller-local reads.
+                        caller_scope=False,
                     )
                 # Dynamic namespace eval — fall back to tcl_eval so
                 # the runtime evaluates the body script however it

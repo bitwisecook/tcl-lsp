@@ -3972,6 +3972,51 @@ class TestEvalBodyReadTracking:
         assert len(_diag_with_code(src, "W211")) == 1
 
 
+class TestNamespaceEvalBodyScope:
+    """A ``namespace eval ns {…}`` body runs in ``ns``, NOT the caller frame, so
+    an unqualified ``$x`` inside it resolves in ``ns`` (Tcl errors
+    ``can't read "x"`` when absent) — it is *not* a read of a caller local.
+    Recovering it would wrongly suppress a genuine unused-parameter (W214) /
+    dead-store (W220) finding.  Plain ``eval {…}`` keeps its caller-scope
+    recovery (it really does run in the current frame)."""
+
+    @staticmethod
+    def _w214(src: str) -> set[str]:
+        return {d.message.split("'")[1] for d in analyse(src).diagnostics if d.code == "W214"}
+
+    def test_param_used_only_in_ns_eval_body_is_unused(self):
+        # `x` is referenced only inside `namespace eval ::ns {…}`, which runs in
+        # ::ns — so the parameter `x` is genuinely unused in the caller.
+        src = 'proc g {x} { namespace eval ::ns { puts "hello $x" } }'
+        assert "x" in self._w214(src)
+
+    def test_param_used_in_plain_eval_body_is_used(self):
+        # Plain `eval {…}` runs in the current scope, so `$x` IS a use of the
+        # caller's parameter — must NOT be flagged unused (contrast above).
+        src = 'proc g {x} { eval { puts "hello $x" } }'
+        assert "x" not in self._w214(src)
+
+    def test_param_used_only_in_dynamic_ns_eval_body_is_unused(self):
+        # A dynamically-named `namespace eval $ns {…}` body still runs in some
+        # child namespace, never the caller frame.
+        src = 'proc g {x ns} { namespace eval $ns { puts "hello $x" } }'
+        assert "x" in self._w214(src)
+
+    def test_ns_eval_dead_store_still_fires(self):
+        # `set y 1` is dead in the caller: the namespace eval body's `$y` runs
+        # in ::ns, so it does not keep the caller's `y` live.
+        src = 'proc g {} { set y 1; namespace eval ::ns { puts "$y" } }'
+        assert len(_diag_with_code(src, "W220")) >= 1
+
+    def test_ns_eval_name_arg_read_still_recovered(self):
+        # The namespace *name* expression is evaluated in the caller scope, so
+        # `name` IS read there (regression guard: the body-scope fix must not
+        # suppress the name-arg read).
+        src = "proc f {conn} { set name [format ns%s $conn]\n namespace eval $name { variable s } }"
+        assert _diag_with_code(src, "W220") == []
+        assert _diag_with_code(src, "W211") == []
+
+
 class TestLoopStubStillTracksVars:
     """A `-loop` stub (declared with stubs-begin/end markers) must lower as a
     real loop so the loop variable is a def and body reads are tracked — no

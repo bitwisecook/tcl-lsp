@@ -237,6 +237,8 @@ def _analyse_document_fresh(
     extra_commands: tuple[str, ...] = (),
     non_ascii_mode: str | None = None,
     stub_commands: tuple = (),
+    line_ending: str = "\n",
+    workspace_context: object | None = None,
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 
@@ -324,8 +326,9 @@ def _analyse_document_fresh(
                 disabled_diagnostics=disabled_diagnostics or set(),
                 disabled_optimisations=disabled_optimisations or set(),
                 line_length=line_length,
+                line_ending=line_ending,
                 cached_style_diagnostics=None,
-                workspace_context=None,
+                workspace_context=workspace_context,
                 uri=uri,
             )
         except Exception:
@@ -401,8 +404,14 @@ def _analyse_document_fresh(
             disabled_diagnostics=disabled_diagnostics or set(),
             disabled_optimisations=disabled_optimisations or set(),
             line_length=line_length,
+            line_ending=line_ending,
             cached_style_diagnostics=None,
-            workspace_context=None,
+            # Forwarded from the parent so the cold build produces the same
+            # workspace-aware diagnostics as the in-thread phase1: line-ending
+            # checks (line_ending) and W120/W123 workspace filtering
+            # (workspace_context).  WorkspaceDiagnosticContext is a small,
+            # picklable bundle of frozensets/dicts of strings.
+            workspace_context=workspace_context,
             uri=uri,
         )
     except Exception:
