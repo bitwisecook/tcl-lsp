@@ -1514,23 +1514,66 @@ def _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks):
     aliased local is conservatively kept (the suppress-only contract).  Shared
     by ``_dead_stores`` (W220) and ``_unused_variables`` (W211) so the analyser
     and the optimiser DCE (O109/O126, which read those lists) stay consistent.
-    Computed lazily — only when an element/dict candidate is actually hit."""
-    cache: list[Place] | None = None
+    Computed lazily — only when an element/dict candidate is actually hit.
+
+    The overlap scan is bucketed by base ``(ns, name)``.  For an
+    ARRAY_ELEM/DICT_PATH def, a read can observe it under :func:`overlap` only
+    when it shares the def's base name (structural element/key overlap), OR — for
+    a *dynamic*-aliased def — when it is itself a dynamic alias of any name
+    (``overlap`` returns ``p.dynamic and q.dynamic`` there), OR when it is a
+    *wildcard* read (``UNKNOWN`` / ``UPVAR_ALIAS``, which overlaps any reportable
+    def).  So each query touches only the same-base bucket plus the
+    wildcard/dynamic checks, instead of an O(reads) scan per candidate
+    (O(defs × reads) overall).  Exactly equivalent to
+    ``any(overlap(p_def, rp) for rp in reads)`` for those def kinds."""
+    index: tuple[bool, dict[tuple[str, str], list[Place]], list[Place]] | None = None
+
+    def _build() -> tuple[bool, dict[tuple[str, str], list[Place]], list[Place]]:
+        wildcard = False
+        by_base: dict[tuple[str, str], list[Place]] = {}
+        dynamic_nonwild: list[Place] = []
+        for b2 in considered_blocks:
+            sb2 = ssa.blocks.get(b2)
+            if sb2 is None:
+                continue
+            rps: list[Place] = []
+            for s2 in sb2.statements:
+                rps.extend(read_places(s2.statement, resolve_ctx))
+            term2 = cfg.blocks[b2].terminator
+            rps.extend(terminator_read_places(term2, resolve_ctx))
+            for rp in rps:
+                if rp.kind is PlaceKind.UNKNOWN or rp.kind is PlaceKind.UPVAR_ALIAS:
+                    wildcard = True
+                    continue
+                by_base.setdefault((rp.ns, rp.name), []).append(rp)
+                if rp.dynamic:
+                    dynamic_nonwild.append(rp)
+        return wildcard, by_base, dynamic_nonwild
 
     def observed(p_def: Place) -> bool:
-        nonlocal cache
-        if cache is None:
-            rps: list[Place] = []
-            for b2 in considered_blocks:
-                sb2 = ssa.blocks.get(b2)
-                if sb2 is None:
-                    continue
-                for s2 in sb2.statements:
-                    rps.extend(read_places(s2.statement, resolve_ctx))
-                term2 = cfg.blocks[b2].terminator
-                rps.extend(terminator_read_places(term2, resolve_ctx))
-            cache = rps
-        return any(overlap(p_def, rp) for rp in cache)
+        nonlocal index
+        if index is None:
+            index = _build()
+        wildcard, by_base, dynamic_nonwild = index
+        # A wildcard read (UNKNOWN / UPVAR_ALIAS) overlaps any reportable def.
+        if wildcard:
+            return True
+        if p_def.kind not in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH):
+            # The bucketing assumes the documented def kinds; for anything else
+            # fall back to a full scan (no wildcards remain, so by_base is the
+            # complete read set).  Defensive — the callers never hit this.
+            return any(overlap(p_def, rp) for bucket in by_base.values() for rp in bucket)
+        key = (p_def.ns, p_def.name)
+        for rp in by_base.get(key, ()):  # same base: structural element/key overlap
+            if overlap(p_def, rp):
+                return True
+        if p_def.dynamic:
+            # A dynamic def overlaps any *different*-named dynamic read
+            # (``overlap`` returns ``p.dynamic and q.dynamic`` == True there).
+            for rp in dynamic_nonwild:
+                if (rp.ns, rp.name) != key:
+                    return True
+        return False
 
     return observed
 
