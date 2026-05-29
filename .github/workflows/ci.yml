@@ -376,9 +376,14 @@ jobs:
             artefact_glob: "build/tcl-lsp-mcp-server-*.pyz"
             smoke: "python3 build/tcl-lsp-mcp-server-*.pyz --help"
 
-          - profile: wasm
-            artefact_glob: "build/tcl-wasm-compiler-*.pyz"
-            smoke: "python3 build/tcl-wasm-compiler-*.pyz --help"
+          # NOTE: the wasm profile is intentionally NOT in this matrix.  Unlike
+          # the other profiles, `make zipapp-wasm` builds the Zig runtime
+          # (RUNTIME_WASM → `zig build`), which needs the Zig toolchain and the
+          # vendored Tcl-regex sources that the shared `setup-build` action does
+          # not install.  It runs as the dedicated `build-zipapp-wasm` job below,
+          # which sets up Zig, fetches the regex sources, and additionally emits
+          # an SBOM + provenance attestation.  (Leaving it here produced a
+          # duplicate `zipapp-wasm` artefact upload and failed for lack of Zig.)
 
           - profile: gui-cdn
             artefact_glob: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
