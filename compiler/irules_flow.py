@@ -603,10 +603,14 @@ def _classify_command(
         payload_calls.append((protocol, side, rng))
 
 
-def _lower_side_switch_body(stmt: IRCall) -> IRScript | None:
+def _lower_side_switch_body(stmt: IRCall | IRBarrier) -> IRScript | None:
     """Lower a ``clientside``/``serverside`` body arg to IR.
 
-    Returns ``None`` if the body cannot be lowered (e.g. syntax errors).
+    Side-switches carry a ``BODY`` arg, so the generic lowering path emits
+    them as an :class:`IRBarrier` (``reason="unsupported body command"``)
+    rather than an :class:`IRCall`; both shapes keep the body text in
+    ``args[0]``.  Returns ``None`` if the body cannot be lowered (e.g.
+    syntax errors).
     """
     if not stmt.args:
         return None
@@ -654,7 +658,7 @@ def _scan_ir_body_with_side(
         # and recurse with the switched side context.
         if REGISTRY.is_side_switch(cmd):
             inner_side = "client" if cmd == "clientside" else "server"
-            if isinstance(ir_stmt, IRCall):
+            if isinstance(ir_stmt, (IRCall, IRBarrier)):
                 inner_ir = _lower_side_switch_body(ir_stmt)
                 if inner_ir is not None:
                     _scan_ir_body_with_side(
@@ -1325,8 +1329,14 @@ def _find_generic_static_names(
                     elif isinstance(stmt, IRCall) and stmt.defs:
                         for var_name in stmt.defs:
                             _check_var(var_name, stmt.range)
-                    # Descend into clientside/serverside body args.
-                    if isinstance(stmt, IRCall) and REGISTRY.is_side_switch(stmt.command):
+                    # Descend into clientside/serverside body args.  These
+                    # carry a ``BODY`` arg so they lower to an ``IRBarrier``,
+                    # not an ``IRCall``; both keep the body text in args[0].
+                    if (
+                        isinstance(stmt, (IRCall, IRBarrier))
+                        and stmt.command is not None
+                        and REGISTRY.is_side_switch(stmt.command)
+                    ):
                         inner_ir = _lower_side_switch_body(stmt)
                         if inner_ir is not None:
                             for inner_stmt in _iter_all_ir_statements(inner_ir):
@@ -1403,7 +1413,8 @@ def _iter_all_ir_statements(script: IRScript, *, lower_side_switches: bool = Tru
                 )
         elif (
             lower_side_switches
-            and isinstance(stmt, IRCall)
+            and isinstance(stmt, (IRCall, IRBarrier))
+            and stmt.command is not None
             and REGISTRY.is_side_switch(stmt.command)
         ):
             inner_ir = _lower_side_switch_body(stmt)

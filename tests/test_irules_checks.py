@@ -162,6 +162,35 @@ class TestIrule1001:
         assert "ACCESS" in diags[0].message
 
 
+class TestNestingScriptBodyAnalysis:
+    """``clientside`` / ``serverside`` / ``after`` script bodies are analysed.
+
+    These commands accept an optional ``NESTING_SCRIPT`` body.  Once the body
+    carries ``ArgRole.BODY`` its contents are recursively analysed, so an
+    event-illegal command nested inside the body is flagged just as it would
+    be at the top level of the handler.  Before the body role existed the
+    script was an opaque value and the nested command went unchecked.
+    """
+
+    def test_wrong_event_command_in_clientside_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    clientside { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_wrong_event_command_in_serverside_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    serverside { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_wrong_event_command_in_after_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    after 1000 { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+
 # IRULE2001: Deprecated matchclass
 
 

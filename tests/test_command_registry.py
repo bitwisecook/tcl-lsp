@@ -856,6 +856,87 @@ class TestBodyKind:
         assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
 
 
+class TestIrulesNestingScriptBody:
+    """iRules ``NESTING_SCRIPT`` arguments resolve to ``ArgRole.BODY``.
+
+    ``clientside`` / ``serverside`` / ``after`` each accept an optional Tcl
+    script body in their synopsis (``(NESTING_SCRIPT)?``) but historically
+    declared no ``ArgRole.BODY``, so the script contents were treated as an
+    opaque value rather than recursively analysed.  ``clientside`` /
+    ``serverside`` run the script synchronously in the caller's scope
+    (``INLINE``); ``after`` defers it to a fresh context (``STRUCTURAL``).
+    """
+
+    def _registry(self):
+        from compiler.registry import REGISTRY
+
+        # These are iRules-only commands; load the dialect so the specs
+        # are visible to the runtime role/body-kind queries.
+        REGISTRY.load_dialect_specs("f5-irules")
+
+    def test_clientside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("clientside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("clientside", args) is BodyKind.INLINE
+
+    def test_serverside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("serverside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("serverside", args) is BodyKind.INLINE
+
+    def test_clientside_serverside_query_form_has_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Bare ``[clientside]`` / ``[serverside]`` is a context query (1/0),
+        # so there is no body argument to analyse.
+        assert arg_indices_for_role("clientside", [], ArgRole.BODY) == set()
+        assert arg_indices_for_role("serverside", [], ArgRole.BODY) == set()
+
+    def test_after_trailing_script_is_structural_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        # after MILLI_SECONDS NESTING_SCRIPT
+        assert arg_indices_for_role("after", ["1000", "{set x 5}"], ArgRole.BODY) == {1}
+        # after MILLI_SECONDS -periodic NESTING_SCRIPT — body follows the flag
+        periodic = arg_indices_for_role("after", ["1000", "-periodic", "{set x 5}"], ArgRole.BODY)
+        assert periodic == {2}
+        assert body_kind_for_command("after", ["1000", "{set x 5}"]) is BodyKind.STRUCTURAL
+
+    def test_after_non_script_forms_have_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Delay-only, the periodic flag without a script, and the
+        # cancel/info subcommand forms carry no script body.
+        assert arg_indices_for_role("after", ["1000"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["1000", "-periodic"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["cancel", "-current"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["info", "$id"], ArgRole.BODY) == set()
+
+
 class TestTraceAddVariableVarWrite:
     """Issue #249 — ``trace add variable`` resolves *name* to ``ArgRole.VAR_WRITE``.
 
