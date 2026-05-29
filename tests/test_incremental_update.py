@@ -929,3 +929,80 @@ class TestSemanticTokenFlagConsistency:
         info = st.get_semantic_token_cache()
         assert info is not None
         assert info[0] == self._subprocess_tokens(v2, version=2)
+
+
+class TestBracedBodyIncrementalReuse:
+    """A file dominated by one huge braced-body command (``namespace eval ns {
+    …thousands of lines… }``) has no reusable top-level chunk boundary, so a
+    naive incremental segmenter re-lexes the whole body on every keystroke.  The
+    brace-safe interior-edit fast path splices the body word instead, and must
+    stay byte-identical to a full re-segmentation."""
+
+    _BODY = "\n".join(f"    set v{i} {i}" for i in range(400))
+    _SRC = f"package require Foo\nnamespace eval ::ns {{\n{_BODY}\n}}\nset done 1\n"
+
+    @staticmethod
+    def _chunks_equal(a, b) -> bool:
+        if len(a) != len(b):
+            return False
+        for x, y in zip(a, b):
+            if (x.index, x.start_offset, x.end_offset, x.source_hash) != (
+                y.index,
+                y.start_offset,
+                y.end_offset,
+                y.source_hash,
+            ):
+                return False
+            if x.commands != y.commands:
+                return False
+        return True
+
+    def _interior_offset(self):
+        chunks = segment_top_level_chunks(self._SRC)
+        giant = max(chunks, key=lambda c: c.end_offset - c.start_offset)
+        body = giant.commands[0].argv[-1]
+        return chunks, (body.start.offset + 1 + body.end.offset) // 2
+
+    def test_brace_safe_interior_edit_matches_full(self):
+        from compiler.parsing.incremental import (
+            _reuse_edit_in_braced_body,
+            infer_edit_range,
+        )
+
+        old_chunks, pos = self._interior_offset()
+        for ins in ("x", "set extra 1\n", "  # comment\n", "abc def", "\n\n"):
+            new = self._SRC[:pos] + ins + self._SRC[pos:]
+            edit = infer_edit_range(self._SRC, new)
+            assert edit is not None
+            fast = _reuse_edit_in_braced_body(self._SRC, old_chunks, new, edit)
+            assert fast is not None, f"fast path should apply for brace-safe ins={ins!r}"
+            assert self._chunks_equal(fast, segment_top_level_chunks(new)), (
+                f"fast path diverged from full segmentation for ins={ins!r}"
+            )
+
+    def test_brace_unsafe_edit_bails(self):
+        from compiler.parsing.incremental import (
+            _reuse_edit_in_braced_body,
+            infer_edit_range,
+        )
+
+        old_chunks, pos = self._interior_offset()
+        for ins in ("{", "}", "if {1} {", "\\n", "}}}"):
+            new = self._SRC[:pos] + ins + self._SRC[pos:]
+            edit = infer_edit_range(self._SRC, new)
+            assert edit is not None
+            # Must fall back (None) — a brace/backslash edit can change structure.
+            assert _reuse_edit_in_braced_body(self._SRC, old_chunks, new, edit) is None, (
+                f"brace-unsafe ins={ins!r} must bail to full re-segmentation"
+            )
+
+    def test_document_state_quick_update_stays_byte_identical(self):
+        # End-to-end: an interior edit via update_source_quick yields the same
+        # chunks a from-scratch segmentation would.
+        st = DocumentState(uri="file:///braced.tcl")
+        st.update_source_quick(self._SRC, 1)
+        _ = st.buffer
+        _chunks, pos = self._interior_offset()
+        new = self._SRC[:pos] + "set spliced 1\n" + self._SRC[pos:]
+        st.update_source_quick(new, 2)
+        assert self._chunks_equal(list(st.chunks), segment_top_level_chunks(new))

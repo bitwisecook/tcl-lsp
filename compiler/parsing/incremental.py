@@ -26,9 +26,12 @@ falls back to a full re-segmentation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace as _dc_replace
 from typing import TYPE_CHECKING
 
-from shared.diagnostic import SourcePosition
+from shared.diagnostic import Range, SourcePosition
+from shared.hashing import stable_text_hash
+from shared.rebase import shift_position
 from shared.tokens import Token, TokenType
 
 from .command_segmenter import (
@@ -37,7 +40,7 @@ from .command_segmenter import (
     segment_commands,
     tile_commands,
 )
-from .token_positions import shift_range, shift_token
+from .token_positions import shift_range, shift_token, token_content_shift
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -195,6 +198,118 @@ def _offset_to_position(text: str, offset: int) -> SourcePosition:
     return SourcePosition(line=line, character=safe - (last_nl + 1), offset=safe)
 
 
+def _reuse_edit_in_braced_body(
+    old_source: str,
+    old_chunks: Sequence[TopLevelChunk],
+    new_source: str,
+    edit: EditRange,
+) -> list[TopLevelChunk] | None:
+    """Fast path for a *brace-safe interior edit* of a large braced-body command.
+
+    A file dominated by one huge top-level command — ``namespace eval ns {
+    …thousands of lines… }`` (e.g. tcllib's 1.3 MB ``filetypes.tcl``) — has no
+    reusable top-level chunk boundary, so :func:`incremental_top_level_chunks`'s
+    window would re-lex the whole command on every keystroke: the lexer must
+    scan the entire braced body to find the matching ``}``.
+
+    But when the edit lies strictly *inside* that body word and changes no brace
+    structure (inserts/deletes no ``{``, ``}`` or ``\\``), the command's word
+    structure is provably unchanged — only the body word's text and its end
+    position shift.  Reuse the command, splicing the body word's text and
+    shifting its end (the body's close ``}`` sits on a line strictly below the
+    edit, so the shift is a pure offset/line bump with columns unchanged), reuse
+    the prefix verbatim, and shift the suffix.  No body re-lex.
+
+    Returns ``None`` (caller falls back) whenever any precondition isn't met.
+    """
+    start = edit.start
+    old_end = edit.old_end
+    offset_delta = edit.offset_delta
+    line_delta = edit.line_delta
+
+    # The edited text on both sides must introduce no brace / escape change, so
+    # the braced body's nesting (and thus the command's extent) is preserved.
+    old_edit = old_source[start:old_end]
+    new_edit = new_source[start : edit.new_end]
+    if any(c in old_edit for c in "{}\\") or any(c in new_edit for c in "{}\\"):
+        return None
+
+    # Locate the unique chunk whose tile contains the whole edit.
+    target = -1
+    for i, chunk in enumerate(old_chunks):
+        if chunk.start_offset <= start and old_end <= chunk.end_offset:
+            target = i
+            break
+    if target < 0:
+        return None
+    chunk = old_chunks[target]
+    if len(chunk.commands) != 1:
+        return None
+    cmd = chunk.commands[0]
+    if cmd.is_partial or not cmd.argv or not cmd.single_token_word:
+        return None
+    if not cmd.single_token_word[-1]:
+        return None
+    body = cmd.argv[-1]
+    # Must be a *braced* word (leading "{" + trailing "}"), and the edit must be
+    # strictly interior to its content (not touching either brace).
+    if token_content_shift(body) != 1:
+        return None
+    bstart = body.start.offset
+    bend = body.end.offset  # last content char; the "}" is at bend + 1
+    if not (0 <= bstart < len(old_source)) or old_source[bstart] != "{":
+        return None
+    if bend + 1 >= len(old_source) or old_source[bend + 1] != "}":
+        return None
+    if not (bstart < start and old_end <= bend + 1):
+        return None
+    # The body's close (and everything after the edit in this command) must be
+    # on a line strictly below the edit's last line, so the shift keeps columns.
+    edit_end_line = new_source.count("\n", 0, edit.new_end)
+    if body.end.line + line_delta <= edit_end_line:
+        return None
+
+    # Reconstruct the edited command: head words unchanged; body word keeps its
+    # start, gets the new content text, and its end shifted; range end shifted.
+    new_body_end = shift_position(body.end, line_delta, 0, offset_delta)
+    new_body_text = new_source[bstart + 1 : new_body_end.offset + 1]
+    new_body = Token(
+        type=body.type,
+        text=new_body_text,
+        start=body.start,
+        end=new_body_end,
+        in_quote=body.in_quote,
+    )
+    new_argv = list(cmd.argv[:-1]) + [new_body]
+    # all_tokens equals argv for a head-words + single braced-body command; only
+    # support that shape (the giant-command case) — otherwise bail.
+    if cmd.all_tokens != cmd.argv:
+        return None
+    new_texts = list(cmd.texts[:-1]) + [new_body_text] if cmd.texts else cmd.texts
+    new_range = Range(
+        start=cmd.range.start,
+        end=shift_position(cmd.range.end, line_delta, 0, offset_delta),
+    )
+    new_cmd = _dc_replace(cmd, range=new_range, argv=new_argv, all_tokens=new_argv, texts=new_texts)
+
+    new_cmd_end = new_range.end.offset
+    new_chunk = TopLevelChunk(
+        index=chunk.index,
+        start_offset=chunk.start_offset,
+        end_offset=chunk.end_offset + offset_delta,
+        source_hash=stable_text_hash(new_source[chunk.start_offset : new_cmd_end + 1]),
+        commands=(new_cmd,),
+    )
+
+    result: list[TopLevelChunk] = list(old_chunks[:target])
+    result.append(new_chunk)
+    for c in old_chunks[target + 1 :]:
+        result.append(
+            _shift_chunk(c, index=c.index, offset_delta=offset_delta, line_delta=line_delta)
+        )
+    return result
+
+
 def incremental_top_level_chunks(
     old_source: str,
     old_chunks: Sequence[TopLevelChunk],
@@ -219,6 +334,14 @@ def incremental_top_level_chunks(
     """
     if not old_chunks:
         return None
+
+    # Fast path: a brace-safe interior edit of one large braced-body command
+    # (the single-giant-command file) — reuse it with a body splice instead of
+    # re-lexing the whole body.
+    spliced = _reuse_edit_in_braced_body(old_source, old_chunks, new_source, edit)
+    if spliced is not None:
+        return spliced
+
     n = len(old_chunks)
 
     start = edit.start
