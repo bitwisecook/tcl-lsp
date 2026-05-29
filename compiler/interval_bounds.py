@@ -38,11 +38,11 @@ from .expr_ast import (
     ExprNode,
     ExprTernary,
     ExprUnary,
+    _const_bool,
 )
 from .intervals import (
     Interval,
     _eval_expr,
-    _literal_int,
     build_guard_index,
     compute_intervals,
     refine_interval,
@@ -256,8 +256,12 @@ def _walk_eager(expr: ExprNode, visit: Callable[[ExprNode], None]) -> None:
     A *non-constant* guard leaves the arm maybe-dead, so it is skipped and no
     guaranteed-error finding is drawn from it (preserves the dead-arm
     suppressions, e.g. FP-BND-05).  The constant test is env-independent
-    (``_literal_int`` over a literal / bool keyword), so this is sound for the
-    candidate-collection callers that have no interval environment.
+    (``_const_bool`` over a literal number / bool keyword — handling floats and
+    case-insensitive booleans like ``True``/``1.0``, returning ``None`` when not
+    statically decidable so the arm stays safely skipped), so this is sound for
+    the candidate-collection callers that have no interval environment.  It is
+    the same constant-truth engine ``expr_ast.dead_command_ranges`` uses for the
+    W123 dead-arm check, so the two agree on which arm is forced/dead.
     """
     visit(expr)
     if isinstance(expr, ExprBinary):
@@ -265,20 +269,21 @@ def _walk_eager(expr: ExprNode, visit: Callable[[ExprNode], None]) -> None:
         if expr.op not in _LAZY_BINOPS:
             _walk_eager(expr.right, visit)
             return
-        guard = _literal_int(expr.left)
+        guard = _const_bool(expr.left)
         if guard is None:
             return  # maybe-dead RHS — leave it skipped
-        forced = (guard != 0) if expr.op in _AND_BINOPS else (guard == 0)
+        # ``a && b`` forces b iff a is constant-true; ``a || b`` iff a is false.
+        forced = guard if expr.op in _AND_BINOPS else (not guard)
         if forced:
             _walk_eager(expr.right, visit)
     elif isinstance(expr, ExprUnary):
         _walk_eager(expr.operand, visit)
     elif isinstance(expr, ExprTernary):
         _walk_eager(expr.condition, visit)
-        cond = _literal_int(expr.condition)
+        cond = _const_bool(expr.condition)
         if cond is None:
             return  # both arms maybe-dead — leave them skipped
-        _walk_eager(expr.true_branch if cond != 0 else expr.false_branch, visit)
+        _walk_eager(expr.true_branch if cond else expr.false_branch, visit)
     elif isinstance(expr, ExprCall):
         for a in expr.args:
             _walk_eager(a, visit)

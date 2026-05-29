@@ -262,6 +262,35 @@ class TestDivideByZero:
         assert len(_codes("proc f {} { return [expr {true && 1/0}] }", "W233")) == 1
         assert len(_codes("proc f {} { return [expr {no || 1/0}] }", "W233")) == 1
 
+    def test_float_constant_guard_forces_arm(self):
+        # A *float* literal guard is constant too — `1.0` is true, `0.0` false.
+        # tclsh 9.0.3: `expr {1.0 && 1/0}` / `expr {0.0 || 1/0}` raise divide by
+        # zero.  (Missed while the guard test was int-only via `_literal_int`.)
+        assert len(_codes("proc f {} { return [expr {1.0 && 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {0.0 || 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233")) == 1
+
+    def test_uppercase_bool_guard_forces_arm(self):
+        # Tcl `expr` accepts booleans case-insensitively, so `True`/`TRUE`/`Yes`
+        # are constant guards.  (Missed while the lexer recognised only the
+        # lowercase spellings — capitalised bools degraded to opaque ExprRaw.)
+        assert len(_codes("proc f {} { return [expr {True && 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {TRUE && 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {No || 1/0}] }", "W233")) == 1
+
+    def test_unary_constant_guard_forces_arm(self):
+        # A unary `-`/`+` keeps the operand's truth (so `-1`/`+2` are true), and
+        # `!`/`not` invert it (`!0` is true).  All constant → forced arm.
+        assert len(_codes("proc f {} { return [expr {-1 && 1/0}] }", "W233")) == 1
+        assert len(_codes("proc f {} { return [expr {!0 && 1/0}] }", "W233")) == 1
+
+    def test_unary_constant_dead_arm_stays_silent(self):
+        # `!1` is constant-false, so the && RHS is short-circuited away — no
+        # guaranteed error.  `-0` is false → `-0 || 1/0` forces the RHS, but
+        # `!1 && 1/0` and `False && 1/0` must stay silent.
+        assert _codes("proc f {} { return [expr {!1 && 1/0}] }", "W233") == []
+        assert _codes("proc f {} { return [expr {False && 1/0}] }", "W233") == []
+
     def test_nonconstant_guard_arm_stays_silent(self):
         # A *non-constant* guard leaves the arm maybe-dead — no guaranteed error,
         # so W233 must stay silent (preserves the dead-arm discipline).

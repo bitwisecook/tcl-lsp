@@ -188,8 +188,19 @@ ExprNode = (
 
 
 def _const_bool(node: ExprNode) -> bool | None:
-    """The static truth value of *node* if it is a literal Tcl boolean/number,
-    else ``None`` (not statically decidable)."""
+    """The static truth value of *node* if it is a literal Tcl boolean/number
+    (optionally under a constant-foldable unary), else ``None`` (not statically
+    decidable).  Folds the boolean-relevant unaries over a constant operand:
+    ``+``/``-`` preserve truth (sign never changes zero-ness — ``-1`` is true,
+    ``-0`` false), ``!``/``not`` invert it.  ``~`` stays conservative (``None``):
+    it needs the integer value, and a bitwise-not guard is rare."""
+    if isinstance(node, ExprUnary):
+        if node.op in (UnaryOp.NEG, UnaryOp.POS):
+            return _const_bool(node.operand)
+        if node.op in (UnaryOp.NOT, UnaryOp.WORD_NOT):
+            inner = _const_bool(node.operand)
+            return None if inner is None else (not inner)
+        return None
     if not isinstance(node, ExprLiteral):
         return None
     t = node.text.strip()
