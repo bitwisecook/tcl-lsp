@@ -37,6 +37,7 @@ from .expr_ast import (
     ExprUnary,
     ExprVar,
     UnaryOp,
+    vars_in_expr_node,
 )
 from .ir import IRAssignConst, IRAssignExpr, IRIncr
 from .ssa import SSAFunction, SSAValueKey
@@ -300,6 +301,37 @@ def _guard_constraint(cond: ExprNode, name: str, *, negate: bool) -> Interval | 
     return None
 
 
+def build_guard_index(cfg: CFGFunction, ssa: SSAFunction) -> dict[SSAValueKey, list[str]]:
+    """Index ``(name, version) -> [branch-block names]`` for guard narrowing.
+
+    :func:`refine_interval` otherwise rescans *every* CFG block on every call
+    (and it is called per-use per-statement by the interval/bounds passes) just
+    to find the few branch blocks whose constant-bound comparison constrains the
+    queried ``(name, version)``.  Build that mapping once per function instead.
+
+    Exact: a branch can only narrow a name that appears in its condition (else
+    :func:`_guard_constraint` returns ``None`` and the block is skipped), so we
+    index, for each ``CFGBranch`` block, the names in its condition against the
+    block's exit version of each — exactly the blocks the rescan would have kept.
+    """
+    from .cfg import CFGBranch
+
+    index: dict[SSAValueKey, list[str]] = {}
+    for dn, dblock in cfg.blocks.items():
+        term = dblock.terminator
+        if not isinstance(term, CFGBranch):
+            continue
+        sb = ssa.blocks.get(dn)
+        if sb is None:
+            continue
+        for name in vars_in_expr_node(term.condition):
+            version = sb.exit_versions.get(name)
+            if version is None:
+                continue
+            index.setdefault((name, version), []).append(dn)
+    return index
+
+
 def refine_interval(
     base: dict[SSAValueKey, Interval],
     cfg: CFGFunction,
@@ -307,6 +339,7 @@ def refine_interval(
     block: str,
     name: str,
     version: int,
+    guard_index: dict[SSAValueKey, list[str]] | None = None,
 ) -> Interval:
     """Narrow ``base[(name, version)]`` by the constant-bound guards that hold
     on every path reaching *block*.
@@ -316,13 +349,24 @@ def refine_interval(
     *block* is reached only via *D*'s true (resp. false) edge, intersect with
     the guard's true (resp. false) constraint.  This proves, e.g., that inside
     ``if {$i < 10} { … }`` the value ``$i`` lies in ``[lo, 9]``.
+
+    *guard_index* (from :func:`build_guard_index`) restricts the scan to the
+    branch blocks that actually constrain ``(name, version)``; ``None`` falls
+    back to scanning every block (same result, used by direct callers/tests).
     """
     from .cfg import CFGBranch
     from .loops import dominates
 
     iv = base.get((name, version), TOP)
-    for dn, dblock in cfg.blocks.items():
+    if guard_index is not None:
+        candidate_blocks: list[str] = guard_index.get((name, version), [])
+    else:
+        candidate_blocks = [dn for dn in cfg.blocks if dn != block]
+    for dn in candidate_blocks:
         if dn == block:
+            continue
+        dblock = cfg.blocks.get(dn)
+        if dblock is None:
             continue
         term = dblock.terminator
         if not isinstance(term, CFGBranch):

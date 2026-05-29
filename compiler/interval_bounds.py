@@ -39,7 +39,14 @@ from .expr_ast import (
     ExprTernary,
     ExprUnary,
 )
-from .intervals import Interval, _eval_expr, _literal_int, compute_intervals, refine_interval
+from .intervals import (
+    Interval,
+    _eval_expr,
+    _literal_int,
+    build_guard_index,
+    compute_intervals,
+    refine_interval,
+)
 from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall, IRExprEval, IRReturn
 from .parsing.substitution import backslash_subst
 from .ssa import SSAFunction, SSAValueKey
@@ -365,6 +372,7 @@ def find_interval_bounds(
     executable_blocks: set[str] | None = None,
     *,
     intervals: dict[SSAValueKey, Interval] | None = None,
+    guard_index: dict[SSAValueKey, list[str]] | None = None,
 ) -> list[BoundsFinding]:
     """Dynamic out-of-range findings for this function (empty if none).
 
@@ -440,7 +448,7 @@ def find_interval_bounds(
             )
         if length is None:
             return
-        iv = refine_interval(intervals, cfg, ssa, bn, ivar, iver)
+        iv = refine_interval(intervals, cfg, ssa, bn, ivar, iver, guard_index)
         if iv.is_top or iv.is_bottom:
             return
         reason = _classify(iv, length, is_lset=is_lset)
@@ -542,6 +550,7 @@ def find_divide_by_zero(
     executable_blocks: set[str],
     *,
     intervals: dict[SSAValueKey, Interval] | None = None,
+    guard_index: dict[SSAValueKey, list[str]] | None = None,
 ) -> list[DivZeroFinding]:
     """Divisions/modulo whose divisor is provably ``[0, 0]`` (a runtime error).
 
@@ -565,7 +574,7 @@ def find_divide_by_zero(
 
     def env_for(uses: Mapping[str, int], bn: str) -> dict[str, Interval]:
         return {
-            name: refine_interval(ivals, cfg, ssa, bn, name, ver)
+            name: refine_interval(ivals, cfg, ssa, bn, name, ver, guard_index)
             for name, ver in uses.items()
             if ver > 0
         }
@@ -611,13 +620,26 @@ def find_interval_findings(
     if not (has_candidate or has_division):
         return [], []
     intervals = compute_intervals(cfg, ssa, values)
+    # Build the guard index once and share it: refine_interval would otherwise
+    # rescan every CFG block per use, per statement, in both passes.
+    guard_index = build_guard_index(cfg, ssa)
     bounds = (
-        find_interval_bounds(cfg, ssa, intent, values, executable_blocks, intervals=intervals)
+        find_interval_bounds(
+            cfg,
+            ssa,
+            intent,
+            values,
+            executable_blocks,
+            intervals=intervals,
+            guard_index=guard_index,
+        )
         if has_candidate
         else []
     )
     divzero = (
-        find_divide_by_zero(cfg, ssa, values, executable_blocks, intervals=intervals)
+        find_divide_by_zero(
+            cfg, ssa, values, executable_blocks, intervals=intervals, guard_index=guard_index
+        )
         if has_division
         else []
     )
