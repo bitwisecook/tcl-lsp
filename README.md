@@ -1772,6 +1772,7 @@ For the complete reference, see
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
 | W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
+| W127 | Value not in the command's allowed set (e.g. `HTTP::version "2.0"`) | Use one of the listed values |
 | W200 | Binary format modifier requires newer Tcl | |
 | W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
 

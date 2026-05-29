@@ -1134,6 +1134,41 @@ class TestEventAwareCompletions:
         assert {"0.9", "1.0", "1.1"} <= offered
 
 
+class TestW127ClosedValueSet:
+    """W127: a literal at a closed-value argument index must be in the set.
+
+    Driven by ``FormSpec.closed_value_args``; ``HTTP::version`` is the first
+    user.  HTTP/2 and /3 are separate namespaces, so ``HTTP::version "2.0"``
+    is a mistake the check catches.
+    """
+
+    def test_invalid_http_version_warns_and_lists_allowed(self):
+        src = 'when HTTP_RESPONSE priority 5 {\n    HTTP::version "2.0"\n}'
+        diags = _diag_with_code(src, "W127")
+        assert len(diags) == 1
+        assert "2.0" in diags[0].message
+        assert "0.9" in diags[0].message  # the allowed set is listed
+        assert "1.1" in diags[0].message
+
+    def test_valid_http_versions_have_no_warning(self):
+        for v in ("0.9", "1.0", "1.1"):
+            src = f'when HTTP_RESPONSE priority 5 {{\n    HTTP::version "{v}"\n}}'
+            assert _diag_with_code(src, "W127") == [], v
+
+    def test_string_form_is_exempt(self):
+        # The ``-string`` form is an unconstrained raw value, not a closed set.
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version -string 9.9\n}"
+        assert _diag_with_code(src, "W127") == []
+
+    def test_dynamic_value_is_exempt(self):
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version $v\n}"
+        assert _diag_with_code(src, "W127") == []
+
+    def test_getter_form_has_no_warning(self):
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version\n}"
+        assert _diag_with_code(src, "W127") == []
+
+
 # Enhanced hovers
 
 

@@ -403,6 +403,11 @@ class FormSpec:
     subcommand_arg_values: dict[tuple[str, int], tuple[ArgumentValueSpec, ...]] = field(
         default_factory=dict,
     )
+    closed_value_args: frozenset[int] = frozenset()
+    """Argument indices whose ``arg_values`` are the *complete* set of legal
+    literals (not merely completion suggestions).  A literal at one of these
+    indices that is not among ``arg_values`` is reported as W127.  Indices not
+    listed accept any value."""
 
     def option_names(self) -> tuple[str, ...]:
         return tuple(opt.name for opt in self.options)
@@ -963,6 +968,17 @@ class CommandSpec:
             if value_spec.value == value:
                 return value_spec
         return None
+
+    def closed_value_arg_indices(self) -> frozenset[int]:
+        """Argument indices whose ``arg_values`` are an exhaustive legal set.
+
+        Unions ``FormSpec.closed_value_args`` across all forms.  A literal at
+        one of these indices that is not in :meth:`argument_values` is invalid.
+        """
+        indices: set[int] = set()
+        for form in self.forms:
+            indices |= form.closed_value_args
+        return frozenset(indices)
 
     def subcommand_argument_values(
         self,

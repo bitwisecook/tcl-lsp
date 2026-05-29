@@ -964,6 +964,30 @@ class TestIrulesNestingScriptBody:
             assert validation.arity.max == 1, name
 
 
+class TestClosedValueArgs:
+    """``FormSpec.closed_value_args`` marks an argument's value set exhaustive."""
+
+    def test_http_version_value_arg_is_closed(self):
+        from compiler.registry import REGISTRY
+
+        REGISTRY.load_dialect_specs("f5-irules")
+        assert REGISTRY.closed_value_arg_indices("HTTP::version", "f5-irules") == frozenset({0})
+        # The allowed set is the HTTP/1.x versions and nothing else.
+        allowed = {v.value for v in REGISTRY.argument_values("HTTP::version", 0, "f5-irules")}
+        assert allowed == {"0.9", "1.0", "1.1"}
+
+    def test_unmarked_command_has_no_closed_args(self):
+        from compiler.registry import REGISTRY
+
+        # A command that only suggests values (or none) is not a closed set.
+        assert REGISTRY.closed_value_arg_indices("set", "tcl8.6") == frozenset()
+
+    def test_w127_is_registered(self):
+        from shared.codes import diagnostic_codes
+
+        assert "W127" in diagnostic_codes()
+
+
 class TestTraceAddVariableVarWrite:
     """Issue #249 — ``trace add variable`` resolves *name* to ``ArgRole.VAR_WRITE``.
 
