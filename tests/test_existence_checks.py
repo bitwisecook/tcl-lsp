@@ -164,6 +164,56 @@ class TestFlowSensitiveNarrowing:
         assert "X" not in flagged
 
 
+class TestInfoVarsNarrowing:
+    """``info vars`` / ``info locals`` membership idioms narrow reads too.
+
+    The leading ``eval`` barrier keeps both arms live (no fold), so narrowing —
+    not DCE — governs whether the guarded read is flagged.
+    """
+
+    def _flagged(self, body: str) -> set[str]:
+        src = f"proc p {{}} {{ eval $cmd; {body} }}"
+        return {d.message.split("'")[1] for d in get_diagnostics(src) if str(d.code) == "W210"}
+
+    def test_info_vars_ne_empty_true_branch(self):
+        assert "X" not in self._flagged('if {[info vars X] ne ""} { puts $X }')
+
+    def test_info_vars_ne_empty_false_branch_flagged(self):
+        assert "X" in self._flagged('if {[info vars X] ne ""} { puts a } else { puts $X }')
+
+    def test_info_vars_eq_empty_else_branch(self):
+        assert "X" not in self._flagged('if {[info vars X] eq ""} { puts a } else { puts $X }')
+
+    def test_info_locals_ne_empty(self):
+        assert "X" not in self._flagged('if {[info locals X] ne ""} { puts $X }')
+
+    def test_llength_info_vars(self):
+        assert "X" not in self._flagged("if {[llength [info vars X]]} { puts $X }")
+
+    def test_lsearch_gt_minus_one(self):
+        assert "X" not in self._flagged("if {[lsearch [info vars] X] > -1} { puts $X }")
+
+    def test_lsearch_exact_ge_zero(self):
+        assert "X" not in self._flagged("if {[lsearch -exact [info vars] X] >= 0} { puts $X }")
+
+    def test_lsearch_eq_minus_one_else_branch(self):
+        assert "X" not in self._flagged(
+            "if {[lsearch [info vars] X] == -1} { puts a } else { puts $X }"
+        )
+
+    def test_info_globals_is_not_narrowed(self):
+        # ``info globals`` proves the *global* exists, not the local ``$X``.
+        assert "X" in self._flagged('if {[info globals X] ne ""} { puts $X }')
+
+    def test_lsearch_regexp_is_not_narrowed(self):
+        # ``-regexp`` matches a regex, not an exact name — unsound to narrow.
+        assert "X" in self._flagged("if {[lsearch -regexp [info vars] X] > -1} { puts $X }")
+
+    def test_glob_pattern_is_not_narrowed(self):
+        # A glob pattern is not a single exact name.
+        assert "X" in self._flagged('if {[info vars X*] ne ""} { puts $X }')
+
+
 class TestAnalysisLevel:
     """Direct assertions on the core analysis result."""
 

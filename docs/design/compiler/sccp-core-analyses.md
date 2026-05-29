@@ -125,6 +125,15 @@ guard proves to exist (the true region of `if {[info exists X]}`, or the false
 region of a negated guard), and reads of those names there are suppressed. The
 opposite branch keeps version 0, so a read there is still flagged.
 
+`_existence_implications` recognises the membership idioms too, all restricted
+to a single exact (non-glob) name: `[info vars X]` / `[info locals X]`
+compared with `""` (`ne`/`eq`), `[llength [info vars X]]`, and
+`[lsearch [info vars] X] > -1` / `>= 0` / `!= -1`. `info globals` is *not*
+narrowed (it proves the global exists, not the bare-`$X` local), and unsound
+`lsearch` options (`-regexp`, `-nocase`, …) are rejected. Narrowing is a
+runtime fact (the guard passed), so unlike the fold it needs no foldability
+gate.
+
 ### Unused variables
 
 Variables that are defined but never read (across all versions) appear in

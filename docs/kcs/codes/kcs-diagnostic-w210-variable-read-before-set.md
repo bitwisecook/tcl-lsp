@@ -50,6 +50,12 @@ read there is still flagged. When the variable is provably absent (or present),
 the check is folded to a constant and reported as
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
 
+The same branch narrowing applies to the `info vars` / `info locals` membership
+idioms for a single exact name: `[info vars X] ne ""`,
+`[llength [info vars X]]`, and `[lsearch [info vars] X] > -1`. (`info globals`
+is not used — it proves the *global* exists, not the bare-`$X` local — and glob
+patterns are not statically decidable.)
+
 ## How to suppress
 
 Add `# noqa: W210` at the end of the offending line.

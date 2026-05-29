@@ -55,6 +55,7 @@ from .expr_ast import (
     ExprLiteral,
     ExprNode,
     ExprRaw,
+    ExprString,
     ExprTernary,
     ExprUnary,
     UnaryOp,
@@ -1640,6 +1641,194 @@ def _existence_checks_in_stmt(stmt: IRStatement) -> set[str]:
     return names
 
 
+# ``info vars`` / ``info locals`` are existence probes too — they return the
+# matching visible variable names rather than reading a value.  Only an exact
+# (non-glob) name is statically decidable; a glob pattern would need a
+# variable-lifetime matrix we do not have, so those are skipped.
+
+
+def _info_vars_exact_target(cmd_text: str) -> str | None:
+    """``[info vars X]`` / ``[info locals X]`` → exact local name ``X``."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "info":
+        return None
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+    if len(parts) != 2 or parts[0] not in ("vars", "locals"):
+        return None
+    return _existence_scalar_name(parts[1])
+
+
+def _is_info_vars_full_list(cmd_text: str) -> bool:
+    """True when *cmd_text* is exactly ``[info vars]`` / ``[info locals]``."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return False
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "info":
+        return False
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return False
+    return parts in (["vars"], ["locals"])
+
+
+def _split_command_args(args_text: str) -> list[str]:
+    """Split a command's argument text into words, keeping ``[cmd]``, ``{str}``
+    and ``$var`` substitutions as single words (unlike ``_split_tcl_list``,
+    which treats ``[`` / ``]`` as ordinary characters)."""
+    words: list[str] = []
+    prev_sep = True
+    try:
+        tokens = TclLexer(args_text).tokenise_all()
+    except Exception:
+        return []
+    for tok in tokens:
+        if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
+            prev_sep = True
+            continue
+        piece = tok.text
+        if tok.type is TokenType.CMD:
+            piece = f"[{tok.text}]"
+        elif tok.type is TokenType.STR:
+            piece = f"{{{tok.text}}}"
+        elif tok.type is TokenType.VAR:
+            piece = f"${tok.text}"
+        if prev_sep or not words:
+            words.append(piece)
+        else:
+            words[-1] += piece
+        prev_sep = False
+    return words
+
+
+_LSEARCH_SAFE_OPTS = frozenset({"-exact", "-glob", "-sorted"})
+
+
+def _lsearch_info_vars_needle(cmd_text: str) -> str | None:
+    """``[lsearch ?-exact? [info vars] X]`` → exact needle name ``X``.
+
+    Only option flags that do not change which exact name matches are allowed
+    (``-regexp`` / ``-nocase`` / ``-all`` etc. would be unsound).
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "lsearch":
+        return None
+    parts = _split_command_args(args_text)
+    options = [p for p in parts if p.startswith("-")]
+    if any(opt not in _LSEARCH_SAFE_OPTS for opt in options):
+        return None
+    positional = [p for p in parts if not p.startswith("-")]
+    if len(positional) != 2 or not _is_info_vars_full_list(positional[0]):
+        return None
+    return _existence_scalar_name(positional[1])
+
+
+def _llength_info_vars_target(cmd_text: str) -> str | None:
+    """``[llength [info vars X]]`` → exact name ``X`` (truthy ⇒ X exists)."""
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    if base != "llength":
+        return None
+    return _info_vars_exact_target(args_text.strip())
+
+
+def _is_empty_string_literal(node: ExprNode) -> bool:
+    if not isinstance(node, ExprString):
+        return False
+    text = node.text
+    return text in ("", '""', "{}") or (len(text) >= 2 and text[0] in '"{' and text[1:-1] == "")
+
+
+def _int_const(node: ExprNode) -> int | None:
+    if isinstance(node, ExprLiteral):
+        try:
+            return int(node.text)
+        except ValueError:
+            return None
+    if (
+        isinstance(node, ExprUnary)
+        and node.op is UnaryOp.NEG
+        and isinstance(node.operand, ExprLiteral)
+    ):
+        try:
+            return -int(node.operand.text)
+        except ValueError:
+            return None
+    return None
+
+
+_SWAP_COMPARISON = {
+    BinOp.GT: BinOp.LT,
+    BinOp.LT: BinOp.GT,
+    BinOp.GE: BinOp.LE,
+    BinOp.LE: BinOp.GE,
+    BinOp.EQ: BinOp.EQ,
+    BinOp.NE: BinOp.NE,
+}
+
+
+def _lsearch_found_when_true(op: BinOp, value: int, cmd_on_left: bool) -> bool | None:
+    """For ``[lsearch …] <op> <value>``, does *true* mean the needle was found
+    (index ≥ 0)?  Returns ``True`` (found), ``False`` (not found), or ``None``."""
+    if not cmd_on_left:
+        op = _SWAP_COMPARISON.get(op, op)
+    if (
+        (op is BinOp.GT and value == -1)
+        or (op is BinOp.GE and value == 0)
+        or (op is BinOp.NE and value == -1)
+    ):
+        return True
+    if (
+        (op is BinOp.EQ and value == -1)
+        or (op is BinOp.LT and value == 0)
+        or (op is BinOp.LE and value == -1)
+    ):
+        return False
+    return None
+
+
+def _comparison_existence(expr: ExprBinary) -> tuple[set[str], set[str]] | None:
+    """Existence facts proved by a comparison: ``[info vars X] ne ""`` and
+    ``[lsearch [info vars] X] > -1`` (and their negative/`eq`/`==` variants)."""
+    # ``[info vars X] ne|eq ""``
+    for cmd_side, other in ((expr.left, expr.right), (expr.right, expr.left)):
+        if isinstance(cmd_side, ExprCommand) and _is_empty_string_literal(other):
+            name = _info_vars_exact_target(cmd_side.text)
+            if name is not None:
+                if expr.op in (BinOp.STR_NE, BinOp.NE):
+                    return {name}, set()
+                if expr.op in (BinOp.STR_EQ, BinOp.EQ):
+                    return set(), {name}
+    # ``[lsearch [info vars] X] > -1`` (membership search)
+    for cmd_side, other in ((expr.left, expr.right), (expr.right, expr.left)):
+        if isinstance(cmd_side, ExprCommand):
+            needle = _lsearch_info_vars_needle(cmd_side.text)
+            value = _int_const(other)
+            if needle is not None and value is not None:
+                found = _lsearch_found_when_true(expr.op, value, cmd_side is expr.left)
+                if found is True:
+                    return {needle}, set()
+                if found is False:
+                    return set(), {needle}
+    return None
+
+
 def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
     """Return ``(exists_if_true, exists_if_false)`` — names a condition proves
     to exist when it evaluates true vs false.
@@ -1647,11 +1836,15 @@ def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
     A bare ``[info exists X]`` proves ``X`` when true; ``!`` swaps the arms;
     ``&&`` proves its operands' positive facts only when the whole thing is
     true; ``||`` proves their negative facts only when the whole thing is
-    false.  Everything else proves nothing.
+    false.  ``info vars`` / ``info locals`` membership idioms
+    (``ne ""``, ``[llength …]``, ``[lsearch [info vars] …] > -1``) are also
+    recognised.  Everything else proves nothing.
     """
     if isinstance(expr, ExprCommand):
         parsed = _parse_existence_check(expr.text)
         name = _existence_scalar_name(parsed[1]) if parsed is not None else None
+        if name is None:
+            name = _llength_info_vars_target(expr.text)
         if name is not None:
             return {name}, set()
         return set(), set()
@@ -1659,6 +1852,9 @@ def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
         true_set, false_set = _existence_implications(expr.operand)
         return false_set, true_set
     if isinstance(expr, ExprBinary):
+        comparison = _comparison_existence(expr)
+        if comparison is not None:
+            return comparison
         left_true, left_false = _existence_implications(expr.left)
         right_true, right_false = _existence_implications(expr.right)
         if expr.op in (BinOp.AND, BinOp.WORD_AND):
