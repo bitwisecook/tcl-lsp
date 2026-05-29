@@ -19,7 +19,6 @@ from compiler.registry import REGISTRY
 from compiler.registry.info import effective_event_requires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import configure_signatures
-from shared.document_buffer import DocumentBuffer
 from shared.optimisation_profiles import (
     DEFAULT_ACTION_PROFILE,
     profile_from_name,
@@ -891,7 +890,7 @@ def on_write_rule_back(
     except Exception:
         return False
 
-    buf = DocumentBuffer.from_source(source)
+    buf = _state.document_buffer_for(uri, source)
     start_pos = buf.offset_to_position(body_start_offset)
     end_pos = buf.offset_to_position(body_end_offset)
     start = types.Position(line=start_pos.line, character=start_pos.character)
