@@ -1585,6 +1585,7 @@ def _dead_stores(
     executable_blocks: set[str] | None = None,
     executable_edges: set[tuple[str, str]] | None = None,
     resolve_ctx=None,
+    element_observed=None,
 ) -> tuple[DeadStore, ...]:
     if resolve_ctx is None:
         resolve_ctx = build_resolve_context(cfg)
@@ -1607,7 +1608,12 @@ def _dead_stores(
     # longer overlaps unrelated arrays, so this no longer over-suppresses.
     # Over-approximating (may miss a genuine same-element reassignment) but never
     # falsely flags; computed lazily (only when an element/dict candidate hits).
-    _element_observed = _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks)
+    # Reuse the caller's shared predicate (analyse_function builds it once for
+    # both _dead_stores and _unused_variables over the same executable set) so
+    # the read-place walk + bucketed index aren't built twice per function.
+    _element_observed = element_observed or _make_element_observed(
+        cfg, ssa, resolve_ctx, considered_blocks
+    )
 
     used: set[SSAValueKey] = set()
     for bn, block in ssa.blocks.items():
@@ -1995,6 +2001,7 @@ def _unused_variables(
     params: frozenset[str] = frozenset(),
     resolve_ctx=None,
     place_read_names: frozenset[str] | None = None,
+    element_observed=None,
 ) -> tuple[UnusedVariable, ...]:
     """Find variables that are set but never used across the entire function.
 
@@ -2022,8 +2029,11 @@ def _unused_variables(
     result: list[UnusedVariable] = []
     # Same element/dict overlap fallback as ``_dead_stores`` — so W211 and the
     # optimiser's O126 (which reads ``unused_variables``) agree with W220/O109
-    # on element-granular and possibly-aliased writes.
-    _element_observed = _make_element_observed(cfg, ssa, resolve_ctx, considered)
+    # on element-granular and possibly-aliased writes.  Reuse the caller's shared
+    # predicate (see _dead_stores) so the read-place index is built once.
+    _element_observed = element_observed or _make_element_observed(
+        cfg, ssa, resolve_ctx, considered
+    )
 
     order = cfg.reverse_postorder()
     for bn in order:
@@ -2407,12 +2417,17 @@ def analyse_function(
     # computed once via the Place bridge and shared by every name-level
     # suppression consumer below.
     place_read_names = _place_read_names(cfg, resolve_ctx, set(executable_blocks))
+    # The element/dict overlap predicate walks read_places + builds the bucketed
+    # index once; share it between _dead_stores (W220) and _unused_variables
+    # (W211) so that walk isn't repeated (lazy — built on first element/dict hit).
+    element_observed = _make_element_observed(cfg, ssa, resolve_ctx, set(executable_blocks))
     dead = _dead_stores(
         cfg,
         ssa,
         executable_blocks=executable_blocks,
         executable_edges=executable_edges,
         resolve_ctx=resolve_ctx,
+        element_observed=element_observed,
     )
     reachable_cfg = set(cfg.blocks)
     unreachable = reachable_cfg - executable_blocks
@@ -2431,6 +2446,7 @@ def analyse_function(
         params=params,
         resolve_ctx=resolve_ctx,
         place_read_names=place_read_names,
+        element_observed=element_observed,
     )
     unused_p = _unused_parameters(
         cfg,
