@@ -35,6 +35,28 @@ formatter_config = FormatterConfig()
 feature_config = FeatureConfig()
 diagnostic_scheduler = DiagnosticScheduler()
 
+
+def document_buffer_for(uri: str | None, source: str):
+    """The document's live rope-backed buffer for *source* — the single
+    per-document buffer — or a freshly built one when the document isn't tracked
+    or its current text differs from *source*.
+
+    Lets request handlers read the one spliced buffer (``update_source_quick``
+    keeps it edit-spliced in O(log n)) instead of rebuilding the O(n) position
+    index per request.  Position-identical by construction: the live buffer is
+    used only when ``buffer.source == source`` exactly, else a fresh build.
+    """
+    from shared.document_buffer import DocumentBuffer
+
+    if uri is not None:
+        state = workspace_state.get(uri)
+        if state is not None:
+            buf = state.buffer
+            if buf.source == source:
+                return buf
+    return DocumentBuffer.from_source(source)
+
+
 # Per-folder configuration overrides (issue #230).
 #
 # Each workspace folder URI may have its own ``FeatureConfig`` and

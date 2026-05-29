@@ -117,7 +117,9 @@ def _bigip_definition_via_registry(
     cert refs, ...) — gets exact-byte navigation without per-feature
     regex seeding.
     """
-    buffer = DocumentBuffer.from_source(source)
+    import server.state as _state
+
+    buffer = _state.document_buffer_for(self_uri, source)
     try:
         cursor_offset = _line_character_to_offset(buffer, line, character)
     except ValueError:
