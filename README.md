@@ -1757,6 +1757,8 @@ For the complete reference, see
 |------|-------------|-----------|
 | W001 | Unknown subcommand | |
 | W002 | Command is disabled in active dialect profile | |
+| W003 | Expression operator not available in the active dialect | |
+| W004 | Command option not available in the active dialect | |
 | W100 | Unbraced `expr`/`if`/`while`/`for` expression (double substitution risk) | Wrap in braces |
 | W104 | `append` with space-separated values (use `lappend` for lists) | |
 | W105 | Unbraced code block or missing `variable` declaration in `namespace eval` | Wrap in braces |
@@ -1768,12 +1770,24 @@ For the complete reference, see
 | W113 | Procedure shadows a built-in command | |
 | W114 | Redundant nested `[expr]` -- already in expression context | |
 | W115 | Backslash-newline in comment silently swallows the next line | Convert to per-line comments |
+| W116 | Stub command shadows a built-in command | |
+| W117 | Stub expression definition shadows a built-in function or operator | |
+| W118 | Inconsistent line endings | |
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
 | W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
+| W124 | Invalid IP address literal | |
+| W125 | Orphaned control-flow keyword used as a standalone command | |
+| W126 | Non-channel value in channel argument position | |
+| W127 | Value not in the command's allowed set (e.g. `HTTP::version "2.0"`) | Use one of the listed values |
 | W200 | Binary format modifier requires newer Tcl | |
 | W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
+| W230 | Constant list index out of range -- `lindex`/`lrange`/`lreplace` silently return empty or clamp | |
+| W231 | Constant list index out of range -- `lset` raises a runtime error | |
+| W232 | Constant string index out of range -- `string index`/`range`/`replace`/`insert` silently no-op | |
+| W240 | Loop condition is constant false -- body never executes | |
+| W241 | Loop is provably infinite -- constant-true condition with no `break`/`return` | |
 
 ### Warnings -- Variables
 
@@ -1785,6 +1799,8 @@ For the complete reference, see
 | W212 | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.) | |
 | W213 | `unset` on variable that may not exist -- use `unset -nocomplain` | |
 | W214 | Unused proc parameter -- argument declared but never read in the body | |
+| W215 | Variable name unreachable via `$`-substitution (creatable, but no `$`-form can read it) | |
+| W216 | Broken brace-form array element reference (`${arr}(x)` parses as scalar + literal) | |
 | W220 | Dead store -- variable set but overwritten before use (with case-mismatch suggestion when applicable) | |
 
 ### Warnings -- Security
@@ -1807,10 +1823,21 @@ For the complete reference, see
 | W312 | `interp eval`/`interp invokehidden` with dynamic script (injection risk) | |
 | W313 | Destructive `file` operations (`delete`/`rename`/`mkdir`) with variable path | |
 
+### Warnings -- Packages
+
+| Code | Description | Quick-fix |
+|------|-------------|-----------|
+| W130 | `tclpkg.tcl` requires a package not in `tclpkg.lock` | Run `tcl pkg install` |
+| W131 | `tclpkg.lock` is out of sync with `tclpkg.tcl` | Run `tcl pkg install` |
+| W132 | `tclpkg.lock` integrity mismatch -- CAS hash differs from lockfile | |
+| W133 | `tclpkg.tcl` directive not permitted in safe mode | |
+| W134 | Package resolved but no `pkgIndex.tcl` found -- `package require` will fail at runtime | |
+
 ### Hints
 
 | Code | Description | Quick-fix |
 |------|-------------|-----------|
+| W242 | Loop termination cannot be proven -- counter not provably modified by the body or step | |
 | W302 | `catch` without a result variable (silently swallows errors) | Add result variable |
 
 ### Shimmer detection
@@ -1915,6 +1942,8 @@ These diagnostics fire only in the `f5-irules` dialect.
 | IRULE5003 | Hint | Loop condition `$var != 0` can miss zero if decremented past it | |
 | IRULE5004 | Warning | `DNS::return` without `return` | Add `return` |
 | IRULE5005 | Error | Direct proc invocation without `call` in iRules | Prefix with `call` |
+| IRULE5006 | Warning | Top-level-only command used inside a nested body | |
+| IRULE5007 | Warning | Event-context command used at top level outside a `when` block | |
 
 ## Optimiser codes
 

@@ -65,6 +65,7 @@ for historical reference.
 - [W124 — invalid IP literal](kcs-diagnostic-w124-invalid-ip-literal.md)
 - [W125 — orphaned control flow](kcs-diagnostic-w125-orphaned-control-flow.md)
 - [W126 — non-channel argument](kcs-diagnostic-w126-non-channel-argument.md)
+- [W127 — value not in allowed set](kcs-diagnostic-w127-value-not-in-allowed-set.md)
 - [W130 — package not in lockfile](kcs-diagnostic-w130-package-not-in-lockfile.md)
 - [W131 — lockfile out of sync](kcs-diagnostic-w131-lockfile-out-of-sync.md)
 - [W132 — integrity mismatch](kcs-diagnostic-w132-integrity-mismatch.md)

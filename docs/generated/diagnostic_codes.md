@@ -30,6 +30,7 @@
 | W124 | warning | Invalid IP address literal. | ✓ |
 | W125 | warning | Orphaned control-flow keyword used as standalone command. | ✓ |
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
+| W127 | warning | Value not in the command's allowed set. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
