@@ -10,7 +10,7 @@ else:
 from compiler.cfg import CFGFunction
 from compiler.core_analyses import FunctionAnalysis
 from compiler.execution_intent import FunctionExecutionIntent
-from compiler.interval_bounds import find_divide_by_zero, find_interval_bounds
+from compiler.interval_bounds import find_interval_findings
 from compiler.ssa import SSAFunction
 from shared.codes import diag
 
@@ -41,10 +41,10 @@ class _AnalyserDiagIntervalBoundsMixin(_Base):
         intent: FunctionExecutionIntent,
     ) -> None:
         # Restrict to SCCP-reachable blocks so a dynamic index in dead code
-        # (e.g. `if {0} { ... }`) doesn't warn — same discipline as the
-        # divide-by-zero path below.
+        # (e.g. `if {0} { ... }`) doesn't warn — same discipline applies to the
+        # divide-by-zero pass.  Both passes share one interval fixpoint.
         executable = set(cfg.blocks) - analysis.unreachable_blocks
-        findings = find_interval_bounds(cfg, ssa, intent, analysis.values, executable)
+        findings, divzero = find_interval_findings(cfg, ssa, intent, analysis.values, executable)
         for f in findings:
             block = cfg.blocks.get(f.block)
             if block is None:
@@ -83,8 +83,7 @@ class _AnalyserDiagIntervalBoundsMixin(_Base):
 
         # W233: division / modulo by a provably-zero divisor (only in
         # SCCP-reachable blocks — see find_divide_by_zero for the soundness).
-        executable = set(cfg.blocks) - analysis.unreachable_blocks
-        for dz in find_divide_by_zero(cfg, ssa, analysis.values, executable):
+        for dz in divzero:
             block = cfg.blocks.get(dz.block)
             if block is None:
                 continue

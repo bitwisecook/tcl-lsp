@@ -363,6 +363,8 @@ def find_interval_bounds(
     intent: FunctionExecutionIntent,
     values: Mapping[SSAValueKey, object] | None,
     executable_blocks: set[str] | None = None,
+    *,
+    intervals: dict[SSAValueKey, Interval] | None = None,
 ) -> list[BoundsFinding]:
     """Dynamic out-of-range findings for this function (empty if none).
 
@@ -371,12 +373,17 @@ def find_interval_bounds(
     access in a statically-unreachable block (e.g. ``if {0} { ... }``) must not
     warn.  ``None`` means "no reachability filter" (every block considered),
     matching ``find_divide_by_zero``'s executability discipline when provided.
+
+    *intervals* lets a caller that also runs :func:`find_divide_by_zero` pass the
+    interval fixpoint computed once (see :func:`find_interval_findings`) instead
+    of each function recomputing it; ``None`` computes it here.
     """
     # Perf gate: only pay for the interval fixpoint when there is a candidate
     # (an index access with a plain ``$var`` index).
     if not _has_candidate(cfg, ssa):
         return []
-    intervals = compute_intervals(cfg, ssa, values)
+    if intervals is None:
+        intervals = compute_intervals(cfg, ssa, values)
     lengths = _list_length_map(ssa, intent)
     str_lengths = _string_length_map(ssa)
     findings: list[BoundsFinding] = []
@@ -533,6 +540,8 @@ def find_divide_by_zero(
     ssa: SSAFunction,
     values: Mapping[SSAValueKey, object] | None,
     executable_blocks: set[str],
+    *,
+    intervals: dict[SSAValueKey, Interval] | None = None,
 ) -> list[DivZeroFinding]:
     """Divisions/modulo whose divisor is provably ``[0, 0]`` (a runtime error).
 
@@ -542,15 +551,21 @@ def find_divide_by_zero(
     provably-zero ``$d`` makes ``$d != 0`` constant-false, so SCCP marks the
     guarded division's block unreachable — the executability filter excludes
     it, so no false positive.
+
+    *intervals* lets a caller share the fixpoint with :func:`find_interval_bounds`
+    (see :func:`find_interval_findings`); ``None`` computes it here.
     """
     if not _has_division(ssa, cfg):
         return []
-    intervals = compute_intervals(cfg, ssa, values)
+    # Bind a guaranteed-non-None local so the env_for closure below sees a
+    # definite ``dict`` type (the optional param can't be narrowed into a
+    # nested function).
+    ivals = intervals if intervals is not None else compute_intervals(cfg, ssa, values)
     findings: list[DivZeroFinding] = []
 
     def env_for(uses: Mapping[str, int], bn: str) -> dict[str, Interval]:
         return {
-            name: refine_interval(intervals, cfg, ssa, bn, name, ver)
+            name: refine_interval(ivals, cfg, ssa, bn, name, ver)
             for name, ver in uses.items()
             if ver > 0
         }
@@ -576,4 +591,43 @@ def find_divide_by_zero(
     return findings
 
 
-__all__ = ["BoundsFinding", "DivZeroFinding", "find_interval_bounds", "find_divide_by_zero"]
+def find_interval_findings(
+    cfg: CFGFunction,
+    ssa: SSAFunction,
+    intent: FunctionExecutionIntent,
+    values: Mapping[SSAValueKey, object] | None,
+    executable_blocks: set[str],
+) -> tuple[list[BoundsFinding], list[DivZeroFinding]]:
+    """Both interval-driven passes (bounds + divide-by-zero) over one fixpoint.
+
+    ``find_interval_bounds`` and ``find_divide_by_zero`` each compute the
+    (potentially expensive) interval fixpoint.  A function with both a dynamic
+    index and a division paid for it twice.  This computes it once — gated on the
+    cheap pre-scans so a function with neither still skips it entirely — and
+    feeds it to both.  Returns ``(bounds_findings, divzero_findings)``.
+    """
+    has_candidate = _has_candidate(cfg, ssa)
+    has_division = _has_division(ssa, cfg)
+    if not (has_candidate or has_division):
+        return [], []
+    intervals = compute_intervals(cfg, ssa, values)
+    bounds = (
+        find_interval_bounds(cfg, ssa, intent, values, executable_blocks, intervals=intervals)
+        if has_candidate
+        else []
+    )
+    divzero = (
+        find_divide_by_zero(cfg, ssa, values, executable_blocks, intervals=intervals)
+        if has_division
+        else []
+    )
+    return bounds, divzero
+
+
+__all__ = [
+    "BoundsFinding",
+    "DivZeroFinding",
+    "find_interval_bounds",
+    "find_divide_by_zero",
+    "find_interval_findings",
+]
