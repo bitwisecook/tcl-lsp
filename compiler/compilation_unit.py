@@ -298,6 +298,7 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
+    from compiler.parsing.green_tree import green_tree_scope
     from compiler.registry.runtime import stub_signature_scope
     from compiler.registry.stub_comments import ambient_cmd_stubs, scan_source_for_stubs
 
@@ -308,7 +309,14 @@ def compile_source(
     # the proc body text alone is not enough because summaries depend
     # on the role-aware command lookups the overlay drives.
     stub_fingerprint = compute_stub_fingerprint(source)
-    with stub_signature_scope(cmd_stubs):
+    # Share one green-tree intern index across the whole compile so repeated
+    # lexing of the same body/command text (lowering + the var_refs scanners
+    # that _read_before_set runs several passes of) is paid once.  The
+    # foreground analyser path already wraps its work in green_tree_scope; the
+    # deep-diagnostics / optimiser / subprocess path reaches compile_source
+    # without one, so it re-lexed from scratch on every per-edit call.
+    # Reentrant: a caller that already opened a scope just reuses it.
+    with green_tree_scope(), stub_signature_scope(cmd_stubs):
         return _compile_source_inner(
             source,
             ir_module=ir_module,
