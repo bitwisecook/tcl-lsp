@@ -736,6 +736,18 @@ class CommandRegistry:
             return None
         return spec.argument_value(arg_index, value)
 
+    def closed_value_arg_indices(
+        self,
+        name: str,
+        dialect: str | None = None,
+        active_packages: frozenset[str] | None = None,
+    ) -> frozenset[int]:
+        """Argument indices of *name* whose value set is exhaustive (W127)."""
+        spec = self.get(name, dialect, active_packages)
+        if spec is None:
+            return frozenset()
+        return spec.closed_value_arg_indices()
+
     def subcommand_argument_values(
         self,
         name: str,

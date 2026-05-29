@@ -860,6 +860,13 @@ RANGE_FIXME: dict[str, FiresCase] = {
         "proc f {} { gets notachannel line }\n",
         "proc f {fd} { gets $fd line }\n",
     ),
+    # Value outside a command's closed set (HTTP::version is HTTP/1.x only):
+    # range covers the value word but is not yet token-precise.
+    "W127": FiresCase(
+        'when HTTP_RESPONSE priority 5 {\n    HTTP::version "2.0"\n}\n',
+        'when HTTP_RESPONSE priority 5 {\n    HTTP::version "1.1"\n}\n',
+        dialect="f5-irules",
+    ),
     # Single-use variable inlining: range spans the multi-line set statement
     # rather than the variable reference being forwarded.
     "O127": FiresCase(

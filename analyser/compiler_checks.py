@@ -655,6 +655,7 @@ def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> 
                 arg_tokens,
                 arg_single,
             )
+            _check_closed_value_args(cmd_name, args, cmd_token_range, diagnostics, arg_tokens)
 
     def _walk_ir(script: IRScript, call_ns: str, enforce_order: bool) -> None:
         for stmt in iter_ir_statements(script):
@@ -760,6 +761,59 @@ def _check_arity(
     _check_simple_arity(
         cmd_name, args, sig, diag_range, diagnostics, arg_expand, arg_tokens, arg_single
     )
+
+
+@diag("W127", "Value not in the command's allowed set.", section="warning")
+def _check_closed_value_args(
+    cmd_name: str,
+    args: list[str],
+    diag_range: Range,
+    diagnostics: list[Diagnostic],
+    arg_tokens: list[Token] | None,
+) -> None:
+    """W127: a literal at a closed-value argument index is not an allowed value.
+
+    Only fires for argument indices a spec marks ``closed_value_args`` (the
+    ``arg_values`` are the complete legal set, not mere suggestions).  Dynamic
+    values (``$var`` / ``[cmd]``) and declared option flags are skipped, so the
+    ``HTTP::version -string <raw>`` form is never flagged.
+    """
+    dialect = active_dialect()
+    closed = REGISTRY.closed_value_arg_indices(cmd_name, dialect)
+    if not closed:
+        return
+    spec = REGISTRY.get(cmd_name, dialect)
+    if spec is None:
+        return
+    option_names: set[str] = set()
+    for form in spec.forms:
+        option_names.update(form.option_names())
+    for idx in sorted(closed):
+        if idx >= len(args):
+            continue
+        value = args[idx]
+        # Dynamic values and option flags are not literal value words.
+        if "$" in value or "[" in value or value in option_names:
+            continue
+        if spec.argument_value(idx, value) is not None:
+            continue
+        allowed = [vs.value for vs in spec.argument_values(idx)]
+        if not allowed:
+            continue
+        rng = diag_range
+        if arg_tokens is not None and idx < len(arg_tokens):
+            rng = range_from_token(arg_tokens[idx])
+        diagnostics.append(
+            Diagnostic(
+                range=rng,
+                message=(
+                    f"Invalid value '{value}' for '{cmd_name}'; "
+                    f"expected one of: {', '.join(allowed)}"
+                ),
+                severity=Severity.WARNING,
+                code="W127",
+            )
+        )
 
 
 def _resolve_expansion_elements(

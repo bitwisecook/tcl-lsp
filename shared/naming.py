@@ -59,6 +59,17 @@ def is_bare_var_name(name: str) -> bool:
     return True
 
 
+def is_unqualified_var_name(name: str) -> bool:
+    """Return True when *name* is an unqualified single variable name.
+
+    That is, a plain local scalar: a bare identifier with no ``::`` namespace
+    qualifier and no array ``(idx)`` or glob characters.  Derived from
+    :func:`is_bare_var_name` (the lexer's bare-name rule) so callers do not
+    hand-roll a regex that can drift from it.
+    """
+    return "::" not in name and is_bare_var_name(name)
+
+
 def is_brace_substitutable(name: str) -> bool:
     """Return True when ``${name}`` would successfully look up ``name``.
 
