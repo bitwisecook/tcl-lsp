@@ -37,7 +37,7 @@ class PeerCommand(CommandDef):
             dialects=_IRULES_ONLY,
             hover=HoverSnippet(
                 summary="Causes the specified iRule commands to be evaluated under the peer-side context.",
-                synopsis=("peer (NESTING_SCRIPT)?",),
+                synopsis=("peer NESTING_SCRIPT",),
                 snippet="Causes the specified iRule commands to be evaluated under the peer-side context.",
                 source=_SOURCE,
                 examples=("when SERVER_CONNECTED {\n  peer { TCP::collect }\n}"),
@@ -45,13 +45,14 @@ class PeerCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="peer (NESTING_SCRIPT)?",
+                    synopsis="peer NESTING_SCRIPT",
                 ),
             ),
             validation=ValidationSpec(
-                # ``peer (NESTING_SCRIPT)?`` — at most a single nesting-script
-                # body, mirroring clientside/serverside.
-                arity=Arity(0, 1),
+                # ``peer NESTING_SCRIPT`` — unlike clientside/serverside, peer
+                # has no bare query form, so the script body is required:
+                # exactly one argument at index 0.
+                arity=Arity(1, 1),
             ),
             arg_role_resolver=_peer_arg_roles,
             is_side_switch=True,

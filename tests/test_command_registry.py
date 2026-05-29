@@ -957,11 +957,17 @@ class TestIrulesNestingScriptBody:
 
         # ``X (NESTING_SCRIPT)?`` — the bare query form (0 args) or a single
         # optional nesting script, never more.  (Previously unbounded.)
-        for name in ("clientside", "serverside", "peer"):
+        for name in ("clientside", "serverside"):
             validation = REGISTRY.validation(name, "f5-irules")
             assert validation is not None, name
             assert validation.arity.min == 0, name
             assert validation.arity.max == 1, name
+
+        # ``peer`` has no bare query form — the script body is required.
+        peer_validation = REGISTRY.validation("peer", "f5-irules")
+        assert peer_validation is not None
+        assert peer_validation.arity.min == 1
+        assert peer_validation.arity.max == 1
 
 
 class TestClosedValueArgs:

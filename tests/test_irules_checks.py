@@ -197,14 +197,10 @@ class TestNestingScriptBodyAnalysis:
         assert len(diags) == 1
         assert "HTTP::respond" in diags[0].message
 
-    def test_side_switch_commands_accept_zero_or_one_argument(self):
-        # The bare query form and a single nesting script are valid; extra
-        # top-level words are E003 "too many arguments" (arity 0..1).
-        for cmd, event in (
-            ("clientside", "CLIENT_ACCEPTED"),
-            ("serverside", "SERVER_CONNECTED"),
-            ("peer", "SERVER_CONNECTED"),
-        ):
+    def test_clientside_serverside_accept_zero_or_one_argument(self):
+        # clientside/serverside: the bare query form and a single nesting
+        # script are valid; extra top-level words are E003 (arity 0..1).
+        for cmd, event in (("clientside", "CLIENT_ACCEPTED"), ("serverside", "SERVER_CONNECTED")):
             assert _diag_with_code(f"when {event} priority 5 {{ {cmd} }}", "E003") == []
             assert (
                 _diag_with_code(
@@ -215,6 +211,21 @@ class TestNestingScriptBodyAnalysis:
             diags = _diag_with_code(f"when {event} priority 5 {{ {cmd} a b c }}", "E003")
             assert len(diags) == 1
             assert cmd in diags[0].message
+
+    def test_peer_requires_a_script_body(self):
+        # peer has no bare query form: a lone `peer` is E002 (too few),
+        # one script is valid, and extra words are E003 (arity 1..1).
+        bare = _diag_with_code("when SERVER_CONNECTED priority 5 {\n    peer\n}", "E002")
+        assert len(bare) == 1
+        assert "peer" in bare[0].message
+        assert (
+            _diag_with_code(
+                "when SERVER_CONNECTED priority 5 {\n    peer { TCP::collect }\n}", "E002"
+            )
+            == []
+        )
+        too_many = _diag_with_code("when SERVER_CONNECTED priority 5 {\n    peer a b c\n}", "E003")
+        assert len(too_many) == 1
 
     def test_peer_collect_satisfies_opposite_side_payload(self):
         # ``peer { TCP::collect }`` in a server-side event collects on the
