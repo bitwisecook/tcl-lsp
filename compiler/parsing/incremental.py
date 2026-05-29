@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from shared.document_buffer import DocumentBuffer
+from shared.diagnostic import SourcePosition
 from shared.tokens import Token, TokenType
 
 from .command_segmenter import (
@@ -40,7 +40,7 @@ from .command_segmenter import (
 from .token_positions import shift_range, shift_token
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,11 @@ class EditRange:
     start: int
     old_end: int
     new_end: int
+    line_delta: int = 0
+    """Net newline-count change in the edited region (``new[start:new_end]`` vs
+    ``old[start:old_end]``).  Computed once by :func:`infer_edit_range` so both
+    the rope splice (``update_source_quick``) and the incremental chunk
+    shift reuse it rather than each recounting."""
 
     @property
     def offset_delta(self) -> int:
@@ -124,7 +129,10 @@ def infer_edit_range(old: str, new: str) -> EditRange | None:
     # Common suffix, not crossing back past the prefix in either string.
     suffix_max = min(n_old - start, n_new - start)
     slen = _common_suffix_len(old, new, suffix_max)
-    return EditRange(start=start, old_end=n_old - slen, new_end=n_new - slen)
+    old_end = n_old - slen
+    new_end = n_new - slen
+    line_delta = new[start:new_end].count("\n") - old[start:old_end].count("\n")
+    return EditRange(start=start, old_end=old_end, new_end=new_end, line_delta=line_delta)
 
 
 def _shift_command(cmd: SegmentedCommand, offset_delta: int, line_delta: int) -> SegmentedCommand:
@@ -172,11 +180,27 @@ def _chunks_equal_ignoring_index(a: TopLevelChunk, b: TopLevelChunk) -> bool:
     )
 
 
+def _offset_to_position(text: str, offset: int) -> SourcePosition:
+    """``offset`` → ``SourcePosition`` (line, character, offset), clamped.
+
+    Identical result to ``DocumentBuffer.offset_to_position`` but a direct
+    C-level newline scan — the incremental segmenter only needs two such
+    conversions (to anchor the window's body token), so building a whole O(n)
+    balanced rope just to discard it was pure per-keystroke waste.
+    """
+    n = len(text)
+    safe = 0 if offset < 0 else (n if offset > n else offset)
+    line = text.count("\n", 0, safe)
+    last_nl = text.rfind("\n", 0, safe)
+    return SourcePosition(line=line, character=safe - (last_nl + 1), offset=safe)
+
+
 def incremental_top_level_chunks(
     old_source: str,
     old_chunks: Sequence[TopLevelChunk],
     new_source: str,
     edit: EditRange,
+    offset_to_position: "Callable[[int], SourcePosition] | None" = None,
 ) -> list[TopLevelChunk] | None:
     """Rebuild the top-level chunk list for *new_source* incrementally.
 
@@ -200,9 +224,7 @@ def incremental_top_level_chunks(
     start = edit.start
     old_end = edit.old_end
     offset_delta = edit.offset_delta
-    line_delta = new_source[start : edit.new_end].count("\n") - old_source[start:old_end].count(
-        "\n"
-    )
+    line_delta = edit.line_delta
 
     # Prefix: chunks whose tile ends strictly before the edit start are
     # untouched.  The strict ``<`` matters: a chunk whose tile boundary
@@ -254,9 +276,16 @@ def incremental_top_level_chunks(
     val_end_new = val_end_old + offset_delta
     window_text = new_source[ws:val_end_new]
 
-    buf = DocumentBuffer.from_source(new_source)
-    pos_ws = buf.offset_to_position(ws)
-    pos_end = buf.offset_to_position(val_end_new)
+    # Reuse the caller's already-spliced rope for the two position conversions
+    # (O(log n) and no new structure) when available; otherwise a direct
+    # C-level newline scan.  Either way, no throwaway full rope is built here.
+    to_pos = (
+        offset_to_position
+        if offset_to_position is not None
+        else (lambda o: _offset_to_position(new_source, o))
+    )
+    pos_ws = to_pos(ws)
+    pos_end = to_pos(val_end_new)
     # Anchored at absolute offset ws with recovery disabled (a body_token
     # slice); ws sits just past a command in the unchanged prefix, so the
     # lexer's entry state there is clean.

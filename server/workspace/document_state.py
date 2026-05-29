@@ -33,7 +33,11 @@ from compiler.parsing.command_segmenter import (
     find_first_dirty_chunk,
     segment_top_level_chunks,
 )
-from compiler.parsing.incremental import incremental_top_level_chunks, infer_edit_range
+from compiler.parsing.incremental import (
+    EditRange,
+    incremental_top_level_chunks,
+    infer_edit_range,
+)
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.dialect import detect_dialect_from_source, dialect_scope
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -1102,7 +1106,14 @@ class DocumentState:
             deep_diag_result=diagnostics,
         )
 
-    def _segment_chunks(self, source: str, old_snap: _StateSnapshot) -> list[TopLevelChunk]:
+    def _segment_chunks(
+        self,
+        source: str,
+        old_snap: _StateSnapshot,
+        *,
+        edit: "EditRange | None" = None,
+        new_buffer: DocumentBuffer | None = None,
+    ) -> list[TopLevelChunk]:
         """Segment *source* into top-level chunks, incrementally when possible.
 
         On an edit, the previous segmentation is reused everywhere the change
@@ -1111,11 +1122,26 @@ class DocumentState:
         from-scratch :func:`segment_top_level_chunks`; the incremental builder
         returns ``None`` (and we fall back to a full pass) whenever it cannot
         prove equivalence.
+
+        *edit* / *new_buffer* let ``update_source_quick`` pass the edit range it
+        already inferred and the rope it already spliced, so the incremental
+        builder neither re-infers the edit nor builds a throwaway rope for its
+        two offset→position conversions (it reuses the spliced rope, O(log n)).
         """
         if old_snap.chunks and old_snap.source:
-            edit = infer_edit_range(old_snap.source, source)
+            if edit is None:
+                edit = infer_edit_range(old_snap.source, source)
             if edit is not None:
-                inc = incremental_top_level_chunks(old_snap.source, old_snap.chunks, source, edit)
+                # Reuse the spliced rope's position index when it matches the
+                # new source; else the builder falls back to a direct scan.
+                to_pos = (
+                    new_buffer.offset_to_position
+                    if new_buffer is not None and new_buffer.source == source
+                    else None
+                )
+                inc = incremental_top_level_chunks(
+                    old_snap.source, old_snap.chunks, source, edit, to_pos
+                )
                 if inc is not None:
                     return inc
         return segment_top_level_chunks(source)
@@ -1165,20 +1191,21 @@ class DocumentState:
         # analysis doesn't re-scan the document on every keystroke.  Falls back
         # to a fresh build (buffer=None → lazy from_source) when the previous
         # rope is unavailable or the edit can't be inferred.
+        # Infer the edit once here: the rope splice below and the incremental
+        # chunk segmentation both consume it (and its line_delta), instead of
+        # each re-inferring the edit and recounting newlines.
         new_buffer: DocumentBuffer | None = None
+        edit: EditRange | None = None
         if old.buffer is not None and old.buffer.source == old.source:
             edit = infer_edit_range(old.source, source)
             if edit is not None:
-                line_delta = source[edit.start : edit.new_end].count("\n") - old.source[
-                    edit.start : edit.old_end
-                ].count("\n")
                 new_buffer = DocumentBuffer.from_edit(
                     old.buffer,
                     source,
-                    RopeEdit(edit.start, edit.old_end, edit.new_end, line_delta),
+                    RopeEdit(edit.start, edit.old_end, edit.new_end, edit.line_delta),
                     version,
                 )
-        new_chunks = self._segment_chunks(source, old)
+        new_chunks = self._segment_chunks(source, old, edit=edit, new_buffer=new_buffer)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
         # Carry forward chunk caches for unchanged chunks so that
         # semantic token requests can serve cached tokens immediately.
