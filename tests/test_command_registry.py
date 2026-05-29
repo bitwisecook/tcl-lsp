@@ -936,6 +936,17 @@ class TestIrulesNestingScriptBody:
         assert arg_indices_for_role("after", ["cancel", "-current"], ArgRole.BODY) == set()
         assert arg_indices_for_role("after", ["info", "$id"], ArgRole.BODY) == set()
 
+    def test_clientside_serverside_arity_is_zero_or_one(self):
+        from compiler.registry import REGISTRY
+
+        # ``X (NESTING_SCRIPT)?`` — the bare query form (0 args) or a single
+        # optional nesting script, never more.  (Previously unbounded.)
+        for name in ("clientside", "serverside"):
+            validation = REGISTRY.validation(name, "f5-irules")
+            assert validation is not None, name
+            assert validation.arity.min == 0, name
+            assert validation.arity.max == 1, name
+
 
 class TestTraceAddVariableVarWrite:
     """Issue #249 — ``trace add variable`` resolves *name* to ``ArgRole.VAR_WRITE``.

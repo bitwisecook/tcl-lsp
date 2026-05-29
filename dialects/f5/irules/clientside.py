@@ -59,7 +59,9 @@ class ClientsideCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                # ``clientside (NESTING_SCRIPT)?`` — the bare query form (0
+                # args) or a single optional nesting-script body.
+                arity=Arity(0, 1),
             ),
             arg_role_resolver=_clientside_arg_roles,
             is_side_switch=True,

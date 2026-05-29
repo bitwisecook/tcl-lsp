@@ -61,7 +61,9 @@ class ServersideCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                # ``serverside (NESTING_SCRIPT)?`` — the bare query form (0
+                # args) or a single optional nesting-script body.
+                arity=Arity(0, 1),
             ),
             arg_role_resolver=_serverside_arg_roles,
             is_side_switch=True,

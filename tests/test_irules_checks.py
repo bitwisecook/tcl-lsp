@@ -190,6 +190,21 @@ class TestNestingScriptBodyAnalysis:
         assert len(diags) == 1
         assert "HTTP::respond" in diags[0].message
 
+    def test_clientside_serverside_accept_zero_or_one_argument(self):
+        # The bare query form and a single nesting script are valid; extra
+        # top-level words are E003 "too many arguments" (arity 0..1).
+        for cmd, event in (("clientside", "CLIENT_ACCEPTED"), ("serverside", "SERVER_CONNECTED")):
+            assert _diag_with_code(f"when {event} priority 5 {{ {cmd} }}", "E003") == []
+            assert (
+                _diag_with_code(
+                    f"when {event} priority 5 {{ {cmd} {{ IP::remote_addr }} }}", "E003"
+                )
+                == []
+            )
+            diags = _diag_with_code(f"when {event} priority 5 {{ {cmd} a b c }}", "E003")
+            assert len(diags) == 1
+            assert cmd in diags[0].message
+
 
 # IRULE2001: Deprecated matchclass
 
