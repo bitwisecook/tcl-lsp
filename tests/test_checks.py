@@ -4018,6 +4018,24 @@ class TestNamespaceEvalBodyScope:
         assert _diag_with_code(src, "W220") == []
         assert _diag_with_code(src, "W211") == []
 
+    def test_ns_eval_caller_scope_survives_uplevel_inline_rebuild(self):
+        # An uplevel-passthrough candidate (`reset`) called inside the ns-eval
+        # body makes inline_uplevel rebuild the IRBlock.  That rebuild must keep
+        # caller_scope=False: `$x` runs in ::ns (tclsh: "can't read x"), so the
+        # parameter `x` is genuinely unused in `g` — W214 must still fire.  A
+        # rebuild that dropped caller_scope would recover `$x` as a caller read
+        # and falsely suppress it.
+        src = (
+            "proc reset {} { uplevel 1 {set counter 0} }\n"
+            "proc g {x} {\n"
+            "    namespace eval ::ns {\n"
+            "        reset\n"
+            '        puts "hello $x"\n'
+            "    }\n"
+            "}\n"
+        )
+        assert "x" in self._w214(src)
+
 
 class TestLoopStubStillTracksVars:
     """A `-loop` stub (declared with stubs-begin/end markers) must lower as a

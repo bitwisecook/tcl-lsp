@@ -218,3 +218,42 @@ class TestSpecialiseFactoriesCalls:
         assert any(
             isinstance(s, IRCall) and s.command == "Configure" for s in mod.top_level.statements
         )
+
+
+class TestNamespaceEvalCallerScopePreserved:
+    """When a factory call lives inside a ``namespace eval`` body, specialising
+    it rewrites the body and rebuilds the enclosing IRBlock.  That rebuild must
+    preserve ``caller_scope=False`` (set by ns-eval lowering) — a hand-rebuild
+    that dropped it would revert to the True default, re-enabling the body→caller
+    read recovery and falsely suppressing W214/W220 in the namespace body."""
+
+    def _blocks(self, script):
+        out = []
+        for st in script.statements:
+            if isinstance(st, IRBlock):
+                out.append(st)
+                out += self._blocks(st.body)
+        return out
+
+    def test_ns_eval_block_keeps_caller_scope_false_after_specialise(self):
+        source = textwrap.dedent("""\
+            proc Configure {name default} {
+                proc $name {{value {}}} [subst -nocommands {return $default}]
+            }
+            namespace eval ::ns {
+                Configure opt hello
+            }
+        """)
+        mod = lower_to_ir(source)
+        ns_block = next(b for b in self._blocks(mod.top_level) if b.namespace == "::ns")
+        assert ns_block.caller_scope is False  # ns-eval lowering set this
+
+        specialise_factories(mod)
+
+        # The ns-eval body changed (factory specialised), so the block was
+        # rebuilt — it must STILL carry caller_scope=False.
+        ns_blocks_after = [b for b in self._blocks(mod.top_level) if b.namespace == "::ns"]
+        outer = next(b for b in ns_blocks_after if b.source_args is not None)
+        assert outer.caller_scope is False, (
+            "namespace eval IRBlock lost caller_scope=False on factory-specialise rebuild"
+        )

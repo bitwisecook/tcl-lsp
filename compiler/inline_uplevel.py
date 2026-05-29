@@ -103,7 +103,7 @@ body into the caller's IR.  Downstream:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from compiler.parsing.lexer import TclParseError
 from shared.tokens import TokenType
@@ -612,13 +612,11 @@ def _rewrite_stmt(
                 pass
         new_body = _rewrite_script(stmt.body, candidates, namespace=stmt.namespace or namespace)
         if new_body is not stmt.body:
-            return IRBlock(
-                range=stmt.range,
-                body=new_body,
-                namespace=stmt.namespace,
-                source_args=stmt.source_args,
-                source_tokens=stmt.source_tokens,
-            )
+            # replace() preserves every other field — notably caller_scope (False
+            # for ``namespace eval``): rebuilding by hand would silently revert it
+            # to its True default, re-enabling the body→caller read recovery and
+            # falsely suppressing W214/W220 in the namespace body.
+            return replace(stmt, body=new_body)
         return stmt
 
     return stmt
