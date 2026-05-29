@@ -1124,6 +1124,15 @@ class TestEventAwareCompletions:
         neutral_sort = [i for i in http_items if i.sort_text and i.sort_text.startswith("B1")]
         assert len(neutral_sort) == len(http_items), "Outside when, expected neutral event rank"
 
+    def test_http_version_setter_offers_known_versions(self):
+        # The HTTP::version setter offers the known HTTP/1.x versions as
+        # argument-value completions.
+        configure_signatures(dialect="f5-irules")
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version \n}"
+        items = get_completions(src, 1, len("    HTTP::version "))
+        offered = {i.label for i in items}
+        assert {"0.9", "1.0", "1.1"} <= offered
+
 
 # Enhanced hovers
 

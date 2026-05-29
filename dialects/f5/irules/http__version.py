@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from compiler.registry._base import CommandDef
+from compiler.registry._base import CommandDef, make_av
 from compiler.registry.models import (
     CommandSpec,
     FormKind,
@@ -20,6 +20,16 @@ from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, 
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/HTTP__version.html"
+
+_av = make_av(_SOURCE)
+
+# The HTTP/1.x versions the bareword setter accepts.  HTTP/2 and HTTP/3 are
+# their own command namespaces (``HTTP2::`` etc.), so they are not values here.
+_HTTP_VERSIONS = (
+    _av("0.9", "HTTP/0.9.", "HTTP::version 0.9"),
+    _av("1.0", "HTTP/1.0.", "HTTP::version 1.0"),
+    _av("1.1", "HTTP/1.1.", "HTTP::version 1.1"),
+)
 
 
 @register
@@ -54,14 +64,6 @@ class HttpVersionCommand(CommandDef):
                 examples=('when HTTP_RESPONSE {\n  HTTP::version "1.1"\n}'),
                 return_value="Returns the HTTP version of the request or response",
             ),
-            # TODO: the version value is a closed set ('0.9' | '1.0' | '1.1')
-            # but is not yet constrained — add ``arg_values`` so the setter
-            # offers those completions, and a ``validation_hook`` to flag an
-            # invalid version.  The set is HTTP/1.x only: HTTP/2 is the separate
-            # ``HTTP2::`` namespace (and HTTP/3 would be its own), so 2.0/3.0
-            # must NOT be added here.  Audit other specs whose value argument
-            # is a closed set for the same gap (FLOW::priority FLOW_PRIORITY,
-            # HTTP::respond status, etc.).
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
@@ -74,6 +76,11 @@ class HttpVersionCommand(CommandDef):
                             value_hint="version",
                         ),
                     ),
+                    # The bareword setter takes one of the known HTTP/1.x
+                    # versions; offer them as completions.  The ``-string``
+                    # form (index 1) is intentionally a raw, unconstrained
+                    # value, so it is not enumerated here.
+                    arg_values={0: _HTTP_VERSIONS},
                 ),
             ),
             validation=ValidationSpec(
