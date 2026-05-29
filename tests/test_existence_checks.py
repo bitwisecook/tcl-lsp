@@ -54,6 +54,13 @@ class TestNoReadBeforeSet:
         # ``array get`` reads the array contents — not an existence check.
         assert "W210" in _codes("proc p {} { puts [array get FOO] }", "W210")
 
+    def test_dynamic_target_is_a_real_read(self):
+        # ``info exists $name`` reads ``name`` to form the variable name being
+        # tested, so an unset ``name`` is still a genuine read-before-set and
+        # must not be suppressed (PR #502 review).
+        assert "W210" in _codes("proc p {} { if {[info exists $name]} { puts hi } }", "W210")
+        assert "W210" in _codes("proc p {} { set r [info exists $name]; puts $r }", "W210")
+
 
 class TestProvablyAbsentFoldsFalse:
     def test_issue_example_body_never_executes(self):
@@ -132,6 +139,21 @@ class TestSoundnessGates:
         src = "proc p {} { if {[info exists A(k)]} { puts a } else { puts b } }"
         assert "I230" not in _codes(src)
 
+    def test_nested_command_sub_assignment_is_not_folded(self):
+        # `set y [set X 1]` creates X with no SSA definition, so the folder must
+        # not treat X as absent (PR #502 review).
+        src = "proc p {} { set y [set X 1]; if {[info exists X]} { puts a } else { puts b } }"
+        assert "I230" not in _codes(src)
+
+    def test_command_sub_in_call_arg_is_not_folded(self):
+        src = "proc p {} { puts [set X 1]; if {[info exists X]} { puts a } else { puts b } }"
+        assert "I230" not in _codes(src)
+
+    def test_mutation_free_value_command_still_folds(self):
+        # A value whose command sub cannot create a local must not block folding.
+        src = "proc p {} { set n [string length abc]; if {[info exists X]} { puts a } else { puts b } }"
+        assert any("always false" in m for m in _messages(src, "I230"))
+
 
 class TestFlowSensitiveNarrowing:
     """In the true region a guarded variable exists; the false region does not."""
@@ -162,6 +184,19 @@ class TestFlowSensitiveNarrowing:
         src = self._src("if {[info exists X]} { if {[string length a]} { puts $X } }")
         flagged = [d.message.split("'")[1] for d in get_diagnostics(src) if str(d.code) == "W210"]
         assert "X" not in flagged
+
+    def test_and_pure_right_keeps_both_facts(self):
+        # `[info exists X] && [info exists Y]` — both pure → both narrowed.
+        src = self._src("if {[info exists X] && [info exists Y]} { puts $X$Y }")
+        flagged = [d.message.split("'")[1] for d in get_diagnostics(src) if str(d.code) == "W210"]
+        assert "X" not in flagged and "Y" not in flagged
+
+    def test_and_impure_right_drops_left_fact(self):
+        # An impure right operand can mutate X before the branch, so the left
+        # `info exists X` fact must not narrow the body (PR #502 review).
+        src = self._src("if {[info exists X] && [otherproc]} { puts $X }")
+        flagged = [d.message.split("'")[1] for d in get_diagnostics(src) if str(d.code) == "W210"]
+        assert "X" in flagged
 
 
 class TestInfoVarsNarrowing:

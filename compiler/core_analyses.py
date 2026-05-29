@@ -895,10 +895,99 @@ def _is_bounded_scope_decl(stmt: IRStatement) -> bool:
     return False
 
 
+def _command_mutates_locals(cmd_text: str) -> bool:
+    """True when the ``[cmd ...]`` substitution could create, modify, or remove
+    a local variable.
+
+    Such effects are invisible to SSA when the command is nested inside a
+    value/expression (``set y [set X 1]``) rather than a top-level statement, so
+    the existence folder must treat statements containing them as opaque.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return True  # multi-command / unparseable — assume it can
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    try:
+        args = tuple(_split_command_args(args_text))
+    except Exception:
+        return True
+    # ``unset`` / ``array unset`` change a variable's existence without a write
+    # target that side-effect analysis records.
+    if base == "unset" or (base == "array" and args and args[0] == "unset"):
+        return True
+    from compiler.registry.runtime import ArgRole, arg_indices_for_role
+    from compiler.side_effects import SideEffectTarget, classify_side_effects
+
+    # A command that runs an inline body could create locals (``[if {…} {set X …}]``).
+    if arg_indices_for_role(cmd_name, list(args), ArgRole.BODY):
+        return True
+    se = classify_side_effects(cmd_name, args)
+    if se.dynamic_barrier:
+        return True
+    return (
+        SideEffectTarget.VARIABLE in se.write_targets
+        or SideEffectTarget.UNKNOWN in se.write_targets
+    )
+
+
+def _word_mutation_free(text: str) -> bool:
+    """True when evaluating word/script *text* cannot create/modify/remove a
+    local — i.e. no command substitution within it does so."""
+    if "[" not in text:
+        return True
+    try:
+        tokens = TclLexer(text).tokenise_all()
+    except Exception:
+        return False
+    for tok in tokens:
+        if tok.type is TokenType.CMD:
+            if _command_mutates_locals(f"[{tok.text}]"):
+                return False
+            if not _word_mutation_free(tok.text):  # nested substitutions
+                return False
+    return True
+
+
+def _expr_mutation_free(node: ExprNode) -> bool:
+    """True when evaluating expression *node* cannot create/modify/remove a local."""
+    match node:
+        case ExprCommand(text=text) | ExprRaw(text=text):
+            return _word_mutation_free(text)
+        case ExprBinary(left=left, right=right):
+            return _expr_mutation_free(left) and _expr_mutation_free(right)
+        case ExprUnary(operand=operand):
+            return _expr_mutation_free(operand)
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            return _expr_mutation_free(cond) and _expr_mutation_free(tb) and _expr_mutation_free(fb)
+        case ExprCall(args=args):
+            return all(_expr_mutation_free(a) for a in args)
+        case _:
+            return True
+
+
 def _is_existence_transparent(stmt: IRStatement) -> bool:
     """True when *stmt* cannot create or destroy a local variable in a way the
-    analysis cannot see — the precondition for folding existence checks."""
-    if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr, IRReturn, IRExprEval)):
+    analysis cannot see — the precondition for folding existence checks.
+
+    A value/expression statement whose value contains a command substitution
+    that could create a local (``set y [set X 1]``) is *not* transparent: the
+    nested write produces no SSA definition, so the folder would otherwise
+    mistake the created variable for an absent one.
+    """
+    if isinstance(stmt, IRAssignConst):
+        return True
+    if isinstance(stmt, IRAssignValue):
+        return _word_mutation_free(stmt.value)
+    if isinstance(stmt, (IRAssignExpr, IRExprEval)):
+        return _expr_mutation_free(stmt.expr)
+    if isinstance(stmt, IRIncr):
+        return stmt.amount is None or _word_mutation_free(stmt.amount)
+    if isinstance(stmt, IRReturn):
+        if stmt.value is not None and not _word_mutation_free(stmt.value):
+            return False
+        if stmt.expr is not None and not _expr_mutation_free(stmt.expr):
+            return False
         return True
     if isinstance(stmt, IRCall):
         if _is_bounded_scope_decl(stmt):
@@ -913,7 +1002,9 @@ def _is_existence_transparent(stmt: IRStatement) -> bool:
         # ``clientside``, …) could set locals the analysis never sees.
         if arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY):
             return False
-        return True
+        # A nested command substitution in an argument can create a local too
+        # (``puts [set X 1]``).
+        return all(_word_mutation_free(arg) for arg in stmt.args)
     # IRBarrier, IRBlock, IRUpFrame, IRSwitch, IRCatch, IRTry, IRForeach, … —
     # opaque to local-variable creation.
     return False
@@ -1590,7 +1681,10 @@ def _collect_existence_in_word(text: str, out: set[str]) -> None:
         if tok.type is TokenType.CMD:
             parsed = _parse_existence_check(f"[{tok.text}]")
             if parsed is not None:
-                nm = _normalise_var_name(parsed[1])
+                # Only a literal plain-scalar target is existence-tested without
+                # a value read; a dynamic target like ``info exists $name``
+                # reads ``name`` to form the name, so it must stay reportable.
+                nm = _existence_scalar_name(parsed[1])
                 if nm:
                     out.add(nm)
             else:
@@ -1605,7 +1699,7 @@ def _existence_checks_in_expr(expr: ExprNode) -> set[str]:
     for c in cmds:
         parsed = _parse_existence_check(c.text)
         if parsed is not None:
-            nm = _normalise_var_name(parsed[1])
+            nm = _existence_scalar_name(parsed[1])
             if nm:
                 names.add(nm)
     return names
@@ -1622,7 +1716,7 @@ def _existence_checks_in_stmt(stmt: IRStatement) -> set[str]:
             and len(args) >= 2
             and args[0] == "exists"
         ):
-            nm = _normalise_var_name(args[1])
+            nm = _existence_scalar_name(args[1])
             if nm:
                 names.add(nm)
         for arg in args:
@@ -1885,10 +1979,16 @@ def _existence_implications(expr: ExprNode) -> tuple[set[str], set[str]]:
             return comparison
         left_true, left_false = _existence_implications(expr.left)
         right_true, right_false = _existence_implications(expr.right)
+        # The right operand is evaluated after the left; if it can mutate a
+        # local (e.g. ``[info exists X] && [unset X; expr 1]``) the left's facts
+        # may no longer hold when control reaches the branch, so drop them.
+        right_safe = _expr_mutation_free(expr.right)
         if expr.op in (BinOp.AND, BinOp.WORD_AND):
-            return left_true | right_true, set()
+            carry = left_true if right_safe else set()
+            return carry | right_true, set()
         if expr.op in (BinOp.OR, BinOp.WORD_OR):
-            return set(), left_false | right_false
+            carry = left_false if right_safe else set()
+            return set(), carry | right_false
     return set(), set()
 
 
