@@ -80,8 +80,14 @@ def test_current_version_survives_gc():
     st = DocumentState(uri="file:///mvcc4.tcl")
     _materialise_versions(st)
     gc.collect()
-    # v3 is the current snapshot's buffer — a strong ref keeps it alive.
-    assert st.buffer_for_version(3) is not None
+    # v3 is the current snapshot's buffer — a strong ref keeps it alive across
+    # GC, and it must be the *right* buffer (correct version + content), not
+    # merely some surviving object.
+    b3 = st.buffer_for_version(3)
+    assert b3 is not None and b3.version == 3
+    assert b3.source.endswith("set c 3\n")
+    # It is the very buffer the current snapshot exposes, not a stale revival.
+    assert b3 is st.buffer
 
 
 def test_registry_prunes_to_live_versions_only():
