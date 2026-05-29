@@ -846,6 +846,40 @@ register(
 )
 
 
+register(
+    "FP-DS-07",
+    _Entry(
+        label="namespace-eval body scope survives an inline/factory IRBlock rebuild",
+        proc="::g",
+        vars=("x",),
+        show=("ssa", "unused"),
+        notes=(
+            "A `namespace eval ns {…}` body runs in `ns`, not the caller frame, so an\n"
+            "unqualified `$x` there is NOT a use of the caller's parameter (tclsh: an\n"
+            'absent `::ns::x` errors `can\'t read "x"`).  The IRBlock carrying this\n'
+            "(`caller_scope=False`) is rebuilt by the inline-uplevel / factory-specialise\n"
+            "passes when its body changes — here `reset` is an uplevel-passthrough\n"
+            "candidate, so inline_uplevel splices its body and rebuilds the block.  That\n"
+            "rebuild must preserve `caller_scope` (now via `dataclasses.replace`); a hand-\n"
+            "rebuild that dropped it reverted to the True default, recovered `$x` as a\n"
+            "caller read, and falsely suppressed W214.  So `x` is genuinely unused → W214\n"
+            "must still fire through the rebuild."
+        ),
+        source=_dedent(
+            """
+            proc reset {} { uplevel 1 {set counter 0} }
+            proc g {x} {
+                namespace eval ::ns {
+                    reset
+                    puts "hello $x"
+                }
+            }
+            """
+        ),
+    ),
+)
+
+
 # PR 3 / SH family — shimmer (S100/S101/S102) determinations.
 
 
@@ -1507,6 +1541,36 @@ register(
             proc f {} {
                 # `0 ? 1/0 : 7` -> dead arm; tclsh returns 7; W233 must NOT fire.
                 return [expr {0 ? 1/0 : 7}]
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-BND-06",
+    _Entry(
+        label="W233 fires when a non-integer constant guard forces the lazy arm",
+        proc="::f",
+        vars=(),
+        show=("ssa", "values"),
+        notes=(
+            "The forced-arm walk resolves the guard with the same constant-truth\n"
+            "engine as the W123 dead-arm check (`expr_ast._const_bool`), so a float\n"
+            "(`1.0`), a case-insensitive bool keyword (`True`), or a unary-prefixed\n"
+            "constant (`-1`, `!0`) is recognised as a constant guard — not just a\n"
+            "bare integer literal.  tclsh 9.0.3 raises `divide by zero` for\n"
+            "`expr {1.0 && 1/0}` / `{True && 1/0}` / `{-1 && 1/0}`; the matching\n"
+            "constant-FALSE guards (`False && 1/0`, `!1 && 1/0`) short-circuit and\n"
+            "stay silent (FP-BND-05 covers the short-circuit discipline)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # 1.0 is constant-true -> the && RHS is forced -> 1/0 is a
+                # guaranteed tclsh divide-by-zero -> W233 fires.
+                return [expr {1.0 && 1/0}]
             }
             """
         ),

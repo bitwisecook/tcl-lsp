@@ -205,6 +205,44 @@ def test_FP_DS_06_same_element_overwrite_still_fires():
     )
 
 
+# FP-DS-07 — namespace-eval body scope survives an inline/factory IRBlock rebuild
+#
+# A `namespace eval ns {…}` body runs in `ns`, not the caller frame, so an
+# unqualified `$x` there is NOT a use of the caller's parameter (tclsh: "can't
+# read x: no such variable").  The IRBlock that carries this (caller_scope=False)
+# is rebuilt by the inline-uplevel / factory-specialise passes when its body
+# changes; that rebuild must preserve the flag, or the body's reads get recovered
+# as caller reads and falsely suppress the genuine W214/W220.
+
+
+FP_DS_07_REPRO = """\
+proc reset {} { uplevel 1 {set counter 0} }
+proc g {x} {
+    namespace eval ::ns {
+        reset
+        puts "hello $x"
+    }
+}
+"""
+
+
+def test_FP_DS_07_ns_eval_param_unused_through_rebuild_fires():
+    """TP: `reset` is an uplevel-passthrough candidate, so inline_uplevel rebuilds
+    the ns-eval IRBlock.  `$x` runs in ::ns (not g's frame) → the parameter `x`
+    is genuinely unused → W214 must still fire.  A rebuild that dropped
+    caller_scope would recover `$x` as a caller read and suppress it."""
+    assert _codes(FP_DS_07_REPRO, "W214"), (
+        "param used only inside a (rebuilt) namespace eval body must fire W214"
+    )
+
+
+def test_FP_DS_07_plain_eval_body_read_is_caller_use_silent():
+    """FP control: a *plain* `eval {…}` body runs in the caller frame, so `$x`
+    IS a use of the parameter — W214 must NOT fire (contrast the ns-eval form)."""
+    src = 'proc g {x} { eval { puts "hello $x" } }'
+    assert _codes(src, "W214") == [], "plain eval body read is a genuine caller use"
+
+
 # Sanity check the analyse() entry-point too — get_diagnostics is the full
 # pipeline but analyse() is the analyser-only path tests/test_checks.py uses.
 def test_FP_DS_smoke_analyse_pipeline():

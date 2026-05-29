@@ -184,3 +184,50 @@ def test_FP_BND_05_guard_excludes_zero_silent():
     d is provably 0 (SCCP prunes the dead branch)."""
     src = "proc f {} { set d 0\n if {$d != 0} { return [expr {1 / $d}] }\n return safe }"
     assert _codes(src, "W233") == []
+
+
+# FP-BND-06 — W233 fires when a NON-INTEGER constant guard forces the lazy arm
+#
+# The forced-arm walk resolves the guard with the same constant-truth engine as
+# the W123 dead-arm check (`expr_ast._const_bool`), so a float, a case-
+# insensitive boolean keyword, or a unary-prefixed constant is recognised as a
+# constant guard — not just a bare integer literal.  tclsh 9.0.3 raises "divide
+# by zero" for every must-fire case below; the FP controls short-circuit the
+# `1/0` away and stay silent.
+
+
+def test_FP_BND_06_float_guard_forces_arm_fires():
+    """TP: `1.0`/`0.0`/`1.5` are constant-true|false guards — the forced arm's
+    `1/0` is a guaranteed divide-by-zero."""
+    assert _codes("proc f {} { return [expr {1.0 && 1/0}] }", "W233")
+    assert _codes("proc f {} { return [expr {0.0 || 1/0}] }", "W233")
+    assert _codes("proc f {} { return [expr {1.5 ? 1/0 : 7}] }", "W233")
+
+
+def test_FP_BND_06_uppercase_bool_guard_forces_arm_fires():
+    """TP: Tcl `expr` accepts booleans case-insensitively, so `True`/`TRUE`/`No`
+    are constant guards (a capitalised bool no longer degrades to opaque raw)."""
+    assert _codes("proc f {} { return [expr {True && 1/0}] }", "W233")
+    assert _codes("proc f {} { return [expr {TRUE && 1/0}] }", "W233")
+    assert _codes("proc f {} { return [expr {No || 1/0}] }", "W233")
+
+
+def test_FP_BND_06_unary_constant_guard_forces_arm_fires():
+    """TP: unary `-`/`+` keep the operand's truth (`-1` true), `!`/`not` invert
+    it (`!0` true) — both constant, so the forced arm fires."""
+    assert _codes("proc f {} { return [expr {-1 && 1/0}] }", "W233")
+    assert _codes("proc f {} { return [expr {!0 && 1/0}] }", "W233")
+
+
+def test_FP_BND_06_false_constant_guard_short_circuits_silent():
+    """FP control: `False`/`!1`/`0.0 &&` are constant-FALSE — the `&&` RHS is
+    short-circuited away, so no guaranteed error (tclsh returns false)."""
+    assert _codes("proc f {} { return [expr {False && 1/0}] }", "W233") == []
+    assert _codes("proc f {} { return [expr {!1 && 1/0}] }", "W233") == []
+    assert _codes("proc f {} { return [expr {0.0 && 1/0}] }", "W233") == []
+
+
+def test_FP_BND_06_nonconstant_guard_silent():
+    """FP control: a *non-constant* guard leaves the arm maybe-dead — no
+    guaranteed error, so W233 must stay silent."""
+    assert _codes("proc f {c} { return [expr {$c && 1/0}] }", "W233") == []

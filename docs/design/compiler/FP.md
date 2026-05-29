@@ -2133,6 +2133,84 @@ function ::f
 
 ---
 
+### FP-DS-07 — namespace-eval body scope survives an inline/factory IRBlock rebuild
+
+- **Verdict:** TRUE POSITIVE (genuinely-unused parameter) + paired FP guard
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_07_*`
+- **Codes:** W214 (paired with W220 — same caller-scope gate)
+- **Corpus:** synthetic (no clean-corpus instance — needs a factory/uplevel candidate *and* an
+  unqualified caller-param read inside the same `namespace eval` body; corpus delta 0). tclsh-verified.
+
+#### Reproducer
+
+```tcl
+proc reset {} { uplevel 1 {set counter 0} }
+proc g {x} {
+    namespace eval ::ns {
+        reset
+        puts "hello $x"
+    }
+}
+```
+
+#### Per-line reasoning
+
+A `namespace eval ns {…}` body runs in `ns`, not the caller frame, so the unqualified `$x`
+there is **not** a use of `g`'s parameter — Tcl resolves it in `::ns` (and errors `can't read
+"x"` when `::ns::x` is unset).  The parameter `x` is therefore genuinely unused → W214.
+
+The IRBlock carrying this distinction sets `caller_scope=False` (so the body→caller read
+recovery at `place_bridge.py` / `core_analyses.py` is *not* applied).  But the inline-uplevel
+and factory-specialise passes **rebuild** that IRBlock whenever its body changes — here `reset`
+is an uplevel-passthrough candidate, so `inline_uplevel` splices its body and reconstructs the
+block.  The rebuild copied range/body/namespace/source_args/source_tokens by hand and silently
+dropped `caller_scope` back to its `True` default, re-enabling the recovery and **falsely
+suppressing** the W214.  The fix rebuilds via `dataclasses.replace(stmt, body=new_body)` so the
+flag (and any future field) is preserved.
+
+The paired FP control: a **plain** `eval {…}` body *does* run in the caller frame, so `$x`
+there is a real use — W214 must NOT fire.
+
+#### tclsh ground truth
+
+```
+% proc g {x} { namespace eval ::ns { puts "hello $x" } } ; g hi
+can't read "x": no such variable        ;# $x is NOT g's parameter — x is unused in g
+% proc g {x} { eval { puts "hello $x" } } ; g hi
+hello hi                                  ;# plain eval runs in g's frame — $x IS used
+```
+
+#### Compiler evidence
+
+```
+--- FP-DS-07: namespace-eval body scope survives an inline/factory IRBlock rebuild
+regen: python -m bench.fp_snippets --id FP-DS-07
+function ::g
+  block entry_1
+    [0] Block  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+
+The `Block` statement carries `caller_scope=False`; its `uses={}` (the body's `$x` is not
+hoisted as a caller use) is exactly what keeps `x` reportable as unused.
+
+#### Why the analyser reaches that verdict
+
+`compiler/inline_uplevel.py` and `compiler/passes/specialise_factories.py` rebuild the
+`namespace eval` IRBlock with `dataclasses.replace(stmt, body=new_body)`, preserving
+`caller_scope=False`, so the post-rebuild `read_places` / `_block_local_reads` gates leave the
+body's unqualified reads unrecovered — and the unused-parameter pass still sees `x` as unused.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_07_ns_eval_param_unused_through_rebuild_fires` (TP)
+- `tests/test_fp_ds.py::test_FP_DS_07_plain_eval_body_read_is_caller_use_silent` (FP)
+- analyser-path coverage: `tests/test_checks.py::TestNamespaceEvalBodyScope`
+
+---
+
 
 ## SH — shimmer (S100/S101/S102)
 
@@ -3559,6 +3637,86 @@ function ::f
 - `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_or_silent` (FP, ||)
 - `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_and_silent` (FP, &&)
 - `tests/test_fp_bnd.py::test_FP_BND_05_guard_excludes_zero_silent` (FP, if-guard)
+
+---
+
+### FP-BND-06 — W233 fires when a non-integer constant guard forces the lazy arm
+
+- **Verdict:** TRUE POSITIVE (forced-arm guaranteed divide-by-zero) + paired FP guards
+- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_06_*`
+- **Codes:** W233
+- **Corpus:** synthetic edge cases (no clean-corpus instance — a guaranteed `1/0` behind a
+  constant-true guard is a bug clean libraries don't contain; corpus delta 0). tclsh-verified.
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # 1.0 is constant-true -> the && RHS is forced -> 1/0 is a
+    # guaranteed tclsh divide-by-zero -> W233 fires.
+    return [expr {1.0 && 1/0}]
+}
+```
+
+#### Per-line reasoning
+
+The forced-arm walk (`compiler/interval_bounds.py::_walk_eager`) decides whether a lazy
+operand is *guaranteed to run* by resolving its guard to a constant.  It originally used an
+int-only, case-sensitive helper (`intervals._literal_int`), so non-integer constant guards
+were treated as non-constant — the arm stayed "maybe-dead" and a guaranteed error in it was
+missed.  Switching to `expr_ast._const_bool` (the same constant-truth engine the W123
+dead-arm check uses) recognises:
+
+* **floats** — `1.0` / `0.0` / `1.5` (`1.0 && 1/0`, `0.0 || 1/0`, `1.5 ? 1/0 : 7` all force the arm);
+* **case-insensitive bool keywords** — `True` / `TRUE` / `No` (the lexer also now tokenises a
+  capitalised bool as a literal instead of degrading the whole expr to an opaque raw node);
+* **unary-prefixed constants** — `-1` / `+2` keep the operand's truth, `!0` / `not 0` invert it.
+
+A constant-**false** `&&` guard (`False && 1/0`, `!1 && 1/0`, `0.0 && 1/0`) still short-circuits
+the RHS away, and a non-constant guard leaves the arm maybe-dead — both stay silent (no new
+false positives; the change is purely in the safe direction).  See FP-BND-05 for the
+short-circuit discipline this complements.
+
+#### tclsh ground truth
+
+```
+% expr {1.0 && 1/0}
+divide by zero
+% expr {True && 1/0}
+divide by zero
+% expr {-1 && 1/0}
+divide by zero
+% expr {False && 1/0}
+0
+% expr {!1 && 1/0}
+0
+```
+
+#### Compiler evidence
+
+```
+--- FP-BND-06: W233 fires when a non-integer constant guard forces the lazy arm
+regen: python -m bench.fp_snippets --id FP-BND-06
+function ::f
+  block entry_1
+    term Return [expr {1.0 && 1/0}]
+```
+
+#### Why the analyser reaches that verdict
+
+`_walk_eager` now resolves the guard with `expr_ast._const_bool` (True/False/None; floats +
+case-insensitive bools + unary fold), and `compiler/parsing/expr_lexer.py` recognises bool
+keywords case-insensitively so a capitalised bool reaches the AST as a literal.  `None` (not
+statically decidable) still leaves the arm skipped — the unchanged safe path.
+
+#### Tests
+
+- `tests/test_fp_bnd.py::test_FP_BND_06_float_guard_forces_arm_fires` (TP, float)
+- `tests/test_fp_bnd.py::test_FP_BND_06_uppercase_bool_guard_forces_arm_fires` (TP, case-insensitive bool)
+- `tests/test_fp_bnd.py::test_FP_BND_06_unary_constant_guard_forces_arm_fires` (TP, unary)
+- `tests/test_fp_bnd.py::test_FP_BND_06_false_constant_guard_short_circuits_silent` (FP, constant-false)
+- `tests/test_fp_bnd.py::test_FP_BND_06_nonconstant_guard_silent` (FP, non-constant)
+- broader edge coverage in `tests/test_interval_bounds.py::TestDivideByZero`
 
 ---
 
