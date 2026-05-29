@@ -127,11 +127,14 @@ def spawn_publish_diagnostics(
     return task
 
 
-# Cold-build routing.  A small document builds in a few milliseconds, so a fresh
-# build of one runs in-thread: routing it to the bounded cold pool would only
-# make it queue behind multi-second big cold builds (cold-pool head-of-line
-# blocking — a trivial file should never wait behind a workspace of huge ones).
-_COLD_INTHREAD_MAX_BYTES = 16 * 1024
+# Fresh-build routing by source size.  Every *fresh* build (full, non-
+# incremental analysis) runs in a subprocess pool — CPU-bound analysis is
+# GIL-bound, so in-thread fan-out is slower than serial (measured 4-thread
+# 20.8s vs serial 15.3s vs 4-process 7.7s).  A build at/below this size uses the
+# small-file lane (:func:`server.state._get_small_pool`); a larger one uses the
+# cold pool.  The two lanes are separate pools so a trivial file never queues
+# behind a workspace of multi-second cold builds (head-of-line blocking).
+_SMALL_BUILD_MAX_BYTES = 16 * 1024
 # A generous wall-clock ceiling for a *big* cold build in the pool, far above any
 # legitimate build (per-proc cost is bounded by the complexity guard).  Unlike
 # the old per-build timeout it does NOT re-run the build in-thread on expiry
@@ -139,6 +142,10 @@ _COLD_INTHREAD_MAX_BYTES = 16 * 1024
 # cold pool to reclaim a wedged worker and abandons the build, releasing the
 # per-uri writer lock so later edits to that document aren't starved.
 _COLD_BUILD_CEILING_S = 120.0
+# The small-file lane's ceiling.  A genuinely small build finishes in well under
+# a second; this is a large margin that still reclaims a wedged small worker far
+# faster than the cold ceiling.
+_SMALL_BUILD_CEILING_S = 30.0
 
 
 def _publish_diags_to_client(
@@ -448,35 +455,43 @@ async def _publish_diagnostics_inner(
     did_analyse = needs_analysis or force_reanalyse
     subprocess_result: dict | None = None
     if did_analyse:
-        # "Fresh" = cold full build.  A warm edit clears analysis via
-        # update_source_quick but preserves an incremental base
+        # "Fresh" = full (non-incremental) build.  A warm edit clears analysis
+        # via update_source_quick but preserves an incremental base
         # (``can_analyse_incrementally``), so it takes the in-thread incremental
-        # update() path instead of re-analysing the whole document from scratch.
+        # update() path — cheap, and it mutates the DocumentState in place.
         #
-        # Only a *big* fresh build is routed to the cold subprocess pool.  A
-        # small fresh build (and every warm edit) runs in-thread: it finishes in
-        # milliseconds, and routing it to the bounded pool would only make a
-        # trivial file queue behind a workspace of multi-second big builds
-        # (cold-pool head-of-line blocking — the size fast-lane closes it).
+        # Every *fresh* build runs in a subprocess pool: CPU-bound analysis is
+        # GIL-bound, so in-thread fan-out is slower than serial under a storm.
+        # A large build uses the cold pool; a small one uses a separate
+        # small-file lane (its own pool) so a trivial file never queues behind a
+        # workspace of multi-second cold builds (head-of-line blocking).
         is_fresh = force_reanalyse or not state.can_analyse_incrementally
-        large_cold = is_fresh and len(source) > _COLD_INTHREAD_MAX_BYTES
-        if large_cold:
+        if is_fresh:
             from analyser.checks._style import _non_ascii_mode_var
             from compiler.registry.runtime import _dialect_var, _extra_commands_var
             from server.workspace.document_state import _analyse_document_fresh
 
-            # The build runs in its dedicated cold pool (so a cold-build storm
-            # can't block deep diagnostics) and is abandoned if a newer edit
+            if len(source) > _SMALL_BUILD_MAX_BYTES:
+                pool = _state._get_process_pool()
+                reset_pool = _state._reset_process_pool
+                ceiling = _COLD_BUILD_CEILING_S
+                lane = "cold"
+            else:
+                pool = _state._get_small_pool()
+                reset_pool = _state._reset_small_pool
+                ceiling = _SMALL_BUILD_CEILING_S
+                lane = "small"
+
+            # The build runs in its lane's pool and is abandoned if a newer edit
             # supersedes it.  A generous wall-clock ceiling guards a wedged build
             # the complexity guard doesn't catch: unlike the old per-build
             # timeout it does NOT re-run in-thread on expiry (that doubled the
-            # work and froze the event loop) — it poisons-and-recreates the cold
-            # pool and returns, releasing this URI's writer lock so later edits
-            # aren't starved.  A genuine worker crash surfaces as
-            # BrokenProcessPool below.
+            # work and froze the event loop) — it poisons-and-recreates the
+            # lane's pool and returns, releasing this URI's writer lock so later
+            # edits aren't starved.  A worker crash surfaces as BrokenProcessPool
+            # below.
             try:
                 loop = asyncio.get_running_loop()
-                pool = _state._get_process_pool()
                 result = await asyncio.wait_for(
                     loop.run_in_executor(
                         pool,
@@ -504,16 +519,15 @@ async def _publish_diagnostics_inner(
                             # subprocess to re-establish (mirrors dialect).
                             stub_commands=tuple(_state.workspace_stub_commands),
                             # Forward the line-ending config and the (small,
-                            # picklable) workspace diagnostic context so the cold
-                            # build's basic diagnostics match the in-thread
-                            # phase1: line-ending checks + W120/W123 workspace
-                            # filtering.  Without these a large file's cold build
-                            # diverged from a small file's in-thread build.
+                            # picklable) workspace diagnostic context so the
+                            # subprocess build's basic diagnostics match the
+                            # in-thread phase1: line-ending checks + W120/W123
+                            # workspace filtering.
                             line_ending=_state.formatter_config_for_uri(uri).line_ending,
                             workspace_context=_build_workspace_diagnostic_context(),
                         ),
                     ),
-                    timeout=_COLD_BUILD_CEILING_S,
+                    timeout=ceiling,
                 )
                 if _superseded(uri, version):
                     # A newer version was requested while we were analysing —
@@ -529,22 +543,24 @@ async def _publish_diagnostics_inner(
                 subprocess_result = result
             except asyncio.TimeoutError:
                 # The build blew past the generous ceiling — almost certainly a
-                # wedged worker.  Poison-and-recreate the cold pool to reclaim
+                # wedged worker.  Poison-and-recreate the lane's pool to reclaim
                 # it and abandon this build; do NOT re-run in-thread (that would
                 # block the event loop on the same wedge).  The orphaned pool
                 # future is uncancellable but dies with the pool.
                 log.warning(
-                    "Cold build exceeded %.0fs ceiling for %s (v%s); "
-                    "recreating cold pool and abandoning",
-                    _COLD_BUILD_CEILING_S,
+                    "%s build exceeded %.0fs ceiling for %s (v%s); "
+                    "recreating %s pool and abandoning",
+                    lane,
+                    ceiling,
                     uri,
                     version,
+                    lane,
                 )
-                _state._reset_process_pool()
+                reset_pool()
                 return
             except BrokenProcessPool:
-                log.warning("Process pool broken, falling back to thread")
-                _state._reset_process_pool()
+                log.warning("%s build pool broken, falling back to thread", lane)
+                reset_pool()
                 await asyncio.to_thread(
                     state.update,
                     source,
@@ -562,6 +578,8 @@ async def _publish_diagnostics_inner(
                     line_length=line_length,
                 )
         else:
+            # Warm/incremental edit: cheap; runs in a worker thread (it mutates
+            # the DocumentState in place, so it can't go to a subprocess).
             await asyncio.to_thread(
                 state.update,
                 source,

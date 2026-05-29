@@ -227,7 +227,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
 
 
 def on_shutdown(params: None) -> None:
-    """Cancel pending background tasks and shut down both process pools."""
+    """Cancel pending background tasks and shut down all process pools."""
     _state.diagnostic_scheduler.cancel_all()
     if _state._process_pool is not None:
         _state._process_pool.shutdown(wait=False, cancel_futures=True)
@@ -235,6 +235,9 @@ def on_shutdown(params: None) -> None:
     if _state._deep_pool is not None:
         _state._deep_pool.shutdown(wait=False, cancel_futures=True)
         _state._deep_pool = None
+    if _state._small_pool is not None:
+        _state._small_pool.shutdown(wait=False, cancel_futures=True)
+        _state._small_pool = None
 
 
 # File-system watch and rename hooks

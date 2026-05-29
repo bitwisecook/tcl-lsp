@@ -363,14 +363,23 @@ project_config_settings_per_folder: dict[str, dict] = {}
 
 _process_pool: ProcessPoolExecutor | None = None
 _deep_pool: ProcessPoolExecutor | None = None
+_small_pool: ProcessPoolExecutor | None = None
 
 # Cold full builds scale with the machine (a multi-root workspace / a
 # git-checkout that reopens several tabs submits several multi-second builds at
 # once; a 2-worker cap made a trivial file wait behind them).  Deep diagnostics
 # get a *separate* small pool so a cold-build storm can't starve every open
 # document's deep pass — the two no longer share a queue (head-of-line blocking).
+#
+# Small fresh builds get a THIRD pool (the "small-file lane").  CPU-bound
+# analysis fans out badly in threads (the GIL makes N concurrent in-thread
+# builds slower than serial — measured 4-thread 20.8s vs serial 15.3s vs
+# 4-process 7.7s), so a fresh build runs in a subprocess for true parallelism.
+# Small builds use their own pool, separate from the cold pool, so a trivial
+# file never queues behind a workspace of multi-second cold builds.
 _COLD_POOL_WORKERS = max(2, min(4, (os.cpu_count() or 4) - 1))
 _DEEP_POOL_WORKERS = 2
+_SMALL_POOL_WORKERS = max(2, min(4, (os.cpu_count() or 4) - 1))
 
 
 def _forkserver_context():
@@ -426,6 +435,38 @@ def _get_deep_pool() -> ProcessPoolExecutor:
             max_workers=_DEEP_POOL_WORKERS, mp_context=_forkserver_context()
         )
     return _deep_pool
+
+
+def _get_small_pool() -> ProcessPoolExecutor:
+    """Lazy pool for *small* fresh full builds (``_analyse_document_fresh``).
+
+    The small-file lane: separate from the cold-build pool
+    (:func:`_get_process_pool`) so a trivial file's fresh build runs in parallel
+    and never queues behind a workspace of multi-second cold builds.  A fresh
+    build runs in a subprocess (not a thread) because CPU-bound analysis is
+    GIL-bound — in-thread fan-out is slower than serial.
+    """
+    global _small_pool
+    if _small_pool is None:
+        _small_pool = ProcessPoolExecutor(
+            max_workers=_SMALL_POOL_WORKERS, mp_context=_forkserver_context()
+        )
+    return _small_pool
+
+
+def _reset_small_pool() -> None:
+    """Tear down the small-build pool so the next build gets a fresh one.
+
+    Mirrors :func:`_reset_process_pool` for the small-file lane: poison-and-
+    recreate after a wedged build (ceiling exceeded) or a ``BrokenProcessPool``.
+    """
+    global _small_pool
+    pool, _small_pool = _small_pool, None
+    if pool is not None:
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
 
 
 # Tracks which (resolver, package_name) pairs have already had their source

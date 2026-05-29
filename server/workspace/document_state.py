@@ -44,6 +44,7 @@ from shared.rope import RopeEdit
 from shared.tokens import Token
 
 if TYPE_CHECKING:
+    from analyser.semantic_model import WorkspaceDiagnosticContext
     from server.features.incremental_diagnostics import ProcDiagEntry
 
 # Lazy import to avoid circular dependencies at module load time.
@@ -238,7 +239,7 @@ def _analyse_document_fresh(
     non_ascii_mode: str | None = None,
     stub_commands: tuple = (),
     line_ending: str = "\n",
-    workspace_context: object | None = None,
+    workspace_context: "WorkspaceDiagnosticContext | None" = None,
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 

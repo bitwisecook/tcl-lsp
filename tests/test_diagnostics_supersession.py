@@ -42,10 +42,9 @@ def _run_publish_with_midflight_bump(monkeypatch, uri: str, src: str, version: i
     did_change queued mid-analysis).  Returns the FakeServer."""
     server = _FakeServer()
     monkeypatch.setattr(dp, "_server", server)
-    # Force even a tiny source down the cold *pool* path (the size fast-lane
-    # would otherwise route a small fresh build in-thread, bypassing the
-    # subprocess await this supersession guard protects).
-    monkeypatch.setattr(dp, "_COLD_INTHREAD_MAX_BYTES", -1)
+    # Force even a tiny source down the *cold* lane (size > threshold) so this
+    # supersession guard exercises the subprocess await via _get_process_pool.
+    monkeypatch.setattr(dp, "_SMALL_BUILD_MAX_BYTES", -1)
     # Run the cold-build "subprocess" in an in-process thread so the gated stub
     # is the one that executes.
     monkeypatch.setattr(_state, "_get_process_pool", lambda: ThreadPoolExecutor(max_workers=1))
@@ -64,38 +63,49 @@ def _run_publish_with_midflight_bump(monkeypatch, uri: str, src: str, version: i
     return server
 
 
-class TestColdBuildSizeFastLane:
-    """A fresh build only goes to the cold *pool* when it's big; a small one
-    runs in-thread so a trivial file never queues behind huge cold builds."""
+class TestFreshBuildLaneRouting:
+    """Every fresh build runs in a subprocess pool (in-thread CPU fan-out is
+    GIL-bound — slower than serial).  A small build uses the small-file lane
+    (``_get_small_pool``) so it never queues behind a workspace of multi-second
+    cold builds; a large build uses the cold pool (``_get_process_pool``)."""
 
-    def _pool_used_for(self, monkeypatch, uri: str, src: str) -> bool:
+    def _lanes_used_for(self, monkeypatch, uri: str, src: str) -> dict[str, bool]:
         server = _FakeServer()
         monkeypatch.setattr(dp, "_server", server)
         monkeypatch.setattr(_state.diagnostic_scheduler, "schedule_async", lambda *a, **k: None)
-        used = {"pool": False}
+        used = {"cold": False, "small": False}
 
-        def _fake_pool():
-            used["pool"] = True
+        def _fake_cold():
+            used["cold"] = True
             return ThreadPoolExecutor(max_workers=1)
 
-        monkeypatch.setattr(_state, "_get_process_pool", _fake_pool)
-        asyncio.run(dp._publish_diagnostics(uri, src, version=1))
-        return used["pool"]
+        def _fake_small():
+            used["small"] = True
+            return ThreadPoolExecutor(max_workers=1)
 
-    def test_small_fresh_build_skips_pool(self, monkeypatch):
-        uri = "file:///fastlane_small.tcl"
+        monkeypatch.setattr(_state, "_get_process_pool", _fake_cold)
+        monkeypatch.setattr(_state, "_get_small_pool", _fake_small)
+        asyncio.run(dp._publish_diagnostics(uri, src, version=1))
+        return used
+
+    def test_small_fresh_build_uses_small_lane(self, monkeypatch):
+        uri = "file:///lane_small.tcl"
         try:
-            assert self._pool_used_for(monkeypatch, uri, "set x 1\n") is False
+            used = self._lanes_used_for(monkeypatch, uri, "set x 1\n")
+            assert used["small"] is True, "a small fresh build must use the small-file lane"
+            assert used["cold"] is False, "a small fresh build must not touch the cold pool"
         finally:
             dp._release_publish_state(uri)
             _state.workspace_state.close(uri)
 
-    def test_large_fresh_build_uses_pool(self, monkeypatch):
-        uri = "file:///fastlane_large.tcl"
-        big = "set x 1\n" * (dp._COLD_INTHREAD_MAX_BYTES // 8 + 16)
-        assert len(big) > dp._COLD_INTHREAD_MAX_BYTES
+    def test_large_fresh_build_uses_cold_lane(self, monkeypatch):
+        uri = "file:///lane_large.tcl"
+        big = "set x 1\n" * (dp._SMALL_BUILD_MAX_BYTES // 8 + 16)
+        assert len(big) > dp._SMALL_BUILD_MAX_BYTES
         try:
-            assert self._pool_used_for(monkeypatch, uri, big) is True
+            used = self._lanes_used_for(monkeypatch, uri, big)
+            assert used["cold"] is True, "a large fresh build must use the cold pool"
+            assert used["small"] is False, "a large fresh build must not touch the small lane"
         finally:
             dp._release_publish_state(uri)
             _state.workspace_state.close(uri)
