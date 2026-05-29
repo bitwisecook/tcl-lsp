@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from compiler.registry._base import CommandDef
+from compiler.registry._base import CommandDef, make_av
 from compiler.registry.models import (
     CommandSpec,
     FormKind,
@@ -20,6 +20,16 @@ from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, 
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/HTTP__version.html"
+
+_av = make_av(_SOURCE)
+
+# The HTTP/1.x versions the bareword setter accepts.  HTTP/2 and HTTP/3 are
+# their own command namespaces (``HTTP2::`` etc.), so they are not values here.
+_HTTP_VERSIONS = (
+    _av("0.9", "HTTP/0.9", "HTTP::version 0.9"),
+    _av("1.0", "HTTP/1.0", "HTTP::version 1.0"),
+    _av("1.1", "HTTP/1.1", "HTTP::version 1.1"),
+)
 
 
 @register
@@ -66,6 +76,13 @@ class HttpVersionCommand(CommandDef):
                             value_hint="version",
                         ),
                     ),
+                    # The bareword setter takes one of the known HTTP/1.x
+                    # versions; offer them as completions and treat the set as
+                    # exhaustive (W127 flags anything else).  The ``-string``
+                    # form (index 1) is intentionally a raw, unconstrained
+                    # value, so it is not enumerated or closed here.
+                    arg_values={0: _HTTP_VERSIONS},
+                    closed_value_args=frozenset({0}),
                 ),
             ),
             validation=ValidationSpec(

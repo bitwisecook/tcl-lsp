@@ -856,6 +856,144 @@ class TestBodyKind:
         assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
 
 
+class TestIrulesNestingScriptBody:
+    """iRules ``NESTING_SCRIPT`` arguments resolve to ``ArgRole.BODY``.
+
+    ``clientside`` / ``serverside`` / ``after`` each accept an optional Tcl
+    script body in their synopsis (``(NESTING_SCRIPT)?``) but historically
+    declared no ``ArgRole.BODY``, so the script contents were treated as an
+    opaque value rather than recursively analysed.  ``clientside`` /
+    ``serverside`` run the script synchronously in the caller's scope
+    (``INLINE``); ``after`` defers it to a fresh context (``STRUCTURAL``).
+    """
+
+    def _registry(self):
+        from compiler.registry import REGISTRY
+
+        # These are iRules-only commands; load the dialect so the specs
+        # are visible to the runtime role/body-kind queries.
+        REGISTRY.load_dialect_specs("f5-irules")
+
+    def test_clientside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("clientside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("clientside", args) is BodyKind.INLINE
+
+    def test_serverside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("serverside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("serverside", args) is BodyKind.INLINE
+
+    def test_peer_script_is_inline_body(self):
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{TCP::collect}"]
+        # ``peer`` is the third side-switch — its script is an INLINE body.
+        assert arg_indices_for_role("peer", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("peer", args) is BodyKind.INLINE
+        assert REGISTRY.is_side_switch("peer")
+
+    def test_clientside_serverside_query_form_has_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Bare ``[clientside]`` / ``[serverside]`` is a context query (1/0),
+        # so there is no body argument to analyse.
+        assert arg_indices_for_role("clientside", [], ArgRole.BODY) == set()
+        assert arg_indices_for_role("serverside", [], ArgRole.BODY) == set()
+
+    def test_after_trailing_script_is_structural_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        # after MILLI_SECONDS NESTING_SCRIPT
+        assert arg_indices_for_role("after", ["1000", "{set x 5}"], ArgRole.BODY) == {1}
+        # after MILLI_SECONDS -periodic NESTING_SCRIPT — body follows the flag
+        periodic = arg_indices_for_role("after", ["1000", "-periodic", "{set x 5}"], ArgRole.BODY)
+        assert periodic == {2}
+        assert body_kind_for_command("after", ["1000", "{set x 5}"]) is BodyKind.STRUCTURAL
+
+    def test_after_non_script_forms_have_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Delay-only, the periodic flag without a script, and the
+        # cancel/info subcommand forms carry no script body.
+        assert arg_indices_for_role("after", ["1000"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["1000", "-periodic"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["cancel", "-current"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["info", "$id"], ArgRole.BODY) == set()
+
+    def test_clientside_serverside_arity_is_zero_or_one(self):
+        from compiler.registry import REGISTRY
+
+        # ``X (NESTING_SCRIPT)?`` — the bare query form (0 args) or a single
+        # optional nesting script, never more.  (Previously unbounded.)
+        for name in ("clientside", "serverside"):
+            validation = REGISTRY.validation(name, "f5-irules")
+            assert validation is not None, name
+            assert validation.arity.min == 0, name
+            assert validation.arity.max == 1, name
+
+        # ``peer`` has no bare query form — the script body is required.
+        peer_validation = REGISTRY.validation("peer", "f5-irules")
+        assert peer_validation is not None
+        assert peer_validation.arity.min == 1
+        assert peer_validation.arity.max == 1
+
+
+class TestClosedValueArgs:
+    """``FormSpec.closed_value_args`` marks an argument's value set exhaustive."""
+
+    def test_http_version_value_arg_is_closed(self):
+        from compiler.registry import REGISTRY
+
+        REGISTRY.load_dialect_specs("f5-irules")
+        assert REGISTRY.closed_value_arg_indices("HTTP::version", "f5-irules") == frozenset({0})
+        # The allowed set is the HTTP/1.x versions and nothing else.
+        allowed = {v.value for v in REGISTRY.argument_values("HTTP::version", 0, "f5-irules")}
+        assert allowed == {"0.9", "1.0", "1.1"}
+
+    def test_unmarked_command_has_no_closed_args(self):
+        from compiler.registry import REGISTRY
+
+        # A command that only suggests values (or none) is not a closed set.
+        assert REGISTRY.closed_value_arg_indices("set", "tcl8.6") == frozenset()
+
+    def test_w127_is_registered(self):
+        from shared.codes import diagnostic_codes
+
+        assert "W127" in diagnostic_codes()
+
+
 class TestTraceAddVariableVarWrite:
     """Issue #249 — ``trace add variable`` resolves *name* to ``ArgRole.VAR_WRITE``.
 

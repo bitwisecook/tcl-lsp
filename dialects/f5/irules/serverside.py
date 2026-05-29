@@ -6,12 +6,24 @@ from __future__ import annotations
 from compiler.registry._base import CommandDef
 from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from compiler.registry.namespace_models import EventRequires
-from compiler.registry.signatures import Arity
+from compiler.registry.signatures import ArgRole, Arity
 from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/serverside.html"
+
+
+def _serverside_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """The optional nesting script is a body evaluated in the server-side context.
+
+    With no argument the command is a context query returning 1/0, so there is
+    no body.  When the script is supplied it is the sole argument (index 0) and
+    runs synchronously in the caller's scope (``BodyKind.INLINE``).
+    """
+    if args:
+        return {0: frozenset({ArgRole.BODY})}
+    return {}
 
 
 @register
@@ -49,8 +61,11 @@ class ServersideCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(),
+                # ``serverside (NESTING_SCRIPT)?`` — the bare query form (0
+                # args) or a single optional nesting-script body.
+                arity=Arity(0, 1),
             ),
+            arg_role_resolver=_serverside_arg_roles,
             is_side_switch=True,
             event_requires=EventRequires(also_in=frozenset({"CLIENT_ACCEPTED"})),
             side_effect_hints=(

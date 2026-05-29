@@ -13,12 +13,28 @@ from compiler.registry.models import (
     ValidationSpec,
 )
 from compiler.registry.namespace_models import EventRequires
-from compiler.registry.signatures import Arity
+from compiler.registry.signatures import ArgRole, Arity, BodyKind
 from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/after.html"
+
+
+def _after_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """The trailing nesting script of the timer-scheduling form is a deferred body.
+
+    ``after cancel ...`` and ``after info ...`` take no script.  The timer form
+    is ``after MILLI_SECONDS (-periodic)? (NESTING_SCRIPT)?`` — when a script is
+    supplied it is the trailing argument (never the ``-periodic`` flag).  The
+    script runs later in its own context, so it is ``BodyKind.STRUCTURAL``.
+    """
+    if not args or args[0] in ("cancel", "info"):
+        return {}
+    last = len(args) - 1
+    if last >= 1 and args[last] != "-periodic":
+        return {last: frozenset({ArgRole.BODY})}
+    return {}
 
 
 @register
@@ -70,6 +86,8 @@ class AfterCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            arg_role_resolver=_after_arg_roles,
+            body_kind=BodyKind.STRUCTURAL,
             event_requires=EventRequires(),
             diagram_action=True,
             xc_translatable=False,
