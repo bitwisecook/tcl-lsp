@@ -1031,23 +1031,30 @@ def get_deep_diagnostics(
         except Exception:
             pass  # XC diagnostics are advisory — don't break normal diagnostics
 
-    # Tk-specific diagnostics (only when package require Tk is present)
-    if analysis is None:
-        analysis = analyse(source, cu=cu)
-    if has_tk_require(analysis):
-        try:
-            from analyser.checks.tk import check_tk_diagnostics
+    # Tk-specific diagnostics (only when ``package require Tk`` is present).
+    # A literal ``package require Tk`` — the only thing has_tk_require detects —
+    # must contain both tokens in the source, so this cheap necessary-condition
+    # gate skips the otherwise-wasted full analyse() for the common non-Tk file
+    # (the deep path passes analysis=None, and analysis is used only by the Tk
+    # check below).  When Tk *might* be required we run analyse() — the Tk check
+    # needs the analysis anyway.
+    if "package require" in source and "Tk" in source:
+        if analysis is None:
+            analysis = analyse(source, cu=cu)
+        if has_tk_require(analysis):
+            try:
+                from analyser.checks.tk import check_tk_diagnostics
 
-            for tk_diag in check_tk_diagnostics(source, analysis):
-                if disabled_diagnostics and tk_diag.code in disabled_diagnostics:
-                    continue
-                if suppressed and _is_suppressed(
-                    tk_diag.code, tk_diag.range.start.line, suppressed
-                ):
-                    continue
-                diags.append(_to_lsp_diagnostic(tk_diag))
-        except Exception:
-            pass  # Tk diagnostics are advisory — don't break normal diagnostics
+                for tk_diag in check_tk_diagnostics(source, analysis):
+                    if disabled_diagnostics and tk_diag.code in disabled_diagnostics:
+                        continue
+                    if suppressed and _is_suppressed(
+                        tk_diag.code, tk_diag.range.start.line, suppressed
+                    ):
+                        continue
+                    diags.append(_to_lsp_diagnostic(tk_diag))
+            except Exception:
+                pass  # Tk diagnostics are advisory — don't break normal diagnostics
 
     return diags
 
