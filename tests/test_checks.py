@@ -2657,6 +2657,24 @@ class TestW307ProcParamDispatcher:
         )
         assert len(_diag_with_code(src, "W307")) == 2
 
+    def test_switch_style_array_callback_no_w307(self):
+        # ``\$state(-command) \$token`` is the documented Tcl/Tk idiom for
+        # configurable callbacks (widget ``-command``, http
+        # ``-proxyfilter``, etc.).  The dash-prefixed array key marks the
+        # element as an option the user explicitly registered as a
+        # callback; flagging W307 is noise.  Verified against tclsh:
+        # ``set state(-command) myProc; \$state(-command) arg`` is the
+        # canonical option-as-callback pattern.
+        src = "proc test {token} {\n    variable state\n    $state(-command) $token\n}\n"
+        assert _diag_with_code(src, "W307") == []
+
+    def test_array_element_without_switch_key_still_w307(self):
+        # TP control: an array element whose key is NOT a switch-style
+        # option (eg ``\$arr(usercmd)`` — key from user input) is not the
+        # callback idiom — still fires.
+        src = "proc f {arg} {\n    variable arr\n    $arr(usercmd) $arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
 
 class TestOOClassNameComposition:
     """FQ-name composition for OO/snit class definitions (tclsh 9.0.3 oracle):

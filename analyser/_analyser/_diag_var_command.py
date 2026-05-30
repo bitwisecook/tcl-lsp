@@ -540,12 +540,26 @@ class _AnalyserDiagVarCommandMixin(_Base):
                             is_proc_param_dispatcher = True
                         elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
                             is_proc_param_dispatcher = True
+                # Switch-style callback in an array element: ``$state(-command)
+                # $token`` is the documented Tcl/Tk idiom for a user-
+                # configurable callback (widget ``-command``, http
+                # ``-proxyfilter``, etc.).  The dash-prefixed key marks the
+                # element as an option that the user explicitly registered
+                # as a callback — flagging W307 on those is noise.  Detect
+                # via array-element form with a key starting with ``-``.
+                is_switch_callback_element = False
+                if "(" in var_name and var_name.endswith(")"):
+                    _open = var_name.index("(")
+                    _key = var_name[_open + 1 : -1]
+                    if _key.startswith("-"):
+                        is_switch_callback_element = True
                 if (
                     not in_method
                     and not in_dict_with
                     and not is_factory_object
                     and not is_snit_member
                     and not is_proc_param_dispatcher
+                    and not is_switch_callback_element
                     and "W307" not in self._disabled_diagnostics
                 ):
                     self.result.diagnostics.append(
