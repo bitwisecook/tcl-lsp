@@ -395,6 +395,50 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 )
             )
 
+    def _dispatch_protocol_signatures(self) -> set[tuple[str, tuple[str, ...]]]:
+        """Identify ``(namespace, leading-param-list)`` pairs that look like a
+        **dispatch protocol** — a family of peer procs in the same namespace
+        all accepting an identical leading-param signature dictated by an
+        external dispatcher (parser-rule visitor, snit method protocol, etc.).
+
+        For procs in such a family, the protocol params are part of an
+        external contract and most rules genuinely don't use them; firing
+        W214 on every rule is noise.  Concrete tcllib example: ~140 procs
+        in ``pt::peg::from::peg::GEN::*`` all accept ``{s e}`` (start/end
+        positions); most pure-pattern rules don't read either.
+
+        Heuristic (sound for noise reduction; not for hiding real findings):
+        a ``(namespace, tuple-of-leading-param-names)`` qualifies when AT
+        LEAST 3 peer procs in the same namespace share that exact
+        leading-param prefix.  ``args`` is excluded from the prefix
+        (variadic catch-all should not count toward shape identity).
+
+        Lazy: computed once per AnalysisResult and cached on the mixin.
+        Returns the set of qualifying ``(namespace, params_tuple)`` keys.
+        """
+        cached = getattr(self, "_dispatch_proto_cache", None)
+        if cached is not None and cached[0] is self.result:
+            return cached[1]
+        # Group user procs by (namespace, leading-param-tuple).
+        groups: dict[tuple[str, tuple[str, ...]], int] = {}
+        for qname, pdef in self.result.all_procs.items():
+            # Namespace = everything up to the last ``::`` (or top-level).
+            ns = qname.rsplit("::", 1)[0] or "::"
+            # Build the leading-param tuple, stopping at ``args`` (variadic).
+            params: list[str] = []
+            for p in pdef.params:
+                if p.name == "args":
+                    break
+                params.append(p.name)
+            if not params:
+                continue
+            key = (ns, tuple(params))
+            groups[key] = groups.get(key, 0) + 1
+        # A protocol needs ≥3 peer procs sharing the signature shape.
+        proto = {key for key, n in groups.items() if n >= 3}
+        self._dispatch_proto_cache = (self.result, proto)
+        return proto
+
     def _emit_unused_param_diagnostics(
         self,
         ir_proc: IRProcedure,
@@ -408,7 +452,33 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         proc_def = self.result.all_procs.get(ir_proc.qualified_name)
         if proc_def is not None and proc_def.is_trace_callback:
             return
-        for param_name in analysis.unused_params:
+        # Dispatch-protocol suppression: when ≥3 peer procs in the same
+        # namespace share the same leading-param signature, those params are
+        # an external contract (parser-rule visitor, snit method protocol,
+        # tcllib pt::peg::from::peg::GEN::* rules — every rule gets ``{s e}``
+        # whether it uses them or not).  Firing W214 on every rule that
+        # ignores its protocol params is noise.  The shared-signature
+        # detection is structural and sound: a contract is only inferred
+        # when multiple peers carry it.
+        if proc_def is not None:
+            ns = ir_proc.qualified_name.rsplit("::", 1)[0] or "::"
+            params: list[str] = []
+            for p in proc_def.params:
+                if p.name == "args":
+                    break
+                params.append(p.name)
+            proto = self._dispatch_protocol_signatures()
+            if (ns, tuple(params)) in proto:
+                # All leading (non-``args``) params are protocol-dictated.
+                # Suppress W214 only on those — if the proc has additional
+                # params beyond the protocol, those would still fire.
+                protocol_params = frozenset(params)
+                remaining = [p for p in analysis.unused_params if p not in protocol_params]
+            else:
+                remaining = list(analysis.unused_params)
+        else:
+            remaining = list(analysis.unused_params)
+        for param_name in remaining:
             self.result.diagnostics.append(
                 Diagnostic(
                     range=ir_proc.range,

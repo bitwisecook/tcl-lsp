@@ -4027,6 +4027,82 @@ class TestSwitchSubjectCountsAsParamUse:
         assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"
 
 
+class TestDispatchProtocolSuppression:
+    """W214 dispatch-protocol suppression: when ≥3 peer procs in the same
+    namespace share an identical leading-param signature, those params are
+    a dispatcher contract (parser-rule visitor, snit method protocol,
+    tcllib pt::peg::from::peg::GEN::* rules with ``{s e}``).  Firing W214
+    on every rule that doesn't read its protocol params is noise.
+
+    Sound under-approximation: a protocol is only inferred when ≥3 peers
+    carry it.  A unique signature in the namespace still fires (it's a
+    real proc with genuinely unused args).
+    """
+
+    @staticmethod
+    def _w214(source: str) -> set[str]:
+        from analyser import analyse
+
+        return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
+
+    def test_three_peer_protocol_suppresses_W214(self):
+        # Mirrors the tcllib pt::peg::from::peg::GEN::* parser-rule visitor.
+        # ALNUM/ALPHA/DIGIT all accept ``{s e}``; ≥3 peers → protocol.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e} { return digit }\n"
+            "}\n"
+        )
+        assert self._w214(src) == set()
+
+    def test_two_peer_signature_does_not_form_protocol(self):
+        # Only 2 peers — not enough to infer a dispatcher contract; each
+        # rule's unused args still fire as genuine W214.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc rule_a {s e} { return alnum }\n"
+            "    proc rule_b {s e} { return alpha }\n"
+            "}\n"
+        )
+        # Both ``s`` and ``e`` unused in both procs → 4 fires.
+        assert self._w214(src) == {"s", "e"}
+
+    def test_extra_param_beyond_protocol_still_fires(self):
+        # The protocol part is suppressed but extra unused params past the
+        # protocol still fire — the contract only covers the shared prefix.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e} { return digit }\n"
+            "    proc SPECIAL {s e weird} { return $s$e }\n"
+            "}\n"
+        )
+        assert self._w214(src) == {"weird"}
+
+    def test_single_proc_still_fires(self):
+        # A unique signature in the namespace is not part of any protocol.
+        src = "proc foo {x y unused} { puts $x; puts $y }\n"
+        assert self._w214(src) == {"unused"}
+
+    def test_args_variadic_excluded_from_protocol_shape(self):
+        # ``args`` is Tcl's variadic catch-all — never part of the protocol
+        # shape, so peers that all share ``{s e}`` form a protocol even when
+        # SOME of them additionally have ``args``.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e args} { return [lindex $args 0] }\n"
+            "}\n"
+        )
+        # All three procs share the leading ``{s e}``; protocol applies.
+        # No unused (each body either ignores or uses the args).
+        assert self._w214(src) == set()
+
+
 class TestExprSubstitutionReadTracking:
     """Reads inside command-substituted exprs (``incr i [expr {$w}]``) must be
     recognised so the assignment feeding them is not falsely flagged dead /
