@@ -175,10 +175,12 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       node first; $TGraph dispose }`` — multiple dispatches on the
       same local var (≥2) demonstrate firm intent; the user
       designed it as an object handle.
-  (c) ``$state(-command) $token`` — switch-style array-element
-      callback (widget ``-command``, http ``-proxyfilter``, …).  The
-      dash-prefixed key marks an explicitly-registered configurable
-      callback.
+  (c) ``$state(-command) $token`` (switch-style) or
+      ``$state(openCmd) $arg`` / ``$state(doneCallback)`` (suffix-
+      style) — array-element callback.  The dash-prefixed key OR a
+      key whose final word is `cmd`/`command`/`callback`/`handler`/
+      `hook`/`proc` (case-insensitive) marks the slot as an
+      explicitly-registered command.
   (d) ``${log}::debug "msg"`` — namespaced ensemble dispatch (tcllib
       logger / dns / spf / irc / multiplexer idiom).  The ``::``
       suffix after the var sub is a strong signal of explicit
