@@ -683,6 +683,52 @@ class TestO110InstCombine:
         o, _ = _opt(s)
         assert "set v 0" in o
 
+    # Whitespace-noise suppression — _instcombine_expr re-renders the AST with
+    # canonical spacing, so an input whose only difference is whitespace
+    # (``$a-1`` vs ``$a - 1``, ``$x*$y`` vs ``$x * $y``) used to produce a
+    # spurious "Canonicalise expression" suggestion.  These must NOT fire — the
+    # user's chosen spacing is not a defect.  Structural changes (paren
+    # removal, identity removal, bool simplification) still fire as before.
+
+    def test_no_o110_on_pure_whitespace_minus(self):
+        # tcllib asn.tcl:412 idiom: ``$bits-1`` is canonical-spacing-equivalent
+        # to ``$bits - 1``.  Only spacing differs → no O110.
+        s = "set v [expr {$x-1}]"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_pure_whitespace_mul(self):
+        s = "set v [expr {$x*$y}]"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_pure_whitespace_div(self):
+        # sak.tcl:1012 idiom: ``$a*$b/$c`` — tighter spacing, semantically same.
+        s = "set v [expr {$a*$b/$c}]"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_pure_whitespace_ternary_colon(self):
+        # tcllib picoirc.tcl idiom: ``$secure ? 6697: 6667`` — only the colon
+        # spacing is off; semantically same as ``$secure ? 6697 : 6667``.
+        s = "set v [expr {$secure ? 6697: 6667}]"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_pure_whitespace_shift(self):
+        s = "set v [expr {$tagnumber >>7}]"
+        assert _not_has(s, "O110")
+
+    def test_paren_removal_still_fires(self):
+        # tcllib asn.tcl idiom: ``($number >> 16) & 0xFF`` → paren strip is a
+        # genuine structural change (the parens around the shift become
+        # redundant once the analyser knows ``>>`` binds tighter than ``&``).
+        # Whitespace-stripped forms differ, so O110 still fires.
+        s = "set v [expr {($x >> 16) & 0xFF}]"
+        assert _has(s, "O110")
+
+    def test_bool_simplify_still_fires(self):
+        # tcllib logger.tcl idiom: ``($action && 1) ? "on" : "off"`` simplifies
+        # to ``$action ? "on" : "off"``.  Real structural change.
+        s = 'set v [expr {($action && 1) ? "on" : "off"}]'
+        assert _has(s, "O110")
+
     def test_one_or_left(self):
         s = "set v [expr {1 || $x}]"
         o, _ = _opt(s)

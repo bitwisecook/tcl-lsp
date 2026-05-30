@@ -44,6 +44,23 @@ from ._helpers import (
 )
 from ._types import Optimisation, PassContext
 
+# Whitespace-stripping helper for the O110 noise guard (see callers).
+_EXPR_WS_RE = re.compile(r"\s+")
+
+
+def _strip_ws(expr: str) -> str:
+    """Return *expr* with all whitespace removed.
+
+    Used to suppress O110 ("Canonicalise expression / InstCombine") when the
+    only difference between input and output is whitespace — the canonical-
+    spacing re-render of an already-equivalent expression is noise, not a
+    real finding.  Structural changes (paren removal, boolean simplification,
+    operand reordering, etc.) all alter non-whitespace characters and still
+    fire.
+    """
+    return _EXPR_WS_RE.sub("", expr)
+
+
 # O-code registrations for codes primarily emitted from this module
 opt(
     code="O102",
@@ -188,6 +205,22 @@ def optimise_expression_args(
             continue
 
         if (compare_changed or combine_changed) and combined_expr != expr_text:
+            # ``_render_expr_for_rewrite`` always produces canonical spacing,
+            # so any input whose whitespace differs ("$a-1" vs "$a - 1",
+            # "($x*$y)/$z" vs "($x * $y) / $z") shows up as ``changed`` even
+            # when nothing semantically moved.  That is a pure-noise FP — the
+            # user's chosen spacing isn't a defect, and "Canonicalise
+            # expression" reads as "your code is wrong" for what is just a
+            # style preference.  Treat the rewrite as significant only when
+            # whitespace-normalised forms differ, i.e. a real structural
+            # change happened (paren removal, boolean simplification, eq/ne
+            # detection, etc.) tclsh-verified examples that should still
+            # fire: ``($x >> 16) & 0xFF`` (paren-strip), ``$byte == 0 ? 0 : 1``
+            # → ``$byte != 0`` (bool simplify), ``[string length $s] == 0``
+            # (O117 takes over).
+            if _strip_ws(combined_expr) == _strip_ws(expr_text):
+                # Pure-whitespace canonicalisation — not a real finding.
+                continue
             opt_code = (
                 "O113"
                 if sr_detected
@@ -300,6 +333,11 @@ def optimise_expr_substitutions(
             continue
 
         if (compare_changed or combine_changed) and combined_expr != expr_arg:
+            # Same whitespace-noise guard as ``optimise_expression_args``: a
+            # canonical-spacing re-render of an input with non-canonical
+            # spacing is not a real canonicalisation, so don't suggest one.
+            if _strip_ws(combined_expr) == _strip_ws(expr_arg):
+                continue
             ctx.optimisations.append(
                 Optimisation(
                     code="O120" if sc_detected else "O110",
