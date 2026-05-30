@@ -68,6 +68,23 @@ _BIN_PRECEDENCE: dict[BinOp, int] = {
 }
 _RIGHT_ASSOC_BINOPS = frozenset({BinOp.POW})
 
+# Bitwise + shift operators.  When a child binary belongs to this family and
+# its parent is also in this family with a *different* op, we keep its parens
+# in rewrites even though strict precedence would not require them.  Stripping
+# the disambiguating parens from ``((a >> 4) ^ b) & m`` produces correct but
+# universally less-readable code (CERT EXP00-C; every Tcl/C style guide
+# recommends explicit parens around mixed bitwise/shift).  Same-op chaining
+# (``a & b & c``) is fine — those parens really are noise.
+_BITWISE_SHIFT_OPS = frozenset(
+    {
+        BinOp.BIT_OR,
+        BinOp.BIT_XOR,
+        BinOp.BIT_AND,
+        BinOp.LSHIFT,
+        BinOp.RSHIFT,
+    }
+)
+
 _DEMORGAN_DUAL: dict[BinOp, BinOp] = {
     BinOp.AND: BinOp.OR,
     BinOp.OR: BinOp.AND,
@@ -820,7 +837,11 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
             return node
 
 
-def _render_expr_for_rewrite(node: ExprNode, parent_prec: int = 0) -> str:
+def _render_expr_for_rewrite(
+    node: ExprNode,
+    parent_prec: int = 0,
+    parent_op: BinOp | None = None,
+) -> str:
     match node:
         case ExprLiteral(text=text):
             return text
@@ -850,10 +871,20 @@ def _render_expr_for_rewrite(node: ExprNode, parent_prec: int = 0) -> str:
             else:
                 left_prec = prec
                 right_prec = prec + 1
-            left_text = _render_expr_for_rewrite(left, left_prec)
-            right_text = _render_expr_for_rewrite(right, right_prec)
+            left_text = _render_expr_for_rewrite(left, left_prec, op)
+            right_text = _render_expr_for_rewrite(right, right_prec, op)
             text = f"{left_text} {op.value} {right_text}"
+            # Strict-precedence paren.
             if prec < parent_prec:
+                return f"({text})"
+            # Readability paren: keep grouping when this binary and its parent
+            # are both bitwise/shift but distinct ops.  See _BITWISE_SHIFT_OPS.
+            if (
+                parent_op is not None
+                and parent_op != op
+                and op in _BITWISE_SHIFT_OPS
+                and parent_op in _BITWISE_SHIFT_OPS
+            ):
                 return f"({text})"
             return text
         case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):

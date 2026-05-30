@@ -715,12 +715,21 @@ class TestO110InstCombine:
         s = "set v [expr {$tagnumber >>7}]"
         assert _not_has(s, "O110")
 
-    def test_paren_removal_still_fires(self):
-        # tcllib asn.tcl idiom: ``($number >> 16) & 0xFF`` → paren strip is a
-        # genuine structural change (the parens around the shift become
-        # redundant once the analyser knows ``>>`` binds tighter than ``&``).
-        # Whitespace-stripped forms differ, so O110 still fires.
+    def test_mixed_bitwise_shift_parens_preserved(self):
+        # ``($x >> 16) & 0xFF`` is precedence-redundant (``>>`` binds tighter
+        # than ``&``), but stripping the parens produces ``$x >> 16 & 0xFF``
+        # which every Tcl/C style guide (CERT EXP00-C, etc.) warns against —
+        # mixed bitwise/shift requires explicit parens for readability.
+        # tcllib's bitwise-heavy modules (DES/AES/bigfloat2/EXIF) all keep
+        # them, and the corpus showed ~900 such firings as the dominant O110
+        # noise source.  O110 should NOT fire on this idiom.
         s = "set v [expr {($x >> 16) & 0xFF}]"
+        assert not _has(s, "O110")
+
+    def test_same_op_bitwise_chain_still_fires(self):
+        # Same-op chaining ``(a & b) & c`` has no readability rationale
+        # (associativity makes the parens pure noise).  O110 still fires.
+        s = "set v [expr {($a & $b) & $c}]"
         assert _has(s, "O110")
 
     def test_bool_simplify_still_fires(self):
