@@ -3845,6 +3845,24 @@ class TestMistypedIPv4:
         diags = _ip_diags("set addr 10.0.0.999")
         assert len(diags) == 1
 
+    def test_ldap_oid_no_w122(self):
+        """LDAP OID ``1.3.6.1.4.1.4203.1.11.3`` is not an IPv4 — must
+        not fire W122/W124.  The validator was matching the substring
+        ``1.4.1.4203`` and complaining about octet 4203.  Detect that
+        the matched quad is part of a longer dotted chain (preceded
+        OR followed by ``.<digit>``) and skip.  Verified against the
+        tcllib ldap.tcl ``Whoami`` proc which uses this exact OID.
+        """
+        diags = _ip_diags("set oid 1.3.6.1.4.1.4203.1.11.3")
+        assert diags == [], diags
+
+    def test_snmp_oid_no_w122(self):
+        """SNMP sysName.0 OID ``1.3.6.1.2.1.1.5.0`` — same pattern,
+        all octets are small but the regex still matches embedded
+        quads.  Must not fire."""
+        diags = _ip_diags("set oid 1.3.6.1.2.1.1.5.0")
+        assert diags == [], diags
+
     def test_all_zeros_clean(self):
         """0.0.0.0 is valid → no W122/W124."""
         diags = _ip_diags("set addr 0.0.0.0")
