@@ -2609,6 +2609,26 @@ class TestW307ProcParamDispatcher:
         )
         assert _diag_with_code(src, "W307") == []
 
+    def test_top_level_multi_dispatch_no_w307(self):
+        # tcllib examples/irc/mainloop.tcl idiom: a top-level (no
+        # enclosing proc) script registers an object handle and
+        # dispatches on it many times.  Top-level scripts are real
+        # code; the multi-dispatch evidence is just as strong as
+        # inside a proc body — suppress when count ≥ 2.
+        src = (
+            "set cn [irc::connection]\n"
+            "$cn connect server 6667\n"
+            "$cn user nick localhost domain\n"
+            "$cn nick foo\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_top_level_single_dispatch_still_w307(self):
+        # TP control: a single top-level dispatch on a local doesn't
+        # meet the multi-dispatch threshold.
+        src = "set foo [factory]\n$foo method\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to

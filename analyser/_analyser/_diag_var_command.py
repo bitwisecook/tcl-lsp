@@ -316,11 +316,17 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # bodies can wrap multiple procs — innermost-first is robust).
         proc_body_ranges.sort(key=lambda r: (r[0], -r[1]))
 
-        def _enclosing_proc_params(off: int) -> tuple[str, frozenset[str]] | None:
+        # Sentinel scope for top-level statements — has no parameters,
+        # but the multi-dispatch rule still applies (a script-level
+        # ``$cn`` dispatched 9 times in mainloop.tcl is unambiguous
+        # object usage even outside any proc body).
+        _TOP_SCOPE = ("::top", frozenset())
+
+        def _enclosing_proc_params(off: int) -> tuple[str, frozenset[str]]:
             for s, e, qname, params in reversed(proc_body_ranges):
                 if s <= off <= e:
                     return qname, params
-            return None
+            return _TOP_SCOPE
 
         # First pass over var-command sites to identify, per proc, which
         # var names are dispatchers and how many times each is dispatched.
@@ -331,10 +337,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
         proc_dispatcher_vars: dict[str, set[str]] = {}
         proc_dispatch_counts: dict[str, dict[str, int]] = {}
         for var_name, _mn, site_range, _im, _cws in self._var_command_sites:
-            enc = _enclosing_proc_params(site_range.start.offset)
-            if enc is None:
-                continue
-            qname, _params = enc
+            qname, _params = _enclosing_proc_params(site_range.start.offset)
             proc_dispatcher_vars.setdefault(qname, set()).add(var_name)
             counts = proc_dispatch_counts.setdefault(qname, {})
             counts[var_name] = counts.get(var_name, 0) + 1
@@ -530,16 +533,14 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # dispatched many times, ``set cmd [gets stdin]; \$cmd
                 # op1; \$cmd op2`` is a real command-injection risk.
                 is_proc_param_dispatcher = False
-                _enc = _enclosing_proc_params(_off)
-                if _enc is not None:
-                    _qname, _params = _enc
-                    if var_name in proc_dispatcher_vars.get(
-                        _qname, ()
-                    ) and var_name not in tainted_var_names.get(_qname, ()):
-                        if var_name in _params:
-                            is_proc_param_dispatcher = True
-                        elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
-                            is_proc_param_dispatcher = True
+                _qname, _params = _enclosing_proc_params(_off)
+                if var_name in proc_dispatcher_vars.get(
+                    _qname, ()
+                ) and var_name not in tainted_var_names.get(_qname, ()):
+                    if var_name in _params:
+                        is_proc_param_dispatcher = True
+                    elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
+                        is_proc_param_dispatcher = True
                 # Callback in an array element: ``$state(-command) $token``
                 # (switch-style) and ``$state(openCmd) $arg`` /
                 # ``$state(doneCallback)`` (suffix-style) are the documented
