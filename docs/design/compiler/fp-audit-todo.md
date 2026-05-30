@@ -33,6 +33,15 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 - [x] **W306** literal-expected substitution — fixed: escaped `\[`/`\$` and
   literal `$` end-anchor in quoted regexp/regsub patterns no longer flagged
   (raw-source live-substitution scan); live `[cmd]`/`$var`/`${ns}` still fire.
+- [x] **W104** string-concat list building — fixed: usage/template notation
+  (`?optarg?`, `<placeholder>`, `...`) is display formatting, not a list
+  element, so suppressed (corpus 165→144 sites); genuine `append x " $item"`
+  list-building still fires.
+- [x] **W126** non-channel value in channel arg — fixed at the **lattice**:
+  `lassign` destructures list *elements* (channels in `lassign [chan pipe] ch
+  wch`), not lists, so its def targets are no longer typed LIST (they stay
+  UNKNOWN — the sound conservative value); corpus W126 4→0, all were this
+  type-inference artifact; captured-return `set rest [lassign...]` still LIST.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
@@ -98,9 +107,8 @@ can simplify this" suggestion. None swept yet.
   length config + tab handling. Likely "no change".
 - [ ] **W112** trailing whitespace (15609) — pure lexical; likely "no change".
 - [ ] **W100** unbraced expr (219)
-- [ ] **W104** string-concat list building → lappend (173) — sampled shapes look
-  like `append flags " -x"` option-building; is that a real lappend candidate
-  or an FP on flag-string building? **Investigate (looks FP-prone).**
+- [x] **W104** string-concat list building → lappend — RESOLVED (see top): usage/
+  template notation suppressed; corpus 165→144.
 - [ ] **W105** unbraced code-block arg (396) — INJ family has some coverage;
   re-sweep the non-eval shapes.
 - [ ] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
@@ -115,8 +123,8 @@ can simplify this" suggestion. None swept yet.
 - [ ] **W122** mistyped IPv4 (3)
 - [ ] **W124** invalid IP literal (8)
 - [ ] **W125** orphaned control-flow keyword (0) — synthetic.
-- [ ] **W126** non-channel value in channel arg (4) — known lassign type-infer
-  gap (destructured var gets LIST type). **Investigate (likely FP).**
+- [x] **W126** non-channel value in channel arg — RESOLVED (see top): lassign
+  element-type lattice fix; corpus 4→0.
 - [ ] **W127** value not in allowed set (0 corpus, NEW from #501) — synthetic +
   corpus once a project uses a closed-set command.
 
