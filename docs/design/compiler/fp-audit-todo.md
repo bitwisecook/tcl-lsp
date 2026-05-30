@@ -108,6 +108,17 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   command marks the whole expression impure.  `_parse_cmd_token` now
   re-wraps CMD-sub arg pieces in `[...]` so the recursion can see
   them.  Paired TP test (outer pure + inner pure still fires).
+- [x] **W211 / W220 / O109 / O126** call-by-name inside cmd-subst —
+  the previous call-by-name fix only scanned top-level `IRCall` /
+  `IRBarrier` statements.  But the dominant tcllib shape is a literal-
+  name arg inside a `[..]` substitution: `set len [asnPeekTag data
+  tag type dummy]` (asn module), where `tag` / `type` are caller-
+  locals consumed indirectly via `upvar` in `asnPeekTag`.  Extended
+  `collect_call_by_name_reads` to also scan command substitutions
+  inside `IRAssignValue.value` (raw text → TclLexer for CMD tokens,
+  recursing) and inside `IRAssignExpr` / `IRExprEval` / `IRReturn`
+  expr trees (walking `ExprCommand` nodes).  Sample asn.tcl: W211
+  2→0.  Both analyser- and optimiser-side benefit automatically.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
@@ -127,15 +138,18 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 
 ## Spot-checked, mostly TP (need a fuller sweep to be sure)
 
-- [~] **W211** set-but-unused (589 post-callbyname) — samples were genuine
-  vestigial vars (tar.tcl, ncgi.tcl).  Call-by-name covered (see Resolved);
-  sweep the long tail for residual definer/lassign/upvar shapes.
-- [~] **W220** dead store (578 post-callbyname) — samples genuine;
-  call-by-name covered; sweep for cmd-sub / array / branch-merge shapes the
-  existing recovery may still miss.
-- [~] **S102** shimmer (358) — phi-merge shimmer; heavy in math (bigfloat2,
-  decimal, calculus, linalg) and DES.  S100/S101 loop-invariance now fixed
-  (see Resolved); audit S102 per-file clusters for genuine-vs-noise.
+- [x] **W211 / W220** — call-by-name suppression extended to cmd-subst
+  call sites (see Resolved).  Remaining W211/W220 firings sampled across
+  20 large tcllib files audit as genuine vestigial vars (`alpha = asin(r)`
+  computed but never used in `mapproj`, `set noskip 1` flag never tested,
+  etc.) — no further FP class identified.
+- [x] **S102** shimmer (358) — phi-merge shimmer audited (DES tcldes,
+  calculus, snit main2, struct graphops samples).  All inspected cases
+  are real per-iteration intrep conversions (snit `valcommand`
+  list→string per `uplevel`, `foreach i $E` loop-var binding from list
+  intrep, `set cbcleft $left` in DES round loop).  No FP class
+  identified — the remaining S102 firings reflect genuine type
+  thunking the user could fix by stabilising the intrep.
 - [~] **W123** unresolved command (1761) — mostly real missing stubs (argparse,
   dget/dexist, custom widget cmds). Not analyser FPs, but a per-package stub
   pass would cut noise. Triage which are stdlib-ish vs project-local.
