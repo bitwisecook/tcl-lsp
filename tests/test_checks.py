@@ -575,6 +575,62 @@ class TestCatchIgnore:
         assert len(diags) == 0
 
 
+class TestW302FireAndForget:
+    """``catch {<cmd>}`` without a result var is the documented Tcl idiom
+    for "do this if possible, ignore if not" — the standard library
+    explicitly recommends it for ``after cancel``, ``file delete``,
+    ``close``, ``unset``, etc.  W302 must not fire on those bodies.
+
+    Verified against tclsh 9.0: every command listed in
+    ``_FIRE_AND_FORGET_COMMANDS`` errors on missing target, so the
+    ``catch {…}`` form is the only safe way to write "delete if exists"
+    without first checking ``info exists`` / ``file exists``.  Capturing
+    the result would just yield a variable the user immediately
+    discards.
+    """
+
+    def test_after_cancel_no_w302(self):
+        # tcllib ftp.tcl:210 idiom.
+        assert _diag_with_code("catch {after cancel $h}", "W302") == []
+
+    def test_file_delete_no_w302(self):
+        assert _diag_with_code("catch {file delete $f}", "W302") == []
+
+    def test_close_no_w302(self):
+        assert _diag_with_code("catch {close $fh}", "W302") == []
+
+    def test_unset_no_w302(self):
+        assert _diag_with_code("catch {unset var}", "W302") == []
+
+    def test_chan_close_no_w302(self):
+        assert _diag_with_code("catch {chan close $h}", "W302") == []
+
+    def test_interp_delete_no_w302(self):
+        assert _diag_with_code("catch {interp delete slave}", "W302") == []
+
+    def test_qualified_command_recognised(self):
+        # ``catch {::close $h}`` should also match — bare-name normalised.
+        assert _diag_with_code("catch {::close $h}", "W302") == []
+
+    def test_genuine_swallowed_error_still_fires(self):
+        # TP control: a user proc body genuinely shouldn't swallow errors.
+        diags = _diag_with_code("catch {parse_user_input $x}", "W302")
+        assert len(diags) == 1
+
+    def test_multi_command_body_still_fires(self):
+        # Multi-statement body is not the simple ignore-error idiom.
+        diags = _diag_with_code("catch {parse_x; parse_y}", "W302")
+        assert len(diags) == 1
+
+    def test_package_require_still_fires(self):
+        # ``package require`` is loadable — when the caller cares about
+        # success they should capture.  Sole-substitution use
+        # (``[catch {package require Tk}]``) doesn't fire anyway because
+        # the rc IS being consumed at the call site.
+        diags = _diag_with_code("catch {package require Tk}", "W302")
+        assert len(diags) == 1
+
+
 # W210: catch body variables visible after condition
 
 

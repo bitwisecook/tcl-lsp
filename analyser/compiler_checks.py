@@ -540,6 +540,57 @@ def _resolves_to_user_command(
     return False
 
 
+_FIRE_AND_FORGET_COMMANDS: frozenset[str] = frozenset(
+    {
+        # ``after cancel <handle>`` — errors on stale/unknown handle.
+        "after",
+        # File/channel cleanup: error on missing target is expected and ignored.
+        "close",
+        "chan",
+        # Variable/array/dict cleanup.
+        "unset",
+        "array",
+        "dict",
+        # Interp / namespace cleanup.
+        "interp",
+        "namespace",
+        # ``rename foo ""`` deletes; errors if foo absent.
+        "rename",
+        # File ops that may target non-existent paths.
+        "file",
+    }
+)
+
+
+def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
+    """Return True when the body of a ``catch`` matches the documented
+    "fire-and-forget" idiom: a single command whose head is one of the
+    error-on-missing-target commands (``after cancel``, ``file delete``,
+    ``close``, ``unset``, ``interp delete``, ``rename foo \"\"``…).
+
+    The full list — ``after``/``close``/``chan``/``unset``/``array``/
+    ``dict``/``interp``/``namespace``/``rename``/``file`` — covers every
+    builtin that ``catch {…}`` without a result var is canonical Tcl
+    for.  Tests live in ``TestW302FireAndForget``.
+
+    Conservative: only single-statement bodies, only the head command's
+    bare name is examined (no resolution).  A multi-command body or
+    a body whose first command is *not* in the set still fires W302.
+    """
+    stmts = getattr(body, "statements", ())
+    if len(stmts) != 1:
+        return False
+    stmt = stmts[0]
+    if not isinstance(stmt, IRCall):
+        return False
+    cmd = stmt.command
+    if not cmd:
+        return False
+    # Normalise leading "::" so ``catch {::close $h}`` is recognised too.
+    bare = cmd.lstrip(":").split("::")[-1]
+    return bare in _FIRE_AND_FORGET_COMMANDS
+
+
 def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
     """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
 
@@ -564,7 +615,18 @@ def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> 
         # W302: catch without result variable (IR-native).  Highlight just
         # the ``catch`` command word — narrowest span that identifies the
         # issue — rather than the whole ``catch {…}`` statement.
+        #
+        # Suppress the hint on the documented "fire-and-forget" idiom:
+        # ``catch {after cancel ...}``, ``catch {file delete ...}``,
+        # ``catch {close ...}`` etc.  These commands error when the target
+        # is already gone, and ``catch {<cmd>}`` without a result var is
+        # the canonical Tcl idiom for "do this if possible, ignore if
+        # not".  Capturing the result there is verbose and produces a
+        # variable that is genuinely never used — the user has already
+        # decided to ignore the failure.
         if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            if _catch_body_is_fire_and_forget(stmt.body):
+                return
             w302_range = stmt.range
             if stmt.tokens is not None and stmt.tokens.argv:
                 w302_range = range_from_token(stmt.tokens.argv[0])
