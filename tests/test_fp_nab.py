@@ -272,6 +272,29 @@ def test_FP_NAB_10_dict_enabled_in_tcl_9_0_silent():
         assert not diags, f"dict in Tcl 9.0 must NOT fire W002; got {diags}"
 
 
+# FP-NAB-11 — W123 unresolved command (TP — real missing stubs, not analyser FPs)
+
+
+def test_FP_NAB_11_unresolved_argparse_fires_w123():
+    """TP confirmation: ``argparse`` is a tcllib package command with no
+    stub in the current registry; ``W123`` fires correctly as
+    "Unknown command 'argparse'".  Most W123 firings in the corpus
+    (1761 total) are similar: tcllib packages (argparse, dict-extension
+    dget/dexist), project-local custom widget commands, etc.  Not
+    analyser FPs -- adding per-package stub bundles would reduce
+    noise (an optimisation, not a precision fix)."""
+    diags = [d for d in get_diagnostics("argparse {x y}") if d.code == "W123"]
+    assert diags, f"expected W123 on `argparse`; got {get_diagnostics('argparse {x y}')}"
+
+
+def test_FP_NAB_11_stub_registered_command_silent():
+    """FP control: a command with a stub in the registry (e.g. ``puts``)
+    must NOT fire W123.  Proves W123 is keyed to the registry, not a
+    blanket "unknown command" emission."""
+    diags = [d for d in get_diagnostics("puts hi") if d.code == "W123"]
+    assert not diags, f"stub-registered `puts` must not fire W123; got {diags}"
+
+
 def test_FP_NAB_03_impure_proc_still_detected():
     """Control: an impure proc using puts must come out pure=False.  Proves the
     test isn't trivially asserting all procs pure."""

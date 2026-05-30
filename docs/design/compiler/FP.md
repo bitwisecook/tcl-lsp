@@ -613,6 +613,55 @@ in the current dialect's enabled-command set.
 
 ---
 
+### FP-NAB-11 — W123 unresolved command (TP — real missing stubs, not analyser FPs)
+
+- **Verdict:** TRUE POSITIVE (the firings are real; the per-package stub bundle is an open *noise-reduction* optimisation, not a precision fix)
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_11_*`
+- **Codes:** W123 (unknown command)
+- **Corpus:** 1761 firings — argparse, dict-extension (`dget`/`dexist`), custom widget commands.
+
+#### Reproducer
+
+```tcl
+argparse {x y}
+```
+
+#### Per-line reasoning
+
+W123 fires when a command isn't found in the registered command set
+(builtins + registered packages + locally-defined procs).  Spot-
+checking the 1761 corpus firings shows they fall into three buckets,
+all genuine *missing-stub* TPs:
+
+1. **Tcllib packages** without stubs (argparse, sha256, etc.).  These
+   are real Tcl packages whose registry stubs we haven't shipped.
+2. **Dict extension commands** (`dget`, `dexist`) from third-party
+   modules.
+3. **Project-local custom widget / DSL commands** (the ``my::widget
+   foo`` shape in F5 iRules dialect modules, etc.).
+
+None of these are analyser FPs — the analyser correctly doesn't know
+about them.  The *fix* is to ship per-package stub bundles; that's
+catalogued as an open task in `fp-audit-todo.md` (not a precision
+issue).
+
+#### tclsh ground truth
+
+```
+$ tclsh9.0 -c 'argparse {x y}'
+invalid command name "argparse"
+```
+
+Confirmed: `argparse` is genuinely not a Tcl builtin and requires
+a `package require argparse` (which would import its stub).
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_11_unresolved_argparse_fires_w123` (TP)
+- `tests/test_fp_nab.py::test_FP_NAB_11_stub_registered_command_silent` (FP control — registered command silent)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),
