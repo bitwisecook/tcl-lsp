@@ -195,6 +195,63 @@ def _stmt_var_arg_indexes(stmt, var_name: str) -> tuple[int, ...]:
     return _args_var_indexes(args, var_name)
 
 
+def _direct_expr_operand_names(node) -> set[str]:
+    """Return the set of variable names that appear as DIRECT operands of
+    an expression AST — ie ``ExprVar`` nodes that are NOT nested inside
+    an ``ExprCommand`` (command substitution).
+
+    Used by T100 to distinguish ``expr {\$x + 1}`` (direct operand —
+    injection risk if ``\$x`` contains expr metachars) from ``expr
+    {[string length \$x] + 1}`` (``\$x`` is consumed by the inner
+    ``string length`` as an argument; its value never re-parses as
+    expr text, so no T100 risk).
+    """
+    if node is None:
+        return set()
+    from compiler.expr_ast import (
+        ExprBinary,
+        ExprCall,
+        ExprCommand,
+        ExprTernary,
+        ExprUnary,
+        ExprVar,
+    )
+
+    found: set[str] = set()
+
+    def walk(n) -> None:
+        if n is None:
+            return
+        if isinstance(n, ExprCommand):
+            # Boundary: anything inside the substitution is consumed by
+            # the inner command as an argument, not as expr text.
+            return
+        if isinstance(n, ExprVar):
+            if n.name:
+                found.add(_normalise_var_name(n.name))
+            return
+        if isinstance(n, ExprBinary):
+            walk(n.left)
+            walk(n.right)
+            return
+        if isinstance(n, ExprUnary):
+            walk(n.operand)
+            return
+        if isinstance(n, ExprTernary):
+            walk(n.condition)
+            walk(n.true_branch)
+            walk(n.false_branch)
+            return
+        if isinstance(n, ExprCall):
+            # ``func(arg, arg, ...)`` — args are expr operands of the call.
+            for a in n.args:
+                walk(a)
+            return
+
+    walk(node)
+    return found
+
+
 def _puts_output_positions(args: tuple[str, ...]) -> set[int]:
     """Return the indices of *args* that hold the OUTPUT STRING for puts.
 
@@ -407,9 +464,19 @@ def _find_taint_sinks(
 
             # Special case: IRAssignExpr / IRExprEval (expr with parsed AST).
             if isinstance(stmt, (IRAssignExpr, IRExprEval)):
+                # T100-on-expr position filter: only fire when the tainted
+                # variable appears as a DIRECT operand of the expr.  A
+                # ``$tainted`` inside a command substitution
+                # (eg ``expr {[string length \$data] / 8}``) is consumed by
+                # the inner command as an *argument*, not re-parsed as expr
+                # text — there is no injection risk.  Walk the expr AST
+                # collecting ExprVar names that appear OUTSIDE any
+                # ExprCommand subtree; only those are real expr operands.
+                expr_node = getattr(stmt, "expr", None)
+                direct_operand_names = _direct_expr_operand_names(expr_node)
                 for name, ver in uses.items():
                     t = taints.get((name, ver), _UNTAINTED)
-                    if t.tainted:
+                    if t.tainted and name in direct_operand_names:
                         warnings.append(
                             TaintWarning(
                                 range=stmt.range,
