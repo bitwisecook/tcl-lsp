@@ -1594,6 +1594,742 @@ register(
 )
 
 
+# ----------------------------------------------------------------------
+# NAB family (4..11) -- TP confirmations / dialect-aware audits
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-NAB-04",
+    _Entry(
+        label="W110/O120 == on strings: dual-semantic foot-gun",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Tcl's `==` is dual-semantic: numeric equality when both sides parse\n"
+            'as numbers, else string equality.  ``"02" == "2"`` returns 1\n'
+            '(numeric coercion), ``"02" eq "2"`` returns 0.  The silent mode-\n'
+            "switch is the foot-gun.  Compiler evidence shows the W110/O120 emit\n"
+            "site -- not a runtime FP, a style/safety rule."
+        ),
+        source=_dedent(
+            """
+            if {$x == "hello"} { puts y }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-05",
+    _Entry(
+        label="W304 missing -- terminator: file delete + split switch (TP)",
+        proc="::f",
+        vars=("f",),
+        show=("ssa",),
+        notes=(
+            '``file delete $f`` with ``$f = "-force"`` causes Tcl to consume\n'
+            "``-force`` as an option flag and drop the path entirely (tclsh-\n"
+            "verified).  The braced pattern-list switch form (``switch $x {\n"
+            "... }``) is NOT a runtime hazard -- Tcl unambiguously identifies\n"
+            "the brace position.  The SPLIT pattern/body form is the real switch\n"
+            "hazard (covered by a secondary test)."
+        ),
+        source=_dedent(
+            """
+            proc f {f} { file delete $f }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-06",
+    _Entry(
+        label="W103 open variable pipe (TP)",
+        proc="::f",
+        vars=("cmd",),
+        show=("ssa",),
+        notes=(
+            '``open "|$cmd" r`` pipes through the substituted command even\n'
+            "with an explicit access mode (tclsh-verified).  Real ACE vector\n"
+            "when ``$cmd`` is attacker-controlled."
+        ),
+        source=_dedent(
+            """
+            proc f {cmd} { set fh [open "|$cmd" r] }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-07",
+    _Entry(
+        label="W313 destructive op with variable path (TP)",
+        proc="::f",
+        vars=("p",),
+        show=("ssa",),
+        notes=(
+            "``file delete $p`` on a substituted path is a real safety smell\n"
+            "(unintended deletion / path-traversal).  Audited TP."
+        ),
+        source=_dedent(
+            """
+            proc f {p} { file delete $p }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-08",
+    _Entry(
+        label="W212 substitution where var-name expected (TP)",
+        proc="::f",
+        vars=("name", "v"),
+        show=("ssa",),
+        notes=(
+            "``set $name $v`` uses the SUBSTITUTED value as the var name --\n"
+            "dynamic-name foot-gun.  Tcl-idiomatic alternatives (``upvar``,\n"
+            "``dict``, ``trace``, ``namespace which``) are correctly exempt."
+        ),
+        source=_dedent(
+            """
+            proc f {name v} { set $name $v }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-09",
+    _Entry(
+        label="W301 uplevel multi-arg concatenation (TP)",
+        proc="::f",
+        vars=("a", "b"),
+        show=("ssa",),
+        notes=(
+            "``uplevel 1 cmd $a $b`` concatenates its args into a script string\n"
+            "and re-parses substitutions in the caller frame -- eval-injection\n"
+            "vector.  Safe forms: bare-var ``uplevel 1 $body`` (FP-INJ-01) or\n"
+            "``uplevel 1 [list cmd $a $b]``."
+        ),
+        source=_dedent(
+            """
+            proc f {a b} { uplevel 1 puts $a $b }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-10",
+    _Entry(
+        label="W002 dialect-disabled command (TP after dialect-aware sweep)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        dialect="tcl8.4",
+        notes=(
+            "``dict`` was added in Tcl 8.5; under tcl8.4 the command is\n"
+            "genuinely unavailable and W002 must fire.  The earlier ``oo::\n"
+            "configurable`` 'FP' report was a harness artefact -- dialect-aware\n"
+            "sweep eliminated it."
+        ),
+        source=_dedent(
+            """
+            dict create a 1
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-NAB-11",
+    _Entry(
+        label="W123 unresolved command (TP -- real missing stubs)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "``argparse`` is a tcllib package with no registered stub; W123\n"
+            "fires correctly.  Most W123 firings (1761 corpus) audit as real\n"
+            "missing stubs -- tcllib packages, dict-extension (dget/dexist),\n"
+            "project-local custom widget commands.  Per-package stub bundle\n"
+            "is open future work (noise-reduction, not precision)."
+        ),
+        source=_dedent(
+            """
+            argparse {x y}
+            """
+        ),
+    ),
+)
+
+
+# ----------------------------------------------------------------------
+# OBJ family (07..11) -- W307 cmd-sub ensembles + multi-dispatch + factory
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-OBJ-07",
+    _Entry(
+        label="W307 cmd-sub namespaced ensemble [ns_func]::method",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "``[::ns::dispatch]::work`` -- the literal ``::work`` tail provides\n"
+            "static method-name evidence; the namespace prefix comes from a\n"
+            "cmd-sub.  Well-formed namespaced-ensemble dispatch; W307 suppressed."
+        ),
+        source=_dedent(
+            """
+            namespace eval ::ns {
+                proc dispatch {} { return ::ns::sub }
+                proc sub::work {arg} { return $arg }
+            }
+            [::ns::dispatch]::work hello
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-08",
+    _Entry(
+        label="W307 suppressed on eval-substituted dispatch (W101 covers it)",
+        proc="::f",
+        vars=("cmd", "args"),
+        show=("ssa",),
+        notes=(
+            "``eval $cmd $args`` is the canonical W101 eval-injection site;\n"
+            "W307 piling on as 'stray non-literal command word' is duplicate\n"
+            "noise.  Dedup keeps W101 (the more specific diagnostic)."
+        ),
+        source=_dedent(
+            """
+            proc f {cmd args} {
+                eval $cmd $args
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-09",
+    _Entry(
+        label="W307 multi-dispatch local var (heuristic)",
+        proc="::analyze",
+        vars=("G", "TGraph"),
+        show=("ssa",),
+        notes=(
+            "Two-plus dispatches on the same local (``$TGraph node first`` +\n"
+            "``$TGraph dispose``) is a corpus-driven heuristic for 'user intent\n"
+            "as object handle'.  Single-dispatch still fires."
+        ),
+        source=_dedent(
+            """
+            proc analyze {G} {
+                set TGraph [createTGraph $G]
+                $TGraph node first
+                $TGraph dispose
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-10",
+    _Entry(
+        label="W307 switch-callback array element (heuristic)",
+        proc="::h",
+        vars=("state", "token"),
+        show=("ssa",),
+        notes=(
+            "``$state(-command) $token`` -- dash-prefixed array key OR a key\n"
+            "ending in cmd/command/callback/handler/hook/proc (case-insensitive)\n"
+            "is treated as a callback registration slot.  Heuristic, not a Tcl\n"
+            "semantic guarantee -- can mask a typo in a callback-shaped key."
+        ),
+        source=_dedent(
+            """
+            proc h {state token} {
+                $state(-command) $token
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-11",
+    _Entry(
+        label="W307 interproc object-factory tracking (heuristic)",
+        proc="::f",
+        vars=("t",),
+        show=("ssa", "values"),
+        notes=(
+            "Fixpoint marks ``createGraph`` as object-returning (direct\n"
+            "``return [namespaced::cmd]``); callers' ``set t [createGraph]; $t\n"
+            "op`` are suppressed.  Inherits the shape-based namespaced-factory\n"
+            "rule from FP-OBJ-04 (which has an open precision gap)."
+        ),
+        source=_dedent(
+            """
+            proc createGraph {} { return [struct::tree] }
+            proc f {} {
+                set t [createGraph]
+                $t op
+            }
+            """
+        ),
+    ),
+)
+
+
+# ----------------------------------------------------------------------
+# OPT family (01..04) -- optimisation quick-fix correctness
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-OPT-01",
+    _Entry(
+        label="O110 InstCombine: whitespace / paren / commutative-reorder suppressions",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Four sub-fixes brought O110 corpus from 3641 to ~700-900 (-75-80%):\n"
+            "(1) ``_strip_ws`` guard on expression_args / expr_substitutions;\n"
+            "(2) same guard on _branch_folding;\n"
+            "(3) paren preservation for mixed bitwise/shift (CERT EXP00-C);\n"
+            "(4) commutative-reorder suppression when no fold results."
+        ),
+        source=_dedent(
+            """
+            # Whitespace-only churn (the dominant pre-fix source).
+            set x [expr { $a + $b }]
+            # Paren preservation for mixed bitwise/shift.
+            set y [expr {($a << 1) & 0xff}]
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-02",
+    _Entry(
+        label='O116 fold-const-list: empty [list] -> {} not ""',
+        proc="::top",
+        vars=("x",),
+        show=("ssa", "values"),
+        notes=(
+            "Empty ``[list]`` folds to the canonical empty-list literal ``{}``,\n"
+            'not the empty string ``""``.  The string fold would turn\n'
+            "``set x [list]`` into ``set x`` (a one-arg READ form) and silently\n"
+            "erase the assignment.  The diagnostic carries\n"
+            "``data['replacement'] = '{}'``."
+        ),
+        source=_dedent(
+            """
+            set x [list]
+            lappend x a
+            puts $x
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-03",
+    _Entry(
+        label="O106 LICM purity: outer-pure / inner-impure not hoistable",
+        proc="::f",
+        vars=("i",),
+        show=("ssa",),
+        notes=(
+            "``[format %04d [incr testnum]]`` -- ``format`` is pure but the\n"
+            "inner ``[incr testnum]`` mutates state per iteration.  Hoisting\n"
+            "would call incr once instead of N times.  ``_is_pure_command``\n"
+            "in ``compiler/gvn.py`` now recurses into ExprCommand subtrees."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                for {set i 0} {$i < 10} {incr i} {
+                    set s [format %04d [incr testnum]]
+                }
+                return $s
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-04",
+    _Entry(
+        label="O109/O126 call-by-name suppression via ProcArgTrait",
+        proc="::decode",
+        vars=("tag", "type", "data"),
+        show=("ssa",),
+        notes=(
+            "When a caller passes a literal name to a callee with\n"
+            "``ProcArgTrait.VAR_READ/VAR_WRITE``, the callee writes/reads the\n"
+            "caller's local via ``upvar``.  Optimiser DCE (O109/O126) and\n"
+            "analyser RBS (W211/W220) share ``compiler/proc_arg_traits.py``\n"
+            "for one source of truth."
+        ),
+        source=_dedent(
+            """
+            proc asnPeekTag {data {tag tag} {type type}} {
+                upvar 1 $tag tagOut $type typeOut
+                set tagOut 0
+                set typeOut 0
+                return [string length $data]
+            }
+            proc decode {data} {
+                asnPeekTag $data tag type
+                return [list $tag $type]
+            }
+            """
+        ),
+    ),
+)
+
+
+# ----------------------------------------------------------------------
+# SH family (04..06) -- shimmer fixes (post-PR review)
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-SH-04",
+    _Entry(
+        label="Hex/binary integer literals typed INT (not STRING)",
+        proc="::f",
+        vars=("n", "i"),
+        show=("ssa", "values"),
+        notes=(
+            "``0x80`` / ``0b1010`` are Tcl integer literals -- type INT, not\n"
+            "STRING.  Pre-fix the analyser only recognised decimal; hex/binary\n"
+            "fell through to STRING and ``incr`` on a hex-init counter fired\n"
+            "S101.  Sample corpus site: cookiejar/idna.tcl."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                set n 0x80
+                for {set i 0} {$i < 10} {incr i} { incr n }
+                return $n
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-05",
+    _Entry(
+        label="Destructure foreach excluded from loop_body_types",
+        proc="::f",
+        vars=("state", "sv"),
+        show=("ssa",),
+        notes=(
+            "``foreach VARS LIST break`` is Tcl's pre-8.5 ``lassign`` --\n"
+            "single-iteration destructure.  Detect via 'body block is just\n"
+            "IRCall(break)' and exclude from per-loop body-types collection.\n"
+            "Sample impact: me_cpucore.tcl S102 48->29."
+        ),
+        source=_dedent(
+            """
+            proc f {state} {
+                foreach {a b c sv} $state break
+                foreach inst {1 2 3} {
+                    set sv [list 1 2 3]
+                }
+                return $sv
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-SH-06",
+    _Entry(
+        label="Per-loop body_types: sibling loops don't pollute each other",
+        proc="::f",
+        vars=("items", "x"),
+        show=("ssa",),
+        notes=(
+            "Sibling loops in the same proc previously shared a function-wide\n"
+            "loop_body_types map; loop A's STRING + loop B's LIST appeared as\n"
+            "oscillation on either loop's phi.  Per-header body_types built\n"
+            "from the natural loop forest.  Sample impact across six tcllib\n"
+            "files: S102 93->30 (-68%)."
+        ),
+        source=_dedent(
+            """
+            proc f {items} {
+                foreach a $items { set x "value" }
+                foreach b $items { set x [list 1 2] }
+            }
+            """
+        ),
+    ),
+)
+
+
+# ----------------------------------------------------------------------
+# STY family (01..08) -- style/usage suppressions
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-STY-01",
+    _Entry(
+        label="W001 Tk geometry-manager shortcut (grid/pack/place pathName)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Tk's grid/pack/place accept a window-path as the first arg as\n"
+            "shorthand for ``grid configure .x`` etc.  Detect the shortcut\n"
+            "and exempt from W001."
+        ),
+        source=_dedent("grid .x\npack .x\nplace .x\n"),
+    ),
+)
+
+
+register(
+    "FP-STY-02",
+    _Entry(
+        label="W306 escaped \\[ / \\$ in quoted regexp patterns",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            'Backslash escapes prevent Tcl substitution; ``regexp "\\[abc\\]"``\n'
+            "passes the literal char-class ``[abc]``.  Fix: when token isn't\n"
+            "VAR/CMD intrep, scan raw source slice for live substitutions."
+        ),
+        source=_dedent(
+            r"""
+            regexp "\[abc\]" $s
+            regexp "\$end" $s
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-03",
+    _Entry(
+        label="W104 usage/template notation (?optarg?, <ph>, ...)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "``?optarg?``, ``<placeholder>``, ``...`` are documented usage-\n"
+            "string conventions, not list-building.  Corpus 165 -> 144."
+        ),
+        source=_dedent(
+            """
+            append usage "?arg?"
+            append usage "<placeholder>"
+            append usage "..."
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-04",
+    _Entry(
+        label="W126 lattice fix: lassign per-element destructure",
+        proc="::top",
+        vars=("ch", "wch"),
+        show=("ssa", "values"),
+        notes=(
+            "``lassign [chan pipe] ch wch`` destructures the LIST of channels.\n"
+            "Def-targets now typed UNKNOWN (sound conservative) instead of\n"
+            "LIST (which fired spurious W126 when used as channels).\n"
+            "Corpus 4 -> 0."
+        ),
+        source=_dedent(
+            """
+            lassign [chan pipe] ch wch
+            puts $ch x
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-05",
+    _Entry(
+        label="W302 catch fire-and-forget (bare + subcommand-aware)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "``catch {close $fh}`` / ``catch {chan close $fh}`` are documented\n"
+            "fire-and-forget idioms.  ``_FIRE_AND_FORGET_BARE`` +\n"
+            "``_FIRE_AND_FORGET_SUBCOMMANDS`` in analyser/compiler_checks.py\n"
+            "drive the exemption.  Constructive forms (``chan configure``,\n"
+            "``array set``) still fire.  239 corpus firings cleared."
+        ),
+        source=_dedent(
+            """
+            catch {close $fh}
+            catch {chan close $fh}
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-06",
+    _Entry(
+        label="W122/W124 OID-like dotted chains (not IPv4)",
+        proc="::top",
+        vars=("oid",),
+        show=("ssa", "values"),
+        notes=(
+            "``1.3.6.1.4.1.4203.1.11.3`` is an LDAP PEN OID -- naive IPv4\n"
+            "detector matched the embedded ``4203.1.11.3`` slice.  Skip when\n"
+            "matched quad is preceded/followed by ``.<digit>``."
+        ),
+        source=_dedent("set oid 1.3.6.1.4.1.4203.1.11.3\n"),
+    ),
+)
+
+
+register(
+    "FP-STY-07",
+    _Entry(
+        label="W120 package self-call: file is the provider",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "A file declaring ``package provide X`` is X's own implementation;\n"
+            "X::foo calls inside don't need ``package require X``.  Union\n"
+            "file's package_provides into the imported set."
+        ),
+        source=_dedent(
+            """
+            package provide msgcat 1.0
+            msgcat::mc hello
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-08",
+    _Entry(
+        label="W214 empty-body proc stubs + snit quoted-keyword markers",
+        proc="::stub",
+        vars=("a", "b"),
+        show=("ssa",),
+        notes=(
+            "``proc stub {a b} {}`` is the canonical Tcl signature-stub\n"
+            "pattern (e.g. tcllib grammar_fa/faop.tcl declares 14 such procs).\n"
+            "Detect zero-statement body in IR; skip W214 on every param.\n"
+            "Related fix: snit-style quoted-keyword marker params\n"
+            '(``{"as" ""}``) -- param name starts+ends with ``"``.'
+        ),
+        source=_dedent("proc stub {a b} {}\n"),
+    ),
+)
+
+
+# ----------------------------------------------------------------------
+# TNT family (01..02) -- position-aware taint filters
+# ----------------------------------------------------------------------
+
+
+register(
+    "FP-TNT-01",
+    _Entry(
+        label="T100 direct-operand expr filter (cmd-sub args exempt)",
+        proc="::f",
+        vars=("data",),
+        show=("ssa",),
+        notes=(
+            "``expr {[string length $data] / 8}`` -- $data is a cmd-sub arg,\n"
+            "not a direct expr operand.  Only the integer length flows into\n"
+            "expr.  T100 here is the numeric/type-coercion hazard, NOT a\n"
+            "code-exec injection vector (braced expr doesn't re-parse).\n"
+            "Code-exec injection in expr is the UNBRACED form (W101)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                set data [gets stdin]
+                expr {[string length $data] / 8}
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-TNT-02",
+    _Entry(
+        label="T101 puts channel-position filter",
+        proc="::f",
+        vars=("chan",),
+        show=("ssa",),
+        notes=(
+            "``puts ?-nonewline? ?channelId? string`` -- channel id is\n"
+            "structural (destination), only the trailing positional is\n"
+            "content.  Filter T101 to the content position."
+        ),
+        source=_dedent(
+            r"""
+            proc f {} {
+                set chan [gets stdin]
+                puts -nonewline $chan "hello\n"
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)
