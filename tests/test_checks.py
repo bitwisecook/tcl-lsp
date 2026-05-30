@@ -292,6 +292,18 @@ class TestStringListConfusion:
         diags = _diag_with_code('append items " $item"', "W104")
         assert len(diags) == 1
 
+    def test_usage_notation_not_flagged(self):
+        """Usage/template notation is display-string formatting, not a list
+        element: ``?optarg?`` (optional-argument notation), ``<placeholder>``,
+        and ``...`` ("and so on") only ever appear in a generated usage/help
+        line (tcllib clay/cmdline ``append result " ?option value?..."`` then
+        ``return $result``).  ``lappend`` is not the fix there, so suppress."""
+        assert len(_diag_with_code('append result " ?option value?..."', "W104")) == 0
+        assert len(_diag_with_code('append result " ?[lindex $argdef 0]?"', "W104")) == 0
+        assert len(_diag_with_code('append name " <value>"', "W104")) == 0
+        assert len(_diag_with_code('append desc " <$default>"', "W104")) == 0
+        assert len(_diag_with_code('append usage " args..."', "W104")) == 0
+
 
 # W110: String comparison with == in expr
 

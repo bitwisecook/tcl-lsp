@@ -531,6 +531,16 @@ def check_string_list_confusion(
         stripped = text.strip()
         if not stripped or not any(c.isalnum() or c in "$[" for c in stripped):
             continue
+        # Usage/template-string notation is display formatting, not a list
+        # element: ``?optarg?`` (optional-argument notation), ``<placeholder>``,
+        # and ``...`` ("and so on") only ever appear in a generated usage line
+        # (e.g. tcllib clay/cmdline build ``append result " ?option value?..."``
+        # then ``return $result``).  ``lappend`` is not the fix there — the
+        # result is meant to be a human-readable string, so suppress (the
+        # string-vs-list intent is otherwise undecidable without dataflow; this
+        # is a sound, conservative carve-out of the unambiguous display case).
+        if "?" in stripped or "<" in stripped or ">" in stripped or "..." in stripped:
+            continue
         tok = arg_tokens[i] if i < len(arg_tokens) else arg_tokens[0]
         return [
             Diagnostic(
