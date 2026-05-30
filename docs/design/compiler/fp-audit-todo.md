@@ -166,8 +166,8 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (``expr {$data + 1}``, ``expr {abs($data)}``) — the genuine
   injection vector for unbraced expr.  Sample tcllib firings cleared:
   blowfish.tcl:L525, http.tcl:L4338, mime.tcl:L1962-on-$X.
-- [x] **W307** proc-parameter / multi-dispatch object dispatcher —
-  Two-tier suppression:
+- [x] **W307** proc-parameter / multi-dispatch / switch-callback
+  object dispatcher — Three-tier suppression:
   (a) ``proc walk {tree} {$tree visit $n}`` — the param itself
       documents the API contract.  Single dispatch on a param is
       enough.
@@ -175,15 +175,19 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       node first; $TGraph dispose }`` — multiple dispatches on the
       same local var (≥2) demonstrate firm intent; the user
       designed it as an object handle.
+  (c) ``$state(-command) $token`` — switch-style array-element
+      callback (widget ``-command``, http ``-proxyfilter``, …).  The
+      dash-prefixed key marks an explicitly-registered configurable
+      callback.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress when var is a param (any count) or
-  a local with count≥2.  **Taint-aware**: never suppress when the
-  dispatched var is tainted in its proc (``set cmd [gets stdin]; $cmd
-  op1; $cmd op2`` is a real injection vector regardless of dispatch
-  count) — wired to the existing taint lattice that drives T100/T101.
-  Sound — evidence is the dispatches themselves, in the same proc,
-  and taint disqualifies the heuristic.  Corpus sample (graphops/
-  snit/gasm): 125 → 21 firings (-83%).
+  a local with count≥2 or an array element with a switch-key.
+  **Taint-aware**: never suppress when the dispatched var is tainted
+  in its proc (``set cmd [gets stdin]; $cmd op1; $cmd op2`` is a real
+  injection vector regardless of dispatch count) — wired to the
+  existing taint lattice that drives T100/T101.  Sound — evidence is
+  the dispatches themselves, in the same proc, and taint disqualifies
+  the heuristic.  Corpus W307 (800 files): **2912 → 444 (-85%)**.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
