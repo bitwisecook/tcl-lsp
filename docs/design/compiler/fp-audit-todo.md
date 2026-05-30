@@ -187,7 +187,13 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       namespaced command construction.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress on param / multi-dispatch local /
-  switch-key array elem / namespaced ensemble.
+  switch-key array elem / namespaced ensemble.  **Top-level scope**
+  also honours the multi-dispatch rule (tcllib's
+  ``examples/irc/mainloop.tcl`` script registers ``$cn`` and
+  dispatches 9 times — clear intent regardless of being outside any
+  proc).  **`::proc`** is recognised as proc declaration (clay module
+  qualifies the call to bypass overrides; semantically identical to
+  bare ``proc``).
 - [x] **W122 / W124** OID-like dotted chains — `1.3.6.1.4.1.4203.1.11.3`
   (LDAP PEN OID) was being flagged as IPv4 with octet 4203 exceeding
   255.  The regex matched embedded 4-component slices of longer
