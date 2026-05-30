@@ -117,6 +117,31 @@ class TestNoReadBeforeSet:
         src = "proc p {} {\n    dict for {k v} {a 1 b 2} { puts $never_set }\n}\n"
         assert "W210" in _codes(src, "W210")
 
+    def test_cmd_sub_set_in_return_value_is_recognised(self):
+        # tcllib installer.tcl idiom: ``return [read [set x [open $f r]]][close $x]``.
+        # The ``[set x ...]`` lives inside a command substitution of the return
+        # value, and the trailing ``[close $x]`` reads it.  The cmd-sub-writes
+        # recovery in _read_before_set now scans block terminators (not just
+        # block.statements), so the ``set x`` is recognised and ``$x`` is no
+        # longer a spurious read-before-set.
+        src = "proc p {f} { return [read [set x [open $f r]]][close $x] }\n"
+        assert "W210" not in _codes(src, "W210")
+
+    def test_cmd_sub_set_in_branch_condition_is_recognised(self):
+        # Same idiom applied to a branch condition: ``if {[set x 1]} { puts $x }``
+        # — the ``set x`` inside the cmd-sub of the branch condition must define
+        # x for the body's read.  (The branch-cmd-sub-writes scan exempts the
+        # name function-wide; main's narrowing handles existence-check shapes
+        # separately, but this is a literal set, not an existence check.)
+        src = "proc p {} { if {[set x 1]} { puts $x } }\n"
+        assert "W210" not in _codes(src, "W210")
+
+    def test_genuine_unset_in_return_still_fires(self):
+        # TP control: a return that reads a variable never defined anywhere
+        # must still fire — the terminator-scan is suppress-only.
+        src = "proc p {} { return $never_set }\n"
+        assert "W210" in _codes(src, "W210")
+
 
 class TestProvablyAbsentFoldsFalse:
     def test_issue_example_body_never_executes(self):
