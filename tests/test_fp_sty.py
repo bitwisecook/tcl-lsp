@@ -231,3 +231,26 @@ def test_FP_STY_08_non_empty_body_unused_param_still_fires():
     src = "proc f {a b} { return $a }"
     w214 = [d for d in _codes(src, "W214") if "'b'" in (d.message or "")]
     assert w214, "non-empty body with unused 'b' must still fire W214"
+
+
+def test_FP_STY_08_snit_quoted_keyword_marker_no_w214():
+    """FP: snit-style DSL uses ``{"as" ""}`` as a positional keyword
+    marker -- the parameter name is the literal ``"as"`` and the body
+    can't reference it as a variable.  Detect via param name starting
+    + ending with ``"`` and exempt from W214.
+
+    Companion fix to the empty-body-stub exemption above; both are
+    captured in FP-STY-08 in the catalog."""
+    src = 'proc xyz {"as" v} { return $v }'
+    assert _codes(src, "W214") == [], (
+        f'quoted-keyword marker `"as"` must NOT fire W214; got {get_diagnostics(src)}'
+    )
+
+
+def test_FP_STY_08_bare_keyword_param_still_fires():
+    """TP control: the same shape with NO quote marker (``proc xyz {as
+    v}``) MUST still fire W214 on the unused ``as`` -- proves the
+    exemption is keyed strictly on the quote-marker shape."""
+    src = "proc xyz {as v} { return $v }"
+    w214 = [d for d in _codes(src, "W214") if "'as'" in (d.message or "")]
+    assert w214, "bare unused 'as' param (no quote marker) must still fire W214"

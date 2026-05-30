@@ -3569,7 +3569,11 @@ W307's pre-fire filter checks whether the call site is an `eval`-family form and
 
 ### FP-OBJ-09 — W307 multi-dispatch local var (≥2 dispatches on same local)
 
-- **Verdict:** FALSE POSITIVE (now fixed)
+- **Verdict:** FALSE POSITIVE — **heuristic** (corpus-driven intent
+  inference, not a Tcl-semantic guarantee).  Two dispatches on the same
+  local is strong evidence that the user designed it as an object
+  handle, but isn't proof; a typo-named pseudo-handle dispatched twice
+  by accident would also escape.
 - **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_09_*`
 - **Codes:** W307 (non-literal command word)
 - **Corpus:** tcllib `struct::graph` users (graphops.tcl, etc.).
@@ -3604,7 +3608,11 @@ Fix: track per-proc dispatch counts in the pre-pass over
 
 ### FP-OBJ-10 — W307 switch-callback array element (`$state(-command) ...`)
 
-- **Verdict:** FALSE POSITIVE (now fixed)
+- **Verdict:** FALSE POSITIVE — **heuristic** (callback-shape inference
+  from the array key, not a Tcl-semantic guarantee).  An array element
+  whose key matches the callback-naming convention is *very likely* a
+  registered callback slot; the suppression can mask a typo in a non-
+  callback array key that happens to match the heuristic.
 - **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_10_*`
 - **Codes:** W307
 - **Corpus:** tcllib HTTP / IRC / async state-machine modules.
@@ -3642,7 +3650,12 @@ key is either:
 
 ### FP-OBJ-11 — W307 interprocedural object-factory tracking
 
-- **Verdict:** FALSE POSITIVE (now fixed)
+- **Verdict:** FALSE POSITIVE — **inherits the shape-based namespaced-
+  factory heuristic from FP-OBJ-04** (which has a known precision gap
+  for namespaced procs returning plain strings).  When the inner cmd
+  isn't a namespaced object factory, the transitive propagation
+  inherits the same false-negative; closing the FP-OBJ-04 gap (per-
+  proc return-type lattice) would close this one too.
 - **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_11_*`
 - **Codes:** W307
 - **Corpus:** tcllib `struct::graphops` (88 → 0 W307 firings cleared).
@@ -5410,11 +5423,10 @@ A file declaring `package provide msgcat 1.0` IS the implementation of
 Fix: union the file's `package_provides` set into the imported-set
 check that drives W120.
 
-**Taint-aware caveat:** never suppress when the dispatched var is
-tainted in its proc (`set cmd [gets stdin]; $cmd op1; $cmd op2`).
-Wired to the existing taint lattice that drives T100/T101.  Sound —
-evidence is the dispatches themselves in the same proc, and taint
-disqualifies the heuristic.
+(Note: the prior catalog text included a "taint-aware caveat" that
+discussed tainted-var dispatch — that material belongs with the W307
+multi-dispatch heuristic, not the W120 package-provide rule, and has
+been removed.)
 
 #### Tests
 
