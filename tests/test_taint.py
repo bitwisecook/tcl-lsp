@@ -339,6 +339,27 @@ class TestOutputSinks:
         )
         assert len(ws) == 0
 
+    def test_puts_tainted_channel_position_silent(self):
+        # ``puts ?-nonewline? ?channelId? string`` — the channel arg is a
+        # destination handle, NOT content that could be injected.  A
+        # tainted ``$chan`` in the channel position must not fire T101.
+        # Sample: tcllib imap4.tcl ``puts -nonewline $chan "$t\r\n"``.
+        ws = _taint_warnings(
+            "set chan [read $fd]\nputs -nonewline $chan {hello}",
+            "T101",
+        )
+        assert len(ws) == 0
+
+    def test_puts_tainted_output_alongside_tainted_chan(self):
+        # TP control: when BOTH the channel and the output string are
+        # tainted, only the output string flags T101.
+        ws = _taint_warnings(
+            "set chan [read $fd]\nset msg [read $fd]\nputs -nonewline $chan $msg",
+            "T101",
+        )
+        assert len(ws) == 1
+        assert ws[0].variable == "msg"
+
     def test_puts_interpolation_propagates(self):
         ws = _taint_warnings(
             'set x [read $fd]\nputs "data: $x"',

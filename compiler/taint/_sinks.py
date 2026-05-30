@@ -195,6 +195,26 @@ def _stmt_var_arg_indexes(stmt, var_name: str) -> tuple[int, ...]:
     return _args_var_indexes(args, var_name)
 
 
+def _puts_output_positions(args: tuple[str, ...]) -> set[int]:
+    """Return the indices of *args* that hold the OUTPUT STRING for puts.
+
+    ``puts ?-nonewline? ?channelId? string`` — only the trailing ``string``
+    arg carries content that could be injected; ``$chan`` is just the
+    destination handle and ``-nonewline`` is a flag.  Position depends on
+    how many leading non-string args are present:
+
+        puts msg                      -> {0}
+        puts -nonewline msg           -> {1}
+        puts chan msg                 -> {1}
+        puts -nonewline chan msg      -> {2}
+    """
+    if not args:
+        return set()
+    # The output string is always the LAST positional arg (Tcl puts spec).
+    # All preceding args are either ``-nonewline`` or the channel id.
+    return {len(args) - 1}
+
+
 def _classify_sink(
     stmt,
     is_irules: bool,  # noqa: ARG001 – kept for call-site compat; dialect subsumes it
@@ -477,6 +497,19 @@ def _find_taint_sinks(
                         _cmd_args, profile.scan_start, profile.options_with_values
                     )
 
+            # T101-on-puts position filter: ``puts ?-nonewline? ?channelId?
+            # string`` — only the trailing string arg carries the OUTPUT
+            # content; the channel-id arg is just a destination handle.  A
+            # tainted ``$chan`` here is the channel, not the bytes being
+            # written, so it cannot inject content.  Compute the output-
+            # string positions once for this statement (positions because
+            # ``puts -nonewline $chan $msg`` makes index 2 the output).
+            t101_output_idxs: set[int] | None = None
+            if parsed is not None and any(code == "T101" for code, _ in sinks):
+                _cmd, _cmd_args = parsed
+                if _cmd in ("puts", "::puts"):
+                    t101_output_idxs = _puts_output_positions(_cmd_args)
+
             # Check each used variable for taint.
             for name, ver in uses.items():
                 t = taints.get((name, ver), _UNTAINTED)
@@ -487,6 +520,10 @@ def _find_taint_sinks(
                         if code == "T102" and t102_region is not None:
                             var_idxs = _stmt_var_arg_indexes(stmt, name)
                             if not any(i in t102_region for i in var_idxs):
+                                continue
+                        if code == "T101" and t101_output_idxs is not None:
+                            var_idxs = _stmt_var_arg_indexes(stmt, name)
+                            if not any(i in t101_output_idxs for i in var_idxs):
                                 continue
                         template = _OUTPUT_MESSAGES.get(code)
                         if template is not None:
