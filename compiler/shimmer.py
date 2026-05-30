@@ -188,6 +188,7 @@ def _check_command_substitution_intent(
     stmt_range: Range,
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
+    loop_def_names: frozenset[str] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -200,6 +201,7 @@ def _check_command_substitution_intent(
         stmt_range,
         in_loop,
         already_coerced,
+        loop_def_names,
     )
 
 
@@ -221,6 +223,7 @@ def _check_args_for_shimmer(
     stmt_range: Range,
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
+    loop_def_names: frozenset[str] | None = None,
 ) -> list[ShimmerWarning]:
     """Check a command invocation's arguments for type mismatches."""
     warnings: list[ShimmerWarning] = []
@@ -258,8 +261,21 @@ def _check_args_for_shimmer(
         if already_coerced is not None and coercion_key in already_coerced:
             continue
 
-        code = "S101" if in_loop else "S100"
-        severity = "loop " if in_loop else ""
+        # In-loop classification: a use inside a loop is "per-iteration cost"
+        # (S101) ONLY if the variable's intrep can be reset each iteration.
+        # If the variable is **loop-invariant** (no def of it inside the loop
+        # body), the runtime intrep converts once at the first iteration and
+        # is cached for the rest — that is S100 (one-time conversion), not
+        # S101 (recurring).  ``loop_def_names`` carries the set of variable
+        # names ever defined inside the enclosing loop's blocks; absence means
+        # invariant.  None means the caller didn't supply the lattice, so we
+        # fall back to the historical pessimistic classification.
+        effective_in_loop = in_loop
+        if in_loop and loop_def_names is not None and var_name not in loop_def_names:
+            effective_in_loop = False  # loop-invariant → one-time, not per-iteration
+
+        code = "S101" if effective_in_loop else "S100"
+        severity = "loop " if effective_in_loop else ""
         msg = (
             f"Shimmer: ${var_name} has intrep "
             f"{_type_name(var_type.tcl_type)} but {command} "
@@ -294,6 +310,27 @@ def _find_use_site_shimmers(
     expecting a different type."""
     warnings: list[ShimmerWarning] = []
 
+    # Loop-invariance lattice for the in-loop classification: a variable used
+    # inside a loop is "per-iteration" (S101) only if its intrep can be reset
+    # each iteration — i.e. SOMETHING in the loop body defines it.  A
+    # loop-invariant variable (no def inside the loop) shimmers once at first
+    # iteration and is cached for the rest, so the right code is S100
+    # (one-time), not S101 (per-iteration).  Build the set of names ever
+    # defined in any loop block — absence means invariant.  Cheap, single
+    # pass; only computed when loops exist.
+    loop_def_names: frozenset[str] = frozenset()
+    if loop_blocks:
+        defs: set[str] = set()
+        for lbn in loop_blocks:
+            sb = ssa.blocks.get(lbn)
+            if sb is None:
+                continue
+            for st in sb.statements:
+                defs.update(st.defs.keys())
+            for phi in sb.phis:
+                defs.add(phi.name)
+        loop_def_names = frozenset(defs)
+
     for bn in executable_blocks:
         block = cfg.blocks.get(bn)
         ssa_block = ssa.blocks.get(bn)
@@ -321,6 +358,7 @@ def _find_use_site_shimmers(
                         stmt.range,
                         in_loop,
                         already_coerced,
+                        loop_def_names,
                     )
                 )
             elif isinstance(stmt, IRAssignValue):
@@ -335,6 +373,7 @@ def _find_use_site_shimmers(
                             stmt.range,
                             in_loop,
                             already_coerced,
+                            loop_def_names,
                         )
                     )
                 else:
@@ -350,6 +389,7 @@ def _find_use_site_shimmers(
                                 stmt.range,
                                 in_loop,
                                 already_coerced,
+                                loop_def_names,
                             )
                         )
             elif isinstance(stmt, IRIncr):

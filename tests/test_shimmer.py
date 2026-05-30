@@ -131,16 +131,48 @@ class TestUseSiteShimmer:
         warnings = _warnings_for(source, code="S100")
         assert len(warnings) > 0, "Expected S100 outside loop"
 
-    def test_shimmer_inside_loop_is_s101(self):
+    def test_loop_invariant_shimmer_inside_loop_is_s100(self):
+        """A use-site inside a loop body whose variable is **loop-invariant**
+        (no def in the loop) shimmers ONCE at the first iteration — Tcl's Obj
+        intrep cache keeps the converted form for the rest of the loop.  That
+        is S100 (one-time conversion), not S101 (per-iteration cost).
+
+        Verified against Tcl's intrep semantics: ``[llength $items]`` converts
+        ``items``'s Obj intrep from String → List on first call; subsequent
+        calls in the loop body re-use the cached List intrep.  Updated from
+        a pre-lattice baseline that pessimistically labelled all in-loop uses
+        S101 regardless of the variable's def location.
+        """
         source = """\
 set items "a b c d"
 for {set i 0} {$i < 10} {incr i} {
     set n [llength $items]
 }
 """
+        # The conversion happens once → S100.  S101 must NOT fire because the
+        # variable is loop-invariant.
+        s100 = _warnings_for(source, code="S100")
+        s101 = _warnings_for(source, code="S101")
+        assert any(w.variable == "items" for w in s100 if isinstance(w, ShimmerWarning)), (
+            f"Expected S100 for loop-invariant 'items' shimmer in loop, got S100={s100} S101={s101}"
+        )
+        assert not any(w.variable == "items" for w in s101 if isinstance(w, ShimmerWarning)), (
+            f"S101 must NOT fire for loop-invariant 'items'; got {s101}"
+        )
+
+    def test_shimmer_inside_loop_with_reassignment_is_s101(self):
+        """A use-site inside a loop body whose variable IS reassigned in the
+        loop is a genuine per-iteration cost — each iteration resets the
+        intrep, so every iteration pays the conversion.  That is S101."""
+        source = """\
+for {set i 0} {$i < 10} {incr i} {
+    set items "a b c d"
+    set n [llength $items]
+}
+"""
         warnings = _warnings_for(source, code="S101")
         assert any(w.variable == "items" for w in warnings if isinstance(w, ShimmerWarning)), (
-            f"Expected S101 for items in loop, got {warnings}"
+            f"Expected S101 for items reassigned inside loop, got {warnings}"
         )
 
 
