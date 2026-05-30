@@ -722,6 +722,13 @@ def _check_arity(
         if sub_sig is None:
             if sig.allow_unknown:
                 return
+            # Tk geometry managers accept ``manager pathName ?args?`` as a
+            # shortcut for ``manager configure pathName ?args?`` (verified per
+            # Tk man pages — grid.n, pack.n, place.n).  A window path starts
+            # with ``.`` (Tk's path convention), and ``.`` is not a valid Tcl
+            # subcommand-name first character, so this is unambiguous.
+            if cmd_name in ("grid", "pack", "place") and sub_name.startswith("."):
+                return
             msg = f"Unknown subcommand '{sub_name}' for '{cmd_name}'"
             suggestions = _suggest_similar_impl(
                 sub_name, sig.subcommands, max_suggestions=3, max_distance=3
