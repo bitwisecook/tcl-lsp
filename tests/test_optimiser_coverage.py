@@ -1237,6 +1237,26 @@ class TestO116ListFolding:
         # optimiser folds it later (O116).
         assert any(r.code in ("O116", "O100", "O109") for r in rw)
 
+    def test_fold_empty_list_replacement_is_applicable(self):
+        # Regression: ``[list]`` previously folded to the empty string,
+        # so applying the quick-fix turned ``set r [list]`` into
+        # ``set r ;`` — a syntax-valid READ of ``r``, not the intended
+        # write.  The fold must produce ``{}`` (or any non-empty token)
+        # so the resulting source still assigns an empty value.
+        from server.features.diagnostics import get_diagnostics
+
+        src = "proc f {} { set r [list]; return $r }\n"
+        o116 = [d for d in get_diagnostics(src) if d.code == "O116"]
+        assert len(o116) == 1
+        repl = (o116[0].data or {}).get("replacement")
+        assert repl, "O116 replacement must not be empty (would break apply)"
+        # Simulate apply.
+        rng = o116[0].range
+        line = src.splitlines(keepends=True)[rng.start.line]
+        applied = line[: rng.start.character] + repl + line[rng.end.character :]
+        # Must still parse as ``set r <value>; return ...`` — not ``set r ;``.
+        assert "set r " in applied and "set r ;" not in applied
+
     def test_no_fold_list_with_variable(self):
         s = "set x [list $a b c]\nputs $x"
         assert _not_has(s, "O116")
