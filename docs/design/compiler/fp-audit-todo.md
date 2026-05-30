@@ -166,8 +166,8 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (``expr {$data + 1}``, ``expr {abs($data)}``) — the genuine
   injection vector for unbraced expr.  Sample tcllib firings cleared:
   blowfish.tcl:L525, http.tcl:L4338, mime.tcl:L1962-on-$X.
-- [x] **W307** proc-parameter / multi-dispatch / switch-callback
-  object dispatcher — Three-tier suppression:
+- [x] **W307** proc-parameter / multi-dispatch / switch-callback /
+  namespaced-ensemble object dispatcher — Four-tier suppression:
   (a) ``proc walk {tree} {$tree visit $n}`` — the param itself
       documents the API contract.  Single dispatch on a param is
       enough.
@@ -179,9 +179,13 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       callback (widget ``-command``, http ``-proxyfilter``, …).  The
       dash-prefixed key marks an explicitly-registered configurable
       callback.
+  (d) ``${log}::debug "msg"`` — namespaced ensemble dispatch (tcllib
+      logger / dns / spf / irc / multiplexer idiom).  The ``::``
+      suffix after the var sub is a strong signal of explicit
+      namespaced command construction.
   Track per-proc dispatch counts in the pre-pass over
-  `_var_command_sites`; suppress when var is a param (any count) or
-  a local with count≥2 or an array element with a switch-key.
+  `_var_command_sites`; suppress on param / multi-dispatch local /
+  switch-key array elem / namespaced ensemble.
   **Taint-aware**: never suppress when the dispatched var is tainted
   in its proc (``set cmd [gets stdin]; $cmd op1; $cmd op2`` is a real
   injection vector regardless of dispatch count) — wired to the
