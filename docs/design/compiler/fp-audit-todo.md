@@ -166,16 +166,20 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (``expr {$data + 1}``, ``expr {abs($data)}``) — the genuine
   injection vector for unbraced expr.  Sample tcllib firings cleared:
   blowfish.tcl:L525, http.tcl:L4338, mime.tcl:L1962-on-$X.
-- [x] **W307** proc-parameter object dispatcher — `proc walk {tree}
-  {$tree visit $n}` documents the param's "is-object" contract
-  through usage; flagging W307 on those dispatches is noise.  Pre-
-  compute per enclosing proc the set of vars used as dispatch heads;
-  suppress when the site's var is BOTH a parameter AND a dispatcher
-  of that proc.  Sound — evidence lives in the same proc.  Limited
-  reach: most remaining W307 (graphops/snit) is on LOCALS from
-  factory calls (``set TGraph [createTGraph …]``), not direct params
-  — that needs cross-proc object-return-type provenance (a larger
-  inter-procedural lift, deferred).
+- [x] **W307** proc-parameter / multi-dispatch object dispatcher —
+  Two-tier suppression:
+  (a) ``proc walk {tree} {$tree visit $n}`` — the param itself
+      documents the API contract.  Single dispatch on a param is
+      enough.
+  (b) ``proc analyze {G} { set TGraph [createTGraph $G]; $TGraph
+      node first; $TGraph dispose }`` — multiple dispatches on the
+      same local var (≥2) demonstrate firm intent; the user
+      designed it as an object handle.
+  Track per-proc dispatch counts in the pre-pass over
+  `_var_command_sites`; suppress when var is a param (any count) or
+  a local with count≥2.  Sound — evidence is the dispatches
+  themselves, in the same proc.  Corpus sample (graphops/snit/
+  gasm): 125 → 21 firings (-83%).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
