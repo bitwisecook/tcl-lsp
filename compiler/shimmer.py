@@ -872,6 +872,38 @@ def _find_thunking(
     if empty_by_name is None or loop_body_types is None:
         empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks, cfg)
 
+    # Build PER-LOOP body_types so that a destructure foreach's STRING
+    # binding doesn't leak into a real loop's type set (and vice versa
+    # across sibling loops in the same proc).  The function-wide
+    # ``loop_body_types`` map is an over-approximation that triggers
+    # S102 FPs when sibling loops have different type effects on the
+    # same name.
+    from compiler.loops import build_loop_forest
+
+    forest = build_loop_forest(cfg, ssa, executable_blocks)
+    destructure_set = _destructure_foreach_blocks(ssa, cfg)
+    per_header_body_types: dict[str, dict[str, set[TclType]]] = {}
+    for loop in forest.loops:
+        per_loop_types: dict[str, set[TclType]] = {}
+        for lbn in loop.blocks:
+            if lbn in destructure_set:
+                continue
+            lssa = ssa.blocks.get(lbn)
+            if lssa is None:
+                continue
+            for ls in lssa.statements:
+                lstmt = ls.statement
+                is_empty = (
+                    isinstance(lstmt, (IRAssignConst, IRAssignValue)) and lstmt.value == ""
+                )
+                for name, ver in ls.defs.items():
+                    if is_empty:
+                        continue
+                    t = types.get((name, ver))
+                    if t is not None and t.kind is TypeKind.KNOWN and t.tcl_type is not None:
+                        per_loop_types.setdefault(name, set()).add(t.tcl_type)
+        per_header_body_types[loop.header] = per_loop_types
+
     # Loop headers are blocks that have a back edge (predecessor is in loop).
     # We identify them as blocks that have a predecessor which is also in
     # the loop.
@@ -952,7 +984,11 @@ def _find_thunking(
             # thunking requires the body to *re-introduce* the entry type (so the
             # phi re-shimmers each iteration) or to produce ≥2 conflicting types
             # itself.  Otherwise the var stabilises at the body type → suppress.
-            all_body_types = body_types | loop_body_types.get(phi.name, set())
+            # Use PER-LOOP body_types (this loop only) instead of the
+            # function-wide map — a sibling loop's type effect on the same
+            # name must not pollute this loop's oscillation check.
+            per_loop = per_header_body_types.get(bn, {}).get(phi.name, set())
+            all_body_types = body_types | per_loop
             oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
             if not oscillates:
                 continue

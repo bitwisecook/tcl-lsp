@@ -803,6 +803,26 @@ incr x $step
         # one-time, not per-iter.
         assert "S102" not in codes, f"unexpected S102: {codes}"
 
+    def test_sibling_loop_body_types_do_not_pollute_s102(self):
+        # Sibling loops in the same proc must not pollute each other's
+        # S102 body_types map.  Loop A sets $x to STRING; loop B sets
+        # $x to LIST.  Neither loop alone should fire S102 on $x.
+        # The previous function-wide loop_body_types would have
+        # incorrectly classified $x as oscillating in EITHER loop
+        # because the union ({STRING, LIST}) had ≥2 types.
+        src = (
+            "proc f {items} {\n"
+            "    foreach a $items {\n"
+            "        set x \"value\"\n"  # loop A: x=STRING
+            "    }\n"
+            "    foreach b $items {\n"
+            "        set x [list 1 2]\n"  # loop B: x=LIST
+            "    }\n"
+            "}\n"
+        )
+        codes = _codes(src)
+        assert "S102" not in codes, f"sibling-loop S102 should not fire: {codes}"
+
     def test_boolean_increment_no_shimmer(self):
         """BOOLEAN is numeric-compatible with INT — no shimmer."""
         source = """\
