@@ -154,6 +154,48 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     return cmd.texts[0], args_text
 
 
+def _parse_safe_unset_ref(cmd_text: str) -> str | None:
+    """Parse a command substitution that *references* a variable but does NOT
+    require it to be set, and return the raw target name (else ``None``).
+
+    Currently covers ``[vwait varName]`` (blocks waiting for the variable to be
+    written; ``vwait forever`` is the canonical infinite-wait idiom — the whole
+    point is that the variable is initially unset).  ``[info exists]`` /
+    ``[array exists]`` are handled by :func:`_parse_existence_check`.
+
+    Note: ``array get|names|size FOO`` also returns ``""``/``0`` cleanly on
+    unset ``FOO`` (tclsh 9.0.3-verified), but the project deliberately keeps
+    W210 firing there as a linting choice (the developer wrote
+    ``array get FOO`` presumably wanting contents — silent empty is the
+    classic masking-a-bug shape), pinned by
+    ``test_array_get_is_a_value_read_still_flagged``.  vwait is different:
+    its entire purpose is to wait for an as-yet-unset variable.
+    """
+    parsed = _parse_cmd_subst(cmd_text)
+    if parsed is None:
+        return None
+    cmd_name, args_text = parsed
+    base = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
+    try:
+        parts = _split_tcl_list(args_text) if args_text.strip() else []
+    except Exception:
+        return None
+    if base == "vwait" and parts:
+        # vwait's options end at the first non-``-`` arg or at ``--``.
+        # ``-readable``/``-writable``/``-timeout``/``-variable`` take a value.
+        i = 0
+        while i < len(parts) and parts[i].startswith("-") and parts[i] != "--":
+            if parts[i] in ("-readable", "-writable", "-timeout", "-variable"):
+                i += 2
+            else:
+                i += 1
+        if i < len(parts) and parts[i] == "--":
+            i += 1
+        if i < len(parts):
+            return parts[i].strip()
+    return None
+
+
 def _parse_existence_check(cmd_text: str) -> tuple[str, str] | None:
     """Parse ``[info exists X]`` / ``[array exists X]`` into ``(kind, raw_target)``.
 
@@ -2130,11 +2172,18 @@ def _collect_existence_in_word(text: str, out: set[str]) -> None:
                 if nm:
                     out.add(nm)
             else:
+                # Other safe-on-unset references: ``[array get|names|size FOO]``
+                # / ``[vwait varName]`` — the variable need not be set.
+                safe = _parse_safe_unset_ref(f"[{tok.text}]")
+                if safe is not None:
+                    nm = _existence_skip_name(safe)
+                    if nm:
+                        out.add(nm)
                 _collect_existence_in_word(tok.text, out)
 
 
 def _existence_checks_in_expr(expr: ExprNode) -> set[str]:
-    """Names existence-checked (``info``/``array exists``) anywhere in *expr*."""
+    """Names existence-checked (or otherwise safe-on-unset) anywhere in *expr*."""
     names: set[str] = set()
     cmds: list[ExprCommand] = []
     _iter_expr_commands(expr, cmds)
@@ -2144,12 +2193,29 @@ def _existence_checks_in_expr(expr: ExprNode) -> set[str]:
             nm = _existence_skip_name(parsed[1])
             if nm:
                 names.add(nm)
+            continue
+        # Other safe-on-unset references inside an expression: ``expr {[array
+        # size FOO] > 0}`` etc.
+        safe = _parse_safe_unset_ref(c.text)
+        if safe is not None:
+            nm = _existence_skip_name(safe)
+            if nm:
+                names.add(nm)
     return names
 
 
 def _existence_checks_in_stmt(stmt: IRStatement) -> set[str]:
-    """Names existence-checked by *stmt* itself — the check reference does not
-    read the variable's value, so it is never a read-before-set."""
+    """Names existence-checked (or otherwise safe-on-unset) by *stmt* itself —
+    the reference does not require the variable to have a value, so it is never
+    a read-before-set.
+
+    Covers ``info exists`` / ``array exists`` (the canonical idiom) plus a small
+    set of other commands tclsh-verified to accept an unset variable:
+    ``vwait varName`` (blocks waiting for the variable to be written — its whole
+    purpose is to monitor an as-yet-unset variable; ``vwait forever`` is the
+    canonical infinite-wait idiom — the whole point is that the variable is
+    initially unset and vwait blocks until something writes it).
+    """
     names: set[str] = set()
     if isinstance(stmt, (IRCall, IRBarrier)):
         args = stmt.args
@@ -2161,6 +2227,24 @@ def _existence_checks_in_stmt(stmt: IRStatement) -> set[str]:
             nm = _existence_skip_name(args[1])
             if nm:
                 names.add(nm)
+        # ``vwait varName`` waits for the variable to be written; it does not
+        # need to be set beforehand (``vwait forever`` is the canonical idiom).
+        # vwait's options end at the first non-``-`` arg; ``--`` ends them too.
+        # We need the variable arg(s) — they are the trailing positionals.
+        elif stmt.canonical_command == "::vwait" and args:
+            i = 0
+            while i < len(args) and args[i].startswith("-") and args[i] != "--":
+                # ``-readable``/``-writable``/``-timeout``/``-variable`` take a value.
+                if args[i] in ("-readable", "-writable", "-timeout", "-variable"):
+                    i += 2
+                else:
+                    i += 1
+            if i < len(args) and args[i] == "--":
+                i += 1
+            for arg in args[i:]:
+                nm = _existence_skip_name(arg)
+                if nm:
+                    names.add(nm)
         for arg in args:
             _collect_existence_in_word(arg, names)
     value = getattr(stmt, "value", None)
@@ -2558,13 +2642,24 @@ def _read_before_set(
 
     # An *un-lowered* loop keeps its body opaque to the CFG, so the body's
     # reads are recovered name-level (→ version-0 uses) but its writes/loop-vars
-    # are not — making every body-local variable look read-before-set.  Two
+    # are not — making every body-local variable look read-before-set.  Three
     # cases stay un-lowered: a *frozen* loop (``while``/``for`` with a
     # command-substitution condition, e.g. ``while {[gets $fp line] >= 0} {…}``,
-    # an IRBarrier for tclsh-parity codegen) and a *fully-qualified* builtin
+    # an IRBarrier for tclsh-parity codegen); a *fully-qualified* builtin
     # (``::foreach {k v} $d {…}`` — the lowering dispatch matches only bare
-    # names, so it stays an IRCall).  Recover their body writes and loop vars to
-    # balance the read recovery (name-level, suppress-only).
+    # names, so it stays an IRCall); and ``dict for`` / ``dict map`` (Tcl 9
+    # compiles those as a generic ensemble invoke, so cfg.py emits an
+    # IRBarrier carrying ``{k v} dictVal body`` as args, with ``::tcl::dict::for``
+    # / ``::tcl::dict::map`` as the canonical command).  Recover their body
+    # writes and loop vars to balance the read recovery (name-level, suppress-only).
+    _UNLOWERED_LOOP_CMDS = (
+        "::while",
+        "::for",
+        "::foreach",
+        "::lmap",
+        "::tcl::dict::for",
+        "::tcl::dict::map",
+    )
     for bn in considered:
         block = cfg.blocks.get(bn)
         if block is None:
@@ -2573,14 +2668,19 @@ def _read_before_set(
             if not isinstance(stmt, (IRCall, IRBarrier)):
                 continue
             cc = stmt.canonical_command
-            if cc not in ("::while", "::for", "::foreach", "::lmap") or not stmt.args:
+            if cc not in _UNLOWERED_LOOP_CMDS or not stmt.args:
                 continue
             args = list(stmt.args)
             for a in args:
                 skip = skip | body_write_names(a)
             # foreach/lmap loop variables live in the varlist args at even
             # positions before the trailing body (``::foreach {k v} $d body``).
-            if cc in ("::foreach", "::lmap") and len(args) >= 3:
+            # ``dict for``/``dict map`` after the subcommand-strip in cfg.py
+            # have the same shape: ``{k v} dictValue body``.
+            if (
+                cc in ("::foreach", "::lmap", "::tcl::dict::for", "::tcl::dict::map")
+                and len(args) >= 3
+            ):
                 for i in range(0, len(args) - 1, 2):
                     for v in args[i].split():
                         base, _ = split_array_name(v)
