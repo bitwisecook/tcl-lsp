@@ -540,19 +540,36 @@ class _AnalyserDiagVarCommandMixin(_Base):
                             is_proc_param_dispatcher = True
                         elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
                             is_proc_param_dispatcher = True
-                # Switch-style callback in an array element: ``$state(-command)
-                # $token`` is the documented Tcl/Tk idiom for a user-
-                # configurable callback (widget ``-command``, http
-                # ``-proxyfilter``, etc.).  The dash-prefixed key marks the
-                # element as an option that the user explicitly registered
-                # as a callback — flagging W307 on those is noise.  Detect
-                # via array-element form with a key starting with ``-``.
+                # Callback in an array element: ``$state(-command) $token``
+                # (switch-style) and ``$state(openCmd) $arg`` /
+                # ``$state(doneCallback)`` (suffix-style) are the documented
+                # Tcl/Tk idioms for a user-configurable callback (widget
+                # ``-command``, http ``-proxyfilter``, internal state with
+                # registered command/callback/handler).  The user has
+                # explicitly assigned a command name to this slot — flagging
+                # W307 on the dispatch is noise.  Detect via array-element
+                # form with EITHER a dash-prefixed key (switch) OR a key
+                # whose final word is ``cmd``/``command``/``callback``/
+                # ``handler``/``hook`` (case-insensitive suffix match).
                 is_switch_callback_element = False
                 if "(" in var_name and var_name.endswith(")"):
                     _open = var_name.index("(")
                     _key = var_name[_open + 1 : -1]
                     if _key.startswith("-"):
                         is_switch_callback_element = True
+                    else:
+                        _key_lower = _key.lower()
+                        for _suffix in (
+                            "cmd",
+                            "command",
+                            "callback",
+                            "handler",
+                            "hook",
+                            "proc",
+                        ):
+                            if _key_lower.endswith(_suffix):
+                                is_switch_callback_element = True
+                                break
                 # Namespaced ensemble dispatch: ``${log}::debug "msg"`` is
                 # the documented "logger / namespaced ensemble" idiom —
                 # the variable holds a namespace prefix, the literal

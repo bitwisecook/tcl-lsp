@@ -2670,10 +2670,26 @@ class TestW307ProcParamDispatcher:
 
     def test_array_element_without_switch_key_still_w307(self):
         # TP control: an array element whose key is NOT a switch-style
-        # option (eg ``\$arr(usercmd)`` — key from user input) is not the
-        # callback idiom — still fires.
-        src = "proc f {arg} {\n    variable arr\n    $arr(usercmd) $arg\n}\n"
+        # option and doesn't match the callback-suffix family
+        # (cmd/command/callback/handler/hook/proc) is not the callback
+        # idiom — still fires.  Keys like ``data`` or ``value`` clearly
+        # don't name a registered command.
+        src = "proc f {arg} {\n    variable arr\n    $arr(data) $arg\n}\n"
         assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_array_element_with_callback_suffix_no_w307(self):
+        # Callback-suffix array elements (suffix ``cmd``/``command``/
+        # ``callback``/``handler``/``hook``/``proc``) are documented
+        # Tcl/Tk idioms for user-registered command callbacks
+        # (``state(openCmd)``, ``state(doneCallback)``, ``state(myHandler)``).
+        # Same principle as the dash-prefixed switch-style key — the
+        # user explicitly assigned a command to this slot.  tcllib
+        # http.tcl ``\$state(openCmd)``, tcltest ``\$CustomMatch($mode)``
+        # use this pattern (where ``$mode``-keyed access still maps to
+        # a callback registry).
+        for key in ("openCmd", "doneCallback", "myHandler", "hookHook", "renderProc"):
+            src = f"proc f {{arg}} {{\n    variable state\n    $state({key}) $arg\n}}\n"
+            assert _diag_with_code(src, "W307") == [], (key, _diag_with_code(src, "W307"))
 
     def test_namespaced_ensemble_dispatch_no_w307(self):
         # ``\${log}::debug "msg"`` — tcllib logger / namespaced ensemble
