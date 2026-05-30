@@ -806,10 +806,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     _src_off = site_range.end.offset + 1
                     if _src_off < len(cu.source) and cu.source[_src_off] == "]":
                         _src_off += 1
-                    if (
-                        _src_off + 1 < len(cu.source)
-                        and cu.source[_src_off : _src_off + 2] == "::"
-                    ):
+                    if _src_off + 1 < len(cu.source) and cu.source[_src_off : _src_off + 2] == "::":
                         key = (site_range.start.offset, site_range.end.offset)
                         idx = w307_indices.get(key)
                         if idx is not None:
@@ -883,4 +880,23 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 drop = set(remove_indices)
                 self.result.diagnostics[:] = [
                     d for i, d in enumerate(self.result.diagnostics) if i not in drop
+                ]
+
+        # Dedup W307 vs W101 (eval-injection): both fire on the same
+        # site for ``eval \$cmd`` / ``uplevel \$cmd``-style dynamic
+        # dispatch.  W101 is the canonical eval-injection warning and
+        # carries the specific message about double substitution; W307
+        # is the generic "non-literal command name".  When both fire at
+        # the same start offset, drop the W307 (more specific code
+        # wins).  W101's end offset may differ from W307's by ±1 (token
+        # vs argument range), so match on start offset only.
+        if "W307" not in self._disabled_diagnostics:
+            w101_starts: set[int] = {
+                d.range.start.offset for d in self.result.diagnostics if d.code == "W101"
+            }
+            if w101_starts:
+                self.result.diagnostics[:] = [
+                    d
+                    for d in self.result.diagnostics
+                    if not (d.code == "W307" and d.range.start.offset in w101_starts)
                 ]

@@ -2708,6 +2708,25 @@ class TestW307ProcParamDispatcher:
         )
         assert _diag_with_code(src, "W307") == []
 
+    def test_eval_substituted_no_w307_dup(self):
+        # ``eval \$cmd`` fires W101 (eval-injection) which is the
+        # canonical, specific warning for double substitution.  The
+        # generic W307 on the same site is redundant noise.  Dedup
+        # via start-offset match (W101 and W307 ranges differ by 1
+        # char at the end; start is identical).
+        src = "proc f {} {\n    set cmd {puts hello}\n    eval $cmd\n}\n"
+        codes = sorted(
+            {d.code for d in _diag_with_code(src, "W101") + _diag_with_code(src, "W307")}
+        )
+        # W101 should be present; W307 should be deduped out.
+        assert codes == ["W101"]
+
+    def test_w307_still_fires_without_w101(self):
+        # TP control: a non-eval dispatch (no W101 path) still fires
+        # W307 — dedup only applies when both codes coincide.
+        src = "proc f {} {\n    set obj [factory]\n    $obj method\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to
