@@ -177,9 +177,13 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       designed it as an object handle.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress when var is a param (any count) or
-  a local with count≥2.  Sound — evidence is the dispatches
-  themselves, in the same proc.  Corpus sample (graphops/snit/
-  gasm): 125 → 21 firings (-83%).
+  a local with count≥2.  **Taint-aware**: never suppress when the
+  dispatched var is tainted in its proc (``set cmd [gets stdin]; $cmd
+  op1; $cmd op2`` is a real injection vector regardless of dispatch
+  count) — wired to the existing taint lattice that drives T100/T101.
+  Sound — evidence is the dispatches themselves, in the same proc,
+  and taint disqualifies the heuristic.  Corpus sample (graphops/
+  snit/gasm): 125 → 21 firings (-83%).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
