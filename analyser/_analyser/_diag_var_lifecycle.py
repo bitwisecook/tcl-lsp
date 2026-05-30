@@ -14,13 +14,16 @@ from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
+    IRBarrier,
     IRCall,
     IRIncr,
     IRProcedure,
     IRStatement,
 )
 from shared.document_buffer import DocumentBuffer
+from shared.naming import normalise_qualified_name as _normalise_qualified_name
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.proc_traits import ProcArgTrait
 
 from ..semantic_model import Diagnostic, Severity
 from ._utils import (
@@ -44,6 +47,80 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             return buffer
         return cached[1]
 
+    def _collect_call_by_name_reads(self, cfg: CFGFunction) -> set[str]:
+        """Return caller-local variable names passed *by name* to a user proc
+        that consumes them via ``upvar`` (call-by-name).
+
+        The trait inference in ``compiler.proc_arg_traits`` already detects
+        when a user proc's parameter is a name-reference (``VAR_READ`` /
+        ``VAR_WRITE``) by recognising bodies like
+        ``upvar 1 $paramN local; set local …``.  Those traits live on
+        ``ProcDef.param_traits``.  At a call site like
+        ``validate_imodules_cmp im dm`` where the receiver's params have
+        those traits, the literal-name args ``im``/``dm`` are an *indirect
+        read/write* of the caller's variables of those names.
+
+        Without this view the analyser treats ``im``/``dm`` as set-but-never-
+        used (W211) and the preceding writes as dead stores (W220).  By
+        consuming the existing ``param_traits`` lattice we close that gap.
+
+        Sound under-approximation: only literal-name args matter; a
+        substituted (``$varname``) or array-element (``foo(key)``) arg
+        names a variable we can't statically identify, so it is *not*
+        suppressed — that preserves real W211/W220 cases where the user
+        accidentally passed a literal string instead of a name.
+        """
+        all_procs = self.result.all_procs
+        if not all_procs:
+            return set()
+        # Build a lookup keyed by both qualified and bare names so calls
+        # like ``validate_imodules_cmp`` resolve to ``::validate_imodules_cmp``.
+        bare_index: dict[str, list] = {}
+        for qname, pdef in all_procs.items():
+            if not pdef.param_traits:
+                continue
+            bare = qname.split("::")[-1]
+            bare_index.setdefault(bare, []).append(pdef)
+            bare_index.setdefault(qname, []).append(pdef)
+            bare_index.setdefault(qname.lstrip(":"), []).append(pdef)
+
+        by_name_reads: set[str] = set()
+        for block in cfg.blocks.values():
+            for stmt in block.statements:
+                if not isinstance(stmt, (IRCall, IRBarrier)):
+                    continue
+                cmd = stmt.command
+                if not cmd or "$" in cmd or "[" in cmd:
+                    continue
+                # Try the call name directly, then qualified, then bare.
+                cand = bare_index.get(cmd) or bare_index.get(_normalise_qualified_name(cmd))
+                if cand is None:
+                    cand = bare_index.get(cmd.lstrip(":"))
+                if cand is None:
+                    continue
+                # If multiple procs share the bare name, conservatively suppress
+                # only when ALL of them mark the arg as a name-receiver — that
+                # way we never over-suppress on a coincidental name collision.
+                for pdef in cand:
+                    params = [p.name for p in pdef.params]
+                    for i, arg in enumerate(stmt.args):
+                        if i >= len(params):
+                            break
+                        pname = params[i]
+                        traits = pdef.param_traits.get(pname, frozenset())
+                        if (
+                            ProcArgTrait.VAR_READ not in traits
+                            and ProcArgTrait.VAR_WRITE not in traits
+                        ):
+                            continue
+                        if not arg or "$" in arg or "[" in arg:
+                            continue
+                        # Must be a plain identifier (Tcl-local naming rules).
+                        name = _normalise_var_name(arg)
+                        if name and all(ch.isalnum() or ch in "_:" for ch in name):
+                            by_name_reads.add(name)
+        return by_name_reads
+
     def _emit_dead_store_diagnostics(
         self,
         cfg: CFGFunction,
@@ -62,8 +139,14 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             existing_unused.add((m.group(1), d.range.start.offset))
 
         all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
+        call_by_name = self._collect_call_by_name_reads(cfg)
         for dead in analysis.dead_stores:
             if dead.variable in cross_event_vars:
+                continue
+            if dead.variable in call_by_name:
+                # The variable is passed by literal name to a user proc that
+                # upvar's it — that is an indirect read/write the per-function
+                # SSA can't see.  Suppress (interprocedural call-by-name lattice).
                 continue
             block = cfg.blocks.get(dead.block)
             if block is None:
@@ -275,8 +358,13 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         defined_vars: set[str] | None = None,
     ) -> None:
         all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
+        call_by_name = self._collect_call_by_name_reads(cfg)
         for unused in analysis.unused_variables:
             if unused.variable in cross_event_vars:
+                continue
+            if unused.variable in call_by_name:
+                # Same as W220: passed by literal name to a name-receiver
+                # user proc — the upvar makes it an indirect read.
                 continue
             block = cfg.blocks.get(unused.block)
             if block is None:

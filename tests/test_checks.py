@@ -825,6 +825,98 @@ class TestArrayElementDeadStoreDistinction:
         assert len(_diag_with_code(src, "W220")) == 1
 
 
+class TestCallByNameSuppression:
+    """A caller-local variable passed by *literal name* to a user proc whose
+    parameter has the ``VAR_READ`` / ``VAR_WRITE`` trait (i.e. the receiver
+    ``upvar``s it) is being read/written indirectly.  The per-function SSA
+    can't see that, so W211 ("set but never used") and W220 ("never read")
+    must not fire on those locals — the interprocedural lattice
+    (``ProcDef.param_traits``) closes the gap.
+
+    tclsh-verified pattern: the canonical tcllib ``validate_*_cmp im dm``
+    idiom where the receiver does ``upvar $a aa $b bb`` then iterates the
+    aliased array."""
+
+    def test_call_by_name_silences_W211_W220(self):
+        # The receiver upvar's both params; the caller's $im/$dm are read
+        # indirectly through those aliases.
+        src = (
+            "proc cmp {ipvar ppvar} {\n"
+            "    upvar $ipvar ip $ppvar pp\n"
+            '    foreach k [array names ip] { puts "$k=$ip($k)" }\n'
+            "    foreach k [array names pp] { if {![info exists ip($k)]} { puts miss } }\n"
+            "}\n"
+            "proc top {} {\n"
+            "    foreach m [list a b] { set im($m) . }\n"
+            "    foreach m [list c d] { set dm($m) . }\n"
+            "    cmp im dm\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W211") == []
+        assert _diag_with_code(src, "W220") == []
+
+    def test_call_by_name_write_only_param(self):
+        # VAR_WRITE alone (receiver upvar's the param and `set`s into it) is
+        # an output param — also an indirect "use" of the caller's name.
+        src = (
+            "proc fill {outvar} {\n"
+            "    upvar $outvar out\n"
+            "    set out 42\n"
+            "}\n"
+            "proc top {} {\n"
+            "    set result {}\n"
+            "    fill result\n"
+            "    return $result\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W211") == []
+        assert _diag_with_code(src, "W220") == []
+
+    def test_unrelated_dead_store_still_fires(self):
+        # TP control: a dead store of a variable NOT passed to a name-receiver
+        # call must still fire.  Only the by-name variable is exempt.
+        src = (
+            "proc cmp {ipvar} {\n"
+            "    upvar $ipvar ip\n"
+            "    return [array size ip]\n"
+            "}\n"
+            "proc top {} {\n"
+            "    set im(x) 1\n"
+            "    set never_used 999\n"
+            "    cmp im\n"
+            "}\n"
+        )
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W211"))
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W220"))
+
+    def test_substituted_arg_not_exempt(self):
+        # If the arg is a substitution (``cmp $varname``) we can't tell which
+        # local it names → don't suppress.  Conservative: any literal-name
+        # dead store stays a TP.
+        src = (
+            "proc cmp {ipvar} {\n"
+            "    upvar $ipvar ip\n"
+            "    return [array size ip]\n"
+            "}\n"
+            "proc top {arg} {\n"
+            "    set never_used 1\n"
+            "    cmp $arg\n"
+            "}\n"
+        )
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W211"))
+
+    def test_user_proc_without_upvar_is_not_a_name_receiver(self):
+        # ``cmp`` here just takes the param by value (no upvar).  Passing
+        # ``ipvar`` as the literal "im" is NOT an indirect read — it's a
+        # genuine string literal.  So a preceding dead store on ``im`` would
+        # still fire.  (No call-by-name trait on the param → no suppression.)
+        src = "proc cmp {ipvar} { return $ipvar }\nproc top {} {\n    set im(x) 1\n    cmp im\n}\n"
+        # ``im`` is an array element; the W211/W220 check still flags the
+        # write because ``im`` is never read by the caller, and ``cmp`` does
+        # not upvar.  (This pre-existing TP must still fire.)
+        assert _diag_with_code(src, "W211") != [] or _diag_with_code(src, "W220") != []
+
+
 class TestQualifiedVariableAliasNotReadBeforeSet:
     """``variable ns::tail`` links a local alias named by the *tail* (verified in
     tclsh), and a ``::``-qualified name is always a namespace reference whose
