@@ -45,7 +45,12 @@ class _AnalyserHandlersMixin(_Base):
         arg_tokens: list[Token],
         scope: Scope,
     ) -> bool:
-        if cmd_name != "proc" or len(args) < 3:
+        # ``proc`` and ``::proc`` are equivalent — both resolve to the
+        # global ``::proc`` builtin.  tcllib's clay module qualifies it
+        # explicitly to bypass overrides; we must still treat it as a
+        # proc declaration so the body is analysed and W307/W211/etc.
+        # see the resulting params.
+        if cmd_name not in ("proc", "::proc") or len(args) < 3:
             return False
         self._handle_proc(args, arg_tokens, scope)
         return True

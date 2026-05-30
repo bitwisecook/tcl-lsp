@@ -2595,6 +2595,20 @@ class TestW307ProcParamDispatcher:
         src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_qualified_proc_command_recognised(self):
+        # ``::proc`` and ``proc`` are equivalent (both call ``::proc``).
+        # tcllib's clay module qualifies it explicitly to bypass
+        # overrides.  The proc must still register so its body's
+        # multi-dispatch suppression sees the proc context.
+        src = (
+            "::proc ::clay::Ensemble {rawmethod args} {\n"
+            "    set class [current_class]\n"
+            "    $class clay set foo $a\n"
+            "    $class clay set bar $b\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to
