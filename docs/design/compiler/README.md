@@ -25,6 +25,10 @@ User-facing compiler troubleshooting and how-tos live in
 - [review-findings-deferred.md](review-findings-deferred.md) — verified-real
   external code-review findings that remain deferred, with root cause and fix
   approach.
+- [fp-audit-todo.md](fp-audit-todo.md) — living checklist of the full
+  diagnostic / optimisation / shimmer code inventory: which codes have been
+  swept against the corpus for false positives and which remain, plus the
+  resolved fixes and confirmed-true-positive outcomes.
 
 ## Pipeline stages
 
