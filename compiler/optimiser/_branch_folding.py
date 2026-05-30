@@ -19,7 +19,7 @@ from ._helpers import (
     _braced_token_range_from_range,
     _constants_from_exit_versions,
 )
-from ._propagation import _substitute_expr_proc_calls
+from ._propagation import _strip_ws, _substitute_expr_proc_calls
 from ._types import Optimisation, PassContext
 
 opt(
@@ -150,6 +150,15 @@ def optimise_branch_proc_calls(
             continue
 
         if (compare_changed or combine_changed) and combined != expr_text:
+            # Suppress O110 noise: if the canonicalisation differs from the
+            # source only in whitespace (eg ``$x<0`` -> ``$x < 0``) it is
+            # spacing preference, not a real finding.  Other codes
+            # (O113/O117/O120) are emitted by their own structural detectors
+            # and can't be reached by a whitespace-only rewrite.
+            if not (sr_detected or sl_detected or sc_detected) and _strip_ws(combined) == _strip_ws(
+                expr_text
+            ):
+                continue
             opt_code = (
                 "O113"
                 if sr_detected

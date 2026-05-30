@@ -715,6 +715,19 @@ class TestO110InstCombine:
         s = "set v [expr {$tagnumber >>7}]"
         assert _not_has(s, "O110")
 
+    def test_no_o110_on_if_condition_whitespace(self):
+        # bigfloat2.tcl idiom: ``if {$entier<0}`` reads identically to
+        # ``if {$entier < 0}``.  The branch-folding path was emitting O110
+        # whenever the InstCombine renderer added canonical spacing — same
+        # whitespace-only noise as the other two paths, just for if/while/for
+        # conditions.  Must NOT fire.
+        s = "proc f {x} { if {$x<0} { return -1 }; return 1 }"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_while_condition_whitespace(self):
+        s = "proc f {x} { while {$x>0} { incr x -1 } }"
+        assert _not_has(s, "O110")
+
     def test_mixed_bitwise_shift_parens_preserved(self):
         # ``($x >> 16) & 0xFF`` is precedence-redundant (``>>`` binds tighter
         # than ``&``), but stripping the parens produces ``$x >> 16 & 0xFF``
