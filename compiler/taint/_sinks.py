@@ -484,8 +484,19 @@ def _find_taint_sinks(
                                 sink_command="expr",
                                 code="T100",
                                 message=(
-                                    f"Tainted variable ${name} used in expr; "
-                                    f"possible code injection"
+                                    # NOTE (post-PR-499 deep-review): braced
+                                    # ``expr {\$x + 1}`` does NOT re-parse the
+                                    # substituted value as expression text --
+                                    # it goes through Tcl's numeric coercion.
+                                    # The real code-execution vector is the
+                                    # UNBRACED ``expr \$x + 1`` form (and
+                                    # ``eval`` / ``uplevel`` / etc.) covered
+                                    # by W101.  The hazard here is type-
+                                    # coercion / numeric-parse foot-guns
+                                    # (\"inf\" / \"0xff\" / domain errors).
+                                    f"Tainted variable ${name} flows into expr operand; "
+                                    f"numeric coercion may misinterpret value "
+                                    f"(use Tcl numeric-validation guards)"
                                 ),
                             )
                         )

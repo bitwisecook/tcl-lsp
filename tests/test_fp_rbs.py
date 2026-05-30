@@ -186,6 +186,111 @@ proc f {} {
     )
 
 
+# OPEN precision gap: ``dict with`` / ``dict update`` whole-proc
+# suppression (Finding 6 of PR #498 deep review).  These commands
+# legitimately unpack the dict's keys as locals, but the current
+# suppression silences ALL version-0 unknown-variable reads in the
+# proc -- even ones the dict isn't responsible for.
+
+
+@pytest.mark.xfail(
+    reason="dict-with whole-proc suppression: any version-0 unknown-"
+    "variable read in a proc containing dict with / dict update is "
+    "suppressed.  Should be scoped to the keys the dict actually "
+    "unpacks (or to the lifetime of the unpack).",
+    strict=True,
+)
+def test_FP_dict_with_does_not_suppress_unrelated_missing_var():
+    """OPEN-FP: ``dict with`` unpacks $d's keys as locals.  An
+    unrelated ``$missing`` read in the same proc still has no
+    definition (tclsh-verified: ``can't read "missing": no such
+    variable``).  W210 should fire."""
+    src = """\
+proc f {} {
+    set d {}
+    dict with d {}
+    puts $missing
+}
+"""
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'missing'" in (d.message or "")]
+    assert w210, "$missing read after dict-with on empty dict must fire W210; got " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# Finding 8: W214 dispatch-protocol from peer count alone (no
+# dispatcher evidence).  Three ordinary helpers sharing a parameter
+# list shouldn't infer a contract without actual dispatcher evidence.
+
+
+@pytest.mark.xfail(
+    reason="FP-RBS dispatch-protocol heuristic: 3+ peer procs with "
+    "identical leading params suppresses W214 on the shared params, "
+    "even without dispatcher-call evidence or callback-registry "
+    "evidence.  Should require supporting evidence.",
+    strict=True,
+)
+def test_FP_dispatch_protocol_requires_dispatcher_evidence():
+    """OPEN-FP: three ordinary helpers can share ``{ctx token}`` and
+    still have a truly unused ``token``.  Peer-count alone shouldn't
+    erase the W214 finding."""
+    src = """\
+namespace eval ::n {
+    proc a {ctx token} { puts $ctx }
+    proc b {ctx token} { puts $ctx }
+    proc c {ctx token} { puts $ctx }
+}
+"""
+    w214 = [d for d in get_diagnostics(src) if d.code == "W214" and "'token'" in (d.message or "")]
+    assert w214, "unused 'token' in 3 peer helpers (no dispatcher evidence) should still fire W214"
+
+
+# Finding 10: call-by-name VAR_READ / VAR_WRITE conflate callee-local
+# dynamic-name use with caller-frame upvar aliasing.  ``info exists
+# $target`` and ``scan ... $name`` use the value of ``target`` /
+# ``name`` as a CALLEE-LOCAL variable name -- they do NOT consume the
+# caller's variable.  But the analyser's call-by-name suppression
+# treats VAR_READ as caller-frame consumption.
+
+
+@pytest.mark.xfail(
+    reason="call-by-name VAR_READ trait conflated with caller-frame "
+    "alias: ``proc maybe {target} { info exists \\$target }`` uses "
+    "target's VALUE as a callee-local var name.  The caller's literal "
+    "arg ``x`` is wrongly treated as a caller-frame read -- O126/W211 "
+    "on $x is suppressed even though no upvar exists.  Fix needs a "
+    "trait split: alias-via-upvar vs dynamic-name-in-callee.",
+    strict=True,
+)
+def test_FP_call_by_name_info_exists_dynamic_target_not_caller_read():
+    """OPEN-FP: ``proc maybe {target} { info exists \\$target }``
+    checks for a variable named *whatever target's value is* IN
+    MAYBE'S OWN FRAME.  The caller's ``set x 1; maybe x`` does NOT
+    consume the caller's ``x``.  So W211/W220/O126 on caller's ``$x``
+    should fire (it's truly never used after the set).  But the
+    current analyser silences them because target's trait is
+    VAR_READ."""
+    src = """\
+proc maybe {target} {
+    info exists $target
+}
+proc caller {} {
+    set x 1
+    maybe x
+}
+"""
+    suppressed_codes = [
+        d
+        for d in get_diagnostics(src)
+        if d.code in ("W211", "W220", "O126", "O109") and "'x'" in (d.message or "")
+    ]
+    assert suppressed_codes, (
+        "caller's $x set-but-never-used must fire (callee uses target as "
+        "callee-LOCAL dynamic name, not a caller alias); got "
+        + ", ".join(f"{d.code}:{d.message}" for d in get_diagnostics(src))
+    )
+
+
 # FP-RBS-03 — frozen-loop bodies (while/for with cmd-sub condition)
 
 

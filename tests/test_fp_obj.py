@@ -181,7 +181,162 @@ proc f {} {
 }
 """
     assert _codes(src, "W307"), (
-        f"string-returning namespaced proc should NOT be treated as factory; expected W307, got {[(d.code, d.message[:50]) for d in __import__('analyser').analyse(src).diagnostics]}"
+        f"string-returning namespaced proc should NOT be treated as factory; "
+        f"expected W307, got "
+        f"{[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
+    )
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-04 open precision gap (mixed returns): "
+    "interproc object-factory tracking iterates blocks tracking 'last "
+    "return' instead of requiring ALL returns to be object-like.  A "
+    "proc with one object-returning branch + one string-returning "
+    "branch is classified as object-returning.  Flips when all-paths "
+    "return-type aggregation lands.",
+    strict=True,
+)
+def test_FP_OBJ_04_mixed_return_wrapper_precision_gap():
+    """OPEN-FP: a wrapper proc that returns a real factory result on
+    one branch but a plain string on the other should NOT be tagged
+    as object-returning.  ``$x method`` with ``\\$x = "foo"`` is an
+    invalid command (tclsh-verified)."""
+    src = """\
+proc make {flag} {
+    if {$flag} {
+        return foo
+    } else {
+        return [::struct::tree]
+    }
+}
+proc f {} {
+    set x [make 1]
+    $x method
+}
+"""
+    assert _codes(src, "W307"), (
+        f"mixed-return wrapper should NOT be treated as object factory; "
+        f"got {[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
+    )
+
+
+# OPEN precision gaps for the W307 multi-dispatch / callback-shape
+# heuristics (Finding 3 of PR #498 deep review).  Three reproducers
+# where the analyser silences a real "invalid command name" hazard:
+#
+#   set cmd notacommand; $cmd a; $cmd b              -- multi-dispatch
+#   set state(doneCallback) notacommand; $state(...) -- suffix-shape
+#   set state(-foo) notacommand; $state(-foo) a      -- dash-prefix
+#
+# All three suppress W307 even though SCCP can see the local was set
+# to a plain non-command string.  A refinement: only honour the
+# heuristic when the SCCP value is UNKNOWN/OVERDEFINED (the case the
+# heuristic was designed for), not when SCCP has concrete evidence
+# the value isn't a command name.
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-09 open precision gap: multi-dispatch heuristic "
+    "honours intent-via-repetition even when SCCP knows the local was "
+    "set to a non-command literal.  Flips when SCCP CONST evidence "
+    "overrides the repetition-count heuristic.",
+    strict=True,
+)
+def test_FP_OBJ_09_const_string_multi_dispatch_precision_gap():
+    """OPEN-FP: ``set cmd notacommand`` makes ``$cmd`` a CONST string
+    that the SCCP lattice sees as ``notacommand``.  Dispatching it
+    twice doesn't make it an object handle -- ``notacommand`` is not
+    a registered command.  The multi-dispatch heuristic should defer
+    to SCCP evidence."""
+    src = """\
+proc f {} {
+    set cmd notacommand
+    $cmd a
+    $cmd b
+}
+"""
+    assert _codes(src, "W307"), (
+        f"const-string multi-dispatch should fire W307; "
+        f"got {[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
+    )
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-10 open precision gap: callback-suffix array-key "
+    "heuristic suppresses W307 even when SCCP knows the slot was set "
+    "to a non-command literal in the same proc.",
+    strict=True,
+)
+def test_FP_OBJ_10_const_string_callback_suffix_precision_gap():
+    """OPEN-FP: ``set state(doneCallback) notacommand`` makes the
+    callback-shaped slot CONST.  The dispatch ``$state(doneCallback)
+    a`` is then invoking ``"notacommand"`` which doesn't exist.
+    Heuristic should defer to SCCP evidence."""
+    src = """\
+proc f {} {
+    set state(doneCallback) notacommand
+    $state(doneCallback) a
+}
+"""
+    assert _codes(src, "W307"), (
+        f"const callback-suffix dispatch should fire W307; "
+        f"got {[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
+    )
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-10 open precision gap (dash-prefix variant): same "
+    "issue as the callback-suffix case -- SCCP CONST evidence should "
+    "override the dash-prefixed key heuristic.",
+    strict=True,
+)
+def test_FP_OBJ_10_const_string_dash_prefix_precision_gap():
+    """OPEN-FP: ``set state(-foo) notacommand`` -- same precision gap
+    as the callback-suffix case."""
+    src = """\
+proc f {} {
+    set state(-foo) notacommand
+    $state(-foo) a
+}
+"""
+    assert _codes(src, "W307"), (
+        f"const dash-prefix dispatch should fire W307; "
+        f"got {[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
+    )
+
+
+# OPEN precision gap: namespaced ensemble ${ns}::tail bypasses the SCCP
+# constant-prefix check (Finding 7 of PR #498 deep review).
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-07 open precision gap: ${ns}::tail and [cmd]::tail "
+    "branches in the W307 emitter bypass the per-function SCCP "
+    "constant-prefix machinery.  When the prefix has a CONST value, "
+    "the full qualified name could be resolved through the registry, "
+    "user-proc table, and class table; if no match is found, W307 "
+    "(or a more specific 'unknown command') should still fire.",
+    strict=True,
+)
+def test_FP_OBJ_07_namespaced_ensemble_const_prefix_precision_gap():
+    """OPEN-FP: ``set ns nope`` followed by ``${ns}::missing arg`` -
+    tclsh: ``invalid command name "nope::missing"``.  The
+    namespaced-ensemble suppression doesn't consult SCCP, so this
+    real foot-gun is silently swallowed."""
+    src = """\
+proc f {} {
+    set ns nope
+    ${ns}::missing arg
+}
+"""
+    # Either W307 (non-literal command) or W123 (unknown command name)
+    # would prove the gap is closed; the catalog finding is that NEITHER
+    # fires today.
+    diags = [d for d in analyse(src).diagnostics if d.code in ("W307", "W123")]
+    assert diags, (
+        f"const-prefix namespaced ensemble dispatch on unknown command "
+        f"should fire W307 or W123; got "
+        f"{[(d.code, d.message[:50]) for d in analyse(src).diagnostics]}"
     )
 
 

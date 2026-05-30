@@ -5501,6 +5501,72 @@ variable.  Detect via param name starting + ending with `"`.
 ---
 
 
+## Open precision gaps (tracked by strict xfail tests)
+
+Post-review additions: the PR #498 deep review identified several
+*precision regressions* — places where a FP suppression went too far
+and converted a TP into a false-negative.  Rather than paper over
+them, each gap below is documented here and locked in by a
+``strict=True`` xfail.  The day the gap closes, the xfail flips and
+prompts its own removal.
+
+| # | Gap | Reproducer | xfail test |
+|---|---|---|---|
+| G1 | regexp no-match path: ``v`` stays unset; reading ``$v`` after a failed match should fire W210 | `proc f {} { regexp {x} y -> v; puts $v }` | `tests/test_fp_rbs.py::test_FP_RBS_02_regexp_no_match_path_precision_gap` |
+| G2 | scan no-match path: same root cause | `proc g {} { scan abc %d n; puts $n }` | `tests/test_fp_rbs.py::test_FP_RBS_02_scan_no_match_path_precision_gap` |
+| G3 | OBJ-04 namespaced proc returning plain string | `namespace eval ::ns { proc make {} { return foo } }; set x [::ns::make]; $x m` | `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap` |
+| G4 | OBJ-04 mixed-return wrapper (one branch returns object, one returns string) | `proc make {f} { if {$f} { return foo } else { return [::struct::tree] } }` | `tests/test_fp_obj.py::test_FP_OBJ_04_mixed_return_wrapper_precision_gap` |
+| G5 | OBJ-09 multi-dispatch heuristic ignores SCCP CONST evidence | `set cmd notacommand; $cmd a; $cmd b` | `tests/test_fp_obj.py::test_FP_OBJ_09_const_string_multi_dispatch_precision_gap` |
+| G6 | OBJ-10 callback-suffix array-key ignores SCCP CONST | `set state(doneCallback) notacommand; $state(doneCallback) a` | `tests/test_fp_obj.py::test_FP_OBJ_10_const_string_callback_suffix_precision_gap` |
+| G7 | OBJ-10 dash-prefix array-key ignores SCCP CONST (variant) | `set state(-foo) notacommand; $state(-foo) a` | `tests/test_fp_obj.py::test_FP_OBJ_10_const_string_dash_prefix_precision_gap` |
+| G8 | OBJ-07 namespaced ensemble ``${ns}::tail`` ignores SCCP const-prefix | `set ns nope; ${ns}::missing arg` | `tests/test_fp_obj.py::test_FP_OBJ_07_namespaced_ensemble_const_prefix_precision_gap` |
+| G9 | dict with/update whole-proc suppression hides unrelated reads | `set d {}; dict with d {}; puts $missing` | `tests/test_fp_rbs.py::test_FP_dict_with_does_not_suppress_unrelated_missing_var` |
+| G10 | W214 dispatch-protocol from peer count alone (no dispatcher evidence) | 3 peer procs sharing ``{ctx token}``; ``token`` truly unused | `tests/test_fp_rbs.py::test_FP_dispatch_protocol_requires_dispatcher_evidence` |
+| G11 | Call-by-name VAR_READ conflated with caller-frame upvar alias | `proc maybe {target} { info exists $target }; proc caller {} { set x 1; maybe x }` -- caller's $x should be W211/W220 | `tests/test_fp_rbs.py::test_FP_call_by_name_info_exists_dynamic_target_not_caller_read` |
+| G12 | W304 fires on safe braced-switch form (no option-consumption hazard) | `switch $x { -nocase {...} default {...} }` | `tests/test_fp_nab.py::test_FP_NAB_05_braced_switch_form_should_not_fire_w304` |
+| G13 | W304 lexical "currently resolves to" crosses proc boundaries | `set path -force; proc useit {path} { file delete $path }` -- inner ``path`` shadows outer | `tests/test_fp_nab.py::test_FP_NAB_05_w304_lexical_does_not_cross_proc_boundary` |
+
+**Pre-existing open gaps** (also tracked by strict xfail; carried over
+from earlier review rounds):
+
+- G14 — FP-RBS-05 ``namespace upvar`` alias-not-a-def (real caller-
+  scope def but no lowering hook).
+- G15 — FP-DS-06 same-element ARRAY_ELEM dead-store detection (Place
+  model overlap relation is suppress-only).
+
+### Root-cause families
+
+The 13 new gaps cluster into four root causes:
+
+1. **Conditional def vs unconditional def** (G1, G2): ``regexp`` /
+   ``scan`` only write on success; current model treats them as
+   unconditional defs.  Fix: success-branch conditional defs.
+
+2. **Shape-based vs evidence-based heuristics** (G3–G8, G12): W307
+   factory inference, W307 multi-dispatch, W307 callback-shape,
+   W307 namespaced-ensemble, W304 switch-form -- each suppresses
+   based on a syntactic pattern alone, ignoring SCCP CONST evidence
+   or Tcl form-arity rules.  Fix: each heuristic consults SCCP /
+   structural evidence before suppressing.
+
+3. **Coarse-grained whole-proc suppressions** (G9, G13): ``dict
+   with`` / ``dict update`` mark the entire proc as having unknown
+   defs; W304 lexical-origin scans whole-source instead of scoping
+   to the enclosing proc.  Fix: bound suppression to the unpack's
+   live range / scope to the enclosing proc.
+
+4. **Trait conflation** (G10, G11): W214 dispatch-protocol from peer
+   count alone (no dispatcher evidence); call-by-name VAR_READ /
+   VAR_WRITE conflated with caller-frame upvar aliasing.  Fix: split
+   the trait lattice so heuristic-derived traits stay distinct from
+   semantic-evidence traits.
+
+Each cluster is independently addressable.  When a cluster's fix
+lands, the corresponding xfails flip and prompt their own removal.
+
+---
+
+
 ## Conventions for adding entries (for future PR slices)
 
 - One commit per family (PR slice). Each commit adds:
