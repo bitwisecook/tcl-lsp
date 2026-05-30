@@ -630,6 +630,56 @@ class TestW302FireAndForget:
         diags = _diag_with_code("catch {package require Tk}", "W302")
         assert len(diags) == 1
 
+    # Subcommand precision: the ensemble commands ``after``, ``chan``,
+    # ``array``, ``dict``, ``interp``, ``namespace``, ``file`` have BOTH
+    # destructive subcommands (the fire-and-forget case) and constructive
+    # subcommands (which genuinely shouldn't swallow errors).  The
+    # suppression must distinguish them.
+
+    def test_chan_configure_still_fires(self):
+        # ``chan configure`` is NOT fire-and-forget.
+        diags = _diag_with_code("catch {chan configure $h -buffering none}", "W302")
+        assert len(diags) == 1
+
+    def test_file_copy_still_fires(self):
+        diags = _diag_with_code("catch {file copy a b}", "W302")
+        assert len(diags) == 1
+
+    def test_after_timer_still_fires(self):
+        # ``after <ms> <script>`` is a scheduling op, not a cancel.
+        diags = _diag_with_code("catch {after 1000 puts hi}", "W302")
+        assert len(diags) == 1
+
+    def test_interp_create_still_fires(self):
+        diags = _diag_with_code("catch {interp create slave}", "W302")
+        assert len(diags) == 1
+
+    def test_namespace_eval_still_fires(self):
+        diags = _diag_with_code("catch {namespace eval ::ns {}}", "W302")
+        assert len(diags) == 1
+
+    def test_dict_set_still_fires(self):
+        diags = _diag_with_code("catch {dict set d k v}", "W302")
+        assert len(diags) == 1
+
+    def test_dict_unset_no_w302(self):
+        # Destructive sibling: still suppressed.
+        assert _diag_with_code("catch {dict unset d k}", "W302") == []
+
+    def test_array_unset_no_w302(self):
+        assert _diag_with_code("catch {array unset a *}", "W302") == []
+
+    def test_namespace_delete_no_w302(self):
+        assert _diag_with_code("catch {namespace delete ::ns}", "W302") == []
+
+    def test_namespace_forget_no_w302(self):
+        # ``namespace forget`` removes import; errors if not imported.
+        assert _diag_with_code("catch {namespace forget ::pkg::*}", "W302") == []
+
+    def test_rename_to_empty_no_w302(self):
+        # ``rename foo ""`` deletes the command; errors if foo absent.
+        assert _diag_with_code('catch {rename foo ""}', "W302") == []
+
 
 # W210: catch body variables visible after condition
 

@@ -540,42 +540,42 @@ def _resolves_to_user_command(
     return False
 
 
-_FIRE_AND_FORGET_COMMANDS: frozenset[str] = frozenset(
+# Bare commands whose entire purpose is destructive and which error on a
+# missing target — ``catch {<cmd> ...}`` is the canonical "if exists" idiom.
+_FIRE_AND_FORGET_BARE: frozenset[str] = frozenset(
     {
-        # ``after cancel <handle>`` — errors on stale/unknown handle.
-        "after",
-        # File/channel cleanup: error on missing target is expected and ignored.
-        "close",
-        "chan",
-        # Variable/array/dict cleanup.
-        "unset",
-        "array",
-        "dict",
-        # Interp / namespace cleanup.
-        "interp",
-        "namespace",
-        # ``rename foo ""`` deletes; errors if foo absent.
-        "rename",
-        # File ops that may target non-existent paths.
-        "file",
+        "close",  # close ?-nocomplain? channel
+        "unset",  # unset ?-nocomplain? ?var ...?
+        "rename",  # rename foo ""  (delete)
     }
 )
+
+# Ensemble commands where ONLY certain subcommands are fire-and-forget.
+# ``chan close`` is, but ``chan configure`` errors that should not be
+# silently swallowed.  Maps the ensemble name to its destructive subcommand set.
+_FIRE_AND_FORGET_SUBCOMMANDS: dict[str, frozenset[str]] = {
+    "after": frozenset({"cancel"}),
+    "chan": frozenset({"close"}),
+    "array": frozenset({"unset"}),
+    "dict": frozenset({"unset"}),
+    "interp": frozenset({"delete"}),
+    "namespace": frozenset({"delete", "forget"}),
+    "file": frozenset({"delete"}),
+}
 
 
 def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
     """Return True when the body of a ``catch`` matches the documented
-    "fire-and-forget" idiom: a single command whose head is one of the
-    error-on-missing-target commands (``after cancel``, ``file delete``,
-    ``close``, ``unset``, ``interp delete``, ``rename foo \"\"``…).
+    "fire-and-forget" idiom: a single command whose head is a destructive
+    builtin (``close $h``, ``unset var``, ``rename foo \"\"``) OR a
+    documented destructive ensemble subcommand (``after cancel``, ``chan
+    close``, ``array unset``, ``dict unset``, ``interp delete``,
+    ``namespace delete``, ``file delete``).
 
-    The full list — ``after``/``close``/``chan``/``unset``/``array``/
-    ``dict``/``interp``/``namespace``/``rename``/``file`` — covers every
-    builtin that ``catch {…}`` without a result var is canonical Tcl
-    for.  Tests live in ``TestW302FireAndForget``.
-
-    Conservative: only single-statement bodies, only the head command's
-    bare name is examined (no resolution).  A multi-command body or
-    a body whose first command is *not* in the set still fires W302.
+    Conservative: only single-statement bodies are matched, and ensemble
+    commands are subcommand-checked — ``catch {chan configure $h}`` and
+    ``catch {file copy a b}`` still fire W302 because those operations
+    are not the canonical "if exists" idiom.
     """
     stmts = getattr(body, "statements", ())
     if len(stmts) != 1:
@@ -586,9 +586,15 @@ def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
     cmd = stmt.command
     if not cmd:
         return False
-    # Normalise leading "::" so ``catch {::close $h}`` is recognised too.
     bare = cmd.lstrip(":").split("::")[-1]
-    return bare in _FIRE_AND_FORGET_COMMANDS
+    if bare in _FIRE_AND_FORGET_BARE:
+        return True
+    subcommands = _FIRE_AND_FORGET_SUBCOMMANDS.get(bare)
+    if subcommands is None:
+        return False
+    if not stmt.args:
+        return False
+    return stmt.args[0] in subcommands
 
 
 def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
