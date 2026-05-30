@@ -832,7 +832,7 @@ function ::maybe_get
   block entry_1
     term Branch ExprCommand(text='[info exists v]', start=0, end=14)
   block if_end_2
-    term Return
+    term Return 
   block if_then_3
     term Return ${v}
   block if_next_4
@@ -997,6 +997,7 @@ function ::f
   block exit_5
     term (none — fall-through exit)
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`entry_1[0]` shows `defs={err#1}`** — that's the fix at work. The
@@ -1131,6 +1132,7 @@ function ::f
   block exit_5
     term (none — fall-through exit)
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`while_header_2[0] defs={line#2}`** — that's the `body_write_names`
@@ -1275,10 +1277,11 @@ function ::ns::get
   block if_end_2
     term Return $graphAttr($key)
   block if_then_3
-    term Return
+    term Return 
   block if_next_4
     term Goto
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`entry_1[0] defs={{name}::graphAttr#1}`** — concrete proof of the pre-fix
@@ -1547,6 +1550,7 @@ function ::f
     [0] AssignExpr 'eof'  defs={eof#1}  uses={tmp#0}
     term Return ${eof}
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`[0] uses={tmp#0}`** — `tmp#0` is the SSA sentinel for "before any def";
@@ -1673,6 +1677,7 @@ function ::greet
   block entry_1
     term Return hello ${who}
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`function ::greet` appears as a snapshot at all** — that's the fix. Pre-
@@ -1910,23 +1915,46 @@ No error. Both arms run to completion with their captures.
 --- FP-RBS-09: for-init + regexp/cmd-sub captures inside un-lowered switch arms
 regen: python -m bench.fp_snippets --id FP-RBS-09
 function ::f
-  …
+  block entry_1
+    term Branch ExprBinary(op=<BinOp.STR_EQ: 'eq'>, left=ExprRaw(text='${n}'), right=ExprLiteral(text='a', start=0, end=0))
+  block switch_end_2
+    phi  SSAPhi(name='j', version=4, incoming={'for_end_11': 2, 'if_end_12': 0, 'switch_default_3': 0})
+    phi  SSAPhi(name='v', version=1, incoming={'for_end_11': 0, 'if_end_12': 2, 'switch_default_3': 0})
+    term Goto
+  block switch_default_3
+    term Goto
   block switch_arm_body_4
     [0] AssignConst 'j' value='0'  defs={j#1}  uses={}
     term Goto
   block switch_arm_body_5
     [0] Call cmd='<cond>'  defs={->#1, v#2}  uses={}
     term Branch ExprCommand(text='[regexp {(\\w+)} "foo" -> v]', start=0, end=26)
-  …
+  block switch_next_6
+    term Branch ExprBinary(op=<BinOp.STR_EQ: 'eq'>, left=ExprRaw(text='${n}'), right=ExprLiteral(text='b', start=0, end=0))
+  block switch_next_7
+    term Goto
+  block for_header_8
+    phi  SSAPhi(name='j', version=2, incoming={'switch_arm_body_4': 1, 'for_step_10': 3})
+    term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$j', name='j', start=0, end=1), right=ExprLiteral(text='3', start=5, end=5))
   block for_body_9
     [0] Call cmd='puts'  defs={}  uses={j#2}
     term Goto
-  …
+  block for_step_10
+    [0] Incr 'j'  defs={j#3}  uses={j#2}
+    term Goto
+  block for_end_11
+    term Goto
+  block if_end_12
+    term Goto
   block if_then_13
     [0] Call cmd='puts'  defs={}  uses={v#2}
     term Goto
-  …
+  block if_next_14
+    term Goto
+  block exit_15
+    term (none — fall-through exit)
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`switch_arm_body_4[0] defs={j#1}`** — the for-init's `set j 0` is now
@@ -2163,6 +2191,7 @@ function ::f
   block exit_2
     term (none — fall-through exit)
   read_before_set: (none)
+  dead_stores: (none)
 ```
 
 - **`[1] Barrier cmd='::foreach' defs={}`** — the qualified call stays an
