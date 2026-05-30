@@ -339,6 +339,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
             counts = proc_dispatch_counts.setdefault(qname, {})
             counts[var_name] = counts.get(var_name, 0) + 1
 
+        # Taint-aware safety: never suppress W307 on a var that's tainted
+        # in its enclosing proc, even if it's a param or dispatched ≥2x.
+        # ``set usercmd [gets stdin]; \$usercmd op1; \$usercmd op2`` is a
+        # genuine command-injection risk regardless of how many times
+        # the user dispatches on it.  Build a per-proc set of tainted
+        # var names — any version of the name carrying a tainted lattice
+        # value disqualifies it from dispatcher-suppression.
+        tainted_var_names: dict[str, set[str]] = {}
+        for qname, fu_unit in _all_fus_named:
+            tainted_names: set[str] = set()
+            for (var_name, _ver), tl in fu_unit.analysis.taints.items():
+                if tl.tainted:
+                    tainted_names.add(var_name)
+            if tainted_names:
+                tainted_var_names[qname] = tainted_names
+
         # snit instance-variable / component dispatch (W307 suppression).  A
         # snit type's instance variables and components frequently hold object
         # handles (``component myparser`` / ``variable myparser`` assigned
@@ -510,11 +526,16 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 #     the same var demonstrate the user designed it as
                 #     an object handle (a single dispatch on a local
                 #     could be a typo, but multiple is firm intent).
+                # Safety: a TAINTED var is never suppressed — even if
+                # dispatched many times, ``set cmd [gets stdin]; \$cmd
+                # op1; \$cmd op2`` is a real command-injection risk.
                 is_proc_param_dispatcher = False
                 _enc = _enclosing_proc_params(_off)
                 if _enc is not None:
                     _qname, _params = _enc
-                    if var_name in proc_dispatcher_vars.get(_qname, ()):
+                    if var_name in proc_dispatcher_vars.get(
+                        _qname, ()
+                    ) and var_name not in tainted_var_names.get(_qname, ()):
                         if var_name in _params:
                             is_proc_param_dispatcher = True
                         elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:

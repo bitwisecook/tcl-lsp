@@ -2631,6 +2631,32 @@ class TestW307ProcParamDispatcher:
         src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_tainted_multi_dispatch_still_w307(self):
+        # SECURITY: a TAINTED var (eg from gets/exec/env/read) must NEVER
+        # be suppressed even when dispatched multiple times — that IS
+        # the command-injection vector the warning exists to flag.
+        # Verified vs tclsh: ``\$usercmd`` IS executed as a command word,
+        # so user-controlled command names are real injection risks.
+        src = (
+            "proc f {} {\n"
+            "    set usercmd [gets stdin]\n"
+            "    $usercmd action1\n"
+            "    $usercmd action2\n"
+            "}\n"
+        )
+        # Both dispatch sites should fire (taint reaches the dispatch).
+        assert len(_diag_with_code(src, "W307")) == 2
+
+    def test_tainted_exec_result_multi_dispatch_still_w307(self):
+        src = (
+            "proc f {arg} {\n"
+            "    set cmd [exec which $arg]\n"
+            "    $cmd --version\n"
+            "    $cmd --help\n"
+            "}\n"
+        )
+        assert len(_diag_with_code(src, "W307")) == 2
+
 
 class TestOOClassNameComposition:
     """FQ-name composition for OO/snit class definitions (tclsh 9.0.3 oracle):
