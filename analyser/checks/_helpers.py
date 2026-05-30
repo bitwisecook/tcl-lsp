@@ -210,11 +210,52 @@ def _last_literal_set_value_for_var(
 
     If the latest assignment is dynamic/non-literal, return ``None`` because
     the runtime value cannot be proven statically.
-    """
+
+    Stops the backward scan at any ``proc NAME {PARAMS} BODY`` declaration
+    that *shadows* the search: if the use offset is inside the proc body
+    AND ``var_name`` appears in the proc's parameter list, the outer scope
+    is irrelevant and we must NOT attribute an outer ``set`` to the inner
+    parameter use.  (PR #498 deep-review finding 9 / G13:
+    ``set path -force; proc useit {path} { file delete $path }`` was
+    wrongly attributing the outer ``path = -force`` to the inner param.)
+    """  # noqa: D205
     if not var_name or before_offset <= 0:
         return None
 
     for cmd in reversed(segment_commands(source[:before_offset])):
+        # Cross-scope guard: if we encounter a proc whose body contains
+        # the use offset AND whose params include var_name, the
+        # parameter shadows any outer scope -- stop searching.
+        if cmd.texts and cmd.texts[0] == "proc" and len(cmd.texts) >= 4:
+            # cmd.texts[2] is the param-list literal (braced or quoted).
+            param_text = cmd.texts[2]
+            # Quick prefilter: var_name must appear in the param text.
+            if var_name in param_text:
+                # Parse param names: tcl proc params are whitespace-
+                # separated, optionally braced ``{name default}`` for
+                # defaults.  Get top-level whitespace tokens of the
+                # param-list literal.
+                param_inner = param_text.strip()
+                if param_inner.startswith("{") and param_inner.endswith("}"):
+                    param_inner = param_inner[1:-1]
+                param_names: list[str] = []
+                for tok in param_inner.split():
+                    # ``{name default}`` -> take name from leading brace
+                    name = tok.lstrip("{").split()[0] if tok else ""
+                    # Simpler: drop a leading "{" and take up to next space
+                    if name.startswith("{"):
+                        name = name[1:]
+                    param_names.append(name)
+                if var_name in param_names:
+                    # Use offset is INSIDE this proc body iff the proc's
+                    # start is before us and its end is after us.  Since
+                    # we truncated at ``before_offset``, the proc's body
+                    # is incomplete in the truncated view; the use is
+                    # inside the proc by construction (segment_commands
+                    # placed this proc as one of our reversed commands).
+                    # Stop the scan -- the param shadows outer scope.
+                    return None
+
         if not cmd.texts or cmd.texts[0] != "set" or len(cmd.texts) < 3:
             continue
         if cmd.texts[1] != var_name:

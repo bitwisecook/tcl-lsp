@@ -1326,7 +1326,18 @@ class TestMissingOptionTerminator:
         diags = _diag_with_code("load $fileName", "W304")
         assert len(diags) == 1
 
-    def test_switch_static_variable_value_is_info(self):
+    def test_switch_braced_form_does_not_fire_w304(self):
+        """The two-arg braced pattern-list ``switch STRING { ... }`` form
+        is NOT a runtime hazard -- Tcl unambiguously parses the trailing
+        brace as the pattern list and never consumes the preceding word
+        as an option (tclsh 9.0.3 verified).  W304 must NOT fire.
+
+        Updated from the old test that asserted W304 fires at INFO
+        severity on this form.  The deep review (PR #498) demonstrated
+        the over-reach: the test now locks in that the braced form is
+        silent, and the matching ``test_file_delete_static_variable_value_is_info``
+        below covers the same INFO-severity logic for a command where
+        the hazard IS real."""
         source = (
             'set totp_key_storage "datagroup"\n'
             "switch $totp_key_storage {\n"
@@ -1334,17 +1345,27 @@ class TestMissingOptionTerminator:
             "}"
         )
         diags = _diag_with_code(source, "W304")
-        assert len(diags) == 2
+        assert diags == [], (
+            f"braced-form switch must NOT fire W304 (no option-consumption "
+            f"hazard); got {[(d.message[:60], d.severity) for d in diags]}"
+        )
 
-        switch_diag = next(d for d in diags if len(d.fixes) == 1)
+    def test_file_delete_static_variable_value_is_info(self):
+        """TP / INFO-severity verification: ``file delete`` IS a real
+        option-consumption hazard (verified: ``file delete -force`` is
+        a real flag).  When SCCP / lexical scan finds the variable
+        resolves to a non-dash literal, severity drops to INFO."""
+        source = 'set storage "datagroup"\nfile delete $storage\n'
+        diags = _diag_with_code(source, "W304")
+        assert len(diags) == 2, f"expected main + origin diagnostic; got {len(diags)}: {diags}"
+
+        delete_diag = next(d for d in diags if len(d.fixes) == 1)
         origin_diag = next(d for d in diags if len(d.fixes) == 0)
 
-        assert switch_diag.severity == Severity.INFO
-        assert (
-            "reported at INFO because 'totp_key_storage' currently resolves" in switch_diag.message
-        )
-        highlighted = source[switch_diag.range.start.offset : switch_diag.range.end.offset + 1]
-        assert highlighted == "$totp_key_storage"
+        assert delete_diag.severity == Severity.INFO
+        assert "reported at INFO because 'storage' currently resolves" in delete_diag.message
+        highlighted = source[delete_diag.range.start.offset : delete_diag.range.end.offset + 1]
+        assert highlighted == "$storage"
 
         assert origin_diag.severity == Severity.INFO
         assert "currently assigned static literal 'datagroup' here" in origin_diag.message
@@ -4589,12 +4610,16 @@ class TestDispatchProtocolSuppression:
 
     def test_three_peer_protocol_suppresses_W214(self):
         # Mirrors the tcllib pt::peg::from::peg::GEN::* parser-rule visitor.
-        # ALNUM/ALPHA/DIGIT all accept ``{s e}``; ≥3 peers → protocol.
+        # ALNUM/ALPHA/DIGIT all accept ``{s e}``; ≥3 peers + at least one
+        # variable-command dispatch site (the rule walker) -> protocol.
+        # Per PR #498 deep review (G10), the protocol suppression now
+        # requires dispatcher evidence in addition to peer count.
         src = (
             "namespace eval ::g {\n"
             "    proc ALNUM {s e} { return alnum }\n"
             "    proc ALPHA {s e} { return alpha }\n"
             "    proc DIGIT {s e} { return digit }\n"
+            "    proc walk {rule s e} { $rule $s $e }\n"
             "}\n"
         )
         assert self._w214(src) == set()
@@ -4614,12 +4639,14 @@ class TestDispatchProtocolSuppression:
     def test_extra_param_beyond_protocol_still_fires(self):
         # The protocol part is suppressed but extra unused params past the
         # protocol still fire — the contract only covers the shared prefix.
+        # Includes a dispatcher (G10 closure).
         src = (
             "namespace eval ::g {\n"
             "    proc ALNUM {s e} { return alnum }\n"
             "    proc ALPHA {s e} { return alpha }\n"
             "    proc DIGIT {s e} { return digit }\n"
             "    proc SPECIAL {s e weird} { return $s$e }\n"
+            "    proc walk {rule s e} { $rule $s $e }\n"
             "}\n"
         )
         assert self._w214(src) == {"weird"}
@@ -4629,15 +4656,33 @@ class TestDispatchProtocolSuppression:
         src = "proc foo {x y unused} { puts $x; puts $y }\n"
         assert self._w214(src) == {"unused"}
 
+    def test_three_peers_without_dispatcher_does_not_suppress_W214(self):
+        """G10 closure: per the PR #498 deep review, peer-count alone
+        isn't sufficient.  Three ordinary helpers in a namespace with
+        NO variable-command dispatch site anywhere in the program are
+        just helpers, not a protocol -- W214 must fire on unused params."""
+        src = (
+            "namespace eval ::n {\n"
+            "    proc a {ctx token} { puts $ctx }\n"
+            "    proc b {ctx token} { puts $ctx }\n"
+            "    proc c {ctx token} { puts $ctx }\n"
+            "}\n"
+        )
+        # ``token`` is never read in any of the three peers and no
+        # dispatcher exists -> W214 fires on each ``token``.
+        assert self._w214(src) == {"token"}
+
     def test_args_variadic_excluded_from_protocol_shape(self):
         # ``args`` is Tcl's variadic catch-all — never part of the protocol
         # shape, so peers that all share ``{s e}`` form a protocol even when
-        # SOME of them additionally have ``args``.
+        # SOME of them additionally have ``args``.  Includes a dispatcher
+        # (G10 closure).
         src = (
             "namespace eval ::g {\n"
             "    proc ALNUM {s e} { return alnum }\n"
             "    proc ALPHA {s e} { return alpha }\n"
             "    proc DIGIT {s e args} { return [lindex $args 0] }\n"
+            "    proc walk {rule s e} { $rule $s $e }\n"
             "}\n"
         )
         # All three procs share the leading ``{s e}``; protocol applies.

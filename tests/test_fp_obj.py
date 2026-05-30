@@ -235,19 +235,17 @@ proc f {} {
 # the value isn't a command name.
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-09 open precision gap: multi-dispatch heuristic "
-    "honours intent-via-repetition even when SCCP knows the local was "
-    "set to a non-command literal.  Flips when SCCP CONST evidence "
-    "overrides the repetition-count heuristic.",
-    strict=True,
-)
-def test_FP_OBJ_09_const_string_multi_dispatch_precision_gap():
-    """OPEN-FP: ``set cmd notacommand`` makes ``$cmd`` a CONST string
-    that the SCCP lattice sees as ``notacommand``.  Dispatching it
-    twice doesn't make it an object handle -- ``notacommand`` is not
-    a registered command.  The multi-dispatch heuristic should defer
-    to SCCP evidence."""
+def test_FP_OBJ_09_const_string_multi_dispatch_fires_w307():
+    """TP / SCCP-evidence guard: ``set cmd notacommand`` makes ``$cmd``
+    a CONST string that the SCCP lattice sees as ``notacommand``.
+    Dispatching it twice doesn't make it an object handle --
+    ``notacommand`` is not a registered command.  W307 must fire
+    even though the multi-dispatch heuristic would otherwise suppress.
+
+    Locked the precision gap closure: the SCCP-says-not-a-command
+    predicate in ``analyser/_analyser/_diag_var_command.py`` overrides
+    the heuristic suppressions when SCCP knows the local holds a
+    non-command literal."""
     src = """\
 proc f {} {
     set cmd notacommand
@@ -261,17 +259,14 @@ proc f {} {
     )
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-10 open precision gap: callback-suffix array-key "
-    "heuristic suppresses W307 even when SCCP knows the slot was set "
-    "to a non-command literal in the same proc.",
-    strict=True,
-)
-def test_FP_OBJ_10_const_string_callback_suffix_precision_gap():
-    """OPEN-FP: ``set state(doneCallback) notacommand`` makes the
-    callback-shaped slot CONST.  The dispatch ``$state(doneCallback)
-    a`` is then invoking ``"notacommand"`` which doesn't exist.
-    Heuristic should defer to SCCP evidence."""
+def test_FP_OBJ_10_const_string_callback_suffix_fires_w307():
+    """TP / SCCP-evidence guard: ``set state(doneCallback)
+    notacommand`` makes the callback-shaped slot CONST.  The dispatch
+    ``$state(doneCallback) a`` is then invoking ``"notacommand"``
+    which doesn't exist; W307 must fire.
+
+    Locked the precision gap closure: SCCP CONST evidence on the
+    array base name overrides the callback-suffix heuristic."""
     src = """\
 proc f {} {
     set state(doneCallback) notacommand
@@ -284,15 +279,9 @@ proc f {} {
     )
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-10 open precision gap (dash-prefix variant): same "
-    "issue as the callback-suffix case -- SCCP CONST evidence should "
-    "override the dash-prefixed key heuristic.",
-    strict=True,
-)
-def test_FP_OBJ_10_const_string_dash_prefix_precision_gap():
-    """OPEN-FP: ``set state(-foo) notacommand`` -- same precision gap
-    as the callback-suffix case."""
+def test_FP_OBJ_10_const_string_dash_prefix_fires_w307():
+    """TP / SCCP-evidence guard: ``set state(-foo) notacommand`` --
+    same SCCP-override applies to the dash-prefixed key heuristic."""
     src = """\
 proc f {} {
     set state(-foo) notacommand
@@ -309,20 +298,16 @@ proc f {} {
 # constant-prefix check (Finding 7 of PR #498 deep review).
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-07 open precision gap: ${ns}::tail and [cmd]::tail "
-    "branches in the W307 emitter bypass the per-function SCCP "
-    "constant-prefix machinery.  When the prefix has a CONST value, "
-    "the full qualified name could be resolved through the registry, "
-    "user-proc table, and class table; if no match is found, W307 "
-    "(or a more specific 'unknown command') should still fire.",
-    strict=True,
-)
-def test_FP_OBJ_07_namespaced_ensemble_const_prefix_precision_gap():
-    """OPEN-FP: ``set ns nope`` followed by ``${ns}::missing arg`` -
-    tclsh: ``invalid command name "nope::missing"``.  The
-    namespaced-ensemble suppression doesn't consult SCCP, so this
-    real foot-gun is silently swallowed."""
+def test_FP_OBJ_07_namespaced_ensemble_const_prefix_fires_w307():
+    """TP / SCCP-evidence guard: ``set ns nope`` followed by
+    ``${ns}::missing arg`` -- tclsh errors ``invalid command name
+    "nope::missing"``.  W307 (or W123) must fire.
+
+    Locked the precision gap closure: the namespaced-ensemble check
+    now composes the prefix value with the literal ``::tail`` and
+    checks the registry / user-proc / class tables; when nothing
+    matches and the prefix is CONST, the heuristic is overridden
+    and W307 fires."""
     src = """\
 proc f {} {
     set ns nope

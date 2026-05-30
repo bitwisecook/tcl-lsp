@@ -2563,6 +2563,7 @@ def _read_before_set(
     *,
     executable_blocks: set[str] | None = None,
     params: frozenset[str] = frozenset(),
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> tuple[ReadBeforeSet, ...]:
     """Find variables that are read before being set.
 
@@ -2575,16 +2576,51 @@ def _read_before_set(
     # exists in its true region, so a read there is not a read-before-set.
     narrowed = _existence_narrowed_blocks(cfg, ssa, considered)
 
+    # SCCP values fallback: when not passed, treat as empty (no const
+    # evidence -> conservative behaviour for the dict-with key check).
+    if values is None:
+        values = {}
+
     # dict with/update creates local variables from dict keys at runtime.
-    # We cannot know which variables statically, so suppress
-    # read-before-set for variables that could have been unpacked.
-    # Collect dict variable names and mark the function as having dict-with.
+    # When the dict value is statically known (CONST/CONSTSET), use its
+    # ACTUAL keys as the suppression set -- a tight scope that doesn't
+    # hide unrelated bugs.  When the dict is unknown, fall back to the
+    # conservative whole-function suppression (matches pre-fix behaviour)
+    # but limit it via ``_has_dict_with`` semantics.
+    #
+    # PR #498 deep-review finding 6 / G9: pre-fix, ANY ``dict with`` in
+    # the function silenced every version-0 unknown-variable read in
+    # the entire proc -- hiding unrelated W210 / W307 noise.
     _has_dict_with = False
+    _dict_with_known_keys: set[str] = set()
+    _dict_with_any_unknown = False
+
+    def _harvest_dict_keys(value_str: str) -> bool:
+        """Extract dict keys from *value_str* into ``_dict_with_known_keys``.
+
+        Returns True if parsing succeeded (even for empty), False on
+        complexity (caller should mark unknown).
+        """
+        s = value_str.strip()
+        if s == "":
+            # Empty dict literal -> NO keys unpacked.
+            return True
+        # Non-empty: simple top-level whitespace split when no special
+        # Tcl chars present.  Complex literals (with braces/quotes) are
+        # marked unknown.
+        if any(c in s for c in '{}[]"\\'):
+            return False
+        parts = s.split()
+        for i in range(0, len(parts), 2):
+            _dict_with_known_keys.add(parts[i])
+        return True
+
     for bn in considered:
         block = cfg.blocks.get(bn)
-        if block is None:
+        ssa_block = ssa.blocks.get(bn)
+        if block is None or ssa_block is None:
             continue
-        for stmt in block.statements:
+        for stmt_idx, stmt in enumerate(block.statements):
             if (
                 isinstance(stmt, IRBarrier)
                 and stmt.canonical_command == "::dict"
@@ -2592,10 +2628,60 @@ def _read_before_set(
                 and stmt.args[0] in ("with", "update")
             ):
                 _has_dict_with = True
-                # The dict variable itself is read by dict with.
                 dict_var = stmt.args[1] if len(stmt.args) >= 2 else ""
-                if dict_var:
-                    skip = skip | {dict_var}
+                if not dict_var:
+                    continue
+                skip = skip | {dict_var}
+                # Look up the SCCP value of the SPECIFIC version of
+                # dict_var being read by this dict-with (the IRBarrier's
+                # ``uses`` records ``{dict_var: input_version}``).  This
+                # is the value BEFORE the dict-with widens it; using the
+                # function-wide ``values[dict_var]`` would catch the
+                # post-widening OVERDEFINED.
+                # SCCP retroactively widens ``d#1`` to OVERDEFINED when
+                # any IRBarrier touches it (the conservative side-effect
+                # model).  Fall back to the raw IR: scan backwards in
+                # the SAME block for the most recent IRAssignConst /
+                # IRAssignValue of ``dict_var`` and use its literal value
+                # if statically known.
+                literal_value: str | None = None
+                for prev_idx in range(stmt_idx - 1, -1, -1):
+                    prev_stmt = block.statements[prev_idx]
+                    if isinstance(prev_stmt, IRAssignConst):
+                        # IRAssignConst's defined variable is in
+                        # ``prev_stmt`` itself (the IR doesn't have a
+                        # direct ``name`` field on the statement; check
+                        # the SSA defs).
+                        prev_ssa = (
+                            ssa_block.statements[prev_idx]
+                            if prev_idx < len(ssa_block.statements)
+                            else None
+                        )
+                        if prev_ssa is None:
+                            continue
+                        if dict_var in prev_ssa.defs and isinstance(
+                            prev_stmt.value, str
+                        ):
+                            literal_value = prev_stmt.value
+                            break
+                    elif isinstance(prev_stmt, (IRBarrier, IRCall)):
+                        # An IRBarrier or impure call between us and
+                        # the literal assignment invalidates the trace.
+                        # IRCall: only break for impure calls (pure
+                        # commands can't mutate dict_var).
+                        if isinstance(prev_stmt, IRBarrier):
+                            break
+                        from compiler.side_effects import classify_side_effects
+
+                        if not classify_side_effects(
+                            getattr(prev_stmt, "command", ""),
+                            getattr(prev_stmt, "args", ()),
+                        ).pure:
+                            break
+                if literal_value is None:
+                    _dict_with_any_unknown = True
+                elif not _harvest_dict_keys(literal_value):
+                    _dict_with_any_unknown = True
 
     # When dict with/update is present, collect all variable names that
     # have an explicit definition somewhere in the function.  Variables
@@ -2731,8 +2817,15 @@ def _read_before_set(
                     continue
                 # In dict-with scopes, suppress for variables that have
                 # no explicit definition — they were likely unpacked.
+                # G9 closure: when SCCP knows the dict's keys (e.g. for
+                # ``set d {}; dict with d {}``, the empty dict has NO
+                # keys), only suppress for names in that key set.  When
+                # the dict's value is unknown, fall back to the previous
+                # broad suppression (preserves pre-fix behaviour for
+                # dynamically-built dicts).
                 if _has_dict_with and name not in explicitly_defined:
-                    continue
+                    if _dict_with_any_unknown or name in _dict_with_known_keys:
+                        continue
                 # A ``::`` anywhere marks a namespace-qualified reference
                 # (Tcl local names cannot contain ``::``) — e.g. a direct read
                 # of a namespace var ``array names ${name}::parent`` resolves
@@ -3263,6 +3356,7 @@ def analyse_function(
         ssa,
         executable_blocks=executable_blocks,
         params=params,
+        values=values,
     )
     unused = _unused_variables(
         cfg,

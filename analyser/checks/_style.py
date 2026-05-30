@@ -649,6 +649,27 @@ def check_missing_option_terminator(
     if profile is None:
         return []
 
+    # PR #498 deep-review finding 5 (G12): the braced pattern-list switch
+    # form ``switch $x { pat body pat body }`` is NOT a runtime hazard --
+    # Tcl unambiguously identifies the trailing brace as the pattern list
+    # and never consumes the preceding word as an option.  Tclsh-verified
+    # in 9.0.3: ``set x -nocase; switch $x { -nocase {puts A} default
+    # {puts B} }`` prints ``A`` (matches the pattern).  The hazard exists
+    # only for the SPLIT pattern/body form (options-before-string,
+    # ``switch $x -nocase {body1} default {body2}``).  Detect the braced
+    # form by checking that the LAST arg is a STR token (brace-enclosed)
+    # and exempt from W304 entirely.
+    if (
+        cmd_name == "switch"
+        and len(arg_tokens) == 2
+        and arg_tokens[-1].type is TokenType.STR
+    ):
+        # Two-arg braced form: ``switch STRING { PAT BODY PAT BODY ... }``.
+        # The brace-list is unambiguous; no option-consumption possible.
+        # The SPLIT form (``switch STRING ?-opt? PAT BODY ?PAT BODY...?``)
+        # has 3+ args and is still flagged.
+        return []
+
     positional_idx = _first_positional_without_terminator(args, profile)
     if positional_idx is None or positional_idx >= len(arg_tokens):
         return []

@@ -203,10 +203,23 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 _func_ranges.append(("::top", 0, 2**31))
 
         def _constsets_for_offset(offset: int) -> dict[str, frozenset[int | float | bool | str]]:
-            """Return the CONSTSET map for the function containing *offset*."""
+            """Return the CONSTSET map for the function containing *offset*.
+
+            ``_func_ranges`` includes ``::top`` (covering the whole source)
+            and one entry per proc.  When an offset is inside a proc, BOTH
+            ranges contain it -- but the proc's locals must win.  Pick the
+            NARROWEST containing range so a proc's CONSTSETs aren't shadowed
+            by the top-level fallback (which is empty for variables defined
+            only inside a proc).
+            """
+            best: tuple[int, str] | None = None
             for qname, start, end in _func_ranges:
                 if start <= offset <= end:
-                    return _func_constsets.get(qname, {})
+                    width = end - start
+                    if best is None or width < best[0]:
+                        best = (width, qname)
+            if best is not None:
+                return _func_constsets.get(best[1], {})
             return all_constsets  # fallback to merged
 
         # Fallback: directly extract foreach iteration elements from the CFG.
@@ -748,6 +761,75 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     _src_off += 1
                 if _src_off + 1 < len(cu.source) and cu.source[_src_off : _src_off + 2] == "::":
                     is_namespaced_ensemble = True
+
+                # SCCP evidence override (PR #498 deep-review gaps G5-G8):
+                # the heuristic suppressions above (multi-dispatch local,
+                # callback-shaped array key, dash-prefixed array key,
+                # namespaced ensemble) are shape-based -- they assume the
+                # user designed the slot as an object handle / callback
+                # registration / namespaced command path.  But when SCCP
+                # has concrete evidence the variable holds a CONST string
+                # value that ISN'T a registered command/proc/class, the
+                # heuristic is wrong and W307 should fire.  Compute the
+                # SCCP-says-not-a-command predicate and use it to nullify
+                # the heuristic suppressions for *this* site.
+                _scoped_cs_w307 = _constsets_for_offset(site_range.start.offset)
+                _const_vals_w307 = _scoped_cs_w307.get(var_name)
+                # For array elements (``foo(key)``), SCCP often tracks
+                # the value on the BASE name -- check it too.
+                if _const_vals_w307 is None and _base_name != var_name:
+                    _const_vals_w307 = _scoped_cs_w307.get(_base_name)
+
+                def _const_value_is_known_command(v) -> bool:
+                    if not isinstance(v, str):
+                        return False
+                    return (
+                        v in _known_cmds
+                        or v in _known_procs
+                        or v in _known_proc_bare
+                        or f"::{v}" in _known_procs
+                        or v in all_typed_vars
+                        or v in _class_tail_names
+                        or f"::{v}" in self.result.all_classes
+                    )
+
+                sccp_says_not_a_command = (
+                    _const_vals_w307 is not None
+                    and len(_const_vals_w307) > 0
+                    and not any(_const_value_is_known_command(v) for v in _const_vals_w307)
+                )
+
+                # For the namespaced-ensemble case (``${ns}::tail``), the
+                # *prefix* variable has the SCCP value -- check whether
+                # composing prefix+::tail yields a known command.  When
+                # SCCP knows the prefix is a CONST string and the full
+                # composed name isn't registered, the ensemble heuristic
+                # is wrong and W307 should fire.
+                if is_namespaced_ensemble and not sccp_says_not_a_command:
+                    # Extract the literal tail after `::`.  Source layout:
+                    # ``${var}::tail args`` -- the `::tail` is at _src_off.
+                    _tail_start = _src_off + 2
+                    _tail_end = _tail_start
+                    while _tail_end < len(cu.source) and (
+                        cu.source[_tail_end].isalnum() or cu.source[_tail_end] in "_:"
+                    ):
+                        _tail_end += 1
+                    _tail = cu.source[_tail_start:_tail_end]
+                    if _tail and _const_vals_w307:
+                        all_composed_unknown = all(
+                            isinstance(v, str)
+                            and not _const_value_is_known_command(f"{v}::{_tail}")
+                            and not _const_value_is_known_command(f"::{v}::{_tail}")
+                            for v in _const_vals_w307
+                        )
+                        if all_composed_unknown:
+                            sccp_says_not_a_command = True
+
+                if sccp_says_not_a_command:
+                    is_proc_param_dispatcher = False
+                    is_switch_callback_element = False
+                    is_namespaced_ensemble = False
+
                 if (
                     not in_method
                     and not in_dict_with

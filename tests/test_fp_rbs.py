@@ -193,18 +193,17 @@ proc f {} {
 # proc -- even ones the dict isn't responsible for.
 
 
-@pytest.mark.xfail(
-    reason="dict-with whole-proc suppression: any version-0 unknown-"
-    "variable read in a proc containing dict with / dict update is "
-    "suppressed.  Should be scoped to the keys the dict actually "
-    "unpacks (or to the lifetime of the unpack).",
-    strict=True,
-)
 def test_FP_dict_with_does_not_suppress_unrelated_missing_var():
-    """OPEN-FP: ``dict with`` unpacks $d's keys as locals.  An
-    unrelated ``$missing`` read in the same proc still has no
-    definition (tclsh-verified: ``can't read "missing": no such
-    variable``).  W210 should fire."""
+    """TP / dict-with scoping guard: when the dict literal is statically
+    known (``set d {}`` -> empty dict, no keys unpacked), ``dict with d
+    {}`` brings NO names into scope.  An unrelated ``$missing`` read
+    in the same proc is still a real W210.
+
+    Locked the precision gap closure: the dict-with suppression in
+    ``compiler/core_analyses.py::_read_before_set`` now walks backwards
+    to the most recent ``IRAssignConst(d)`` in the same block and uses
+    THAT literal value to compute the suppression set.  When SCCP can
+    determine the dict has no keys, no suppression is applied."""
     src = """\
 proc f {} {
     set d {}
@@ -223,17 +222,17 @@ proc f {} {
 # list shouldn't infer a contract without actual dispatcher evidence.
 
 
-@pytest.mark.xfail(
-    reason="FP-RBS dispatch-protocol heuristic: 3+ peer procs with "
-    "identical leading params suppresses W214 on the shared params, "
-    "even without dispatcher-call evidence or callback-registry "
-    "evidence.  Should require supporting evidence.",
-    strict=True,
-)
 def test_FP_dispatch_protocol_requires_dispatcher_evidence():
-    """OPEN-FP: three ordinary helpers can share ``{ctx token}`` and
-    still have a truly unused ``token``.  Peer-count alone shouldn't
-    erase the W214 finding."""
+    """TP / dispatcher-evidence guard: three ordinary helpers sharing
+    ``{ctx token}`` with no variable-command dispatch anywhere in the
+    program is NOT a dispatch protocol -- ``token`` may be a real
+    unused param and W214 must fire.
+
+    Locked the precision gap closure: ``_dispatch_protocol_signatures``
+    in ``analyser/_analyser/_diag_var_lifecycle.py`` now requires BOTH
+    a ≥3-peer count AND at least one variable-command dispatch site
+    in the program (the "dispatcher evidence").  Real tcllib protocol
+    families have dispatch sites; ordinary helper peers don't."""
     src = """\
 namespace eval ::n {
     proc a {ctx token} { puts $ctx }
@@ -253,23 +252,19 @@ namespace eval ::n {
 # treats VAR_READ as caller-frame consumption.
 
 
-@pytest.mark.xfail(
-    reason="call-by-name VAR_READ trait conflated with caller-frame "
-    "alias: ``proc maybe {target} { info exists \\$target }`` uses "
-    "target's VALUE as a callee-local var name.  The caller's literal "
-    "arg ``x`` is wrongly treated as a caller-frame read -- O126/W211 "
-    "on $x is suppressed even though no upvar exists.  Fix needs a "
-    "trait split: alias-via-upvar vs dynamic-name-in-callee.",
-    strict=True,
-)
 def test_FP_call_by_name_info_exists_dynamic_target_not_caller_read():
-    """OPEN-FP: ``proc maybe {target} { info exists \\$target }``
-    checks for a variable named *whatever target's value is* IN
-    MAYBE'S OWN FRAME.  The caller's ``set x 1; maybe x`` does NOT
-    consume the caller's ``x``.  So W211/W220/O126 on caller's ``$x``
-    should fire (it's truly never used after the set).  But the
-    current analyser silences them because target's trait is
-    VAR_READ."""
+    """TP / trait-split lock-in: ``proc maybe {target} { info exists
+    \\$target }`` uses target's value as a CALLEE-local dynamic var
+    name (trait DYNAMIC_NAME_LOCAL), NOT a caller-frame upvar alias
+    (trait VAR_READ/VAR_WRITE).  The caller's ``set x 1; maybe x``
+    does NOT consume the caller's ``x``; W211/W220/O126 must fire
+    on ``x`` (truly set-but-never-used).
+
+    Locked the precision gap closure: ``shared/proc_traits.py`` now
+    has a ``DYNAMIC_NAME_LOCAL`` trait distinct from VAR_READ /
+    VAR_WRITE, and the call-by-name caller-side suppression in
+    ``compiler/proc_arg_traits.py`` only honours VAR_READ /
+    VAR_WRITE (genuine upvar aliasing)."""
     src = """\
 proc maybe {target} {
     info exists $target

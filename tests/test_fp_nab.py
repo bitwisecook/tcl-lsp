@@ -206,17 +206,15 @@ def test_FP_NAB_05_switch_split_form_missing_dash_dash_fires_w304():
 # precision gap).
 
 
-@pytest.mark.xfail(
-    reason="W304 over-reach: fires on safe braced-switch form "
-    "``switch $x { ... }`` even though Tcl unambiguously parses the "
-    "brace as the pattern list (no option-consumption hazard).  "
-    "Closing the gap needs a switch-form discriminator before the "
-    "W304 emitter.",
-    strict=True,
-)
 def test_FP_NAB_05_braced_switch_form_should_not_fire_w304():
-    """OPEN over-reach: the braced pattern-list switch form is not a
-    runtime hazard; W304 should NOT fire."""
+    """FP: the braced pattern-list switch form is NOT a runtime hazard
+    (Tcl unambiguously parses the trailing brace as the pattern list);
+    W304 must NOT fire.
+
+    Locked the precision gap closure: ``analyser/checks/_style.py``
+    now special-cases the two-arg ``switch STRING { ... }`` shape
+    (exactly 2 args with the trailing arg STR-tokenised) and exempts
+    it from W304.  The split form (3+ args) still fires."""
     src = "proc f {x} { switch $x { -nocase {puts a} default {puts b} } }"
     w304 = [d for d in get_diagnostics(src) if d.code == "W304"]
     assert not w304, f"W304 over-reach on braced switch; got {w304}"
@@ -228,17 +226,14 @@ def test_FP_NAB_05_braced_switch_form_should_not_fire_w304():
 # the same name.
 
 
-@pytest.mark.xfail(
-    reason="W304 lexical-origin scan crosses proc boundaries: an outer "
-    "``set path -force`` is attributed as the 'currently resolves to' "
-    "value for an inner ``proc useit {path}`` parameter ``path``, even "
-    "though the parameter shadows the outer var.  Origin should be "
-    "driven by scoped SSA/SCCP, not whole-source last-set.",
-    strict=True,
-)
 def test_FP_NAB_05_w304_lexical_does_not_cross_proc_boundary():
-    """OPEN-FP: the W304 'currently resolves to ...' attribution must
-    not look past a proc boundary that shadows the variable."""
+    """FP: W304 'currently resolves to ...' must not look past a proc
+    boundary that shadows the variable.
+
+    Locked the precision gap closure: ``_last_literal_set_value_for_var``
+    in ``analyser/checks/_helpers.py`` now detects intervening ``proc``
+    declarations and stops the backward scan when the proc's param list
+    contains the search variable (shadowing)."""
     src = "set path -force\nproc useit {path} { file delete $path }\n"
     diags = [d for d in get_diagnostics(src) if d.code == "W304"]
     # Either the diagnostic shouldn't attribute the value at all (the

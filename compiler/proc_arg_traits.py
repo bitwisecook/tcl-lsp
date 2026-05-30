@@ -120,14 +120,15 @@ def _scan_commands(
                 # variable in the CURRENT scope *named by the param's value*
                 # (``set $p …``, ``variable $p``, ``incr $p``) — it does NOT
                 # write back to the caller's passed variable (verified: in Tcl
-                # only ``upvar`` to a caller frame writes back).  So the param
-                # is read for its name, not written; a real write-back is
-                # recorded via the upvar-alias path in ``_scan_commands``.
-                # Marking VAR_WRITE here would make the call site treat ``f $p``
-                # as defining (not reading) ``p`` → false unused/dead-store.
-                traits[source_param].add(ProcArgTrait.VAR_READ)
+                # only ``upvar`` to a caller frame writes back).  The trait is
+                # DYNAMIC_NAME_LOCAL (callee-local dynamic-name use), NOT
+                # VAR_READ/VAR_WRITE (which would imply caller-frame aliasing).
+                # See PR #498 deep-review finding 10: conflating these caused
+                # ``proc f {p} { set \$p 1 }`` to wrongly suppress the caller's
+                # ``set x 1; f x`` as if ``x`` were consumed by the callee.
+                traits[source_param].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
             if ArgRole.VAR_READ in roles:
-                traits[source_param].add(ProcArgTrait.VAR_READ)
+                traits[source_param].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
 
         # Commands that evaluate code (eval, uplevel, subst, etc.)
         spec = REGISTRY.get_any(cmd_name)
@@ -198,10 +199,11 @@ def _scan_commands(
                         # (``_extract_var_name`` only matches that), so the
                         # param's VALUE names a variable in the CURRENT scope
                         # (``set $p …``, ``variable $p``) — not a write-back to
-                        # the caller's passed variable.  The param is read for
-                        # its name; only an ``upvar``-to-caller alias write
-                        # (handled below) is a real VAR_WRITE.
-                        traits[vn].add(ProcArgTrait.VAR_READ)
+                        # the caller's passed variable.  DYNAMIC_NAME_LOCAL
+                        # captures this callee-local dynamic-name use;
+                        # VAR_READ/VAR_WRITE are reserved for genuine
+                        # upvar-aliased caller-frame access.
+                        traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
 
         # Track writes through upvar aliases
         if cmd_name in ("set", "incr", "append", "lappend") and cmd_args:
