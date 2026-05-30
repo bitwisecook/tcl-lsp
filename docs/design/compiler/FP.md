@@ -61,6 +61,7 @@ Open findings that still false-positive today carry a passing TP test plus an
 - **BND — Bounds / intervals (W230/W231/W232/W233)** ([§BND](#bnd--bounds--intervals-w230w231w232w233))
 - **OPT — Optimisation / codegen quick-fixes (O106/O109/O110/O116/O120/O126)** ([§OPT](#opt--optimisation--codegen-quick-fixes-o106o109o110o116o120o126))
 - **TNT — Taint flow (T100/T101)** ([§TNT](#tnt--taint-flow-t100t101))
+- **STY — Style / usage (W001/W104/W120/W122/W124/W126/W214/W302/W306)** ([§STY](#sty--style--usage-w001w104w120w122w124w126w214w302w306))
 
 ---
 
@@ -4510,6 +4511,340 @@ ignored.
 - `tests/test_fp_tnt.py::test_FP_TNT_02_channel_id_position_no_t101` (FP)
 - `tests/test_fp_tnt.py::test_FP_TNT_02_content_arg_still_fires` (TP, `puts $data`)
 - `tests/test_fp_tnt.py::test_FP_TNT_02_content_with_channel_still_fires` (TP, `puts $chan $data` — chan filtered, data fires)
+
+---
+
+
+## STY — style / usage (W001/W104/W120/W122/W124/W126/W214/W302/W306)
+
+Style/usage warnings that fired on idiomatic Tcl patterns where the
+"style smell" is the documented convention.  Each entry locks in a
+suppression that removed thousands of corpus FPs while keeping the
+TP cases firing.
+
+### FP-STY-01 — W001 Tk geometry-manager shortcut form (`grid .x` / `pack .x` / `place .x`)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_01_*`
+- **Codes:** W001 (unknown subcommand)
+- **Corpus:** every Tk script using the geometry-manager shortcut form.
+
+#### Reproducer
+
+```tcl
+grid .x
+pack .x
+place .x
+```
+
+#### Per-line reasoning
+
+Tk's `grid(n)`, `pack(n)`, `place(n)` accept a window-path as the first
+arg as a shorthand for `grid configure .x` / `pack configure .x` / etc.
+Pre-fix the subcommand-validation harness only matched known explicit
+subcommand names (`configure`, `forget`, …) and reported a window-path
+as "unknown subcommand".
+
+Fix: detect the shortcut form (`grid .x` where the first arg looks like
+a Tk path) and exempt it from W001.
+
+#### tclsh ground truth
+
+```
+% pack [label .l -text hi]
+% # No error — shortcut applies configure with default options.
+```
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_01_grid_pathname_no_w001` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_01_pack_pathname_no_w001` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_01_place_pathname_no_w001` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_01_genuine_unknown_subcommand_still_fires` (TP, `grid bogus .x`)
+
+---
+
+### FP-STY-02 — W306 escaped `\[` / `\$` in quoted regexp patterns
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_02_*`
+- **Codes:** W306 (literal-expected substitution)
+
+#### Reproducer
+
+```tcl
+regexp "\[abc\]" $s
+regexp "\$end" $s
+```
+
+#### Per-line reasoning
+
+In a Tcl quoted string, `\[` is the literal character `[` (not a
+command-substitution open), and `\$` is the literal `$` (not a
+variable-substitution open).  The resolved arg text contains `[abc]`
+and `$end` — valid regex syntax (a char-class and an end-anchor literal
+`$` … but actually `$end` is just `$` followed by `end`; the typical
+intent is the end-anchor regex `$`).
+
+Pre-fix W306 fired because the resolved arg text couldn't distinguish
+escaped from unescaped substitutions.  Fix: when the token isn't
+already a VAR/CMD intrep, check the *raw source slice* for a live
+(unescaped) `[`/`$`.  Escaped forms are exempt; live substitutions
+(including `${var}` and `[cmd]`) still fire.
+
+#### tclsh ground truth
+
+```
+% set s "[abc]xyz"
+% regexp "\[abc\]" $s
+1
+```
+
+The escaped pattern matches the literal `[abc]` substring — no Tcl
+substitution occurred.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_02_escaped_bracket_no_w306` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_02_escaped_dollar_no_w306` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_02_live_dollar_in_quoted_pattern_still_fires` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` (TP)
+
+---
+
+### FP-STY-03 — W104 usage / template notation exempt (`?optarg?`, `<placeholder>`, `...`)
+
+- **Verdict:** FALSE POSITIVE (now fixed; corpus 165 → 144)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_03_*`
+- **Codes:** W104 (string-concat list building)
+
+#### Reproducer
+
+```tcl
+append usage "?arg?"
+append usage "<placeholder>"
+append usage "..."
+```
+
+#### Per-line reasoning
+
+W104 fires when `append`/`string concat` is used to build what looks
+like a list element by element (the safer idiom is `lappend` or
+`list`).  But the documented Tcl conventions for usage strings —
+`?optarg?` for optional, `<placeholder>` for template slots, `...` for
+varargs — are not list-building; they are display formatting.
+
+Fix: exempt the usage-notation glyphs.  Genuine `append result " $i"`
+list-building still fires.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_03_optarg_question_marks_no_w104` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_03_placeholder_angle_no_w104` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_03_ellipsis_no_w104` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_03_genuine_list_building_still_fires` (TP)
+
+---
+
+### FP-STY-04 — W126 non-channel value: lassign destructure type-inference fix
+
+- **Verdict:** FALSE POSITIVE (now fixed; corpus 4 → 0)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_04_*`
+- **Codes:** W126 (non-channel value in channel arg)
+
+#### Reproducer
+
+```tcl
+lassign [chan pipe] ch wch
+puts $ch x
+```
+
+#### Per-line reasoning
+
+`chan pipe` returns a 2-element LIST of channel handles.  `lassign`
+destructures the list element by element — each def-target (`ch`,
+`wch`) receives a single CHANNEL value, NOT the LIST itself.
+
+Pre-fix the type-inference lattice typed all lassign def-targets as
+LIST (mirroring the source).  Later use of `$ch` in a channel-arg
+slot fired W126 because LIST ≠ CHANNEL.
+
+Fix at the **lattice** level: lassign per-element destructure targets
+are typed UNKNOWN (sound conservative — could be any element type).
+The list type only applies to a captured-rest binding
+(`set rest [lassign $L a b]`).
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_04_lassign_destructure_channels_no_w126` (FP)
+
+---
+
+### FP-STY-05 — W302 catch fire-and-forget (bare + subcommand-aware split)
+
+- **Verdict:** FALSE POSITIVE (now fixed; 239 corpus firings cleared)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_05_*`
+- **Codes:** W302 (catch without result variable)
+- **Corpus:** ftp.tcl 35, comm.tcl 19, http.tcl 16, etc.
+
+#### Reproducer
+
+```tcl
+# bare fire-and-forget (cleanup; failure is OK)
+catch {close $fh}
+catch {after cancel $h}
+catch {file delete $f}
+
+# ensemble subcommand fire-and-forget
+catch {chan close $fh}
+catch {array unset arr key}
+```
+
+#### Per-line reasoning
+
+`catch {<cmd>}` without a result variable is the documented Tcl idiom
+for "do this if possible, ignore if not".  Two sets cover the
+canonical "error-on-missing-target" forms:
+
+- `_FIRE_AND_FORGET_BARE` — `close`, `unset`, `rename`
+- `_FIRE_AND_FORGET_SUBCOMMANDS` — `after cancel`, `chan close`,
+  `array unset`, `dict unset`, `interp delete`,
+  `namespace delete`/`forget`, `file delete`
+
+A single-statement catch body whose head matches is exempt from W302.
+Multi-cmd bodies, user calls, and *constructive* subcommands
+(`chan configure`, `array set`, `dict set`, `file copy`, `interp
+create`, `namespace eval`, `after <ms>`) still fire — they need a
+result variable to know if they succeeded.
+
+#### tclsh ground truth
+
+```
+% set fh [open /tmp/x w]
+% close $fh
+% catch {close $fh}   ;# already closed — error swallowed
+1
+```
+
+#### Why the analyser reaches that verdict
+
+`analyser/compiler_checks.py::_FIRE_AND_FORGET_BARE` +
+`_FIRE_AND_FORGET_SUBCOMMANDS` define the exempt sets; the W302
+emitter consults both before firing.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_05_bare_close_fire_and_forget_no_w302` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_05_ensemble_close_fire_and_forget_no_w302` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_05_constructive_subcommand_still_fires` (TP, `chan configure`)
+- `tests/test_fp_sty.py::test_FP_STY_05_user_call_still_fires` (TP, user proc)
+
+---
+
+### FP-STY-06 — W122 / W124 OID-like dotted chains (not IPv4)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_06_*`
+- **Codes:** W122, W124 (IPv4-shaped literal with out-of-range octet)
+- **Corpus:** LDAP / SNMP OID literals across tcllib (`ldap`, `asn`, etc.).
+
+#### Reproducer
+
+```tcl
+set oid 1.3.6.1.4.1.4203.1.11.3
+```
+
+#### Per-line reasoning
+
+`1.3.6.1.4.1.4203.1.11.3` is an LDAP Private Enterprise Number (PEN)
+OID — a hierarchical dotted chain with no octet-value constraint.
+The naive IPv4 detector matched an embedded 4-component slice
+(`4203.1.11.3`) where the first "octet" 4203 > 255 and fired W124.
+
+Fix: skip when the matched quad is preceded by `.<digit>` OR followed
+by `.<digit>` (part of a longer dotted chain).  Applied to both the
+regex path (W122) and the SSA path (W124).
+
+#### tclsh ground truth
+
+OIDs are arbitrary integer sequences; they have no IPv4 semantics.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_06_oid_chain_no_w122_w124` (FP, both codes)
+- `tests/test_fp_sty.py::test_FP_STY_06_real_ipv4_shaped_still_fires` (TP, 4-component dotted)
+
+---
+
+### FP-STY-07 — W120 package self-call (file is the provider)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_07_*`
+- **Codes:** W120 (command used without `package require`)
+- **Corpus:** msgcat self-calls 2→0, fileutil/mime similar.
+
+#### Reproducer
+
+```tcl
+package provide msgcat 1.0
+msgcat::mc hello
+```
+
+#### Per-line reasoning
+
+A file declaring `package provide msgcat 1.0` IS the implementation of
+`msgcat`; any `msgcat::foo` call inside that file doesn't need a
+`package require msgcat` — the file *is* the require target.
+
+Fix: union the file's `package_provides` set into the imported-set
+check that drives W120.
+
+**Taint-aware caveat:** never suppress when the dispatched var is
+tainted in its proc (`set cmd [gets stdin]; $cmd op1; $cmd op2`).
+Wired to the existing taint lattice that drives T100/T101.  Sound —
+evidence is the dispatches themselves in the same proc, and taint
+disqualifies the heuristic.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_07_provider_self_call_no_w120` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_07_no_provide_still_fires` (TP)
+
+---
+
+### FP-STY-08 — W214 empty-body proc stubs
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_08_*`
+- **Codes:** W214 (unused proc parameter)
+- **Corpus:** tcllib `grammar_fa/faop.tcl` declares 14 such empty-body procs as the FA algebra API.
+
+#### Reproducer
+
+```tcl
+proc stub {a b} {}
+```
+
+#### Per-line reasoning
+
+`proc stub {a b} {}` with an empty body is the canonical Tcl
+signature-stub pattern — overlay files plug in real bodies later, or
+the declaration documents the API contract.  Every parameter is
+necessarily "unused" because there is no body to use them; flagging
+W214 on every param is pure noise.
+
+Fix: detect zero-statement bodies in the IR; skip W214 entirely on
+empty-body procs.
+
+A related but distinct fix covers snit-style quoted-keyword marker
+parameters (`{"as" ""}` as a positional keyword marker): the param
+name is the literal `"as"`, which the body cannot reference as a
+variable.  Detect via param name starting + ending with `"`.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_08_empty_body_stub_no_w214` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_08_non_empty_body_unused_param_still_fires` (TP)
 
 ---
 
