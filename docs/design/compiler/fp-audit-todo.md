@@ -42,6 +42,38 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   wch`), not lists, so its def targets are no longer typed LIST (they stay
   UNKNOWN — the sound conservative value); corpus W126 4→0, all were this
   type-inference artifact; captured-return `set rest [lassign...]` still LIST.
+- [x] **O110** Canonicalise expression (InstCombine) — fixed: the pass was
+  emitting a hint whenever its rewriter touched whitespace inside `expr`
+  bodies, so trivially-equivalent `($x + 1)` ↔ `$x + 1` and `?  :` ↔ `? :`
+  rendered as "you can simplify this".  Added a whitespace-normalised
+  identity guard (`_strip_ws`) — if the rewrite differs only in spacing it
+  is suppressed.  Genuine InstCombine wins (paren removal, bool simplify,
+  shift fold) still fire.  Corpus O110 3641→1490 (−59%); 7 paired tests in
+  `TestO110InstCombine`.
+- [x] **W211 / W220** call-by-name suppression — fixed using the
+  `ProcDef.param_traits` lattice: when a caller passes a *literal* variable
+  name to a user proc whose param carries `ProcArgTrait.VAR_READ` or
+  `VAR_WRITE` (a Tcl-side upvar idiom), the analyser no longer flags that
+  caller-local as set-but-unused / dead — the callee operates on it
+  through an upvar alias.  Substituted args (`$x`, `arr(k)`, `[..]`) are
+  excluded so the suppression does not over-reach.  Tests in
+  `TestCallByNameSuppression`.
+- [x] **W214** unused proc parameter — fixed by detecting **dispatch
+  protocols**: when ≥3 peer procs in one namespace share an identical
+  leading-parameter signature (e.g. tcllib's PEG rule procs all take
+  `{s e}`), those names form a contract the dispatcher relies on, so an
+  individual rule body not using one is not a bug — changing the
+  signature would break dispatch.  `args` (Tcl's variadic catch-all) is
+  excluded from the protocol shape.  Genuine unused params *beyond* the
+  protocol shape still fire.  Tests in `TestDispatchProtocolSuppression`.
+- [x] **S100 / S101** loop-invariance lattice — fixed: use-site shimmer was
+  unconditionally upgraded to S101 ("per-iteration cost") whenever the
+  shimmering var was used inside a loop block, but a **loop-invariant**
+  var (no def anywhere in the loop body, incl. phi names) shimmers
+  *once* — Tcl's Obj intrep cache makes the conversion one-time.  Compute
+  the per-loop def-name set and downgrade the use to S100 when the var is
+  invariant in that loop.  Genuine per-iteration shimmer (loop body
+  re-assigns the var to the from-type) still classified as S101.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
@@ -61,17 +93,15 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 
 ## Spot-checked, mostly TP (need a fuller sweep to be sure)
 
-- [~] **W211** set-but-unused (729) — samples were genuine vestigial vars
-  (tar.tcl, ncgi.tcl). Sweep the long tail for definer/lassign/upvar shapes.
-- [~] **W214** unused proc parameter (838) — big clusters are parser-rule
-  dispatch protocols (`{s e}` in pt_peg) where the signature is a contract; is
-  that a documented exemption or noise? Decide.
-- [~] **W220** dead store (725) — samples genuine; sweep for cmd-sub / array /
-  branch-merge shapes the existing recovery may still miss.
-- [~] **S100 / S101 / S102** shimmer (1979 / 2014 / 558) — heavy in math
-  (bigfloat2, decimal, calculus, linalg) and DES; loop-invariant use-site
-  (S101-vs-S100) over-classification is a known open finding. Audit the
-  per-file clusters for genuine-vs-noise.
+- [~] **W211** set-but-unused (589 post-callbyname) — samples were genuine
+  vestigial vars (tar.tcl, ncgi.tcl).  Call-by-name covered (see Resolved);
+  sweep the long tail for residual definer/lassign/upvar shapes.
+- [~] **W220** dead store (578 post-callbyname) — samples genuine;
+  call-by-name covered; sweep for cmd-sub / array / branch-merge shapes the
+  existing recovery may still miss.
+- [~] **S102** shimmer (358) — phi-merge shimmer; heavy in math (bigfloat2,
+  decimal, calculus, linalg) and DES.  S100/S101 loop-invariance now fixed
+  (see Resolved); audit S102 per-file clusters for genuine-vs-noise.
 - [~] **W123** unresolved command (1761) — mostly real missing stubs (argparse,
   dget/dexist, custom widget cmds). Not analyser FPs, but a per-package stub
   pass would cut noise. Triage which are stdlib-ish vs project-local.
@@ -83,9 +113,8 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 These drive the optimiser view + quick-fixes; an FP here is a misleading "you
 can simplify this" suggestion. None swept yet.
 
-- [ ] **O110** Canonicalise expr (InstCombine) — **3641**, the #1 O-code.
-  High-volume → highest FP leverage. Verify each canonicalisation is
-  behaviour-preserving vs tclsh.
+- [x] **O110** Canonicalise expr (InstCombine) — RESOLVED (see top):
+  whitespace-only rewrites no longer emitted; corpus 3641→1490 (−59%).
 - [ ] **O120** use eq/ne (1515) — pairs with W110; check the dup-with-W110 policy.
 - [ ] **O100** propagate constant into arg (349)
 - [ ] **O116** fold constant list command (343)
