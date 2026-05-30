@@ -42,14 +42,21 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   wch`), not lists, so its def targets are no longer typed LIST (they stay
   UNKNOWN — the sound conservative value); corpus W126 4→0, all were this
   type-inference artifact; captured-return `set rest [lassign...]` still LIST.
-- [x] **O110** Canonicalise expression (InstCombine) — fixed: the pass was
-  emitting a hint whenever its rewriter touched whitespace inside `expr`
-  bodies, so trivially-equivalent `($x + 1)` ↔ `$x + 1` and `?  :` ↔ `? :`
-  rendered as "you can simplify this".  Added a whitespace-normalised
-  identity guard (`_strip_ws`) — if the rewrite differs only in spacing it
-  is suppressed.  Genuine InstCombine wins (paren removal, bool simplify,
-  shift fold) still fire.  Corpus O110 3641→1490 (−59%); 7 paired tests in
-  `TestO110InstCombine`.
+- [x] **O110** Canonicalise expression (InstCombine) — fixed across four
+  passes; corpus 3641 → ~700-900 (-75-80% est.).  The original baseline
+  fired on every whitespace touch the rewriter performed.  Sequential
+  fixes, each with paired tests:
+  1. `_strip_ws` guard on the two `expression_args` /
+     `expr_substitutions` paths — drops whitespace-only rewrites
+     (3641→1490, −59%).
+  2. Same `_strip_ws` guard on the `_branch_folding.py` path —
+     `if {$x<0}` no longer flagged (bigfloat2 122→46, exif 53→10).
+  3. Bitwise/shift paren-preservation in the AST renderer — keeps
+     parens for mixed bitwise/shift (CERT EXP00-C; DES 91→23).
+  4. Commutative-reorder suppression in `_simplify_expr_node` — the
+     reassoc no longer swaps ``literal + term`` to ``term + literal``
+     when no real fold would result; identities and operator flips
+     still fire (bigfloat2 46→35, exif 10→4).
 - [x] **W211 / W220** call-by-name suppression — fixed using the
   `ProcDef.param_traits` lattice: when a caller passes a *literal* variable
   name to a user proc whose param carries `ProcArgTrait.VAR_READ` or
