@@ -82,25 +82,30 @@ silently breaks the verdict is caught.
 #### Reproducer
 
 ```tcl
-proc f {l} {
-    # contract: caller passes a 3-element list, e.g. {a b c}
-    lset l 3 X     ;# 3 == llength $l  -> APPENDS X (NOT an error)
-    return $l
-}
+# tclsh contract: lset at index == length APPENDS (legal, not an error).
+set l {a b c}      ;# llength=3
+lset l 3 X         ;# 3 == llength $l -> APPENDS X (NOT an error)
+puts $l            ;# use post-lset binding (silences W211 on l#2)
 ```
 
 #### Per-line reasoning
 
-1. `proc f {l}` — `l` is a parameter, so the analyser sees it as a defined
-   SSA value entering `entry_1` (no read-before-set, no dead store from any
-   preceding `set`).
-2. `lset l 3 X` — Tcl's `lset` documentation (`lset(n)`) states that when the
-   index equals the current list length, the element is **appended**. It only
-   errors for `index > length` or `index < 0`. So index `3` against a 3-element
-   `l` is the **append slot** — sound, not a bug.
-3. `return $l` — `l` is read after the lset, so even if the analyser briefly
-   considered the entry to `l` "dead w.r.t. the SSA rebind by lset", the actual
-   read keeps the post-lset version live and prevents a dead-store FP.
+1. `set l {a b c}` — `l#1` is a brace-literal list with **statically known**
+   length 3.  The SCCP lattice folds it to `CONST('a b c')` so the bounds
+   check at the next line has a concrete length to compare against.  A
+   parameter form (`proc f {l}`) would leave the length unknown and the
+   bounds check would silence itself trivially — the verdict would be
+   vacuous because *any* index, valid or invalid, would be silent.
+2. `lset l 3 X` — Tcl's `lset` documentation (`lset(n)`) states that when
+   the index equals the current list length, the element is **appended**.
+   It only errors for `index > length` or `index < 0`.  With the literal
+   list of length 3, the analyser sees the precise comparison `3 > 3`
+   (the strict comparator at `analyser/checks/_bounds.py:318`) and
+   returns **False** → no W231.  If a regression replaced `>` with `>=`
+   the same line would fire W231 and the catalog would visibly catch it.
+3. `puts $l` — uses the post-lset binding `l#2`, silencing the
+   unused-variable warning on the rebind (W211).  The dead-store warning
+   on `l#1` (W220) still fires — see "incidental noise" below.
 
 The verdict is **NOT a W231**: append at `index == length` is legal.
 
@@ -111,31 +116,51 @@ The verdict is **NOT a W231**: append at `index == length` is legal.
 a b c X
 ```
 
-(Compare: `lset l 4 X` on a 3-element list errors with `list index out of range`;
-`lset l -1 X` errors too. The append slot is the **only** non-error
-out-of-bounds index.)
+(Compare: `lset l 4 X` on a 3-element list errors with `list index out of
+range`; `lset l -1 X` errors too.  The append slot is the **only**
+non-error out-of-bounds index.)
 
 #### Compiler evidence
 
 ```
 --- FP-NAB-01: lset append-slot (index == length) is legal, NOT W231
 regen: python -m bench.fp_snippets --id FP-NAB-01
-function ::f
+function ::top
   block entry_1
-    [0] Call cmd='lset'  defs={l#1}  uses={}
-    term Return ${l}
+    [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
+    [1] Call cmd='lset'  defs={l#2}  uses={}
+    [2] Call cmd='puts'  defs={}  uses={l#2}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
   values (SCCP lattice)
-    l#1: OVERDEFINED
-  dead_stores: (none)
+    l#1: CONST('a b c')
+    l#2: OVERDEFINED
+  dead_stores
+    DeadStore(block='entry_1', statement_index=0, variable='l', version=1)
 ```
 
-- One SSA rebind of `l` (`l#1`) — the param entry is consumed by `lset`, which
-  rewrites it. SCCP cannot fold a `lset` result so the value is OVERDEFINED.
-- **`dead_stores: (none)`** — there is no spurious dead-store flag, exactly
-  what we want.
-- The bounds check that *would* fire here is W231; the catalog's negative test
-  asserts it does not fire (the `analyser/checks/_bounds.py:318-325` check uses
-  the strict `resolved > list_len` comparator, which permits append).
+- `l#1: CONST('a b c')` — the **statically known** length-3 list the bounds
+  check needs.  Without this concrete value, the W231-silent verdict would
+  be vacuous (parameter-form lengths are unknown and the check is silent
+  regardless of the comparator).
+- `l#2: OVERDEFINED` — SCCP cannot fold `lset`'s result.
+- The bounds check that *would* fire here is W231; the catalog's negative
+  test asserts it does **not** fire because the comparator at
+  `analyser/checks/_bounds.py:318` is strict `>`, which permits the append
+  slot.
+
+##### Incidental noise: the W220 on `l#1`
+
+The evidence includes `DeadStore(... variable='l', version=1)` and the
+diagnostic stream emits W220 on the `set l {a b c}` line.  This is a known
+modelling artefact: `lset l ...` syntactically writes to `l` and the SSA
+lowering records `defs={l#2}, uses={}` for the `lset` call — it doesn't
+record `l#1` as a use, even though `lset` semantically reads-modifies-
+writes.  So `l#1` looks dead w.r.t. the rebind.  This is incidental to
+the W231 verdict (it's a separate dead-store check) and the regression
+test (`tests/test_fp_nab.py::test_FP_NAB_01_append_slot_silent`) asserts
+only that **W231** stays silent.
 
 #### Why the analyser reaches that verdict
 

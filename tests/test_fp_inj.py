@@ -152,18 +152,18 @@ def test_FP_INJ_05_code_action_rewrites_to_eval_list():
     """TP / quick-fix: the W101 code-action rewrites the call to the safe
     `eval [list …]` form.  This locks in the literal replacement-text contract
     — a regression on the rewrite would silently degrade the LSP UX."""
-    src = 'proc f {x} { eval "process $x" }\n'
+    # Use a single-line reproducer so we can apply the fix to the source as
+    # a string and check the result byte-for-byte against the safe form.
+    src = 'eval "process $x"\n'
     diags = _diag_codes(src, "W101")
     assert diags, "test setup: eval of double-quoted must fire W101 to expose its quick-fix"
     diag = diags[0]
-    fixes = getattr(diag, "code_actions", None) or getattr(diag, "fixes", None) or ()
-    if not fixes:
-        # Quick-fix may live on the diagnostic data dict (LSP envelope).
-        data = getattr(diag, "data", None)
-        if isinstance(data, dict):
-            fixes = data.get("code_actions") or data.get("fixes") or ()
-    # Either we find the fix, OR the diagnostic only fires (acceptable — the
-    # rewrite contract is exercised in test_code_actions.py more thoroughly).
-    # This test just locks in the diagnostic; the rewrite-text guarantee is
-    # cross-locked via tests/test_checks.py::TestEvalInjection.
-    assert diags, 'W101 must fire on `eval "…"` — quick-fix lives in code-action layer'
+    # Quick-fixes are produced by `analyse(...)` -> `diagnostic.fixes` (see
+    # tests/test_checks.py::TestEvalInjection.test_eval_string_offers_list_fix).
+    fixes = getattr(diag, "fixes", ()) or ()
+    assert len(fixes) == 1, f"expected exactly one quick-fix on W101, got {fixes}"
+    fix = fixes[0]
+    rewritten = src[: fix.range.start.offset] + fix.new_text + src[fix.range.end.offset :]
+    assert rewritten == "eval [list process $x]\n", (
+        f"W101 quick-fix must rewrite to `eval [list process $x]`, got {rewritten!r}"
+    )

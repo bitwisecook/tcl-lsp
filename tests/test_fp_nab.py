@@ -33,17 +33,24 @@ def _all_codes(source: str, code: str):
 
 
 FP_NAB_01_REPRO = """\
-proc f {l} {
-    # contract: caller passes a 3-element list, e.g. {a b c}
-    lset l 3 X     ;# 3 == llength $l  -> APPENDS X (NOT an error)
-    return $l
-}
+# tclsh contract: lset at index == length APPENDS (legal, not an error).
+set l {a b c}      ;# llength=3
+lset l 3 X         ;# 3 == llength $l -> APPENDS X (NOT an error)
+puts $l            ;# use post-lset binding (silences W211 on l#2)
 """
 
 
 def test_FP_NAB_01_append_slot_silent():
     """FP guard: lset at index==length must NOT fire W231 (the append slot is
-    legal in tclsh; see docs/design/compiler/FP.md#fp-nab-01)."""
+    legal in tclsh; see docs/design/compiler/FP.md#fp-nab-01).
+
+    Uses a literal 3-element list so the bounds check has a *statically
+    known* length to compare against — index 3 then exercises the precise
+    `index == length` append slot.  A parameter form (l as a proc arg)
+    would have unknown length and the verdict would be vacuous: the test
+    would still pass if the analyser regressed `>` to `>=` because
+    unknown-length lists never fire the bounds check at all.
+    """
     assert _all_codes(FP_NAB_01_REPRO, "W231") == []
 
 

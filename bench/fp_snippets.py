@@ -231,23 +231,28 @@ register(
     "FP-NAB-01",
     _Entry(
         label="lset append-slot (index == length) is legal, NOT W231",
-        proc="::f",
+        proc="::top",
         vars=("l",),
         show=("ssa", "values", "dead", "unused"),
         notes=(
             "tclsh-verified: `lset l 3 X` on a 3-element list APPENDS X (not an error).\n"
             "Analyser path: analyser/checks/_bounds.py:318 uses `resolved > list_len`,\n"
-            "which correctly permits index==len.  The confirm-correct audit dates to the\n"
-            "Phase-3 interval-bounds rewire.  Uses a parameter so the proc has no\n"
-            "incoming SSA dead-store noise from a `set` immediately overwritten by lset."
+            "which correctly permits index==len.\n"
+            "\n"
+            "The reproducer uses a literal 3-element list (`set l {a b c}`) so the\n"
+            "bounds check has a *statically known* length to compare index 3 against.\n"
+            "With a parameter form the length would be unknown and the verdict would\n"
+            "be vacuous (the check never fires for unknown-length lists regardless of\n"
+            "the comparator); the literal form precisely exercises the `index == length`\n"
+            "slot and would visibly regress to W231 if the comparator changed from\n"
+            "`>` to `>=`."
         ),
         source=_dedent(
             """
-            proc f {l} {
-                # contract: caller passes a 3-element list, e.g. {a b c}
-                lset l 3 X      ;# index==len -> APPEND, not out-of-range
-                return $l
-            }
+            # tclsh contract: lset at index == length APPENDS (legal, not an error).
+            set l {a b c}      ;# llength=3
+            lset l 3 X         ;# 3 == llength $l -> APPENDS X (NOT an error)
+            puts $l            ;# use post-lset binding (silences W211 on l#2)
             """
         ),
     ),
