@@ -249,21 +249,23 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   20 large tcllib files audit as genuine vestigial vars (`alpha = asin(r)`
   computed but never used in `mapproj`, `set noskip 1` flag never tested,
   etc.) — no further FP class identified.
-- [~] **S102** shimmer (358) — phi-merge shimmer mostly TPs (DES/
+- [x] **S102** shimmer (358) — phi-merge shimmer mostly TPs (DES/
   blowfish `set right [expr {$right ^ $cbcright}]` is genuine
   string-build-then-XOR; snit `valcommand` list→string per `uplevel`
-  is genuine).  Hex/binary integer literals (``0x80``, ``0b1010``)
-  now type as INT (was STRING) — small but real S100/S101 reduction
-  on hex-heavy code (idna, DES, AES).  One identified FP class still
-  open: **destructure-foreach pollutes loop_body_types**.  tcllib
-  pattern: ``foreach {a b c sv ...} $state break`` at proc-top
-  (destructure idiom, single-iter due to ``break``) followed by a
-  real main loop with ``set sv [list ...]``.  The destructure's
-  STRING binding (the foreach var binding) ends up in the main
-  loop's body_types (which is currently FUNCTION-WIDE, not per-loop)
-  and triggers S102 on the main loop's phi.  Fix needs either
-  per-loop body_types OR foreach-bindings classified as entry-not-
-  body.  me_cpucore.tcl 48 firings are this class.
+  is genuine).  Two FP fixes shipped:
+  1. **Hex/binary integer literals** (``0x80``, ``0b1010``) now type
+     as INT (was STRING).  Small but real reduction on hex-heavy
+     code (idna, DES, AES).
+  2. **Destructure-foreach pollution**: ``foreach VARS LIST break``
+     (pre-8.5 ``lassign`` equivalent — single-iter foreach used as
+     a multi-assign) was contributing its var bindings to the
+     function-wide ``loop_body_types`` map.  When the same vars
+     were later assigned different types in a REAL main loop, S102
+     fired on the main loop's phi even though there's no real
+     oscillation (destructure runs once).  Detect destructure
+     foreach (body block contains only ``IRCall(break)``) and
+     exclude its blocks from ``in_loop`` body-type collection.
+     me_cpucore.tcl: S101 113→82, S102 48→29.
 - [~] **W123** unresolved command (1761) — mostly real missing stubs (argparse,
   dget/dexist, custom widget cmds). Not analyser FPs, but a per-package stub
   pass would cut noise. Triage which are stdlib-ish vs project-local.
