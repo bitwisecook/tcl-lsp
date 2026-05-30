@@ -55,12 +55,22 @@ def test_FP_TNT_01_cmd_sub_arg_position_no_t100():
 
 def test_FP_TNT_01_direct_operand_still_fires():
     """TP control: when the tainted value IS a direct expr operand
-    (``expr {$data + 1}``), T100 fires — that's the genuine injection
-    vector for unbraced expr where the substituted value is re-parsed."""
+    (``expr {$data + 1}``), T100 fires.
+
+    NOTE: this is NOT a code-execution vector for the braced form --
+    Tcl's braced ``expr`` does NOT re-parse a direct-operand value as
+    expression text (tclsh-verified: ``set data {[puts X]}; expr
+    {$data + 1}`` errors with "cannot use ... as left operand", does
+    NOT execute the ``[puts]``).  T100 here is the
+    numeric/type-coercion hazard: ``$data = "inf"`` yields ``inf``;
+    ``$data = "0xff"`` is parsed as 255 even if the writer expected
+    base-10.  See FP-TNT-01 in FP.md.  Code-execution injection in
+    expr is the UNBRACED form ``expr $data + 1`` (covered by W101,
+    FP-INJ-05)."""
     src = """\
 proc f {} {
     set data [gets stdin]
-    # $data is a DIRECT expr operand -- substituted into the expr text.
+    # $data is a DIRECT expr operand -- Tcl's numeric coercion path.
     expr {$data + 1}
 }
 """
@@ -69,7 +79,8 @@ proc f {} {
 
 def test_FP_TNT_01_function_arg_direct_operand_still_fires():
     """TP control: ``expr {abs($data)}`` -- $data is a direct argument of
-    the expr-level function `abs`, NOT a cmd-sub.  Still fires T100."""
+    the expr-level function `abs` (still numeric-coercion sink),
+    NOT inside a Tcl cmd-sub.  Still fires T100."""
     src = """\
 proc f {} {
     set data [gets stdin]

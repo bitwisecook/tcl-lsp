@@ -164,15 +164,39 @@ def test_FP_NAB_04_string_eq_fires_w110_o120():
 # FP-NAB-05 — W304 missing ``--`` terminator (TP)
 
 
-FP_NAB_05_REPRO = "proc f {x} { switch $x { -opt {} default {} } }"
+# Primary reproducer: ``file delete`` with a substituted path.  This is
+# an unambiguous TP -- if ``$f`` starts with ``-``, Tcl interprets it as
+# an option flag, not a path.
+FP_NAB_05_REPRO = "proc f {f} { file delete $f }"
+
+# Secondary reproducer: the **split** switch form (options before
+# string) is the genuine switch hazard; tclsh-verified to interpret
+# ``$x = -nocase`` as the option.  The braced pattern-list form
+# (``switch $x { ... }``) is NOT a runtime hazard -- Tcl recognises
+# the trailing brace-list unambiguously -- though the analyser
+# conservatively fires W304 on it too.
+FP_NAB_05_SWITCH_SPLIT_REPRO = "switch $x -nocase {puts hit1} default {puts hit2}"
 
 
-def test_FP_NAB_05_switch_missing_dash_dash_fires_w304():
-    """TP confirmation: ``switch $x`` without ``--`` will consume a
-    leading-dash value as an option (tclsh-verified).  Affected uses
-    span 1453 corpus firings -- audited as genuine TPs."""
+def test_FP_NAB_05_file_delete_missing_dash_dash_fires_w304():
+    """TP confirmation: ``file delete $f`` without ``--`` will consume a
+    leading-dash value of ``$f`` as an option (e.g. ``$f = "-force"``
+    becomes a force-flag with no path argument; tclsh-verified)."""
     diags = [d for d in get_diagnostics(FP_NAB_05_REPRO) if d.code == "W304"]
-    assert diags, f"expected W304 on switch missing --; got {get_diagnostics(FP_NAB_05_REPRO)}"
+    assert diags, f"expected W304 on `file delete $f`; got {get_diagnostics(FP_NAB_05_REPRO)}"
+
+
+def test_FP_NAB_05_switch_split_form_missing_dash_dash_fires_w304():
+    """TP confirmation: the split switch form (options-before-string,
+    e.g. ``switch $x -nocase {...} default {...}``) IS a genuine
+    hazard.  Confirmed in tclsh 9.0.3: with ``$x = "-nocase"``, Tcl
+    interprets the substituted ``-nocase`` as the option and the
+    match falls through to ``default``; with ``--`` guard it
+    correctly matches the ``-nocase`` pattern."""
+    diags = [d for d in get_diagnostics(FP_NAB_05_SWITCH_SPLIT_REPRO) if d.code == "W304"]
+    assert diags, (
+        f"expected W304 on split switch form; got {get_diagnostics(FP_NAB_05_SWITCH_SPLIT_REPRO)}"
+    )
 
 
 # FP-NAB-06 — W103 ``open`` variable arg / pipe (TP)

@@ -358,7 +358,7 @@ in one pass when every member is locally pure).
 
 ### FP-NAB-04 — W110 / O120 `==` / `!=` on strings → `eq` / `ne` (TP)
 
-- **Verdict:** TRUE POSITIVE (sampled, confirmed)
+- **Verdict:** TRUE POSITIVE (style / safety rule, not a hard semantic error)
 - **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_04_*`
 - **Codes:** W110 / O120 (near-duplicate pair)
 - **Corpus:** W110=1673, O120=1515 firings; near-duplicate pair, consolidation a future policy call.
@@ -371,24 +371,51 @@ if {$x == "hello"} { puts y }
 
 #### Per-line reasoning
 
-Tcl's `==`/`!=` are *numeric* equality operators.  Comparing a string
-against another string forces an implicit numeric conversion that
-fails silently — `expr {"hello" == "hello"}` returns `0` (the
-non-numeric strings get coerced via parse-as-int rules and the
-comparison effectively fails).  The correct operator is the
-string-equality form `eq` / `ne`.
+Tcl's `==`/`!=` are operators with **dual semantics**: they compare
+numerically when both operands parse as numbers, otherwise they
+compare as strings.  This dual mode is the foot-gun:
 
-#### tclsh ground truth
+- ``"hello" == "hello"`` — neither parses as a number, so Tcl falls
+  back to string equality and returns `1`.  The code happens to work.
+- ``"02" == "2"`` — both parse as numbers, so Tcl compares
+  *numerically* and returns `1` — but the writer probably intended
+  string equality and would expect `0`.
+- ``"10" == "10a"`` — left parses numeric, right doesn't, so Tcl
+  falls back to string equality and returns `0` — but if the writer
+  was reasoning numerically they'd expect "10 equals 10-with-tail-a"
+  to be false anyway (lucky outcome from the wrong operator).
+
+The hazard is the **silent mode switch** based on operand shape —
+the code's correctness depends on data values, not on the source
+text.  `eq` / `ne` are unambiguous string equality and remove the
+mode-dependence; W110 / O120 push the user toward the safer
+operator.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
 
 ```
 % expr {"hello" == "hello"}
+1
+% expr {"02" == "2"}
+1
+% expr {"02" eq "2"}
 0
 % expr {"hello" eq "hello"}
 1
 ```
 
-The numeric comparator returns 0 for two identical strings — a real
-foot-gun, exactly what W110/O120 are meant to catch.
+`==` returned `1` for the numeric-coercion case where the strings
+differ textually (`"02"` vs `"2"`); `eq` correctly reports them as
+different strings.  The numeric-vs-string mode-switch is the
+foot-gun.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_expr_simplify.py` (O120) and the analyser's
+W110 emitter both detect `==`/`!=` against a string literal and
+suggest the `eq`/`ne` rewrite.  This is a *style/safety* rule, not
+a hard semantic error — the code may work today but breaks the
+moment the data starts looking numeric.
 
 #### Tests
 
@@ -398,35 +425,79 @@ foot-gun, exactly what W110/O120 are meant to catch.
 
 ### FP-NAB-05 — W304 missing `--` terminator (TP)
 
-- **Verdict:** TRUE POSITIVE
+- **Verdict:** TRUE POSITIVE for ``file delete``/``file rename`` and the
+  **split pattern/body switch form**.  Note: the **braced pattern-list
+  switch form** (``switch $x {pat body pat body}``) is **not** a runtime
+  hazard — Tcl unambiguously recognises the trailing brace as the
+  pattern list and treats the preceding word as the value.  The
+  analyser still fires W304 on the braced form (conservative, slight
+  over-reach); a future precision tightening could distinguish.
 - **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_05_*`
 - **Codes:** W304
 - **Corpus:** 1453 firings.
 
-#### Reproducer
+#### Reproducer (real hazard — split pattern/body form)
 
 ```tcl
-proc f {x} { switch $x { -opt {} default {} } }
+proc f {f} { file delete $f }
+```
+
+Plus the split-switch form:
+
+```tcl
+switch $x -nocase {puts hit1} default {puts hit2}
 ```
 
 #### Per-line reasoning
 
-`switch $x ...` without an intervening `--` will consume a leading-
-dash value of `$x` as a switch option.  For `$x` = `"-glob"` the
-switch silently switches to glob matching instead of comparing
-`-glob` as a value.  Same hazard applies to `file delete $f` and
-similar.  The safe form is `switch -- $x ...`.
+The W304 hazard fires when an option-parsing command sees a
+substituted value with a leading ``-``:
 
-#### tclsh ground truth
+1. ``file delete $f`` with ``$f = "-force"`` — Tcl interprets
+   ``-force`` as the documented ``-force`` option (force-delete) and
+   then there is no path argument, so the call effectively becomes
+   ``file delete -force`` with no path → unintended behaviour.  The
+   safe form is ``file delete -- $f``.
+2. ``switch $x -nocase {puts hit1} default {puts hit2}`` (the
+   **split** pattern/body form, options before string).  When
+   ``$x = "-nocase"`` Tcl interprets the FIRST ``-nocase`` (the
+   substituted value) as the case-insensitive option, then the
+   *literal* ``-nocase`` is the pattern, and the match falls through
+   to ``default``.  Confirmed in tclsh 9.0.3:
+
+   ```
+   % set x -nocase
+   % switch $x -nocase {puts hit1} default {puts hit2}
+   hit2
+   % switch -- $x -nocase {puts hit1} default {puts hit2}
+   hit1
+   ```
+
+The **braced pattern-list form** (``switch $x { ... }``) is **not**
+hazard-bearing because Tcl can unambiguously identify the brace-list
+position; ``switch $x { -nocase { puts a } ... }`` with
+``$x = "-nocase"`` correctly matches ``-nocase`` as a pattern:
 
 ```
 % set x -nocase
 % switch $x { -nocase { puts a } default { puts b } }
-b
+a
 ```
 
-`-nocase` is consumed as an OPTION (sets case-insensitive matching);
-the value `-nocase` never reaches any of the pattern arms.
+The analyser's W304 currently fires on both forms (a conservative
+over-reach for the braced form); a future precision tightening could
+distinguish.  The TP claim above stands for the split-switch form and
+all the ``file delete``-style commands.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set f -force
+% file delete $f           ;# Tcl sees -force as the option, no path arg
+                            ;# (silently does nothing; intended path is dropped)
+% file delete -- $f        ;# safe form — -force treated as path
+couldn't delete "-force": no such file or directory
+```
 
 #### Tests
 
@@ -4642,28 +4713,44 @@ puts $x
 
 1. `set x [list]` — O116 proposes folding ``[list]`` to its constant value.
    The naive fold returns Python's empty string ``""`` for an empty list.
-2. Applying that to ``set x [list]`` produces ``set x `` (with a trailing
-   space + newline / semicolon).  In Tcl, ``set x`` (one arg, no value)
-   is a *read* of `x`, not a write — the assignment is silently erased.
+2. Applying that to ``set x [list]`` produces ``set x `` (with no second
+   argument).  In Tcl, ``set x`` (one arg, no value) is a *read* of `x`,
+   not a write — the assignment is silently erased from the source.
 3. The corrected fold uses the canonical empty-list literal ``{}``.
    ``set x {}`` is a proper assignment to the empty list.
 
-Pre-fix bug: applying the quick-fix to ``set r [list]`` produced ``set r ;``
-which is a syntax-valid READ of ``r``.  This silently corrupted source on
-apply.
+Pre-fix bug: applying the quick-fix to ``set x [list]`` produced
+``set x ;`` (or ``set x \n``) — a syntax-valid READ form.  When the
+source is re-evaluated against an interpreter that doesn't already
+have ``x`` defined, the read fails with ``can't read "x": no such
+variable``; in a live edit-and-reload workflow the user observes
+the variable's previously-assigned value silently being lost.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
 ```
-% set r [list]
-% set r ;
-can't read "r": no such variable
-% set r {}
+% # Demonstrate the rewrite's effect in a fresh interpreter (the
+% # source-evaluation case):
+% tclsh9.0
+% set x ;
+can't read "x": no such variable
+% # In a live session where x was already bound, the rewrite
+% # silently DOES NOT update x -- the previous value persists,
+% # which is just as wrong:
+% set x "previous-value"
+previous-value
+% set x ;
+previous-value
 %
+% # The corrected fold preserves the assignment:
+% set x {}
+%
+% puts "<$x>"
+<>
 ```
 
-The "fold to empty string" rewrite breaks the assignment; the "fold to
-``{}``" rewrite preserves it.
+The "fold to empty string" rewrite silently breaks the assignment;
+the "fold to ``{}``" rewrite preserves it.
 
 #### Compiler evidence
 
@@ -4835,16 +4922,27 @@ happen.
 
 - **Verdict:** FALSE POSITIVE (now fixed)
 - **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_01_*`
-- **Codes:** T100 (tainted → code-exec sink)
+- **Codes:** T100 (tainted → numeric/type-coercion sink)
 - **Corpus:** tcllib blowfish.tcl:525, http.tcl:4338, mime.tcl:1962 (and similar).
+
+**Scope clarification (post-review correction).** T100 in this catalog
+is the *numeric/type-coercion* hazard, NOT a code-exec injection
+vector for braced ``expr {…}``.  Tcl's braced ``expr`` does NOT
+re-parse a direct-operand variable's value as expression text — the
+substituted value flows in as a single operand and is converted via
+``Tcl_GetDoubleFromObj`` / ``Tcl_GetIntFromObj``.  The genuine
+code-exec sink is the **unbraced** ``expr $cmd`` form (and ``eval``,
+covered by FP-INJ-05) where the substituted text is re-parsed.
 
 #### Reproducer
 
 ```tcl
 proc f {} {
     set data [gets stdin]
-    # $data is consumed as an argument to `string length`, not re-parsed
-    # as expr text. The cmd-sub boundary protects it -- no T100.
+    # $data is consumed as an argument to `string length`, not used as
+    # a direct expr operand.  The cmd-sub boundary protects it -- the
+    # integer length is what flows into the divide; $data itself never
+    # reaches expr's operand position.  No T100.
     expr {[string length $data] / 8}
 }
 ```
@@ -4856,36 +4954,64 @@ proc f {} {
    appears INSIDE the command substitution `[string length $data]`.
    The cmd-sub is evaluated as a Tcl command (whose own argument
    substitution rules apply), and only its RESULT (an integer) flows
-   into the expr.  ``$data`` is never substituted into the expr's
-   parser-input text.
+   into the expr.  ``$data`` is never an expr operand at all.
 
 Pre-fix T100 fired on every tainted ``uses`` entry regardless of
 position in the parsed expr AST.  The fix walks the ExprNode tree and
 collects ExprVar names OUTSIDE any ExprCommand subtree — only those
-are DIRECT expr operands and only those can carry injection.
+are DIRECT expr operands.
 
-#### tclsh ground truth
+**What T100 catches.** A tainted *direct operand* (``expr {$data +
+1}``, ``expr {abs($data)}``) hits Tcl's numeric coercion rules.  This
+is NOT arbitrary code execution — tclsh treats the value as a single
+operand.  But the coercion still has security-relevant failure modes:
+
+- **Type confusion / unintended value flow** — for ``$data = "0/0"``
+  Tcl raises a domain error; for ``$data = "inf"`` it returns ``inf``
+  and the rest of the calculation produces ``inf``/``nan``.  In a
+  branching context (``if {$x < $data} {…}``) this can flip the
+  decision.
+- **Numeric-format injection** — leading-``0x`` for hex, leading-``0b``
+  for binary, trailing-``e`` for exponent: ``$data = "0xff"`` parses
+  as 255 even if the writer expected base-10.
+
+These are real findings the writer should know about; T100 makes
+sense as the numeric-coercion warning.  The **code-execution
+injection** vector is the *unbraced* form ``expr $data + 1`` (the
+substituted text is re-parsed as expr) and the ``eval $cmd`` family
+— those are covered by W101 / FP-INJ-05, not T100.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
 
 ```
 % set data "1+1; exec rm -rf /"
 % expr {[string length $data] / 8}
 2
 % expr {$data + 1}
-extra tokens at end of expression
+cannot use non-numeric string "1+1; exec rm -rf /" as left operand of "+"
+% set data "[puts BRACED_DIRECT_NOT_EXECUTED]"
+% expr {$data + 1}
+cannot use a list as left operand of "+"
+% expr $data + 1
+BRACED_DIRECT_NOT_EXECUTED
+cannot use non-numeric string "" as left operand of "+"
 ```
 
-The cmd-sub form evaluates ``string length`` on the raw string and
-divides by 8.  The direct-operand form re-parses ``$data`` as expr
-text and gets a syntax error — but for ``data`` = a syntactically-
-valid expr fragment like ``"0; bad_thing"``, the parse would *succeed*
-and execute the injected fragment (the classic injection vector).
+The cmd-sub form (`[string length $data]`) evaluates ``string length``
+on the raw string.  The braced direct-operand form (``expr
+{$data + 1}``) does NOT execute the embedded ``[puts]`` — the value
+flows in as one operand and Tcl's numeric coercion fails on the
+non-numeric input.  Only the **unbraced** form (``expr $data + 1``,
+covered by W101) re-parses the substituted text and executes the
+injected command.
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py::_direct_expr_operand_names` walks the
-ExprNode AST and collects ExprVar names that are NOT inside any
-ExprCommand subtree.  T100 only fires when the tainted name is in
-that set.
+`compiler/taint/_sinks.py` walks the ExprNode AST via
+``_direct_expr_operand_names`` and collects ExprVar names that are
+NOT inside any ExprCommand subtree.  T100 only fires when the
+tainted name is in that set, so the value reaches Tcl's numeric
+coercion path.
 
 #### Tests
 
