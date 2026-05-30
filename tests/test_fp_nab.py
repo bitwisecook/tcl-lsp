@@ -142,6 +142,136 @@ def test_FP_NAB_03_recursive_proc_detected_pure():
     )
 
 
+# FP-NAB-04 — W110 / O120 ``==`` / ``!=`` on strings → `eq` / `ne` (TP)
+
+
+FP_NAB_04_REPRO = 'if {$x == "hello"} { puts y }'
+
+
+def test_FP_NAB_04_string_eq_fires_w110_o120():
+    """TP confirmation: ``==``/``!=`` against a string literal must fire
+    W110 (and its near-duplicate O120) — Tcl's ``==`` is *numeric*
+    equality; using it against a string forces an implicit conversion
+    and silently returns false when the string isn't numeric.  The
+    correct operator is ``eq`` / ``ne``.
+
+    Corpus: W110=1673, O120=1515 (near-duplicate pair; consolidation
+    is a future policy call).  Both audited as genuine TPs."""
+    diags = [d for d in get_diagnostics(FP_NAB_04_REPRO) if d.code in ("W110", "O120")]
+    assert diags, f"expected W110 or O120 on string ==; got {get_diagnostics(FP_NAB_04_REPRO)}"
+
+
+# FP-NAB-05 — W304 missing ``--`` terminator (TP)
+
+
+FP_NAB_05_REPRO = "proc f {x} { switch $x { -opt {} default {} } }"
+
+
+def test_FP_NAB_05_switch_missing_dash_dash_fires_w304():
+    """TP confirmation: ``switch $x`` without ``--`` will consume a
+    leading-dash value as an option (tclsh-verified).  Affected uses
+    span 1453 corpus firings -- audited as genuine TPs."""
+    diags = [d for d in get_diagnostics(FP_NAB_05_REPRO) if d.code == "W304"]
+    assert diags, f"expected W304 on switch missing --; got {get_diagnostics(FP_NAB_05_REPRO)}"
+
+
+# FP-NAB-06 — W103 ``open`` variable arg / pipe (TP)
+
+
+FP_NAB_06_REPRO = 'proc f {cmd} { set fh [open "|$cmd" r] }'
+
+
+def test_FP_NAB_06_open_variable_pipe_fires_w103():
+    """TP confirmation: ``open "|$cmd" r`` pipes through the substituted
+    command — even with an explicit access mode, the leading ``|``
+    forces pipe execution (tclsh-verified).  Audited as a genuine
+    injection vector (398 corpus firings)."""
+    diags = [d for d in get_diagnostics(FP_NAB_06_REPRO) if d.code == "W103"]
+    assert diags, f"expected W103 on `open |$cmd`; got {get_diagnostics(FP_NAB_06_REPRO)}"
+
+
+# FP-NAB-07 — W313 destructive op with variable path (TP)
+
+
+FP_NAB_07_REPRO = "proc f {p} { file delete $p }"
+
+
+def test_FP_NAB_07_destructive_variable_path_fires_w313():
+    """TP confirmation: ``file delete $p`` with a substituted path is a
+    real foot-gun -- the variable could resolve to anything from a
+    pathspec error to a path-traversal payload.  Audited as TP (95
+    corpus firings)."""
+    diags = [d for d in get_diagnostics(FP_NAB_07_REPRO) if d.code == "W313"]
+    assert diags, f"expected W313 on `file delete $p`; got {get_diagnostics(FP_NAB_07_REPRO)}"
+
+
+# FP-NAB-08 — W212 substitution where var-name expected (TP)
+
+
+FP_NAB_08_REPRO = "proc f {name v} { set $name $v }"
+
+
+def test_FP_NAB_08_set_substituted_name_fires_w212():
+    """TP confirmation: ``set $name $v`` -- substituting the variable
+    name is a dynamic-name foot-gun (the variable could be created
+    anywhere depending on $name's value).  Audited TP across 390
+    corpus firings; ``upvar`` / ``dict`` / ``trace`` / ``namespace
+    which`` are correctly exempt."""
+    diags = [d for d in get_diagnostics(FP_NAB_08_REPRO) if d.code == "W212"]
+    assert diags, f"expected W212 on `set $name`; got {get_diagnostics(FP_NAB_08_REPRO)}"
+
+
+def test_FP_NAB_08_incr_substituted_name_fires_w212():
+    """TP confirmation: same for ``incr $x``."""
+    src = "proc f {x} { incr $x }"
+    diags = [d for d in get_diagnostics(src) if d.code == "W212"]
+    assert diags, f"expected W212 on `incr $x`; got {get_diagnostics(src)}"
+
+
+# FP-NAB-09 — W301 uplevel multi-arg concatenation (TP)
+
+
+FP_NAB_09_REPRO = "proc f {a b} { uplevel 1 puts $a $b }"
+
+
+def test_FP_NAB_09_uplevel_multiarg_fires_w301():
+    """TP confirmation: ``uplevel 1 cmd $a $b`` concatenates its args into
+    a single script string before evaluation -- the substituted values
+    are re-parsed as command syntax (injection risk).  The safe idiom
+    is ``uplevel 1 [list cmd $a $b]`` or ``uplevel 1 $body`` (bare-var
+    form, see FP-INJ-01).  Audited TP (291 corpus firings, logger.tcl
+    idioms)."""
+    diags = [d for d in get_diagnostics(FP_NAB_09_REPRO) if d.code == "W301"]
+    assert diags, f"expected W301 on multi-arg uplevel; got {get_diagnostics(FP_NAB_09_REPRO)}"
+
+
+# FP-NAB-10 — W002 disabled-in-dialect (TP after dialect-aware harness)
+
+
+def test_FP_NAB_10_dict_disabled_in_tcl_8_4_fires_w002():
+    """TP confirmation: ``dict`` was added in Tcl 8.5; using it in a
+    file targeting Tcl 8.4 must fire W002 (command disabled in
+    dialect).  Earlier "FP" reports of W002 firing on
+    ``oo::configurable`` were a harness artefact (the harness didn't
+    detect the dialect), not real FPs.  Wrap analysis in
+    ``dialect_scope("tcl8.4")`` to make the verdict explicit."""
+    from compiler.registry.dialect import dialect_scope
+
+    with dialect_scope("tcl8.4"):
+        diags = [d for d in get_diagnostics("dict create a 1") if d.code == "W002"]
+        assert diags, "dict in Tcl 8.4 must fire W002 (command disabled in dialect)"
+
+
+def test_FP_NAB_10_dict_enabled_in_tcl_9_0_silent():
+    """FP control: same ``dict`` call in Tcl 9.0 must NOT fire W002 -
+    proves the verdict is dialect-aware, not a blanket suppression."""
+    from compiler.registry.dialect import dialect_scope
+
+    with dialect_scope("tcl9.0"):
+        diags = [d for d in get_diagnostics("dict create a 1") if d.code == "W002"]
+        assert not diags, f"dict in Tcl 9.0 must NOT fire W002; got {diags}"
+
+
 def test_FP_NAB_03_impure_proc_still_detected():
     """Control: an impure proc using puts must come out pure=False.  Proves the
     test isn't trivially asserting all procs pure."""
