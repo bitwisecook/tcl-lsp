@@ -114,7 +114,7 @@ from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
-from .var_refs import VarReferenceScanner, body_write_names
+from .var_refs import VarReferenceScanner, body_write_names, command_sub_write_names
 
 if TYPE_CHECKING:
     from .def_use import DefUseResult
@@ -2620,6 +2620,14 @@ def _read_before_set(
     # ``[...]`` is one opaque value word — so a later ``$msg`` read shows up as
     # a spurious version-0 read-before-set.  Collect those written names and
     # exempt them (name-level, like the dict-with exemption above).
+    #
+    # Also scan the block's terminator: a return value or branch condition can
+    # contain ``[set x ...]`` (e.g.
+    # ``return [read [set x [open $f r]]][close $x]`` — the standard
+    # open-read-close idiom in tcllib's installer).  Without scanning the
+    # terminator, the ``$x`` read inside ``[close $x]`` (extracted by
+    # ``_vars_in_return``) looks unset because ``set x`` was inside an opaque
+    # command-sub of the same return value.
     for bn in considered:
         block = cfg.blocks.get(bn)
         if block is None:
@@ -2628,6 +2636,16 @@ def _read_before_set(
             cs_writes = statement_cmd_sub_write_names(stmt)
             if cs_writes:
                 skip = skip | cs_writes
+        term = block.terminator
+        if isinstance(term, CFGReturn):
+            if term.value is not None:
+                skip = skip | command_sub_write_names(term.value)
+            if term.expr is not None:
+                for cmd_text in command_texts_in_expr_node(term.expr):
+                    skip = skip | command_sub_write_names(cmd_text)
+        elif isinstance(term, CFGBranch):
+            for cmd_text in command_texts_in_expr_node(term.condition):
+                skip = skip | command_sub_write_names(cmd_text)
 
     # ``info exists``/``array exists`` guards — main's #502 added per-block flow-
     # sensitive narrowing (``_existence_narrowed_blocks`` above; consulted via
