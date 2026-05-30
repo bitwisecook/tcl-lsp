@@ -2562,7 +2562,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/place.py`'s `overlap()` relation: two ARRAY_ELEM Places overlap iff they share name + a non-disjoint key set.  Literal `k` and `j` are disjoint → no overlap → no kill → first write stays alive.  See `analyser/checks/_array_dead_store.py` for the W220 check that consumes the Place model.
+`compiler/place.py`'s `overlap()` relation: two ARRAY_ELEM Places overlap iff they share name + a non-disjoint key set.  Literal `k` and `j` are disjoint → no overlap → no kill → first write stays alive.  See `analyser/_analyser/_diag_var_lifecycle.py` for the W220 check that consumes the Place model.
 
 #### Tests
 
@@ -2702,7 +2702,7 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_shimmer.py`'s entry filter skips values whose `LatticeKind` is `OVERDEFINED` or `UNKNOWN`.  See also the `force-OVERDEFINED-for-escaping` rule in `compiler/core_analyses.py` that pushes values to OVERDEFINED on call-out — the same sound-but-imprecise tradeoff at the call-graph boundary.
+`compiler/shimmer.py`'s entry filter skips values whose `LatticeKind` is `OVERDEFINED` or `UNKNOWN`.  See also the `force-OVERDEFINED-for-escaping` rule in `compiler/core_analyses.py` that pushes values to OVERDEFINED on call-out — the same sound-but-imprecise tradeoff at the call-graph boundary.
 
 #### Tests
 
@@ -3154,7 +3154,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/snit.py` defines the SNIT_RESERVED constant `{self, type, selfns, win, hull, ...}`.  `analyser/checks/_object_dispatch.py` exempts those names when the enclosing scope is a snit type / widget body.
+`dialects/tcllib/snit.py` defines the SNIT_RESERVED constant `{self, type, selfns, win, hull, ...}`.  `analyser/_analyser/_diag_var_command.py` exempts those names when the enclosing scope is a snit type / widget body.
 
 #### Tests
 
@@ -3201,7 +3201,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`SNIT_RESERVED` in `compiler/snit.py` includes `hull`.  Same dispatch-check exemption as FP-OBJ-01.
+`SNIT_RESERVED` in `dialects/tcllib/snit.py` includes `hull`.  Same dispatch-check exemption as FP-OBJ-01.
 
 #### Tests
 
@@ -3252,7 +3252,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/snit.py` records the type's `variable` / `component` / `option` / `typevariable` declarations into a `BodyInventory` keyed on type name.  The W307 check exempts dispatches whose target name is in that inventory when the enclosing scope is the type body.
+`dialects/tcllib/snit.py` records the type's `variable` / `component` / `option` / `typevariable` declarations into a `BodyInventory` keyed on type name.  The W307 check exempts dispatches whose target name is in that inventory when the enclosing scope is the type body.
 
 #### Tests
 
@@ -3312,7 +3312,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/object_provenance.py` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `analyser/checks/_object_dispatch.py` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
+`analyser/_analyser/_diag_var_command.py` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `analyser/_analyser/_diag_var_command.py` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
 
 #### Known precision gap (open)
 
@@ -3401,7 +3401,7 @@ function ::use
 
 #### Why the analyser reaches that verdict
 
-`compiler/snit.py` builds the type's create-form receiver: any `[Foo create ARGS]` or `[Foo ARGS]` (the create-shorthand) where `Foo` is a registered snit type produces an instance-typed value.  Receiver dispatches inherit the exemption.
+`dialects/tcllib/snit.py` builds the type's create-form receiver: any `[Foo create ARGS]` or `[Foo ARGS]` (the create-shorthand) where `Foo` is a registered snit type produces an instance-typed value.  Receiver dispatches inherit the exemption.
 
 #### Tests
 
@@ -3455,7 +3455,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/snit.py` registers inner `proc` declarations with the analyser pipeline; the body is compiled and walked through every check.  This entry exists to lock the contract — a refactor that silently drops the body would catch the W216 disappearance.
+`dialects/tcllib/snit.py` registers inner `proc` declarations with the analyser pipeline; the body is compiled and walked through every check.  This entry exists to lock the contract — a refactor that silently drops the body would catch the W216 disappearance.
 
 #### Tests
 
@@ -3687,7 +3687,7 @@ The returned value IS the object handle; dispatch works as expected.
 
 #### Why the analyser reaches that verdict
 
-The interproc fixpoint at `compiler/interproc/` tags procs whose
+The interproc fixpoint at `compiler/interprocedural.py` tags procs whose
 return value is itself an object handle (direct `return [factory]`,
 indirect `return $X` where X transitively traces to a factory).
 W307 suppresses dispatch on locals assigned from object-returning
@@ -3770,7 +3770,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/sccp.py` (or `compiler/optimiser/_helpers.py` — see the reachability worklist) treats `break` / `continue` as CFG edges into their enclosing loop's exit / latch block when feeding reachability.  The bytecode lowering still emits the jump as a statement so default-bytecode codegen stays tclsh-identical.
+`compiler/core_analyses.py` (or `compiler/optimiser/_helpers.py` — see the reachability worklist) treats `break` / `continue` as CFG edges into their enclosing loop's exit / latch block when feeding reachability.  The bytecode lowering still emits the jump as a statement so default-bytecode codegen stays tclsh-identical.
 
 #### Tests
 
@@ -4033,7 +4033,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_uplevel.py` walks the second-arg word: a single `WordSubst` whose source is a single `$var` (no surrounding quoted text) is the safe form; any quoted-text + `$var` mixture is the risky form.
+`analyser/checks/_domain.py` walks the second-arg word: a single `WordSubst` whose source is a single `$var` (no surrounding quoted text) is the safe form; any quoted-text + `$var` mixture is the risky form.
 
 #### Tests
 
@@ -4089,7 +4089,7 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_eval.py` recognises the canonical-safe cmd-sub set (sourced from the command registry).  Any `eval [CANONICAL_SAFE_CMD …]` is exempt.
+`analyser/checks/_domain.py` recognises the canonical-safe cmd-sub set (sourced from the command registry).  Any `eval [CANONICAL_SAFE_CMD …]` is exempt.
 
 #### Tests
 
@@ -4254,7 +4254,7 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_eval.py` fires W101 for double-quoted string-form eval; the matching code-action (`server/features/code_actions.py`) extracts the command name + args from the quoted-form parse and emits the `eval [list …]` replacement.
+`analyser/checks/_domain.py` fires W101 for double-quoted string-form eval; the matching code-action (`server/features/code_actions.py`) extracts the command name + args from the quoted-form parse and emits the `eval [list …]` replacement.
 
 #### Tests
 
@@ -4725,9 +4725,9 @@ it'd be wrong to apply.
 - ``compiler/optimiser/_propagation.py`` — ``_strip_ws`` guard on
   expression_args / expr_substitutions paths.
 - ``compiler/optimiser/_branch_folding.py`` — same ``_strip_ws`` guard.
-- ``compiler/optimiser/_ast_render.py`` — paren preservation for mixed
+- ``compiler/optimiser/_expr_simplify.py`` — paren preservation for mixed
   bitwise/shift.
-- ``compiler/optimiser/_simplify_expr_node.py`` — commutative-reorder
+- ``compiler/optimiser/_expr_simplify.py`` — commutative-reorder
   suppression when the swap yields no further fold.
 
 #### Tests
@@ -4862,7 +4862,7 @@ The same logic applies to ``[read $fh 512]`` (per-call channel consumption).
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_o106_licm.py::_is_pure_command` recurses into
+`compiler/gvn.py::_is_pure_command` recurses into
 ``ExprCommand`` argument subtrees; any inner impure command marks the
 whole expression impure.  ``_parse_cmd_token`` re-wraps CMD-sub arg
 pieces in ``[...]`` so the recursion sees them.
