@@ -238,16 +238,25 @@ can simplify this" suggestion. None swept yet.
   purity check recurses into inner command substitutions.
 - [ ] **O120** use eq/ne (1515) — pairs with W110; check the dup-with-W110 policy.
 - [ ] **O100** propagate constant into arg (349)
-- [ ] **O116** fold constant list command (343)
+- [x] **O116** fold constant list command — RESOLVED (see top):
+  `[list]` empty fold now produces `{}` (apply-correctness bug fixed).
 - [ ] **O105** (300)
-- [ ] **O127** remove inlined assignment (496) — interacts with the dead-store /
-  W220 model; verify it never suggests removing a still-live assignment.
-- [ ] **O126** remove unused variable assignment (558) — same DCE family.
-- [ ] **O111** brace expression text (219)
-- [ ] **O101** fold constant expression (205)
-- [ ] **O112** (199)
-- [ ] **O109** eliminate dead code (183) — DCE; gate against O106 byte-identity.
-- [ ] **O106** (149) — has a byte-identity oracle (`bench/phase1_loops.py`); use it.
+- [ ] **O127** remove inlined assignment (496) — sampled and audited:
+  HINT-level store-to-load forwarding suggestion; the named
+  intermediates are stylistic.  Could fire on user-named clarity
+  variables — left as HINT only.
+- [x] **O126** remove unused variable assignment — RESOLVED (see top):
+  call-by-name suppression mirrors W211/W220 (also extended to
+  cmd-subst sites).
+- [ ] **O111** brace expression text (219) — sampled: all firings on
+  unbraced `expr`/control-flow conditions; confirmed TP per Tcl spec.
+- [ ] **O101** fold constant expression (205) — sampled: real fold
+  opportunities; TP.
+- [ ] **O112** (199) — sampled: SCCP-driven dead-`if` elimination.  TP.
+- [x] **O109** eliminate dead store — RESOLVED (see top): call-by-name
+  suppression on both the analyser (W220) and the optimiser sides.
+- [x] **O106** Hoist loop-invariant computation — RESOLVED (see top):
+  purity check recurses into command substitutions.
 - [ ] **O107** eliminate unreachable code (116) — RCH family has FP tests; re-sweep.
 - [ ] **O125** (0 corpus) — verify it can still fire; synthetic test.
 
@@ -296,16 +305,21 @@ can simplify this" suggestion. None swept yet.
   the documented fire-and-forget idiom (`catch {after cancel}`, `catch
   {file delete}`, `catch {close}`, etc.).
 - [ ] **W303** ReDoS regexp (0 corpus) — synthetic verify.
-- [ ] **W307** non-literal command name (7574) — #1 W-code by volume. OBJ family
-  fixed the snit/oo/factory cases; remaining is `$param method` cross-proc
-  dispatch (known open — needs interprocedural object typing). Re-sweep to
-  confirm no NEW shape crept in.
+- [x] **W307** non-literal command name — RESOLVED (see top): proc-
+  param dispatcher + multi-dispatch local heuristic, with taint guard
+  to keep firing on tainted dispatch (security correctness).  Cross-
+  proc object provenance (factory return-type tracking through
+  interproc summaries) remains as a follow-on for the smaller
+  residual.
 - [ ] **W308** subst without -nocommands (0 corpus) — synthetic.
 - [ ] **W309** eval/uplevel with subst (0 corpus) — synthetic.
-- [ ] **T100** tainted → code-exec sink (0 corpus) — synthetic.
-- [ ] **T101** tainted → output sink (count low)
-- [ ] **T102** tainted in option position (2) — INJ family has position-aware
-  fix; re-verify.
+- [x] **T100** tainted → code-exec sink — RESOLVED (see top): direct-
+  operand expr filter; tainted vars inside command substitutions
+  consumed by inner commands no longer flag.
+- [x] **T101** tainted → output sink — RESOLVED (see top): position
+  filter on `puts` (channel arg vs output string).
+- [x] **T102** tainted in option position (2) — INJ family has
+  position-aware fix; verified.
 
 ## NOT YET INSPECTED — errors (Exxx) + hints
 
