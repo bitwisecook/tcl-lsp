@@ -337,6 +337,29 @@ class _AnalyserDiagVarCommandMixin(_Base):
         #    [struct::graph]; return $X }`` returns an object.  Callers
         #    ``set TGraph [f ...]`` also hold an object.  Iterate to fixpoint
         #    so a chain ``f -> g -> h`` propagates.
+        # Build a set of user-proc qualified-name candidates so we can
+        # distinguish user-proc calls from builtin/namespaced builtins.
+        # User procs go through the fixpoint (only added to factory
+        # locals if they're proven object-returning); builtins (or
+        # unknown commands) get the shape-based heuristic (any
+        # namespaced cmd-sub is treated as a factory).
+        # G3 closure: a namespaced user proc that returns a plain string
+        # (e.g. ``namespace eval ::ns { proc make {} { return foo } }``)
+        # is no longer falsely treated as an object factory.
+        _user_proc_qnames = set(cu.ir_module.procedures.keys())
+
+        def _is_user_proc(cmd_head: str) -> bool:
+            """Return True iff *cmd_head* refers to a user-defined proc
+            in this compilation unit (rather than a Tcl builtin or
+            unknown command).  Conservative: false negatives just mean
+            we'll treat the cmd as a (possibly object-returning) builtin,
+            which is the pre-G3 behaviour."""
+            if cmd_head in _user_proc_qnames:
+                return True
+            if f"::{cmd_head}" in _user_proc_qnames:
+                return True
+            return False
+
         factory_locals_by_proc: dict[str, set[str]] = {}
         return_var_by_proc: dict[str, str | None] = {}
         for qname, fu_unit in _all_fus:
@@ -346,7 +369,12 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     if isinstance(stmt, IRAssignValue) and stmt.name:
                         parsed = parse_command_substitution(stmt.value)
                         if parsed is not None and "::" in parsed[0]:
-                            names.add(stmt.name)
+                            # G3: defer to fixpoint when the head is a
+                            # user proc -- only add as factory local if
+                            # the user proc is later proven object-
+                            # returning (handled by the extension pass).
+                            if not _is_user_proc(parsed[0]):
+                                names.add(stmt.name)
             factory_locals_by_proc[qname] = names
             # Find the LAST IRReturn statement and its returned var (if any).
             return_var_by_proc[qname] = _last_return_var(fu_unit.cfg)
@@ -357,25 +385,39 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # OR its last assignment to the returned var is ``[other_user_proc]``
         # where other_user_proc is object-returning.
         object_returning_procs: set[str] = set()
-        # Seed: proc whose LAST return value is ``[namespaced::cmd ...]``.
+        # Seed: a proc is object-returning when EVERY feasible return
+        # value is itself a namespaced cmd-sub.
+        # G4 closure: tracking only the LAST return (current pre-fix
+        # behaviour) was wrong -- a wrapper that returns ``[factory]``
+        # on one branch and ``foo`` (a plain string) on another isn't
+        # an object factory; ``$x method`` on the string-branch result
+        # is a runtime error and W307 should fire.  Collect ALL returns
+        # and require ALL of them to be namespaced cmd-subs.
         direct_return_factory_by_proc: dict[str, bool] = {}
         for qname, fu_unit in _all_fus:
             from compiler.cfg import CFGReturn
             from compiler.ir import IRReturn as _IRRet
 
-            last_value: str | None = None
+            return_values: list[str] = []
             for block in fu_unit.cfg.blocks.values():
                 for s in block.statements:
                     if isinstance(s, _IRRet) and s.value:
-                        last_value = s.value
+                        return_values.append(s.value)
                 term = block.terminator
                 if isinstance(term, CFGReturn) and isinstance(term.value, str):
-                    last_value = term.value
-            if last_value is not None:
-                parsed = parse_command_substitution(last_value.strip())
-                if parsed is not None and "::" in parsed[0]:
-                    object_returning_procs.add(qname)
-                    direct_return_factory_by_proc[qname] = True
+                    return_values.append(term.value)
+            if return_values and all(
+                (
+                    (
+                        parsed := parse_command_substitution(rv.strip())
+                    )
+                    is not None
+                    and "::" in parsed[0]
+                )
+                for rv in return_values
+            ):
+                object_returning_procs.add(qname)
+                direct_return_factory_by_proc[qname] = True
         for qname, ret_var in return_var_by_proc.items():
             if ret_var is None:
                 continue

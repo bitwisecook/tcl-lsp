@@ -158,21 +158,17 @@ def test_FP_OBJ_04_factory_does_not_leak_across_procs():
 # string-returning ones.
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-04 open precision gap: namespaced-factory rule is "
-    "shape-based, not return-type-aware.  A namespaced proc returning "
-    "a plain string is treated as an object factory and W307 is "
-    "incorrectly suppressed.  Flips when per-proc return-type tracking "
-    "lands.",
-    strict=True,
-)
-def test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap():
-    """OPEN-FP: ``namespace eval ::ns { proc make {} { return foo } }``
-    -- ``::ns::make`` returns the plain string ``"foo"``, not an
-    object handle.  Dispatching ``$x method`` where ``$x = "foo"``
-    SHOULD fire W307 (no command named ``foo``).  The current
-    namespaced-factory rule over-suppresses based on the call shape
-    alone."""
+def test_FP_OBJ_04_namespaced_string_returning_user_proc_fires_w307():
+    """TP / return-type-aware guard: ``namespace eval ::ns { proc make
+    {} { return foo } }`` makes ``::ns::make`` return a plain string,
+    not an object handle.  Dispatching ``$x method`` where
+    ``\\$x = "foo"`` fires W307 (no command named ``foo``).
+
+    Locked the precision gap closure: the namespaced-factory rule in
+    ``analyser/_analyser/_diag_var_command.py`` now distinguishes
+    user-proc calls from builtin/namespaced builtins.  User procs
+    only become factory sources when the fixpoint proves them
+    object-returning; builtins keep the shape-based heuristic."""
     src = """\
 namespace eval ::ns { proc make {} { return foo } }
 proc f {} {
@@ -187,20 +183,16 @@ proc f {} {
     )
 
 
-@pytest.mark.xfail(
-    reason="FP-OBJ-04 open precision gap (mixed returns): "
-    "interproc object-factory tracking iterates blocks tracking 'last "
-    "return' instead of requiring ALL returns to be object-like.  A "
-    "proc with one object-returning branch + one string-returning "
-    "branch is classified as object-returning.  Flips when all-paths "
-    "return-type aggregation lands.",
-    strict=True,
-)
-def test_FP_OBJ_04_mixed_return_wrapper_precision_gap():
-    """OPEN-FP: a wrapper proc that returns a real factory result on
-    one branch but a plain string on the other should NOT be tagged
-    as object-returning.  ``$x method`` with ``\\$x = "foo"`` is an
-    invalid command (tclsh-verified)."""
+def test_FP_OBJ_04_mixed_return_wrapper_fires_w307():
+    """TP / all-paths return-type guard: a wrapper proc that returns
+    a real factory result on one branch and a plain string on the
+    other should NOT be tagged object-returning.  ``$x method`` with
+    ``\\$x = "foo"`` is an invalid command (tclsh-verified).
+
+    Locked the precision gap closure: object-returning classification
+    now requires ALL feasible return values to be namespaced cmd-subs
+    (was: only the LAST observed return), correctly rejecting
+    mixed-return wrappers."""
     src = """\
 proc make {flag} {
     if {$flag} {

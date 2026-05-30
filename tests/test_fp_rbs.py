@@ -139,9 +139,15 @@ proc f {} {
 
 @pytest.mark.xfail(
     reason="FP-RBS-02 open precision gap: regexp no-match path reads "
-    "should fire W210.  The current recovery is proc-wide; a branch-"
-    "aware refinement (the regexp/scan writes only happen on success) "
-    "would catch this.",
+    "should fire W210.  Closing the gap properly needs a hybrid: only "
+    "fire W210 when SCCP can statically prove the pattern won't match "
+    "the input (so the def is provably unreached), OR when the read "
+    "is on a no-match-branch reached via the regexp return value.  A "
+    "naive 'never define on regexp' breaks the documented Tcl idiom "
+    "of trusting a match (e.g. Tcl 9 init.tcl word.tcl: ``regexp -- "
+    "\\$WordBreakRE(after) abc result; return \\$result``) -- so the "
+    "conservative behaviour is preserved until the SCCP-driven "
+    "refinement lands.",
     strict=True,
 )
 def test_FP_RBS_02_regexp_no_match_path_precision_gap():
@@ -149,9 +155,10 @@ def test_FP_RBS_02_regexp_no_match_path_precision_gap():
     NOT set ``v`` (tclsh-verified).  Reading ``$v`` after the failing
     regexp is a real RBS but the current analyser doesn't fire it.
 
-    When branch-aware refinement lands, ``v`` will only be considered
-    defined on the success arm, and this test will pass -- remove the
-    xfail at that point.
+    Closing this gap needs SCCP-driven match analysis: only fire W210
+    when the pattern + input are statically known AND statically
+    proven not to match.  A naive 'never define' breaks the trust-the-
+    match Tcl idiom (Tcl 9 init.tcl word.tcl uses this pattern).
     """
     src = """\
 proc f {} {
@@ -167,7 +174,11 @@ proc f {} {
 
 @pytest.mark.xfail(
     reason="FP-RBS-02 open precision gap: scan no-match path reads "
-    "should fire W210.  Same root cause as the regexp gap above.",
+    "should fire W210.  Same root cause as the regexp gap above: "
+    "closing it needs SCCP-driven match analysis (only fire when the "
+    "format + input are statically known and statically can't match), "
+    "not a blanket conditional-def for scan output vars (that breaks "
+    "the trust-the-match Tcl idiom).",
     strict=True,
 )
 def test_FP_RBS_02_scan_no_match_path_precision_gap():
