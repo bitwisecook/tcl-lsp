@@ -59,6 +59,7 @@ Open findings that still false-positive today carry a passing TP test plus an
 - **RCH — Reachability (O107)** ([§RCH](#rch--reachability-o107))
 - **INJ — Injection / style (W101/W105/W301/T102)** ([§INJ](#inj--injection--style-w101w105w301t102))
 - **BND — Bounds / intervals (W230/W231/W232/W233)** ([§BND](#bnd--bounds--intervals-w230w231w232w233))
+- **OPT — Optimisation / codegen quick-fixes (O106/O109/O110/O116/O120/O126)** ([§OPT](#opt--optimisation--codegen-quick-fixes-o106o109o110o116o120o126))
 
 ---
 
@@ -4103,6 +4104,277 @@ statically decidable) still leaves the arm skipped — the unchanged safe path.
 - `tests/test_fp_bnd.py::test_FP_BND_06_false_constant_guard_short_circuits_silent` (FP, constant-false)
 - `tests/test_fp_bnd.py::test_FP_BND_06_nonconstant_guard_silent` (FP, non-constant)
 - broader edge coverage in `tests/test_interval_bounds.py::TestDivideByZero`
+
+---
+
+
+## OPT — optimisation / codegen quick-fixes (O106/O109/O110/O116/O120/O126)
+
+These quick-fix codes propose source rewrites the LSP can apply on user
+acceptance.  Every entry below records a case where the rewrite or the
+firing predicate had to be tightened to preserve runtime semantics
+(O106 LICM purity, O116 empty-list fold) or to silence whitespace-only
+or paren-only churn that produced thousands of corpus FPs (O110).
+
+### FP-OPT-01 — O110 InstCombine: whitespace-only / paren-preservation / commutative reorder
+
+- **Verdict:** FALSE POSITIVE (now fixed; four sub-fixes)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_01_*`
+- **Codes:** O110 (Canonicalise expression / InstCombine)
+- **Corpus:** the four sub-fixes brought corpus O110 from **3641 → ~700-900** (-75 to -80%).
+
+#### Reproducer
+
+```tcl
+# whitespace-only churn (the dominant source — 3641 → 1490 after the first guard)
+set x [expr { $a + $b }]
+# branch-folding whitespace churn (`if {$x<0}` — bigfloat2 122→46, exif 53→10)
+if {$x<0} { puts negative }
+# paren preservation for mixed bitwise/shift (CERT EXP00-C; DES 91→23)
+set x [expr {($a << 1) & 0xff}]
+# commutative reorder where no real fold results (bigfloat2 46→35, exif 10→4)
+set x [expr {2 + $a}]
+```
+
+#### Per-line reasoning
+
+1. **Whitespace-only**: ``expr { $a + $b }`` has decorative whitespace.
+   Pre-fix the InstCombine rewriter would propose ``expr {$a + $b}`` as a
+   "canonicalisation" — but the rewritten text is semantically identical
+   and the whitespace is the user's style choice.  The ``_strip_ws`` guard
+   on the ``expression_args`` / ``expr_substitutions`` paths drops
+   whitespace-only rewrites.
+2. **Branch-folding whitespace**: the same guard applies to the
+   ``_branch_folding.py`` path so ``if {$x<0}`` no longer fires.
+3. **Paren preservation**: ``($a << 1) & 0xff`` keeps its parens per CERT
+   EXP00-C — mixed bitwise/shift expressions cling to explicit precedence
+   for reader clarity even when the parens are technically redundant.
+   The AST renderer now preserves parens on mixed bitwise/shift.
+4. **Commutative reorder**: pre-fix the reassoc would swap ``literal +
+   term`` to ``term + literal`` even when no fold would result —
+   pointless churn.  The suppression in ``_simplify_expr_node`` checks
+   whether the reordered form would actually fold further; identities
+   (``x + 0``, ``x * 1``) and operator flips still fire.
+
+#### tclsh ground truth
+
+N/A — these are static rewrites that preserve runtime semantics; the
+verdict is about whether the rewrite is *worth proposing*, not whether
+it'd be wrong to apply.
+
+#### Why the analyser reaches that verdict
+
+- ``compiler/optimiser/_propagation.py`` — ``_strip_ws`` guard on
+  expression_args / expr_substitutions paths.
+- ``compiler/optimiser/_branch_folding.py`` — same ``_strip_ws`` guard.
+- ``compiler/optimiser/_ast_render.py`` — paren preservation for mixed
+  bitwise/shift.
+- ``compiler/optimiser/_simplify_expr_node.py`` — commutative-reorder
+  suppression when the swap yields no further fold.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_01_whitespace_only_no_o110` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_01_branch_folding_whitespace_no_o110` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_01_paren_preserved_no_o110` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_01_commutative_reorder_no_o110` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_01_genuine_simplification_still_fires` (TP, `x + 0` → `x`)
+
+---
+
+### FP-OPT-02 — O116 fold-const-list-command: empty `[list]` folds to `{}`, not `""`
+
+- **Verdict:** TRUE POSITIVE / quick-fix correctness bug (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_02_*`
+- **Codes:** O116 (Fold constant list command)
+- **Corpus:** 346 corpus firings now apply cleanly.
+
+#### Reproducer
+
+```tcl
+set x [list]
+lappend x a
+puts $x
+```
+
+#### Per-line reasoning
+
+1. `set x [list]` — O116 proposes folding ``[list]`` to its constant value.
+   The naive fold returns Python's empty string ``""`` for an empty list.
+2. Applying that to ``set x [list]`` produces ``set x `` (with a trailing
+   space + newline / semicolon).  In Tcl, ``set x`` (one arg, no value)
+   is a *read* of `x`, not a write — the assignment is silently erased.
+3. The corrected fold uses the canonical empty-list literal ``{}``.
+   ``set x {}`` is a proper assignment to the empty list.
+
+Pre-fix bug: applying the quick-fix to ``set r [list]`` produced ``set r ;``
+which is a syntax-valid READ of ``r``.  This silently corrupted source on
+apply.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set r [list]
+% set r ;
+can't read "r": no such variable
+% set r {}
+%
+```
+
+The "fold to empty string" rewrite breaks the assignment; the "fold to
+``{}``" rewrite preserves it.
+
+#### Compiler evidence
+
+The O116 diagnostic carries ``data['replacement'] = '{}'`` (the canonical
+empty-list literal).  Pre-fix it carried ``''``.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_helpers.py::_try_fold_list_command` returns ``"{}"``
+(not ``""``) when ``cmd_texts == ["list"]`` — see the inline comment
+about the source-position requirement.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_02_empty_list_quick_fix_uses_braces` (TP/correctness)
+
+---
+
+### FP-OPT-03 — O106 LICM purity: outer-pure / inner-impure expression NOT hoistable
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_03_*`
+- **Codes:** O106 (Hoist loop-invariant computation)
+- **Corpus:** `tmp/tcllib-2.0/modules/clay/build/test.tcl:686` (`[format %04d [incr testnum]]`).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    for {set i 0} {$i < 10} {incr i} {
+        set s [format %04d [incr testnum]]
+    }
+    return $s
+}
+```
+
+#### Per-line reasoning
+
+1. ``format %04d [incr testnum]`` — the OUTER call is ``format``, which is
+   a pure formatter.  The INNER ``[incr testnum]`` mutates ``testnum``
+   per iteration.
+2. LICM at first glance sees ``format`` (pure) and considers the
+   expression hoistable.  But hoisting would call ``incr`` ONCE before
+   the loop instead of N times inside — the formatted output would all
+   show the same number, AND ``testnum`` would advance by 1 instead of
+   N.  That's a runtime-semantics change.
+3. The fix recurses ``_is_pure_command`` into argument command
+   substitutions; ANY inner impure command marks the whole expression
+   impure → not hoistable → no O106.
+
+The same logic applies to ``[read $fh 512]`` (per-call channel consumption).
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set testnum 0
+% for {set i 0} {$i < 3} {incr i} { puts [format %04d [incr testnum]] }
+0001
+0002
+0003
+% # If LICM hoisted: testnum would be 1 (not 3) and all three lines would say 0001.
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_o106_licm.py::_is_pure_command` recurses into
+``ExprCommand`` argument subtrees; any inner impure command marks the
+whole expression impure.  ``_parse_cmd_token`` re-wraps CMD-sub arg
+pieces in ``[...]`` so the recursion sees them.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_03_inner_impure_blocks_licm` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_03_outer_pure_inner_pure_still_fires` (TP control)
+
+---
+
+### FP-OPT-04 — O109/O126 dead-store/unused: call-by-name through user procs is a real use
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_04_*`
+- **Codes:** O109 (dead store), O126 (remove unused), W211/W220 (analyser equivalents)
+- **Corpus:** `tmp/tcllib-2.0/modules/asn/asn.tcl` and similar `upvar`-using modules.
+
+#### Reproducer
+
+```tcl
+proc asnPeekTag {data {tag tag} {type type}} {
+    upvar 1 $tag tagOut $type typeOut
+    set tagOut 0
+    set typeOut 0
+    return [string length $data]
+}
+proc decode {data} {
+    asnPeekTag $data tag type
+    return [list $tag $type]
+}
+```
+
+#### Per-line reasoning
+
+1. ``decode`` passes the literal variable names ``tag`` and ``type`` to
+   ``asnPeekTag``.  ``asnPeekTag`` declares those parameters with
+   ``ProcArgTrait.VAR_READ`` / ``VAR_WRITE`` (a Tcl-side ``upvar`` idiom)
+   so the callee writes to ``decode``'s ``tag`` / ``type`` via the upvar.
+2. The subsequent ``return [list $tag $type]`` reads those values back.
+3. Pre-fix the analyser saw no caller-local write to ``tag`` / ``type``
+   before the read and flagged W210 (RBS); the optimiser saw no later
+   read of a written-via-upvar value and flagged O109 / O126.  Both
+   were wrong: the callee did the write.
+
+Fix: the call-by-name suppression already on W211/W220 (commit
+extending ``ProcDef.param_traits`` consumers) was extended to the
+optimiser's DCE pass — both layers now share
+``compiler/proc_arg_traits.py``.  Also extended to literal-name args
+inside ``[…]`` substitutions (the dominant tcllib shape:
+``set len [asnPeekTag data tag type dummy]``) — the scanner walks
+``IRAssignValue.value`` raw text, ``IRAssignExpr`` /
+``IRExprEval`` / ``IRReturn`` expr trees for nested ``ExprCommand``
+nodes, and applies the same suppression.
+
+#### tclsh ground truth
+
+```
+% proc asnPeekTag {data {tag tag} {type type}} {
+    upvar 1 $tag tagOut $type typeOut
+    set tagOut 99
+    set typeOut "INT"
+}
+% proc decode {data} {
+    asnPeekTag $data tag type
+    list $tag $type
+}
+% decode foo
+99 INT
+```
+
+Both `tag` and `type` are written by the callee via upvar; the caller
+reads them after the call.
+
+#### Why the analyser reaches that verdict
+
+`compiler/proc_arg_traits.py::collect_call_by_name_reads` is consulted
+by both the analyser's W211/W220 emitters and the optimiser's O109/O126
+emitters; it returns the set of caller-local names passed by literal to
+a callee with VAR_READ/VAR_WRITE traits.  Sample tcllib asn.tcl: W211
+firings 2→0.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_04_call_by_name_suppresses_dead_store` (FP)
+- `tests/test_fp_opt.py::test_FP_OPT_04_genuine_dead_store_still_fires` (TP control)
 
 ---
 
