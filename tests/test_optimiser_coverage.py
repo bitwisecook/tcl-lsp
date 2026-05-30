@@ -558,6 +558,49 @@ class TestO109DeadStoreElimination:
         o, rw = _opt(s)
         assert any(r.code == "O109" for r in rw)
 
+    def test_no_dse_on_call_by_name_var(self):
+        """O109/O126 must honour the same call-by-name suppression as
+        W211/W220: a local passed by NAME to a proc with ``VAR_READ`` /
+        ``VAR_WRITE`` traits is *indirectly* read/written by the callee
+        via upvar.  Deleting the preceding ``set`` would feed an
+        uninitialised name to the callee — a hard correctness bug.
+        """
+        s = textwrap.dedent("""\
+            proc reader {name} { upvar 1 $name local; puts $local }
+            proc f {} {
+                set x "hello"
+                reader x
+            }
+        """)
+        _, rw = _opt(s)
+        codes = {r.code for r in rw}
+        assert "O109" not in codes and "O126" not in codes
+
+    def test_dse_on_unrelated_dead_store_still_fires(self):
+        """TP control: a dead store on a DIFFERENT variable (not the one
+        being passed by name) must still fire O109.  Guards against the
+        call-by-name suppression being over-broad — it must only apply
+        to the name actually passed.
+
+        (Known precision gap: a dead earlier-version write of the same
+        var that is *later* passed by name is conservatively suppressed.
+        Sound — no FP — but loses one TP.  Tightening would require
+        version-precise reaching-uses through the call site.)
+        """
+        s = textwrap.dedent("""\
+            proc reader {name} { upvar 1 $name local; puts $local }
+            proc f {} {
+                set unrelated "discarded"
+                set unrelated "actual"
+                set y "passed"
+                reader y
+                return $unrelated
+            }
+        """)
+        _, rw = _opt(s)
+        codes = [r.code for r in rw]
+        assert "O109" in codes
+
 
 # O110: InstCombine — expression canonicalisation
 

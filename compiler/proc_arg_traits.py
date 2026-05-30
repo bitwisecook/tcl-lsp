@@ -332,6 +332,84 @@ def merge_traits(
     return merged
 
 
+def collect_call_by_name_reads(
+    cfg,
+    proc_index: dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]],
+) -> set[str]:
+    """Caller-local var names passed *by name* to a user proc that consumes
+    them via ``upvar`` (call-by-name).
+
+    Mirrors the analyser-side helper in ``_diag_var_lifecycle`` but is keyed
+    only by a pre-built ``proc_index`` so both the analyser (W211/W220) and
+    the optimiser (O109/O126) can share the suppression without crossing
+    layer boundaries.  ``proc_index`` maps bare/qualified command names to
+    ``(params, param_traits)`` pairs; callers populate it from whichever
+    proc registry they have access to (``ProcDef``-backed in the analyser,
+    ``ProcSummary``-backed in the optimiser).
+
+    Returns the set of caller-local variable names that should NOT be
+    flagged as dead/unused.  Substituted args (``$name``) and array elems
+    are deliberately excluded — they name a runtime variable we cannot
+    statically identify, so they preserve genuine FP cases where the user
+    passed a literal string instead of a name.
+    """
+    from compiler.cfg import IRBarrier
+    from compiler.ir import IRCall
+    from shared.naming import normalise_qualified_name as _norm
+
+    if not proc_index:
+        return set()
+
+    by_name: set[str] = set()
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if not isinstance(stmt, (IRCall, IRBarrier)):
+                continue
+            cmd = stmt.command
+            if not cmd or "$" in cmd or "[" in cmd:
+                continue
+            cand = (
+                proc_index.get(cmd) or proc_index.get(_norm(cmd)) or proc_index.get(cmd.lstrip(":"))
+            )
+            if not cand:
+                continue
+            for params, traits_map in cand:
+                for i, arg in enumerate(stmt.args):
+                    if i >= len(params):
+                        break
+                    pname = params[i]
+                    traits = traits_map.get(pname, frozenset())
+                    if ProcArgTrait.VAR_READ not in traits and ProcArgTrait.VAR_WRITE not in traits:
+                        continue
+                    if not arg or "$" in arg or "[" in arg:
+                        continue
+                    if arg and all(ch.isalnum() or ch in "_:" for ch in arg):
+                        by_name.add(arg)
+    return by_name
+
+
+def build_proc_index_from_summaries(
+    summaries: dict[str, object],
+) -> dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]]:
+    """Build the ``proc_index`` for ``collect_call_by_name_reads`` from
+    ``InterproceduralAnalysis.procedures`` (``ProcSummary``-valued).
+
+    Keyed by bare name, qualified name, and lstripped qualified name so a
+    bare call ``foo`` resolves to ``::foo``.
+    """
+    index: dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]] = {}
+    for qname, summary in summaries.items():
+        traits = getattr(summary, "param_traits", None)
+        params = getattr(summary, "params", None)
+        if not traits or not params:
+            continue
+        entry = (tuple(params), dict(traits))
+        bare = qname.rsplit("::", 1)[-1]
+        for key in (bare, qname, qname.lstrip(":")):
+            index.setdefault(key, []).append(entry)
+    return index
+
+
 def _handle_upvar(
     args: list[str],
     param_set: set[str],
