@@ -136,6 +136,26 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   parameter is necessarily "unused" because there is no body to use
   it.  Detect via the IR: zero-statement body skips W214 entirely.
   Sample faop.tcl: 19 W214 firings, all empty-body stubs.
+- [x] **W214** snit-style quoted-keyword marker params — snit's
+  command DSL uses `{"as" ""}` as a positional keyword marker (the
+  param name is the literal `"as"`).  The body cannot USE a quoted-
+  name param as a variable; flagging is noise.  Detect via param name
+  starting + ending with `"`.
+- [x] **W302** subcommand-aware fire-and-forget — the initial fix was
+  too broad for ensemble heads; ``catch {chan close}`` is the
+  fire-and-forget idiom but ``catch {chan configure}`` should fire.
+  Split into `_FIRE_AND_FORGET_BARE` (`close`/`unset`/`rename`) +
+  `_FIRE_AND_FORGET_SUBCOMMANDS` (after-cancel, chan-close, array-
+  unset, dict-unset, interp-delete, namespace-delete/forget,
+  file-delete).  Constructive subcommands (`array set`, `dict set`,
+  `file copy`, `chan configure`, `namespace eval`, `interp create`,
+  `after <ms>`) still fire W302.
+- [x] **T101** puts channel-vs-output filter — `puts ?-nonewline?
+  ?channelId? string` was firing T101 on the channel-id arg (the
+  destination handle, not the content).  tcllib imap4.tcl ``puts
+  -nonewline $chan "$t\r\n"`` cleared 3 firings.  Only the trailing
+  positional arg can carry injectable content; filter T101 emission
+  to that index on `puts`.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
