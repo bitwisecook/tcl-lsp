@@ -23,6 +23,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pytest
+
 from analyser import analyse
 
 
@@ -140,6 +142,47 @@ def test_FP_OBJ_04_factory_does_not_leak_across_procs():
     named dispatch in another proc (provenance is per-proc)."""
     src = "proc a {} { set t [::struct::tree] }\nproc b {x} { set t $x\n $t foo }\n"
     assert _codes(src, "W307"), "factory must not propagate across proc boundaries"
+
+
+# OPEN precision gap (xfail): the namespaced-factory rule is keyed
+# purely on the *shape* ``set var [::ns::cmd ...]`` -- it assumes any
+# namespaced command substitution returns an object handle.  But a
+# namespaced proc CAN return a plain string:
+#
+#   namespace eval ::ns { proc make {} { return foo } }
+#   proc f {} { set x [::ns::make]; $x method }   ;# false negative
+#
+# The current analyser silences W307 here even though ``$x = "foo"``
+# isn't a command name.  A future refinement (track per-proc return-
+# type lattice) would distinguish object-returning procs from
+# string-returning ones.
+
+
+@pytest.mark.xfail(
+    reason="FP-OBJ-04 open precision gap: namespaced-factory rule is "
+    "shape-based, not return-type-aware.  A namespaced proc returning "
+    "a plain string is treated as an object factory and W307 is "
+    "incorrectly suppressed.  Flips when per-proc return-type tracking "
+    "lands.",
+    strict=True,
+)
+def test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap():
+    """OPEN-FP: ``namespace eval ::ns { proc make {} { return foo } }``
+    -- ``::ns::make`` returns the plain string ``"foo"``, not an
+    object handle.  Dispatching ``$x method`` where ``$x = "foo"``
+    SHOULD fire W307 (no command named ``foo``).  The current
+    namespaced-factory rule over-suppresses based on the call shape
+    alone."""
+    src = """\
+namespace eval ::ns { proc make {} { return foo } }
+proc f {} {
+    set x [::ns::make]
+    $x method
+}
+"""
+    assert _codes(src, "W307"), (
+        f"string-returning namespaced proc should NOT be treated as factory; expected W307, got {[(d.code, d.message[:50]) for d in __import__('analyser').analyse(src).diagnostics]}"
+    )
 
 
 # FP-OBJ-05 — snit instance dispatch (locally-defined snit type)

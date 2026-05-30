@@ -941,19 +941,42 @@ msg=x / opts has 12 keys
 `catch ?msg? ?opts?` writes `msg` (result string) and `opts` (options dict)
 in the caller frame. Reading them afterwards is the canonical idiom.
 
-`regexp` and `scan` have analogous output-vars:
+`regexp` and `scan` have analogous output-vars **but only write them on
+success** (return 1 / N>0).  On no-match, the vars are NOT set:
 
 ```
-% regexp {(\w+)=(\w+)} "k=v" -> k v
-1
-% puts "$k=$v"
-k=v
-% scan "42" %d n; puts $n
-42
+% regexp {x} y -> v
+0
+% puts $v
+can't read "v": no such variable
+% scan abc %d n
+0
+% puts $n
+can't read "n": no such variable
 ```
 
-All three commands write into named caller-scope variables. The fix covers
-all three in one mechanism.
+This is a **narrow caveat the catalog must honour**: the FP suppression
+described below covers the "match-side" reads (inside an `if {[regexp
+... -> v]} { use $v }` consequent or after a `scan` that's
+*statically known* to succeed).  It is *NOT* safe to blanket-suppress
+``regexp``/``scan`` output-var reads regardless of branch — that would
+silence a real RBS bug.
+
+The current analyser's recovery is name-level via
+``command_sub_write_names`` and exempts the variable everywhere in
+the proc, which means it suppresses RBS even on the no-match path.
+This is an **open precision gap** (a sound over-approximation, but
+genuinely loses a TP class).  Locked in by the open-finding xfail
+test ``test_FP_RBS_02_no_match_path_known_precision_gap`` —
+when a refined branch-aware analysis lands, the xfail flips and
+prompts its own removal.
+
+The `catch` case is sound — `catch ?msg? ?opts?` always writes
+the named vars regardless of body success/failure (the body's
+exception is converted to a result-code, never propagates).  All
+three commands write into named caller-scope variables when the
+operation reaches its write step; the fix covers all three in one
+mechanism, with the regexp/scan precision gap documented above.
 
 #### Compiler evidence
 
@@ -3241,7 +3264,7 @@ function ::f
 
 ### FP-OBJ-04 — namespaced-factory provenance: set t [::struct::tree] — object handle
 
-- **Verdict:** FALSE POSITIVE (now fixed, analyser-only provenance)
+- **Verdict:** FALSE POSITIVE (now fixed, analyser-only provenance) — **shape-based heuristic**, not a Tcl-semantic guarantee.  See the "Known precision gap" note below.
 - **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_04_*`
 - **Codes:** W307
 - **Corpus:** tcllib's factory idiom is pervasive: `::struct::tree`, `::struct::matrix`, `::struct::queue`, `pt::rde`, `grammar::*` etc.
@@ -3291,12 +3314,35 @@ function ::f
 
 `compiler/object_provenance.py` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `analyser/checks/_object_dispatch.py` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
 
+#### Known precision gap (open)
+
+The rule is **shape-based**, not return-type-aware: any namespaced
+command substitution is treated as an object factory.  A namespaced
+proc that returns a plain string is therefore *silently exempt* —
+W307 will NOT fire on dispatch of its return value, even though
+the value isn't a command name.  Example:
+
+```tcl
+namespace eval ::ns { proc make {} { return foo } }
+proc f {} {
+    set x [::ns::make]
+    $x method   ;# should fire W307 (no command named "foo")
+}
+```
+
+Tracked by the open xfail test
+`test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap`.
+A refined per-proc return-type lattice (track which user procs
+*actually* return object handles vs strings) would close the gap;
+that work flips the xfail and prompts its own removal.
+
 #### Tests
 
 - `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_factory_no_w307` (FP, `::struct::tree`)
 - `tests/test_fp_obj.py::test_FP_OBJ_04_short_namespace_form_no_w307` (FP, `struct::matrix`)
 - `tests/test_fp_obj.py::test_FP_OBJ_04_bare_unknown_command_still_w307` (TP — bare-name still warns)
 - `tests/test_fp_obj.py::test_FP_OBJ_04_factory_does_not_leak_across_procs` (TP — per-proc scoping)
+- `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap` (OPEN-FP, xfail strict)
 
 ---
 

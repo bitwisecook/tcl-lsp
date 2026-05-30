@@ -128,6 +128,64 @@ proc f {} {
     )
 
 
+# OPEN precision gap (xfail): regexp/scan only write on success.  The
+# current name-level recovery in command_sub_write_names exempts the
+# variable everywhere in the proc, so even reads on the no-match path
+# (where the variable is truly unset) don't fire RBS.  This is sound
+# (over-approximation) but loses a real TP class -- documented as an
+# open finding in FP-RBS-02.  When a branch-aware refinement lands,
+# the xfail flips and prompts its own removal.
+
+
+@pytest.mark.xfail(
+    reason="FP-RBS-02 open precision gap: regexp no-match path reads "
+    "should fire W210.  The current recovery is proc-wide; a branch-"
+    "aware refinement (the regexp/scan writes only happen on success) "
+    "would catch this.",
+    strict=True,
+)
+def test_FP_RBS_02_regexp_no_match_path_precision_gap():
+    """OPEN-FP: ``regexp {x} y -> v`` returns 0 (no match) and DOES
+    NOT set ``v`` (tclsh-verified).  Reading ``$v`` after the failing
+    regexp is a real RBS but the current analyser doesn't fire it.
+
+    When branch-aware refinement lands, ``v`` will only be considered
+    defined on the success arm, and this test will pass -- remove the
+    xfail at that point.
+    """
+    src = """\
+proc f {} {
+    regexp {x} y -> v
+    puts $v
+}
+"""
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert w210, "regexp no-match path read of $v should fire W210; current: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+@pytest.mark.xfail(
+    reason="FP-RBS-02 open precision gap: scan no-match path reads "
+    "should fire W210.  Same root cause as the regexp gap above.",
+    strict=True,
+)
+def test_FP_RBS_02_scan_no_match_path_precision_gap():
+    """OPEN-FP: ``scan abc %d n`` returns 0 (no conversion) and DOES
+    NOT set ``n`` (tclsh-verified).  Reading ``$n`` after the failing
+    scan is a real RBS but the current analyser doesn't fire it."""
+    src = """\
+proc f {} {
+    scan abc %d n
+    puts $n
+}
+"""
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'n'" in (d.message or "")]
+    assert w210, "scan no-match path read of $n should fire W210; current: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
 # FP-RBS-03 — frozen-loop bodies (while/for with cmd-sub condition)
 
 
