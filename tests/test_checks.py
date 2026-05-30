@@ -4225,6 +4225,49 @@ class TestW214EmptyBodyStubs:
         assert self._w214(src) == {"x", "y"}
 
 
+class TestW214QuotedKeywordMarker:
+    """snit-style positional keyword markers like ``{"as" ""}`` declare
+    a param whose NAME is the quoted literal — the caller must write
+    ``expose mycomp as foo`` and the keyword ``as`` is captured by the
+    placeholder param.  The body cannot meaningfully USE such a
+    parameter (``$\"as\"`` is not even valid syntax), so flagging is
+    pure noise.  tcllib snit::Comp.statement.expose is the canonical
+    example.
+    """
+
+    @staticmethod
+    def _w214_names(src):
+        import re as _re
+
+        from server.features.diagnostics import get_diagnostics
+
+        return {
+            _re.search(r"Parameter '(.*?)' of", d.message).group(1)
+            for d in get_diagnostics(src)
+            if d.code == "W214" and _re.search(r"Parameter '(.*?)' of", d.message)
+        }
+
+    def test_quoted_keyword_marker_silenced(self):
+        src = (
+            "proc ::snit::expose {component {\"as\" \"\"} {methodname \"\"}} {\n"
+            "    return $component$methodname\n"
+            "}\n"
+        )
+        # ``"as"`` is the keyword marker — must not fire.
+        assert '"as"' not in self._w214_names(src)
+
+    def test_normal_unused_param_alongside_marker_still_fires(self):
+        # TP control: ordinary unused params alongside a marker still flag.
+        src = (
+            'proc ::ns::foo {component {"as" ""} unused} {\n'
+            "    return $component\n"
+            "}\n"
+        )
+        names = self._w214_names(src)
+        assert "unused" in names
+        assert '"as"' not in names
+
+
 class TestDispatchProtocolSuppression:
     """W214 dispatch-protocol suppression: when ≥3 peer procs in the same
     namespace share an identical leading-param signature, those params are

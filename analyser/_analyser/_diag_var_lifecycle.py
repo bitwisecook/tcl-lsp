@@ -414,6 +414,21 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         proc_def = self.result.all_procs.get(ir_proc.qualified_name)
         if proc_def is not None and proc_def.is_trace_callback:
             return
+        # Positional keyword markers: a param whose name is a quoted
+        # literal (``{"as" ""}``) is a snit-style syntactic placeholder
+        # that captures a fixed keyword in the call form ``expose comp
+        # as method``.  The body never USES the keyword as a variable
+        # (it is consumed by being PRESENT in the call); flagging is
+        # noise.  Detect: param name starts AND ends with a quote, or
+        # contains a non-identifier char that makes it impossible to
+        # ``$ref`` normally.  Conservative: only suppress params whose
+        # name is itself a quoted literal — keep flagging normal-named
+        # but unused params.
+        quoted_markers: set[str] = set()
+        if proc_def is not None:
+            for p in proc_def.params:
+                if len(p.name) >= 2 and p.name[0] == '"' and p.name[-1] == '"':
+                    quoted_markers.add(p.name)
         # Dispatch-protocol suppression: when ≥3 peer procs in the same
         # namespace share the same leading-param signature, those params are
         # an external contract (parser-rule visitor, snit method protocol,
@@ -438,6 +453,9 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 remaining = [p for p in analysis.unused_params if p not in protocol_params]
             else:
                 remaining = list(analysis.unused_params)
+            # Always filter quoted-keyword markers (eg snit ``{"as" ""}``).
+            if quoted_markers:
+                remaining = [p for p in remaining if p not in quoted_markers]
         else:
             remaining = list(analysis.unused_params)
         for param_name in remaining:
