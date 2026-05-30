@@ -112,6 +112,12 @@ def _is_pure_command(
     :meth:`IRModule.traced_commands` / :meth:`IRModule.has_dynamic_trace`
     — calls to a command with an active execution trace are never pure
     because the trace body composes side-effects in (issue #251).
+
+    Args are inspected for command substitutions: if any nested
+    ``[cmd ...]`` is itself impure (eg ``[incr testnum]``,
+    ``[read $fh 512]``) the outer call cannot be hoisted as
+    loop-invariant — its value DEPENDS on the side-effect's per-call
+    return — so the whole expression is treated as impure.
     """
     callee_summary = None
     if interproc is not None:
@@ -127,7 +133,30 @@ def _is_pure_command(
         traced_commands=traced_commands,
         has_dynamic_trace=has_dynamic_trace,
     )
-    return effect.pure
+    if not effect.pure:
+        return False
+
+    # Recurse into command substitutions inside args.  An outer pure command
+    # whose args read from an impure inner subst is not loop-invariant: each
+    # iteration may produce a different value.
+    for arg in args:
+        if "[" not in arg:
+            continue
+        for tok in _find_cmd_tokens_in_text(arg, base_offset=0, base_line=0, base_col=0):
+            parsed = _parse_cmd_token(tok.text)
+            if parsed is None:
+                continue
+            inner_cmd, inner_args = parsed
+            if not _is_pure_command(
+                inner_cmd,
+                inner_args,
+                interproc,
+                caller_name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
+            ):
+                return False
+    return True
 
 
 def _is_worth_reporting(
@@ -427,9 +456,10 @@ def _parse_cmd_token(text: str) -> tuple[str, tuple[str, ...]] | None:
     CMD token text is the content *inside* the brackets, e.g.
     ``"HTTP::uri"`` or ``"string length $x"``.
 
-    Variable references are preserved with their ``$`` prefix so that
-    downstream canonicalisation can locate and replace them with
-    SSA-versioned forms.
+    Variable references are preserved with their ``$`` prefix and inner
+    command-substitution arg pieces are wrapped back in ``[...]`` so
+    downstream canonicalisation and purity checks can re-discover the
+    nested commands.
     """
     lexer = TclLexer(text)
     argv: list[str] = []
@@ -442,8 +472,14 @@ def _parse_cmd_token(text: str) -> tuple[str, tuple[str, ...]] | None:
         if tok.type in (TokenType.SEP, TokenType.COMMENT):
             prev_sep = True
             continue
-        # Preserve $ prefix for variable tokens so canonicalisation works.
-        piece = f"${tok.text}" if tok.type is TokenType.VAR else tok.text
+        # Preserve $ prefix for variable tokens and re-bracket CMD-sub
+        # tokens (the lexer hands us the content inside brackets only).
+        if tok.type is TokenType.VAR:
+            piece = f"${tok.text}"
+        elif tok.type is TokenType.CMD:
+            piece = f"[{tok.text}]"
+        else:
+            piece = tok.text
         if prev_sep:
             argv.append(piece)
         else:
