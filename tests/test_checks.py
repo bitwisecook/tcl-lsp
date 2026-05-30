@@ -4027,6 +4027,59 @@ class TestSwitchSubjectCountsAsParamUse:
         assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"
 
 
+class TestCallByNameViaCommandSubstitution:
+    """The dominant call-by-name shape in tcllib is a literal-name arg
+    inside a ``[..]`` substitution: ``set len [asnPeekTag data tag type
+    dummy]`` (asn module).  ``tag``/``type`` are caller-locals consumed
+    indirectly via ``upvar`` inside ``asnPeekTag`` — must not trigger
+    W211/W220 on their initialisers.  The earlier call-by-name fix only
+    scanned top-level ``IRCall`` statements and missed this shape.
+    """
+
+    @staticmethod
+    def _diags(src, code):
+        from server.features.diagnostics import get_diagnostics
+
+        return [d for d in get_diagnostics(src) if d.code == code]
+
+    def test_call_by_name_inside_command_subst_silences_w211(self):
+        src = (
+            "namespace eval ::asn {\n"
+            "    proc asnPeekTag {data_var tag_var tagtype_var constr_var} {\n"
+            "        upvar 1 $data_var data $tag_var tag "
+            "$tagtype_var tagtype $constr_var constr\n"
+            "        set tag 1; set tagtype 0x02\n"
+            "    }\n"
+            "    proc asnRetag {data_var newTag} {\n"
+            "        upvar 1 $data_var data\n"
+            '        set tag ""\n'
+            '        set type ""\n'
+            "        set len [asnPeekTag data tag type dummy]\n"
+            "        puts $len\n"
+            "    }\n"
+            "}\n"
+        )
+        w211 = [d.message for d in self._diags(src, "W211")]
+        w220 = [d.message for d in self._diags(src, "W220")]
+        assert not any("'tag' is set" in m for m in w211), w211
+        assert not any("'type' is set" in m for m in w211), w211
+        assert not any("'tag' is never read" in m for m in w220), w220
+        assert not any("'type' is never read" in m for m in w220), w220
+
+    def test_genuine_unused_outside_call_by_name_still_fires(self):
+        # TP control: a vestigial init NOT passed by name still fires.
+        src = (
+            "proc reader {nameVar} { upvar 1 $nameVar local; return $local }\n"
+            "proc f {} {\n"
+            '    set used "hello"\n'
+            '    set unused "discarded"\n'
+            "    return [reader used]\n"
+            "}\n"
+        )
+        w211 = [d.message for d in self._diags(src, "W211")]
+        assert any("'unused'" in m for m in w211)
+
+
 class TestDispatchProtocolSuppression:
     """W214 dispatch-protocol suppression: when ≥3 peer procs in the same
     namespace share an identical leading-param signature, those params are
