@@ -191,7 +191,10 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   `_var_command_sites`; suppress on param / multi-dispatch local /
   switch-key array elem / namespaced ensemble / **param-array
   base** (``\$Verify(key)`` where ``Verify`` is itself a proc
-  parameter — the param documents the callback-table contract).  **Top-level scope**
+  parameter — the param documents the callback-table contract).
+  W307 also **dedups with W101** (eval-injection): ``eval \$cmd``
+  fires both at the same start offset; W101's more-specific
+  double-substitution warning is kept and W307 is dropped.  **Top-level scope**
   also honours the multi-dispatch rule (tcllib's
   ``examples/irc/mainloop.tcl`` script registers ``$cn`` and
   dispatches 9 times — clear intent regardless of being outside any
