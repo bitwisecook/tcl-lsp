@@ -119,6 +119,16 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   recursing) and inside `IRAssignExpr` / `IRExprEval` / `IRReturn`
   expr trees (walking `ExprCommand` nodes).  Sample asn.tcl: W211
   2→0.  Both analyser- and optimiser-side benefit automatically.
+- [x] **W302** catch without result variable — `catch {<cmd>}` without
+  a result var is the documented Tcl idiom for "do this if possible,
+  ignore if not".  The corpus shows 239 firings (top: ftp.tcl 35,
+  comm.tcl 19, http.tcl 16); spot-check confirmed every single one is
+  this idiom (``catch {after cancel $h}``, ``catch {file delete}``,
+  ``catch {close $fh}`` etc.).  Add a `_FIRE_AND_FORGET_COMMANDS` set
+  covering the canonical "error-on-missing-target" builtins (`after`,
+  `close`, `chan`, `unset`, `array`, `dict`, `interp`, `namespace`,
+  `rename`, `file`); a single-statement catch body whose head matches
+  is exempt.  Multi-cmd bodies and user calls still fire.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
@@ -227,9 +237,9 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — security warnings (W3xx) + taint (Txx)
 
-- [ ] **W302** catch without result var (660) — HINT severity; confirm the
-  "cleanup idiom" (`catch {file delete}`) policy is intended noise or should
-  be exempted.
+- [x] **W302** catch without result var — RESOLVED (see top): exempted
+  the documented fire-and-forget idiom (`catch {after cancel}`, `catch
+  {file delete}`, `catch {close}`, etc.).
 - [ ] **W303** ReDoS regexp (0 corpus) — synthetic verify.
 - [ ] **W307** non-literal command name (7574) — #1 W-code by volume. OBJ family
   fixed the snit/oo/factory cases; remaining is `$param method` cross-proc
