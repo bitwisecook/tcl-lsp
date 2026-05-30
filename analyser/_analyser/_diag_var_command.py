@@ -408,10 +408,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     return_values.append(term.value)
             if return_values and all(
                 (
-                    (
-                        parsed := parse_command_substitution(rv.strip())
-                    )
-                    is not None
+                    (parsed := parse_command_substitution(rv.strip())) is not None
                     and "::" in parsed[0]
                 )
                 for rv in return_values

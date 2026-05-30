@@ -17,8 +17,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser import analyse
@@ -185,18 +183,17 @@ def test_FP_DS_06_array_elem_writes_distinct():
     )
 
 
-@pytest.mark.xfail(
-    reason="FP-DS-06 open: same-element ARRAY_ELEM dead-store detection deferred — "
-    "the Place model's overlap relation is suppress-only after the 8E refinement, so "
-    "even writes to a syntactically-identical key like `set a(k) 1; set a(k) 2` are "
-    "not flagged (the second write doesn't kill the first in the memory-SSA sense). "
-    "Lifting this requires the must-alias analysis the phase8-place-migration plan "
-    "defers; flips when ARRAY_ELEM gets a precise kill model.",
-    strict=True,
-)
-def test_FP_DS_06_same_element_overwrite_still_fires():
-    """TP control / OPEN: writing the SAME element twice should be a dead store
-    once the Place model gains precise must-alias kills.  Currently silent."""
+def test_FP_DS_06_same_element_overwrite_fires_w220():
+    """TP / must-alias kill lock-in: writing the SAME literal-key
+    array element twice with no intervening read of that element
+    makes the first write dead.
+
+    Locked the precision gap closure: ``_must_alias_killed_in_block``
+    in ``compiler/core_analyses.py`` walks the def's block forward
+    looking for (a) an intervening read of the EXACT same place
+    (cancels the kill) or (b) a later write to the EXACT same place
+    (must-alias kill).  Literal-key comparison; dynamic keys keep the
+    conservative behaviour."""
     src = "proc f {} {\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}"
     found = _codes(src, "W220") or _codes(src, "O109")
     assert found, (

@@ -659,11 +659,7 @@ def check_missing_option_terminator(
     # ``switch $x -nocase {body1} default {body2}``).  Detect the braced
     # form by checking that the LAST arg is a STR token (brace-enclosed)
     # and exempt from W304 entirely.
-    if (
-        cmd_name == "switch"
-        and len(arg_tokens) == 2
-        and arg_tokens[-1].type is TokenType.STR
-    ):
+    if cmd_name == "switch" and len(arg_tokens) == 2 and arg_tokens[-1].type is TokenType.STR:
         # Two-arg braced form: ``switch STRING { PAT BODY PAT BODY ... }``.
         # The brace-list is unambiguous; no option-consumption possible.
         # The SPLIT form (``switch STRING ?-opt? PAT BODY ?PAT BODY...?``)
@@ -1841,7 +1837,9 @@ def check_mistyped_ipv4(
                 # char before that is a digit.
                 if text[m.start() - 1] == "." and m.start() >= 2 and text[m.start() - 2].isdigit():
                     _before_ok = True
-            _after_ok = m.end() + 1 < len(text) and text[m.end()] == "." and text[m.end() + 1].isdigit()
+            _after_ok = (
+                m.end() + 1 < len(text) and text[m.end()] == "." and text[m.end() + 1].isdigit()
+            )
             if _before_ok or _after_ok:
                 continue
 

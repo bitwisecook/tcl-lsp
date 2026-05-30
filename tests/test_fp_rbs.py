@@ -12,8 +12,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from server.features.diagnostics import get_diagnostics
@@ -137,29 +135,21 @@ proc f {} {
 # the xfail flips and prompts its own removal.
 
 
-@pytest.mark.xfail(
-    reason="FP-RBS-02 open precision gap: regexp no-match path reads "
-    "should fire W210.  Closing the gap properly needs a hybrid: only "
-    "fire W210 when SCCP can statically prove the pattern won't match "
-    "the input (so the def is provably unreached), OR when the read "
-    "is on a no-match-branch reached via the regexp return value.  A "
-    "naive 'never define on regexp' breaks the documented Tcl idiom "
-    "of trusting a match (e.g. Tcl 9 init.tcl word.tcl: ``regexp -- "
-    "\\$WordBreakRE(after) abc result; return \\$result``) -- so the "
-    "conservative behaviour is preserved until the SCCP-driven "
-    "refinement lands.",
-    strict=True,
-)
-def test_FP_RBS_02_regexp_no_match_path_precision_gap():
-    """OPEN-FP: ``regexp {x} y -> v`` returns 0 (no match) and DOES
-    NOT set ``v`` (tclsh-verified).  Reading ``$v`` after the failing
-    regexp is a real RBS but the current analyser doesn't fire it.
+def test_FP_RBS_02_regexp_provably_no_match_fires_w210():
+    """TP / SCCP-driven match analysis: ``regexp {x} y -> v`` -- the
+    pattern ``x`` provably does NOT match the literal input ``y``
+    (Python's re.search returns None).  The variable ``v`` is unset
+    on the only feasible execution path, so reading ``$v`` is a real
+    W210.
 
-    Closing this gap needs SCCP-driven match analysis: only fire W210
-    when the pattern + input are statically known AND statically
-    proven not to match.  A naive 'never define' breaks the trust-the-
-    match Tcl idiom (Tcl 9 init.tcl word.tcl uses this pattern).
-    """
+    Locked the precision gap closure: ``compiler/core_analyses.py``
+    now post-processes ``_read_before_set`` results, scanning for
+    regexp/scan calls whose pattern + input are both bare literals,
+    proving no-match via Python's re (regexp) or a conservative
+    %d-only simulator (scan), and marking output vars as provably
+    unset.  Trust-the-match Tcl idioms (dynamic patterns, success
+    branches) stay silent because the no-match proof requires
+    statically-known + statically-non-matching args."""
     src = """\
 proc f {} {
     regexp {x} y -> v
@@ -172,19 +162,15 @@ proc f {} {
     )
 
 
-@pytest.mark.xfail(
-    reason="FP-RBS-02 open precision gap: scan no-match path reads "
-    "should fire W210.  Same root cause as the regexp gap above: "
-    "closing it needs SCCP-driven match analysis (only fire when the "
-    "format + input are statically known and statically can't match), "
-    "not a blanket conditional-def for scan output vars (that breaks "
-    "the trust-the-match Tcl idiom).",
-    strict=True,
-)
-def test_FP_RBS_02_scan_no_match_path_precision_gap():
-    """OPEN-FP: ``scan abc %d n`` returns 0 (no conversion) and DOES
-    NOT set ``n`` (tclsh-verified).  Reading ``$n`` after the failing
-    scan is a real RBS but the current analyser doesn't fire it."""
+def test_FP_RBS_02_scan_provably_no_match_fires_w210():
+    """TP / SCCP-driven match analysis: ``scan abc %d n`` -- the
+    format ``%d`` requires the input to start with a digit (or sign),
+    but ``abc`` starts with ``a``.  The variable ``n`` is unset on
+    the only feasible execution path; reading ``$n`` is a real W210.
+
+    Locked by the same machinery as the regexp case.  The scan
+    simulator is conservative (currently handles ``%d`` only;
+    other format specifiers fall back to silent)."""
     src = """\
 proc f {} {
     scan abc %d n
@@ -689,18 +675,16 @@ proc tester {} {
 """
 
 
-@pytest.mark.xfail(
-    reason="FP-RBS-05 open: namespace upvar has no lower_*_hook so alias has no "
-    "IRCall def → false W210.  Flips to failure when the fix lands.",
-    strict=True,
-)
 def test_FP_RBS_05_namespace_upvar_silent():
-    """OPEN-FP: `namespace upvar ns src alias` is a real caller-scope def of
-    `alias` (tclsh-verified, behaviourally identical to `upvar 1 ::ns::src
-    alias`).  The analyser currently fires W210 because no lowering hook
-    handles the `namespace` subcommand `upvar`.  When the
-    `lower_namespace_upvar` hook lands, the def will be recorded, this test
-    will pass, and the xfail must be removed."""
+    """FP / namespace-upvar alias def: ``namespace upvar ns src alias``
+    is a real caller-scope def of ``alias`` (tclsh-verified,
+    behaviourally identical to ``upvar 1 ::ns::src alias``).
+
+    Locked the precision gap closure: the namespace dialect spec for
+    ``namespace upvar`` now declares an ``arg_role_resolver`` that
+    marks the local-alias positions (every other arg starting at
+    index 2) as ``ArgRole.VAR_WRITE``.  The standard lowering then
+    records them in ``IRCall.defs`` and SSA-driven W210 honours them."""
     assert _rbs(FP_RBS_05_REPRO) == [], (
         "namespace-upvar alias read must not fire any RBS code; current: "
         + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_05_REPRO))

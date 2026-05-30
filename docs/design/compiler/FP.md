@@ -5501,17 +5501,20 @@ variable.  Detect via param name starting + ending with `"`.
 ---
 
 
-## Precision gaps (PR #498 deep-review)
+## Precision gaps (PR #498 deep-review) — ALL CLOSED
 
 The PR #498 deep review identified 13 precision regressions — places
 where a FP suppression went too far and converted a TP into a false-
-negative.  Below: which gaps were closed (paired TP test) and which
-remain open (strict xfail).
+negative.  All 13 are now closed with paired TP tests.  Additionally,
+two pre-existing open gaps (G14, G15) carried over from earlier review
+rounds were closed in the same pass.
 
-### Closed (11 of 13)
+### Closed (13 of 13 from PR #498 + 2 pre-existing)
 
 | # | Gap | Closure | Test |
 |---|---|---|---|
+| G1 | regexp no-match path: `v` stays unset; `puts $v` after a provably non-matching pattern should fire W210 | SCCP-driven match analysis -- post-process `_read_before_set` to detect regexp/scan with bare-literal pattern + input, use Python `re` (regexp) or %d simulator (scan) to prove no-match | `tests/test_fp_rbs.py::test_FP_RBS_02_regexp_provably_no_match_fires_w210` |
+| G2 | scan no-match path: same root cause | Same machinery, scan-specific %d simulator | `tests/test_fp_rbs.py::test_FP_RBS_02_scan_provably_no_match_fires_w210` |
 | G3 | OBJ-04 namespaced proc returning plain string | Distinguish user-proc calls from builtin/namespaced builtins; user procs only become factory sources when the fixpoint proves them object-returning | `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_string_returning_user_proc_fires_w307` |
 | G4 | OBJ-04 mixed-return wrapper | Require ALL feasible return values (not just the LAST observed) to be namespaced cmd-subs | `tests/test_fp_obj.py::test_FP_OBJ_04_mixed_return_wrapper_fires_w307` |
 | G5 | OBJ-09 multi-dispatch ignores SCCP CONST | SCCP-says-not-a-command override on the heuristic suppressions | `tests/test_fp_obj.py::test_FP_OBJ_09_const_string_multi_dispatch_fires_w307` |
@@ -5523,6 +5526,8 @@ remain open (strict xfail).
 | G11 | Call-by-name VAR_READ trait conflated with caller-frame alias | New `ProcArgTrait.DYNAMIC_NAME_LOCAL` distinct from VAR_READ/VAR_WRITE; caller-side suppression only honours the genuine upvar-alias traits | `tests/test_fp_rbs.py::test_FP_call_by_name_info_exists_dynamic_target_not_caller_read` |
 | G12 | W304 fires on safe braced-switch form | Special-case the 2-arg `switch STRING { ... }` shape | `tests/test_fp_nab.py::test_FP_NAB_05_braced_switch_form_should_not_fire_w304` |
 | G13 | W304 lexical "currently resolves to" crosses proc boundaries | Stop the backward scan at any `proc` whose param list contains the search variable | `tests/test_fp_nab.py::test_FP_NAB_05_w304_lexical_does_not_cross_proc_boundary` |
+| G14 | `namespace upvar ns src alias` -- `alias` not recorded as a def, false W210 | Add `arg_role_resolver` to the `namespace upvar` subcommand spec marking local-alias positions as `ArgRole.VAR_WRITE` | `tests/test_fp_rbs.py::test_FP_RBS_05_namespace_upvar_silent` |
+| G15 | Same-element ARRAY_ELEM dead-store not detected -- `set a(k) 1; set a(k) 2` doesn't fire | New `_must_alias_killed_in_block` helper: literal-key Place equality comparison + intra-block must-alias kill detection | `tests/test_fp_ds.py::test_FP_DS_06_same_element_overwrite_fires_w220` |
 
 Plus a paired catalog message fix: T100's diagnostic message text was
 changed from "possible code injection" to "numeric coercion may
@@ -5530,57 +5535,46 @@ misinterpret value" -- braced expr does NOT re-parse, so the message
 overclaimed (the real code-execution vector is unbraced expr / eval,
 covered by W101).
 
-### Still open (2 of 13)
+### G1/G2 closure detail
 
-| # | Gap | Reproducer | xfail test |
-|---|---|---|---|
-| G1 | regexp no-match path: ``v`` stays unset; reading ``$v`` after a failed match should fire W210 | `proc f {} { regexp {x} y -> v; puts $v }` | `tests/test_fp_rbs.py::test_FP_RBS_02_regexp_no_match_path_precision_gap` |
-| G2 | scan no-match path: same root cause | `proc g {} { scan abc %d n; puts $n }` | `tests/test_fp_rbs.py::test_FP_RBS_02_scan_no_match_path_precision_gap` |
+The naive "treat all regexp/scan VAR_WRITE as conditional" approach
+breaks Tcl idioms like ``regexp -- \\$WordBreakRE(after) abc result;
+return \\$result`` (Tcl 9 init.tcl word.tcl), so the closure is
+*precise*: a post-pass in `_read_before_set` scans for regexp/scan
+calls where the pattern + input are bare literals (no substitution),
+runs Python's `re` for regexp (or a conservative %d-only simulator
+for scan), and only marks the output vars provably-unset when the
+match is proven not to succeed.  Trust-the-match idioms with dynamic
+or variable inputs stay silent.
 
-**G1/G2 deferred** because the simple closure (treat regexp/scan
-output vars as never-defined) breaks the documented Tcl idiom of
-trusting a match (Tcl 9 init.tcl word.tcl: ``regexp -- \\$WordBreakRE
-(after) abc result; return \\$result``).  Proper closure needs SCCP-
-driven pattern simulation: only fire W210 when the pattern + input
-are statically known AND statically proven not to match (or the read
-is on a no-match branch reached via the regexp return-value test).
-That's a precision improvement; the current behaviour is conservative.
+### Root-cause families (all closed)
 
-**Pre-existing open gaps** (also tracked by strict xfail; carried over
-from earlier review rounds):
+The 13 deep-review gaps clustered into four root causes -- all now
+closed:
 
-- G14 — FP-RBS-05 ``namespace upvar`` alias-not-a-def (real caller-
-  scope def but no lowering hook).
-- G15 — FP-DS-06 same-element ARRAY_ELEM dead-store detection (Place
-  model overlap relation is suppress-only).
+1. **Conditional def vs unconditional def** (G1, G2): SCCP-driven
+   match analysis at the W210 post-pass detects when a regexp/scan
+   call is provably non-matching and marks its output vars as
+   provably-unset.
 
-### Root-cause families (closed clusters in **bold**)
+2. **Shape-based vs evidence-based heuristics** (G3–G8, G12): W307
+   factory inference, W307 multi-dispatch, W307 callback-shape,
+   W307 namespaced-ensemble, W304 switch-form -- each now consults
+   SCCP CONST evidence (or Tcl form-arity rules) before suppressing.
 
-The 13 deep-review gaps clustered into four root causes:
+3. **Coarse-grained whole-proc suppressions** (G9, G13): ``dict
+   with`` now uses the actual dict-literal keys when statically
+   known; W304 lexical-origin scan stops at any shadowing ``proc``
+   declaration.
 
-1. **Conditional def vs unconditional def** (G1, G2 — OPEN):
-   ``regexp`` / ``scan`` only write on success; current model treats
-   them as unconditional defs.  Closure requires SCCP-driven pattern
-   simulation; naive "never define" approach breaks Tcl idioms.
+4. **Trait conflation** (G10, G11): W214 dispatch-protocol now
+   requires dispatcher evidence; call-by-name VAR_READ trait split
+   into VAR_READ (real upvar) and DYNAMIC_NAME_LOCAL (callee-local
+   dynamic-name use).
 
-2. **Shape-based vs evidence-based heuristics** (G3–G8, G12 — **all
-   closed**): W307 factory inference, W307 multi-dispatch, W307
-   callback-shape, W307 namespaced-ensemble, W304 switch-form -- each
-   now consults SCCP CONST evidence (or Tcl form-arity rules) before
-   suppressing.
-
-3. **Coarse-grained whole-proc suppressions** (G9, G13 — **both
-   closed**): ``dict with`` now uses the actual dict-literal keys
-   when statically known; W304 lexical-origin scan stops at any
-   shadowing ``proc`` declaration.
-
-4. **Trait conflation** (G10, G11 — **both closed**): W214 dispatch-
-   protocol now requires dispatcher evidence; call-by-name VAR_READ
-   trait split into VAR_READ (real upvar) and DYNAMIC_NAME_LOCAL
-   (callee-local dynamic-name use).
-
-Three of the four clusters are fully closed.  Cluster 1 is deferred
-to a future SCCP-driven precision improvement.
+Pre-existing open gaps (G14 namespace upvar, G15 same-element
+ARRAY_ELEM dead-store) closed in the same pass via targeted spec /
+must-alias fixes.
 
 ---
 

@@ -1883,6 +1883,62 @@ def _def_place(ir_stmt: IRStatement, ctx) -> Place | None:
     return places[0] if len(places) == 1 else None
 
 
+def _must_alias_killed_in_block(
+    block_name: str,
+    def_idx: int,
+    def_place: "Place",
+    ssa,
+    cfg,
+    resolve_ctx,
+) -> bool:
+    """Return True iff *def_place* (an ARRAY_ELEM/DICT_PATH write at
+    ``block.statements[def_idx]``) is overwritten by a *later* write
+    in the same block to the EXACT same place, with no intervening
+    read of that specific element.
+
+    PR #498 deep-review G15: prior code's overlap relation is suppress-
+    only -- it can't say "this earlier write was killed" because the
+    folded-name version stream doesn't preserve element identity.  For
+    *literal-key* writes we can detect must-alias by comparing the
+    Place's (ns, name, index) tuple directly.  Dynamic keys (where
+    ``index.dynamic`` is true) fall back to the conservative behaviour.
+    """
+    if def_place.index is None or getattr(def_place.index, "dynamic", False):
+        return False
+    cfg_block = cfg.blocks.get(block_name)
+    ssa_block = ssa.blocks.get(block_name)
+    if cfg_block is None or ssa_block is None:
+        return False
+    # Walk forward in the block.  A read of the same place between us
+    # and the killing write disqualifies the kill.
+    for j in range(def_idx + 1, len(cfg_block.statements)):
+        ir_stmt = cfg_block.statements[j]
+        # Intervening read of the same element?
+        for rp in read_places(ir_stmt, resolve_ctx):
+            if (
+                rp.kind is def_place.kind
+                and rp.ns == def_place.ns
+                and rp.name == def_place.name
+                and rp.index is not None
+                and not getattr(rp.index, "dynamic", False)
+                and rp.index == def_place.index
+            ):
+                return False
+        # Killing write?
+        kill_place = _def_place(ir_stmt, resolve_ctx)
+        if (
+            kill_place is not None
+            and kill_place.kind is def_place.kind
+            and kill_place.ns == def_place.ns
+            and kill_place.name == def_place.name
+            and kill_place.index is not None
+            and not getattr(kill_place.index, "dynamic", False)
+            and kill_place.index == def_place.index
+        ):
+            return True
+    return False
+
+
 def _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks):
     """A lazy predicate: is an ``ARRAY_ELEM``/``DICT_PATH`` def-place observed by
     any read in the function under ``place.overlap``?
@@ -2051,11 +2107,17 @@ def _dead_stores(
                 if place is None or not _reportable_local(place):
                     continue
                 # Element / dict writes can't trust the folded-name `used` set —
-                # use place-overlap (8E-refined) instead.
-                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH) and _element_observed(
-                    place
-                ):
-                    continue
+                # use place-overlap (8E-refined) instead.  G15 closure:
+                # before suppressing on overlap, check for a must-alias
+                # kill -- a later write to the SAME (ns, name, index)
+                # in the same block with no intervening read of THAT
+                # exact element overwrites this store.
+                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH):
+                    if _must_alias_killed_in_block(bn, idx, place, ssa, cfg, resolve_ctx):
+                        # Killed by a later same-element write -> dead.
+                        pass
+                    elif _element_observed(place):
+                        continue
                 # Read inside a command-substituted expr (missed by stmt.uses).
                 if n in expr_sub_reads:
                     continue
@@ -2659,9 +2721,7 @@ def _read_before_set(
                         )
                         if prev_ssa is None:
                             continue
-                        if dict_var in prev_ssa.defs and isinstance(
-                            prev_stmt.value, str
-                        ):
+                        if dict_var in prev_ssa.defs and isinstance(prev_stmt.value, str):
                             literal_value = prev_stmt.value
                             break
                     elif isinstance(prev_stmt, (IRBarrier, IRCall)):
@@ -2892,6 +2952,105 @@ def _read_before_set(
                     continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=-1, variable=name))
+
+    # PR #498 deep-review G1/G2 closure: regexp/scan output vars are
+    # CONDITIONAL defs (only written on success).  When the pattern +
+    # input are both statically known AND can be statically proven not
+    # to match, the def is provably unreached and any subsequent read
+    # is a real W210.  This is the precise approach (only fire when
+    # SCCP proves no-match), not the naive approach (treat every
+    # regexp/scan output as conditional, which breaks trust-the-match
+    # Tcl idioms like ``regexp -- \$WordBreakRE(after) abc result``).
+    provably_unset: dict[str, tuple[str, int]] = {}  # var_name -> (block, stmt_idx)
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt_idx, stmt in enumerate(block.statements):
+            if not isinstance(stmt, IRCall):
+                continue
+            if stmt.command not in ("regexp", "scan"):
+                continue
+            if not stmt.defs:
+                continue
+            # Check if pattern + input are statically known.  The args
+            # tuple holds the raw arg strings; for our purposes both
+            # must be bare literals (no $/[).
+            from compiler.registry.runtime import options_with_value, skip_options
+
+            pos = skip_options(list(stmt.args), options_with_value(stmt.command))
+            if pos + 1 >= len(stmt.args):
+                continue
+            # Arg ordering differs:
+            #   regexp ?switches? PATTERN STRING ?VAR...?
+            #   scan   STRING FORMAT ?VAR...?
+            if stmt.command == "regexp":
+                pattern_arg = stmt.args[pos]
+                input_arg = stmt.args[pos + 1]
+            else:  # scan
+                input_arg = stmt.args[pos]
+                pattern_arg = stmt.args[pos + 1]
+            # Reject anything that looks like a substitution.
+            if any(c in pattern_arg for c in "$[") or any(c in input_arg for c in "$["):
+                continue
+            # Strip outer braces / quotes if present (the lexer
+            # preserves them for the analyser to inspect).
+            pat = pattern_arg.strip()
+            if (pat.startswith("{") and pat.endswith("}")) or (
+                pat.startswith('"') and pat.endswith('"')
+            ):
+                pat = pat[1:-1]
+            inp = input_arg.strip()
+            if (inp.startswith("{") and inp.endswith("}")) or (
+                inp.startswith('"') and inp.endswith('"')
+            ):
+                inp = inp[1:-1]
+            # Try to prove no-match using Python's re for regexp
+            # (with a syntax check) and a simple %d-only simulator
+            # for scan.  Be conservative: any exception or uncertain
+            # case skips marking.
+            no_match = False
+            if stmt.command == "regexp":
+                try:
+                    import re
+
+                    if re.search(pat, inp) is None:
+                        no_match = True
+                except re.error:
+                    pass  # invalid regex -> can't prove
+            elif stmt.command == "scan":
+                # Very conservative: only handle the simple %d case
+                # (the deep-review repro).  ``scan abc %d n`` returns 0
+                # because ``abc`` doesn't start with a digit.
+                if pat == "%d":
+                    stripped = inp.lstrip()
+                    if not stripped or not (stripped[0].isdigit() or stripped[0] in "+-"):
+                        no_match = True
+            if no_match:
+                for def_var in stmt.defs:
+                    provably_unset[def_var] = (bn, stmt_idx)
+    # Now fire W210 for any USE of a provably-unset var that's not
+    # already reported AND not guarded by a conditional branch testing
+    # the regexp/scan return.  (For the deep-review test case, the read
+    # is unguarded; for the trust-the-match idiom, the value isn't
+    # proven non-matching so this code path doesn't fire.)
+    if provably_unset:
+        for bn in considered:
+            ssa_block = ssa.blocks.get(bn)
+            if ssa_block is None:
+                continue
+            for idx, stmt in enumerate(ssa_block.statements):
+                for name in stmt.uses:
+                    if name in provably_unset and name not in reported:
+                        # Confirm the use comes AFTER the proven-unset
+                        # def by checking the statement appears later
+                        # in the same block (simple form).
+                        def_block, def_idx = provably_unset[name]
+                        if bn == def_block and idx > def_idx:
+                            reported.add(name)
+                            result.append(
+                                ReadBeforeSet(block=bn, statement_index=idx, variable=name)
+                            )
 
     return tuple(result)
 
