@@ -2410,6 +2410,253 @@ function ::f
 
 ---
 
+### FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_04_*`
+- **Codes:** S100, S101, S102
+- **Corpus:** `tmp/tcl9.0.3/library/cookiejar/idna.tcl` (and every other hex-heavy module — DES, AES, blowfish, CRC tables).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # 0x80 is a Tcl hex integer literal -- typed INT, not STRING.
+    # incr on $n must NOT fire S100/S101.
+    set n 0x80
+    for {set i 0} {$i < 10} {incr i} {
+        incr n
+    }
+    return $n
+}
+```
+
+#### Per-line reasoning
+
+1. `set n 0x80` — the literal `0x80` is a Tcl hex integer (recognised by `Tcl_GetIntFromObj` on first numeric use).  Its intrep is INT.
+2. The for-loop `incr n` increments an integer.  `n` stays INT across iterations.
+
+Pre-fix `_literal_type` in `compiler/core_analyses.py` only matched `_DECIMAL_INT_RE` (decimal digits only) and fell through to STRING for hex (`0x...`) and binary (`0b...`) prefix forms.  The `set n 0x80` then propagated STRING; `incr n` (which expects INT) fired S101 every iteration — "intrep string but incr expects int".
+
+In reality the hex literal is INT and the loop is clean.
+
+Fix: extend `_literal_type` to recognise `_HEX_INT_RE` (`^[+-]?0[xX][0-9a-fA-F]+$`) and `_BIN_INT_RE` (`^[+-]?0[bB][01]+$`) as INT before falling through to STRING.  Tcl 9 dropped the legacy "leading-0 means octal" rule, so leading-0 forms are NOT recognised — dialect-dependent and error-prone; users should write `0o...` explicitly which can be added if the corpus shows it.
+
+#### tclsh ground truth
+
+```
+% set n 0x80; incr n; puts $n
+129
+```
+
+Hex literal converts to int 128 on first numeric use; incr makes it 129; no error.
+
+#### Compiler evidence
+
+The `_literal_type` helper:
+
+```python
+def _literal_type(text: str) -> TypeLattice:
+    stripped = text.strip()
+    if _DECIMAL_INT_RE.fullmatch(stripped):
+        return TypeLattice.of(TclType.INT)
+    if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
+        return TypeLattice.of(TclType.INT)
+    if _FLOAT_RE.fullmatch(stripped):
+        return TypeLattice.of(TclType.DOUBLE)
+    if stripped.lower() in _BOOL_LITERALS:
+        return TypeLattice.of(TclType.BOOLEAN)
+    return TypeLattice.of(TclType.STRING)
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py::_literal_type` recognises hex/binary prefix forms as INT.  Concrete tcllib pattern from `cookiejar/idna.tcl`:
+
+```tcl
+variable initial_n 0x80
+set n $initial_n
+for {set h $b} {$h < [llength $in]} {incr delta; incr n} { ... }
+```
+
+Pre-fix the hex literal propagated STRING through `set n $initial_n`, so `incr n` fired S101 in the encoding loop.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_04_hex_literal_increment_no_shimmer` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_04_binary_literal_increment_no_shimmer` (FP — `0b...` form)
+- `tests/test_fp_sh.py::test_FP_SH_04_genuine_string_increment_still_fires` (TP control)
+
+---
+
+### FP-SH-05 — destructure foreach (`foreach VARS LIST break`) excluded from loop body types
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_05_*`
+- **Codes:** S102 (and indirectly S101)
+- **Corpus:** `tmp/tcllib-2.0/modules/grammar_me/me_cpucore.tcl` (the canonical site; the destructure idiom predates `lassign` and pervades pre-8.5 tcllib modules).
+
+#### Reproducer
+
+```tcl
+proc f {state} {
+    # foreach + break is the pre-8.5 lassign equivalent: a
+    # single-iteration foreach that destructures a list.  The var
+    # bindings are one-time, not per-iteration body types — they
+    # must NOT pollute a sibling real loop's S102 oscillation check.
+    foreach {a b c sv} $state break
+    foreach inst {1 2 3} {
+        set sv [list 1 2 3]
+    }
+    return $sv
+}
+```
+
+#### Per-line reasoning
+
+1. `foreach {a b c sv} $state break` — Tcl's pre-`lassign` destructure idiom: foreach binds `a`,`b`,`c`,`sv` to the first four elements of `$state`, then the body executes `break` which exits the loop after one iteration.  Effectively a multi-assign that runs ONCE.
+2. The main loop `foreach inst {1 2 3}` runs three times.  Each iteration `set sv [list 1 2 3]` (LIST type).
+3. From the main loop's perspective: `sv` enters as STRING (the destructure binding), body produces LIST.  Entry-type set = {STRING}; body-type set = {LIST}.  Intersection empty, body cardinality 1 → no oscillation → no S102.
+
+Pre-fix: the destructure foreach IS a CFG loop (header + body block + back-edge).  Its var binding (STRING, from the list-element-typed foreach binding) was added to the function-wide `loop_body_types` map.  When the main loop's S102 check queried `loop_body_types[sv]`, it got `{STRING, LIST}` — the union across ALL loop blocks in the proc, including the destructure.  Cardinality 2 → oscillates=True → S102 fired on the main loop's `sv` phi even though there's no real per-iter oscillation (the destructure ran once).
+
+Fix: detect "destructure foreach" blocks — an SSA block whose first statement is `IRCall(command="foreach"|"lmap")` and whose foreach body block contains only `IRCall(command="break")`.  Exclude those blocks from the `in_loop` check in `_build_shimmer_name_index`, so their var bindings don't pollute `loop_body_types`.
+
+#### tclsh ground truth
+
+```
+% set state {1 2 3 4 5}
+% foreach {a b c sv} $state break
+% puts $sv
+4
+```
+
+The destructure runs once; `sv` is bound to the fourth element.  No iteration.
+
+#### Compiler evidence
+
+`compiler/shimmer.py::_destructure_foreach_blocks` produces the exclusion set:
+
+```python
+def _destructure_foreach_blocks(ssa: SSAFunction, cfg) -> set[str]:
+    destructure: set[str] = set()
+    for bname, block in cfg.blocks.items():
+        ssa_block = ssa.blocks.get(bname)
+        if not block.statements:
+            continue
+        first = block.statements[0]
+        if not isinstance(first, IRCall) or first.command not in ("foreach", "lmap"):
+            continue
+        # body block (successor) must contain only an IRCall(break).
+        for succ in <successors of block>:
+            succ_stmts = cfg.blocks[succ].statements
+            if len(succ_stmts) == 1 and isinstance(succ_stmts[0], IRCall) and succ_stmts[0].command == "break":
+                destructure.add(bname)
+                break
+    return destructure
+```
+
+Sample impact (me_cpucore.tcl alone): S101 113→82 (−31), S102 48→29 (−19) after this fix; sample S102 across six tcllib files dropped from 161 → 93 (−42%).
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py::_build_shimmer_name_index` (with the `cfg` parameter) computes `destructure_blocks` via `_destructure_foreach_blocks(ssa, cfg)` and replaces `in_loop = bn in loop_blocks` with `in_loop = bn in loop_blocks and bn not in destructure_blocks`.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_05_destructure_foreach_no_s102` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_05_real_iter_foreach_still_fires` (TP control — a real multi-iter foreach with body that oscillates types still fires S102)
+
+---
+
+### FP-SH-06 — per-loop body_types (sibling loops do not pollute each other)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_06_*`
+- **Codes:** S102
+- **Corpus:** tcllib procs with multiple sibling loops sharing local names (`tmp/tcllib-2.0/modules/grammar_me/me_cpucore.tcl`, DES, tepam, graphops, docstrip, exif).
+
+#### Reproducer
+
+```tcl
+proc f {items} {
+    # Loop A and loop B are SIBLINGS — they don't nest.  Each loop
+    # alone is monomorphic in $x (loop A: STRING only; loop B: LIST
+    # only).  Neither loop oscillates, so S102 must not fire on either.
+    foreach a $items {
+        set x "value"
+    }
+    foreach b $items {
+        set x [list 1 2]
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. Loop A's only assignment to `$x` is `set x "value"` (STRING).  Within loop A, the phi for `$x` at the header sees: entry={whatever before}, body={STRING}.  Cardinality 1, no overlap → no oscillation.
+2. Loop B's only assignment to `$x` is `set x [list 1 2]` (LIST).  Within loop B, the phi sees: entry={STRING from loop A's last write}, body={LIST}.  Cardinality 1, no overlap → no oscillation.
+
+Pre-fix: `loop_body_types` was a function-wide map `name → union of body types across ALL loop blocks in the proc`.  For `$x`, the function-wide set was `{STRING, LIST}`.  When checking either loop, the oscillates predicate
+
+```python
+oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
+```
+
+evaluated to True (`len({STRING, LIST}) >= 2`) — S102 fired on both loops' phi for `$x`, even though neither loop alone oscillates.
+
+Fix: build `per_header_body_types: dict[loop_header → dict[name → set[TclType]]]` using the natural loop forest (`compiler.loops.build_loop_forest`).  Each loop contributes only its OWN blocks' body types.  At `_find_thunking`'s emission point, look up `per_header_body_types[bn].get(phi.name, set())` instead of the function-wide map.
+
+#### tclsh ground truth
+
+```
+% set items {1 2 3}
+% foreach a $items { set x "value" }
+% foreach b $items { set x [list 1 2] }
+% puts $x
+1 2
+```
+
+Each loop runs to completion; `$x` ends as whatever the last loop body left it.  No type churn within either loop.
+
+#### Compiler evidence
+
+The per-loop map is built in `compiler/shimmer.py::_find_thunking`:
+
+```python
+forest = build_loop_forest(cfg, ssa, executable_blocks)
+destructure_set = _destructure_foreach_blocks(ssa, cfg)
+per_header_body_types: dict[str, dict[str, set[TclType]]] = {}
+for loop in forest.loops:
+    per_loop_types: dict[str, set[TclType]] = {}
+    for lbn in loop.blocks:
+        if lbn in destructure_set:
+            continue
+        # collect KNOWN intrep types for defs in THIS loop only
+    per_header_body_types[loop.header] = per_loop_types
+```
+
+And the emission point uses it:
+
+```python
+per_loop = per_header_body_types.get(bn, {}).get(phi.name, set())
+all_body_types = body_types | per_loop
+oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
+```
+
+Sample impact (six tcllib files): S102 93→30 (−68%).  me_cpucore.tcl: 29→3 S102 (−90%).
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py::_find_thunking` (S102 emission) uses `per_header_body_types[bn]` (per the loop the phi belongs to) instead of the function-wide `loop_body_types` map.  Function-wide `loop_body_types` is still computed (kept for S100/S101 paths which aren't yet refactored to per-loop — diminishing returns there since per-phi `body_types` already filters most pollution).
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_06_sibling_loops_no_s102` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_06_real_oscillation_within_one_loop_still_fires` (TP control)
+
+---
+
 
 ## OBJ — object dispatch (W307/W308) + snit modelling
 
@@ -2752,6 +2999,110 @@ function ::f
 #### Tests
 
 - `tests/test_fp_obj.py::test_FP_OBJ_06_private_proc_body_analysed` (TP / depth lock-in)
+
+---
+
+### FP-OBJ-07 — cmd-sub namespaced ensemble `[ns_func]::method` is dispatch, not stray word
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_07_*`
+- **Codes:** W307 (unresolved command / stray non-literal command word)
+- **Corpus:** tcllib http/ftpd dispatch idiom and namespace-factory ensembles.
+
+#### Reproducer
+
+```tcl
+namespace eval ::ns {
+    proc dispatch {} { return ::ns::sub }
+    proc sub::work {arg} { return $arg }
+}
+[::ns::dispatch]::work hello
+```
+
+#### Per-line reasoning
+
+1. `[::ns::dispatch]::work hello` — the command word is `[::ns::dispatch]::work`.  At runtime Tcl substitutes `[::ns::dispatch]` to get `::ns::sub`, then composes the qualified name `::ns::sub::work` and invokes it.  This is the canonical "namespaced ensemble" dispatch: a known-name suffix (`::work`) appended to a command-substitution result that produces a namespace prefix.
+2. The dispatch is well-formed: `::ns::sub::work` resolves to the defined proc.  No "stray non-literal command word" — there's a literal method-name tail (`::work`).
+
+Pre-fix: W307 fired because the command word starts with `[` (cmd-sub).  The detector didn't recognise the `[...]::word` shape as a known dispatch idiom and reported "stray non-literal command word".
+
+Fix: at the W307 detection point, recognise the `[CMDSUB]::IDENT...` pattern as a valid namespaced-ensemble dispatch and suppress the warning.  The IDENT-tail provides the static method-name evidence that distinguishes "I know what method is being called, just not on which namespace" from "I don't know what's being called at all".
+
+#### tclsh ground truth
+
+```
+% namespace eval ::ns {
+    proc dispatch {} { return ::ns::sub }
+    proc sub::work {arg} { return $arg }
+}
+% [::ns::dispatch]::work hello
+hello
+```
+
+Tcl substitutes and dispatches normally.
+
+#### Compiler evidence
+
+The W307 detector inspects command-word shape; the namespaced-ensemble suppression matches the regex / shape `\[...\](::[a-zA-Z_][a-zA-Z0-9_]*)+`.
+
+#### Why the analyser reaches that verdict
+
+`compiler/checks/` W307 suppression branch checks for the cmd-sub + namespaced suffix shape before firing.  Commit `85015850`.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_07_cmdsub_namespaced_ensemble_no_w307` (FP)
+- `tests/test_fp_obj.py::test_FP_OBJ_07_bare_cmdsub_dispatch_still_fires` (TP control — `[cmd] $arg` with no literal method tail still fires)
+
+---
+
+### FP-OBJ-08 — W307 suppressed on eval-substituted dispatch (W101 covers it)
+
+- **Verdict:** FALSE POSITIVE / dedup with W101
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_08_*`
+- **Codes:** W307, W101 (the dedup target)
+- **Corpus:** tcllib `eval $cmd $args` dispatch glue.
+
+#### Reproducer
+
+```tcl
+proc f {cmd args} {
+    # eval-substituted dispatch — W101 already flags the eval-of-
+    # substituted-string injection risk.  W307 reporting the same
+    # site as "stray non-literal command word" is redundant noise.
+    eval $cmd $args
+}
+```
+
+#### Per-line reasoning
+
+1. `eval $cmd $args` — `eval` of a substituted command string is the canonical W101 site (eval-injection risk: the substituted value may contain arbitrary command syntax).
+2. Pre-fix W307 *also* fired here, flagging `$cmd` as a non-literal command word.  Same finding, two codes — pure duplicate noise.
+
+Fix: at the W307 detection point, check whether the enclosing call is `eval` (or `interp eval` / similar substituting eval forms) and suppress W307 since W101 already provides the appropriate diagnostic.  The user fix (use `eval [list $cmd {*}$args]` or similar) is identical for both.
+
+#### tclsh ground truth
+
+```
+% proc f {cmd args} { eval $cmd $args }
+% f puts hello
+hello
+```
+
+Runtime works (assuming `$cmd` is benign); the security concern is the substitution-of-command-string pattern itself.
+
+#### Compiler evidence
+
+W307's pre-fire filter checks whether the call site is an `eval`-family form and short-circuits before emission when so.
+
+#### Why the analyser reaches that verdict
+
+`compiler/checks/` W307 dedup branch: if the parent call command is in the eval-substituting set, suppress W307 since W101 will fire.  Commit `7a1bbf75`.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_08_eval_substituted_dispatch_no_w307` (FP — W307 suppressed)
+- `tests/test_fp_obj.py::test_FP_OBJ_08_eval_substituted_dispatch_still_fires_w101` (TP control — W101 must still fire)
 
 ---
 

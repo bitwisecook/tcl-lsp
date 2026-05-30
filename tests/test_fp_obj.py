@@ -207,3 +207,71 @@ def test_FP_OBJ_06_private_proc_body_analysed():
     diags = _codes(src, "W216")
     assert diags, "snit private proc body must be analysed (expected W216)"
     assert "${a}($a)" in diags[0].message
+
+
+# FP-OBJ-07 — cmd-sub namespaced ensemble [ns_func]::method is dispatch, not stray word
+
+
+FP_OBJ_07_REPRO = """\
+namespace eval ::ns {
+    proc dispatch {} { return ::ns::sub }
+    proc sub::work {arg} { return $arg }
+}
+[::ns::dispatch]::work hello
+"""
+
+
+def test_FP_OBJ_07_cmdsub_namespaced_ensemble_no_w307():
+    """FP: `[cmd]::method` is the namespaced-ensemble dispatch idiom — the
+    literal `::method` tail provides static method-name evidence.  W307 must
+    NOT fire because the dispatch is well-formed (method-name is known,
+    namespace prefix is computed at runtime)."""
+    assert _codes(FP_OBJ_07_REPRO, "W307") == [], (
+        "cmd-sub namespaced ensemble [cmd]::method must not fire W307"
+    )
+
+
+def test_FP_OBJ_07_bare_cmdsub_dispatch_still_fires():
+    """TP control: a bare `[cmd] $arg` dispatch with NO literal method-name
+    tail still fires W307 — the suppression keys on the `::IDENT` suffix
+    shape, not on cmd-sub-as-such."""
+    # Bare cmd-sub at command position with no namespaced method tail.
+    src = "[some_unknown_cmd] $arg\n"
+    # We require *some* unresolved-command-style diagnostic to still fire;
+    # tighter would be code-specific but the family-level guarantee is that
+    # the suppression didn't go blanket.
+    from analyser import analyse
+
+    diags = analyse(src).diagnostics
+    assert any(d.code in {"W307", "W101", "W101A"} for d in diags), (
+        f"bare cmd-sub dispatch must still produce an unresolved-command diagnostic: {diags}"
+    )
+
+
+# FP-OBJ-08 — W307 suppressed on eval-substituted dispatch (W101 covers it)
+
+
+FP_OBJ_08_REPRO = """\
+proc f {cmd args} {
+    # eval-substituted dispatch -- W101 already flags the eval-of-
+    # substituted-string injection risk.  W307 reporting the same
+    # site as "stray non-literal command word" is redundant noise.
+    eval $cmd $args
+}
+"""
+
+
+def test_FP_OBJ_08_eval_substituted_dispatch_no_w307():
+    """FP: `eval $cmd ...` is an eval-injection site that W101 already
+    flags.  W307 piling on with "stray non-literal command word" is pure
+    duplicate noise — suppressed at the W307 detection point."""
+    assert _codes(FP_OBJ_08_REPRO, "W307") == [], (
+        "W307 must not fire on eval-substituted dispatch (W101 covers it)"
+    )
+
+
+def test_FP_OBJ_08_eval_substituted_dispatch_still_fires_w101():
+    """TP control: W101 (eval-injection) must still fire on the same site.
+    Proves the dedup suppressed only W307, not the real W101 finding."""
+    diags = _codes(FP_OBJ_08_REPRO, "W101")
+    assert diags, "W101 must still fire on eval $cmd $args (the real finding)"

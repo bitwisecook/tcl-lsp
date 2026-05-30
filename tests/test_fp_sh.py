@@ -130,3 +130,130 @@ def test_FP_SH_03_genuine_phi_string_int_still_fires():
     # A genuine per-iteration loop shimmer (S101/S102) must still fire here.
     codes = {d.code for d in get_diagnostics(src)}
     assert codes & {"S100", "S101", "S102"}, codes
+
+
+# FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
+
+
+FP_SH_04_REPRO = """\
+proc f {} {
+    # 0x80 is a Tcl hex integer literal -- typed INT, not STRING.
+    # incr on $n must NOT fire S100/S101.
+    set n 0x80
+    for {set i 0} {$i < 10} {incr i} {
+        incr n
+    }
+    return $n
+}
+"""
+
+
+def test_FP_SH_04_hex_literal_increment_no_shimmer():
+    """FP: hex literal `0x80` is recognised as INT by Tcl_GetIntFromObj;
+    the analyser's `_literal_type` must also recognise it as INT so
+    incr on a hex-init variable doesn't fire spurious S100/S101."""
+    assert _codes(FP_SH_04_REPRO, SHIMMER_CODES) == [], (
+        "hex literal 0x80 must be typed INT; incr loop here is clean"
+    )
+
+
+def test_FP_SH_04_binary_literal_increment_no_shimmer():
+    """FP: binary literal `0b1010` is also a Tcl integer literal."""
+    src = "proc f {} { set n 0b1010; incr n; return $n }"
+    assert _codes(src, SHIMMER_CODES) == [], "binary literal 0b1010 must be typed INT"
+
+
+def test_FP_SH_04_genuine_string_increment_still_fires():
+    """TP control: an actual string in incr must still fire shimmer.
+    Proves the hex/binary recognition didn't blanket-silence STRING-in-incr."""
+    src = "proc f {} { set n hello; incr n; return $n }"
+    # The genuine STRING-in-incr case must still produce S100/S101.
+    codes = {d.code for d in get_diagnostics(src)}
+    assert codes & {"S100", "S101"}, f"STRING in incr must still fire; got {codes}"
+
+
+# FP-SH-05 — destructure foreach (`foreach VARS LIST break`) excluded from loop body types
+
+
+FP_SH_05_REPRO = """\
+proc f {state} {
+    # foreach + break is the pre-8.5 lassign equivalent: a
+    # single-iteration foreach that destructures a list.  The var
+    # bindings are one-time, not per-iteration body types -- they
+    # must NOT pollute a sibling real loop's S102 oscillation check.
+    foreach {a b c sv} $state break
+    foreach inst {1 2 3} {
+        set sv [list 1 2 3]
+    }
+    return $sv
+}
+"""
+
+
+def test_FP_SH_05_destructure_foreach_no_s102():
+    """FP: `foreach VARS LIST break` is the pre-`lassign` destructure
+    idiom -- the binding runs once, not per iteration.  The main loop's
+    `set sv [list ...]` is monomorphic in LIST; with the destructure
+    excluded from `loop_body_types`, S102 on $sv must NOT fire."""
+    codes = [d.code for d in get_diagnostics(FP_SH_05_REPRO)]
+    assert "S102" not in codes, f"destructure-foreach must not pollute S102: {codes}"
+
+
+def test_FP_SH_05_real_iter_foreach_still_fires():
+    """TP control: a real multi-iteration foreach whose body genuinely
+    oscillates types must still fire S102.  The destructure detection
+    keys on body=`break`, not foreach-as-such, so this stays caught."""
+    src = (
+        "proc f {items} {\n"
+        "    foreach x $items {\n"
+        '        if {$x > 0} { set v "string" } else { set v [list 1 2] }\n'
+        "        puts $v\n"
+        "    }\n"
+        "}\n"
+    )
+    codes = {d.code for d in get_diagnostics(src)}
+    assert codes & {"S101", "S102"}, f"real per-iter oscillation must still fire; got {codes}"
+
+
+# FP-SH-06 — per-loop body_types (sibling loops do not pollute each other)
+
+
+FP_SH_06_REPRO = """\
+proc f {items} {
+    # Loop A and loop B are SIBLINGS -- they don't nest.  Each loop
+    # alone is monomorphic in $x (loop A: STRING only; loop B: LIST
+    # only).  Neither loop oscillates, so S102 must not fire on either.
+    foreach a $items {
+        set x "value"
+    }
+    foreach b $items {
+        set x [list 1 2]
+    }
+}
+"""
+
+
+def test_FP_SH_06_sibling_loops_no_s102():
+    """FP: sibling loops in the same proc must not pollute each other's
+    S102 body_types map.  Loop A binds $x to STRING only; loop B binds
+    $x to LIST only -- per-loop body_types is monomorphic in each, so
+    no oscillation, no S102.  Pre-fix the function-wide union triggered
+    S102 on both loops' phi for $x."""
+    codes = [d.code for d in get_diagnostics(FP_SH_06_REPRO)]
+    assert "S102" not in codes, f"sibling-loop S102 should not fire: {codes}"
+
+
+def test_FP_SH_06_real_oscillation_within_one_loop_still_fires():
+    """TP control: when a SINGLE loop's body genuinely oscillates $x's
+    type per iteration, S102 must still fire.  Proves the per-loop
+    body_types didn't over-suppress real intra-loop oscillation."""
+    src = (
+        "proc f {items} {\n"
+        "    foreach a $items {\n"
+        '        if {$a > 0} { set x "value" } else { set x [list 1 2] }\n'
+        "        puts $x\n"
+        "    }\n"
+        "}\n"
+    )
+    codes = {d.code for d in get_diagnostics(src)}
+    assert codes & {"S101", "S102"}, f"real intra-loop oscillation must still fire; got {codes}"
