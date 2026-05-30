@@ -2629,6 +2629,44 @@ class TestW307ProcParamDispatcher:
         src = "set foo [factory]\n$foo method\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_cross_proc_object_factory_no_w307(self):
+        # tcllib struct/graphops idiom: ``createTGraph`` wraps the
+        # namespaced ``struct::graph`` factory and returns the handle.
+        # Callers do ``set TGraph [createTGraph ...]`` then dispatch on
+        # ``\$TGraph`` — single dispatch, but the value came from a
+        # known object-returning user proc.  The transitive factory
+        # inference must propagate the OBJECT trait through the user
+        # proc so a downstream SINGLE dispatch is silent.
+        src = (
+            "proc createTGraph {G T D} {\n"
+            "    set TGraph [struct::graph]\n"
+            "    return $TGraph\n"
+            "}\n"
+            "proc analyze {G T} {\n"
+            "    set TG [createTGraph $G $T 0]\n"
+            "    $TG dispose\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_transitive_object_factory_chain_no_w307(self):
+        # Chain: ``h`` calls ``g`` which calls ``f`` (the namespaced
+        # factory).  The fixpoint must propagate the OBJECT trait up
+        # the chain so callers of ``h`` are also recognised.
+        src = (
+            "proc f {} { return [struct::graph] }\n"
+            "proc g {} { set x [f]; return $x }\n"
+            "proc h {} { set y [g]; return $y }\n"
+            "proc consumer {} { set z [h]; $z dispose }\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_non_factory_user_proc_still_w307(self):
+        # TP control: a user proc returning a string (not an object)
+        # — single-dispatch on the result still fires W307.
+        src = "proc make_name {} { return foo }\nproc f {} { set x [make_name]; $x method }\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to

@@ -28,6 +28,52 @@ from ..semantic_model import Diagnostic, Severity
 _OO_SELF_REFS = frozenset({"self", "type", "selfns", "win", "hull"})
 
 
+def _last_return_var(cfg) -> str | None:
+    """Return the name of the variable returned by the proc, or None.
+
+    Walks the CFG looking for the LAST IRReturn whose value is a single
+    ``$var`` or ``${var}`` substitution.  Used by the object-returning
+    -proc inference in the W307 suppression pass: a proc returning
+    ``$X`` where ``X`` was assigned from a factory is itself an object
+    factory.
+    """
+    from compiler.cfg import CFGReturn
+    from compiler.ir import IRReturn
+
+    def _extract(v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.strip()
+        if not v.startswith("$"):
+            return None
+        rest = v[1:]
+        # Braced form ``${name}``.
+        if rest.startswith("{") and rest.endswith("}") and rest.count("{") == 1:
+            inner = rest[1:-1]
+            if inner and all(c.isalnum() or c in "_:" for c in inner):
+                return inner
+            return None
+        # Bare ``$name``.
+        if rest and all(c.isalnum() or c in "_:" for c in rest):
+            return rest
+        return None
+
+    last: str | None = None
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if isinstance(stmt, IRReturn):
+                name = _extract(stmt.value)
+                if name is not None:
+                    last = name
+        term = block.terminator
+        if isinstance(term, CFGReturn):
+            v = term.value if isinstance(term.value, str) else None
+            name = _extract(v)
+            if name is not None:
+                last = name
+    return last
+
+
 class _AnalyserDiagVarCommandMixin(_Base):
     """W307/W308 diagnostics: variable-as-command patterns."""
 
@@ -270,7 +316,16 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # Scoped to the *defining* proc's body range (start, end, names): a
         # factory assignment in one proc must not suppress a same-named variable
         # in another proc, where it may hold anything (incl. user input).
-        factory_object_ranges: list[tuple[int, int, set[str]]] = []
+        #
+        # Two phases:
+        # 1. Direct factory locals: ``set X [namespaced::cmd ...]`` — the RHS
+        #    head contains ``::``, treating it as an object/ensemble.
+        # 2. Object-returning user procs (TRANSITIVE): ``proc f {} { set X
+        #    [struct::graph]; return $X }`` returns an object.  Callers
+        #    ``set TGraph [f ...]`` also hold an object.  Iterate to fixpoint
+        #    so a chain ``f -> g -> h`` propagates.
+        factory_locals_by_proc: dict[str, set[str]] = {}
+        return_var_by_proc: dict[str, str | None] = {}
         for qname, fu_unit in _all_fus:
             names: set[str] = set()
             for block in fu_unit.cfg.blocks.values():
@@ -279,14 +334,101 @@ class _AnalyserDiagVarCommandMixin(_Base):
                         parsed = parse_command_substitution(stmt.value)
                         if parsed is not None and "::" in parsed[0]:
                             names.add(stmt.name)
-            if names:
-                ir_proc = cu.ir_module.procedures.get(qname)
-                if ir_proc is not None:
-                    factory_object_ranges.append(
-                        (ir_proc.range.start.offset, ir_proc.range.end.offset, names)
-                    )
-                else:
-                    factory_object_ranges.append((0, 2**31, names))  # top-level
+            factory_locals_by_proc[qname] = names
+            # Find the LAST IRReturn statement and its returned var (if any).
+            return_var_by_proc[qname] = _last_return_var(fu_unit.cfg)
+
+        # Fixpoint: a proc is "object-returning" if it returns one of its
+        # factory-locals (set X = [namespaced::cmd], return $X) OR directly
+        # returns a namespaced command substitution (return [struct::graph])
+        # OR its last assignment to the returned var is ``[other_user_proc]``
+        # where other_user_proc is object-returning.
+        object_returning_procs: set[str] = set()
+        # Seed: proc whose LAST return value is ``[namespaced::cmd ...]``.
+        direct_return_factory_by_proc: dict[str, bool] = {}
+        for qname, fu_unit in _all_fus:
+            from compiler.cfg import CFGReturn
+            from compiler.ir import IRReturn as _IRRet
+
+            last_value: str | None = None
+            for block in fu_unit.cfg.blocks.values():
+                for s in block.statements:
+                    if isinstance(s, _IRRet) and s.value:
+                        last_value = s.value
+                term = block.terminator
+                if isinstance(term, CFGReturn) and isinstance(term.value, str):
+                    last_value = term.value
+            if last_value is not None:
+                parsed = parse_command_substitution(last_value.strip())
+                if parsed is not None and "::" in parsed[0]:
+                    object_returning_procs.add(qname)
+                    direct_return_factory_by_proc[qname] = True
+        for qname, ret_var in return_var_by_proc.items():
+            if ret_var is None:
+                continue
+            if ret_var in factory_locals_by_proc.get(qname, set()):
+                object_returning_procs.add(qname)
+        # Transitive propagation: track which RHS user-proc names assign to
+        # the returned var, and propagate up.
+        # Build assignment map: qname -> {var_name: rhs_cmd_head}
+        assigns_by_proc: dict[str, dict[str, str]] = {}
+        for qname, fu_unit in _all_fus:
+            assigns: dict[str, str] = {}
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if isinstance(stmt, IRAssignValue) and stmt.name:
+                        parsed = parse_command_substitution(stmt.value)
+                        if parsed is not None:
+                            assigns[stmt.name] = parsed[0]
+            assigns_by_proc[qname] = assigns
+        # Iterate to fixpoint.
+        bare_to_qnames: dict[str, list[str]] = {}
+        for qname in cu.ir_module.procedures:
+            bare = qname.rsplit("::", 1)[-1]
+            bare_to_qnames.setdefault(bare, []).append(qname)
+        changed = True
+        while changed:
+            changed = False
+            for qname, ret_var in return_var_by_proc.items():
+                if qname in object_returning_procs or ret_var is None:
+                    continue
+                rhs_cmd = assigns_by_proc.get(qname, {}).get(ret_var)
+                if rhs_cmd is None:
+                    continue
+                # Match call to known object-returning user proc.
+                for cand_qname in (rhs_cmd, "::" + rhs_cmd, *bare_to_qnames.get(rhs_cmd, [])):
+                    if cand_qname in object_returning_procs:
+                        object_returning_procs.add(qname)
+                        changed = True
+                        break
+
+        # Now extend factory-locals: a ``set X [user_proc]`` where user_proc is
+        # object-returning is just as much an object factory as a namespaced
+        # builtin.
+        for qname, fu_unit in _all_fus:
+            names = factory_locals_by_proc.get(qname, set())
+            assigns = assigns_by_proc.get(qname, {})
+            for var_name, rhs_cmd in assigns.items():
+                if var_name in names:
+                    continue
+                for cand_qname in (rhs_cmd, "::" + rhs_cmd, *bare_to_qnames.get(rhs_cmd, [])):
+                    if cand_qname in object_returning_procs:
+                        names.add(var_name)
+                        break
+            factory_locals_by_proc[qname] = names
+
+        factory_object_ranges: list[tuple[int, int, set[str]]] = []
+        for qname, fu_unit in _all_fus:
+            names = factory_locals_by_proc.get(qname, set())
+            if not names:
+                continue
+            ir_proc = cu.ir_module.procedures.get(qname)
+            if ir_proc is not None:
+                factory_object_ranges.append(
+                    (ir_proc.range.start.offset, ir_proc.range.end.offset, names)
+                )
+            else:
+                factory_object_ranges.append((0, 2**31, names))  # top-level
 
         # Proc-parameter object dispatch (W307 suppression).  When a user
         # defines ``proc walk {tree} {foreach n [\$tree leaves] {\$tree
