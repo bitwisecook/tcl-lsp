@@ -166,6 +166,16 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   (``expr {$data + 1}``, ``expr {abs($data)}``) — the genuine
   injection vector for unbraced expr.  Sample tcllib firings cleared:
   blowfish.tcl:L525, http.tcl:L4338, mime.tcl:L1962-on-$X.
+- [x] **W307** proc-parameter object dispatcher — `proc walk {tree}
+  {$tree visit $n}` documents the param's "is-object" contract
+  through usage; flagging W307 on those dispatches is noise.  Pre-
+  compute per enclosing proc the set of vars used as dispatch heads;
+  suppress when the site's var is BOTH a parameter AND a dispatcher
+  of that proc.  Sound — evidence lives in the same proc.  Limited
+  reach: most remaining W307 (graphops/snit) is on LOCALS from
+  factory calls (``set TGraph [createTGraph …]``), not direct params
+  — that needs cross-proc object-return-type provenance (a larger
+  inter-procedural lift, deferred).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
