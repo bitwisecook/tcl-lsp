@@ -893,9 +893,7 @@ def _find_thunking(
                 continue
             for ls in lssa.statements:
                 lstmt = ls.statement
-                is_empty = (
-                    isinstance(lstmt, (IRAssignConst, IRAssignValue)) and lstmt.value == ""
-                )
+                is_empty = isinstance(lstmt, (IRAssignConst, IRAssignValue)) and lstmt.value == ""
                 for name, ver in ls.defs.items():
                     if is_empty:
                         continue

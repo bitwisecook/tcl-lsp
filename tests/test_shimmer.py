@@ -813,7 +813,7 @@ incr x $step
         src = (
             "proc f {items} {\n"
             "    foreach a $items {\n"
-            "        set x \"value\"\n"  # loop A: x=STRING
+            '        set x "value"\n'  # loop A: x=STRING
             "    }\n"
             "    foreach b $items {\n"
             "        set x [list 1 2]\n"  # loop B: x=LIST
