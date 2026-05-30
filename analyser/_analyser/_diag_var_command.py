@@ -676,6 +676,15 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # op1; \$cmd op2`` is a real command-injection risk.
                 is_proc_param_dispatcher = False
                 _qname, _params = _enclosing_proc_params(_off)
+                # Extract the base name for array-element dispatch.  When the
+                # var_name is ``foo(key)`` (array element), the BASE is
+                # ``foo`` — and if ``foo`` is itself a proc parameter, the
+                # user designed the proc to receive a callback-table-style
+                # array (eg ``proc f {Verify} { \$Verify(key) ... }``).  The
+                # param contract is on ``foo``, not ``foo(key)``.
+                _base_name = var_name
+                if "(" in var_name and var_name.endswith(")"):
+                    _base_name = var_name[: var_name.index("(")]
                 if var_name in proc_dispatcher_vars.get(
                     _qname, ()
                 ) and var_name not in tainted_var_names.get(_qname, ()):
@@ -683,6 +692,16 @@ class _AnalyserDiagVarCommandMixin(_Base):
                         is_proc_param_dispatcher = True
                     elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
                         is_proc_param_dispatcher = True
+                # Array-element dispatch on a PARAM-array: ``\$Verify(key)``
+                # where ``Verify`` is a parameter — the param is the
+                # callback-table contract.
+                if (
+                    not is_proc_param_dispatcher
+                    and _base_name != var_name
+                    and _base_name in _params
+                    and _base_name not in tainted_var_names.get(_qname, ())
+                ):
+                    is_proc_param_dispatcher = True
                 # Callback in an array element: ``$state(-command) $token``
                 # (switch-style) and ``$state(openCmd) $arg`` /
                 # ``$state(doneCallback)`` (suffix-style) are the documented

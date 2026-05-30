@@ -2667,6 +2667,30 @@ class TestW307ProcParamDispatcher:
         src = "proc make_name {} { return foo }\nproc f {} { set x [make_name]; $x method }\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_param_array_element_dispatch_no_w307(self):
+        # ``proc f {Verify} { $Verify(default) ... }`` — Verify is a
+        # parameter and the user dispatches on an element of that
+        # array.  The param itself documents the callback-table
+        # contract; the array-element form is just the indexed
+        # callback registry.  tcllib tcltest's L602 ``$Verify($option)
+        # [lindex $args 1]`` pattern uses this shape (a dispatch
+        # table passed by the caller).
+        src = (
+            "proc f {Verify} {\n"
+            "    if {[catch {$Verify(default) bar} value]} { return 0 }\n"
+            "    return 1\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_non_param_array_element_still_w307(self):
+        # TP control: array-elem dispatch where the BASE is not a
+        # parameter (here ``Verify`` is a namespace variable, not a
+        # param) still fires.  The param-contract signal isn't
+        # present.
+        src = "proc f {} {\n    variable Verify\n    $Verify(default) arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to
