@@ -794,7 +794,26 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # nothing about the actual command.  Skip W307
                 # suppression and W308 method validation entirely — the
                 # generic W307 from the check pipeline correctly stands.
+                # EXCEPT: ``[ns_func]::method`` is the same namespaced
+                # ensemble idiom as ``${log}::method`` — the inner cmd
+                # provides the namespace prefix and ``::tail`` literal
+                # forms the qualified command path.  Verify by checking
+                # the source: cmd-sub immediately followed by ``::``.
                 if not cmd_word_single:
+                    # CMD-sub token range covers content (no brackets),
+                    # so step past the closing ``]`` to find what
+                    # follows.
+                    _src_off = site_range.end.offset + 1
+                    if _src_off < len(cu.source) and cu.source[_src_off] == "]":
+                        _src_off += 1
+                    if (
+                        _src_off + 1 < len(cu.source)
+                        and cu.source[_src_off : _src_off + 2] == "::"
+                    ):
+                        key = (site_range.start.offset, site_range.end.offset)
+                        idx = w307_indices.get(key)
+                        if idx is not None:
+                            remove_indices.append(idx)
                     continue
                 # Parse the command substitution: [Dog new] → ("Dog", ("new",))
                 inner = cmd_text.strip()

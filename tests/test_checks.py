@@ -2691,6 +2691,23 @@ class TestW307ProcParamDispatcher:
         src = "proc f {} {\n    variable Verify\n    $Verify(default) arg\n}\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_cmdsub_namespaced_ensemble_no_w307(self):
+        # ``[[namespace parent]::outputChannel]`` — the same
+        # namespaced-ensemble idiom as ``${log}::method`` but the
+        # namespace prefix comes from a COMMAND substitution rather
+        # than a variable.  ``[namespace parent]`` evaluates to the
+        # parent namespace path, ``::outputChannel`` is the literal
+        # method suffix.  Used in tcl9 tcltest.tcl L1663/1666 for
+        # channel-test forwarding.
+        src = (
+            "proc f {channel} {\n"
+            "    if {$channel in [list [[namespace parent]::outputChannel] stdout]} {\n"
+            "        return ok\n"
+            "    }\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
         # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
         # same proc still fires; param-dispatcher suppression is scoped to
