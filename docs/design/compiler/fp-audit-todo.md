@@ -193,7 +193,13 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   dispatches 9 times — clear intent regardless of being outside any
   proc).  **`::proc`** is recognised as proc declaration (clay module
   qualifies the call to bypass overrides; semantically identical to
-  bare ``proc``).
+  bare ``proc``).  **Interprocedural object-factory tracking** —
+  fixpoint inference identifies user procs whose return value is
+  itself an object (direct ``return [namespaced::cmd]`` OR ``return
+  $X`` where X was assigned from a factory OR transitively from
+  another OBJECT-RETURNING user proc).  Callers ``set Y [factory_proc
+  ...]`` then dispatch on ``$Y`` are suppressed.  graphops.tcl: 88 →
+  0 (every ``createTGraph``/``createResidualGraph`` use cleared).
 - [x] **W122 / W124** OID-like dotted chains — `1.3.6.1.4.1.4203.1.11.3`
   (LDAP PEN OID) was being flagged as IPv4 with octet 4203 exceeding
   255.  The regex matched embedded 4-component slices of longer
