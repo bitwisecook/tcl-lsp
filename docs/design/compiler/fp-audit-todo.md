@@ -129,6 +129,13 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   `close`, `chan`, `unset`, `array`, `dict`, `interp`, `namespace`,
   `rename`, `file`); a single-statement catch body whose head matches
   is exempt.  Multi-cmd bodies and user calls still fire.
+- [x] **W214** empty-body stub procs — `proc foo {a b} {}` with an
+  empty body is the canonical Tcl signature-stub pattern.  tcllib's
+  `grammar_fa/faop.tcl` declares 14 such empty-body procs as the FA
+  algebra API (overlay files plug in real bodies later).  Every
+  parameter is necessarily "unused" because there is no body to use
+  it.  Detect via the IR: zero-statement body skips W214 entirely.
+  Sample faop.tcl: 19 W214 firings, all empty-body stubs.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
