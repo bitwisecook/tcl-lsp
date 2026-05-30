@@ -760,6 +760,20 @@ incr x $step
         """A literal integer increment should not shimmer."""
         assert _codes("set x 0\nincr x 5") == []
 
+    def test_hex_literal_increment_no_shimmer(self):
+        """A hex integer literal (``0x80``) is INT — incrementing it
+        is not a shimmer.  tcllib idna's ``variable initial_n 0x80``
+        +  ``set n \\$initial_n``  +  ``incr n`` previously fired
+        S101 because the hex literal was classified as STRING.
+        """
+        src = "proc f {} { set n 0x80; for {set i 0} {$i<10} {incr i} { incr n }; return $n }"
+        assert _codes(src) == []
+
+    def test_binary_literal_increment_no_shimmer(self):
+        """``0b...`` integer literal is INT, not STRING."""
+        src = "proc f {} { set n 0b1010; incr n; return $n }"
+        assert _codes(src) == []
+
     def test_boolean_increment_no_shimmer(self):
         """BOOLEAN is numeric-compatible with INT — no shimmer."""
         source = """\
