@@ -181,10 +181,12 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       key whose final word is `cmd`/`command`/`callback`/`handler`/
       `hook`/`proc` (case-insensitive) marks the slot as an
       explicitly-registered command.
-  (d) ``${log}::debug "msg"`` — namespaced ensemble dispatch (tcllib
-      logger / dns / spf / irc / multiplexer idiom).  The ``::``
-      suffix after the var sub is a strong signal of explicit
-      namespaced command construction.
+  (d) ``${log}::debug "msg"`` (VAR-sub form) and ``[[namespace
+      parent]::outputChannel]`` (CMD-sub form) — namespaced ensemble
+      dispatch where the namespace prefix comes from a variable or
+      command substitution, ``::tail`` literal forms the qualified
+      command path.  tcllib logger / dns / spf / irc / multiplexer
+      use the VAR form; tcl9 tcltest.tcl uses the CMD form.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress on param / multi-dispatch local /
   switch-key array elem / namespaced ensemble / **param-array
