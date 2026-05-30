@@ -570,10 +570,74 @@ def _loop_body_def_types(
     return body_types
 
 
+def _destructure_foreach_blocks(
+    ssa: SSAFunction,
+    cfg,
+) -> set[str]:
+    """Identify SSA blocks whose foreach is a destructure (single-iter
+    via ``foreach VARS LIST break``).
+
+    The destructure idiom is Tcl's pre-8.5 ``lassign`` equivalent: a
+    foreach with a literal ``break`` body that runs ONCE to bind
+    multiple vars at once.  The foreach is technically a loop in the
+    CFG, but semantically it's a one-time multi-assign — its var
+    bindings should NOT be classified as "loop body types" because
+    they don't oscillate; the binding happens once like a plain ``set``.
+
+    Returns the set of foreach-header block names whose body is
+    ``break``-only.  Callers exclude these blocks' defs from the
+    loop-body-types map so the bindings don't pollute the per-iter
+    shimmer reasoning in any encompassing real loop.
+    """
+    from compiler.cfg import CFGBranch, CFGGoto
+    from compiler.ir import IRCall
+
+    destructure: set[str] = set()
+    for bname, block in cfg.blocks.items():
+        # Must be a foreach header.
+        ssa_block = ssa.blocks.get(bname)
+        if ssa_block is None:
+            continue
+        if not block.statements:
+            continue
+        first = block.statements[0]
+        if not isinstance(first, IRCall) or first.command not in ("foreach", "lmap"):
+            continue
+        # Find the foreach BODY successor.  CFG layout: header → body →
+        # ... → end.  The body block is one of the successors (the other
+        # is the loop exit).
+        term = block.terminator
+        successors: list[str] = []
+        if isinstance(term, CFGBranch):
+            if term.true_target:
+                successors.append(term.true_target)
+            if term.false_target:
+                successors.append(term.false_target)
+        elif isinstance(term, CFGGoto):
+            if term.target:
+                successors.append(term.target)
+        # Check each successor: a destructure body is just ``break``.
+        body_is_break_only = False
+        for succ in successors:
+            succ_block = cfg.blocks.get(succ)
+            if succ_block is None:
+                continue
+            stmts = succ_block.statements
+            if len(stmts) == 1:
+                s = stmts[0]
+                if isinstance(s, IRCall) and s.command == "break":
+                    body_is_break_only = True
+                    break
+        if body_is_break_only:
+            destructure.add(bname)
+    return destructure
+
+
 def _build_shimmer_name_index(
     ssa: SSAFunction,
     types: dict[SSAValueKey, TypeLattice],
     loop_blocks: set[str],
+    cfg=None,
 ) -> tuple[dict[str, set[SSAVersion]], dict[str, set[TclType]]]:
     """One pass producing the two per-name maps the phi/thunking passes need.
 
@@ -586,13 +650,19 @@ def _build_shimmer_name_index(
     * ``empty_by_name`` — versions of each name defined by the empty literal
       (``set x {}`` / ``""``), over the *whole* function;
     * ``loop_body_types`` — the KNOWN intreps each name is *defined as* inside
-      the loop blocks (empty literal excluded).
+      the loop blocks (empty literal excluded).  When ``cfg`` is provided,
+      destructure foreach blocks (single-iter via ``break``) are excluded —
+      their var bindings are one-time multi-assigns (lassign-equivalent),
+      not per-iteration body types that should drive S102 shimmer.
 
     Byte-for-byte equal to the per-call helpers (same predicates, hoisted)."""
     empty_by_name: dict[str, set[SSAVersion]] = {}
     loop_body_types: dict[str, set[TclType]] = {}
+    destructure_blocks: set[str] = (
+        _destructure_foreach_blocks(ssa, cfg) if cfg is not None else set()
+    )
     for bn, ssa_block in ssa.blocks.items():
-        in_loop = bn in loop_blocks
+        in_loop = bn in loop_blocks and bn not in destructure_blocks
         for s in ssa_block.statements:
             stmt = s.statement
             is_empty = isinstance(stmt, (IRAssignConst, IRAssignValue)) and stmt.value == ""
@@ -652,7 +722,7 @@ def _find_phi_shimmers(
     if def_ranges is None:
         def_ranges = _build_def_ranges(ssa, cfg)
     if empty_by_name is None or loop_body_types is None:
-        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks)
+        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks, cfg)
 
     for bn in executable_blocks:
         ssa_block = ssa.blocks.get(bn)
@@ -800,7 +870,7 @@ def _find_thunking(
     if def_ranges is None:
         def_ranges = _build_def_ranges(ssa, cfg)
     if empty_by_name is None or loop_body_types is None:
-        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks)
+        empty_by_name, loop_body_types = _build_shimmer_name_index(ssa, types, loop_blocks, cfg)
 
     # Loop headers are blocks that have a back edge (predecessor is in loop).
     # We identify them as blocks that have a predecessor which is also in
@@ -1162,7 +1232,9 @@ def find_shimmer_warnings(
         dr = _build_def_ranges(fu.ssa, fu.cfg)
         # Per-name empty-literal versions + loop-body KNOWN types, computed once
         # and shared by the phi + thunking passes (was recomputed per phi).
-        empty_by_name, loop_body_types = _build_shimmer_name_index(fu.ssa, fu.analysis.types, loops)
+        empty_by_name, loop_body_types = _build_shimmer_name_index(
+            fu.ssa, fu.analysis.types, loops, fu.cfg
+        )
         all_warnings.extend(
             _find_use_site_shimmers(
                 fu.execution_intent,

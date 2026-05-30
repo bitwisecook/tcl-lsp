@@ -774,6 +774,35 @@ incr x $step
         src = "proc f {} { set n 0b1010; incr n; return $n }"
         assert _codes(src) == []
 
+    def test_destructure_foreach_does_not_pollute_loop_body_types(self):
+        # ``foreach VARS LIST break`` is the pre-8.5 ``lassign``
+        # equivalent — a single-iteration destructure that binds
+        # multiple vars at once.  Its var bindings should NOT count
+        # as per-iter body types when computing S102 shimmer for an
+        # encompassing real loop.
+        #
+        # tcllib grammar_me me_cpucore.tcl idiom: destructure
+        # ``state`` at the proc top via ``foreach {... sv ...} $state
+        # break``, then the main instruction loop assigns
+        # ``set sv [list ...]``.  Previously the destructure's STRING
+        # binding leaked into the main loop's body types and triggered
+        # S102 ("oscillates between string and list").  With the
+        # destructure detected as single-iter (body is ``break``),
+        # its bindings are excluded from loop_body_types.
+        src = (
+            "proc f {state} {\n"
+            "    foreach {a b c sv} $state break\n"
+            "    foreach inst {1 2 3} {\n"
+            "        set sv [list 1 2 3]\n"
+            "    }\n"
+            "    return $sv\n"
+            "}\n"
+        )
+        codes = _codes(src)
+        # S102 on $sv should NOT fire — the destructure binding is
+        # one-time, not per-iter.
+        assert "S102" not in codes, f"unexpected S102: {codes}"
+
     def test_boolean_increment_no_shimmer(self):
         """BOOLEAN is numeric-compatible with INT — no shimmer."""
         source = """\
