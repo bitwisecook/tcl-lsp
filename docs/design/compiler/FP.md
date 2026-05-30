@@ -60,6 +60,7 @@ Open findings that still false-positive today carry a passing TP test plus an
 - **INJ — Injection / style (W101/W105/W301/T102)** ([§INJ](#inj--injection--style-w101w105w301t102))
 - **BND — Bounds / intervals (W230/W231/W232/W233)** ([§BND](#bnd--bounds--intervals-w230w231w232w233))
 - **OPT — Optimisation / codegen quick-fixes (O106/O109/O110/O116/O120/O126)** ([§OPT](#opt--optimisation--codegen-quick-fixes-o106o109o110o116o120o126))
+- **TNT — Taint flow (T100/T101)** ([§TNT](#tnt--taint-flow-t100t101))
 
 ---
 
@@ -4375,6 +4376,140 @@ firings 2→0.
 
 - `tests/test_fp_opt.py::test_FP_OPT_04_call_by_name_suppresses_dead_store` (FP)
 - `tests/test_fp_opt.py::test_FP_OPT_04_genuine_dead_store_still_fires` (TP control)
+
+---
+
+
+## TNT — taint flow (T100/T101)
+
+T-codes track tainted values (untrusted input like ``gets stdin`` /
+``http::data``) flowing into dangerous sinks.  T100 fires when taint
+reaches an ``expr`` operand (the unbraced-expr injection vector); T101
+fires when taint reaches a ``puts`` content arg.  Each FP fix below is
+position-aware: the analyser must distinguish *which* argument slot the
+tainted value flows into so it doesn't false-fire on structural args
+(channel ids, cmd-sub-encapsulated values) where re-parsing does NOT
+happen.
+
+### FP-TNT-01 — T100 direct-operand expr filter
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_01_*`
+- **Codes:** T100 (tainted → code-exec sink)
+- **Corpus:** tcllib blowfish.tcl:525, http.tcl:4338, mime.tcl:1962 (and similar).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set data [gets stdin]
+    # $data is consumed as an argument to `string length`, not re-parsed
+    # as expr text. The cmd-sub boundary protects it -- no T100.
+    expr {[string length $data] / 8}
+}
+```
+
+#### Per-line reasoning
+
+1. `set data [gets stdin]` — `$data` is tainted (read from stdin).
+2. `expr {[string length $data] / 8}` — within the expr braces, `$data`
+   appears INSIDE the command substitution `[string length $data]`.
+   The cmd-sub is evaluated as a Tcl command (whose own argument
+   substitution rules apply), and only its RESULT (an integer) flows
+   into the expr.  ``$data`` is never substituted into the expr's
+   parser-input text.
+
+Pre-fix T100 fired on every tainted ``uses`` entry regardless of
+position in the parsed expr AST.  The fix walks the ExprNode tree and
+collects ExprVar names OUTSIDE any ExprCommand subtree — only those
+are DIRECT expr operands and only those can carry injection.
+
+#### tclsh ground truth
+
+```
+% set data "1+1; exec rm -rf /"
+% expr {[string length $data] / 8}
+2
+% expr {$data + 1}
+extra tokens at end of expression
+```
+
+The cmd-sub form evaluates ``string length`` on the raw string and
+divides by 8.  The direct-operand form re-parses ``$data`` as expr
+text and gets a syntax error — but for ``data`` = a syntactically-
+valid expr fragment like ``"0; bad_thing"``, the parse would *succeed*
+and execute the injected fragment (the classic injection vector).
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_sinks.py::_direct_expr_operand_names` walks the
+ExprNode AST and collects ExprVar names that are NOT inside any
+ExprCommand subtree.  T100 only fires when the tainted name is in
+that set.
+
+#### Tests
+
+- `tests/test_fp_tnt.py::test_FP_TNT_01_cmd_sub_arg_position_no_t100` (FP)
+- `tests/test_fp_tnt.py::test_FP_TNT_01_direct_operand_still_fires` (TP, `expr {$data + 1}`)
+- `tests/test_fp_tnt.py::test_FP_TNT_01_function_arg_direct_operand_still_fires` (TP, `abs($data)`)
+
+---
+
+### FP-TNT-02 — T101 puts channel-vs-output filter
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_02_*`
+- **Codes:** T101 (tainted → output sink)
+- **Corpus:** tcllib imap4.tcl (3 firings cleared).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set chan [gets stdin]
+    # $chan is the destination channel id, NOT the content; T101 must
+    # not fire on a positional channel-id arg.  Only the trailing
+    # content arg can carry injectable content.
+    puts -nonewline $chan "hello\n"
+}
+```
+
+#### Per-line reasoning
+
+1. `puts ?-nonewline? ?channelId? string` — Tcl's `puts(n)` signature.
+   The channel id (a file handle) is structural; the trailing positional
+   is the content.
+2. Pre-fix T101 fired on the channel-id arg as if it were content.  But a
+   tainted channel handle is not an output-injection vector (it's just
+   "which file to write to"); the *content* is what could carry terminal
+   escapes / log poisoning / etc.
+
+Fix: in T101 emission, filter to the content position only.  Channel-id
+and the `-nonewline` switch don't trigger.
+
+#### tclsh ground truth
+
+```
+% set chan stdout
+% set data "INJECTED\x1b[31m"
+% puts -nonewline $chan $data    ;# T101 must fire on $data
+INJECTED^[[31m%
+```
+
+The content arg is what carries the injection; the channel id is just
+the destination file handle.
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_sinks.py` (puts sink hint) restricts T101 emission to
+the trailing positional arg.  Channel-id and switch positions are
+ignored.
+
+#### Tests
+
+- `tests/test_fp_tnt.py::test_FP_TNT_02_channel_id_position_no_t101` (FP)
+- `tests/test_fp_tnt.py::test_FP_TNT_02_content_arg_still_fires` (TP, `puts $data`)
+- `tests/test_fp_tnt.py::test_FP_TNT_02_content_with_channel_still_fires` (TP, `puts $chan $data` — chan filtered, data fires)
 
 ---
 
