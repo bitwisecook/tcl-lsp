@@ -186,6 +186,18 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress on param / multi-dispatch local /
   switch-key array elem / namespaced ensemble.
+- [x] **W122 / W124** OID-like dotted chains — `1.3.6.1.4.1.4203.1.11.3`
+  (LDAP PEN OID) was being flagged as IPv4 with octet 4203 exceeding
+  255.  The regex matched embedded 4-component slices of longer
+  dotted chains.  Add a skip: when the matched quad is preceded by
+  `.<digit>` OR followed by `.<digit>`, it's part of a longer chain
+  (LDAP / SNMP OID), not an IPv4 literal.  Applied to both regex
+  (W122) and SSA (W124) paths.
+- [x] **W120** self-call from package providers — a file declaring
+  `package provide X` is X's own implementation; `X::foo` calls
+  inside it don't need `package require X`.  Union the file's
+  `package_provides` into the imported-set check.  Sample: msgcat
+  self-calls 2→0, fileutil/mime similar.
   **Taint-aware**: never suppress when the dispatched var is tainted
   in its proc (``set cmd [gets stdin]; $cmd op1; $cmd op2`` is a real
   injection vector regardless of dispatch count) — wired to the
