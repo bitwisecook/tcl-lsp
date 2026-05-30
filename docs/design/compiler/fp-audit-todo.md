@@ -81,6 +81,33 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   the per-loop def-name set and downgrade the use to S100 when the var is
   invariant in that loop.  Genuine per-iteration shimmer (loop body
   re-assigns the var to the from-type) still classified as S101.
+- [x] **O116** `Fold constant list command` — FIXED A CORRECTNESS BUG:
+  empty `[list]` folded to the Python empty string, so applying the
+  quick-fix on `set r [list]` produced `set r ;` (a syntax-valid READ
+  of `r`, not the intended write).  Use `{}` (canonical empty-list
+  literal) so the apply preserves the assignment.  All 346 corpus
+  firings now apply cleanly.
+- [x] **O109 / O126** Eliminate dead store / Remove unused variable
+  assignment — extended the **call-by-name** suppression (already on
+  W211/W220) to the optimiser's DCE pass.  Both emitters previously
+  ignored ProcDef.param_traits and would delete a `set x …; reader x`
+  store whose value is consumed indirectly via upvar in the callee.
+  Extracted the helper to `compiler/proc_arg_traits.py` so both layers
+  share one source of truth.  Known precision gap (documented): an
+  earlier-version dead write to a var later passed by name is
+  conservatively suppressed (sound, loses one TP class; would need
+  version-precise reaching-uses through the call site to tighten).
+- [x] **O106** `Hoist loop-invariant computation` — the LICM purity
+  check only inspected the OUTER command name and treated args as
+  opaque strings.  Outer-pure-but-inner-impure expressions like
+  `[format %04d [incr testnum]]` (corpus: `clay/build/test.tcl L686`)
+  and `[read $fh 512]` were flagged as hoistable — applying the hoist
+  would change runtime semantics (incr would only fire once, read
+  would lose its per-call consumption).  Now `_is_pure_command`
+  recurses into argument command substitutions; any inner impure
+  command marks the whole expression impure.  `_parse_cmd_token` now
+  re-wraps CMD-sub arg pieces in `[...]` so the recursion can see
+  them.  Paired TP test (outer pure + inner pure still fires).
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
@@ -121,7 +148,15 @@ These drive the optimiser view + quick-fixes; an FP here is a misleading "you
 can simplify this" suggestion. None swept yet.
 
 - [x] **O110** Canonicalise expr (InstCombine) — RESOLVED (see top):
-  whitespace-only rewrites no longer emitted; corpus 3641→1490 (−59%).
+  four passes (whitespace guard ×2, bitwise/shift paren-preservation,
+  commutative-reorder suppression).  Heavy-bitwise corpus sample:
+  389 → 108 (−72%).
+- [x] **O116** Fold constant list command — RESOLVED (see top): empty
+  `[list]` fold now produces `{}` (was empty string → broke apply).
+- [x] **O109 / O126** — RESOLVED (see top): call-by-name suppression
+  extended to optimiser DCE (matches W211/W220).
+- [x] **O106** Hoist loop-invariant computation — RESOLVED (see top):
+  purity check recurses into inner command substitutions.
 - [ ] **O120** use eq/ne (1515) — pairs with W110; check the dup-with-W110 policy.
 - [ ] **O100** propagate constant into arg (349)
 - [ ] **O116** fold constant list command (343)
