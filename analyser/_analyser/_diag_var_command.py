@@ -288,6 +288,50 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 else:
                     factory_object_ranges.append((0, 2**31, names))  # top-level
 
+        # Proc-parameter object dispatch (W307 suppression).  When a user
+        # defines ``proc walk {tree} {foreach n [\$tree leaves] {\$tree
+        # visit \$n}}`` the parameter ``tree`` is unambiguously designed
+        # to receive an object handle — every dispatch on ``\$tree`` in
+        # the body proves it.  Flagging W307 on those dispatches is
+        # noise; the user has documented the proc's API contract.
+        #
+        # Detection: pre-compute, per enclosing proc, the set of var
+        # names that are used as the head of any ``\$var subcmd ...``
+        # site in that proc's body.  At W307 emission, suppress when the
+        # site's var is BOTH a param of the enclosing proc AND in that
+        # proc's dispatcher set.
+        #
+        # Sound under-approximation: only matches when the proc's own
+        # body has at least one dispatch on the var (so the trait is
+        # evidenced by the proc, not just an external assumption).
+        proc_body_ranges: list[tuple[int, int, str, frozenset[str]]] = []
+        for qname, pdef in self.result.all_procs.items():
+            br = pdef.body_range
+            if br is None:
+                continue
+            param_names = {p.name for p in pdef.params}
+            proc_body_ranges.append((br.start.offset, br.end.offset, qname, frozenset(param_names)))
+        # Sort by start so the FIRST hit when scanning is the innermost
+        # enclosing proc (procs don't nest in Tcl, but namespace eval
+        # bodies can wrap multiple procs — innermost-first is robust).
+        proc_body_ranges.sort(key=lambda r: (r[0], -r[1]))
+
+        def _enclosing_proc_params(off: int) -> tuple[str, frozenset[str]] | None:
+            for s, e, qname, params in reversed(proc_body_ranges):
+                if s <= off <= e:
+                    return qname, params
+            return None
+
+        # First pass over var-command sites to identify, per proc, which
+        # var names are dispatchers.
+        proc_dispatcher_vars: dict[str, set[str]] = {}
+        for var_name, _mn, site_range, _im, _cws in self._var_command_sites:
+            enc = _enclosing_proc_params(site_range.start.offset)
+            if enc is None:
+                continue
+            qname, _params = enc
+            proc_dispatcher_vars.setdefault(qname, set()).add(var_name)
+
         # snit instance-variable / component dispatch (W307 suppression).  A
         # snit type's instance variables and components frequently hold object
         # handles (``component myparser`` / ``variable myparser`` assigned
@@ -449,11 +493,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 is_snit_member = any(
                     s <= _off <= e and var_name in names for s, e, names in snit_var_ranges
                 )
+                # Proc-parameter dispatcher suppression: if this site is in
+                # a proc whose body uses ``$var`` as a dispatcher, and
+                # ``var`` is one of that proc's parameters, the user
+                # designed the proc to take an object — suppress W307.
+                is_proc_param_dispatcher = False
+                _enc = _enclosing_proc_params(_off)
+                if _enc is not None:
+                    _qname, _params = _enc
+                    if var_name in _params and var_name in proc_dispatcher_vars.get(_qname, ()):
+                        is_proc_param_dispatcher = True
                 if (
                     not in_method
                     and not in_dict_with
                     and not is_factory_object
                     and not is_snit_member
+                    and not is_proc_param_dispatcher
                     and "W307" not in self._disabled_diagnostics
                 ):
                     self.result.diagnostics.append(

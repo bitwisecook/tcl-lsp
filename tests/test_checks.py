@@ -2562,6 +2562,52 @@ $obj custom
         assert len(diags) == 0
 
 
+class TestW307ProcParamDispatcher:
+    """W307 suppression for proc parameters used as object dispatchers.
+
+    When a proc explicitly dispatches on a parameter (``proc walk
+    {tree} {[\\$tree leaves]; \\$tree visit \\$n}``), the user has
+    documented the proc's API contract: it expects ``\\$tree`` to be
+    an object handle.  Flagging W307 on those dispatches is noise.
+
+    Detection: pre-compute per enclosing proc the set of var names
+    used as dispatch heads in the body; suppress only when the var
+    is BOTH a parameter of the enclosing proc AND in its dispatcher
+    set.  Sound — the evidence (a dispatch in the body) lives in the
+    proc itself.
+    """
+
+    def test_param_used_as_dispatcher_no_w307(self):
+        # Sole-dispatch (one site) on a param: clear intent.
+        src = "proc once {tree} { $tree visit }"
+        assert _diag_with_code(src, "W307") == []
+
+    def test_param_used_as_dispatcher_multi_no_w307(self):
+        # tcllib struct::tree walker idiom.
+        src = (
+            "proc walk {tree} {\n    foreach n [$tree leaves] {\n        $tree visit $n\n    }\n}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_local_var_dispatcher_not_param_still_w307(self):
+        # TP control: a local that's a dispatcher but NOT a param of the
+        # enclosing proc still fires.
+        src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_param_used_only_as_data_param_dispatcher_unaffected(self):
+        # TP control: a SEPARATE local dispatcher in the same proc still
+        # fires; the param-dispatcher suppression is scoped to the param.
+        src = (
+            "proc f {x} {\n"
+            "    puts $x\n"  # x used only as data, never dispatched
+            "    set y [some_factory]\n"
+            "    $y method\n"  # y is dispatcher but NOT a param
+            "}\n"
+        )
+        assert len(_diag_with_code(src, "W307")) == 1
+
+
 class TestOOClassNameComposition:
     """FQ-name composition for OO/snit class definitions (tclsh 9.0.3 oracle):
     an absolute ``::Foo`` lives at the global root regardless of the enclosing
@@ -4249,7 +4295,7 @@ class TestW214QuotedKeywordMarker:
 
     def test_quoted_keyword_marker_silenced(self):
         src = (
-            "proc ::snit::expose {component {\"as\" \"\"} {methodname \"\"}} {\n"
+            'proc ::snit::expose {component {"as" ""} {methodname ""}} {\n'
             "    return $component$methodname\n"
             "}\n"
         )
@@ -4258,11 +4304,7 @@ class TestW214QuotedKeywordMarker:
 
     def test_normal_unused_param_alongside_marker_still_fires(self):
         # TP control: ordinary unused params alongside a marker still flag.
-        src = (
-            'proc ::ns::foo {component {"as" ""} unused} {\n'
-            "    return $component\n"
-            "}\n"
-        )
+        src = 'proc ::ns::foo {component {"as" ""} unused} {\n    return $component\n}\n'
         names = self._w214_names(src)
         assert "unused" in names
         assert '"as"' not in names
