@@ -275,3 +275,93 @@ def test_FP_OBJ_08_eval_substituted_dispatch_still_fires_w101():
     Proves the dedup suppressed only W307, not the real W101 finding."""
     diags = _codes(FP_OBJ_08_REPRO, "W101")
     assert diags, "W101 must still fire on eval $cmd $args (the real finding)"
+
+
+# FP-OBJ-09 — W307 multi-dispatch local var (≥2 dispatches on same local)
+
+
+FP_OBJ_09_REPRO = """\
+proc analyze {G} {
+    set TGraph [createTGraph $G]
+    $TGraph node first
+    $TGraph dispose
+}
+"""
+
+
+def test_FP_OBJ_09_multi_dispatch_local_no_w307():
+    """FP: when a single proc dispatches ≥2 times on the *same* local var
+    (``$TGraph node first`` and ``$TGraph dispose``), the user has firmly
+    treated that local as an object handle.  Single dispatch on an
+    unknown source is ambiguous, but ≥2 dispatches on the same name
+    demonstrate intent — W307 must not fire."""
+    assert _codes(FP_OBJ_09_REPRO, "W307") == []
+
+
+def test_FP_OBJ_09_single_dispatch_unknown_still_fires():
+    """TP control: a single dispatch on a local set from an unknown source
+    still fires W307 (one dispatch isn't enough to infer intent)."""
+    src = "proc f {} { set x [whatever]\n $x op }"
+    diags = _codes(src, "W307")
+    assert diags, f"single-dispatch on unknown source must still fire W307; got {diags}"
+
+
+# FP-OBJ-10 — W307 switch-callback array element ($state(-command))
+
+
+FP_OBJ_10_REPRO = """\
+proc h {state token} {
+    $state(-command) $token
+}
+"""
+
+
+def test_FP_OBJ_10_dash_prefixed_array_key_callback_no_w307():
+    """FP: ``$state(-command) $token`` -- the array element with a
+    dash-prefixed key is a switch-style callback slot (the user
+    explicitly registered a command there via ``-command``).  W307
+    must not fire on this dispatch shape."""
+    assert _codes(FP_OBJ_10_REPRO, "W307") == []
+
+
+def test_FP_OBJ_10_suffix_keyed_callback_no_w307():
+    """FP: array element keyed by a callback-shaped suffix
+    (``cmd``/``command``/``callback``/``handler``/``hook``/``proc``)
+    is also a callback registration slot."""
+    src = "proc h {state arg} { $state(doneCallback) $arg }"
+    assert _codes(src, "W307") == []
+
+
+# FP-OBJ-11 — W307 interprocedural object-factory tracking
+
+
+FP_OBJ_11_REPRO = """\
+proc createGraph {} { return [struct::tree] }
+proc f {} { set t [createGraph]
+$t op }
+"""
+
+
+def test_FP_OBJ_11_factory_dispatch_no_w307():
+    """FP: ``createGraph`` directly returns ``[struct::tree]`` (a
+    namespaced object factory).  Interproc fixpoint inference marks
+    ``createGraph`` as object-returning, so callers ``set t
+    [createGraph]; $t op`` are suppressed.
+
+    Sample corpus impact: graphops.tcl 88→0 W307 firings (every
+    ``createTGraph``/``createResidualGraph`` use cleared)."""
+    assert _codes(FP_OBJ_11_REPRO, "W307") == []
+
+
+def test_FP_OBJ_11_transitive_factory_no_w307():
+    """FP: transitive factory chain -- ``createGraph`` returns ``$t``
+    where ``$t`` was set from another factory.  The fixpoint propagates
+    the OBJECT-RETURNING attribute transitively."""
+    src = """\
+proc factory {} { return [struct::tree] }
+proc createGraph {} { set t [factory]
+return $t }
+proc f {} { set g [createGraph]
+$g op }
+"""
+    assert _codes(src, "W307") == []

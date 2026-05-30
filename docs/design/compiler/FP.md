@@ -3401,6 +3401,139 @@ W307's pre-fire filter checks whether the call site is an `eval`-family form and
 
 ---
 
+### FP-OBJ-09 — W307 multi-dispatch local var (≥2 dispatches on same local)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_09_*`
+- **Codes:** W307 (non-literal command word)
+- **Corpus:** tcllib `struct::graph` users (graphops.tcl, etc.).
+
+#### Reproducer
+
+```tcl
+proc analyze {G} {
+    set TGraph [createTGraph $G]
+    $TGraph node first
+    $TGraph dispose
+}
+```
+
+#### Per-line reasoning
+
+A single dispatch on an unknown source is ambiguous (could be an
+object handle OR a typo).  But **≥2 dispatches on the same local
+variable** demonstrate firm intent — the user designed that local as
+an object handle.  Flagging W307 on each dispatch would noise out the
+entire pattern.
+
+Fix: track per-proc dispatch counts in the pre-pass over
+`_var_command_sites`; suppress W307 on locals dispatched ≥2 times.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_09_multi_dispatch_local_no_w307` (FP)
+- `tests/test_fp_obj.py::test_FP_OBJ_09_single_dispatch_unknown_still_fires` (TP control — one dispatch isn't enough)
+
+---
+
+### FP-OBJ-10 — W307 switch-callback array element (`$state(-command) ...`)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_10_*`
+- **Codes:** W307
+- **Corpus:** tcllib HTTP / IRC / async state-machine modules.
+
+#### Reproducer
+
+```tcl
+proc h {state token} {
+    $state(-command) $token
+}
+```
+
+#### Per-line reasoning
+
+`$state(-command)` is an array-element dispatch where the key is
+dash-prefixed (the documented Tcl switch-option convention for
+"this slot holds an explicitly-registered command").  The dispatcher
+relies on a prior `set state(-command) my::callback`; W307 firing
+here would noise out every state-machine that uses the option-keyed
+callback table.
+
+Fix: suppress W307 when the dispatch target is an array element whose
+key is either:
+- **dash-prefixed** (`$state(-command)`, `$state(-handler)`, …), OR
+- **suffix-shaped** with one of {`cmd`, `command`, `callback`,
+  `handler`, `hook`, `proc`} (case-insensitive) as the final word —
+  e.g. `$state(doneCallback)`, `$state(openCmd)`.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_10_dash_prefixed_array_key_callback_no_w307` (FP)
+- `tests/test_fp_obj.py::test_FP_OBJ_10_suffix_keyed_callback_no_w307` (FP)
+
+---
+
+### FP-OBJ-11 — W307 interprocedural object-factory tracking
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_11_*`
+- **Codes:** W307
+- **Corpus:** tcllib `struct::graphops` (88 → 0 W307 firings cleared).
+
+#### Reproducer
+
+```tcl
+proc createGraph {} { return [struct::tree] }
+proc f {} {
+    set t [createGraph]
+    $t op
+}
+```
+
+#### Per-line reasoning
+
+`createGraph` directly returns the result of a namespaced object
+factory (`[struct::tree]`).  Interproc fixpoint inference marks
+``createGraph`` as object-returning; callers' `set t [createGraph]`
+binds `t` to an object handle, so `$t op` is a valid object dispatch.
+
+The fixpoint propagates transitively: a proc returning `$X` where
+`$X` was assigned from another object-returning proc is itself
+object-returning.
+
+The complementary case to FP-OBJ-04 (namespaced-factory provenance
+at the call site) — that entry handled `set t [::struct::tree]`
+directly; this one handles `set t [user_factory_wrapper]`.
+
+#### tclsh ground truth
+
+```
+% package require struct::tree
+% proc createGraph {} { return [::struct::tree] }
+% set g [createGraph]
+::tree0
+% $g insert root 0 1 2
+0 1 2
+```
+
+The returned value IS the object handle; dispatch works as expected.
+
+#### Why the analyser reaches that verdict
+
+The interproc fixpoint at `compiler/interproc/` tags procs whose
+return value is itself an object handle (direct `return [factory]`,
+indirect `return $X` where X transitively traces to a factory).
+W307 suppresses dispatch on locals assigned from object-returning
+user procs.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_11_factory_dispatch_no_w307` (FP, direct factory chain)
+- `tests/test_fp_obj.py::test_FP_OBJ_11_transitive_factory_no_w307` (FP, two-step factory chain — fixpoint propagation)
+
+---
+
 
 ## RCH — reachability (O107)
 
