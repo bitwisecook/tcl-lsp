@@ -4136,6 +4136,45 @@ class TestCallByNameViaCommandSubstitution:
         assert any("'unused'" in m for m in w211)
 
 
+class TestW214EmptyBodyStubs:
+    """``proc foo {a b} {}`` with an empty body is a SIGNATURE STUB
+    declaring an API — the implementation lives elsewhere (eg
+    ``grammar_fa/faop.tcl`` declares the full FA algebra as 14 empty
+    procs).  Every parameter is necessarily "unused" because there is
+    no body to use it; flagging them is pure noise.
+
+    tclsh ground truth: an empty-body proc is a valid placeholder
+    callable that simply returns the empty string.  Production
+    codebases use this pattern to seed the proc table that overlay
+    files later populate.
+    """
+
+    @staticmethod
+    def _w214(src):
+        import re as _re
+
+        from server.features.diagnostics import get_diagnostics
+
+        return {
+            _re.search(r"'(\w+)'", d.message).group(1)
+            for d in get_diagnostics(src)
+            if d.code == "W214" and _re.search(r"'(\w+)'", d.message)
+        }
+
+    def test_empty_body_silences_w214(self):
+        # tcllib faop.tcl idiom.
+        src = "proc reverse {fa} {}\n"
+        assert self._w214(src) == set()
+
+    def test_empty_body_with_defaults_silences_w214(self):
+        src = "proc complete {fa {sink {}}} {}\n"
+        assert self._w214(src) == set()
+
+    def test_real_body_still_fires_w214(self):
+        src = "proc foo {x y} { puts hello }\n"
+        assert self._w214(src) == {"x", "y"}
+
+
 class TestDispatchProtocolSuppression:
     """W214 dispatch-protocol suppression: when ≥3 peer procs in the same
     namespace share an identical leading-param signature, those params are

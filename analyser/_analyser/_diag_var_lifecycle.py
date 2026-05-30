@@ -398,6 +398,15 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         analysis: FunctionAnalysis,
     ) -> None:
         """W214: flag proc parameters that are never read in the body."""
+        # Empty-body procs (``proc foo {a b} {}``) are signature
+        # placeholders — stubs declaring an API whose implementation
+        # lives elsewhere (eg ``grammar_fa/faop.tcl:21`` declares an FA
+        # algebra API).  Every parameter is necessarily "unused" since
+        # there is no body to use it — flagging is pure noise.  Detect
+        # via the IR script: zero statements (the body is just ``{}``).
+        body = getattr(ir_proc, "body", None)
+        if body is not None and not getattr(body, "statements", ()):
+            return
         # Procs registered as ``trace`` callbacks must accept the fixed
         # trailing signature dictated by Tcl's trace API
         # (e.g. ``name1 name2 op``); the body legitimately may not use
