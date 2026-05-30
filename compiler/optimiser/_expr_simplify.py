@@ -671,6 +671,35 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
 
             # Additive identities / reassociation
             if op in (BinOp.ADD, BinOp.SUB):
+                # Pure-reorder guard: the reassoc canonicalises operand
+                # order ("literal on the right"), which is useful internally
+                # but surfaces as noise-only O110 when no actual structural
+                # simplification happens.  Skip it only when neither child
+                # is itself an ADD/SUB (nothing to flatten) AND no real
+                # simplification would result:
+                #   * identity (``0 + x``, ``x +/- 0``)         — let through
+                #   * operator flip on negative literal          — let through
+                #     (``x + -N`` -> ``x - N``, ``x - -N`` -> ``x + N``,
+                #      ``-N + x`` -> ``x - N``)
+                #   * pure reorder (``N + x`` -> ``x + N``)     — SUPPRESS
+                left_is_additive = isinstance(simp_left, ExprBinary) and simp_left.op in (
+                    BinOp.ADD,
+                    BinOp.SUB,
+                )
+                right_is_additive = isinstance(simp_right, ExprBinary) and simp_right.op in (
+                    BinOp.ADD,
+                    BinOp.SUB,
+                )
+                if not (left_is_additive or right_is_additive):
+                    real_change = (
+                        lv == 0  # 0 + x  -> x
+                        or rv == 0  # x +/- 0  -> x
+                        or (rv is not None and rv < 0)  # x +/- (-N) -> op flip
+                        or (lv is not None and lv < 0 and op is BinOp.ADD)
+                    )
+                    if not real_change:
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
+
                 terms: list[ExprNode] = []
                 constant = _collect_add_terms(
                     ExprBinary(op=op, left=simp_left, right=simp_right),
@@ -680,6 +709,22 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
 
             # Multiplicative identities / reassociation
             if op is BinOp.MUL:
+                # Pure-reorder guard (see ADD/SUB above for rationale).
+                # If neither child is itself MUL the reassoc would only
+                # canonicalise ``literal * term`` to ``term * literal`` —
+                # cosmetic operand swap, surfaces as noise-only O110.
+                left_is_mul = isinstance(simp_left, ExprBinary) and simp_left.op is BinOp.MUL
+                right_is_mul = isinstance(simp_right, ExprBinary) and simp_right.op is BinOp.MUL
+                if not (left_is_mul or right_is_mul):
+                    # Still take multiplicative-identity shortcuts.
+                    if lv == 0 or rv == 0:
+                        return _make_int_literal(0)
+                    if lv == 1:
+                        return simp_right
+                    if rv == 1:
+                        return simp_left
+                    return ExprBinary(op=op, left=simp_left, right=simp_right)
+
                 terms = []
                 constant = _collect_mul_terms(
                     ExprBinary(op=op, left=simp_left, right=simp_right),

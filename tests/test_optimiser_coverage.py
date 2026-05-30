@@ -728,6 +728,38 @@ class TestO110InstCombine:
         s = "proc f {x} { while {$x>0} { incr x -1 } }"
         assert _not_has(s, "O110")
 
+    def test_no_o110_on_commutative_add_reorder(self):
+        # bigfloat2.tcl idiom: ``1 + $delta/$i`` is mathematically identical
+        # to ``$delta/$i + 1``.  The InstCombine reassoc was canonicalising
+        # ``literal OP term`` to ``term OP literal`` (a useful internal
+        # canonicalisation for further matching) but that surfaced as an
+        # O110 hint with no actual win for the user.  Pure operand swap
+        # must NOT fire.
+        s = "proc f {x} { return [expr {1 + $x}] }"
+        assert _not_has(s, "O110")
+
+    def test_no_o110_on_commutative_mul_reorder(self):
+        s = "proc f {x} { return [expr {2 * $x}] }"
+        assert _not_has(s, "O110")
+
+    def test_o110_op_flip_negative_literal_still_fires(self):
+        # ``$x - -1`` is hard to read; canonicalising to ``$x + 1`` is a
+        # genuine operator flip (the textual form changes meaningfully), so
+        # O110 still fires.
+        s = "proc f {x} { return [expr {$x - -1}] }"
+        assert _has(s, "O110")
+
+    def test_o110_additive_identity_still_fires(self):
+        # ``$x + 0`` -> ``$x`` is a real identity removal, not a reorder.
+        s = "proc f {x} { return [expr {$x + 0}] }"
+        assert _has(s, "O110")
+
+    def test_o110_real_fold_through_reassoc_still_fires(self):
+        # ``($a + 1) + 2`` flattens to ``$a + 3`` — real constant fold via
+        # reassoc.  Nested ADD/SUB still triggers reassoc.
+        s = "proc f {a} { return [expr {($a + 1) + 2}] }"
+        assert _has(s, "O110") or _has(s, "O101")
+
     def test_mixed_bitwise_shift_parens_preserved(self):
         # ``($x >> 16) & 0xFF`` is precedence-redundant (``>>`` binds tighter
         # than ``&``), but stripping the parens produces ``$x >> 16 & 0xFF``
