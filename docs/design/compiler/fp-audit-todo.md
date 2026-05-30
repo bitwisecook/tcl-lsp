@@ -156,6 +156,16 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   -nonewline $chan "$t\r\n"`` cleared 3 firings.  Only the trailing
   positional arg can carry injectable content; filter T101 emission
   to that index on `puts`.
+- [x] **T100** direct-operand expr filter — ``expr {[string length
+  $data] / 8}``: $data is consumed by the inner ``string length``
+  as an argument, never re-parsed as expr text.  T100 was firing on
+  every tainted ``uses`` entry regardless of position in the parsed
+  expr AST.  New ``_direct_expr_operand_names`` walks the ExprNode
+  tree and collects ExprVar names OUTSIDE any ExprCommand subtree
+  (the cmd-sub boundary).  T100 still fires on direct operands
+  (``expr {$data + 1}``, ``expr {abs($data)}``) — the genuine
+  injection vector for unbraced expr.  Sample tcllib firings cleared:
+  blowfish.tcl:L525, http.tcl:L4338, mime.tcl:L1962-on-$X.
 
 ## Confirmed true-positive this audit (sampled, no change needed)
 
