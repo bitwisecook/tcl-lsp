@@ -437,6 +437,30 @@ proc f {x y} {
     )
 
 
+def test_FP_RBS_10_namespace_eval_does_not_recover_reads():
+    """TP control: `namespace eval ns { ... $x ... }` evaluates the body in
+    `ns`'s frame, NOT the caller's.  An unqualified `$x` there resolves to
+    `::ns::x` (tclsh errors `can't read "x": no such variable`), so it is
+    NOT a read of the caller's parameter `x`.  The analyser must therefore
+    NOT recover that read; W214 ("Parameter ... is unused") must still
+    fire on `x`.
+
+    Locks in `compiler/core_analyses.py::_block_local_reads`'s early-return
+    on `not stmt.caller_scope` (the FP-RBS-10 doc text was previously
+    misleading on this point; this test prevents a regression that would
+    "fix" the doc by over-recovering)."""
+    src = """\
+proc g {x} {
+    namespace eval ::ns { puts "hello $x" }
+}
+"""
+    w214 = [d for d in get_diagnostics(src) if d.code == "W214" and "'x'" in (d.message or "")]
+    assert w214, (
+        "namespace-eval body must NOT recover caller reads; W214 must still fire on x. "
+        "current: " + ", ".join(f"{d.code}:{d.message}" for d in get_diagnostics(src))
+    )
+
+
 # FP-RBS-11 — qualified-builtin loops (::foreach / ::lmap / ::for / ::while)
 
 

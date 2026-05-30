@@ -1573,7 +1573,7 @@ for-init / for-next `set` targets and condition command-sub write-targets.
 ```tcl
 proc f {x} {
     # eval's braced body evaluates in *this* scope: $x is a real read of
-    # the parameter, so 'x' must not be reported W211 ("unused").
+    # the parameter, so 'x' must not be reported W214 ("Parameter ... is unused").
     eval { puts $x }
 }
 ```
@@ -1611,13 +1611,23 @@ proc f {x} {
 hello
 % proc g {x} { namespace eval ::ns { puts "hello $x" } }
 % g world
-hello world
+can't read "x": no such variable
 ```
 
-Both bodies see the caller's `x`. tclsh's `namespace eval` evaluates the
-body in the *target namespace*, but Tcl's scoping rules still let it see
-the caller's locals via the proc's frame (this is the standard
-namespace-eval-inside-proc pattern).
+`eval { ... }` evaluates the body in the **caller's** frame, so `$x` reads
+`f`'s parameter `x`.  `namespace eval ::ns { ... }`, in contrast, evaluates
+the body in the **target namespace** (`::ns`), where `$x` resolves to
+`::ns::x` — a namespace variable that does NOT exist, so tclsh errors with
+`can't read "x": no such variable`.  The caller's local `x` is NOT visible
+from inside the namespace-eval body.
+
+The recovery this entry locks in therefore applies ONLY to plain
+`eval { ... }` (`IRBlock.caller_scope=True`).  For
+`namespace eval ns { ... }` (`caller_scope=False`) the body's reads are
+deliberately skipped — recovering them would wrongly suppress a real
+unused-parameter / read-before-set finding.  See
+`compiler/core_analyses.py::_block_local_reads` (early-return on
+`not stmt.caller_scope`).
 
 #### Compiler evidence
 

@@ -94,7 +94,13 @@ def _format_lattice(v) -> str:
     if v.value is not None:
         return f"{kind}({v.value!r})"
     if getattr(v, "values", None):
-        sample = list(v.values)[:3]
+        # ``v.values`` is a ``frozenset`` whose iteration order is
+        # Python-hash-seed-dependent.  Sort by repr to make the rendered
+        # CONSTSET sample deterministic across runs (the script's stated
+        # contract is byte-stable output).  ``repr`` works for the mixed
+        # ``int | float | bool | str`` element type since each member's
+        # repr is total-ordered against the others.
+        sample = sorted(v.values, key=repr)[:3]
         return f"{kind}({sample}{'…' if len(v.values) > 3 else ''})"
     return kind
 
@@ -613,17 +619,22 @@ register(
         show=("ssa", "rbs", "dead", "unused"),
         notes=(
             "tclsh-verified: `eval {puts $x}` evaluates the braced body in the *current*\n"
-            "scope, so `$x` is a real read of the local.  Pre-fix the eval/namespace-eval\n"
-            "body was an opaque IRBlock barrier — `x` looked unused (W211) and any\n"
-            "body-only var looked read-before-set.  Fix (commit 6f69c86): suppress-only\n"
-            "name-level recovery via `_extra_local_reads` + `_block_local_reads` (public\n"
-            "`ssa.statement_read_names`).  Full flatten-into-CFG remains a future option."
+            "scope, so `$x` is a real read of the proc parameter.  Pre-fix the body was\n"
+            "an opaque IRBlock barrier — `x` looked unused (W214 -- 'Parameter ... is\n"
+            "unused') and any body-only var looked read-before-set (W210).  Fix (commit\n"
+            "6f69c86): suppress-only name-level recovery via `_extra_local_reads` +\n"
+            "`_block_local_reads` (public `ssa.statement_read_names`).  Recovery applies\n"
+            "ONLY to plain `eval {…}` (caller_scope=True); `namespace eval ns {…}` runs\n"
+            "in `ns` so its unqualified reads are NOT caller-scope reads and are\n"
+            "deliberately skipped (otherwise a real unused-parameter / RBS finding would\n"
+            "be wrongly suppressed).  Full flatten-into-CFG remains a future option."
         ),
         source=_dedent(
             """
             proc f {x} {
                 # eval's braced body evaluates in *this* scope: $x is a real read of
-                # the parameter, so 'x' must not be reported W211 ("unused").
+                # the parameter, so 'x' must not be reported W214 ("Parameter ...
+                # is unused").
                 eval { puts $x }
             }
             """
