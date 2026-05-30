@@ -187,7 +187,9 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
       namespaced command construction.
   Track per-proc dispatch counts in the pre-pass over
   `_var_command_sites`; suppress on param / multi-dispatch local /
-  switch-key array elem / namespaced ensemble.  **Top-level scope**
+  switch-key array elem / namespaced ensemble / **param-array
+  base** (``\$Verify(key)`` where ``Verify`` is itself a proc
+  parameter — the param documents the callback-table contract).  **Top-level scope**
   also honours the multi-dispatch rule (tcllib's
   ``examples/irc/mainloop.tcl`` script registers ``$cn`` and
   dispatches 9 times — clear intent regardless of being outside any
