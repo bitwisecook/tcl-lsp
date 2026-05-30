@@ -323,14 +323,21 @@ class _AnalyserDiagVarCommandMixin(_Base):
             return None
 
         # First pass over var-command sites to identify, per proc, which
-        # var names are dispatchers.
+        # var names are dispatchers and how many times each is dispatched.
+        # A param + ANY dispatch is suppressed (the param itself signals
+        # the contract); a non-param LOCAL + ≥2 dispatches is suppressed
+        # (multiple uses on the same var demonstrate intent — a single
+        # dispatch could be a typo, multiple is clearly designed).
         proc_dispatcher_vars: dict[str, set[str]] = {}
+        proc_dispatch_counts: dict[str, dict[str, int]] = {}
         for var_name, _mn, site_range, _im, _cws in self._var_command_sites:
             enc = _enclosing_proc_params(site_range.start.offset)
             if enc is None:
                 continue
             qname, _params = enc
             proc_dispatcher_vars.setdefault(qname, set()).add(var_name)
+            counts = proc_dispatch_counts.setdefault(qname, {})
+            counts[var_name] = counts.get(var_name, 0) + 1
 
         # snit instance-variable / component dispatch (W307 suppression).  A
         # snit type's instance variables and components frequently hold object
@@ -493,16 +500,25 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 is_snit_member = any(
                     s <= _off <= e and var_name in names for s, e, names in snit_var_ranges
                 )
-                # Proc-parameter dispatcher suppression: if this site is in
-                # a proc whose body uses ``$var`` as a dispatcher, and
-                # ``var`` is one of that proc's parameters, the user
-                # designed the proc to take an object — suppress W307.
+                # Proc-parameter / multi-dispatch suppression: when this
+                # site is in a proc that uses ``$var`` as a dispatcher,
+                # suppress W307 when either:
+                # (a) ``var`` is a parameter of the enclosing proc — the
+                #     param itself documents the API contract; or
+                # (b) ``var`` is a local (not a param) dispatched ≥2
+                #     times in the same proc body — multiple uses on
+                #     the same var demonstrate the user designed it as
+                #     an object handle (a single dispatch on a local
+                #     could be a typo, but multiple is firm intent).
                 is_proc_param_dispatcher = False
                 _enc = _enclosing_proc_params(_off)
                 if _enc is not None:
                     _qname, _params = _enc
-                    if var_name in _params and var_name in proc_dispatcher_vars.get(_qname, ()):
-                        is_proc_param_dispatcher = True
+                    if var_name in proc_dispatcher_vars.get(_qname, ()):
+                        if var_name in _params:
+                            is_proc_param_dispatcher = True
+                        elif proc_dispatch_counts.get(_qname, {}).get(var_name, 0) >= 2:
+                            is_proc_param_dispatcher = True
                 if (
                     not in_method
                     and not in_dict_with

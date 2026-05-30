@@ -2596,15 +2596,39 @@ class TestW307ProcParamDispatcher:
         assert len(_diag_with_code(src, "W307")) == 1
 
     def test_param_used_only_as_data_param_dispatcher_unaffected(self):
-        # TP control: a SEPARATE local dispatcher in the same proc still
-        # fires; the param-dispatcher suppression is scoped to the param.
+        # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
+        # same proc still fires; param-dispatcher suppression is scoped to
+        # the param, and the multi-dispatch heuristic needs ≥2 sites.
         src = (
             "proc f {x} {\n"
             "    puts $x\n"  # x used only as data, never dispatched
             "    set y [some_factory]\n"
-            "    $y method\n"  # y is dispatcher but NOT a param
+            "    $y method\n"  # y is dispatcher (single) but NOT a param
             "}\n"
         )
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_local_dispatched_multiple_times_no_w307(self):
+        # tcllib struct/graphops idiom: ``set TGraph [createTGraph $G]``
+        # then multiple dispatches on $TGraph in the same proc body.  Two+
+        # uses of the same local as a dispatcher demonstrate firm intent
+        # — the user designed it as an object handle.  Single dispatch
+        # could be a typo; multi is unambiguous.  Suppress W307.
+        src = (
+            "proc analyze {G} {\n"
+            "    set TGraph [createTGraph $G]\n"
+            "    set first [$TGraph node first]\n"
+            "    $TGraph node visit $first\n"
+            "    $TGraph dispose\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_local_dispatched_once_still_w307(self):
+        # TP control: a local dispatched ONCE doesn't meet the multi-
+        # dispatch threshold — still fires.  Distinguishes firm intent
+        # from a possible typo / one-off.
+        src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
 
