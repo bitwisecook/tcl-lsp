@@ -553,6 +553,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     _key = var_name[_open + 1 : -1]
                     if _key.startswith("-"):
                         is_switch_callback_element = True
+                # Namespaced ensemble dispatch: ``${log}::debug "msg"`` is
+                # the documented "logger / namespaced ensemble" idiom —
+                # the variable holds a namespace prefix, the literal
+                # ``::tail`` appended makes a qualified command path.
+                # tcllib's logger module + dns/spf/irc/multiplexer all
+                # use this shape.  The ``::`` suffix after a ``${var}``
+                # / ``$var`` is a strong signal the user explicitly
+                # constructed a namespaced command path.  (The VAR token
+                # range covers the var name only; for ``${log}`` the
+                # closing ``}`` is the next char, so step past it.)
+                is_namespaced_ensemble = False
+                _src_off = site_range.end.offset + 1
+                if _src_off < len(cu.source) and cu.source[_src_off] == "}":
+                    _src_off += 1
+                if _src_off + 1 < len(cu.source) and cu.source[_src_off : _src_off + 2] == "::":
+                    is_namespaced_ensemble = True
                 if (
                     not in_method
                     and not in_dict_with
@@ -560,6 +576,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     and not is_snit_member
                     and not is_proc_param_dispatcher
                     and not is_switch_callback_element
+                    and not is_namespaced_ensemble
                     and "W307" not in self._disabled_diagnostics
                 ):
                     self.result.diagnostics.append(

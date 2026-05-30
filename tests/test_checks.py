@@ -2675,6 +2675,31 @@ class TestW307ProcParamDispatcher:
         src = "proc f {arg} {\n    variable arr\n    $arr(usercmd) $arg\n}\n"
         assert len(_diag_with_code(src, "W307")) == 1
 
+    def test_namespaced_ensemble_dispatch_no_w307(self):
+        # ``\${log}::debug "msg"`` — tcllib logger / namespaced ensemble
+        # idiom: the variable holds a namespace prefix, ``::method``
+        # appended makes a qualified command path.  tcllib dns/spf/irc/
+        # multiplexer/logger all use this shape.  The ``::`` suffix
+        # after the variable substitution is a strong signal of
+        # intentional namespaced command construction.
+        src = (
+            "namespace eval ::dns {\n"
+            "    variable log\n"
+            "    proc resolve {} {\n"
+            "        variable log\n"
+            '        ${log}::debug "msg"\n'
+            '        ${log}::error "err"\n'
+            "    }\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_var_without_namespace_suffix_still_w307(self):
+        # TP control: ``${cmd} arg`` (no ``::tail``) is not the
+        # namespaced-ensemble idiom — still fires.
+        src = "proc f {} {\n    set cmd [factory]\n    ${cmd} arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
 
 class TestOOClassNameComposition:
     """FQ-name composition for OO/snit class definitions (tclsh 9.0.3 oracle):
