@@ -332,6 +332,188 @@ def merge_traits(
     return merged
 
 
+def collect_call_by_name_reads(
+    cfg,
+    proc_index: dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]],
+) -> set[str]:
+    """Caller-local var names passed *by name* to a user proc that consumes
+    them via ``upvar`` (call-by-name).
+
+    Mirrors the analyser-side helper in ``_diag_var_lifecycle`` but is keyed
+    only by a pre-built ``proc_index`` so both the analyser (W211/W220) and
+    the optimiser (O109/O126) can share the suppression without crossing
+    layer boundaries.  ``proc_index`` maps bare/qualified command names to
+    ``(params, param_traits)`` pairs; callers populate it from whichever
+    proc registry they have access to (``ProcDef``-backed in the analyser,
+    ``ProcSummary``-backed in the optimiser).
+
+    Returns the set of caller-local variable names that should NOT be
+    flagged as dead/unused.  Substituted args (``$name``) and array elems
+    are deliberately excluded — they name a runtime variable we cannot
+    statically identify, so they preserve genuine FP cases where the user
+    passed a literal string instead of a name.
+
+    The scan covers (a) top-level ``IRCall``/``IRBarrier`` statements and
+    (b) command substitutions inside ``IRAssignValue``/``IRAssignExpr``/
+    ``IRExprEval``/``IRReturn`` values — a call like ``[asnPeekTag data
+    tag type dummy]`` embedded in ``set len [..]`` is the dominant
+    call-by-name shape in tcllib (asn, tar, ncgi, …) and must be caught
+    or W211/W220/O109/O126 fire on the initialiser ``set tag ""``.
+    """
+    from compiler.cfg import IRBarrier
+    from compiler.ir import IRAssignExpr, IRAssignValue, IRCall, IRExprEval, IRReturn
+    from shared.naming import normalise_qualified_name as _norm
+
+    if not proc_index:
+        return set()
+
+    by_name: set[str] = set()
+
+    def _add_for_call(cmd: str, args: tuple[str, ...]) -> None:
+        if not cmd or "$" in cmd or "[" in cmd:
+            return
+        cand = proc_index.get(cmd) or proc_index.get(_norm(cmd)) or proc_index.get(cmd.lstrip(":"))
+        if not cand:
+            return
+        for params, traits_map in cand:
+            for i, arg in enumerate(args):
+                if i >= len(params):
+                    break
+                pname = params[i]
+                traits = traits_map.get(pname, frozenset())
+                if ProcArgTrait.VAR_READ not in traits and ProcArgTrait.VAR_WRITE not in traits:
+                    continue
+                if not arg or "$" in arg or "[" in arg:
+                    continue
+                if arg and all(ch.isalnum() or ch in "_:" for ch in arg):
+                    by_name.add(arg)
+
+    def _parse_subst(text: str) -> tuple[str, tuple[str, ...]] | None:
+        """Parse a ``[cmd ...]`` body into (cmd, args)."""
+        lexer = TclLexer(text)
+        argv: list[str] = []
+        prev_sep = True
+        while True:
+            tok = lexer.get_token()
+            if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
+                break
+            if tok.type in (TokenType.SEP, TokenType.COMMENT):
+                prev_sep = True
+                continue
+            if tok.type is TokenType.VAR:
+                piece = f"${tok.text}"
+            elif tok.type is TokenType.CMD:
+                piece = f"[{tok.text}]"
+            else:
+                piece = tok.text
+            if prev_sep:
+                argv.append(piece)
+            else:
+                if argv:
+                    argv[-1] += piece
+                else:
+                    argv.append(piece)
+            prev_sep = False
+        if not argv:
+            return None
+        return argv[0], tuple(argv[1:])
+
+    def _scan_value_text(text: str) -> None:
+        """Find every ``[cmd ...]`` substitution in *text* and dispatch."""
+        if not text or "[" not in text:
+            return
+        try:
+            lexer = TclLexer(text)
+        except TclParseError:
+            return
+        while True:
+            try:
+                tok = lexer.get_token()
+            except TclParseError:
+                break
+            if tok is None:
+                break
+            if tok.type is TokenType.CMD:
+                parsed = _parse_subst(tok.text)
+                if parsed is not None:
+                    cmd, args = parsed
+                    _add_for_call(cmd, args)
+                    for a in args:
+                        _scan_value_text(a)
+
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if isinstance(stmt, (IRCall, IRBarrier)):
+                _add_for_call(stmt.command, stmt.args)
+                for a in stmt.args:
+                    _scan_value_text(a)
+            elif isinstance(stmt, IRAssignValue):
+                _scan_value_text(stmt.value)
+            elif isinstance(stmt, IRAssignExpr):
+                _scan_expr_node(stmt.expr, _scan_value_text)
+            elif isinstance(stmt, (IRExprEval, IRReturn)):
+                expr = getattr(stmt, "expr", None)
+                if expr is not None:
+                    _scan_expr_node(expr, _scan_value_text)
+    return by_name
+
+
+def _scan_expr_node(node, scan_text) -> None:
+    """Walk an ``ExprNode`` and feed embedded command substitution text to
+    ``scan_text`` so call-by-name args inside ``expr {[..]}`` are caught.
+    """
+    from compiler.expr_ast import (
+        ExprBinary,
+        ExprCall,
+        ExprCommand,
+        ExprTernary,
+        ExprUnary,
+    )
+
+    if node is None:
+        return
+    if isinstance(node, ExprCommand):
+        scan_text(node.text)
+        return
+    if isinstance(node, ExprBinary):
+        _scan_expr_node(node.left, scan_text)
+        _scan_expr_node(node.right, scan_text)
+        return
+    if isinstance(node, ExprUnary):
+        _scan_expr_node(node.operand, scan_text)
+        return
+    if isinstance(node, ExprTernary):
+        _scan_expr_node(node.condition, scan_text)
+        _scan_expr_node(node.true_branch, scan_text)
+        _scan_expr_node(node.false_branch, scan_text)
+        return
+    if isinstance(node, ExprCall):
+        for arg in node.args:
+            _scan_expr_node(arg, scan_text)
+
+
+def build_proc_index_from_summaries(
+    summaries: dict[str, object],
+) -> dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]]:
+    """Build the ``proc_index`` for ``collect_call_by_name_reads`` from
+    ``InterproceduralAnalysis.procedures`` (``ProcSummary``-valued).
+
+    Keyed by bare name, qualified name, and lstripped qualified name so a
+    bare call ``foo`` resolves to ``::foo``.
+    """
+    index: dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]] = {}
+    for qname, summary in summaries.items():
+        traits = getattr(summary, "param_traits", None)
+        params = getattr(summary, "params", None)
+        if not traits or not params:
+            continue
+        entry = (tuple(params), dict(traits))
+        bare = qname.rsplit("::", 1)[-1]
+        for key in (bare, qname, qname.lstrip(":")):
+            index.setdefault(key, []).append(entry)
+    return index
+
+
 def _handle_upvar(
     args: list[str],
     param_set: set[str],

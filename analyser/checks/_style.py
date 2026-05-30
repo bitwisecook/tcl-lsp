@@ -531,6 +531,16 @@ def check_string_list_confusion(
         stripped = text.strip()
         if not stripped or not any(c.isalnum() or c in "$[" for c in stripped):
             continue
+        # Usage/template-string notation is display formatting, not a list
+        # element: ``?optarg?`` (optional-argument notation), ``<placeholder>``,
+        # and ``...`` ("and so on") only ever appear in a generated usage line
+        # (e.g. tcllib clay/cmdline build ``append result " ?option value?..."``
+        # then ``return $result``).  ``lappend`` is not the fix there — the
+        # result is meant to be a human-readable string, so suppress (the
+        # string-vs-list intent is otherwise undecidable without dataflow; this
+        # is a sound, conservative carve-out of the unambiguous display case).
+        if "?" in stripped or "<" in stripped or ">" in stripped or "..." in stripped:
+            continue
         tok = arg_tokens[i] if i < len(arg_tokens) else arg_tokens[0]
         return [
             Diagnostic(
@@ -1795,6 +1805,23 @@ def check_mistyped_ipv4(
         for m in _DOTTED_QUAD_LOOSE_RE.finditer(text):
             # Skip version-number patterns: preceded by '/' (e.g. Chrome/28.0.1550.0)
             if m.start() > 0 and text[m.start() - 1] == "/":
+                continue
+            # Skip OID-like patterns: the matched quad is part of a longer
+            # dotted sequence (eg LDAP/SNMP OIDs like ``1.3.6.1.4.1.4203
+            # .1.11.3``).  Detect by extending the match: if the char
+            # immediately before is ``.<digit>`` OR immediately after is
+            # ``.<digit>``, the quad is a slice of a longer chain — not
+            # an IPv4 literal.  Octet "4203" in such an OID is just a
+            # PEN component, not a malformed IP octet.
+            _before_ok = m.start() >= 2 and text[m.start() - 1].isdigit()
+            if not _before_ok and m.start() >= 2:
+                # Walk back: if pattern is ``...\d.<match>``, the dot+digit
+                # sequence extends.  start-1 may be ``.``; if so check the
+                # char before that is a digit.
+                if text[m.start() - 1] == "." and m.start() >= 2 and text[m.start() - 2].isdigit():
+                    _before_ok = True
+            _after_ok = m.end() + 1 < len(text) and text[m.end()] == "." and text[m.end() + 1].isdigit()
+            if _before_ok or _after_ok:
                 continue
 
             octets_str = [m.group(i) for i in range(1, 5)]

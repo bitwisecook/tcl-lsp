@@ -80,6 +80,47 @@ def _has_substitution(text: str, tok: Token | None = None) -> bool:
     return False
 
 
+def _raw_has_live_substitution(raw: str) -> bool:
+    """Return True if *raw* (the **source** slice of a token, backslashes
+    intact) contains a *live* ``$`` / ``[`` substitution — i.e. one not
+    backslash-escaped and, for ``$``, actually introducing a variable name.
+
+    In a quoted/literal regexp pattern, ``\\[`` and ``\\$`` are literal
+    characters (a regex character-class bracket, a literal dollar) — NOT a
+    command/variable substitution.  tclsh-verified: ``regexp "\\[abc\\]+" …``
+    matches the literal pattern ``[abc]+`` with no substitution, whereas an
+    *unescaped* ``regexp "[abc]+" …`` triggers a command substitution of
+    ``abc`` (errors ``invalid command name "abc"``) — the real foot-gun W306
+    catches.  The resolved token text can't tell these apart (an unresolved
+    cmd-sub resolves to empty), so the check passes the raw source here.
+
+    Tcl rules applied to the raw slice:
+      * ``\\X`` is a literal — both characters are skipped.
+      * ``[`` (unescaped) is always a command substitution.
+      * ``$`` is a substitution only when followed by a variable-name start
+        (``[A-Za-z0-9_]``, ``{``, or ``::``).  A ``$`` before a quote, end of
+        string, or other punctuation — e.g. the regex end-anchor in
+        ``"(.*)$"`` — is a *literal* dollar (tclsh: ``regexp "(.*)$" …`` runs
+        cleanly with no substitution).
+    """
+    i = 0
+    n = len(raw)
+    while i < n:
+        ch = raw[i]
+        if ch == "\\":
+            i += 2  # the next char is escaped (literal) — skip both
+            continue
+        if ch == "[":
+            return True
+        if ch == "$":
+            nxt = raw[i + 1] if i + 1 < n else ""
+            if nxt and (nxt.isalnum() or nxt in "_{:"):
+                return True
+            # bare ``$`` (end-anchor / literal) — not a substitution
+        i += 1
+    return False
+
+
 def _is_bare_single_var_substitution(tok: Token, source: str) -> bool:
     """Return True if *tok* spans exactly a bare ``$var`` or ``${var}``.
 

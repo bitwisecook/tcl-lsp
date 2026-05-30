@@ -635,6 +635,13 @@ def _check_missing_package_require(
     if result.has_dynamic_providers:
         return []
     imported = result.active_package_names()
+    # Self-call suppression: a file that ``package provide``s package X
+    # is X's own implementation.  Calls to ``X::foo`` from inside the
+    # implementation don't need ``package require X`` — that would be
+    # the package importing itself.  tcllib's ``msgcat.tcl`` calling
+    # ``msgcat::mcutil`` is the canonical example.
+    provided = frozenset(pp.name for pp in result.package_provides)
+    imported = imported | provided
     # Expand with packages from files that ``source`` this file (parent
     # files in the dependency graph).  If no source graph is available,
     # fall back to all workspace package names.

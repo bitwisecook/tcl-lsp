@@ -50,6 +50,25 @@ class _AnalyserDiagIPMixin(_Base):
                 # Skip version-number patterns: preceded by '/'
                 if m.start() > 0 and val[m.start() - 1] == "/":
                     continue
+                # Skip OID-like patterns: the matched quad is part of a
+                # longer dotted sequence (LDAP/SNMP OIDs like
+                # ``1.3.6.1.4.1.4203.1.11.3``).  Detect by extending
+                # the match: ``digit.<match>`` before or ``<match>.digit``
+                # after means the quad is a slice of a longer chain.
+                _before_dot_digit = (
+                    m.start() >= 2
+                    and val[m.start() - 1] == "."
+                    and val[m.start() - 2].isdigit()
+                )
+                _after_dot_digit = (
+                    m.end() + 1 <= len(val)
+                    and m.end() < len(val)
+                    and val[m.end()] == "."
+                    and m.end() + 1 < len(val)
+                    and val[m.end() + 1].isdigit()
+                )
+                if _before_dot_digit or _after_dot_digit:
+                    continue
                 octets_str = [m.group(i) for i in range(1, 5)]
                 msg: str | None = None
                 severity = Severity.ERROR

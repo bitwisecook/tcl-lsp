@@ -2930,6 +2930,12 @@ def _unused_parameters(
 # Type propagation
 
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?\s*$")
+# Tcl integer literals: decimal (handled via _DECIMAL_INT_RE elsewhere)
+# plus the explicit-prefix forms hex (``0x...``) and binary (``0b...``).
+# Tcl 9 dropped the legacy "leading-0 means octal" rule so we don't try
+# to recognise it here (would be dialect-dependent and error-prone).
+_HEX_INT_RE = re.compile(r"^[+-]?0[xX][0-9a-fA-F]+\s*$")
+_BIN_INT_RE = re.compile(r"^[+-]?0[bB][01]+\s*$")
 
 _TYPE_UNKNOWN = TypeLattice.unknown()
 _TYPE_OVERDEFINED = TypeLattice.overdefined()
@@ -3006,6 +3012,12 @@ def _literal_type(text: str) -> TypeLattice:
     """Infer the intrep type from a literal string value."""
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
+        return TypeLattice.of(TclType.INT)
+    # Tcl recognises hex (``0x...``) and binary (``0b...``) prefixes as
+    # integer literals — they convert to INT on first numeric use.
+    # Typing as INT prevents string→int shimmer FPs on patterns like
+    # ``variable initial_n 0x80; set n \$initial_n; incr n`` (idna.tcl).
+    if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.INT)
     if _FLOAT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.DOUBLE)

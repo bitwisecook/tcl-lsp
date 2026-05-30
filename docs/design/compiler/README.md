@@ -29,6 +29,10 @@ User-facing compiler troubleshooting and how-tos live in
   each precision decision (shipped or open), a trimmed real-corpus reproducer,
   a line-by-line walkthrough of why it's FP/TP/not-a-bug, the SSA / SCCP /
   bounds evidence, and a paired must-fire + must-stay-silent regression test.
+- [fp-audit-todo.md](fp-audit-todo.md) — living checklist of the full
+  diagnostic / optimisation / shimmer code inventory: which codes have been
+  swept against the corpus for false positives and which remain, plus the
+  resolved fixes and confirmed-true-positive outcomes.
 
 ## Pipeline stages
 

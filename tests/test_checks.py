@@ -292,6 +292,18 @@ class TestStringListConfusion:
         diags = _diag_with_code('append items " $item"', "W104")
         assert len(diags) == 1
 
+    def test_usage_notation_not_flagged(self):
+        """Usage/template notation is display-string formatting, not a list
+        element: ``?optarg?`` (optional-argument notation), ``<placeholder>``,
+        and ``...`` ("and so on") only ever appear in a generated usage/help
+        line (tcllib clay/cmdline ``append result " ?option value?..."`` then
+        ``return $result``).  ``lappend`` is not the fix there, so suppress."""
+        assert len(_diag_with_code('append result " ?option value?..."', "W104")) == 0
+        assert len(_diag_with_code('append result " ?[lindex $argdef 0]?"', "W104")) == 0
+        assert len(_diag_with_code('append name " <value>"', "W104")) == 0
+        assert len(_diag_with_code('append desc " <$default>"', "W104")) == 0
+        assert len(_diag_with_code('append usage " args..."', "W104")) == 0
+
 
 # W110: String comparison with == in expr
 
@@ -563,6 +575,112 @@ class TestCatchIgnore:
         assert len(diags) == 0
 
 
+class TestW302FireAndForget:
+    """``catch {<cmd>}`` without a result var is the documented Tcl idiom
+    for "do this if possible, ignore if not" — the standard library
+    explicitly recommends it for ``after cancel``, ``file delete``,
+    ``close``, ``unset``, etc.  W302 must not fire on those bodies.
+
+    Verified against tclsh 9.0: every command listed in
+    ``_FIRE_AND_FORGET_COMMANDS`` errors on missing target, so the
+    ``catch {…}`` form is the only safe way to write "delete if exists"
+    without first checking ``info exists`` / ``file exists``.  Capturing
+    the result would just yield a variable the user immediately
+    discards.
+    """
+
+    def test_after_cancel_no_w302(self):
+        # tcllib ftp.tcl:210 idiom.
+        assert _diag_with_code("catch {after cancel $h}", "W302") == []
+
+    def test_file_delete_no_w302(self):
+        assert _diag_with_code("catch {file delete $f}", "W302") == []
+
+    def test_close_no_w302(self):
+        assert _diag_with_code("catch {close $fh}", "W302") == []
+
+    def test_unset_no_w302(self):
+        assert _diag_with_code("catch {unset var}", "W302") == []
+
+    def test_chan_close_no_w302(self):
+        assert _diag_with_code("catch {chan close $h}", "W302") == []
+
+    def test_interp_delete_no_w302(self):
+        assert _diag_with_code("catch {interp delete slave}", "W302") == []
+
+    def test_qualified_command_recognised(self):
+        # ``catch {::close $h}`` should also match — bare-name normalised.
+        assert _diag_with_code("catch {::close $h}", "W302") == []
+
+    def test_genuine_swallowed_error_still_fires(self):
+        # TP control: a user proc body genuinely shouldn't swallow errors.
+        diags = _diag_with_code("catch {parse_user_input $x}", "W302")
+        assert len(diags) == 1
+
+    def test_multi_command_body_still_fires(self):
+        # Multi-statement body is not the simple ignore-error idiom.
+        diags = _diag_with_code("catch {parse_x; parse_y}", "W302")
+        assert len(diags) == 1
+
+    def test_package_require_still_fires(self):
+        # ``package require`` is loadable — when the caller cares about
+        # success they should capture.  Sole-substitution use
+        # (``[catch {package require Tk}]``) doesn't fire anyway because
+        # the rc IS being consumed at the call site.
+        diags = _diag_with_code("catch {package require Tk}", "W302")
+        assert len(diags) == 1
+
+    # Subcommand precision: the ensemble commands ``after``, ``chan``,
+    # ``array``, ``dict``, ``interp``, ``namespace``, ``file`` have BOTH
+    # destructive subcommands (the fire-and-forget case) and constructive
+    # subcommands (which genuinely shouldn't swallow errors).  The
+    # suppression must distinguish them.
+
+    def test_chan_configure_still_fires(self):
+        # ``chan configure`` is NOT fire-and-forget.
+        diags = _diag_with_code("catch {chan configure $h -buffering none}", "W302")
+        assert len(diags) == 1
+
+    def test_file_copy_still_fires(self):
+        diags = _diag_with_code("catch {file copy a b}", "W302")
+        assert len(diags) == 1
+
+    def test_after_timer_still_fires(self):
+        # ``after <ms> <script>`` is a scheduling op, not a cancel.
+        diags = _diag_with_code("catch {after 1000 puts hi}", "W302")
+        assert len(diags) == 1
+
+    def test_interp_create_still_fires(self):
+        diags = _diag_with_code("catch {interp create slave}", "W302")
+        assert len(diags) == 1
+
+    def test_namespace_eval_still_fires(self):
+        diags = _diag_with_code("catch {namespace eval ::ns {}}", "W302")
+        assert len(diags) == 1
+
+    def test_dict_set_still_fires(self):
+        diags = _diag_with_code("catch {dict set d k v}", "W302")
+        assert len(diags) == 1
+
+    def test_dict_unset_no_w302(self):
+        # Destructive sibling: still suppressed.
+        assert _diag_with_code("catch {dict unset d k}", "W302") == []
+
+    def test_array_unset_no_w302(self):
+        assert _diag_with_code("catch {array unset a *}", "W302") == []
+
+    def test_namespace_delete_no_w302(self):
+        assert _diag_with_code("catch {namespace delete ::ns}", "W302") == []
+
+    def test_namespace_forget_no_w302(self):
+        # ``namespace forget`` removes import; errors if not imported.
+        assert _diag_with_code("catch {namespace forget ::pkg::*}", "W302") == []
+
+    def test_rename_to_empty_no_w302(self):
+        # ``rename foo ""`` deletes the command; errors if foo absent.
+        assert _diag_with_code('catch {rename foo ""}', "W302") == []
+
+
 # W210: catch body variables visible after condition
 
 
@@ -811,6 +929,98 @@ class TestArrayElementDeadStoreDistinction:
         # Scalars keep version-precise dead-store detection.
         src = "proc f {} { set x 1\n set x 2\n return $x }"
         assert len(_diag_with_code(src, "W220")) == 1
+
+
+class TestCallByNameSuppression:
+    """A caller-local variable passed by *literal name* to a user proc whose
+    parameter has the ``VAR_READ`` / ``VAR_WRITE`` trait (i.e. the receiver
+    ``upvar``s it) is being read/written indirectly.  The per-function SSA
+    can't see that, so W211 ("set but never used") and W220 ("never read")
+    must not fire on those locals — the interprocedural lattice
+    (``ProcDef.param_traits``) closes the gap.
+
+    tclsh-verified pattern: the canonical tcllib ``validate_*_cmp im dm``
+    idiom where the receiver does ``upvar $a aa $b bb`` then iterates the
+    aliased array."""
+
+    def test_call_by_name_silences_W211_W220(self):
+        # The receiver upvar's both params; the caller's $im/$dm are read
+        # indirectly through those aliases.
+        src = (
+            "proc cmp {ipvar ppvar} {\n"
+            "    upvar $ipvar ip $ppvar pp\n"
+            '    foreach k [array names ip] { puts "$k=$ip($k)" }\n'
+            "    foreach k [array names pp] { if {![info exists ip($k)]} { puts miss } }\n"
+            "}\n"
+            "proc top {} {\n"
+            "    foreach m [list a b] { set im($m) . }\n"
+            "    foreach m [list c d] { set dm($m) . }\n"
+            "    cmp im dm\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W211") == []
+        assert _diag_with_code(src, "W220") == []
+
+    def test_call_by_name_write_only_param(self):
+        # VAR_WRITE alone (receiver upvar's the param and `set`s into it) is
+        # an output param — also an indirect "use" of the caller's name.
+        src = (
+            "proc fill {outvar} {\n"
+            "    upvar $outvar out\n"
+            "    set out 42\n"
+            "}\n"
+            "proc top {} {\n"
+            "    set result {}\n"
+            "    fill result\n"
+            "    return $result\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W211") == []
+        assert _diag_with_code(src, "W220") == []
+
+    def test_unrelated_dead_store_still_fires(self):
+        # TP control: a dead store of a variable NOT passed to a name-receiver
+        # call must still fire.  Only the by-name variable is exempt.
+        src = (
+            "proc cmp {ipvar} {\n"
+            "    upvar $ipvar ip\n"
+            "    return [array size ip]\n"
+            "}\n"
+            "proc top {} {\n"
+            "    set im(x) 1\n"
+            "    set never_used 999\n"
+            "    cmp im\n"
+            "}\n"
+        )
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W211"))
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W220"))
+
+    def test_substituted_arg_not_exempt(self):
+        # If the arg is a substitution (``cmp $varname``) we can't tell which
+        # local it names → don't suppress.  Conservative: any literal-name
+        # dead store stays a TP.
+        src = (
+            "proc cmp {ipvar} {\n"
+            "    upvar $ipvar ip\n"
+            "    return [array size ip]\n"
+            "}\n"
+            "proc top {arg} {\n"
+            "    set never_used 1\n"
+            "    cmp $arg\n"
+            "}\n"
+        )
+        assert any("never_used" in d.message for d in _diag_with_code(src, "W211"))
+
+    def test_user_proc_without_upvar_is_not_a_name_receiver(self):
+        # ``cmp`` here just takes the param by value (no upvar).  Passing
+        # ``ipvar`` as the literal "im" is NOT an indirect read — it's a
+        # genuine string literal.  So a preceding dead store on ``im`` would
+        # still fire.  (No call-by-name trait on the param → no suppression.)
+        src = "proc cmp {ipvar} { return $ipvar }\nproc top {} {\n    set im(x) 1\n    cmp im\n}\n"
+        # ``im`` is an array element; the W211/W220 check still flags the
+        # write because ``im`` is never read by the caller, and ``cmp`` does
+        # not upvar.  (This pre-existing TP must still fire.)
+        assert _diag_with_code(src, "W211") != [] or _diag_with_code(src, "W220") != []
 
 
 class TestQualifiedVariableAliasNotReadBeforeSet:
@@ -2352,6 +2562,293 @@ $obj custom
         assert len(diags) == 0
 
 
+class TestW307ProcParamDispatcher:
+    """W307 suppression for proc parameters used as object dispatchers.
+
+    When a proc explicitly dispatches on a parameter (``proc walk
+    {tree} {[\\$tree leaves]; \\$tree visit \\$n}``), the user has
+    documented the proc's API contract: it expects ``\\$tree`` to be
+    an object handle.  Flagging W307 on those dispatches is noise.
+
+    Detection: pre-compute per enclosing proc the set of var names
+    used as dispatch heads in the body; suppress only when the var
+    is BOTH a parameter of the enclosing proc AND in its dispatcher
+    set.  Sound — the evidence (a dispatch in the body) lives in the
+    proc itself.
+    """
+
+    def test_param_used_as_dispatcher_no_w307(self):
+        # Sole-dispatch (one site) on a param: clear intent.
+        src = "proc once {tree} { $tree visit }"
+        assert _diag_with_code(src, "W307") == []
+
+    def test_param_used_as_dispatcher_multi_no_w307(self):
+        # tcllib struct::tree walker idiom.
+        src = (
+            "proc walk {tree} {\n    foreach n [$tree leaves] {\n        $tree visit $n\n    }\n}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_local_var_dispatcher_not_param_still_w307(self):
+        # TP control: a local that's a dispatcher but NOT a param of the
+        # enclosing proc still fires.
+        src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_qualified_proc_command_recognised(self):
+        # ``::proc`` and ``proc`` are equivalent (both call ``::proc``).
+        # tcllib's clay module qualifies it explicitly to bypass
+        # overrides.  The proc must still register so its body's
+        # multi-dispatch suppression sees the proc context.
+        src = (
+            "::proc ::clay::Ensemble {rawmethod args} {\n"
+            "    set class [current_class]\n"
+            "    $class clay set foo $a\n"
+            "    $class clay set bar $b\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_top_level_multi_dispatch_no_w307(self):
+        # tcllib examples/irc/mainloop.tcl idiom: a top-level (no
+        # enclosing proc) script registers an object handle and
+        # dispatches on it many times.  Top-level scripts are real
+        # code; the multi-dispatch evidence is just as strong as
+        # inside a proc body — suppress when count ≥ 2.
+        src = (
+            "set cn [irc::connection]\n"
+            "$cn connect server 6667\n"
+            "$cn user nick localhost domain\n"
+            "$cn nick foo\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_top_level_single_dispatch_still_w307(self):
+        # TP control: a single top-level dispatch on a local doesn't
+        # meet the multi-dispatch threshold.
+        src = "set foo [factory]\n$foo method\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_cross_proc_object_factory_no_w307(self):
+        # tcllib struct/graphops idiom: ``createTGraph`` wraps the
+        # namespaced ``struct::graph`` factory and returns the handle.
+        # Callers do ``set TGraph [createTGraph ...]`` then dispatch on
+        # ``\$TGraph`` — single dispatch, but the value came from a
+        # known object-returning user proc.  The transitive factory
+        # inference must propagate the OBJECT trait through the user
+        # proc so a downstream SINGLE dispatch is silent.
+        src = (
+            "proc createTGraph {G T D} {\n"
+            "    set TGraph [struct::graph]\n"
+            "    return $TGraph\n"
+            "}\n"
+            "proc analyze {G T} {\n"
+            "    set TG [createTGraph $G $T 0]\n"
+            "    $TG dispose\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_transitive_object_factory_chain_no_w307(self):
+        # Chain: ``h`` calls ``g`` which calls ``f`` (the namespaced
+        # factory).  The fixpoint must propagate the OBJECT trait up
+        # the chain so callers of ``h`` are also recognised.
+        src = (
+            "proc f {} { return [struct::graph] }\n"
+            "proc g {} { set x [f]; return $x }\n"
+            "proc h {} { set y [g]; return $y }\n"
+            "proc consumer {} { set z [h]; $z dispose }\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_non_factory_user_proc_still_w307(self):
+        # TP control: a user proc returning a string (not an object)
+        # — single-dispatch on the result still fires W307.
+        src = "proc make_name {} { return foo }\nproc f {} { set x [make_name]; $x method }\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_param_array_element_dispatch_no_w307(self):
+        # ``proc f {Verify} { $Verify(default) ... }`` — Verify is a
+        # parameter and the user dispatches on an element of that
+        # array.  The param itself documents the callback-table
+        # contract; the array-element form is just the indexed
+        # callback registry.  tcllib tcltest's L602 ``$Verify($option)
+        # [lindex $args 1]`` pattern uses this shape (a dispatch
+        # table passed by the caller).
+        src = (
+            "proc f {Verify} {\n"
+            "    if {[catch {$Verify(default) bar} value]} { return 0 }\n"
+            "    return 1\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_non_param_array_element_still_w307(self):
+        # TP control: array-elem dispatch where the BASE is not a
+        # parameter (here ``Verify`` is a namespace variable, not a
+        # param) still fires.  The param-contract signal isn't
+        # present.
+        src = "proc f {} {\n    variable Verify\n    $Verify(default) arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_cmdsub_namespaced_ensemble_no_w307(self):
+        # ``[[namespace parent]::outputChannel]`` — the same
+        # namespaced-ensemble idiom as ``${log}::method`` but the
+        # namespace prefix comes from a COMMAND substitution rather
+        # than a variable.  ``[namespace parent]`` evaluates to the
+        # parent namespace path, ``::outputChannel`` is the literal
+        # method suffix.  Used in tcl9 tcltest.tcl L1663/1666 for
+        # channel-test forwarding.
+        src = (
+            "proc f {channel} {\n"
+            "    if {$channel in [list [[namespace parent]::outputChannel] stdout]} {\n"
+            "        return ok\n"
+            "    }\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_eval_substituted_no_w307_dup(self):
+        # ``eval \$cmd`` fires W101 (eval-injection) which is the
+        # canonical, specific warning for double substitution.  The
+        # generic W307 on the same site is redundant noise.  Dedup
+        # via start-offset match (W101 and W307 ranges differ by 1
+        # char at the end; start is identical).
+        src = "proc f {} {\n    set cmd {puts hello}\n    eval $cmd\n}\n"
+        codes = sorted(
+            {d.code for d in _diag_with_code(src, "W101") + _diag_with_code(src, "W307")}
+        )
+        # W101 should be present; W307 should be deduped out.
+        assert codes == ["W101"]
+
+    def test_w307_still_fires_without_w101(self):
+        # TP control: a non-eval dispatch (no W101 path) still fires
+        # W307 — dedup only applies when both codes coincide.
+        src = "proc f {} {\n    set obj [factory]\n    $obj method\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_param_used_only_as_data_param_dispatcher_unaffected(self):
+        # TP control: a SEPARATE local dispatcher (dispatched ONCE) in the
+        # same proc still fires; param-dispatcher suppression is scoped to
+        # the param, and the multi-dispatch heuristic needs ≥2 sites.
+        src = (
+            "proc f {x} {\n"
+            "    puts $x\n"  # x used only as data, never dispatched
+            "    set y [some_factory]\n"
+            "    $y method\n"  # y is dispatcher (single) but NOT a param
+            "}\n"
+        )
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_local_dispatched_multiple_times_no_w307(self):
+        # tcllib struct/graphops idiom: ``set TGraph [createTGraph $G]``
+        # then multiple dispatches on $TGraph in the same proc body.  Two+
+        # uses of the same local as a dispatcher demonstrate firm intent
+        # — the user designed it as an object handle.  Single dispatch
+        # could be a typo; multi is unambiguous.  Suppress W307.
+        src = (
+            "proc analyze {G} {\n"
+            "    set TGraph [createTGraph $G]\n"
+            "    set first [$TGraph node first]\n"
+            "    $TGraph node visit $first\n"
+            "    $TGraph dispose\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_local_dispatched_once_still_w307(self):
+        # TP control: a local dispatched ONCE doesn't meet the multi-
+        # dispatch threshold — still fires.  Distinguishes firm intent
+        # from a possible typo / one-off.
+        src = "proc f {} {\n    set foo [some_factory]\n    $foo method\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_tainted_multi_dispatch_still_w307(self):
+        # SECURITY: a TAINTED var (eg from gets/exec/env/read) must NEVER
+        # be suppressed even when dispatched multiple times — that IS
+        # the command-injection vector the warning exists to flag.
+        # Verified vs tclsh: ``\$usercmd`` IS executed as a command word,
+        # so user-controlled command names are real injection risks.
+        src = (
+            "proc f {} {\n"
+            "    set usercmd [gets stdin]\n"
+            "    $usercmd action1\n"
+            "    $usercmd action2\n"
+            "}\n"
+        )
+        # Both dispatch sites should fire (taint reaches the dispatch).
+        assert len(_diag_with_code(src, "W307")) == 2
+
+    def test_tainted_exec_result_multi_dispatch_still_w307(self):
+        src = (
+            "proc f {arg} {\n"
+            "    set cmd [exec which $arg]\n"
+            "    $cmd --version\n"
+            "    $cmd --help\n"
+            "}\n"
+        )
+        assert len(_diag_with_code(src, "W307")) == 2
+
+    def test_switch_style_array_callback_no_w307(self):
+        # ``\$state(-command) \$token`` is the documented Tcl/Tk idiom for
+        # configurable callbacks (widget ``-command``, http
+        # ``-proxyfilter``, etc.).  The dash-prefixed array key marks the
+        # element as an option the user explicitly registered as a
+        # callback; flagging W307 is noise.  Verified against tclsh:
+        # ``set state(-command) myProc; \$state(-command) arg`` is the
+        # canonical option-as-callback pattern.
+        src = "proc test {token} {\n    variable state\n    $state(-command) $token\n}\n"
+        assert _diag_with_code(src, "W307") == []
+
+    def test_array_element_without_switch_key_still_w307(self):
+        # TP control: an array element whose key is NOT a switch-style
+        # option and doesn't match the callback-suffix family
+        # (cmd/command/callback/handler/hook/proc) is not the callback
+        # idiom — still fires.  Keys like ``data`` or ``value`` clearly
+        # don't name a registered command.
+        src = "proc f {arg} {\n    variable arr\n    $arr(data) $arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+    def test_array_element_with_callback_suffix_no_w307(self):
+        # Callback-suffix array elements (suffix ``cmd``/``command``/
+        # ``callback``/``handler``/``hook``/``proc``) are documented
+        # Tcl/Tk idioms for user-registered command callbacks
+        # (``state(openCmd)``, ``state(doneCallback)``, ``state(myHandler)``).
+        # Same principle as the dash-prefixed switch-style key — the
+        # user explicitly assigned a command to this slot.  tcllib
+        # http.tcl ``\$state(openCmd)``, tcltest ``\$CustomMatch($mode)``
+        # use this pattern (where ``$mode``-keyed access still maps to
+        # a callback registry).
+        for key in ("openCmd", "doneCallback", "myHandler", "hookHook", "renderProc"):
+            src = f"proc f {{arg}} {{\n    variable state\n    $state({key}) $arg\n}}\n"
+            assert _diag_with_code(src, "W307") == [], (key, _diag_with_code(src, "W307"))
+
+    def test_namespaced_ensemble_dispatch_no_w307(self):
+        # ``\${log}::debug "msg"`` — tcllib logger / namespaced ensemble
+        # idiom: the variable holds a namespace prefix, ``::method``
+        # appended makes a qualified command path.  tcllib dns/spf/irc/
+        # multiplexer/logger all use this shape.  The ``::`` suffix
+        # after the variable substitution is a strong signal of
+        # intentional namespaced command construction.
+        src = (
+            "namespace eval ::dns {\n"
+            "    variable log\n"
+            "    proc resolve {} {\n"
+            "        variable log\n"
+            '        ${log}::debug "msg"\n'
+            '        ${log}::error "err"\n'
+            "    }\n"
+            "}\n"
+        )
+        assert _diag_with_code(src, "W307") == []
+
+    def test_var_without_namespace_suffix_still_w307(self):
+        # TP control: ``${cmd} arg`` (no ``::tail``) is not the
+        # namespaced-ensemble idiom — still fires.
+        src = "proc f {} {\n    set cmd [factory]\n    ${cmd} arg\n}\n"
+        assert len(_diag_with_code(src, "W307")) == 1
+
+
 class TestOOClassNameComposition:
     """FQ-name composition for OO/snit class definitions (tclsh 9.0.3 oracle):
     an absolute ``::Foo`` lives at the global root regardless of the enclosing
@@ -3496,6 +3993,24 @@ class TestMistypedIPv4:
         diags = _ip_diags("set addr 10.0.0.999")
         assert len(diags) == 1
 
+    def test_ldap_oid_no_w122(self):
+        """LDAP OID ``1.3.6.1.4.1.4203.1.11.3`` is not an IPv4 — must
+        not fire W122/W124.  The validator was matching the substring
+        ``1.4.1.4203`` and complaining about octet 4203.  Detect that
+        the matched quad is part of a longer dotted chain (preceded
+        OR followed by ``.<digit>``) and skip.  Verified against the
+        tcllib ldap.tcl ``Whoami`` proc which uses this exact OID.
+        """
+        diags = _ip_diags("set oid 1.3.6.1.4.1.4203.1.11.3")
+        assert diags == [], diags
+
+    def test_snmp_oid_no_w122(self):
+        """SNMP sysName.0 OID ``1.3.6.1.2.1.1.5.0`` — same pattern,
+        all octets are small but the regex still matches embedded
+        quads.  Must not fire."""
+        diags = _ip_diags("set oid 1.3.6.1.2.1.1.5.0")
+        assert diags == [], diags
+
     def test_all_zeros_clean(self):
         """0.0.0.0 is valid → no W122/W124."""
         diags = _ip_diags("set addr 0.0.0.0")
@@ -3921,6 +4436,213 @@ class TestSwitchSubjectCountsAsParamUse:
         )
         codes = {d.code for d in analyse(source).diagnostics}
         assert "W210" not in codes, f"unexpected read-before-set; got {sorted(codes)}"
+
+
+class TestCallByNameViaCommandSubstitution:
+    """The dominant call-by-name shape in tcllib is a literal-name arg
+    inside a ``[..]`` substitution: ``set len [asnPeekTag data tag type
+    dummy]`` (asn module).  ``tag``/``type`` are caller-locals consumed
+    indirectly via ``upvar`` inside ``asnPeekTag`` — must not trigger
+    W211/W220 on their initialisers.  The earlier call-by-name fix only
+    scanned top-level ``IRCall`` statements and missed this shape.
+    """
+
+    @staticmethod
+    def _diags(src, code):
+        from server.features.diagnostics import get_diagnostics
+
+        return [d for d in get_diagnostics(src) if d.code == code]
+
+    def test_call_by_name_inside_command_subst_silences_w211(self):
+        src = (
+            "namespace eval ::asn {\n"
+            "    proc asnPeekTag {data_var tag_var tagtype_var constr_var} {\n"
+            "        upvar 1 $data_var data $tag_var tag "
+            "$tagtype_var tagtype $constr_var constr\n"
+            "        set tag 1; set tagtype 0x02\n"
+            "    }\n"
+            "    proc asnRetag {data_var newTag} {\n"
+            "        upvar 1 $data_var data\n"
+            '        set tag ""\n'
+            '        set type ""\n'
+            "        set len [asnPeekTag data tag type dummy]\n"
+            "        puts $len\n"
+            "    }\n"
+            "}\n"
+        )
+        w211 = [d.message for d in self._diags(src, "W211")]
+        w220 = [d.message for d in self._diags(src, "W220")]
+        assert not any("'tag' is set" in m for m in w211), w211
+        assert not any("'type' is set" in m for m in w211), w211
+        assert not any("'tag' is never read" in m for m in w220), w220
+        assert not any("'type' is never read" in m for m in w220), w220
+
+    def test_genuine_unused_outside_call_by_name_still_fires(self):
+        # TP control: a vestigial init NOT passed by name still fires.
+        src = (
+            "proc reader {nameVar} { upvar 1 $nameVar local; return $local }\n"
+            "proc f {} {\n"
+            '    set used "hello"\n'
+            '    set unused "discarded"\n'
+            "    return [reader used]\n"
+            "}\n"
+        )
+        w211 = [d.message for d in self._diags(src, "W211")]
+        assert any("'unused'" in m for m in w211)
+
+
+class TestW214EmptyBodyStubs:
+    """``proc foo {a b} {}`` with an empty body is a SIGNATURE STUB
+    declaring an API — the implementation lives elsewhere (eg
+    ``grammar_fa/faop.tcl`` declares the full FA algebra as 14 empty
+    procs).  Every parameter is necessarily "unused" because there is
+    no body to use it; flagging them is pure noise.
+
+    tclsh ground truth: an empty-body proc is a valid placeholder
+    callable that simply returns the empty string.  Production
+    codebases use this pattern to seed the proc table that overlay
+    files later populate.
+    """
+
+    @staticmethod
+    def _w214(src):
+        import re as _re
+
+        from server.features.diagnostics import get_diagnostics
+
+        return {
+            _re.search(r"'(\w+)'", d.message).group(1)
+            for d in get_diagnostics(src)
+            if d.code == "W214" and _re.search(r"'(\w+)'", d.message)
+        }
+
+    def test_empty_body_silences_w214(self):
+        # tcllib faop.tcl idiom.
+        src = "proc reverse {fa} {}\n"
+        assert self._w214(src) == set()
+
+    def test_empty_body_with_defaults_silences_w214(self):
+        src = "proc complete {fa {sink {}}} {}\n"
+        assert self._w214(src) == set()
+
+    def test_real_body_still_fires_w214(self):
+        src = "proc foo {x y} { puts hello }\n"
+        assert self._w214(src) == {"x", "y"}
+
+
+class TestW214QuotedKeywordMarker:
+    """snit-style positional keyword markers like ``{"as" ""}`` declare
+    a param whose NAME is the quoted literal — the caller must write
+    ``expose mycomp as foo`` and the keyword ``as`` is captured by the
+    placeholder param.  The body cannot meaningfully USE such a
+    parameter (``$\"as\"`` is not even valid syntax), so flagging is
+    pure noise.  tcllib snit::Comp.statement.expose is the canonical
+    example.
+    """
+
+    @staticmethod
+    def _w214_names(src):
+        import re as _re
+
+        from server.features.diagnostics import get_diagnostics
+
+        return {
+            _re.search(r"Parameter '(.*?)' of", d.message).group(1)
+            for d in get_diagnostics(src)
+            if d.code == "W214" and _re.search(r"Parameter '(.*?)' of", d.message)
+        }
+
+    def test_quoted_keyword_marker_silenced(self):
+        src = (
+            'proc ::snit::expose {component {"as" ""} {methodname ""}} {\n'
+            "    return $component$methodname\n"
+            "}\n"
+        )
+        # ``"as"`` is the keyword marker — must not fire.
+        assert '"as"' not in self._w214_names(src)
+
+    def test_normal_unused_param_alongside_marker_still_fires(self):
+        # TP control: ordinary unused params alongside a marker still flag.
+        src = 'proc ::ns::foo {component {"as" ""} unused} {\n    return $component\n}\n'
+        names = self._w214_names(src)
+        assert "unused" in names
+        assert '"as"' not in names
+
+
+class TestDispatchProtocolSuppression:
+    """W214 dispatch-protocol suppression: when ≥3 peer procs in the same
+    namespace share an identical leading-param signature, those params are
+    a dispatcher contract (parser-rule visitor, snit method protocol,
+    tcllib pt::peg::from::peg::GEN::* rules with ``{s e}``).  Firing W214
+    on every rule that doesn't read its protocol params is noise.
+
+    Sound under-approximation: a protocol is only inferred when ≥3 peers
+    carry it.  A unique signature in the namespace still fires (it's a
+    real proc with genuinely unused args).
+    """
+
+    @staticmethod
+    def _w214(source: str) -> set[str]:
+        from analyser import analyse
+
+        return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
+
+    def test_three_peer_protocol_suppresses_W214(self):
+        # Mirrors the tcllib pt::peg::from::peg::GEN::* parser-rule visitor.
+        # ALNUM/ALPHA/DIGIT all accept ``{s e}``; ≥3 peers → protocol.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e} { return digit }\n"
+            "}\n"
+        )
+        assert self._w214(src) == set()
+
+    def test_two_peer_signature_does_not_form_protocol(self):
+        # Only 2 peers — not enough to infer a dispatcher contract; each
+        # rule's unused args still fire as genuine W214.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc rule_a {s e} { return alnum }\n"
+            "    proc rule_b {s e} { return alpha }\n"
+            "}\n"
+        )
+        # Both ``s`` and ``e`` unused in both procs → 4 fires.
+        assert self._w214(src) == {"s", "e"}
+
+    def test_extra_param_beyond_protocol_still_fires(self):
+        # The protocol part is suppressed but extra unused params past the
+        # protocol still fire — the contract only covers the shared prefix.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e} { return digit }\n"
+            "    proc SPECIAL {s e weird} { return $s$e }\n"
+            "}\n"
+        )
+        assert self._w214(src) == {"weird"}
+
+    def test_single_proc_still_fires(self):
+        # A unique signature in the namespace is not part of any protocol.
+        src = "proc foo {x y unused} { puts $x; puts $y }\n"
+        assert self._w214(src) == {"unused"}
+
+    def test_args_variadic_excluded_from_protocol_shape(self):
+        # ``args`` is Tcl's variadic catch-all — never part of the protocol
+        # shape, so peers that all share ``{s e}`` form a protocol even when
+        # SOME of them additionally have ``args``.
+        src = (
+            "namespace eval ::g {\n"
+            "    proc ALNUM {s e} { return alnum }\n"
+            "    proc ALPHA {s e} { return alpha }\n"
+            "    proc DIGIT {s e args} { return [lindex $args 0] }\n"
+            "}\n"
+        )
+        # All three procs share the leading ``{s e}``; protocol applies.
+        # No unused (each body either ignores or uses the args).
+        assert self._w214(src) == set()
 
 
 class TestExprSubstitutionReadTracking:

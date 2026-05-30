@@ -339,6 +339,58 @@ class TestOutputSinks:
         )
         assert len(ws) == 0
 
+    def test_puts_tainted_channel_position_silent(self):
+        # ``puts ?-nonewline? ?channelId? string`` — the channel arg is a
+        # destination handle, NOT content that could be injected.  A
+        # tainted ``$chan`` in the channel position must not fire T101.
+        # Sample: tcllib imap4.tcl ``puts -nonewline $chan "$t\r\n"``.
+        ws = _taint_warnings(
+            "set chan [read $fd]\nputs -nonewline $chan {hello}",
+            "T101",
+        )
+        assert len(ws) == 0
+
+    def test_t100_tainted_inside_cmd_subst_in_expr_silent(self):
+        # ``expr {[string length \$data] / 8}`` — \$data is consumed by
+        # the inner ``string length`` command as an argument; expr only
+        # sees the integer result, not the original \$data value.  No
+        # injection risk; T100 must not fire on the inner var.
+        # tcllib blowfish.tcl:L525 example.
+        ws = _taint_warnings(
+            "set data [read $fd]\nset n [expr {([string length $data] / 8) * 8}]",
+            "T100",
+        )
+        assert len(ws) == 0
+
+    def test_t100_tainted_direct_expr_operand_still_fires(self):
+        # TP control: \$data as a DIRECT operand of expr IS the injection
+        # vector — must still fire.
+        ws = _taint_warnings(
+            "set data [read $fd]\nset v [expr {$data + 1}]",
+            "T100",
+        )
+        assert len(ws) == 1
+        assert ws[0].variable == "data"
+
+    def test_t100_tainted_expr_func_arg_still_fires(self):
+        # ``abs(\$data)`` — math-func arg is a direct expr operand;
+        # T100 still fires.
+        ws = _taint_warnings(
+            "set data [read $fd]\nset v [expr {abs($data)}]",
+            "T100",
+        )
+        assert len(ws) == 1
+
+    def test_puts_tainted_output_alongside_tainted_chan(self):
+        # TP control: when BOTH the channel and the output string are
+        # tainted, only the output string flags T101.
+        ws = _taint_warnings(
+            "set chan [read $fd]\nset msg [read $fd]\nputs -nonewline $chan $msg",
+            "T101",
+        )
+        assert len(ws) == 1
+        assert ws[0].variable == "msg"
+
     def test_puts_interpolation_propagates(self):
         ws = _taint_warnings(
             'set x [read $fd]\nputs "data: $x"',

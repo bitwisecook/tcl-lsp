@@ -540,6 +540,63 @@ def _resolves_to_user_command(
     return False
 
 
+# Bare commands whose entire purpose is destructive and which error on a
+# missing target — ``catch {<cmd> ...}`` is the canonical "if exists" idiom.
+_FIRE_AND_FORGET_BARE: frozenset[str] = frozenset(
+    {
+        "close",  # close ?-nocomplain? channel
+        "unset",  # unset ?-nocomplain? ?var ...?
+        "rename",  # rename foo ""  (delete)
+    }
+)
+
+# Ensemble commands where ONLY certain subcommands are fire-and-forget.
+# ``chan close`` is, but ``chan configure`` errors that should not be
+# silently swallowed.  Maps the ensemble name to its destructive subcommand set.
+_FIRE_AND_FORGET_SUBCOMMANDS: dict[str, frozenset[str]] = {
+    "after": frozenset({"cancel"}),
+    "chan": frozenset({"close"}),
+    "array": frozenset({"unset"}),
+    "dict": frozenset({"unset"}),
+    "interp": frozenset({"delete"}),
+    "namespace": frozenset({"delete", "forget"}),
+    "file": frozenset({"delete"}),
+}
+
+
+def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
+    """Return True when the body of a ``catch`` matches the documented
+    "fire-and-forget" idiom: a single command whose head is a destructive
+    builtin (``close $h``, ``unset var``, ``rename foo \"\"``) OR a
+    documented destructive ensemble subcommand (``after cancel``, ``chan
+    close``, ``array unset``, ``dict unset``, ``interp delete``,
+    ``namespace delete``, ``file delete``).
+
+    Conservative: only single-statement bodies are matched, and ensemble
+    commands are subcommand-checked — ``catch {chan configure $h}`` and
+    ``catch {file copy a b}`` still fire W302 because those operations
+    are not the canonical "if exists" idiom.
+    """
+    stmts = getattr(body, "statements", ())
+    if len(stmts) != 1:
+        return False
+    stmt = stmts[0]
+    if not isinstance(stmt, IRCall):
+        return False
+    cmd = stmt.command
+    if not cmd:
+        return False
+    bare = cmd.lstrip(":").split("::")[-1]
+    if bare in _FIRE_AND_FORGET_BARE:
+        return True
+    subcommands = _FIRE_AND_FORGET_SUBCOMMANDS.get(bare)
+    if subcommands is None:
+        return False
+    if not stmt.args:
+        return False
+    return stmt.args[0] in subcommands
+
+
 def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
     """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
 
@@ -564,7 +621,18 @@ def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> 
         # W302: catch without result variable (IR-native).  Highlight just
         # the ``catch`` command word — narrowest span that identifies the
         # issue — rather than the whole ``catch {…}`` statement.
+        #
+        # Suppress the hint on the documented "fire-and-forget" idiom:
+        # ``catch {after cancel ...}``, ``catch {file delete ...}``,
+        # ``catch {close ...}`` etc.  These commands error when the target
+        # is already gone, and ``catch {<cmd>}`` without a result var is
+        # the canonical Tcl idiom for "do this if possible, ignore if
+        # not".  Capturing the result there is verbose and produces a
+        # variable that is genuinely never used — the user has already
+        # decided to ignore the failure.
         if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            if _catch_body_is_fire_and_forget(stmt.body):
+                return
             w302_range = stmt.range
             if stmt.tokens is not None and stmt.tokens.argv:
                 w302_range = range_from_token(stmt.tokens.argv[0])

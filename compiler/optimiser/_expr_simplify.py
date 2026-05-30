@@ -68,6 +68,23 @@ _BIN_PRECEDENCE: dict[BinOp, int] = {
 }
 _RIGHT_ASSOC_BINOPS = frozenset({BinOp.POW})
 
+# Bitwise + shift operators.  When a child binary belongs to this family and
+# its parent is also in this family with a *different* op, we keep its parens
+# in rewrites even though strict precedence would not require them.  Stripping
+# the disambiguating parens from ``((a >> 4) ^ b) & m`` produces correct but
+# universally less-readable code (CERT EXP00-C; every Tcl/C style guide
+# recommends explicit parens around mixed bitwise/shift).  Same-op chaining
+# (``a & b & c``) is fine — those parens really are noise.
+_BITWISE_SHIFT_OPS = frozenset(
+    {
+        BinOp.BIT_OR,
+        BinOp.BIT_XOR,
+        BinOp.BIT_AND,
+        BinOp.LSHIFT,
+        BinOp.RSHIFT,
+    }
+)
+
 _DEMORGAN_DUAL: dict[BinOp, BinOp] = {
     BinOp.AND: BinOp.OR,
     BinOp.OR: BinOp.AND,
@@ -654,6 +671,35 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
 
             # Additive identities / reassociation
             if op in (BinOp.ADD, BinOp.SUB):
+                # Pure-reorder guard: the reassoc canonicalises operand
+                # order ("literal on the right"), which is useful internally
+                # but surfaces as noise-only O110 when no actual structural
+                # simplification happens.  Skip it only when neither child
+                # is itself an ADD/SUB (nothing to flatten) AND no real
+                # simplification would result:
+                #   * identity (``0 + x``, ``x +/- 0``)         — let through
+                #   * operator flip on negative literal          — let through
+                #     (``x + -N`` -> ``x - N``, ``x - -N`` -> ``x + N``,
+                #      ``-N + x`` -> ``x - N``)
+                #   * pure reorder (``N + x`` -> ``x + N``)     — SUPPRESS
+                left_is_additive = isinstance(simp_left, ExprBinary) and simp_left.op in (
+                    BinOp.ADD,
+                    BinOp.SUB,
+                )
+                right_is_additive = isinstance(simp_right, ExprBinary) and simp_right.op in (
+                    BinOp.ADD,
+                    BinOp.SUB,
+                )
+                if not (left_is_additive or right_is_additive):
+                    real_change = (
+                        lv == 0  # 0 + x  -> x
+                        or rv == 0  # x +/- 0  -> x
+                        or (rv is not None and rv < 0)  # x +/- (-N) -> op flip
+                        or (lv is not None and lv < 0 and op is BinOp.ADD)
+                    )
+                    if not real_change:
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
+
                 terms: list[ExprNode] = []
                 constant = _collect_add_terms(
                     ExprBinary(op=op, left=simp_left, right=simp_right),
@@ -663,6 +709,22 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
 
             # Multiplicative identities / reassociation
             if op is BinOp.MUL:
+                # Pure-reorder guard (see ADD/SUB above for rationale).
+                # If neither child is itself MUL the reassoc would only
+                # canonicalise ``literal * term`` to ``term * literal`` —
+                # cosmetic operand swap, surfaces as noise-only O110.
+                left_is_mul = isinstance(simp_left, ExprBinary) and simp_left.op is BinOp.MUL
+                right_is_mul = isinstance(simp_right, ExprBinary) and simp_right.op is BinOp.MUL
+                if not (left_is_mul or right_is_mul):
+                    # Still take multiplicative-identity shortcuts.
+                    if lv == 0 or rv == 0:
+                        return _make_int_literal(0)
+                    if lv == 1:
+                        return simp_right
+                    if rv == 1:
+                        return simp_left
+                    return ExprBinary(op=op, left=simp_left, right=simp_right)
+
                 terms = []
                 constant = _collect_mul_terms(
                     ExprBinary(op=op, left=simp_left, right=simp_right),
@@ -820,7 +882,11 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
             return node
 
 
-def _render_expr_for_rewrite(node: ExprNode, parent_prec: int = 0) -> str:
+def _render_expr_for_rewrite(
+    node: ExprNode,
+    parent_prec: int = 0,
+    parent_op: BinOp | None = None,
+) -> str:
     match node:
         case ExprLiteral(text=text):
             return text
@@ -850,10 +916,20 @@ def _render_expr_for_rewrite(node: ExprNode, parent_prec: int = 0) -> str:
             else:
                 left_prec = prec
                 right_prec = prec + 1
-            left_text = _render_expr_for_rewrite(left, left_prec)
-            right_text = _render_expr_for_rewrite(right, right_prec)
+            left_text = _render_expr_for_rewrite(left, left_prec, op)
+            right_text = _render_expr_for_rewrite(right, right_prec, op)
             text = f"{left_text} {op.value} {right_text}"
+            # Strict-precedence paren.
             if prec < parent_prec:
+                return f"({text})"
+            # Readability paren: keep grouping when this binary and its parent
+            # are both bitwise/shift but distinct ops.  See _BITWISE_SHIFT_OPS.
+            if (
+                parent_op is not None
+                and parent_op != op
+                and op in _BITWISE_SHIFT_OPS
+                and parent_op in _BITWISE_SHIFT_OPS
+            ):
                 return f"({text})"
             return text
         case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):

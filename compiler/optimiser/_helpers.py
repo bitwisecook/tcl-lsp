@@ -514,7 +514,11 @@ def _try_fold_list_command(cmd_text: str) -> str | None:
     if not cmd_texts or cmd_texts[0] != "list":
         return None
     if len(cmd_texts) == 1:
-        return ""  # [list] -> empty string
+        # ``[list]`` evaluates to an empty value but in source position it
+        # must be SOMETHING — replacing it with the empty string would
+        # turn ``set r [list]`` into ``set r ;`` which is a read, not a
+        # write.  Use ``{}`` (canonical empty list literal).
+        return "{}"
     for i in range(1, len(cmd_texts)):
         if i >= len(cmd_single) or not cmd_single[i]:
             return None
