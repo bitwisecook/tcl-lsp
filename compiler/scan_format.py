@@ -45,7 +45,11 @@ _CONV_LEADERS: dict[str, str] = {
     "f": "float",
     "g": "float",
     "G": "float",
-    "n": "any",  # writes count, doesn't consume -- treat as any
+    # ``%n`` writes the count of characters consumed so far -- it does
+    # NOT consume input and ALWAYS succeeds (tclsh: ``scan "" %n n``
+    # sets ``n`` to 0).  Distinct from "any" (which requires input)
+    # because empty input is fine for %n but not for, say, %c.
+    "n": "always",
 }
 
 
@@ -110,8 +114,11 @@ def _can_consume_first_conversion(format_str: str, input_str: str) -> bool | Non
                 si = _skip_leading_whitespace(input_str, si)
             return _input_satisfies_conv(conv, input_str, si)
         # Literal in format: any whitespace run matches input ws run.
-        if fc in " \t\n":
-            # Format whitespace matches zero-or-more input whitespace.
+        # Tcl scan treats every C-ws character in the FORMAT as a
+        # whitespace directive (matches the input's ws run), not only
+        # space/tab/newline.  The previous version missed ``\r\f\v``
+        # and would falsely classify ``scan " 123" "\r%d" n`` as no-match.
+        if fc in " \t\n\r\f\v":
             fi += 1
             si = _skip_leading_whitespace(input_str, si)
             continue
@@ -130,6 +137,10 @@ def _input_satisfies_conv(conv: str, s: str, i: int) -> bool | None:
     kind = _CONV_LEADERS.get(conv)
     if kind is None:
         return None  # unknown conversion -- conservative
+    if kind == "always":
+        # ``%n`` writes the consumed count and never consumes input;
+        # the conversion always succeeds, even on empty input.
+        return True
     if kind == "any":
         return i < len(s)
     if kind == "non-space":
@@ -143,8 +154,12 @@ def _input_satisfies_conv(conv: str, s: str, i: int) -> bool | None:
     if kind == "hex-int":
         return _starts_with_int(s, i, "0123456789abcdefABCDEF")
     if kind == "float":
-        # Float accepts sign + digits + '.' + exponent.  Conservative:
-        # need a sign or digit or leading '.' followed by a digit.
+        # Float accepts sign + (digits | leading '.' digits | Inf | NaN).
+        # Tcl ``scan %f`` matches the same surface as ``Tcl_GetDouble``,
+        # which includes the IEEE special-value spellings ``Inf``,
+        # ``Infinity``, ``NaN`` (case-insensitive).  Missing these
+        # (the original implementation) caused ``scan Inf %f f`` to be
+        # falsely classified as no-match.
         if i >= len(s):
             return False
         c = s[i]
@@ -156,6 +171,10 @@ def _input_satisfies_conv(conv: str, s: str, i: int) -> bool | None:
         if c.isdigit():
             return True
         if c == "." and i + 1 < len(s) and s[i + 1].isdigit():
+            return True
+        # ``Inf``/``Infinity``/``NaN`` (case-insensitive prefix match).
+        tail = s[i:].lower()
+        if tail.startswith("inf") or tail.startswith("nan"):
             return True
         return False
     return None
@@ -180,5 +199,14 @@ def scan_provably_no_match(format_str: str, input_str: str) -> bool:
     False on any uncertain case (unknown conversion, character set,
     malformed format) so callers don't fire spurious W210.
     """
+    # Conservative bail-out: the analyser passes the RAW source text
+    # (``argv_texts``) which has NOT had Tcl's backslash escapes
+    # interpreted.  A backslash in the format / input means we'd be
+    # walking the literal ``\r`` instead of the runtime CR character,
+    # producing a wrong no-match verdict (D4-F1 closure).  Similarly
+    # bail when the format or input contains a ``$`` / ``[`` -- those
+    # are substitution markers whose runtime value we can't see here.
+    if any(c in format_str for c in "\\$[") or any(c in input_str for c in "\\$["):
+        return False
     verdict = _can_consume_first_conversion(format_str, input_str)
     return verdict is False

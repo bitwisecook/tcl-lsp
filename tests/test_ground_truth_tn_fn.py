@@ -459,6 +459,74 @@ def test_TP_W210_dynamic_target_upvar_read():
     assert _any(src, "W210"), "dynamic-target upvar + unconditional read must fire W210"
 
 
+def test_TN_scan_percent_n_on_empty_input():
+    """``%n`` writes the count of consumed characters without consuming
+    any input -- ``scan "" %n n`` sets n=0 successfully.  Must NOT
+    fire W210 (D4-F1 closure).
+
+    runtime: ``f`` -> ``0``  (no error)
+    """
+    src = "proc f {} { scan {} %n n; puts $n }\n"
+    assert not _any(src, "W210"), "scan %n on empty input must succeed"
+
+
+def test_TN_scan_float_accepts_inf():
+    """Tcl ``scan %f`` accepts ``Inf``/``Infinity``/``NaN`` per
+    ``Tcl_GetDouble``.  Must NOT fire W210 (D4-F1 closure).
+
+    runtime: ``f`` -> ``inf``  (no error)
+    """
+    src = "proc f {} { scan Inf %f f; puts $f }\n"
+    assert not _any(src, "W210"), "scan %f with Inf input must succeed"
+
+
+def test_TN_scan_format_whitespace_includes_cr_ff_vt():
+    """``scan " 123" "\\r%d" n`` matches: format ``\\r`` is whitespace
+    that skips the leading space, then ``%d`` consumes 123.  Must NOT
+    fire W210 (D4-F1 closure).
+
+    runtime: ``f`` -> ``123``  (no error)
+    """
+    src = 'proc f {} { scan { 123} "\\r%d" n; puts $n }\n'
+    assert not _any(src, "W210"), "format \\r should skip input whitespace"
+
+
+def test_TP_scan_genuine_no_match_still_fires():
+    """TP control: when scan provably can't consume input, W210 must
+    still fire.  Confirms the F1 over-conservatism didn't degrade
+    detection of real no-match cases."""
+    src = "proc f {} { scan abc %d n; puts $n }\n"
+    assert _any(src, "W210"), "real no-match (abc vs %d) must still fire"
+
+
+def test_TP_W210_empty_dict_with_return_missing_var():
+    """``set d {}; dict with d {}; return $missing`` -- empty dict
+    unpacks no keys, ``$missing`` reads an unset variable.  The
+    return-terminator path must apply the same key-aware suppression
+    as the statement path (D4-F3 / D3-P1 closure).
+
+    runtime: ``f`` -> ERROR ``can't read "missing": no such variable``
+    """
+    src = "proc f {} { set d {}; dict with d {}; return $missing }\n"
+    assert _any(src, "W210"), "empty dict with does not unpack 'missing'"
+
+
+def test_TN_known_key_dict_with_return_var():
+    """TN control: ``set d {missing ok}; dict with d {}; return $missing``
+    -- the literal dict has key ``missing``, so ``dict with`` unpacks
+    it as a local.  Must NOT fire W210."""
+    src = "proc f {} { set d {missing ok}; dict with d {}; return $missing }\n"
+    assert not _any(src, "W210")
+
+
+def test_TN_unknown_dict_with_return_var():
+    """TN control: when the dict shape is unknown (e.g. callee param),
+    the return-path read of any name must conservatively stay silent
+    -- the analyser can't prove the key is absent."""
+    src = "proc f {d} { dict with d {}; return $missing }\n"
+    assert not _any(src, "W210")
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a

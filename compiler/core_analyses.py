@@ -3193,8 +3193,14 @@ def _read_before_set(
                     continue
                 if name in skip or name in reported:
                     continue
+                # D4-F3 / D3-P1 closure: mirror the key-aware
+                # ``dict with`` logic from the statement-use path.  An
+                # empty / known-keys dict only suppresses reads of names
+                # that the dict actually unpacks; an unknown-shape dict
+                # falls back to the previous blanket suppression.
                 if _has_dict_with and name not in explicitly_defined:
-                    continue
+                    if _dict_with_any_unknown or name in _dict_with_known_keys:
+                        continue
                 if "::" in name:
                     continue
                 reported.add(name)
