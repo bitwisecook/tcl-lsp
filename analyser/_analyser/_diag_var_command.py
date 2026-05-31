@@ -1144,18 +1144,46 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # ``my`` and ``self`` are TclOO self-dispatch — the return
                 # value is very likely an object when used in chained calls.
                 is_oo_self_dispatch = cmd_name_ in ("my", "self")
-                # D4-F5 closure: drop the blanket ``in_method``
-                # suppression -- a method body is NOT positive
-                # evidence that an arbitrary ``[cmd] method`` returns
-                # an object.  ``[format "notACommand"] run`` inside
-                # ``method m {} {...}`` legitimately fires W307;
-                # ``[D new] run`` is silent because D's ``new`` is
-                # known-class with OBJECT return type.  Keep the
-                # ``my``/``self`` self-dispatch heuristic (TclOO
-                # convention is that ``my`` / ``self`` calls return
-                # objects in the chained-call idiom -- noisy
-                # otherwise; D3-P4 method-body return-type resolution
-                # for ``my plain`` -> STRING is a deeper follow-up).
+                # D3-P4 closure (partial): when ``my <method>`` /
+                # ``self <method>`` resolves to a method in the current
+                # class whose body is a simple ``return <literal>``, we
+                # KNOW the return value is a plain string -- override
+                # the self-dispatch object heuristic and fire W307.
+                # For more complex method bodies (any cmd-sub, var
+                # interpolation, multiple statements, ``return [...]``)
+                # we conservatively keep the heuristic (chained-call
+                # idiom dominates).
+                if is_oo_self_dispatch and len(cmd_args_) >= 1:
+                    method_name_ = cmd_args_[0]
+                    site_off = site_range.start.offset
+                    for class_def in self.result.all_classes.values():
+                        cb = class_def.body_range
+                        if not (cb.start.offset <= site_off <= cb.end.offset):
+                            continue
+                        md = class_def.methods.get(method_name_) or class_def.class_methods.get(
+                            method_name_
+                        )
+                        if md is None:
+                            break
+                        # body_range may exclude the closing brace, so
+                        # be lenient: try both as-is and brace-stripped.
+                        body_text = cu.source[md.body_range.start.offset : md.body_range.end.offset]
+                        bt = body_text.strip()
+                        if bt.startswith("{"):
+                            # Drop leading ``{`` (and trailing ``}`` if
+                            # present) to get the inner body text.
+                            bt = bt[1:].rstrip()
+                            if bt.endswith("}"):
+                                bt = bt[:-1].rstrip()
+                        bt = bt.strip()
+                        # Simple ``return <literal>`` -- no cmd-sub, no
+                        # var interpolation, no other commands.
+                        if bt.startswith("return ") and "\n" not in bt and ";" not in bt:
+                            ret_arg = bt[len("return ") :].strip()
+                            if ret_arg and "[" not in ret_arg and "$" not in ret_arg:
+                                # Plain literal return -- string, not object.
+                                is_oo_self_dispatch = False
+                        break
                 if is_oo_self_dispatch or (
                     ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT
                 ):

@@ -62,7 +62,7 @@ Tclsh-verified positive/negative pairs.
 | D3-P1 | empty `dict with` + `return $missing` | ✅ FIXED | ✅ silent | Via D4-F3 (key-aware dict-with on return path) |
 | D3-P2 | call-site literal dict not used interproc | ⬜ TODO (FN) | ✅ already silent | Interproc dict propagation |
 | D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) |
-| D3-P4 | `[my plain] run` where plain returns string | 📋 DEFERRED | Requires `my`/`self` method-return-type resolution -- noisy without it (TclOO chained-call idiom is the norm) |
+| D3-P4 | `[my plain] run` where plain returns string | ✅ FIXED | Lightweight method-body inspection: when `my <method>` resolves to a method in the enclosing class whose body is a simple `return <literal>` (no cmd-sub, no var interpolation), override the self-dispatch object heuristic and fire W307.  Compound bodies stay conservatively suppressed. |
 | D3-P5 | `[::pkg::plain]` external returns string | 📋 DEFERRED | D4-F6 partial -- `::`-prefix heuristic kept for tcllib corpus compat; full closure requires registry coverage of factory commands |
 | D3-P6 | `[NotAClass new]` external returns string | ✅ FIXED | Via D4-F6 (`new`-subcommand heuristic on bare names removed) |
 | D3-P7 | `array set state {-command notACommand}` non-cmd | ✅ FIXED | New `array set` literal-element harvester feeds SCCP CONST evidence to override the callback-key heuristic |

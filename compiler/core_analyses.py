@@ -3947,6 +3947,17 @@ def analyse_ir_module(
 
 
 def analyse_source(source: str) -> ModuleAnalysis:
-    """Lower source to IR and run Phase 3 core analyses."""
+    """Lower source to IR and run Phase 3 core analyses.
+
+    Extracts TclOO / snit class names from the IR before running
+    the analysis so ``_return_type_for_command`` can correctly type
+    ``[ClassName new]`` as ``object_of(ClassName)``.  Pre-fix
+    (before the D4-F6 closure removed the ``new``-spelling
+    fallback), this happened to work for unknown classes too via
+    the heuristic; now it requires the explicit class set.
+    """
     ir_module = lower_to_ir(source)
-    return analyse_ir_module(ir_module)
+    from compiler.compilation_unit import _extract_class_names
+
+    known_classes = _extract_class_names(ir_module)
+    return analyse_ir_module(ir_module, known_classes=known_classes)

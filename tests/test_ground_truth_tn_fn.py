@@ -770,6 +770,32 @@ def test_TN_O126_impure_user_proc_RHS_preserved():
     )
 
 
+def test_TP_W307_my_method_returns_plain_literal():
+    """D3-P4 closure: ``[my plain] run`` where ``plain`` is a method
+    in the enclosing class whose body is a simple ``return <literal>``
+    -- the return is provably a STRING, not an object handle.  Fire
+    W307.  Compound bodies (cmd-subs, variables, multiple statements)
+    stay conservatively suppressed via the ``my``/``self`` heuristic."""
+    src = (
+        "oo::class create C { method plain {} { return notACommand }\n"
+        "method m {} { [my plain] run } }"
+    )
+    assert _any(src, "W307")
+
+
+def test_TN_W307_my_method_returns_object_silent():
+    """D3-P4 control: ``[my obj] run`` where ``obj`` returns ``[D new]``
+    has a cmd-sub in its body, so the simple-literal-return check
+    doesn't apply; the conservative TclOO-self-dispatch suppression
+    holds, W307 stays silent."""
+    src = (
+        "oo::class create D { method run {} { return ok } }\n"
+        "oo::class create C { method obj {} { return [D new] }\n"
+        "method m {} { [my obj] run } }"
+    )
+    assert not _any(src, "W307")
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a
