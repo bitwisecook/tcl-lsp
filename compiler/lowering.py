@@ -63,6 +63,7 @@ from .ir import (
     IRIf,
     IRIfClause,
     IRIncr,
+    IRMethodDef,
     IRModule,
     IRProcedure,
     IRScript,
@@ -2449,73 +2450,223 @@ class _Lowerer:
                     tokens=cmd.cmd_tokens,
                 )
 
+            case "oo::class" | "oo::define" if self._is_oo_definition_shape(
+                cmd_name, args, arg_tokens, arg_single
+            ):
+                # Descend into the class/define body and lift each
+                # ``method`` / ``constructor`` / ``destructor`` body to an
+                # ``IRMethodDef`` in ``module.methods`` (analysis-only —
+                # SF-2 method purity for O126).  Emission is then delegated
+                # to the default path so codegen sees byte-identical IR.
+                self._extract_oo_methods(cmd_name, args, arg_tokens, namespace=namespace)
+                return self._lower_default_command(cmd, namespace=namespace)
+
             case _:
-                # Resolve alias for arg role lookups.
-                role_cmd = cmd_name
-                role_args: list[str] = list(args)
-                prepend_n = 0
-                fallback_alias = self._resolve_alias(cmd_name, namespace)
-                if fallback_alias is not None:
-                    target, prepended = fallback_alias
-                    role_cmd = target
-                    role_args = list(prepended) + list(args)
-                    prepend_n = len(prepended)
-                body_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.BODY)
-                var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)
-                var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
-                if body_indices:
-                    # A ``-loop`` stub is modelled as a real loop so the
-                    # loop variable stays defined and the body is analysed
-                    # in iteration order, rather than collapsing to an
-                    # opaque barrier.  Role-driven (not positional) so the
-                    # ``var collection body`` shape is found even behind a
-                    # subcommand word or leading option flags.
-                    if prepend_n == 0 and is_loop_command(role_cmd, role_args):
-                        loop_ir = self._lower_stub_loop(
-                            cmd,
-                            namespace=namespace,
-                            var_indices=var_indices,
-                            body_indices=body_indices,
-                        )
-                        if loop_ir is not None:
-                            return loop_ir
-                    return IRBarrier(
-                        range=cmd.range,
-                        reason="unsupported body command",
-                        command=cmd_name,
-                        canonical_command=self._canonicalise_command(cmd_name, namespace),
-                        args=tuple(args),
-                        tokens=cmd.cmd_tokens,
-                    )
-                if var_indices or var_read_indices:
-                    # Subtract prepend_n to map virtual indices back to
-                    # real arg positions (mirrors the analyser).
-                    var_defs = tuple(
-                        _normalise_var_name(args[i - prepend_n])
-                        for i in sorted(var_indices)
-                        if 0 <= i - prepend_n < len(args)
-                    )
-                    var_reads = tuple(
-                        _normalise_var_name(args[i - prepend_n])
-                        for i in sorted(var_read_indices)
-                        if 0 <= i - prepend_n < len(args)
-                    )
-                    return IRCall(
-                        range=cmd.range,
-                        command=cmd_name,
-                        canonical_command=self._canonicalise_command(cmd_name, namespace),
-                        args=tuple(args),
-                        defs=var_defs,
-                        reads=var_reads,
-                        tokens=cmd.cmd_tokens,
-                    )
-                return IRCall(
-                    range=cmd.range,
-                    command=cmd_name,
-                    canonical_command=self._canonicalise_command(cmd_name, namespace),
-                    args=tuple(args),
-                    tokens=cmd.cmd_tokens,
+                return self._lower_default_command(cmd, namespace=namespace)
+
+    def _lower_default_command(self, cmd: _Command, *, namespace: str) -> IRStatement | None:
+        """Default command lowering: role-aware BODY/VAR handling → IRCall.
+
+        Factored out of the ``_lower_command_body`` match so the OO
+        class/define cases can populate ``module.methods`` as a side
+        effect and then delegate here, guaranteeing the emitted IR
+        (and therefore codegen) is identical to the un-intercepted path.
+        """
+        cmd_name = cmd.name
+        args = cmd.args
+        # Resolve alias for arg role lookups.
+        role_cmd = cmd_name
+        role_args: list[str] = list(args)
+        prepend_n = 0
+        fallback_alias = self._resolve_alias(cmd_name, namespace)
+        if fallback_alias is not None:
+            target, prepended = fallback_alias
+            role_cmd = target
+            role_args = list(prepended) + list(args)
+            prepend_n = len(prepended)
+        body_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.BODY)
+        var_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_WRITE)
+        var_read_indices = arg_indices_for_role(role_cmd, role_args, ArgRole.VAR_READ)
+        if body_indices:
+            # A ``-loop`` stub is modelled as a real loop so the
+            # loop variable stays defined and the body is analysed
+            # in iteration order, rather than collapsing to an
+            # opaque barrier.  Role-driven (not positional) so the
+            # ``var collection body`` shape is found even behind a
+            # subcommand word or leading option flags.
+            if prepend_n == 0 and is_loop_command(role_cmd, role_args):
+                loop_ir = self._lower_stub_loop(
+                    cmd,
+                    namespace=namespace,
+                    var_indices=var_indices,
+                    body_indices=body_indices,
                 )
+                if loop_ir is not None:
+                    return loop_ir
+            return IRBarrier(
+                range=cmd.range,
+                reason="unsupported body command",
+                command=cmd_name,
+                canonical_command=self._canonicalise_command(cmd_name, namespace),
+                args=tuple(args),
+                tokens=cmd.cmd_tokens,
+            )
+        if var_indices or var_read_indices:
+            # Subtract prepend_n to map virtual indices back to
+            # real arg positions (mirrors the analyser).
+            var_defs = tuple(
+                _normalise_var_name(args[i - prepend_n])
+                for i in sorted(var_indices)
+                if 0 <= i - prepend_n < len(args)
+            )
+            var_reads = tuple(
+                _normalise_var_name(args[i - prepend_n])
+                for i in sorted(var_read_indices)
+                if 0 <= i - prepend_n < len(args)
+            )
+            return IRCall(
+                range=cmd.range,
+                command=cmd_name,
+                canonical_command=self._canonicalise_command(cmd_name, namespace),
+                args=tuple(args),
+                defs=var_defs,
+                reads=var_reads,
+                tokens=cmd.cmd_tokens,
+            )
+        return IRCall(
+            range=cmd.range,
+            command=cmd_name,
+            canonical_command=self._canonicalise_command(cmd_name, namespace),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
+
+    # ---------------------------------------------------------------
+    # TclOO method-body lowering (SF-2: method purity for O126)
+    # ---------------------------------------------------------------
+    @staticmethod
+    def _is_static_braced(arg_tokens: list[Token], arg_single: list[bool], idx: int) -> bool:
+        """True iff arg *idx* is a single braced-literal (STR) token.
+
+        Mirrors the ``namespace eval`` static-body gate: a dynamic body
+        (``$var`` / ``[cmd]`` / interpolated) must not be lifted as a
+        literal script.
+        """
+        return (
+            0 <= idx < len(arg_tokens)
+            and idx < len(arg_single)
+            and arg_single[idx]
+            and arg_tokens[idx].type is TokenType.STR
+        )
+
+    def _is_oo_definition_shape(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        arg_single: list[bool],
+    ) -> bool:
+        """Recognise the class/define shapes that carry a static body block.
+
+        * ``oo::class create Name { body }``  (body at arg index 2)
+        * ``oo::define Name { body }``         (body at arg index 1)
+
+        Only static braced bodies qualify — the single-method
+        ``oo::define Name method m {...} {...}`` and dynamic-body forms
+        are left to the default lowering (no method extraction).
+        """
+        if cmd_name == "oo::class":
+            return (
+                len(args) >= 3
+                and args[0] == "create"
+                and self._is_static_braced(arg_tokens, arg_single, 2)
+            )
+        if cmd_name == "oo::define":
+            return len(args) >= 2 and self._is_static_braced(arg_tokens, arg_single, 1)
+        return False
+
+    def _extract_oo_methods(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        *,
+        namespace: str,
+    ) -> None:
+        """Lift ``method`` / ``constructor`` / ``destructor`` bodies inside a
+        class/define block to per-method ``IRMethodDef`` entries.
+
+        Populates ``self.module.methods`` keyed by
+        ``{class_qname}::{method_name}`` (constructors/destructors use the
+        synthetic names ``<constructor>`` / ``<destructor>``).  This is an
+        analysis-only artefact consumed by interprocedural purity and the
+        O126 optimiser gate — codegen never reads ``module.methods``.
+        """
+        if cmd_name == "oo::class":
+            class_simple, body_text, body_idx = args[1], args[2], 2
+        else:  # oo::define
+            class_simple, body_text, body_idx = args[0], args[1], 1
+        # Dynamic class names can't be resolved statically.
+        if "$" in class_simple or "[" in class_simple:
+            return
+        class_qname = _qualify_proc_name(namespace, class_simple)
+        body_tok = arg_tokens[body_idx]
+        try:
+            segments = segment_commands(body_text, body_tok)
+        except TclParseError:
+            return
+
+        for seg in segments:
+            if seg.is_partial or not seg.texts:
+                continue
+            head = seg.texts[0]
+            if head == "method" and len(seg.texts) >= 4:
+                name, params_str, b_idx, kind = seg.texts[1], seg.texts[2], 3, "method"
+            elif head == "classmethod" and len(seg.texts) >= 4:
+                name, params_str, b_idx, kind = seg.texts[1], seg.texts[2], 3, "classmethod"
+            elif head == "constructor" and len(seg.texts) >= 3:
+                name, params_str, b_idx, kind = "<constructor>", seg.texts[1], 2, "constructor"
+            elif head == "destructor" and len(seg.texts) >= 2:
+                name, params_str, b_idx, kind = "<destructor>", "", 1, "destructor"
+            else:
+                continue
+            # Dynamic method names / non-static bodies are left
+            # un-lowered (the optimiser stays conservative for them).
+            if "$" in name or "[" in name:
+                continue
+            if not self._is_static_braced(list(seg.argv), list(seg.single_token_word), b_idx):
+                continue
+            try:
+                params = _parse_param_names(params_str) if params_str else ()
+            except Exception:
+                params = ()
+            # Lower the method body in its own frame (fresh const-map +
+            # proc-depth) so the enclosing scope's tracked scalars don't
+            # leak into the body's barrier-relaxation gate — exactly as
+            # the ``proc`` case does for nested proc bodies.
+            self._proc_depth += 1
+            self._const_map_stack.append({})
+            try:
+                body_script = self._lower_body_arg(
+                    seg.texts[b_idx], seg.argv[b_idx], namespace=namespace
+                )
+            finally:
+                self._const_map_stack.pop()
+                self._proc_depth -= 1
+            method_qname = f"{class_qname}::{name}"
+            # First definition wins (matches proc registration); a later
+            # redefinition of the same method is left to runtime.
+            self.module.methods.setdefault(
+                method_qname,
+                IRMethodDef(
+                    class_name=class_qname,
+                    method_name=name,
+                    params=params,
+                    body=body_script,
+                    kind=kind,
+                    range=seg.range,
+                ),
+            )
 
 
 def lower_to_ir(

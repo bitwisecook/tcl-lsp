@@ -40,6 +40,7 @@ from compiler.ir import (
     IRForeach,
     IRIf,
     IRIncr,
+    IRMethodDef,
     IRModule,
     IRProcedure,
     IRReturn,
@@ -972,14 +973,18 @@ def _cache_key_for_proc(
 
 def _summarise_proc_local(
     qname: str,
-    proc: IRProcedure,
+    proc: IRProcedure | IRMethodDef,
     *,
     known: set[str],
     cfg: CFGFunction,
     ssa: SSAFunction,
     analysis: FunctionAnalysis,
 ) -> ProcLocalSummary:
-    """Compute local (non-transitive) summary facts for one procedure."""
+    """Compute local (non-transitive) summary facts for one procedure.
+
+    Accepts an ``IRMethodDef`` too (SF-2): only ``.body`` and ``.params``
+    are read, both of which the method form carries.
+    """
     facts = _LocalFacts(
         calls=set(),
         has_barrier=False,
@@ -1062,6 +1067,7 @@ def analyse_interprocedural_ir(
     ir_module: IRModule,
     *,
     proc_units: dict[str, tuple[CFGFunction, SSAFunction, FunctionAnalysis]] | None = None,
+    method_units: dict[str, tuple[CFGFunction, SSAFunction, FunctionAnalysis]] | None = None,
     source: str | None = None,
     proc_local_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_local_cache: bool = True,
@@ -1075,11 +1081,16 @@ def analyse_interprocedural_ir(
     ``(cfg, ssa, analysis)``), the per-procedure pipeline is skipped —
     the pre-built artefacts are used directly.
 
+    When *method_units* is provided, TclOO method bodies (in
+    ``ir_module.methods``) are summarised into ``MethodSummary`` entries
+    on the returned ``InterproceduralAnalysis.methods`` (SF-2 — consumed
+    by the O126 ``my <method>`` purity gate).
+
     When *source* and *proc_local_cache* are provided, local summary
     facts are reused for unchanged procedures using key
     ``(qualified_name, hash(proc_source_text))``.
     """
-    if not ir_module.procedures:
+    if not ir_module.procedures and not ir_module.methods:
         return InterproceduralAnalysis(procedures={})
 
     known = set(ir_module.procedures.keys())
@@ -1240,7 +1251,66 @@ def analyse_interprocedural_ir(
             param_traits=traits,
         )
 
-    return InterproceduralAnalysis(procedures=summaries)
+    # SF-2: summarise TclOO method bodies into MethodSummary entries.  The
+    # O126 ``my <method>`` purity gate only consults ``summary.pure``, so the
+    # purity rule is intentionally conservative: a method is pure iff its own
+    # body has no observable side effect AND every *proc* it calls is pure.
+    # A ``my <other_method>`` / ``next`` dispatch surfaces as an unknown call
+    # (``has_unknown_calls``), which already forces the method impure — so we
+    # never mark a method pure on the strength of an unproven peer method
+    # (sound: false negatives only, the optimiser stays conservative).
+    method_summaries: dict[str, MethodSummary] = {}
+    if ir_module.methods:
+        method_known = known | set(ir_module.methods.keys())
+        for mqname, ir_method in ir_module.methods.items():
+            if method_units is not None and mqname in method_units:
+                m_cfg, m_ssa, m_analysis = method_units[mqname]
+            elif proc_units is None:
+                # No pre-built units and no method CFGs available; skip.
+                continue
+            else:
+                continue
+            m_local = _summarise_proc_local(
+                mqname,
+                ir_method,
+                known=method_known,
+                cfg=m_cfg,
+                ssa=m_ssa,
+                analysis=m_analysis,
+            )
+            m_pure_base = (
+                not m_local.has_barrier
+                and not m_local.has_unknown_calls
+                and not m_local.writes_global
+                and m_local.local_effect_writes == EffectRegion.NONE
+            )
+            m_pure = m_pure_base and all(pure.get(callee, False) for callee in m_local.calls)
+            m_effect_reads = m_local.local_effect_reads
+            m_effect_writes = m_local.local_effect_writes
+            for callee in m_local.calls:
+                m_effect_reads |= effect_reads.get(callee, EffectRegion.NONE)
+                m_effect_writes |= effect_writes.get(callee, EffectRegion.NONE)
+            method_summaries[mqname] = MethodSummary(
+                qualified_name=mqname,
+                params=m_local.params,
+                arity=m_local.arity,
+                calls=m_local.calls,
+                has_barrier=m_local.has_barrier,
+                has_unknown_calls=m_local.has_unknown_calls,
+                writes_global=m_local.writes_global,
+                pure=m_pure,
+                effect_reads=m_effect_reads,
+                effect_writes=m_effect_writes,
+                returns_constant=m_local.returns_constant,
+                constant_return=m_local.constant_return,
+                return_depends_on_params=m_local.return_depends_on_params,
+                return_passthrough_param=m_local.return_passthrough_param,
+                can_fold_static_calls=False,
+                class_name=ir_method.class_name,
+                method_kind=ir_method.kind,
+            )
+
+    return InterproceduralAnalysis(procedures=summaries, methods=method_summaries)
 
 
 def analyse_interprocedural_source(source: str) -> InterproceduralAnalysis:

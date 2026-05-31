@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from compiler.interprocedural import (
     InterproceduralAnalysis,
@@ -135,6 +135,11 @@ class CompilationUnit:
     top_level: FunctionUnit
     procedures: dict[str, FunctionUnit]
     interproc: InterproceduralAnalysis
+    # TclOO method bodies lowered to per-method FunctionUnits (SF-2).  Keyed
+    # by ``{class_qname}::{method_name}``; empty for non-OO sources.  Kept
+    # separate from ``procedures`` so per-proc diagnostic passes are
+    # unaffected — only the optimiser's O126 gate iterates these.
+    methods: dict[str, FunctionUnit] = field(default_factory=dict)
     connection_scope: ConnectionScope | None = None
     # The TclOO/snit class-name set the per-proc analyses were built under;
     # cache builders fingerprint it so a class change elsewhere invalidates
@@ -468,6 +473,43 @@ def _compile_source_inner(
         )
         time.sleep(0)  # Yield GIL between procedures
 
+    # SF-2: lower TclOO method bodies (populated in ir_module.methods by
+    # lowering) to per-method FunctionUnits, using the same CFG → SSA →
+    # analysis pipeline as procs.  Kept in a separate dict so the per-proc
+    # diagnostic passes (which iterate ``procedures``) are unaffected — only
+    # the interprocedural purity summary and the O126 optimiser gate consume
+    # methods.  Methods are analysis-only artefacts; codegen never reads them.
+    method_units: dict[str, FunctionUnit] = {}
+    for mqname, ir_method in ir_module.methods.items():
+        m_range = ir_method.range
+        m_byte_guarded = bool(
+            m_range is not None
+            and (m_range.end.offset - m_range.start.offset) > _DEEP_ANALYSIS_BODY_BYTES
+        )
+        m_cfg = build_cfg_function(
+            mqname,
+            ir_method.body,
+            upvar_procs=upvar_procs,
+            proc_params=all_proc_params,
+            faithful_exceptions=True,
+        )
+        m_ssa = build_ssa(m_cfg, force_guard=m_byte_guarded)
+        m_analysis = analyse_function(
+            m_cfg,
+            m_ssa,
+            params=frozenset(ir_method.params),
+            known_classes=known_classes,
+            force_guard=m_byte_guarded,
+        )
+        method_units[mqname] = FunctionUnit(
+            cfg=m_cfg,
+            ssa=m_ssa,
+            analysis=m_analysis,
+            execution_intent=build_function_execution_intent(m_cfg),
+            complexity_guarded=m_byte_guarded or is_complexity_guarded(m_cfg),
+        )
+        time.sleep(0)  # Yield GIL between methods
+
     cfg_module = CFGModule(top_level=top_cfg, procedures=proc_cfgs)
 
     interproc = analyse_interprocedural_ir(
@@ -476,6 +518,7 @@ def _compile_source_inner(
         proc_local_cache=interproc_cache,
         prune_local_cache=prune_interproc_cache,
         proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
+        method_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in method_units.items()},
         stub_fingerprint=stub_fingerprint,
         context_fingerprint=context_fingerprint,
         deep_param_traits=deep_param_traits,
@@ -491,6 +534,7 @@ def _compile_source_inner(
         top_level=top_unit,
         procedures=proc_units,
         interproc=interproc,
+        methods=method_units,
         connection_scope=conn_scope,
         known_classes=known_classes,
     )

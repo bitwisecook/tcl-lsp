@@ -527,18 +527,17 @@ def test_FP_OPT_12_impure_user_proc_still_blocks():
     assert not o126s, f"impure-user-proc RHS must NOT fire O126; got {o126s}"
 
 
-def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
-    """PARTIAL: TclOO method bodies are not currently lowered to
-    per-method FunctionUnits / interproc summaries, so the
-    ``my <method>`` purity path in
-    ``_word_has_observable_side_effect`` cannot fire today.  The SF-2
-    wiring is in place (consults
-    ``InterproceduralAnalysis.methods`` + ``_method_pure(class, m, set)``)
-    and will turn on the moment method-body analysis lands upstream.
+def test_FP_OPT_12_tcloo_pure_method_rhs_deleted():
+    """SF-2 FIXED (TP): TclOO method bodies are now lowered to per-method
+    FunctionUnits and summarised into ``InterproceduralAnalysis.methods``.
+    The optimiser iterates method bodies with the owning class as
+    ``enclosing_class``, so a ``set unused [my <pure-method>]`` RHS is
+    recognised side-effect-free via ``_method_pure(class, m, pure_set)``
+    and the dead assignment folds to deletion (O126).
 
-    This test pins that fact: the spec's TP TclOO reproducer does
-    NOT fire O126 today, and that is correctly captured as a partial
-    closure (see ``review-findings-tracker.md`` SF-2)."""
+    This is the spec's TP reproducer; it previously could not fire because
+    ``ctx.interproc.methods`` was always empty (method bodies un-lowered).
+    See ``post-stage2-followups.md`` §B."""
     from compiler.optimiser import optimise_source
 
     src = (
@@ -552,7 +551,46 @@ def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
     )
     optimised, rewrites = optimise_source(src)
     o126s = [r for r in rewrites if r.code == "O126"]
-    # Method body NOT lowered to IR today -- the optimiser cannot see
-    # inside the class body, so nothing inside `m` is rewritten.  The
-    # PARTIAL status will flip to FIXED when method-body analysis lands.
-    assert not o126s, f"TclOO method bodies not yet lowered: O126 cannot fire today; got {o126s}"
+    assert o126s, f"pure-method RHS in unused assign must fire O126; got {rewrites}"
+
+
+def test_FP_OPT_12_tcloo_impure_method_rhs_preserved():
+    """SF-2 TN: a ``my <method>`` whose method body has an observable side
+    effect (``puts``) must NOT be deleted — the method summary records
+    ``pure=False`` so ``_method_pure`` returns False and the O126 gate
+    conservatively preserves the assignment."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method impure_helper {} { puts hi; return 0 }\n"
+        "    method m {} {\n"
+        "        set unused [my impure_helper]\n"
+        "        puts done\n"
+        "    }\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    o126s = [r for r in rewrites if r.code == "O126"]
+    assert not o126s, f"impure-method RHS must NOT fire O126; got {o126s}"
+
+
+def test_FP_OPT_12_oo_define_pure_method_rhs_deleted():
+    """SF-2 TP via ``oo::define`` body form: methods added through
+    ``oo::define C { method ... }`` are lowered and summarised the same
+    way as the inline ``oo::class create`` body."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {}\n"
+        "oo::define C {\n"
+        "    method pure_helper {} { return 42 }\n"
+        "    method m {} {\n"
+        "        set unused [my pure_helper]\n"
+        "        puts done\n"
+        "    }\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    o126s = [r for r in rewrites if r.code == "O126"]
+    assert o126s, f"oo::define pure-method RHS must fire O126; got {rewrites}"

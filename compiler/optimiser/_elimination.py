@@ -446,6 +446,7 @@ def optimise_elimination_passes(
     execution_intent: FunctionExecutionIntent,
     *,
     is_top_level: bool = False,
+    enclosing_class: str | None = None,
 ) -> None:
     source = ctx.source
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
@@ -469,15 +470,11 @@ def optimise_elimination_passes(
         qn for qn, summary in ctx.interproc.methods.items() if getattr(summary, "pure", False)
     )
     # The enclosing class context is only meaningful for an optimisation
-    # pass running over a TclOO method body's FunctionUnit.  Today
-    # ``optimise_elimination_passes`` is called only for top-level and
-    # user procs (not method bodies); so ``enclosing_class`` is always
-    # None and the ``my <method>`` suppression in
-    # ``_word_has_observable_side_effect`` never fires.  Threading the
-    # parameter through anyway makes the wiring complete; when method-
-    # body lowering and a per-method pass driver land they need only
-    # plumb the class qname.
-    enclosing_class: str | None = None
+    # pass running over a TclOO method body's FunctionUnit — the optimiser's
+    # method-iteration loop passes the owning class qname here so the
+    # ``my <method>`` suppression in ``_word_has_observable_side_effect``
+    # can resolve same-class pure methods (SF-2).  None for top-level and
+    # ordinary proc bodies.
 
     executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
     removable_def_versions: dict[str, set[int]] = {}

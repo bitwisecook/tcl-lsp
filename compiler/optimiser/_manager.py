@@ -169,6 +169,25 @@ class _CompilerOptimiser:
                 ir_script=ir_proc.body if ir_proc else None,
                 namespace=_namespace_from_qualified(qname),
             )
+        # SF-2: optimise TclOO method bodies as functions too, passing the
+        # owning class qname so the O126 ``my <method>`` purity gate can
+        # resolve same-class pure methods.  Rewrites map back to source via
+        # the method body's statement ranges (same as procs).
+        ctx.cross_event_vars = frozenset()
+        for mqname, fu in cu.methods.items():
+            if fu.complexity_guarded:
+                continue
+            ir_method = cu.ir_module.methods.get(mqname)
+            self._process_function(
+                ctx,
+                fu.cfg,
+                fu.ssa,
+                fu.analysis,
+                execution_intent=fu.execution_intent,
+                ir_script=ir_method.body if ir_method else None,
+                namespace=_namespace_from_qualified(mqname),
+                enclosing_class=ir_method.class_name if ir_method else None,
+            )
         # Tail-call detection (cross-procedure, runs once).
         _tail_call.optimise_tail_calls(ctx)
         # Module-level passes
@@ -187,6 +206,7 @@ class _CompilerOptimiser:
         ir_script: IRScript | None = None,
         namespace: str = "::",
         is_top_level: bool = False,
+        enclosing_class: str | None = None,
     ) -> None:
         source = ctx.source
         ctx.propagated_branch_uses = set()
@@ -380,6 +400,7 @@ class _CompilerOptimiser:
             analysis,
             execution_intent,
             is_top_level=is_top_level,
+            enclosing_class=enclosing_class,
         )
 
         # Code sinking
