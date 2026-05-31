@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from compiler.compilation_unit import CompilationUnit
 
+from compiler.expr_ast import dead_command_ranges
 from compiler.parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from compiler.parsing.expr_lexer import (
     BUILTIN_EXPR_OPS,
@@ -15,6 +16,7 @@ from compiler.parsing.expr_lexer import (
     ExprTokenType,
     tokenise_expr,
 )
+from compiler.parsing.expr_parser import parse_expr
 from compiler.parsing.recovery import segment_with_recovery
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -159,6 +161,8 @@ class _AnalyserBase:
             var_command_sites=list(self._var_command_sites),
             cmd_command_sites=list(self._cmd_command_sites),
             pending_trace_callbacks=list(self._pending_trace_callbacks),
+            objdefined_vars=set(self._objdefined_vars),
+            ensemble_namespaces=set(self._ensemble_namespaces),
         )
 
     def restore(self, snap: AnalyserSnapshot) -> None:
@@ -209,6 +213,8 @@ class _AnalyserBase:
         self._var_command_sites = list(snap.var_command_sites)
         self._cmd_command_sites = list(snap.cmd_command_sites)
         self._pending_trace_callbacks = list(snap.pending_trace_callbacks)
+        self._objdefined_vars = set(snap.objdefined_vars)
+        self._ensemble_namespaces = set(snap.ensemble_namespaces)
 
     @staticmethod
     def _build_scope_id_map(
@@ -644,6 +650,19 @@ class _AnalyserBase:
             base_line = 0
             base_col = 0
 
+        # Command substitutions in a provably-dead arm of a literal-constant
+        # short-circuit / ternary (``0 && [cmd]``, ``1 || [cmd]``, ``0 ? [cmd] :
+        # x``) are never executed by Tcl, so they must not be analysed for W123.
+        # Gated behind a cheap text pre-filter so the common expr pays nothing.
+        dead_cmd_ranges: frozenset[tuple[int, int]] = frozenset()
+        if "[" in expr and ("&&" in expr or "||" in expr or "?" in expr):
+            try:
+                dead_cmd_ranges = frozenset(
+                    dead_command_ranges(parse_expr(expr, dialect=active_dialect()))
+                )
+            except Exception:
+                dead_cmd_ranges = frozenset()
+
         for tok in tokenise_expr(expr, dialect=active_dialect()):
             if tok.type is ExprTokenType.VARIABLE:
                 start = position_from_relative(
@@ -664,6 +683,8 @@ class _AnalyserBase:
                 continue
 
             if tok.type is ExprTokenType.COMMAND and len(tok.text) >= 2:
+                if (tok.start, tok.end) in dead_cmd_ranges:
+                    continue  # dead arm of a constant-guarded && / || / ?:
                 cmd_text = tok.text[1:-1]
                 if expr_token is None:
                     self._analyse_body(cmd_text, scope)

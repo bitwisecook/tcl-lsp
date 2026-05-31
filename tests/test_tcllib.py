@@ -313,6 +313,25 @@ class TestTcllibDiagnostics:
         w120 = [d for d in diags if d.code == "W120"]
         assert len(w120) == 0
 
+    def test_no_w120_in_provider_self_calls(self):
+        """A file that ``package provide``s package X is X's own
+        implementation; calling ``X::foo`` from inside that file is a
+        self-call, not a missing import.  tcllib's ``msgcat.tcl``
+        canonical example: the package provider invokes its own
+        ``msgcat::mcutil`` and ``msgcat::mclocale`` without needing
+        ``package require msgcat``.
+        """
+        source = (
+            "package provide json 1.0\n"
+            "namespace eval json {\n"
+            '    proc json2dict {x} { return "" }\n'
+            "}\n"
+            "json::json2dict $data\n"
+        )
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert w120 == []
+
     def test_w120_multiple_commands_same_package(self):
         source = "json::json2dict $a\njson::dict2json $b"
         diags = get_diagnostics(source)

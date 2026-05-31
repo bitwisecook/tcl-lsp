@@ -187,6 +187,105 @@ ExprNode = (
 # Utility functions
 
 
+def _const_bool(node: ExprNode) -> bool | None:
+    """The static truth value of *node* if it is a literal Tcl boolean/number
+    (optionally under a constant-foldable unary), else ``None`` (not statically
+    decidable).  Folds the boolean-relevant unaries over a constant operand:
+    ``+``/``-`` preserve truth (sign never changes zero-ness — ``-1`` is true,
+    ``-0`` false), ``!``/``not`` invert it.  ``~`` stays conservative (``None``):
+    it needs the integer value, and a bitwise-not guard is rare."""
+    if isinstance(node, ExprUnary):
+        if node.op in (UnaryOp.NEG, UnaryOp.POS):
+            return _const_bool(node.operand)
+        if node.op in (UnaryOp.NOT, UnaryOp.WORD_NOT):
+            inner = _const_bool(node.operand)
+            return None if inner is None else (not inner)
+        return None
+    if not isinstance(node, ExprLiteral):
+        return None
+    t = node.text.strip()
+    low = t.lower()
+    if low in ("1", "true", "yes", "on"):
+        return True
+    if low in ("0", "false", "no", "off"):
+        return False
+    try:
+        return int(t, 0) != 0
+    except ValueError:
+        try:
+            return float(t) != 0.0
+        except ValueError:
+            return None
+
+
+def _all_command_ranges(node: ExprNode, out: set[tuple[int, int]]) -> None:
+    """Collect ``(start, end)`` of every command substitution in *node*."""
+    if isinstance(node, ExprCommand):
+        out.add((node.start, node.end))
+    elif isinstance(node, ExprBinary):
+        _all_command_ranges(node.left, out)
+        _all_command_ranges(node.right, out)
+    elif isinstance(node, ExprUnary):
+        _all_command_ranges(node.operand, out)
+    elif isinstance(node, ExprTernary):
+        _all_command_ranges(node.condition, out)
+        _all_command_ranges(node.true_branch, out)
+        _all_command_ranges(node.false_branch, out)
+    elif isinstance(node, ExprCall):
+        for a in node.args:
+            _all_command_ranges(a, out)
+
+
+_AND_OPS = (BinOp.AND, BinOp.WORD_AND)
+_OR_OPS = (BinOp.OR, BinOp.WORD_OR)
+
+
+def _collect_dead_commands(node: ExprNode, out: set[tuple[int, int]]) -> None:
+    """Mark command-sub ranges in arms made unreachable by a *literal-constant*
+    guard, recursing live arms.  A non-constant guard leaves both arms live."""
+    if isinstance(node, ExprBinary):
+        _collect_dead_commands(node.left, out)
+        lc = _const_bool(node.left)
+        if node.op in _AND_OPS and lc is False:
+            _all_command_ranges(node.right, out)  # 0 && X — X never runs
+        elif node.op in _OR_OPS and lc is True:
+            _all_command_ranges(node.right, out)  # 1 || X — X never runs
+        else:
+            _collect_dead_commands(node.right, out)
+    elif isinstance(node, ExprUnary):
+        _collect_dead_commands(node.operand, out)
+    elif isinstance(node, ExprTernary):
+        _collect_dead_commands(node.condition, out)
+        c = _const_bool(node.condition)
+        if c is True:
+            _all_command_ranges(node.false_branch, out)  # 1 ? x : X — X dead
+            _collect_dead_commands(node.true_branch, out)
+        elif c is False:
+            _all_command_ranges(node.true_branch, out)  # 0 ? X : x — X dead
+            _collect_dead_commands(node.false_branch, out)
+        else:
+            _collect_dead_commands(node.true_branch, out)
+            _collect_dead_commands(node.false_branch, out)
+    elif isinstance(node, ExprCall):
+        for a in node.args:
+            _collect_dead_commands(a, out)
+
+
+def dead_command_ranges(node: ExprNode) -> set[tuple[int, int]]:
+    """``(start, end)`` offsets of command substitutions in *provably-dead*
+    arms — a literal-constant-guarded short-circuit (``0 && […]`` / ``1 || […]``)
+    or ternary branch (``0 ? X : x`` / ``1 ? x : X``) that Tcl never evaluates.
+
+    Used to skip such commands in W123 (unknown-command) analysis: tclsh does
+    not run them, so flagging them is a false positive.  A *non-constant* guard
+    (``$cond && [cmd]``) leaves both arms live — the command may run, so it is
+    NOT suppressed (W123 is a smell, not a guaranteed-error diagnostic).
+    """
+    out: set[tuple[int, int]] = set()
+    _collect_dead_commands(node, out)
+    return out
+
+
 def vars_in_expr_node(node: ExprNode) -> set[str]:
     """Recursively extract variable names from an expression AST.
 
@@ -230,6 +329,38 @@ def _collect_vars(node: ExprNode, out: set[str]) -> None:
             _collect_vars_in_raw(text, out)
         case _:
             pass  # ExprLiteral, ExprString — no variables
+
+
+def command_texts_in_expr_node(node: ExprNode) -> list[str]:
+    """Collect the raw text of every command substitution in an expr AST.
+
+    Each returned string is an ``ExprCommand`` text (e.g. ``[catch {…} tmp]``).
+    Used to recover side effects (variable writes) of command substitutions
+    evaluated inside an expression — they run in the current scope.
+    """
+    result: list[str] = []
+    _collect_command_texts(node, result)
+    return result
+
+
+def _collect_command_texts(node: ExprNode, out: list[str]) -> None:
+    match node:
+        case ExprBinary(left=left, right=right):
+            _collect_command_texts(left, out)
+            _collect_command_texts(right, out)
+        case ExprUnary(operand=operand):
+            _collect_command_texts(operand, out)
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            _collect_command_texts(cond, out)
+            _collect_command_texts(tb, out)
+            _collect_command_texts(fb, out)
+        case ExprCall(args=args):
+            for arg in args:
+                _collect_command_texts(arg, out)
+        case ExprCommand(text=text):
+            out.append(text)
+        case _:
+            pass
 
 
 def _collect_vars_in_command(cmd_text: str, out: set[str]) -> None:

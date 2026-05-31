@@ -36,6 +36,7 @@
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
 | W231 | warning | Constant list index out of range — lset raises a runtime error. | ✓ |
 | W232 | warning | Constant string index out of range — string index/range/replace/insert silently return empty or no-op. | ✓ |
+| W233 | warning | Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime. | ✓ |
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
 | W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |

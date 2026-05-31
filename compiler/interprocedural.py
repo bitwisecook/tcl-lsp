@@ -58,7 +58,7 @@ from compiler.proc_arg_traits import (
 from compiler.registry.runtime import arg_indices_for_role, resolve_arg_role_map
 from compiler.registry.signatures import ArgRole, Arity
 from compiler.side_effects import EffectRegion, classify_side_effects
-from compiler.ssa import SSAFunction, SSAValueKey, build_ssa
+from compiler.ssa import SSAFunction, SSAValueKey, build_ssa, is_complexity_guarded
 from compiler.static_loops import evaluate_expr_with_constants as _evaluate_expr
 from compiler.var_refs import VarReferenceScanner, VarScanOptions
 from shared.naming import (
@@ -944,6 +944,7 @@ def _cache_key_for_proc(
     qname: str,
     proc: IRProcedure,
     stub_fingerprint: int = 0,
+    context_fingerprint: int = 0,
 ) -> tuple[str, int] | None:
     """Return cache key for a proc based on its source slice.
 
@@ -952,6 +953,11 @@ def _cache_key_for_proc(
     ``ArgRole.BODY`` / ``ArgRole.EXPR`` — adding or changing a stub
     must invalidate the cached entry even when the proc body text is
     unchanged.
+
+    ``context_fingerprint`` covers the module-global CFG-construction context
+    (see :func:`compiler.cfg.cfg_context_fingerprint`): the local summary is
+    derived from the context-built CFG/SSA/analysis, so a callee's upvar change
+    must invalidate a caller whose own text is unchanged.
     """
     start = proc.range.start.offset
     end = proc.range.end.offset
@@ -961,7 +967,7 @@ def _cache_key_for_proc(
     # end-exclusive at end+1 — otherwise a same-length edit to the final
     # character of the proc body leaves the hash unchanged and the cached
     # summary is wrongly reused.
-    return (qname, hash((source[start : end + 1], stub_fingerprint)))
+    return (qname, hash((source[start : end + 1], stub_fingerprint, context_fingerprint)))
 
 
 def _summarise_proc_local(
@@ -983,6 +989,32 @@ def _summarise_proc_local(
         effect_writes=EffectRegion.NONE,
     )
     _scan_local_facts(proc.body, caller_qname=qname, known_procs=known, facts=facts)
+
+    # Complexity guard: for a pathologically large (generated) body, deep
+    # analysis is skipped and SSA is trivial (empty blocks) while the CFG still
+    # has blocks — the param-dependency + return-summary passes below would
+    # crash on the empty SSA and/or iterate forever.  Return a conservative
+    # opaque summary (impure: barrier + unknown-calls + writes-global, no
+    # param-deps / constant return); the call graph + effect facts from the IR
+    # scan above are kept.  Key on trivial SSA, not block count alone, so a
+    # byte-heavy *block-light* body (guarded before SSA via ``force_guard``) is
+    # handled the same as a block-heavy one.
+    if is_complexity_guarded(cfg) or (cfg.blocks and not ssa.blocks):
+        return ProcLocalSummary(
+            qualified_name=qname,
+            params=proc.params,
+            arity=_arity_for_params(proc.params),
+            calls=tuple(sorted(facts.calls)),
+            has_barrier=True,
+            has_unknown_calls=True,
+            writes_global=True,
+            local_effect_reads=facts.effect_reads,
+            local_effect_writes=facts.effect_writes,
+            returns_constant=False,
+            constant_return=None,
+            return_depends_on_params=(),
+            return_passthrough_param=None,
+        )
 
     # Second pass: the CFG builder augments IRCall.defs with caller-side
     # variable names from upvar procs.  Check these for global writes that
@@ -1034,6 +1066,7 @@ def analyse_interprocedural_ir(
     proc_local_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_local_cache: bool = True,
     stub_fingerprint: int = 0,
+    context_fingerprint: int = 0,
     deep_param_traits: bool = False,
 ) -> InterproceduralAnalysis:
     """Build conservative per-procedure summaries from lowered IR.
@@ -1059,7 +1092,9 @@ def analyse_interprocedural_ir(
     for qname, proc in ir_module.procedures.items():
         cache_key: tuple[str, int] | None = None
         if source is not None and proc_local_cache is not None:
-            cache_key = _cache_key_for_proc(source, qname, proc, stub_fingerprint)
+            cache_key = _cache_key_for_proc(
+                source, qname, proc, stub_fingerprint, context_fingerprint
+            )
             if cache_key is not None:
                 cached_local = proc_local_cache.get(cache_key)
                 if cached_local is not None and cached_local.params == proc.params:

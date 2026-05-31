@@ -98,6 +98,12 @@ def _find_path_concat_warnings(
                 continue
             if parse_command_substitution(value) is not None:
                 continue
+            # A URL scheme separator (``://``) marks a URL, not a filesystem
+            # path — its separators are always ``/`` regardless of platform, so
+            # ``[file join]`` (which emits native separators) would be wrong.
+            # Likewise HTML/XML markup (``<tag>``) is not a path.
+            if "://" in value or "<" in value or ">" in value:
+                continue
 
             ssa_stmt = ssa_block.statements[idx]
             var_name = stmt.name

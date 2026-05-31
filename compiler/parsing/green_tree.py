@@ -200,6 +200,63 @@ def descend_token(token: Token, source: str, mode: Mode = Mode.SCRIPT) -> GreenN
     return _descend(token, mode, source, 0)
 
 
+@dataclass(frozen=True, slots=True)
+class CommandChild:
+    """A descendable body region of a command, with its arg-role resolved once.
+
+    ``index`` is the (real) argument index, ``text`` the body word's text,
+    ``token`` the owning ``STR`` word token, and ``node`` the descended
+    :attr:`Mode.SCRIPT` green node for the body.
+    """
+
+    index: int
+    text: str
+    token: Token
+    node: GreenNode
+
+
+def descend_command(
+    cmd_name: str,
+    args: list[str],
+    arg_tokens: list[Token],
+    source: str,
+) -> list[CommandChild]:
+    """Resolve a command's ``ArgRole.BODY`` args once and descend each body.
+
+    The single registry-aware descent entry point: consumers call this instead
+    of independently resolving arg roles and then descending bodies.  Each
+    returned :class:`CommandChild` carries a :attr:`Mode.SCRIPT` :class:`GreenNode`
+    for a body word that is a non-empty ``STR`` token.
+
+    Registry access is a deferred import (mirroring ``known_commands`` and
+    ``registry.runtime``'s own deferred ``parsing`` imports) so importing this
+    module never triggers the registry<->parsing load cycle and
+    :class:`GreenNode` stays a registry-free structural primitive.
+
+    ``ArgRole.EXPR`` args are deliberately **not** routed through the tree: the
+    green tree lexes in *script* mode, which treats ``[`` inside an expr string
+    literal as a command substitution and mis-tokenises expr operator syntax,
+    so it finds a different set of embedded commands than the expr lexer.
+    Consumers keep using ``tokenise_expr`` for EXPR args
+    (see ``bench/phase0_descend.py --expr-divergence``).
+    """
+    from compiler.registry.runtime import iter_body_arguments
+
+    children: list[CommandChild] = []
+    for body in iter_body_arguments(cmd_name, args, arg_tokens):
+        if body.token.type is not TokenType.STR or not body.text.strip():
+            continue
+        children.append(
+            CommandChild(
+                index=body.index,
+                text=body.text,
+                token=body.token,
+                node=descend_token(body.token, source),
+            )
+        )
+    return children
+
+
 def _lex(
     text: str,
     base_offset: int,

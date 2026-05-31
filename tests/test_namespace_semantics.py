@@ -57,6 +57,24 @@ class TestLatticeIsolationAcrossNamespaces:
         out = _optimise("set ::g 5\nputs [expr {$::g + 1}]\n")
         assert "puts 6" not in out
 
+    def test_global_not_folded_in_direct_substitution(self):
+        # Same rule for a plain `$::g` read, not just inside an expr.
+        out = _optimise("set ::g 5\nputs $::g\n")
+        assert "puts 5" not in out
+
+    def test_global_not_folded_across_opaque_call(self):
+        # The canonical unsoundness: an intervening proc may rewrite the global,
+        # so its value after the call is unknown (tclsh prints 100 here, not 6).
+        # The optimiser must NOT fold $::g to its pre-call constant.
+        out = _optimise("proc mut {} { set ::g 99 }\nset ::g 5\nmut\nputs [expr {$::g + 1}]\n")
+        assert "puts 6" not in out
+
+    def test_local_still_folds(self):
+        # The clobber is scoped to externally-mutable names — a plain local is
+        # not shared state, so constant propagation through it still applies.
+        out = _optimise("set x 5\nputs $x\n")
+        assert "puts 5" in out
+
 
 class TestRelativeNamespaceResolution:
     def test_relative_call_resolves_within_namespace(self):

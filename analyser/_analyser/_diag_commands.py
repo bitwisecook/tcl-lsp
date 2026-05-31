@@ -112,6 +112,52 @@ class _AnalyserDiagCommandsMixin(_Base):
                 _ensemble_cmds.add(tail)
         candidates.update(_ensemble_cmds)
 
+        # snit (tcllib) reinterprets a ``snit::type``/``snit::widget``/
+        # ``snit::widgetadaptor`` *body* into a class description: inside it,
+        # ``method``/``typemethod``/``constructor``/``delegate``/… are valid
+        # definition keywords, not calls to undefined commands.  Unlike the
+        # ``oo::`` metaclasses (whose body the analyser parses), snit bodies are
+        # currently recursed generically, so their keywords would surface as
+        # W123.  When the document actually defines a snit type, treat those
+        # keywords as known (scoped to snit-using files — no global pollution).
+        _snit_body_cmds: set[str] = set()
+        if any(
+            inv.name.lstrip(":") in ("snit::type", "snit::widget", "snit::widgetadaptor")
+            for inv in self.result.command_invocations
+        ):
+            _snit_body_cmds = {
+                # Definition-body keywords.
+                "method",
+                "typemethod",
+                "constructor",
+                "destructor",
+                "typeconstructor",
+                "delegate",
+                "component",
+                "typecomponent",
+                "option",
+                "typevariable",
+                "onconfigure",
+                "oncget",
+                "expose",
+                "pragma",
+                "hulltype",
+                "widgetclass",
+                # Commands available *inside* method/constructor bodies.
+                "install",
+                "installhull",
+                "mymethod",
+                "mytypemethod",
+                "myproc",
+                "myvar",
+                "mytypevar",
+                "mycomp",
+                "from",
+                "varname",
+                "codename",
+            }
+            candidates.update(_snit_body_cmds)
+
         _interp_sccp_values: dict[tuple[str, int], LatticeValue] | None = None
         _interp_sccp_uses: dict[str, int] = {}
         if cu is not None and "$" in "".join(inv.name for inv in self.result.command_invocations):
@@ -148,6 +194,8 @@ class _AnalyserDiagCommandsMixin(_Base):
             if cmd_name in proc_tail_names:
                 continue
             if cmd_name in _class_tail_names:
+                continue
+            if cmd_name in _snit_body_cmds:
                 continue
 
             if "$" in cmd_name and _interp_sccp_values is not None:

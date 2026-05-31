@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 
@@ -127,12 +126,10 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
             params.text_document.version,
         )
         return
-    asyncio.create_task(
-        _dp._publish_diagnostics(
-            uri,
-            params.text_document.text,
-            params.text_document.version,
-        )
+    _dp.spawn_publish_diagnostics(
+        uri,
+        params.text_document.text,
+        params.text_document.version,
     )
     log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
@@ -192,6 +189,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
     log.info("Closed %s", uri)
     _state.diagnostic_scheduler.cancel(uri)
+    _dp._release_publish_state(uri)
     # Drop cached hover entries so a reopen-with-version-reset (clients
     # commonly reset to ``1``) cannot serve stale entries from the
     # previous session keyed on a matching ``(uri, version, line, char)``.
@@ -229,11 +227,17 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
 
 
 def on_shutdown(params: None) -> None:
-    """Cancel pending background tasks and shut down process pool."""
+    """Cancel pending background tasks and shut down all process pools."""
     _state.diagnostic_scheduler.cancel_all()
     if _state._process_pool is not None:
         _state._process_pool.shutdown(wait=False, cancel_futures=True)
         _state._process_pool = None
+    if _state._deep_pool is not None:
+        _state._deep_pool.shutdown(wait=False, cancel_futures=True)
+        _state._deep_pool = None
+    if _state._small_pool is not None:
+        _state._small_pool.shutdown(wait=False, cancel_futures=True)
+        _state._small_pool = None
 
 
 # File-system watch and rename hooks

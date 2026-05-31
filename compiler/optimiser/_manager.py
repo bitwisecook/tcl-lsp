@@ -139,6 +139,8 @@ class _CompilerOptimiser:
         )
         conn = cu.connection_scope
         for qname, fu in cu.procedures.items():
+            if fu.complexity_guarded:
+                continue  # deep analysis skipped for pathologically large bodies
             if conn is not None and qname.startswith("::when::"):
                 ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
                 # RULE_INIT's purpose is to initialise static:: variables for

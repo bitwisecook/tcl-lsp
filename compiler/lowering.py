@@ -2338,8 +2338,21 @@ class _Lowerer:
                     and "$" not in args[1]
                     and "[" not in args[1]
                 )
-                if body_is_static and ns_is_static:
-                    child_ns = _join_namespace(namespace, args[1])
+                if body_is_static:
+                    # A static (braced literal) body is fully known, so we can
+                    # analyse it as a nested scope regardless of whether the
+                    # *namespace name* is static.  A dynamic name (e.g.
+                    # ``namespace eval [info object namespace ::C] { proc … }``)
+                    # only affects which namespace the inner procs land in — it
+                    # does not make the body opaque.  Inlining still lifts inner
+                    # ``proc`` defs to their own scopes, so their params no
+                    # longer leak into the enclosing scope as false
+                    # read-before-set (W210).  When the name is dynamic we
+                    # cannot know the child namespace, so the body runs under
+                    # the enclosing namespace as a best-effort approximation;
+                    # source_args/source_tokens preserve the original call for
+                    # non-inlining codegen targets.
+                    child_ns = _join_namespace(namespace, args[1]) if ns_is_static else namespace
                     prev_ns_eval = self._in_namespace_eval
                     self._in_namespace_eval = True
                     body_script = self._lower_body_arg(args[2], arg_tokens[2], namespace=child_ns)
@@ -2359,6 +2372,9 @@ class _Lowerer:
                         namespace=child_ns,
                         source_args=tuple(args),
                         source_tokens=cmd.cmd_tokens,
+                        # Body runs in child_ns, not the caller frame — its
+                        # unqualified reads are not caller-local reads.
+                        caller_scope=False,
                     )
                 # Dynamic namespace eval — fall back to tcl_eval so
                 # the runtime evaluates the body script however it

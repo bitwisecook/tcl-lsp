@@ -343,11 +343,10 @@ def compile_script(
 
     cfg_module = CFGModule(top_level=top_cfg, procedures=proc_cfgs)  # type: ignore[arg-type]
 
-    if optimise:
-        # TODO: insert SSA + optimiser passes here
-        pass
-
-    module_asm = codegen_module(cfg_module, ir_module)
+    # NOTE (Phase 5): `optimise` no longer changes proc-local slot allocation
+    # (the SSA-derived coalescing was unsound — reverted; see _emitter.py).
+    # Kept as a parameter for forward compatibility; codegen is identical.
+    module_asm = codegen_module(cfg_module, ir_module, optimise=optimise)
     return module_asm, ir_module
 
 

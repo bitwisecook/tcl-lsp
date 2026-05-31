@@ -15,6 +15,7 @@ from compiler.ir import (
     IRSwitch,
 )
 from compiler.parsing.recovery import segment_with_recovery
+from shared.naming import normalise_qualified_name
 from shared.ranges import range_from_token
 from shared.tokens import Token
 
@@ -50,6 +51,24 @@ class _AnalyserOOMixin(_Base):
         # From _AnalyserBase (also declared here for clarity via inherited _Base)
         # From _AnalyserCommandsMixin
         def _analyse_body(self, *a: Any, **kw: Any) -> None: ...
+        def _handle_proc_command(self, *a: Any, **kw: Any) -> bool: ...
+        # From _AnalyserScopeMixin
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
+
+    def _qualify_oo_name(self, name: str, scope: Scope) -> str:
+        """Fully-qualified name for an OO/snit class/type definition.
+
+        Mirrors tclsh 9.0.3 ``create`` semantics: an *absolute* name (``::Foo``)
+        lives at the global root regardless of the enclosing namespace, while a
+        *relative* name resolves against the current namespace (``::ns::Foo``
+        inside ``namespace eval ns``, recursively for nested evals).
+        ``normalise_qualified_name`` collapses any doubled ``::`` (so the
+        top-level ``::`` joined with ``Baz`` yields ``::Baz``, not ``::::Baz``).
+        """
+        if name.startswith("::"):
+            return normalise_qualified_name(name)
+        ns = self._namespace_from_scope(scope)
+        return normalise_qualified_name(f"{ns}::{name}")
 
     def _handle_oo_class_command(
         self,
@@ -75,11 +94,9 @@ class _AnalyserOOMixin(_Base):
         name_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
         body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
 
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{class_name}"
-        else:
-            qualified = f"::{class_name}"
+        # Determine qualified name (absolute names ignore the caller scope;
+        # relative names resolve against the enclosing namespace).
+        qualified = self._qualify_oo_name(class_name, scope)
 
         preceding_doc = self._last_comment
         self._last_comment = ""
@@ -116,11 +133,9 @@ class _AnalyserOOMixin(_Base):
             return False
 
         class_name = args[0]
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{class_name}"
-        else:
-            qualified = f"::{class_name}"
+        # Determine qualified name (absolute names ignore the caller scope;
+        # relative names resolve against the enclosing namespace).
+        qualified = self._qualify_oo_name(class_name, scope)
 
         # Look up or create partial ClassDef
         class_def = self.result.all_classes.get(qualified)
@@ -462,6 +477,307 @@ class _AnalyserOOMixin(_Base):
                                 warn_if_unused=False,
                             )
                     self._analyse_body(body, prop_scope, body_token=body_tok)
+
+    # ------------------------------------------------------------------
+    # snit (tcllib) type/widget definitions
+    # ------------------------------------------------------------------
+
+    # ``snit::type``/``snit::widget``/``snit::widgetadaptor`` (and their
+    # ``::``-qualified forms) reinterpret their body as a class description,
+    # exactly like an ``oo::class`` body.  Modelling them as real ClassDefs
+    # with method scopes means object dispatch inside method bodies
+    # (``$self foo``, ``$component bar``) is recognised as in-method dispatch
+    # (no false W307) and snit's implicit instance variables don't surface as
+    # read-before-set / unused.
+    _SNIT_DEFINERS = frozenset(
+        {
+            "snit::type",
+            "snit::widget",
+            "snit::widgetadaptor",
+            "::snit::type",
+            "::snit::widget",
+            "::snit::widgetadaptor",
+        }
+    )
+
+    def _handle_snit_type_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> bool:
+        """Handle ``snit::type Name { body }`` (and widget/widgetadaptor)."""
+        if cmd_name not in self._SNIT_DEFINERS:
+            return False
+        if len(args) < 2:
+            return False
+        type_name = args[0]
+        body = args[1]
+        name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+        body_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else name_range
+        is_widget = cmd_name.endswith(("widget", "widgetadaptor"))
+
+        simple = type_name.rsplit("::", 1)[-1]
+        # Absolute names ignore the caller scope; relative names resolve against
+        # the enclosing namespace (handles nested ``namespace eval``, which the
+        # former ``scope.name`` concat got wrong for depth > 1).
+        qualified = self._qualify_oo_name(type_name, scope)
+
+        preceding_doc = self._last_comment
+        self._last_comment = ""
+
+        class_def = ClassDef(
+            name=simple,
+            qualified_name=qualified,
+            name_range=name_range,
+            body_range=body_range,
+            metaclass=cmd_name,
+            doc=preceding_doc,
+        )
+
+        if body:
+            self._parse_snit_definition_body(
+                body,
+                arg_tokens[1] if len(arg_tokens) > 1 else None,
+                class_def,
+                scope,
+                is_widget=is_widget,
+            )
+
+        scope.classes[simple] = class_def
+        self.result.all_classes[qualified] = class_def
+        return True
+
+    # snit method bodies have these implicit variables (snit injects them).
+    _SNIT_INSTANCE_IMPLICIT = ("self", "selfns", "type", "options")
+    _SNIT_TYPE_IMPLICIT = ("type",)
+
+    def _parse_snit_definition_body(
+        self,
+        body: str,
+        body_token: Token | None,
+        class_def: ClassDef,
+        scope: Scope,
+        *,
+        is_widget: bool,
+    ) -> None:
+        """Parse a snit type/widget body into methods + variable declarations.
+
+        Two passes: first collect instance/type variable + component + option
+        names (snit lets a method reference any of them regardless of
+        declaration order), then analyse method/constructor/etc. bodies in
+        proper method scopes seeded with those names plus snit's implicit
+        variables.
+        """
+        commands, _ = segment_with_recovery(body, body_token)
+
+        instance_vars: list[str] = list(self._SNIT_INSTANCE_IMPLICIT)
+        if is_widget:
+            instance_vars.append("win")
+            instance_vars.append("hull")
+        type_vars: list[str] = list(self._SNIT_TYPE_IMPLICIT)
+
+        # First pass: collect declared names.
+        for cmd in commands:
+            if not cmd.texts:
+                continue
+            subcmd = cmd.texts[0]
+            sub_args = cmd.texts[1:]
+            match subcmd:
+                case "variable":
+                    if sub_args:
+                        instance_vars.append(sub_args[0])
+                case "typevariable":
+                    if sub_args:
+                        type_vars.append(sub_args[0])
+                case "component":
+                    if sub_args:
+                        instance_vars.append(sub_args[0])
+                case "typecomponent":
+                    if sub_args:
+                        type_vars.append(sub_args[0])
+
+        # Record instance variables on the class so method-scope seeding (and
+        # any future hover/refs work) can see them.
+        class_def.variables = [v for v in instance_vars if v not in self._SNIT_INSTANCE_IMPLICIT]
+
+        # Second pass: analyse method-bearing declarations.
+        for cmd in commands:
+            if not cmd.texts:
+                continue
+            subcmd = cmd.texts[0]
+            sub_args = cmd.texts[1:]
+            sub_tokens = cmd.argv[1:] if len(cmd.argv) > 1 else []
+
+            match subcmd:
+                case "proc":
+                    # snit allows type-private ``proc name args body`` inside
+                    # the body; analyse it as a normal proc in the enclosing
+                    # scope (matching the pre-model generic-recursion path).
+                    self._handle_proc_command(subcmd, sub_args, sub_tokens, scope)
+                case "method":
+                    self._extract_snit_method(
+                        sub_args, sub_tokens, class_def, scope, instance_vars, kind="method"
+                    )
+                case "typemethod":
+                    self._extract_snit_method(
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        type_vars,
+                        kind="classmethod",
+                    )
+                case "constructor":
+                    self._extract_snit_method(
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        instance_vars,
+                        kind="constructor",
+                        no_arglist=False,
+                        synthetic_name="<constructor>",
+                    )
+                case "destructor":
+                    self._extract_snit_method(
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        instance_vars,
+                        kind="destructor",
+                        no_arglist=True,
+                        synthetic_name="<destructor>",
+                    )
+                case "typeconstructor":
+                    self._extract_snit_method(
+                        sub_args,
+                        sub_tokens,
+                        class_def,
+                        scope,
+                        type_vars,
+                        kind="classmethod",
+                        no_arglist=True,
+                        synthetic_name="<typeconstructor>",
+                    )
+                case "onconfigure":
+                    # ``onconfigure -opt valuevar { body }`` (snit 1.x).
+                    self._extract_snit_method(
+                        sub_args[1:],
+                        sub_tokens[1:],
+                        class_def,
+                        scope,
+                        instance_vars,
+                        kind="method",
+                        synthetic_name=f"<onconfigure {sub_args[0]}>" if sub_args else "",
+                    )
+                case "oncget":
+                    # ``oncget -opt { body }`` (snit 1.x) — no value arg.
+                    self._extract_snit_method(
+                        sub_args[1:],
+                        sub_tokens[1:],
+                        class_def,
+                        scope,
+                        instance_vars,
+                        kind="method",
+                        no_arglist=True,
+                        synthetic_name=f"<oncget {sub_args[0]}>" if sub_args else "",
+                    )
+
+    def _extract_snit_method(
+        self,
+        args: list[str],
+        arg_tokens: list[Token],
+        class_def: ClassDef,
+        scope: Scope,
+        seed_vars: list[str],
+        *,
+        kind: str = "method",
+        no_arglist: bool = False,
+        synthetic_name: str = "",
+    ) -> None:
+        """Analyse one snit method/constructor/etc. body in a method scope.
+
+        *seed_vars* are pre-seeded into the scope as never-warn variables
+        (snit's implicit ``self``/``type``/``options`` plus declared instance
+        or type variables) so they never surface as read-before-set/unused.
+        *no_arglist* is for declarations whose body immediately follows the
+        keyword (``destructor``/``typeconstructor``/``oncget``).
+        """
+        if no_arglist:
+            if not args:
+                return
+            method_name = synthetic_name or "<body>"
+            params: list[ParamDef] = []
+            body = args[0]
+            name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+            body_range = name_range
+            body_tok = arg_tokens[0] if arg_tokens else None
+        else:
+            if synthetic_name:
+                # constructor/onconfigure: ``ARGLIST BODY`` (name is synthetic).
+                if len(args) < 2:
+                    return
+                method_name = synthetic_name
+                params = parse_param_list(args[0])
+                body = args[1]
+                name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+                body_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else name_range
+                body_tok = arg_tokens[1] if len(arg_tokens) > 1 else None
+            else:
+                # method/typemethod: ``NAME ARGLIST BODY``.
+                if len(args) < 3:
+                    return
+                method_name = args[0]
+                params = parse_param_list(args[1])
+                body = args[2]
+                name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
+                body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
+                body_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
+
+        method_def = MethodDef(
+            name=method_name,
+            params=tuple(params),
+            name_range=name_range,
+            body_range=body_range,
+            kind=kind,
+        )
+        if kind == "constructor":
+            class_def.constructors.append(method_def)
+        elif kind == "destructor":
+            class_def.destructor = method_def
+        elif kind == "classmethod":
+            class_def.class_methods[method_name] = method_def
+        else:
+            class_def.methods[method_name] = method_def
+
+        method_scope = Scope(
+            kind="method",
+            name=f"{class_def.name}::{method_name}",
+            parent=scope,
+            body_range=body_range,
+        )
+        scope.children.append(method_scope)
+
+        for p in params:
+            method_scope.variables[p.name] = VarDef(
+                name=p.name,
+                definition_range=name_range,
+                warn_if_unused=False,
+            )
+        for var_name in seed_vars:
+            if var_name not in method_scope.variables:
+                method_scope.variables[var_name] = VarDef(
+                    name=var_name,
+                    definition_range=class_def.name_range,
+                    warn_if_unused=False,
+                )
+
+        saved_comment = self._last_comment
+        self._analyse_body(body, method_scope, body_token=body_tok)
+        self._last_comment = saved_comment
 
     # ------------------------------------------------------------------
     # Unknown proc body analysis

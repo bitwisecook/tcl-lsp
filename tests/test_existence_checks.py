@@ -61,6 +61,87 @@ class TestNoReadBeforeSet:
         assert "W210" in _codes("proc p {} { if {[info exists $name]} { puts hi } }", "W210")
         assert "W210" in _codes("proc p {} { set r [info exists $name]; puts $r }", "W210")
 
+    def test_vwait_var_is_not_read_before_set(self):
+        # ``vwait varName`` blocks waiting for the variable to be written; the
+        # variable is monitored, not read, so it does NOT need to be set
+        # beforehand (``vwait forever`` is the canonical infinite-wait idiom —
+        # tclsh 9.0.3-verified).
+        assert "W210" not in _codes("proc p {} { vwait forever }", "W210")
+        assert "W210" not in _codes("proc p {} { vwait sig }", "W210")
+        # Top-level vwait too.
+        assert "W210" not in _codes("vwait forever", "W210")
+
+    def test_vwait_inside_command_sub_is_not_read_before_set(self):
+        # A ``[vwait sig]`` embedded in an outer command (return value, set
+        # RHS, …) must also be exempt — the cmd-sub scanner has to recognise
+        # the safe-on-unset reference inside the brackets.
+        assert "W210" not in _codes("proc p {} { return [vwait sig] }", "W210")
+
+    def test_dict_for_body_local_set_is_not_read_before_set(self):
+        # ``dict for`` lowers to an opaque IRBarrier (Tcl 9 compiles it as a
+        # generic ensemble invoke, not an inlined loop), so the body's writes
+        # are recovered name-level — exactly like a frozen ``while`` body or a
+        # qualified ``::foreach``.  A ``set x ...`` inside the body must not
+        # leave the ``$x`` read looking unset.
+        src = (
+            "proc p {} {\n"
+            "    dict for {k v} {a 1 b 2} {\n"
+            "        set fileData $k\n"
+            "        puts $fileData\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "W210" not in _codes(src, "W210")
+
+    def test_dict_for_loop_vars_are_not_read_before_set(self):
+        # The loop variables ``k``/``v`` are bound by ``dict for`` — they are
+        # not read-before-set.
+        src = 'proc p {} { dict for {k v} {a 1 b 2} { puts "$k=$v" } }\n'
+        assert "W210" not in _codes(src, "W210")
+
+    def test_dict_map_body_local_set_is_not_read_before_set(self):
+        # ``dict map`` is the lmap analogue — same body-recovery contract.
+        src = (
+            "proc p {} {\n"
+            "    dict map {k v} {a 1 b 2} {\n"
+            "        set out $k\n"
+            "        list $out\n"
+            "    }\n"
+            "}\n"
+        )
+        assert "W210" not in _codes(src, "W210")
+
+    def test_dict_for_body_genuine_rbs_still_fires(self):
+        # TP control: a body read of a variable that is truly never set must
+        # still fire — the body-recovery is suppress-only, not blanket.
+        src = "proc p {} {\n    dict for {k v} {a 1 b 2} { puts $never_set }\n}\n"
+        assert "W210" in _codes(src, "W210")
+
+    def test_cmd_sub_set_in_return_value_is_recognised(self):
+        # tcllib installer.tcl idiom: ``return [read [set x [open $f r]]][close $x]``.
+        # The ``[set x ...]`` lives inside a command substitution of the return
+        # value, and the trailing ``[close $x]`` reads it.  The cmd-sub-writes
+        # recovery in _read_before_set now scans block terminators (not just
+        # block.statements), so the ``set x`` is recognised and ``$x`` is no
+        # longer a spurious read-before-set.
+        src = "proc p {f} { return [read [set x [open $f r]]][close $x] }\n"
+        assert "W210" not in _codes(src, "W210")
+
+    def test_cmd_sub_set_in_branch_condition_is_recognised(self):
+        # Same idiom applied to a branch condition: ``if {[set x 1]} { puts $x }``
+        # — the ``set x`` inside the cmd-sub of the branch condition must define
+        # x for the body's read.  (The branch-cmd-sub-writes scan exempts the
+        # name function-wide; main's narrowing handles existence-check shapes
+        # separately, but this is a literal set, not an existence check.)
+        src = "proc p {} { if {[set x 1]} { puts $x } }\n"
+        assert "W210" not in _codes(src, "W210")
+
+    def test_genuine_unset_in_return_still_fires(self):
+        # TP control: a return that reads a variable never defined anywhere
+        # must still fire — the terminator-scan is suppress-only.
+        src = "proc p {} { return $never_set }\n"
+        assert "W210" in _codes(src, "W210")
+
 
 class TestProvablyAbsentFoldsFalse:
     def test_issue_example_body_never_executes(self):

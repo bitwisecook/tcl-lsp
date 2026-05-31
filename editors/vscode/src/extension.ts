@@ -720,6 +720,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.openTkPreview", openTkPreview),
     commands.registerCommand("tclLsp.formatDocument", formatDocument),
     commands.registerCommand("tclLsp.minifyDocument", minifyDocument),
+    commands.registerCommand("tclLsp.minimizeDiagnostic", minimizeDiagnostic),
     commands.registerCommand("tclLsp.unminifyError", unminifyError),
     commands.registerCommand("tclLsp.escapeSelection", escapeSelection),
     commands.registerCommand("tclLsp.unescapeSelection", unescapeSelection),
@@ -1131,6 +1132,49 @@ async function optimiseDocument(): Promise<void> {
     });
     window.showInformationMessage(`Applied ${count} optimisation${count === 1 ? "" : "s"}.`);
   }
+}
+
+async function minimizeDiagnostic(uri?: string, code?: string): Promise<void> {
+  // Invoked from the "Create minimal repro for <code>" code action with
+  // (uri, code) arguments.  Round-trips to the server's minimizer and opens
+  // the minimal reproducer in a new buffer for pasting into a bug report.
+  if (!client) {
+    return;
+  }
+  const editor = window.activeTextEditor;
+  const docUri = uri ?? editor?.document.uri.toString();
+  if (!docUri || !code) {
+    window.showWarningMessage("Create minimal repro: missing document or diagnostic code.");
+    return;
+  }
+
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.minimizeDiagnostic",
+    arguments: [docUri, code],
+  })) as {
+    code: string;
+    source: string;
+    originalLines: number;
+    reducedLines: number;
+    renamed: boolean;
+    reproduces: boolean;
+  } | null;
+
+  if (!result || !result.source) {
+    window.showInformationMessage(`Could not build a minimal repro for ${code}.`);
+    return;
+  }
+
+  const header =
+    `# Minimal reproducer for ${result.code}\n` +
+    `# ${result.originalLines} → ${result.reducedLines} lines` +
+    `${result.renamed ? ", identifiers renamed" : ""}` +
+    `${result.reproduces ? "" : " (WARNING: does not reproduce)"}\n`;
+  const doc = await workspace.openTextDocument({
+    content: header + result.source,
+    language: "tcl",
+  });
+  await window.showTextDocument(doc, { preview: false });
 }
 
 async function minifyDocument(): Promise<void> {

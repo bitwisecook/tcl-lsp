@@ -183,19 +183,35 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                     continue
                 # upvar ?level? otherVar myVar ?otherVar myVar ...?
                 start = 0
+                level = "1"  # upvar default level is the immediate caller
                 if stmt.canonical_command == "::upvar":
                     if args[0].lstrip("-").isdigit() or args[0].startswith("#"):
+                        level = args[0]
                         start = 1
                 elif stmt.canonical_command == "::namespace upvar":
                     start = 1  # skip namespace arg
+                # A *dynamic* ``$param`` target is a caller write-back only for
+                # an upvar to a caller frame (numeric level 1+).  ``upvar 0 $p``
+                # (the proc's own frame), ``upvar #N $p`` (absolute), and
+                # ``namespace upvar`` (a namespace var) use the param's VALUE as
+                # a name in a NON-caller scope — verified vs tclsh: ``upvar 0 $p
+                # x; set x`` leaves the caller's ``p`` untouched — so treating
+                # the param as a caller target would make ``f $p`` define (not
+                # read) ``p`` → false unused/dead-store.  *Literal* targets
+                # (e.g. ``upvar #0 ::global x``) still name a concrete variable
+                # that is written, so they are always recorded.
+                dynamic_caller_target = stmt.canonical_command == "::upvar" and not (
+                    level == "0" or level.startswith("#")
+                )
                 # Pairs: otherVar myVar (caller-side, local)
                 for i in range(start, len(args) - 1, 2):
                     caller_name = args[i]
                     if caller_name.startswith("$"):
                         # Dynamic: upvar 1 $param local
-                        param = _normalise_var_name(caller_name)
-                        if param:
-                            param_targets.add(param)
+                        if dynamic_caller_target:
+                            param = _normalise_var_name(caller_name)
+                            if param:
+                                param_targets.add(param)
                     else:
                         literal_targets.add(caller_name)
             elif (
@@ -504,6 +520,14 @@ class CFGFunction:
     entry: str
     blocks: dict[str, CFGBlock]
     loop_nodes: dict[str, tuple[str, IRFor]] = field(default_factory=dict)
+    # ``try`` body→handler edges for exceptional control flow the single-
+    # successor CFG terminator cannot express.  Populated only for analysis
+    # builds (``faithful_exceptions``); SSA treats them as extra predecessor
+    # edges (so handler blocks inherit the pre-``try`` versions instead of
+    # version-0) and SCCP as extra reachability edges (so handler bodies are
+    # not falsely "unreachable" → O107).  Empty for codegen → default bytecode
+    # unchanged.  ``(from_block, handler_block)`` pairs.
+    exception_edges: tuple[tuple[str, str], ...] = ()
 
     def reverse_postorder(self) -> list[str]:
         """Return blocks in reverse-postorder — the one shared CFG order.
@@ -574,10 +598,17 @@ class _CFGBuilder:
         upvar_procs: dict[str, _UpvarInfo] | None = None,
         proc_params: dict[str, tuple[str, ...]] | None = None,
         expand_fallthrough_switch: bool = False,
+        faithful_exceptions: bool = False,
     ) -> None:
         self._counter = 0
         self._blocks: dict[str, _MutableBlock] = {}
         self._loop_nodes: dict[str, tuple[str, IRFor]] = {}
+        # When True (analysis builds), record ``try`` body→handler exception
+        # edges so SSA/SCCP model the throw path faithfully (handler blocks get
+        # the pre-``try`` versions, and are reachable).  Off for codegen so the
+        # default (non-optimised) bytecode stays byte-identical to tclsh 9.
+        self._faithful_exceptions = faithful_exceptions
+        self._exception_edges: list[tuple[str, str]] = []
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
@@ -803,6 +834,7 @@ class _CFGBuilder:
             entry=entry,
             blocks=frozen,
             loop_nodes=dict(self._loop_nodes),
+            exception_edges=tuple(self._exception_edges),
         )
 
     def _lower_script(self, script: IRScript, block_name: str) -> str | None:
@@ -1266,7 +1298,33 @@ class _CFGBuilder:
         # non-deterministic branch from the body entry block).
         for handler in stmt.handlers:
             handler_block = self._new_block("try_handler")
-            self._ensure_goto(block_name, handler_block, stmt.range)
+            # ``block_name`` already gotos ``try_body`` (single successor), so a
+            # real CFG terminator edge can't reach the handler.  Record a throw
+            # edge instead: SSA uses it as an extra predecessor (handler sees
+            # those versions) and SCCP as a reachability edge.  Only in analysis
+            # builds (codegen leaves ``exception_edges`` empty so the default
+            # bytecode is unchanged).
+            #
+            # ``on ok`` runs only after the body completes normally, so it
+            # observes the body's *exit* versions (a body-set var is defined) —
+            # its source is the body tail.  Every other handler (``on error``/
+            # ``trap``/``on return``/…) runs on an abnormal completion that can
+            # occur at *any* point in the body, so a body-set var is *maybe*
+            # defined: merge the pre-``try`` state (var unset, version-0) with
+            # the body-exit state (var set).  Sourcing only from pre-``try``
+            # would wrongly flag a definitely-set var as read-before-set —
+            # tclsh 9.0.3: ``try {set x 1; error e} on error {} {puts $x}``
+            # reads ``x`` == 1.  Merging keeps a never-set var version-0 in both
+            # predecessors, so a genuine read-before-set still fires.
+            if self._faithful_exceptions:
+                is_on_ok = handler.kind == "on" and handler.match_arg == "ok"
+                if is_on_ok:
+                    if body_tail is not None:
+                        self._exception_edges.append((body_tail, handler_block))
+                else:
+                    self._exception_edges.append((block_name, handler_block))
+                    if body_tail is not None and body_tail != block_name:
+                        self._exception_edges.append((body_tail, handler_block))
 
             # Emit synthetic defs for handler-bound variables.
             var_defs: list[str] = []
@@ -1343,6 +1401,39 @@ def prepare_cfg_context(
     return upvar_procs, proc_params
 
 
+def cfg_context_fingerprint(
+    upvar_procs: dict[str, _UpvarInfo],
+    proc_params: dict[str, tuple[str, ...]],
+) -> int:
+    """Stable hash of the module-global context ``build_cfg_function`` consumes.
+
+    A caller's CFG depends on *upvar_procs* (which callees write back into the
+    caller frame, and via which params) and, for those callees, on *proc_params*
+    (used to map a call-site arg position to the callee's upvar-target param).
+    So a *caller*'s CFG — and its read-before-set / def facts — can change when a
+    *callee* changes its upvar behaviour even though the caller's own body text
+    is untouched.  The per-proc caches key on body text + stub overlay, so they
+    must fold in this context or they serve stale caller units across an edit.
+
+    Only procs that *do* caller-frame ``upvar`` appear in ``upvar_procs``; a
+    normal call contributes no caller-frame defs, so non-upvar procs cannot
+    change a caller's CFG and are deliberately excluded — adding or editing an
+    ordinary proc must not invalidate the whole proc cache.  Process-local hash
+    (matches the existing ``stub_fingerprint``).
+    """
+    parts = tuple(
+        (
+            qname,
+            tuple(sorted(info.literal_targets)),
+            tuple(sorted(info.param_targets)),
+            info.args_tail_upvar,
+            proc_params.get(qname, ()),
+        )
+        for qname, info in sorted(upvar_procs.items())
+    )
+    return hash(parts)
+
+
 def build_cfg(
     module: IRModule,
     *,
@@ -1387,6 +1478,7 @@ def build_cfg_function(
     upvar_procs: dict[str, _UpvarInfo] | None = None,
     proc_params: dict[str, tuple[str, ...]] | None = None,
     expand_fallthrough_switch: bool = False,
+    faithful_exceptions: bool = False,
 ) -> CFGFunction:
     """Build CFG for a single function/script body."""
     builder = _CFGBuilder(
@@ -1394,5 +1486,6 @@ def build_cfg_function(
         upvar_procs=upvar_procs,
         proc_params=proc_params,
         expand_fallthrough_switch=expand_fallthrough_switch,
+        faithful_exceptions=faithful_exceptions,
     )
     return builder.build_function(name, script)

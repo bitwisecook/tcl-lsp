@@ -19,7 +19,7 @@ The resulting ``SSAFunction`` is consumed by SCCP and liveness in
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeAlias
 
 from compiler.registry.runtime import (
@@ -38,15 +38,17 @@ from .cfg import (
     CFGGoto,
     CFGReturn,
     CFGTerminator,
+    _defs_from_expr,
     _defs_from_ir_script,
 )
-from .expr_ast import ExprNode, vars_in_expr_node
+from .expr_ast import ExprNode, command_texts_in_expr_node, vars_in_expr_node
 from .ir import (
     CommandTokens,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRExprEval,
@@ -61,7 +63,7 @@ from .ir import (
     IRTry,
     IRWhile,
 )
-from .var_refs import VarReferenceScanner, VarScanOptions
+from .var_refs import VarReferenceScanner, VarScanOptions, command_sub_write_names
 
 # Semantic type aliases
 
@@ -126,6 +128,18 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
                 defs.extend(stmt.args[idx].split())
         if defs:
             return tuple(defs)
+    if isinstance(stmt, IRBlock):
+        # A plain ``eval {body}`` runs in the *current* frame, so the body's
+        # writes redefine current-scope variables.  Without this, SCCP/intervals
+        # keep a stale constant across the eval and emit false W233/W230 —
+        # tclsh 9.0.3: ``set d 0; eval {set d 1}; expr {1/$d}`` is ``1``, not a
+        # divide-by-zero.  The namespace-eval marker form (``source_args[0] ==
+        # "eval"``) runs in a *different* namespace, so its writes are namespace
+        # vars, not current locals — leave those alone.
+        sa = stmt.source_args
+        is_namespace_eval = len(sa) >= 3 and sa[0] == "eval"
+        if not is_namespace_eval:
+            return tuple(_defs_from_ir_script(stmt.body))
     return ()
 
 
@@ -148,9 +162,98 @@ _DEEP_VAR_REF_SCANNER = VarReferenceScanner(
     )
 )
 
+# As above, but also reports read-modify-write targets (``incr``/``append``/
+# ``lappend``) as reads — used only for the *suppress-only* command-sub read
+# recovery, where ``lappend out [incr i $j]`` must be seen to read ``i`` so the
+# feeding ``set i 0`` isn't a false dead store.  Kept out of ``_uses`` so SSA
+# use/version tracking is unchanged.
+_DEEP_RMW_VAR_REF_SCANNER = VarReferenceScanner(
+    VarScanOptions(
+        include_var_read_roles=True,
+        recurse_cmd_substitutions=True,
+        recurse_into_script_roles=True,
+        include_reads_before_write=True,
+    )
+)
+
+# EXPR-only deep scanner: descends ``[expr {...}]`` (and other EXPR-role)
+# arguments but NOT BODY scripts, so reads inside command-substituted exprs
+# are captured without attributing deferred/nested-script reads to the
+# enclosing statement.  Used for statement use-tracking in ``_vars_in_word``.
+_EXPR_DEEP_VAR_REF_SCANNER = VarReferenceScanner(
+    VarScanOptions(
+        include_var_read_roles=True,
+        recurse_cmd_substitutions=True,
+        recurse_into_expr_roles=True,
+    )
+)
+
 
 def _vars_in_word(text: str) -> frozenset[str]:
+    """Variable reads in a word that executes as part of a statement.
+
+    Uses the *shallow* scanner: it descends ``[...]`` command substitutions
+    (so ``$x`` in ``[set y $x]`` is seen) but does NOT descend the EXPR/BODY
+    script-role arguments of commands.  Reads hidden inside an expr-role arg of
+    a command substitution (``incr i [expr {$w}]``) or a BODY script
+    (``[catch {f $x} e]``) are recovered separately — *name-level and
+    suppress-only* — by :func:`expr_substitution_read_names`, and must stay out
+    of SSA ``uses`` here.
+
+    Routing those into ``uses`` (gap B) was attempted but regressed
+    read-before-set: the IR stores a *braced data* argument with its outer
+    braces stripped (``append buffer {if {…$x…}}`` → arg text ``if {…} {…}``),
+    so an EXPR-deep scan mis-reads the literal as a live ``if`` and descends its
+    condition, flagging ``$x`` read-before-set.  Putting expr-cmdsub reads into
+    ``uses`` therefore needs the scanner to descend EXPR roles *only within*
+    ``[...]`` substitutions (not at the top level of a brace-stripped word) —
+    tracked as part of the semi-pruned-SSA enablement (gap B / Fix-1) in
+    ``docs/design/compiler/semi-pruned-ssa-deferred.md``.
+    """
     return _VAR_REF_SCANNER.scan_word(text)
+
+
+def expr_substitution_read_names(words: "list[str]") -> frozenset[str]:
+    """Names read inside command substitutions in *words* that the shallow word
+    scan misses — vars hidden inside an ``[expr {...}]`` (``incr i [expr {$x}]``)
+    *and* vars read inside a BODY-role script nested in a substitution
+    (``$sock`` in ``[catch {close $sock} e]``), both opaque to the Tcl-level
+    word scanner because braces suppress substitution there.
+
+    Uses the deep, **registry-gated** scanner: only argument positions the
+    command registry marks as EXPR or BODY scripts are descended, so literal
+    data words (``lappend cmds {puts $x}``) are never mis-read.
+
+    Returned **name-level only** (no SSA versions): intended for the
+    dead-store / set-but-never-used / unused-param checks, which key on names
+    and can only *suppress* a finding when a name is read.  Deliberately kept
+    out of :func:`_uses` / SSA ``stmt.uses`` so read-before-set is not
+    perturbed — exposing these reads there would create false read-before-set
+    positives where the matching def lives in a sibling command substitution or
+    a proc defined by an unrecognised definer.
+    """
+    extra: set[str] = set()
+    for w in words:
+        if w and "[" in w:
+            extra |= _DEEP_RMW_VAR_REF_SCANNER.scan_word(w) - _VAR_REF_SCANNER.scan_word(w)
+    return frozenset(extra)
+
+
+def dynamic_target_name_reads(stmt: IRStatement) -> frozenset[str]:
+    """Variables read to form a *dynamic* assignment/incr target name.
+
+    ``set $X v`` / ``set ${tok}(k) v`` / ``incr $C`` write a variable whose
+    name is computed at run time, so they **read** the name variable (``X`` /
+    ``tok`` / ``C``).  The IR records the target as ``name`` (``${X}`` etc.) and
+    that read is otherwise invisible — under semi-pruned SSA an earlier
+    ``set X …`` then looks like a dead store.  Returned name-level only (for the
+    dead-store / set-but-never-used suppression), like
+    :func:`expr_substitution_read_names`.
+    """
+    name = getattr(stmt, "name", None)
+    if isinstance(name, str) and "$" in name:
+        return _vars_in_word(name)
+    return frozenset()
 
 
 def _vars_in_script(source: str) -> frozenset[str]:
@@ -244,8 +347,58 @@ def _free_reads_in_ir_script(script: IRScript) -> set[str]:
     they would surface as false read-before-set (W210).  Genuine outer
     reads (a parameter used as ``return $text``) survive because they are
     never assigned inside the arm.
+
+    The def set is *completed* locally (``for``-init/next clauses and
+    if/while/for condition command-sub defs, which ``_defs_from_ir_script``
+    omits) so that ``for {set j 0} … {… $j …}`` / ``if {[regexp … -> v]}``
+    inside an arm don't surface ``j``/``v`` as false read-before-set.  Done
+    here, not in the shared ``_defs_from_ir_script``, to avoid perturbing the
+    SCCP catch/try-merge invalidation that also consumes it.
     """
-    return _reads_in_ir_script(script) - set(_defs_from_ir_script(script))
+    defs = set(_defs_from_ir_script(script)) | _collapsed_extra_defs(script)
+    return _reads_in_ir_script(script) - defs
+
+
+def _collapsed_extra_defs(script: IRScript) -> set[str]:
+    """``for``-init/next clause defs and if/while/for condition command-sub defs
+    (``[regexp … -> v]``) that :func:`_defs_from_ir_script` does not recurse —
+    recovered for the collapsed-body read subtraction only."""
+    extra: set[str] = set()
+    for stmt in script.statements:
+        match stmt:
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    extra.update(_defs_from_expr(clause.condition))
+                    extra |= _collapsed_extra_defs(clause.body)
+                if else_body is not None:
+                    extra |= _collapsed_extra_defs(else_body)
+            case IRWhile(condition=condition, body=body):
+                extra.update(_defs_from_expr(condition))
+                extra |= _collapsed_extra_defs(body)
+            case IRFor(init=init, condition=condition, next=next_clause, body=body):
+                extra.update(_defs_from_ir_script(init))
+                extra.update(_defs_from_ir_script(next_clause))
+                extra.update(_defs_from_expr(condition))
+                extra |= _collapsed_extra_defs(init)
+                extra |= _collapsed_extra_defs(next_clause)
+                extra |= _collapsed_extra_defs(body)
+            case IRForeach(body=body):
+                extra |= _collapsed_extra_defs(body)
+            case IRCatch(body=body):
+                extra |= _collapsed_extra_defs(body)
+            case IRTry(body=body, handlers=handlers, finally_body=finally_body):
+                extra |= _collapsed_extra_defs(body)
+                for handler in handlers:
+                    extra |= _collapsed_extra_defs(handler.body)
+                if finally_body is not None:
+                    extra |= _collapsed_extra_defs(finally_body)
+            case IRSwitch():
+                for arm in stmt.arms:
+                    if arm.body is not None:
+                        extra |= _collapsed_extra_defs(arm.body)
+                if stmt.default_body is not None:
+                    extra |= _collapsed_extra_defs(stmt.default_body)
+    return extra
 
 
 def _reads_in_ir_script(script: IRScript) -> set[str]:
@@ -387,11 +540,66 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                     if name:
                         vars_found.add(name)
                         reads_own_def.add(name)
+        case IRBlock(source_args=source_args):
+            # The namespace-name argument of ``namespace eval <name> <body>``
+            # (lowered to an IRBlock with ``source_args == ('eval', name,
+            # body)``) is evaluated in the *current* scope to resolve the
+            # target namespace, so any ``$var`` in it is a genuine
+            # current-scope read (e.g. ``namespace eval $ns { … }`` reads
+            # ``ns``).  The body is analysed separately (lifted procs /
+            # spliced statements).  Plain ``eval {body}`` has
+            # ``source_args == (body,)`` — no name arg — and is skipped.
+            if len(source_args) >= 3 and source_args[0] == "eval":
+                vars_found |= _vars_in_word(source_args[1])
         case _:
             pass
 
     defs = set(_defs(stmt))
     return tuple(sorted(v for v in vars_found if v and (v not in defs or v in reads_own_def)))
+
+
+def statement_read_names(stmt: IRStatement) -> tuple[str, ...]:
+    """Public: variable names read by *stmt* (pre-SSA, name-level).
+
+    Thin alias for the internal use-extraction so other compiler analyses can
+    recover a statement's reads without depending on the private helper.
+    """
+    return _uses(stmt)
+
+
+def statement_cmd_sub_write_names(stmt: IRStatement) -> frozenset[str]:
+    """Literal variable names written by command substitutions in *stmt*.
+
+    A command substitution such as ``[catch {...} msg opts]`` writes its
+    result/options variables in the current scope, but the whole ``[...]`` is
+    an opaque value to the word scanner, so SSA never records the def and a
+    later ``$msg`` read looks read-before-set.  This recovers those names so
+    read-before-set can suppress them.  Name-level only — deliberately kept
+    out of SSA ``defs`` to avoid perturbing dead-store/liveness ordering.
+    """
+    out: set[str] = set()
+    match stmt:
+        case IRAssignValue(value=value):
+            out |= command_sub_write_names(value)
+        case IRAssignExpr(expr=expr) | IRExprEval(expr=expr):
+            for cmd_text in command_texts_in_expr_node(expr):
+                out |= command_sub_write_names(cmd_text)
+        case IRReturn(value=value, expr=expr):
+            if value is not None:
+                out |= command_sub_write_names(value)
+            if expr is not None:
+                for cmd_text in command_texts_in_expr_node(expr):
+                    out |= command_sub_write_names(cmd_text)
+        case IRIncr(amount=amount):
+            if amount is not None:
+                out |= command_sub_write_names(amount)
+        case IRCall(command=command, args=args) | IRBarrier(command=command, args=args):
+            out |= command_sub_write_names(command)
+            for arg in args:
+                out |= command_sub_write_names(arg)
+        case _:
+            pass
+    return frozenset(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -450,6 +658,15 @@ class SSAFunction:
     idom: dict[BlockName, BlockName | None]
     dominance_frontier: dict[BlockName, tuple[BlockName, ...]]
     dominator_tree: dict[BlockName, tuple[BlockName, ...]]
+    # Euler-tour interval labels over the dominator tree (preorder entry time
+    # ``dom_in`` and max-subtree-entry ``dom_out``).  They make dominance an
+    # O(1) interval test — ``dominates(d, n)`` iff
+    # ``dom_in[d] <= dom_in[n] <= dom_out[d]`` — instead of an idom-chain walk
+    # (see :func:`compiler.loops.dominates`, called in nested loops by the
+    # interval/bounds, loop-forest, and GVN-LICM passes).  Empty on the
+    # complexity-guarded trivial SSA; ``dominates`` then falls back to the walk.
+    dom_in: dict[BlockName, int] = field(default_factory=dict)
+    dom_out: dict[BlockName, int] = field(default_factory=dict)
 
 
 def value_use_blocks(ssa: SSAFunction) -> dict[SSAValueKey, set[BlockName]]:
@@ -477,6 +694,9 @@ def value_use_blocks(ssa: SSAFunction) -> dict[SSAValueKey, set[BlockName]]:
 
 
 def _reachable_blocks(cfg: CFGFunction) -> set[str]:
+    exc_succ: dict[str, list[str]] = {}
+    for frm, handler in cfg.exception_edges:
+        exc_succ.setdefault(frm, []).append(handler)
     seen: set[str] = set()
     stack = [cfg.entry]
     while stack:
@@ -485,6 +705,7 @@ def _reachable_blocks(cfg: CFGFunction) -> set[str]:
             continue
         seen.add(bn)
         stack.extend(_successors(cfg.blocks[bn].terminator))
+        stack.extend(exc_succ.get(bn, ()))  # try → handler throw edges
     return seen
 
 
@@ -494,6 +715,12 @@ def _predecessors(cfg: CFGFunction) -> dict[str, set[str]]:
         for succ in _successors(block.terminator):
             if succ in preds:
                 preds[succ].add(bn)
+    # ``try`` body→handler throw edges (analysis builds only): the handler's
+    # predecessor is the block holding the ``try``, so it inherits the
+    # pre-``try`` SSA versions rather than version-0.
+    for frm, handler in cfg.exception_edges:
+        if handler in preds and frm in cfg.blocks:
+            preds[handler].add(frm)
     return preds
 
 
@@ -644,17 +871,106 @@ def _dom_tree(idom: dict[str, str | None]) -> dict[str, list[str]]:
     return tree
 
 
+def _dom_numbering(entry: str, tree: dict[str, list[str]]) -> tuple[dict[str, int], dict[str, int]]:
+    """Euler-tour interval labels over the dominator *tree* rooted at *entry*.
+
+    ``dom_in[v]`` is the preorder visit index; ``dom_out[v]`` is the largest
+    ``dom_in`` in ``v``'s subtree.  Then ``d`` dominates ``n`` exactly when
+    ``dom_in[d] <= dom_in[n] <= dom_out[d]`` — the textbook ancestor-interval
+    test, identical in result to walking ``n`` up the idom chain to ``d``.
+
+    Iterative (explicit stack) like the rename walk below, so a deep dominator
+    chain in a large generated body can't overflow the recursion limit.
+    """
+    dom_in: dict[str, int] = {}
+    dom_out: dict[str, int] = {}
+    if entry not in tree:
+        return dom_in, dom_out
+    counter = 0
+    dom_in[entry] = counter
+    counter += 1
+    # Each frame: [node, next-child-index].
+    stack: list[list] = [[entry, 0]]
+    while stack:
+        frame = stack[-1]
+        node, ci = frame[0], frame[1]
+        children = tree.get(node, ())
+        if ci < len(children):
+            frame[1] += 1
+            child = children[ci]
+            dom_in[child] = counter
+            counter += 1
+            stack.append([child, 0])
+        else:
+            # Post-order: subtree max is this node's index joined with each
+            # child's already-finalised dom_out.
+            out = dom_in[node]
+            for c in children:
+                if dom_out[c] > out:
+                    out = dom_out[c]
+            dom_out[node] = out
+            stack.pop()
+    return dom_in, dom_out
+
+
+def _nonlocal_names_and_defsites(
+    cfg: CFGFunction, reachable: set[str]
+) -> tuple[set[str], dict[str, set[str]]]:
+    """Semi-pruned SSA (Briggs et al. 1998) in one pass: the *non-local* names
+    (upward-exposed use) **and** every variable's def-site blocks.
+
+    A variable is *non-local* if some block reads it before (re)defining it in
+    that block — i.e. the read could observe a value flowing in from a
+    predecessor, so a phi at a merge is meaningful.  A name only ever read after
+    its in-block definition (or never read) needs no phi: dropping it changes no
+    use/value/liveness result, only removes a dead phi.
+
+    The phi placement also needs each variable's def-site blocks; collecting them
+    here (instead of a second walk in :func:`_phi_vars`) computes ``_defs(stmt)``
+    once per statement.  ``defsites`` is unfiltered (all defined names); the
+    caller restricts phi placement to the non-local names.
+    """
+    nonlocal_names: set[str] = set()
+    defsites: dict[str, set[str]] = {}
+    for bn in reachable:
+        block = cfg.blocks[bn]
+        defined_here: set[str] = set()
+        for stmt in block.statements:
+            for u in _uses(stmt):
+                if u not in defined_here:
+                    nonlocal_names.add(u)
+            d = _defs(stmt)
+            for var in d:
+                defsites.setdefault(var, set()).add(bn)
+            defined_here.update(d)
+        term = block.terminator
+        if isinstance(term, CFGBranch):
+            for u in vars_in_expr_node(term.condition):
+                if u not in defined_here:
+                    nonlocal_names.add(u)
+        elif isinstance(term, CFGReturn):
+            if term.value is not None:
+                for u in _vars_in_word(term.value):
+                    if u not in defined_here:
+                        nonlocal_names.add(u)
+            if term.expr is not None:
+                for u in vars_in_expr_node(term.expr):
+                    if u not in defined_here:
+                        nonlocal_names.add(u)
+    return nonlocal_names, defsites
+
+
 def _phi_vars(
     cfg: CFGFunction,
     reachable: set[str],
     df: dict[str, set[str]],
 ) -> dict[str, set[str]]:
-    defsites: dict[str, set[str]] = {}
-    for bn in reachable:
-        block = cfg.blocks[bn]
-        for stmt in block.statements:
-            for var in _defs(stmt):
-                defsites.setdefault(var, set()).add(bn)
+    # Semi-pruned SSA: place phis only for *non-local* (upward-exposed-use)
+    # names — Briggs et al. 1998.  A phi for a purely-local name has no reader,
+    # so dropping it removes only dead phis (≈40% of minimal-SSA phis) without
+    # changing any use/value/liveness/diagnostic.
+    nonlocal_names, all_defsites = _nonlocal_names_and_defsites(cfg, reachable)
+    defsites = {var: sites for var, sites in all_defsites.items() if var in nonlocal_names}
 
     phi: dict[str, set[str]] = {bn: set() for bn in cfg.blocks}
     for var, sites in defsites.items():
@@ -671,10 +987,54 @@ def _phi_vars(
     return phi
 
 
-def build_ssa(cfg: CFGFunction) -> SSAFunction:
-    """Build SSA with dominator-based phi placement and renaming."""
+# Deep-analysis complexity ceiling (CFG block count) — shared with
+# ``core_analyses.analyse_function``.  Pathologically large bodies (machine-
+# generated dispatch tables — e.g. fumagic's filetypes.tcl proc at ~34 000
+# blocks) skip SSA + dataflow; per-proc diagnostics are then skipped for them
+# rather than spending tens of seconds.  Set well above legitimately-deep
+# hand-written code (the deep-chain stack-safety test exercises 8 000 blocks),
+# so only genuinely generated dispatch tables trip it.
+_COMPLEXITY_GUARD_BLOCKS = 20000
+
+# Companion source-byte ceiling: a body can be byte-huge yet block-light (a flat
+# 1 MB generated command list), which the block count alone misses.  The single
+# guard decision (``FunctionUnit.complexity_guarded``) is ``blocks > BLOCKS or
+# body_bytes > BODY_BYTES``; this constant is the byte half, shared with the
+# analyser-walk guard (``analyser.compiler_checks``).
+_DEEP_ANALYSIS_BODY_BYTES = 262144
+
+
+def is_complexity_guarded(cfg: CFGFunction) -> bool:
+    """True when *cfg* is large enough that deep analysis (SSA/dataflow) is skipped."""
+    return len(cfg.blocks) > _COMPLEXITY_GUARD_BLOCKS
+
+
+def build_ssa(cfg: CFGFunction, *, force_guard: bool = False) -> SSAFunction:
+    """Build SSA with dominator-based phi placement and renaming.
+
+    *force_guard* lets the caller short-circuit before this O(blocks·vars) walk
+    when it has already decided the body is too large to deep-analyse — e.g. a
+    byte-huge but block-light flat generated body that the block-count check
+    below would miss, leaving the expensive walk to run for nothing.
+    """
+    if force_guard or len(cfg.blocks) > _COMPLEXITY_GUARD_BLOCKS:
+        # Complexity guard: skip the O(blocks·vars) phi placement + rename walk
+        # for pathologically large (generated) bodies.  Returns a trivial SSA;
+        # ``analyse_function`` likewise returns a trivial analysis, and per-proc
+        # diagnostic passes skip the guarded function (``is_complexity_guarded``).
+        return SSAFunction(
+            name=cfg.name,
+            entry=cfg.entry,
+            blocks={},
+            idom={},
+            dominance_frontier={},
+            dominator_tree={},
+        )
     reachable = _reachable_blocks(cfg)
     preds = _predecessors(cfg)
+    _exc_succ: dict[str, list[str]] = {}
+    for _frm, _handler in cfg.exception_edges:
+        _exc_succ.setdefault(_frm, []).append(_handler)
     idom = _compute_idom_fast(cfg, reachable, preds)
     df = _dominance_frontier(cfg, reachable, preds, idom)
     tree = _dom_tree(idom)
@@ -748,7 +1108,9 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
             visible_vars = set(stacks.keys()) | set(phi_versions[bn].keys())
             exit_versions[bn] = {v: top(v) for v in sorted(visible_vars) if top(v) > 0}
 
-            for succ in _successors(cfg.blocks[bn].terminator):
+            succs = list(_successors(cfg.blocks[bn].terminator))
+            succs.extend(_exc_succ.get(bn, ()))  # try → handler throw edges
+            for succ in succs:
                 if succ not in cfg.blocks:
                     continue
                 for var in sorted(phi_vars.get(succ, set())):
@@ -788,6 +1150,7 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
             exit_versions=dict(exit_versions[bn]),
         )
 
+    dom_in, dom_out = _dom_numbering(cfg.entry, tree)
     return SSAFunction(
         name=cfg.name,
         entry=cfg.entry,
@@ -795,4 +1158,6 @@ def build_ssa(cfg: CFGFunction) -> SSAFunction:
         idom=idom,
         dominance_frontier={bn: tuple(sorted(v)) for bn, v in df.items()},
         dominator_tree={bn: tuple(children) for bn, children in tree.items()},
+        dom_in=dom_in,
+        dom_out=dom_out,
     )

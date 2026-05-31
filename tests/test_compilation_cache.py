@@ -43,31 +43,35 @@ class TestCompileSourceCache:
         assert cu2.cfg_module.procedures["::gamma"] is cu1.cfg_module.procedures["::gamma"]
 
     def test_cache_miss_on_changed_proc(self):
-        """When one proc body changes, only that proc should miss the cache."""
+        """A same-length body change to beta misses only beta — alpha and gamma
+        keep their byte offsets, so they still hit the cache."""
         cu1 = compile_source(self.THREE_PROCS)
         cache = _build_proc_cache(cu1)
 
         modified = (
             "proc alpha {} { return 1 }\n"
-            "proc beta {} { return 99 }\n"  # changed
+            "proc beta {} { return 7 }\n"  # changed, same length
             "proc gamma {} { return 3 }\n"
         )
         cu2 = compile_source(modified, proc_cache=cache)
 
-        # alpha and gamma should be cache hits (same object)
+        # alpha and gamma should be cache hits (same object): beta's length is
+        # unchanged, so gamma's absolute offsets did not shift.
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert cu2.procedures["::gamma"] is cu1.procedures["::gamma"]
         # beta should be a new FunctionUnit
         assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
 
     def test_cache_miss_on_renamed_proc(self):
-        """Renaming a proc causes a full cache miss for that name."""
+        """Renaming beta lengthens the text before gamma, shifting gamma's byte
+        offsets; gamma therefore correctly misses the cache (its cached
+        FunctionUnit carries stale absolute offsets)."""
         cu1 = compile_source(self.THREE_PROCS)
         cache = _build_proc_cache(cu1)
 
         renamed = (
             "proc alpha {} { return 1 }\n"
-            "proc beta_v2 {} { return 2 }\n"  # renamed
+            "proc beta_v2 {} { return 2 }\n"  # renamed (longer)
             "proc gamma {} { return 3 }\n"
         )
         cu2 = compile_source(renamed, proc_cache=cache)
@@ -75,7 +79,38 @@ class TestCompileSourceCache:
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert "::beta_v2" in cu2.procedures
         assert "::beta" not in cu2.procedures
+        # gamma's offsets shifted (beta_v2 is longer than beta) → cache miss.
+        assert cu2.procedures["::gamma"] is not cu1.procedures["::gamma"]
+
+    def test_same_length_edit_keeps_neighbours_cached(self):
+        """A same-length edit to beta leaves alpha and gamma byte-offset-stable,
+        so both still hit the cache while beta misses."""
+        cu1 = compile_source(self.THREE_PROCS)
+        cache = _build_proc_cache(cu1)
+        # "return 2" -> "return 5": identical length, so no offset shift below.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 5 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=cache)
+        assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert cu2.procedures["::gamma"] is cu1.procedures["::gamma"]
+        assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
+
+    def test_length_changing_edit_before_gamma_misses_gamma(self):
+        """A length-changing edit to beta shifts gamma's absolute offsets, so
+        gamma must miss the cache even though its body text is byte-identical —
+        its cached CFG/SSA carry the old offsets."""
+        cu1 = compile_source(self.THREE_PROCS)
+        cache = _build_proc_cache(cu1)
+        # "return 2" -> "return 222": two chars longer, shifting everything after.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 222 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=cache)
+        # alpha is before the edit → still cached; gamma is after → missed.
+        assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
+        assert cu2.procedures["::gamma"] is not cu1.procedures["::gamma"]
+        assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
 
     def test_new_proc_compiled_fresh(self):
         """Adding a proc doesn't break existing cache entries."""
@@ -87,6 +122,43 @@ class TestCompileSourceCache:
 
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert "::beta" in cu2.procedures
+
+    def _caller_rbs(self, cu):
+        return sorted({r.variable for r in cu.procedures["::caller"].analysis.read_before_set})
+
+    def test_callee_upvar_change_invalidates_caller(self):
+        """A caller's CFG/analysis depends on which callees write back via
+        upvar.  Editing only the callee (caller text unchanged) must not serve a
+        stale cached caller unit — the context fingerprint invalidates it.
+
+        Ground truth (tclsh 9.0.3): with `upvar 1 $name v; set v 1` the callee
+        initialises the caller's `x`, so `helper x; puts $x` is clean; without
+        it `puts $x` errors `can't read "x"`.
+        """
+        caller = "proc caller {} { helper x\n puts $x }\n"
+        no_upvar = "proc helper {name} { return 1 }\n" + caller
+        with_upvar = "proc helper {name} { upvar 1 $name v\n set v 1 }\n" + caller
+
+        # callee gains upvar → caller's read-before-set must clear
+        cache = _build_proc_cache(compile_source(no_upvar))
+        cached = self._caller_rbs(compile_source(with_upvar, proc_cache=cache))
+        fresh = self._caller_rbs(compile_source(with_upvar, proc_cache={}))
+        assert cached == fresh == []
+
+        # callee loses upvar → caller's read-before-set must reappear
+        cache2 = _build_proc_cache(compile_source(with_upvar))
+        cached2 = self._caller_rbs(compile_source(no_upvar, proc_cache=cache2))
+        fresh2 = self._caller_rbs(compile_source(no_upvar, proc_cache={}))
+        assert cached2 == fresh2 == ["x"]
+
+    def test_adding_non_upvar_proc_keeps_caller_cached(self):
+        """Adding an ordinary (non-upvar) proc must not invalidate unrelated
+        cached units — the context fingerprint only tracks upvar procs."""
+        src1 = "proc f {a} { return [expr {$a + 1}] }\n"
+        cu1 = compile_source(src1)
+        cache = _build_proc_cache(cu1)
+        cu2 = compile_source(src1 + "proc g {} { return 2 }\n", proc_cache=cache)
+        assert cu2.procedures["::f"] is cu1.procedures["::f"]
 
     def test_deleted_proc_no_error(self):
         """Removing a proc doesn't cause errors from stale cache entries."""

@@ -23,6 +23,7 @@ from ._helpers import (
     _first_token_is_braced,
     _has_substitution,
     _is_bare_single_var_substitution,
+    _raw_has_live_substitution,
     _tok_is_quoted,
 )
 
@@ -539,6 +540,19 @@ def check_literal_expected(
                 continue
             if not _has_substitution(text, tok):
                 continue
+            # Escaped ``\[`` / ``\$`` in a quoted pattern are *literal*
+            # characters (a regex char-class bracket, a literal dollar), NOT a
+            # substitution — ``regexp "\[abc\]+" $line m`` passes the literal
+            # pattern ``[abc]+`` with no substitution (tclsh-verified), whereas
+            # an unescaped ``"[abc]+"`` really does trigger command
+            # substitution of ``abc``.  The *resolved* arg text can't tell
+            # these apart (an unresolved cmd-sub resolves to empty), so check
+            # the raw source slice for a *live* (unescaped) ``[``/``$``.  A
+            # VAR/CMD token is a genuine substitution regardless of escaping.
+            if tok.type not in (TokenType.VAR, TokenType.CMD):
+                raw = source[tok.start.offset : tok.end.offset + 1]
+                if not _raw_has_live_substitution(raw):
+                    continue
             # A bare single ``$var``/``${var}`` is the canonical idiom for
             # a parameterised regex pattern.  There is no equivalent
             # ``{...}``-braced form (bracing would suppress substitution),
@@ -591,9 +605,14 @@ def check_literal_expected(
             if cls_idx < len(args) and cls_idx < len(arg_tokens):
                 tok = arg_tokens[cls_idx]
                 text = args[cls_idx]
+                raw_cls = source[tok.start.offset : tok.end.offset + 1]
                 if (
                     not _first_token_is_braced(tok)
                     and _has_substitution(text, tok)
+                    and (
+                        tok.type in (TokenType.VAR, TokenType.CMD)
+                        or _raw_has_live_substitution(raw_cls)
+                    )
                     and not _is_bare_single_var_substitution(tok, source)
                 ):
                     diagnostics.append(

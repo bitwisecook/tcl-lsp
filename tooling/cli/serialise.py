@@ -26,6 +26,7 @@ from compiler.taint import (
     TaintWarning,
 )
 from compiler.types import TypeKind
+from tooling.explorer.cfg_layout import build_cfg_edges
 from tooling.explorer.pipeline import CompilerExplorerResult, FunctionSnapshot
 
 from .formatters import (
@@ -172,6 +173,26 @@ def _block_successors(term) -> list[str]:
     return []
 
 
+def _serialise_cfg_edges(snap: FunctionSnapshot) -> list[dict]:
+    """Control-flow edges with routing lanes, shared with the ASCII gutter.
+
+    The ``lane`` is computed once here (``cfg_layout``) so the web SVG router
+    and the CLI/TUI box-drawing gutter nest edges identically — neither side
+    re-derives lane assignment.
+    """
+    return [
+        {
+            "from": e.src,
+            "to": e.dst,
+            "fromPos": e.src_pos,
+            "toPos": e.dst_pos,
+            "kind": e.kind,
+            "lane": e.lane,
+        }
+        for e in build_cfg_edges(snap.cfg)
+    ]
+
+
 def _serialise_cfg_pre_ssa(snapshots: list[FunctionSnapshot]) -> list[dict]:
     out = []
     for snap in snapshots:
@@ -201,6 +222,7 @@ def _serialise_cfg_pre_ssa(snapshots: list[FunctionSnapshot]) -> list[dict]:
                 "entry": snap.cfg.entry,
                 "blockCount": len(snap.cfg.blocks),
                 "blocks": blocks,
+                "edges": _serialise_cfg_edges(snap),
             }
         )
     return out
@@ -305,6 +327,7 @@ def _serialise_cfg_post_ssa(snapshots: list[FunctionSnapshot]) -> list[dict]:
                 "entry": snap.cfg.entry,
                 "blockCount": len(snap.cfg.blocks),
                 "blocks": blocks,
+                "edges": _serialise_cfg_edges(snap),
                 "analysis": analysis,
             }
         )

@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import re
+
+# A single ``$name`` / ``$ns::name`` / ``$arr(idx)`` reference and nothing else.
+# Crucially it must NOT match a *concatenation* of references (``$x$y``,
+# ``$x_$y``, ``$x.foo``): that double-substitutes a composed value, so e.g.
+# ``uplevel 1 $x$y`` is not the safe single-var idiom and must still warn (W301).
+_SINGLE_VAR_REF = re.compile(r"\$[\w:]+(\([^)]*\))?")
+
 
 def is_pure_var_ref(text: str) -> bool:
-    """Return True if *text* is ``$x`` or ``${x}`` with no extra syntax."""
+    """Return True if *text* is exactly one variable reference (``$x`` /
+    ``${x}`` / ``$ns::x`` / ``$arr(idx)``) with no surrounding or concatenated
+    syntax."""
     if text.startswith("${") and text.endswith("}"):
         inner = text[2:-1]
         return "}" not in inner
-    return text.startswith("$") and not any(c in text for c in ' "{}[]')
+    return bool(_SINGLE_VAR_REF.fullmatch(text))
 
 
 def parse_command_substitution(text: str) -> tuple[str, tuple[str, ...]] | None:

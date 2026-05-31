@@ -774,6 +774,21 @@ class TestDiagnostics:
         unreachable = [d for d in result.diagnostics if d.code == "I230"]
         assert len(unreachable) >= 1
 
+    def test_infinite_loop_idiom_not_flagged(self):
+        # `while 1` / `for {…} 1 {…}` are intentional infinite loops (exit via
+        # break/return); a constant-true loop condition must not be flagged.
+        for src in (
+            "proc f {} { while 1 { if {[g]} break } }",
+            "proc f {} { while true { if {[g]} break } }",
+            "proc f {} { for {set i 0} 1 {incr i} { if {$i > 9} break } }",
+        ):
+            assert [d for d in analyse(src).diagnostics if d.code == "I230"] == []
+
+    def test_dead_while_zero_still_flagged(self):
+        # A constant-*false* loop condition means the body never runs — keep it.
+        result = analyse("proc f {} { while 0 { puts dead } }")
+        assert [d for d in result.diagnostics if d.code == "I230"]
+
     def test_constant_switch_unreachable_arm(self):
         source = "switch 1 {1 {set x 1} 2 {set y 2} default {set z 3}}"
         result = analyse(source)
@@ -1941,6 +1956,21 @@ class TestW123UnresolvedCommand:
     def test_user_proc_no_w123(self):
         diags = self._w123("proc mycommand {x} { puts $x }\nmycommand hello")
         assert len(diags) == 0
+
+    def test_dead_arm_command_sub_no_w123(self):
+        # A command sub in a provably-dead arm of a literal-constant short-
+        # circuit / ternary is never executed by Tcl, so it must not warn W123.
+        # tclsh 9.0.3: `expr {0 && [missingCommand]}` -> 0 (no error).
+        assert self._w123("expr {0 && [missingCommand]}") == []
+        assert self._w123("expr {1 || [missingCommand]}") == []
+        assert self._w123("expr {0 ? [missingCommand] : 7}") == []
+        assert self._w123("expr {1 ? 7 : [missingCommand]}") == []
+
+    def test_live_arm_command_sub_still_w123(self):
+        # Eager / non-constant-guarded arms still run, so W123 must fire.
+        assert len(self._w123("expr {1 && [missingCommand]}")) == 1  # tclsh errors
+        assert len(self._w123("expr {[missingCommand] && 1}")) == 1  # left always runs
+        assert len(self._w123("proc f {c} { expr {$c && [missingCommand]} }")) == 1
 
     def test_forward_defined_proc_no_w123(self):
         """Proc defined after usage should still suppress W123."""

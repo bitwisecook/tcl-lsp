@@ -123,6 +123,38 @@ class ClassDef:
     unexports: set[str] = field(default_factory=set)
     doc: str = ""
 
+    def copy(self) -> ClassDef:
+        """Independent copy for analyser snapshots.
+
+        ``ClassDef`` is mutable — a later ``oo::define``/``oo::objdefine`` adds
+        entries to ``methods``/``class_methods``/… — so a snapshot must copy the
+        mutable containers, or a mutation after the snapshot (or in a dirty
+        chunk after restore) leaks into it and silences/raises W308 wrongly.
+        The contained ``MethodDef``/``PropertyDef`` values are added, never
+        mutated in place, so sharing them by reference is sound.
+        """
+        return ClassDef(
+            name=self.name,
+            qualified_name=self.qualified_name,
+            name_range=self.name_range,
+            body_range=self.body_range,
+            metaclass=self.metaclass,
+            superclasses=self.superclasses[:],
+            mixins=self.mixins[:],
+            superclass_refs=self.superclass_refs[:],
+            mixin_refs=self.mixin_refs[:],
+            methods=dict(self.methods),
+            class_methods=dict(self.class_methods),
+            constructors=self.constructors[:],
+            destructor=self.destructor,
+            variables=self.variables[:],
+            properties=dict(self.properties),
+            filters=self.filters[:],
+            exports=set(self.exports),
+            unexports=set(self.unexports),
+            doc=self.doc,
+        )
+
 
 # Scope
 @dataclass
@@ -138,13 +170,24 @@ class Scope:
     classes: dict[str, ClassDef] = field(default_factory=dict)
     children: list[Scope] = field(default_factory=list)
 
-    def _copy_tree(self, parent: Scope | None = None) -> Scope:
+    def _copy_tree(
+        self,
+        parent: Scope | None = None,
+        class_map: dict[int, ClassDef] | None = None,
+    ) -> Scope:
         """Fast recursive copy of the scope tree.
 
         Much faster than ``copy.deepcopy`` because it avoids cycle
         detection (``parent`` references create cycles that force
         deepcopy to maintain a memo dict), generic dispatch overhead,
         and copies frozen/immutable objects by reference.
+
+        *class_map* maps a live ``ClassDef``'s ``id()`` to its already-made
+        snapshot copy, so a scope's ``classes`` entry reuses the *same* copy as
+        ``AnalysisResult.all_classes`` (preserving the live
+        ``scope.classes[x] is all_classes[y]`` identity); a scope-local class
+        not in the map is copied directly.  ``ClassDef`` is mutable, so it must
+        be copied (the old shallow ``dict(self.classes)`` shared it).
         """
         new = Scope(
             kind=self.kind,
@@ -174,9 +217,14 @@ class Scope:
                 )
                 for k, v in self.procs.items()
             },
-            classes=dict(self.classes),  # ClassDef is mutable but shared is fine for snapshots
+            classes={
+                k: ((class_map.get(id(v)) if class_map else None) or v.copy())
+                for k, v in self.classes.items()
+            },
         )
-        new.children = [child._copy_tree(parent=new) for child in self.children]
+        new.children = [
+            child._copy_tree(parent=new, class_map=class_map) for child in self.children
+        ]
         return new
 
 
@@ -430,7 +478,11 @@ class AnalysisResult:
         share immutable ``Range`` objects but must copy the mutable
         ``references`` list.
         """
-        new_scope = self.global_scope._copy_tree()
+        # Copy each ClassDef once; reuse the copy for both ``all_classes`` and
+        # any scope that references the same live class (identity preserved).
+        new_classes = {k: v.copy() for k, v in self.all_classes.items()}
+        class_map = {id(v): new_classes[k] for k, v in self.all_classes.items()}
+        new_scope = self.global_scope._copy_tree(class_map=class_map)
         # Share params list via shallow copy (ParamDef is frozen).
         # Share param_traits dict values (frozenset — immutable).
         new_procs = {
@@ -459,7 +511,7 @@ class AnalysisResult:
         return AnalysisResult(
             global_scope=new_scope,
             all_procs=new_procs,
-            all_classes=self.all_classes.copy(),
+            all_classes=new_classes,
             all_variables=new_vars,
             diagnostics=self.diagnostics[:],
             suppressed_lines=self.suppressed_lines.copy(),

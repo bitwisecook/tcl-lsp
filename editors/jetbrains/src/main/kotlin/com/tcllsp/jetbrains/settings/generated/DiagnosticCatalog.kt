@@ -51,6 +51,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),
         DiagnosticDef("W231", "warning", "W231: Constant list index out of range", true),
         DiagnosticDef("W232", "warning", "W232: Constant string index out of range", true),
+        DiagnosticDef("W233", "warning", "W233: Division or modulo by a provably-zero divisor", true),
         DiagnosticDef("W240", "warning", "W240: Loop condition is a constant false", true),
         DiagnosticDef("W241", "warning", "W241: Loop is provably infinite", true),
         DiagnosticDef("W210", "variable", "W210: Variable read before set", true),

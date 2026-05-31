@@ -61,6 +61,9 @@ from .ir import (
     IRCall,
 )
 from .irules_flow import _find_when_bodies, _walk_body_commands
+from .loops import build_loop_forest
+from .loops import dominates as _dominates
+from .loops import loop_defined_variables as _loop_defined_variables
 from .side_effects import EffectRegion, classify_side_effects
 from .ssa import BlockName, SSAFunction, SSAVersion
 from .var_refs import VarReferenceScanner, VarScanOptions
@@ -109,6 +112,12 @@ def _is_pure_command(
     :meth:`IRModule.traced_commands` / :meth:`IRModule.has_dynamic_trace`
     — calls to a command with an active execution trace are never pure
     because the trace body composes side-effects in (issue #251).
+
+    Args are inspected for command substitutions: if any nested
+    ``[cmd ...]`` is itself impure (eg ``[incr testnum]``,
+    ``[read $fh 512]``) the outer call cannot be hoisted as
+    loop-invariant — its value DEPENDS on the side-effect's per-call
+    return — so the whole expression is treated as impure.
     """
     callee_summary = None
     if interproc is not None:
@@ -124,7 +133,30 @@ def _is_pure_command(
         traced_commands=traced_commands,
         has_dynamic_trace=has_dynamic_trace,
     )
-    return effect.pure
+    if not effect.pure:
+        return False
+
+    # Recurse into command substitutions inside args.  An outer pure command
+    # whose args read from an impure inner subst is not loop-invariant: each
+    # iteration may produce a different value.
+    for arg in args:
+        if "[" not in arg:
+            continue
+        for tok in _find_cmd_tokens_in_text(arg, base_offset=0, base_line=0, base_col=0):
+            parsed = _parse_cmd_token(tok.text)
+            if parsed is None:
+                continue
+            inner_cmd, inner_args = parsed
+            if not _is_pure_command(
+                inner_cmd,
+                inner_args,
+                interproc,
+                caller_name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
+            ):
+                return False
+    return True
 
 
 def _is_worth_reporting(
@@ -424,9 +456,10 @@ def _parse_cmd_token(text: str) -> tuple[str, tuple[str, ...]] | None:
     CMD token text is the content *inside* the brackets, e.g.
     ``"HTTP::uri"`` or ``"string length $x"``.
 
-    Variable references are preserved with their ``$`` prefix so that
-    downstream canonicalisation can locate and replace them with
-    SSA-versioned forms.
+    Variable references are preserved with their ``$`` prefix and inner
+    command-substitution arg pieces are wrapped back in ``[...]`` so
+    downstream canonicalisation and purity checks can re-discover the
+    nested commands.
     """
     lexer = TclLexer(text)
     argv: list[str] = []
@@ -439,8 +472,14 @@ def _parse_cmd_token(text: str) -> tuple[str, tuple[str, ...]] | None:
         if tok.type in (TokenType.SEP, TokenType.COMMENT):
             prev_sep = True
             continue
-        # Preserve $ prefix for variable tokens so canonicalisation works.
-        piece = f"${tok.text}" if tok.type is TokenType.VAR else tok.text
+        # Preserve $ prefix for variable tokens and re-bracket CMD-sub
+        # tokens (the lexer hands us the content inside brackets only).
+        if tok.type is TokenType.VAR:
+            piece = f"${tok.text}"
+        elif tok.type is TokenType.CMD:
+            piece = f"[{tok.text}]"
+        else:
+            piece = tok.text
         if prev_sep:
             argv.append(piece)
         else:
@@ -776,59 +815,6 @@ def _find_partial_redundancies(
     return results
 
 
-def _dominates(
-    ssa: SSAFunction,
-    dominator: BlockName,
-    node: BlockName,
-) -> bool:
-    """Return True if *dominator* dominates *node* in the SSA dominator tree."""
-    current: BlockName | None = node
-    while current is not None:
-        if current == dominator:
-            return True
-        current = ssa.idom.get(current)
-    return False
-
-
-def _natural_loop_blocks(
-    header: BlockName,
-    latch: BlockName,
-    preds: dict[BlockName, set[BlockName]],
-    executable: set[BlockName],
-) -> set[BlockName]:
-    """Return blocks in the natural loop for one back-edge latch -> header."""
-    blocks: set[BlockName] = {header, latch}
-    work: list[BlockName] = [latch]
-
-    while work:
-        node = work.pop()
-        for pred in preds.get(node, set()):
-            if pred not in executable or pred in blocks:
-                continue
-            blocks.add(pred)
-            if pred != header:
-                work.append(pred)
-
-    return blocks
-
-
-def _loop_defined_variables(
-    ssa: SSAFunction,
-    loop_blocks: set[BlockName],
-) -> frozenset[str]:
-    """Return variable names defined anywhere inside a loop."""
-    defs: set[str] = set()
-    for bn in loop_blocks:
-        ssa_block = ssa.blocks.get(bn)
-        if ssa_block is None:
-            continue
-        for phi in ssa_block.phis:
-            defs.add(phi.name)
-        for stmt in ssa_block.statements:
-            defs |= set(stmt.defs)
-    return frozenset(defs)
-
-
 @opt(
     code="O106",
     description="Hoist loop-invariant computations.",
@@ -861,33 +847,15 @@ def _find_loop_invariants(
     if not events_by_block:
         return []
 
-    preds = _cfg_predecessors(cfg, executable)
-
-    loop_blocks_by_header: dict[BlockName, set[BlockName]] = {}
-    latches_by_header: dict[BlockName, set[BlockName]] = {}
-
-    # A back edge is tail -> header where header dominates tail.
-    for tail in executable:
-        for succ in _cfg_successors(cfg, tail):
-            if succ not in executable:
-                continue
-            if not _dominates(ssa, succ, tail):
-                continue
-
-            loop_blocks = _natural_loop_blocks(succ, tail, preds, executable)
-            if succ in loop_blocks_by_header:
-                loop_blocks_by_header[succ].update(loop_blocks)
-            else:
-                loop_blocks_by_header[succ] = set(loop_blocks)
-            latches_by_header.setdefault(succ, set()).add(tail)
-
-    if not loop_blocks_by_header:
+    forest = build_loop_forest(cfg, ssa, executable)
+    if forest.is_empty():
         return []
 
     results: list[RedundantComputation] = []
 
-    for header, loop_blocks in loop_blocks_by_header.items():
-        latches = latches_by_header.get(header, set())
+    for loop in forest.loops:
+        loop_blocks = loop.blocks
+        latches = loop.latches
         if not latches:
             continue
 

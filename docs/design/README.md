@@ -19,6 +19,10 @@ rules for the KCS/documentation split live in
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference
   patterns for Tcl code importing (package require, sourcing).
+- [incremental-analysis-worker.md](incremental-analysis-worker.md) — the
+  persistent per-document analysis worker model: bounded pool + per-uri
+  single-writer lock for incremental edits, process pool + serialized
+  warm-start seed for the cold build.
 
 > Past project-tracking documents (perf reports, phase trackers,
 > migration plans) are kept in [`../archive/`](../archive/) and are
