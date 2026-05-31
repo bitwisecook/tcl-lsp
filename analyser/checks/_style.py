@@ -1820,7 +1820,9 @@ def check_mistyped_ipv4(
                 # char before that is a digit.
                 if text[m.start() - 1] == "." and m.start() >= 2 and text[m.start() - 2].isdigit():
                     _before_ok = True
-            _after_ok = m.end() + 1 < len(text) and text[m.end()] == "." and text[m.end() + 1].isdigit()
+            _after_ok = (
+                m.end() + 1 < len(text) and text[m.end()] == "." and text[m.end() + 1].isdigit()
+            )
             if _before_ok or _after_ok:
                 continue
 

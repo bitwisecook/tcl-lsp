@@ -56,9 +56,7 @@ class _AnalyserDiagIPMixin(_Base):
                 # the match: ``digit.<match>`` before or ``<match>.digit``
                 # after means the quad is a slice of a longer chain.
                 _before_dot_digit = (
-                    m.start() >= 2
-                    and val[m.start() - 1] == "."
-                    and val[m.start() - 2].isdigit()
+                    m.start() >= 2 and val[m.start() - 1] == "." and val[m.start() - 2].isdigit()
                 )
                 _after_dot_digit = (
                     m.end() + 1 <= len(val)
