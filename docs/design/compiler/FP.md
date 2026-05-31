@@ -3945,6 +3945,458 @@ user procs.
 
 ---
 
+### FP-OBJ-12 — W307 fires on `[<cmd-sub>] run` in a method body (D3-P3 / D4-F5)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_12_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P3, D4-F5
+
+#### Reproducer
+
+```tcl
+oo::class create C {
+    method m {} { [format notACommand] run }
+}
+```
+
+#### Per-line reasoning
+
+1. `oo::class create C { method m {} { ... } }` — defines a TclOO class with a method `m`.
+2. Inside `m`'s body, `[format notACommand]` is a command substitution that returns the literal string `"notACommand"` (no formatting directives).
+3. `[format notACommand] run` then dispatches the string `"notACommand"` as if it were a command — at runtime tclsh raises `invalid command name "notACommand"`.
+4. Pre-fix the W307 cmd-sub-as-command path blanket-suppressed every `[…] <subcmd>` inside a method body, on the assumption that any cmd-sub in a method might be returning an object handle.  D4-F5 closure removes the blanket: only `my`/`self` self-dispatch + a KNOWN OBJECT return type suppresses now.  `format` returns STRING, so W307 correctly fires.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% oo::class create C { method m {} { [format notACommand] run } }
+::C
+% [C new] m
+invalid command name "notACommand"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-12: W307 cmd-sub in method body fires when not known OBJECT return (D3-P3/D4-F5)
+regen: python -m bench.fp_snippets --id FP-OBJ-12
+function ::top
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='oo::class'  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-12`)
+
+The top-level `oo::class create` is the SSA entry; the analyser's class-extraction pass reads `C`'s method bodies separately and applies the W307 check to each dispatch site there.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` — the cmd-sub-as-command path no longer carries the `in_method` blanket suppression.  Only `my`/`self`-prefixed dispatches with a known OBJECT return type (via `known_classes`) get suppressed; everything else falls through to the standard W307 emission.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_12_format_in_method_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_12_known_class_new_in_method_silent` (TN control — `[D new]` is a known factory)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_format_in_method_fires`
+- `tests/test_ground_truth_tn_fn.py::test_TN_W307_known_class_new_in_method_silent`
+
+---
+
+### FP-OBJ-13 — W307 fires on `[my plain] run` where `plain` returns a literal (D3-P4)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_13_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P4
+
+#### Reproducer
+
+```tcl
+oo::class create C {
+    method plain {} { return notACommand }
+    method m {} { [my plain] run }
+}
+```
+
+#### Per-line reasoning
+
+1. `method plain {} { return notACommand }` — a method whose body is a single `return <literal>`.  The return value is provably the STRING `"notACommand"` (no cmd-sub, no var interpolation).
+2. `method m {} { [my plain] run }` — calls `my plain` (resolved to `C`'s `plain`), which returns the literal STRING.  Then attempts to dispatch `"notACommand" run`.
+3. Pre-fix the `[my <method>]` self-dispatch path conservatively typed the return as OBJECT (since methods often return objects), suppressing W307.  D3-P4 closure adds a lightweight method-body inspection: when the named method's body is a simple `return <literal>`, override the OBJECT heuristic and fire W307.
+4. Compound bodies (cmd-sub, variable interpolation, multi-statement) stay conservatively suppressed — the analysis can't prove the return type for them.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% oo::class create C {
+    method plain {} { return notACommand }
+    method m {} { [my plain] run }
+}
+::C
+% [C new] m
+invalid command name "notACommand"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-13: W307 [my plain] with literal-return method body fires (D3-P4)
+regen: python -m bench.fp_snippets --id FP-OBJ-13
+function ::top
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='oo::class'  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-13`)
+
+The class-extraction pass inspects `plain`'s body, detects the single-statement `return <literal>` shape, and uses that fact to override the self-dispatch OBJECT heuristic at the `[my plain]` callsite in `m`.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` — the `[my <method>]` self-dispatch suppression checks whether the resolved method's body is a single-statement `return <literal>` (no cmd-subs / variables); if so, the return is typed STRING and W307 fires.  Compound bodies stay suppressed via the conservative self-dispatch path.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_13_my_method_returns_literal_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_13_my_method_returns_object_silent` (TN control — compound body stays suppressed)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_my_method_returns_plain_literal`
+- `tests/test_ground_truth_tn_fn.py::test_TN_W307_my_method_returns_object_silent`
+
+---
+
+### FP-OBJ-14 — registered `::ns::cmd` with non-OBJECT return overrides the `::`-prefix factory heuristic (D3-P5 PARTIAL)
+
+- **Verdict:** TRUE POSITIVE (precision-gap PARTIAL closure — registry-coverage limited)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_14_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P5 (🔄 PARTIAL)
+
+#### Reproducer
+
+```tcl
+namespace eval ::pkg { proc plain {} { return notACommand } }
+proc f {} {
+    set x [::pkg::plain]
+    $x op
+}
+```
+
+#### Per-line reasoning
+
+1. `namespace eval ::pkg { proc plain {} { return notACommand } }` — defines a namespaced user proc whose body is a literal `return`.  The interprocedural fixpoint will mark `::pkg::plain` as object-returning=False (the return value is a plain string).
+2. `set x [::pkg::plain]` — `x` is the string `"notACommand"`.
+3. `$x op` — tries to dispatch the string as a command.  tclsh errors at runtime.
+4. Pre-fix the `[::ns::cmd]` form was always typed OBJECT by the `::`-prefix factory heuristic — the assumption being that most tcllib namespaced commands are object factories.  D4-F6 partial closure added the user-proc override: when `::ns::cmd` IS a known user proc and the fixpoint did NOT classify it as object-returning, the heuristic is overridden and W307 fires.
+5. D3-P5 closure separately added the registered-command path: a registered `::ns::cmd` (CommandSpec entry) with EXPLICIT non-OBJECT `return_type` (STRING/INT/LIST/etc.) also overrides the heuristic.  The data-coverage piece — adding `return_type` to tcllib factory specs — is tracked under D1-11 (registry spec coverage).
+
+This is **deliberately partial**: an unregistered external command like `[::pkg::plain]` with NO proc visible in the file AND no registry spec still suppresses W307.  Closing that needs the registry data work.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% namespace eval ::pkg { proc plain {} { return notACommand } }
+% set x [::pkg::plain]
+notACommand
+% $x op
+invalid command name "notACommand"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-14: W307 namespaced user proc with non-object return overrides factory heuristic (D3-P5 partial / D4-F6)
+regen: python -m bench.fp_snippets --id FP-OBJ-14
+function ::f
+  block entry_1
+    [0] AssignValue 'x' value='[::pkg::plain]'  defs={x#1}  uses={}
+    [1] Call cmd='${x}'  defs={}  uses={x#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-14`)
+
+`x#1` is assigned the cmd-sub value of `[::pkg::plain]`; the dispatch `${x}` at index 1 is the W307 site.  The user-proc-override path consults the interproc fixpoint, sees `::pkg::plain` is NOT object-returning, and lets W307 fire.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py:527-559` — `_is_object_returning_command_head` for `::`-prefixed names:
+
+1. If the qualified name is in `result.all_procs` (user proc), defer to the fixpoint (`object_returning_procs` membership).  The fixpoint classifies `::pkg::plain` as NOT object-returning, so this path returns `False` (override the heuristic, fire W307).
+2. Else lookup `REG_W307.get_any(cmd_head)` for a registered command spec; if `spec.return_type` is set and not `TclType.OBJECT`, return `False` (override).
+3. Else fall through to the conservative `True` (suppress) — the **deferred** case for unregistered external `::pkg::plain`-style commands.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_14_namespaced_user_proc_non_object_return_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_14_namespaced_known_object_factory_silent` (TN — known OBJECT-returning class command)
+- `tests/test_fp_obj.py::test_FP_OBJ_14_unregistered_external_namespaced_still_silent` (deferred-coverage TN — `::pkg::plain` with no proc or spec visible)
+
+---
+
+### FP-OBJ-15 — `[NotAClass new]` no longer suppressed; bare-name `new`-subcommand factory heuristic removed (D3-P6 / D4-F6)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_15_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P6, D4-F6
+
+#### Reproducer
+
+```tcl
+proc f {} { set x [NotAClass new]; $x method }
+```
+
+#### Per-line reasoning
+
+1. `[NotAClass new]` — tries to invoke a `new` subcommand of the bare name `NotAClass`.  If `NotAClass` is a registered TclOO class, this is the standard object-factory idiom that returns a new object handle.  If it isn't (typo, missing `package require`, etc.), tclsh errors `invalid command name "NotAClass"`.
+2. `$x method` — would dispatch on the handle.
+3. Pre-fix the analyser had a `new`-subcommand factory heuristic: any `[<Name> new]` was typed as OBJECT regardless of whether `<Name>` was a known class.  That silently suppressed W307 on typos.
+4. D4-F6 closure removes the heuristic: only KNOWN class names (in the `known_classes` table — `oo::class`/`itcl::class`/`snit::type`/etc. names) get the OBJECT typing.  `NotAClass` isn't known, so W307 fires.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { set x [NotAClass new]; $x method }
+% f
+invalid command name "NotAClass"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-15: W307 bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)
+regen: python -m bench.fp_snippets --id FP-OBJ-15
+function ::f
+  block entry_1
+    [0] AssignValue 'x' value='[NotAClass new]'  defs={x#1}  uses={}
+    [1] Call cmd='${x}'  defs={}  uses={x#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-15`)
+
+`x#1` is assigned the cmd-sub value of `[NotAClass new]`; the dispatch `${x}` at index 1 is the W307 site.  Without the bare-`new` heuristic, the analyser can't type `x` as OBJECT and emits W307.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` — `_is_object_returning_command_head` no longer treats `<bareName> new` as OBJECT-returning unconditionally.  Only `<bareName>` in `_oo_class_tails` / `_oo_class_qnames` (known TclOO classes) triggers the OBJECT typing.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_15_unknown_class_new_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_15_known_oo_class_new_silent` (TN control — `[C new]` where C IS an oo::class)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_unknown_class_new_does_not_suppress`
+- `tests/test_ground_truth_tn_fn.py::test_TN_W307_known_tclOO_class_new_silent`
+
+---
+
+### FP-OBJ-16 — composed `${ns}::tail` ensemble lookup runs unconditionally (D4-F7)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_16_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F7
+
+#### Reproducer
+
+```tcl
+namespace eval ::mypkg { proc dowork {arg} {} }
+proc f {} { set ns mypkg; ${ns}::dowork arg }
+```
+
+#### Per-line reasoning
+
+1. `namespace eval ::mypkg { proc dowork {arg} {} }` — defines `::mypkg::dowork`.
+2. `set ns mypkg` — SCCP proves `ns#1 = CONST('mypkg')`.
+3. `${ns}::dowork arg` — Tcl substitutes `$ns` to `mypkg`, composes `mypkg::dowork`, and dispatches.  At runtime: calls `::mypkg::dowork "arg"`, no error.
+4. Pre-fix the composed-name ensemble lookup (`${prefix}::tail` → look up `::mypkg::tail`) was gated on a source-offset scan that over-fired on some inputs and silently skipped others.  D4-F7 closure runs the composed lookup unconditionally for namespaced ensembles:
+   - known proc → override `sccp_says_not_a_command` to suppress
+   - all-unknown → set `sccp_says_not_a_command=True` (fire)
+   - mixed (some known, some not) → conservative
+5. Here the composed name resolves to a known proc, so W307 stays silent.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% namespace eval ::mypkg { proc dowork {arg} {} }
+% set ns mypkg
+mypkg
+% ${ns}::dowork arg
+%                       ;# no output, no error
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-16: W307 ${ns}::tail composed ensemble lookup runs unconditionally (D4-F7)
+regen: python -m bench.fp_snippets --id FP-OBJ-16
+function ::f
+  block entry_1
+    [0] AssignValue 'ns' value='mypkg'  defs={ns#1}  uses={}
+    [1] Call cmd='${ns}::dowork'  defs={}  uses={ns#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    ns#1: CONST('mypkg')
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-16`)
+
+`ns#1: CONST('mypkg')` is the load-bearing fact — the composed-name lookup uses this to assemble `mypkg::dowork` and resolves it to the known proc.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` — the composed-ensemble check assembles `<sccp-resolved prefix>::<tail>` for every `${prefix}::tail` dispatch and looks the result up in `all_procs` / `known_classes` / `REGISTRY`.  When the SCCP value is a single CONST and the resolution succeeds, the dispatch is reclassified as not-a-non-literal-command and W307 is suppressed.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_16_const_prefix_resolves_to_known_proc_silent` (FP)
+- `tests/test_fp_obj.py::test_FP_OBJ_16_const_prefix_unknown_proc_fires` (TP control — composed name doesn't resolve)
+- `tests/test_ground_truth_tn_fn.py::test_TN_namespaced_ensemble_resolved_known_proc`
+- `tests/test_ground_truth_tn_fn.py::test_TP_namespaced_ensemble_composed_unknown`
+
+---
+
+### FP-OBJ-17 — `array set state {-command notACommand}` literal-element harvester (D3-P7)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_17_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P7
+
+#### Reproducer
+
+```tcl
+proc f {} { array set state {-command notACommand}; $state(-command) hi }
+```
+
+#### Per-line reasoning
+
+1. `array set state {-command notACommand}` — initialises `state` as an array with the single element `state(-command) = "notACommand"`.
+2. `$state(-command) hi` — dispatches whatever string `state(-command)` holds.  Since it's `"notACommand"`, tclsh errors `invalid command "notACommand"`.
+3. Pre-fix the callback-key W307 heuristic suppressed dispatches through array elements with callback-shaped keys (keys ending in `-command`, `-callback`, `cb`, `handler`, etc.).  That suppression was correct when the value WAS a callback but wrong when the literal value is provably a non-command.
+4. D3-P7 closure: a new `array set` literal-element harvester walks the `{key value …}` literal list arg of `array set`, registers each pair as a CONSTSET keyed on `state(<key>)`, and feeds it to SCCP.  The W307 SCCP-evidence override then fires when the literal value isn't a known command.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { array set state {-command notACommand}; $state(-command) hi }
+% f
+invalid command name "notACommand"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-17: W307 array set literal-element harvester for callback array (D3-P7)
+regen: python -m bench.fp_snippets --id FP-OBJ-17
+function ::f
+  block entry_1
+    [0] Call cmd='array'  defs={state#1}  uses={}
+    [1] Call cmd='${state(-command)}'  defs={}  uses={state#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    state#1: OVERDEFINED
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-17`)
+
+The literal-element harvester runs alongside the SCCP pass; the per-key CONSTSET evidence is consulted by the W307 emitter (not by the per-name SCCP lattice rendered here).  `state(-command)` is registered as `"notACommand"` and the W307 check overrides the callback-key suppression.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` — the `array set <var> {key value …}` literal harvester runs at the call-site; for each `key value` pair, it records `var(key) -> CONST(value)` in the per-proc CONSTSET map.  The W307 check, before applying the callback-key suppression, consults the CONSTSET for the array-element place and overrides the suppression when the literal value isn't a known command.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_17_callback_array_holds_noncommand_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_17_callback_array_holds_known_command_silent` (TN control — value IS a known command)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_callback_array_holds_noncommand`
+- `tests/test_ground_truth_tn_fn.py::test_TN_W307_callback_array_holds_known_command`
+
+---
+
+### FP-OBJ-18 — `dict with` key-value pair harvester for interproc-propagated callback (D3-P8)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_18_*`
+- **Codes:** W307 (non-literal command name)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P8 (builds on D3-P2 / FP-DS-09)
+
+#### Reproducer
+
+```tcl
+proc f {d} { dict with d { $cmd hi } }
+f {cmd notACommand}
+```
+
+#### Per-line reasoning
+
+1. `proc f {d} { dict with d { $cmd hi } }` — callee unpacks `d` as locals and dispatches via `$cmd`.
+2. `f {cmd notACommand}` — caller passes the literal dict with key `cmd` and value `notACommand`.
+3. Interproc propagation (the FP-DS-09 / D3-P2 closure) puts `d#0 = CONST('cmd notACommand')` in the callee.
+4. `dict with d` unpacks `cmd = "notACommand"` as a local; `$cmd hi` then dispatches `"notACommand" hi`.  tclsh errors at runtime.
+5. D3-P8 closure builds on FP-DS-09: the dict-with key-value-pair harvester reads `d#0`'s SCCP CONST value, parses it as a Tcl list, and registers each `key→value` pair as a CONSTSET in the W307 evidence map.  The override then fires because `notACommand` isn't a known command.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {d} { dict with d { $cmd hi } }
+% f {cmd notACommand}
+invalid command name "notACommand"
+```
+
+#### Compiler evidence
+
+```
+--- FP-OBJ-18: W307 dict-with key-value pair harvester for interproc callback (D3-P8)
+regen: python -m bench.fp_snippets --id FP-OBJ-18
+function ::f
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='dict'  defs={d#1}  uses={cmd#0, d#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    cmd#0: OVERDEFINED
+    d#0: CONST('cmd notACommand')
+```
+(regen: `python -m bench.fp_snippets --id FP-OBJ-18`)
+
+`d#0: CONST('cmd notACommand')` is the load-bearing fact — interproc propagation from `f {cmd notACommand}` seeded the lattice.  The dict-with key-value harvester reads this, registers `cmd -> notACommand` as CONSTSET evidence, and the W307 check overrides the callback-shape suppression.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_diag_var_command.py` + `compiler/core_analyses.py` (the interproc literal-arg propagation from FP-DS-09) — the W307 emitter consults the per-key CONSTSET map populated by the dict-with key-value harvester; when the value for a callback-shaped local isn't a known command, the suppression is overridden.
+
+#### Tests
+
+- `tests/test_fp_obj.py::test_FP_OBJ_18_interproc_dict_with_noncommand_fires` (TP)
+- `tests/test_fp_obj.py::test_FP_OBJ_18_interproc_dict_with_known_command_silent` (TN control)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_interproc_dict_with_unpacks_non_command`
+- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_dict_with_unpacks_known_command_silent`
+- Cross-link: [FP-DS-09](#fp-ds-09) (the underlying interproc dict propagation).
+
+---
+
 
 ## RCH — reachability (O107)
 

@@ -604,3 +604,225 @@ def test_FP_W307_snit_typevariable_dispatch_silent():
         "}"
     )
     assert _codes(src, "W307") == [], "snit typevariable dispatch must NOT fire W307"
+
+
+# FP-OBJ-12 — W307 fires on [<cmd-sub>] run in a method body (D3-P3/D4-F5)
+
+
+FP_OBJ_12_REPRO = "oo::class create C {\n    method m {} { [format notACommand] run }\n}"
+
+
+def test_FP_OBJ_12_format_in_method_fires():
+    """TP: ``[format notACommand] run`` inside a method body must fire
+    W307.  D4-F5 closure removed the in-method blanket suppression;
+    only ``my``/``self`` self-dispatch + known OBJECT return-type
+    (known_classes) suppress now.  ``format`` returns STRING."""
+    assert _codes(FP_OBJ_12_REPRO, "W307"), (
+        "[format X] run inside a method body must fire W307 after D4-F5"
+    )
+
+
+def test_FP_OBJ_12_known_class_new_in_method_silent():
+    """TN control: ``[D new] run`` IS suppressed because D's
+    constructor return type is known OBJECT via the known_classes
+    table."""
+    src = (
+        "oo::class create D { method run {} { return ok } }\n"
+        "oo::class create C { method m {} { [D new] run } }\n"
+    )
+    assert _codes(src, "W307") == []
+
+
+# FP-OBJ-13 — W307 fires on [my plain] where plain returns literal (D3-P4)
+
+
+FP_OBJ_13_REPRO = (
+    "oo::class create C {\n"
+    "    method plain {} { return notACommand }\n"
+    "    method m {} { [my plain] run }\n"
+    "}"
+)
+
+
+def test_FP_OBJ_13_my_method_returns_literal_fires():
+    """TP: when ``[my plain]`` resolves to a method whose body is a
+    simple ``return <literal>`` (no cmd-sub, no var interpolation),
+    the return is provably STRING -- fire W307.  D3-P4 closure."""
+    assert _codes(FP_OBJ_13_REPRO, "W307"), (
+        "[my plain] returning literal must fire W307 after D3-P4 closure"
+    )
+
+
+def test_FP_OBJ_13_my_method_returns_object_silent():
+    """TN control: when ``[my obj]`` body returns ``[D new]`` (a
+    cmd-sub), the simple-literal-return check doesn't apply; the
+    conservative self-dispatch OBJECT suppression holds."""
+    src = (
+        "oo::class create D { method run {} { return ok } }\n"
+        "oo::class create C {\n"
+        "    method obj {} { return [D new] }\n"
+        "    method m {} { [my obj] run }\n"
+        "}"
+    )
+    assert _codes(src, "W307") == []
+
+
+# FP-OBJ-14 — registered ::ns::cmd / known user proc with non-OBJECT return overrides
+# the ::-prefix factory heuristic (D3-P5 PARTIAL / D4-F6)
+
+
+FP_OBJ_14_REPRO = (
+    "namespace eval ::pkg { proc plain {} { return notACommand } }\n"
+    "proc f {} {\n"
+    "    set x [::pkg::plain]\n"
+    "    $x op\n"
+    "}\n"
+)
+
+
+def test_FP_OBJ_14_namespaced_user_proc_non_object_return_fires():
+    """TP: ``::pkg::plain`` is a known user proc whose interproc
+    fixpoint result is NOT object-returning.  D4-F6 partial closure
+    overrides the ``::``-prefix factory heuristic for known user
+    procs; W307 fires on the dispatch."""
+    assert _codes(FP_OBJ_14_REPRO, "W307"), (
+        "namespaced user proc with plain-string return must fire W307 on dispatch"
+    )
+
+
+def test_FP_OBJ_14_namespaced_known_object_factory_silent():
+    """TN control: when ``::pkg::Tree`` IS a known TclOO class (in
+    known_classes), the ``[::pkg::Tree new]`` factory site IS typed
+    OBJECT and the dispatch stays suppressed."""
+    src = (
+        "oo::class create ::pkg::Tree {}\n"
+        "proc f {} {\n"
+        "    set x [::pkg::Tree new]\n"
+        "    $x op\n"
+        "}\n"
+    )
+    assert _codes(src, "W307") == []
+
+
+def test_FP_OBJ_14_unregistered_external_namespaced_still_silent():
+    """Deferred-coverage TN: an unregistered external ``::pkg::plain``
+    with NO proc visible AND no registry spec still suppresses W307.
+    Closing this needs registry data work (tracked under D1-11 spec
+    coverage; D3-P5 marked PARTIAL in the tracker)."""
+    src = (
+        "proc f {} {\n"
+        "    set x [::pkg::plain]\n"
+        "    $x op\n"
+        "}\n"
+    )
+    # The deferred-coverage suppression keeps W307 silent here.  If
+    # registry coverage closes the gap and this starts firing, this
+    # test should be flipped to assert _codes(...) != [] and the
+    # docstring updated.
+    assert _codes(src, "W307") == [], (
+        "unregistered external ``::pkg::plain`` still suppresses W307 -- "
+        "deferred until registry coverage lands (D1-11)"
+    )
+
+
+# FP-OBJ-15 — bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)
+
+
+FP_OBJ_15_REPRO = "proc f {} { set x [NotAClass new]; $x method }\n"
+
+
+def test_FP_OBJ_15_unknown_class_new_fires():
+    """TP: ``[NotAClass new]`` MUST fire W307 -- the analyser has no
+    evidence (registry / class definition) that NotAClass is an object
+    factory.  D4-F6 closure removed the bare-`new`-subcommand
+    heuristic that used to silently type the result as OBJECT."""
+    assert _codes(FP_OBJ_15_REPRO, "W307")
+
+
+def test_FP_OBJ_15_known_oo_class_new_silent():
+    """TN control: ``[C new]`` where C IS a known oo::class correctly
+    suppresses W307."""
+    src = (
+        "oo::class create C { method run {} { return ok } }\n"
+        "proc f {} { set x [C new]; $x run }\n"
+    )
+    assert _codes(src, "W307") == []
+
+
+# FP-OBJ-16 — composed ${ns}::tail ensemble lookup runs unconditionally (D4-F7)
+
+
+FP_OBJ_16_REPRO = (
+    "namespace eval ::mypkg { proc dowork {arg} {} }\n"
+    "proc f {} { set ns mypkg; ${ns}::dowork arg }\n"
+)
+
+
+def test_FP_OBJ_16_const_prefix_resolves_to_known_proc_silent():
+    """FP: when ``${ns}::dowork`` resolves (via SCCP CONST(ns='mypkg')
+    composed with the literal tail) to a known proc, W307 must NOT
+    fire.  D4-F7 closure runs the composed-name lookup unconditionally
+    for namespaced ensembles."""
+    assert _codes(FP_OBJ_16_REPRO, "W307") == [], (
+        "composed ${ns}::dowork must NOT fire W307 when ::mypkg::dowork is a known proc"
+    )
+
+
+def test_FP_OBJ_16_const_prefix_unknown_proc_fires():
+    """TP control: ``${ns}::unknownproc`` where the composed name has
+    NO known proc must still fire W307 -- a genuinely unresolvable
+    dynamic dispatch."""
+    src = "proc f {} { set ns mypkg; ${ns}::unknownproc arg }\n"
+    assert _codes(src, "W307"), (
+        "composed ${ns}::unknownproc must fire W307 when not resolvable"
+    )
+
+
+# FP-OBJ-17 — array set literal-element harvester for callback array (D3-P7)
+
+
+FP_OBJ_17_REPRO = (
+    "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n"
+)
+
+
+def test_FP_OBJ_17_callback_array_holds_noncommand_fires():
+    """TP: ``array set state {-command notACommand}; $state(-command) hi``
+    MUST fire W307 -- the literal element value is a non-command, so
+    the callback-key heuristic suppression is overridden by the
+    SCCP-CONST evidence (now harvested from ``array set`` literal
+    lists -- D3-P7 closure)."""
+    assert _codes(FP_OBJ_17_REPRO, "W307")
+
+
+def test_FP_OBJ_17_callback_array_holds_known_command_silent():
+    """TN control: ``array set state {-command puts}`` -- the literal
+    value IS a known command (``puts``), so W307 stays silent."""
+    src = "proc f {} { array set state {-command puts}; $state(-command) hi }\n"
+    assert _codes(src, "W307") == []
+
+
+# FP-OBJ-18 — dict-with key-value pair harvester for interproc callback (D3-P8)
+
+
+FP_OBJ_18_REPRO = (
+    "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n"
+)
+
+
+def test_FP_OBJ_18_interproc_dict_with_noncommand_fires():
+    """TP: ``proc f {d} { dict with d { $cmd hi } }`` called with
+    literal ``{cmd notACommand}``.  Interproc propagation puts the
+    literal dict in d at v0; the dict-with-key harvester registers
+    cmd -> notACommand as CONSTSET; the W307 SCCP-evidence override
+    fires (D3-P8 closure, built on D3-P2 / FP-DS-09)."""
+    assert _codes(FP_OBJ_18_REPRO, "W307"), (
+        "interproc-propagated callback non-command must fire W307"
+    )
+
+
+def test_FP_OBJ_18_interproc_dict_with_known_command_silent():
+    """TN control: same shape but the unpacked value IS a known
+    command (``puts``).  W307 must NOT fire."""
+    src = "proc f {d} { dict with d { $cmd hi } }\nf {cmd puts}\n"
+    assert _codes(src, "W307") == []

@@ -1993,6 +1993,201 @@ register(
 )
 
 
+register(
+    "FP-OBJ-12",
+    _Entry(
+        label="W307 cmd-sub in method body fires when not known OBJECT return (D3-P3/D4-F5)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "Pre-fix any ``[<cmd-sub>] run`` inside a method body was suppressed\n"
+            "by a blanket ``in_method`` flag.  D4-F5 closure removes the blanket;\n"
+            "now only `my`/`self` self-dispatch + KNOWN OBJECT return-type suppress.\n"
+            "``[format X] run`` in a method now correctly fires W307.\n"
+            "See analyser/checks/_obj.py (the cmd-sub-as-command path).\n"
+            "Method bodies analysed via class-extraction, not the SSA snapshot;\n"
+            "the bench shows the top-level ``oo::class create`` call."
+        ),
+        source=_dedent(
+            """
+            oo::class create C {
+                method m {} { [format notACommand] run }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-13",
+    _Entry(
+        label="W307 [my plain] with literal-return method body fires (D3-P4)",
+        proc="::top",
+        vars=(),
+        show=("ssa",),
+        notes=(
+            "D3-P4 closure: when ``[my <method>] <subcmd>`` resolves to a method\n"
+            "in the enclosing class whose body is a simple ``return <literal>``\n"
+            "(no cmd-sub, no var interpolation, single-statement), the return\n"
+            "value is provably a STRING -- not an object handle.  Override the\n"
+            "self-dispatch OBJECT heuristic and fire W307.  Compound bodies\n"
+            "(cmd-sub, vars, multi-stmt) stay conservatively suppressed."
+        ),
+        source=_dedent(
+            """
+            oo::class create C {
+                method plain {} { return notACommand }
+                method m {} { [my plain] run }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-14",
+    _Entry(
+        label="W307 namespaced user proc with non-object return overrides factory heuristic (D3-P5 partial / D4-F6)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa",),
+        notes=(
+            "PARTIAL closure for D3-P5.  Pre-fix any ``[::pkg::cmd]`` was treated\n"
+            "as an object factory by virtue of the ``::``-prefix heuristic.  Two\n"
+            "overrides are now wired:\n"
+            "  (a) Registered ``::ns::cmd`` with EXPLICIT non-OBJECT\n"
+            "      ``return_type`` overrides the heuristic.  (Data-bound -- few\n"
+            "      tcllib commands have return_type set yet; tracked under\n"
+            "      D1-11 spec coverage.)\n"
+            "  (b) User-defined namespaced procs whose fixpoint result is NOT\n"
+            "      object-returning override the heuristic too.  This catches\n"
+            "      the bulk of the closure (D4-F6 partial path).\n"
+            "Unregistered external ``::pkg::plain`` (no proc, no registry spec)\n"
+            "still suppresses W307 -- the analyser has no evidence either way."
+        ),
+        source=_dedent(
+            """
+            namespace eval ::pkg { proc plain {} { return notACommand } }
+            proc f {} {
+                set x [::pkg::plain]
+                $x op
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-15",
+    _Entry(
+        label="W307 bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)",
+        proc="::f",
+        vars=("x",),
+        show=("ssa",),
+        notes=(
+            "Pre-fix any ``[<Name> new]`` was treated as an object factory\n"
+            "(bare-`new`-subcommand heuristic), so a typo like ``NotAClass``\n"
+            "was silently typed OBJECT and the subsequent dispatch suppressed.\n"
+            "D4-F6 closure removes the bare-`new` heuristic: only KNOWN\n"
+            "oo::class / itcl::class / snit::type / etc. names (in the\n"
+            "``known_classes`` table) get the OBJECT return type.\n"
+            "Unknown names like ``NotAClass`` no longer suppress W307."
+        ),
+        source=_dedent(
+            """
+            proc f {} { set x [NotAClass new]; $x method }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-16",
+    _Entry(
+        label="W307 ${ns}::tail composed ensemble lookup runs unconditionally (D4-F7)",
+        proc="::f",
+        vars=("ns",),
+        show=("ssa", "values"),
+        notes=(
+            "Pre-fix the composed-name ensemble check (``${prefix}::tail`` ->\n"
+            "look up ``::mypkg::tail``) was gated on a source-offset scan\n"
+            "that over-fired on some inputs and silently skipped others.\n"
+            "D4-F7 closure runs the composed lookup unconditionally for\n"
+            "namespaced ensembles:\n"
+            "  - known proc -> override ``sccp_says_not_a_command`` to suppress\n"
+            "  - all-unknown -> set ``sccp_says_not_a_command=True`` (fire)\n"
+            "  - mixed (some known, some not) -> conservative.\n"
+            "When ``${ns}::dowork`` resolves to a CONST prefix + known\n"
+            "``::mypkg::dowork`` proc, W307 stays silent."
+        ),
+        source=_dedent(
+            """
+            namespace eval ::mypkg { proc dowork {arg} {} }
+            proc f {} { set ns mypkg; ${ns}::dowork arg }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-17",
+    _Entry(
+        label="W307 array set literal-element harvester for callback array (D3-P7)",
+        proc="::f",
+        vars=("state",),
+        show=("ssa", "values"),
+        notes=(
+            "Pre-fix ``array set state {-command notACommand}; $state(-command)\n"
+            "hi`` was suppressed by the callback-key heuristic (-command sounds\n"
+            "like a callback slot, so dispatch through ``$state(-command)``\n"
+            "stayed silent).  D3-P7 closure: a new ``array set`` literal-element\n"
+            "harvester walks the {key value} pairs of the literal arg list and\n"
+            "feeds them to SCCP as CONSTSET evidence keyed on ``state(<key>)``.\n"
+            "The W307 SCCP-evidence override fires when the literal value isn't\n"
+            "a known command (here ``notACommand``)."
+        ),
+        source=_dedent(
+            """
+            proc f {} { array set state {-command notACommand}; $state(-command) hi }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OBJ-18",
+    _Entry(
+        label="W307 dict-with key-value pair harvester for interproc callback (D3-P8)",
+        proc="::f",
+        vars=("d", "cmd"),
+        show=("ssa", "values"),
+        notes=(
+            "D3-P8 closure builds on FP-DS-09 interproc literal-dict propagation.\n"
+            "Caller passes literal ``{cmd notACommand}``; interproc puts it in\n"
+            "d at v0; the dict-with-key harvester reads d's SCCP CONST value\n"
+            "and registers each key->value pair as a CONSTSET in the\n"
+            "_emit_var_command_diagnostics map.  The W307 check then sees\n"
+            "``cmd -> notACommand`` and fires (notACommand isn't a known\n"
+            "command).\n"
+            "Cross-link: FP-DS-09 (the underlying interproc dict propagation)."
+        ),
+        source=_dedent(
+            """
+            proc f {d} { dict with d { $cmd hi } }
+            f {cmd notACommand}
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # OPT family (01..04) -- optimisation quick-fix correctness
 # ----------------------------------------------------------------------
