@@ -22,13 +22,13 @@ Verified against current HEAD in `tests/test_fp_*` + `tests/test_ground_truth_tn
 
 | ID | Finding | Status | Closure |
 |---|---|---|---|
-| D1-1 | W307 object/callback suppression still mostly shape-based | 🔄 PARTIAL | F4 closure removed `in_method` blanket for `$var cmd`; cmd-sub-as-command path still in-method-suppressed (= D4-F5). |
+| D1-1 | W307 object/callback suppression still mostly shape-based | ✅ FIXED (mostly) | F4 (variable-command path) + D4-F5 (cmd-sub-as-command path) both lost the `in_method` blanket; D4-F4 tightened W214 dispatcher to arity; D4-F6 removed `new`-subcommand factory heuristic; D3-P7 added `array set` literal-element evidence to override callback-key suppression.  Architectural follow-up (D3-P5, full provenance via registry) deferred. |
 | D1-2 | `_CMD_SUB_RE` regex parsing of Tcl cmd-subs | ✅ ALREADY FIXED | commit `8fd84304` replaced with `parse_command_substitution` |
 | D1-3 | `parse_command_substitution` uses `.split()` | ✅ ALREADY FIXED | commit `8fd84304` uses `segment_commands` |
 | D1-4 | regexp/scan output vars need CFG/SSA conditional defs | 🔄 PARTIAL | F2 closure handles same-statement and embedded-condition cases; full CFG conditional-def model deferred (D4-F3 covers the dict-with return path). |
 | D1-5 | Python `re` regexp estimator not conservative | ✅ FIXED | commit `569eaf84` (F5 closure: option-aware estimator, conservative bail) |
 | D1-6 | Proc arg traits need caller-frame vs callee-local | ✅ FIXED | DYNAMIC_NAME_LOCAL trait + per-handler integration verified |
-| D1-7 | W214 dispatch-protocol evidence too broad | 🔄 PARTIAL | Namespace-scoped now; still over-suppresses peers when an unrelated `$cmd` exists in the same namespace (= D4-F4 / D3-P9). |
+| D1-7 | W214 dispatch-protocol evidence too broad | ✅ FIXED | D4-F4 closure tightens the heuristic to require arity-compatible dispatcher; unrelated 1-arg `$cmd x` no longer suppresses 2-arg peer family. |
 | D1-8 | W304 uses lexical last-set scan | ✅ ALREADY FIXED | Earlier follow-up wave |
 | D1-9 | Optimiser regex `\$(\w+)` for var scan | ✅ ALREADY FIXED | Replaced with `VarReferenceScanner` |
 | D1-10 | Place / var-ref command-walking duplicated | 📋 DEFERRED | Architectural refactor — shared service required |
@@ -59,7 +59,7 @@ Tclsh-verified positive/negative pairs.
 
 | ID | Pair | FN status | TN status | Closure target |
 |---|---|---|---|---|
-| D3-P1 | empty `dict with` + `return $missing` | ⬜ TODO (FN) | ✅ already silent | D4-F3: extend key-aware logic to return path |
+| D3-P1 | empty `dict with` + `return $missing` | ✅ FIXED | ✅ silent | Via D4-F3 (key-aware dict-with on return path) |
 | D3-P2 | call-site literal dict not used interproc | ⬜ TODO (FN) | ✅ already silent | Interproc dict propagation |
 | D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) |
 | D3-P4 | `[my plain] run` where plain returns string | 📋 DEFERRED | Requires `my`/`self` method-return-type resolution -- noisy without it (TclOO chained-call idiom is the norm) |
@@ -75,9 +75,9 @@ Tclsh-verified positive/negative pairs.
 
 | ID | Finding | Status | Closure |
 |---|---|---|---|
-| D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | 🔄 IN-PROGRESS | Fix in `compiler/scan_format.py` started |
+| D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | ✅ FIXED | `%n` mapped to new `"always"` kind; float predicate accepts `Inf`/`Infinity`/`NaN`; format-whitespace extended to `\r\f\v`; conservative bail on backslash/$/[ in raw source text (analyser sees pre-escape source) |
 | D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ✅ FIXED | Dynamic `arg_role_resolver` per command -- no more finite slot budget |
-| D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ⬜ TODO | Apply key-aware logic to CFGReturn path |
+| D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ✅ FIXED | Mirrored key-aware logic from statement-use path to the CFGReturn arm of `_read_before_set` |
 | D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ✅ FIXED | Extended var_command_sites to record positional arg count; protocol match now requires arity-compatible dispatcher (1-arg `$cmd x` no longer suppresses 2-arg peer family) |
 | D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ✅ FIXED | Removed blanket `in_method` suppression for cmd-sub-as-command; only `my`/`self` self-dispatch + KNOWN OBJECT return-type now suppress |
 | D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | 🔄 PARTIAL | `new`-subcommand heuristic removed; `::`-prefix heuristic kept for tcllib corpus compat but downgraded -- user procs with non-object-returning fixpoint result override.  D3-P5 (unknown external `::pkg::plain`) still suppressed pending registry coverage of tcllib factory commands. |
