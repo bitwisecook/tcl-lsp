@@ -575,6 +575,58 @@ def test_FP_OPT_12_tcloo_impure_method_rhs_preserved():
     assert not o126s, f"impure-method RHS must NOT fire O126; got {o126s}"
 
 
+def test_FP_OPT_12_class_level_instance_var_write_not_deleted():
+    """SF-2 soundness: a method that writes a *class-level* ``variable``
+    mutates object state that survives the call, so ``set unused [my bump]``
+    must NOT be deleted even though ``set counter ...`` looks like a plain
+    local write.  Deleting it would skip the increment — a behaviour
+    change."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method bump {} { set counter [expr {$counter + 1}]; return $counter }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "instance-var-mutating method must not be treated as pure"
+    )
+
+
+def test_FP_OPT_12_method_local_instance_var_write_not_deleted():
+    """SF-2 soundness: same guarantee when the instance var is declared
+    method-locally via ``variable counter`` inside the method body."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method bump {} { variable counter; set counter 5; return $counter }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"]
+
+
+def test_FP_OPT_12_instance_var_read_only_method_deleted():
+    """SF-2 precision: a method that only *reads* an instance var (no write)
+    is still pure — its discarded result is safe to delete."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method get {} { return $counter }\n"
+        "    method m {} { set unused [my get]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert [r for r in rewrites if r.code == "O126"], "read-only instance-var method should fold"
+
+
 def test_FP_OPT_12_nested_proc_in_method_body_not_lifted():
     """SF-2 codegen safety: a ``proc`` defined *inside* a method body is
     created at method-call time, not at class definition — so it must NOT

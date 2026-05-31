@@ -1278,10 +1278,27 @@ def analyse_interprocedural_ir(
                 ssa=m_ssa,
                 analysis=m_analysis,
             )
+            # Instance-variable writes mutate object state and survive the
+            # method call — so a method that writes any in-scope instance var
+            # is impure even though the write looks like a plain local
+            # ``set`` (sound: never deletes a state-changing self-dispatch).
+            written_ivars: set[str] = set()
+            if ir_method.instance_vars:
+                for block in m_cfg.blocks.values():
+                    for stmt in block.statements:
+                        if isinstance(stmt, IRCall):
+                            for d in stmt.defs:
+                                if d in ir_method.instance_vars:
+                                    written_ivars.add(d)
+                        else:
+                            nm = getattr(stmt, "name", None)
+                            if isinstance(nm, str) and nm in ir_method.instance_vars:
+                                written_ivars.add(nm)
             m_pure_base = (
                 not m_local.has_barrier
                 and not m_local.has_unknown_calls
                 and not m_local.writes_global
+                and not written_ivars
                 and m_local.local_effect_writes == EffectRegion.NONE
             )
             m_pure = m_pure_base and all(pure.get(callee, False) for callee in m_local.calls)
@@ -1308,6 +1325,7 @@ def analyse_interprocedural_ir(
                 can_fold_static_calls=False,
                 class_name=ir_method.class_name,
                 method_kind=ir_method.kind,
+                writes_instance_vars=frozenset(written_ivars),
             )
 
     return InterproceduralAnalysis(procedures=summaries, methods=method_summaries)

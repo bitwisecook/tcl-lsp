@@ -2630,6 +2630,17 @@ class _Lowerer:
         except TclParseError:
             return
 
+        # Class-level instance-variable declarations (``variable a b ...``
+        # in the class body) are auto-linked into every method, so a method
+        # that writes one of these mutates object state.  Collect the literal
+        # names up front (dynamic names are skipped — conservative).
+        class_ivars: set[str] = set()
+        for seg in segments:
+            if not seg.is_partial and len(seg.texts) >= 2 and seg.texts[0] == "variable":
+                for nm in seg.texts[1:]:
+                    if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
+                        class_ivars.add(nm)
+
         for seg in segments:
             if seg.is_partial or not seg.texts:
                 continue
@@ -2670,6 +2681,19 @@ class _Lowerer:
                 self._suppress_proc_register = prev_suppress
                 self._const_map_stack.pop()
                 self._proc_depth -= 1
+            # Instance vars in scope: class-level decls plus this method's
+            # own top-level ``variable`` declarations.  A write to any of
+            # these mutates object state (impure for O126).
+            method_ivars = set(class_ivars)
+            for st in body_script.statements:
+                if (
+                    isinstance(st, IRCall)
+                    and (st.command == "variable" or st.canonical_command == "::variable")
+                    and st.args
+                ):
+                    for nm in st.args:
+                        if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
+                            method_ivars.add(nm)
             method_qname = f"{class_qname}::{name}"
             # First definition wins (matches proc registration); a later
             # redefinition of the same method is left to runtime.
@@ -2682,6 +2706,7 @@ class _Lowerer:
                     body=body_script,
                     kind=kind,
                     range=seg.range,
+                    instance_vars=frozenset(method_ivars),
                 ),
             )
 

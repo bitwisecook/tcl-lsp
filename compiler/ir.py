@@ -452,6 +452,12 @@ class IRMethodDef:
     body: IRScript
     kind: str = "method"  # "method" | "classmethod" | "constructor" | "destructor"
     range: Range | None = None
+    # Instance-variable names in scope for this method (class-level
+    # ``variable`` declarations + the method's own ``variable`` decls).  A
+    # method that *writes* any of these mutates object state and is therefore
+    # impure for O126 purposes, even though the write looks like a plain local
+    # ``set``.  Used by interprocedural method-purity (SF-2).
+    instance_vars: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
