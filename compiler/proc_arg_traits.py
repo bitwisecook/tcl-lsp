@@ -665,15 +665,29 @@ def _handle_variadic_var_write(
     traits: dict[str, set[ProcArgTrait]],
     start: int,
 ) -> None:
-    """Mark all args from *start* onwards as VAR_WRITE if they reference params.
+    """Mark all args from *start* onwards as DYNAMIC_NAME_LOCAL if they
+    reference params.
 
     Used for commands like ``scan`` (start=2) and ``lassign`` (start=1)
-    where trailing arguments are variable names written by the command.
+    where trailing arguments name CALLEE-LOCAL variables the command
+    writes.  These writes happen in the callee's own frame -- they do
+    NOT consume / alias the caller's variable unless the callee has
+    set up an explicit ``upvar`` (which the ``_scan_commands`` path
+    detects separately and emits as VAR_WRITE on the upvar-alias
+    target, not the dynamic-name param).
+
+    PR #498 / PR #499 deep-review follow-up finding 6: previously this
+    handler emitted ``VAR_WRITE`` which the call-site call-by-name
+    suppression treated as caller-frame consumption, falsely silencing
+    O109/W211/W220 on the caller's literal arg.  Emitting
+    ``DYNAMIC_NAME_LOCAL`` (the same trait the generic registry path
+    emits for the same shape) makes the suppression honour the
+    callee-local distinction.
     """
     for arg in args[start:]:
         vn = _extract_var_name(arg)
         if vn and vn in param_set:
-            traits[vn].add(ProcArgTrait.VAR_WRITE)
+            traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
 
 
 # Options that regexp/regsub accept before the positional arguments.
@@ -725,11 +739,18 @@ def _handle_regsub_var(
     param_set: set[str],
     traits: dict[str, set[ProcArgTrait]],
 ) -> None:
-    """Process ``regsub ?switches? exp string subSpec ?varName?``."""
+    """Process ``regsub ?switches? exp string subSpec ?varName?``.
+
+    The output ``varName`` is a CALLEE-LOCAL variable (the substitution
+    result is written into the caller's frame only when ``upvar`` is
+    in play, which the upvar-alias path tracks separately).  Emit
+    ``DYNAMIC_NAME_LOCAL`` -- see ``_handle_variadic_var_write`` for
+    the full rationale (PR #498 / PR #499 deep-review finding 6).
+    """
     pos = _skip_regexp_switches(args)
     # positional: exp(pos), string(pos+1), subSpec(pos+2), varName(pos+3)
     var_idx = pos + 3
     if var_idx < len(args):
         vn = _extract_var_name(args[var_idx])
         if vn and vn in param_set:
-            traits[vn].add(ProcArgTrait.VAR_WRITE)
+            traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)

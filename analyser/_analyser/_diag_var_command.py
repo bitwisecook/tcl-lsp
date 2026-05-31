@@ -377,6 +377,33 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 return True
             return False
 
+        # Set of qualified TclOO class names + their bare-tail aliases
+        # for object-factory recognition.
+        _oo_class_qnames = set(self.result.all_classes.keys())
+        _oo_class_tails = {qn.rsplit("::", 1)[-1] for qn in _oo_class_qnames if "::" in qn}
+
+        def _is_object_returning_command_head(cmd_head: str) -> bool:
+            """Return True iff *cmd_head* is a command whose value-returning
+            invocation produces an object handle.
+
+            Recognises:
+            * Namespaced commands (``::ns::cmd``) -- the documented
+              tcllib / TclOO factory convention.
+            * Known TclOO class commands (``C new``, ``C create %AUTO%``)
+              -- the class command is registered globally and its return
+              value is the instance command name.  Finding 8 of the
+              PR #498 / PR #499 follow-up.
+
+            User procs are intentionally excluded here: they go through
+            the fixpoint (only added to factory locals if all their
+            returns are themselves object-returning).
+            """
+            if "::" in cmd_head:
+                return True
+            if cmd_head in _oo_class_tails or f"::{cmd_head}" in _oo_class_qnames:
+                return True
+            return False
+
         factory_locals_by_proc: dict[str, set[str]] = {}
         return_var_by_proc: dict[str, str | None] = {}
         for qname, fu_unit in _all_fus:
@@ -385,7 +412,9 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 for stmt in block.statements:
                     if isinstance(stmt, IRAssignValue) and stmt.name:
                         parsed = parse_command_substitution(stmt.value)
-                        if parsed is not None and "::" in parsed[0]:
+                        if parsed is not None and _is_object_returning_command_head(
+                            parsed[0]
+                        ):
                             # G3: defer to fixpoint when the head is a
                             # user proc -- only add as factory local if
                             # the user proc is later proven object-
@@ -426,7 +455,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
             if return_values and all(
                 (
                     (parsed := parse_command_substitution(rv.strip())) is not None
-                    and "::" in parsed[0]
+                    and _is_object_returning_command_head(parsed[0])
                 )
                 for rv in return_values
             ):
@@ -885,6 +914,15 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     is_proc_param_dispatcher = False
                     is_switch_callback_element = False
                     is_namespaced_ensemble = False
+                    # SCCP CONST evidence also overrides the soft
+                    # ``in_method`` / ``in_dict_with`` gates -- a TclOO
+                    # method body or ``dict with`` scope is NOT by itself
+                    # evidence the var holds an object handle.  When
+                    # SCCP knows the value is a non-command literal,
+                    # W307 must fire even inside those scopes.
+                    # (Findings 3+4 of the PR #498/PR #499 follow-up.)
+                    in_method = False
+                    in_dict_with = False
 
                 if (
                     not in_method
