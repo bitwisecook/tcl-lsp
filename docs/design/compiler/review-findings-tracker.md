@@ -43,11 +43,11 @@ Verified by running `optimise_source()` and comparing tclsh stdout/stderr.
 
 | ID | Finding | Status | Closure |
 |---|---|---|---|
-| D2-O126 | O126 deletes RHS with side effects (e.g. `set unused [puts side]`) | ✅ FIXED | Purity gate via `_assignment_safe_to_delete` consuming `classify_side_effects` |
-| D2-O100 | O100 propagates stale constants across `[append x b]` / `[set x b]` / `[incr x]` cmd-sub writes | ✅ FIXED | `kill_sites` now includes `statement_cmd_sub_write_names` for every statement |
-| D2-O109 | O109 dead-store decisions miss cmd-sub read-own-def → wrong DCE | ✅ FIXED | Same purity gate on RHS + cmd-sub-write kill_sites |
-| D2-O127 | O127 load-forwarding participates in stale-fact combinations | ✅ FIXED | Resolved as side effect of O100/O109 kill_sites extension |
-| **D2-O126-FU** | Extend `_assignment_safe_to_delete` to consume interprocedural purity summaries so pure user-proc RHS can also be folded to deletion. | ✅ FIXED | `optimise_elimination_passes` now builds `interproc_pure` (qnames with `summary.pure==True`) and threads it through `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete`.  Pure user-proc cmd-subs are now allowed; impure ones (puts, file I/O, etc.) still refuse.  TclOO `method` purity (`ClassDef.method_purity`) NOT yet wired (the method-call path goes through `IRCall my <method>` which classify_side_effects treats as impure — a follow-up TODO if needed). |
+| D2-O126 | O126 deletes RHS with side effects (e.g. `set unused [puts side]`) | ✅ FIXED | Purity gate via `_assignment_safe_to_delete` consuming `classify_side_effects` · [FP-OPT-05](FP.md#fp-opt-05) |
+| D2-O100 | O100 propagates stale constants across `[append x b]` / `[set x b]` / `[incr x]` cmd-sub writes | ✅ FIXED | `kill_sites` now includes `statement_cmd_sub_write_names` for every statement · [FP-OPT-06](FP.md#fp-opt-06) |
+| D2-O109 | O109 dead-store decisions miss cmd-sub read-own-def → wrong DCE | ✅ FIXED | Same purity gate on RHS + cmd-sub-write kill_sites · [FP-OPT-06](FP.md#fp-opt-06) |
+| D2-O127 | O127 load-forwarding participates in stale-fact combinations | ✅ FIXED | Resolved as side effect of O100/O109 kill_sites extension · [FP-OPT-06](FP.md#fp-opt-06) |
+| **D2-O126-FU** | Extend `_assignment_safe_to_delete` to consume interprocedural purity summaries so pure user-proc RHS can also be folded to deletion. | ✅ FIXED | `optimise_elimination_passes` now builds `interproc_pure` (qnames with `summary.pure==True`) and threads it through `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete`.  Pure user-proc cmd-subs are now allowed; impure ones (puts, file I/O, etc.) still refuse.  TclOO `method` purity (`ClassDef.method_purity`) NOT yet wired (the method-call path goes through `IRCall my <method>` which classify_side_effects treats as impure — a follow-up TODO if needed). · [FP-OPT-07](FP.md#fp-opt-07) |
 
 All four have ONE shared root cause: command-substitution writes are not modelled as SSA kills.
 
@@ -84,7 +84,7 @@ Tclsh-verified positive/negative pairs.
 | D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative |
 | D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ✅ FIXED | Added whitespace-split fallback alongside the regex so proc names with non-`\w` chars (`do-work`, `+`, ...) aren't silently dropped |
 | D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ✅ FIXED | New `_scan_namespaced_cmds_in_text` uses lexer + segmenter to find namespaced cmd-subs; recurses into args; falls back to regex only on unparseable input |
-| D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ✅ FIXED | Replaced `split(None, 2)` with `segment_commands(text)` + `normalise_var_name`; also fixed O112-replacement var scanner to descend into BODY/EXPR script-role args (was missing `$b` in `if {$b} {...}`) |
+| D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ✅ FIXED | Replaced `split(None, 2)` with `segment_commands(text)` + `normalise_var_name`; also fixed O112-replacement var scanner to descend into BODY/EXPR script-role args (was missing `$b` in `if {$b} {...}`) · [FP-OPT-08](FP.md#fp-opt-08) |
 | D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) · [FP-NAB-12](FP.md#fp-nab-12) |
 
 ---

@@ -186,3 +186,152 @@ proc f {} {
     # Either O109 (dead store) or W220 (assignment never read) should fire.
     diags = _codes(src, ["O109", "W220"])
     assert diags, f"genuine dead store must still fire; got {get_diagnostics(src)}"
+
+
+# FP-OPT-05 — O126 must NOT delete a side-effectful RHS (D2-O126)
+
+
+FP_OPT_05_REPRO = "proc f {} { set unused [puts side]; puts done }"
+
+
+def test_FP_OPT_05_o126_preserves_puts_side_effect():
+    """TP / soundness: ``set unused [puts side]`` -- the assignment IS
+    unused but the RHS prints to stdout.  Deleting it changes program
+    output.  D2-O126 closure adds a purity gate via
+    ``_assignment_safe_to_delete`` consuming
+    ``_word_has_observable_side_effect`` (compiler/optimiser/_elimination.py).
+    O126 must NOT fire here.
+
+    tclsh ground truth: orig prints ``side\\ndone``; pre-fix optimised
+    version printed only ``done``."""
+    from compiler.optimiser import optimise_source
+
+    _, rewrites = optimise_source(FP_OPT_05_REPRO)
+    codes = [r.code for r in rewrites]
+    assert "O126" not in codes, (
+        f"O126 must NOT delete a [puts X] RHS (would lose side effect); got codes {codes}"
+    )
+
+
+def test_FP_OPT_05_o126_pure_rhs_still_fires():
+    """TP control: when the RHS is a pure command (``[list 1 2 3]``),
+    O126 SHOULD still fire.  Confirms the purity gate didn't disable
+    the optimisation entirely."""
+    from compiler.optimiser import optimise_source
+
+    src = "proc f {} { set unused [list 1 2 3]; puts done }"
+    _, rewrites = optimise_source(src)
+    codes = [r.code for r in rewrites]
+    assert "O126" in codes, f"O126 must fire when RHS is pure (list); got codes {codes}"
+
+
+# FP-OPT-06 — cmd-sub writes are SSA kills (D2-O100; root cause for O100/O109/O127)
+
+
+FP_OPT_06_REPRO = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }"
+
+
+def test_FP_OPT_06_o100_does_not_propagate_past_cmd_sub_write():
+    """TP / soundness: ``[append x b]`` mutates x.  The optimiser must
+    NOT propagate the stale ``a`` value into a subsequent ``puts $x``.
+    D2-O100 closure: every statement's kill_sites now includes
+    ``statement_cmd_sub_write_names(stmt)`` (compiler/optimiser/_manager.py).
+
+    tclsh ground truth: tclsh prints ``ab\\nab\\n``; pre-fix optimised
+    source printed ``a\\nb\\n``."""
+    from compiler.optimiser import optimise_source
+
+    opt_src, _ = optimise_source(FP_OPT_06_REPRO)
+    # The propagation that would rewrite ``puts $x`` to ``puts a`` is
+    # unsound; the optimised source must NOT contain ``puts a`` (literal).
+    assert "puts a" not in opt_src, (
+        f"O100 must NOT propagate stale value past [append x b]; got: {opt_src.strip()}"
+    )
+
+
+# FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
+
+
+FP_OPT_07_REPRO = (
+    "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }"
+)
+
+
+def test_FP_OPT_07_pure_user_proc_rhs_is_deleted():
+    """TP: when the RHS is a user proc the interproc fixpoint marks as
+    pure (``add`` is arithmetic-only), O126 CAN safely delete the
+    unused assignment.  D2-O126-FU closure threads ``interproc_pure``
+    through the purity gate (compiler/optimiser/_elimination.py
+    ``optimise_elimination_passes``)."""
+    from compiler.optimiser import optimise_source
+
+    _, rewrites = optimise_source(FP_OPT_07_REPRO)
+    assert "O126" in [r.code for r in rewrites], (
+        "pure user-proc RHS must allow O126 deletion"
+    )
+
+
+def test_FP_OPT_07_impure_user_proc_rhs_preserved():
+    """TN control: when the user proc contains observable side effects
+    (``puts``), interproc summary correctly marks it impure and the
+    purity gate refuses O126."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "proc shout {x} { puts $x; expr {$x + 1} }\n"
+        "proc f {} { set unused [shout 1]; puts done }"
+    )
+    _, rewrites = optimise_source(src)
+    assert "O126" not in [r.code for r in rewrites], (
+        "impure user-proc RHS must NOT be deleted by O126 (loses side effect)"
+    )
+
+
+# FP-OPT-08 — O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)
+
+
+FP_OPT_08_REPRO = """\
+proc f {} {
+    set a 1
+    set b 0
+    if {$a} {
+        if {$b} { puts X }
+    }
+}
+"""
+
+
+def test_FP_OPT_08_nested_if_constant_chain_does_not_delete_inner_var():
+    """TP / soundness: when the O112 chain (``if {$a}`` -> ``if {$b}
+    {puts X}``) is being staged, the overlap filter MUST NOT delete
+    ``set b 0`` -- the surviving inner ``if {$b} {...}`` still uses
+    $b.  D4-F10 closure (a) replaced ``split(None, 2)`` with
+    ``segment_commands`` for LHS extraction and (b) added EXPR/BODY
+    descent to the var-reference scanner so it sees ``$b`` inside the
+    inner if-condition."""
+    from compiler.optimiser import optimise_source
+
+    opt_src, _ = optimise_source(FP_OPT_08_REPRO)
+    # After optimisation, if any surviving statement references $b,
+    # the corresponding set b 0 must still be present.
+    if "$b" in opt_src:
+        assert "set b 0" in opt_src or "set b {0}" in opt_src, (
+            f"O109/O126 must not delete 'set b 0' when $b survives in EXPR-role context.  "
+            f"Got optimised source: {opt_src!r}"
+        )
+
+
+def test_FP_OPT_08_unrelated_set_still_eligible_for_o126():
+    """TN control: when no surviving replacement references the var,
+    the overlap filter does NOT block O126 deletion (i.e. the
+    pre-existing optimisation path still works)."""
+    from compiler.optimiser import optimise_source
+
+    src = "proc f {} { set unused 42; puts done }"
+    _, rewrites = optimise_source(src)
+    codes = [r.code for r in rewrites]
+    # ``set unused 42`` has a pure constant RHS and isn't referenced
+    # anywhere else -- O126 should fire.
+    assert "O126" in codes, (
+        f"unreferenced 'set unused 42' must still be eligible for O126; got {codes}"
+    )

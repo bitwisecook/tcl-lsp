@@ -5197,6 +5197,281 @@ firings 2→0.
 
 ---
 
+### FP-OPT-05 — O126 unused-assign elimination must NOT delete an RHS with observable side effects (D2-O126)
+
+- **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_05_*`
+- **Codes:** O126 (remove unused) and the W211/W220 analyser equivalents
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D2-O126
+
+#### Reproducer
+
+```tcl
+proc f {} { set unused [puts side]; puts done }
+```
+
+#### Per-line reasoning
+
+1. `set unused [puts side]` — the assignment IS unused (nobody reads `unused`).  But the RHS `[puts side]` prints `side` to stdout — a real, observable side effect.
+2. `puts done` — prints `done`.
+3. tclsh runs the original and prints `side` then `done`; deleting the assignment (pre-fix O126 behaviour) silently dropped the `puts side` and the optimised program printed only `done`.  That's a real soundness bug.
+4. D2-O126 closure: the purity gate `_assignment_safe_to_delete` consults `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` (compiler/optimiser/_elimination.py).  Any RHS whose command is in the side-effect set (puts, file I/O, channel ops, exec, etc.) blocks the deletion.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { set unused [puts side]; puts done }
+% f
+side
+done
+```
+
+Pre-fix optimised version produced only `done`.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-05: O126 must NOT delete an RHS with observable side effects (D2-O126)
+regen: python -m bench.fp_snippets --id FP-OPT-05
+function ::f
+  block entry_1
+    [0] AssignValue 'unused' value='[puts side]'  defs={unused#1}  uses={}
+    [1] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  unused_variables
+    UnusedVariable(block='entry_1', statement_index=0, variable='unused')
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-05`)
+
+The analysis still records `unused` as an unused-variable (W211 / O126 candidate); the optimiser then declines to emit O126 because the RHS purity gate refuses.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_elimination.py:30-115` — `_word_has_observable_side_effect`, `_expr_has_observable_side_effect`, and `_assignment_safe_to_delete` walk the RHS text/expr, recognise command words that are known impure (`puts`, `exec`, file I/O, channel ops, etc.), and refuse the deletion when any impure command is present.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_05_o126_preserves_puts_side_effect` (TP — optimiser must NOT fire O126)
+- `tests/test_fp_opt.py::test_FP_OPT_05_o126_pure_rhs_still_fires` (TP control — pure RHS like `[list 1 2 3]` IS safe to delete)
+- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O126_preserves_puts_side_effect`
+- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O126_keeps_for_pure_RHS`
+
+---
+
+### FP-OPT-06 — O100/O109/O127: command-substitution writes are SSA kills (D2-O100)
+
+- **Verdict:** TRUE POSITIVE / soundness fix (now fixed; one root cause across three codes)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_06_*`
+- **Codes:** O100 (constant propagation), O109 (dead-store elimination), O127 (load-forwarding)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D2-O100, D2-O109, D2-O127
+
+#### Reproducer
+
+```tcl
+proc f {} { set x a; set y [append x b]; puts $x; puts $y }
+```
+
+#### Per-line reasoning
+
+1. `set x a` — `x` is `"a"`.  SCCP sees `x#1 = CONST('a')`.
+2. `set y [append x b]` — `[append x b]` is a cmd-sub.  At runtime tclsh evaluates `append`, which MUTATES `x` in place to `"ab"` and returns the new value.  So this statement assigns `"ab"` to `y` AND changes `x` to `"ab"`.
+3. `puts $x` — tclsh prints `ab` (the post-append value).  Pre-fix the optimiser propagated the stale `x#1 = CONST('a')` lattice value into this `puts`, producing the source rewrite `puts a` — wrong output.
+4. `puts $y` — prints `ab`.
+5. D2-O100 closure: every statement now includes `statement_cmd_sub_write_names(stmt)` in its `kill_sites`.  Cmd-sub writes invalidate the lattice entries for the targeted names, so subsequent reads use the post-cmd-sub value (OVERDEFINED if not statically resolvable).
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { set x a; set y [append x b]; puts $x; puts $y }
+% f
+ab
+ab
+```
+
+Pre-fix optimised version produced `a` then `b`.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-06: O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
+regen: python -m bench.fp_snippets --id FP-OPT-06
+function ::f
+  block entry_1
+    [0] AssignValue 'x' value='a'  defs={x#1}  uses={}
+    [1] AssignValue 'y' value='[append x b]'  defs={y#1}  uses={}
+    [2] Call cmd='puts'  defs={}  uses={x#1}
+    [3] Call cmd='puts'  defs={}  uses={y#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    x#1: CONST('a')
+    y#1: OVERDEFINED
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-06`)
+
+`x#1` still shows `CONST('a')` in the static lattice (SCCP can't model the runtime mutation), but the optimiser's `kill_sites` map invalidates `x` at the `[append x b]` site, so no `puts a` propagation rewrite is emitted.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_manager.py:208-225` — `statement_cmd_sub_write_names` (from `compiler.ssa`) returns the set of variable names that any cmd-sub in the statement writes to.  Those names are appended to `kill_sites` for the statement; the propagation pass consults `kill_sites` and refuses to propagate values across the kill.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_06_o100_does_not_propagate_past_cmd_sub_write` (TP)
+- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O100_does_not_propagate_past_cmd_sub_write`
+
+---
+
+### FP-OPT-07 — O126 extends `_assignment_safe_to_delete` to interproc purity summaries (D2-O126-FU)
+
+- **Verdict:** TRUE POSITIVE / precision follow-up to D2-O126 (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_07_*`
+- **Codes:** O126 (remove unused) and the W211/W220 analyser equivalents
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D2-O126-FU
+
+#### Reproducer
+
+```tcl
+proc add {a b} { expr {$a + $b} }
+proc f {} { set unused [add 1 2]; puts done }
+```
+
+#### Per-line reasoning
+
+1. `proc add {a b} { expr {$a + $b} }` — arithmetic-only body, no I/O, no observable state mutation.  The interprocedural fixpoint marks `add` as `pure=True`.
+2. `proc f {}` — `set unused [add 1 2]` has an unused LHS and a pure RHS.  D2-O126 (the base purity gate) refused to delete because the RHS was a user-proc call and the gate didn't know about interproc purity.
+3. D2-O126-FU closure: `optimise_elimination_passes` now builds `interproc_pure = frozenset(qname for qname, summary in ... if summary.pure)` and threads it through to `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete`.  When the RHS command is in `interproc_pure`, deletion is allowed.
+4. Counter-example: when `add` were `puts $a; expr {$a + $b}`, the interproc fixpoint would mark `add` as `pure=False`, the gate would refuse, and O126 would correctly not fire.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc add {a b} { expr {$a + $b} }
+% proc f {} { set unused [add 1 2]; puts done }
+% f
+done
+```
+
+`add` has no observable effect; deleting the unused assignment doesn't change observable output.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-07: O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
+regen: python -m bench.fp_snippets --id FP-OPT-07
+function ::f
+  block entry_1
+    [0] AssignValue 'unused' value='[add 1 2]'  defs={unused#1}  uses={}
+    [1] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  unused_variables
+    UnusedVariable(block='entry_1', statement_index=0, variable='unused')
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-07`)
+
+The unused-variable record is still produced; with `interproc_pure={"::add"}` the optimiser's `_assignment_safe_to_delete` accepts the deletion and emits O126.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_elimination.py` — `optimise_elimination_passes` constructs `interproc_pure` from the `InterprocSummary.pure==True` set and passes it down through `_word_has_observable_side_effect` (line 30-95) and `_expr_has_observable_side_effect` (line 96-115) into `_assignment_safe_to_delete`.
+
+TclOO `method` purity (`ClassDef.method_purity`) is NOT yet wired; method calls still go through `IRCall my <method>` which `classify_side_effects` treats as impure — a follow-up if needed.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_07_pure_user_proc_rhs_is_deleted` (TP)
+- `tests/test_fp_opt.py::test_FP_OPT_07_impure_user_proc_rhs_preserved` (TN control)
+- `tests/test_ground_truth_tn_fn.py::test_TP_O126_pure_user_proc_RHS_is_deleted`
+- `tests/test_ground_truth_tn_fn.py::test_TN_O126_impure_user_proc_RHS_preserved`
+
+---
+
+### FP-OPT-08 — O109/O126 overlap filter: `segment_commands` + EXPR/BODY descent (D4-F10)
+
+- **Verdict:** TRUE POSITIVE / cleanup that fixes corner-case unsoundness (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_08_*`
+- **Codes:** O109 (dead-store elimination), O126 (remove unused)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F10
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set a 1
+    set b 0
+    if {$a} {
+        if {$b} { puts X }
+    }
+}
+```
+
+#### Per-line reasoning
+
+1. `set a 1` — `a` is `1`.  SCCP folds it; O112 will eventually rewrite the outer `if {$a} { … }` into the inner `if {$b} { puts X }` (constant-true branch).
+2. `set b 0` — `b` is `0`.  SCCP folds it too; if the outer rewrite happens first, the surviving statement is `if {$b} { puts X }` — which still references `$b`.
+3. The overlap filter must therefore NOT let O109/O126 delete `set b 0` (because the O112 replacement still uses `$b`).  Pre-fix the filter extracted the LHS of the proposed deletion via `text.split(None, 2)`, which fell over on braced/quoted words, escaped whitespace, qualified `::set` spellings, etc.  And the var-reference scanner that finds `$b` in the surviving replacement only looked at top-level VAR tokens — it missed `$b` inside an `if`-condition EXPR-role arg.
+4. D4-F10 closure: (a) the LHS extraction now uses `segment_commands(text)` + `normalise_var_name` (compiler/optimiser/_manager.py:436-461); (b) the var scanner enables `recurse_into_script_roles=True` + `recurse_into_expr_roles=True` (line 419-426) so it descends into `if`/`while`/`for` condition + body words.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { set a 1; set b 0; if {$a} { if {$b} { puts X } } }
+% f
+%               ;# no output (inner if is false)
+```
+
+Pre-fix the optimiser could delete `set b 0` and then leave `if {$b} { puts X }` in place — `$b` would be unset at runtime, an error.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-08: O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)
+regen: python -m bench.fp_snippets --id FP-OPT-08
+function ::f
+  block entry_1
+    [0] AssignConst 'a' value='1'  defs={a#1}  uses={}
+    [1] AssignConst 'b' value='0'  defs={b#1}  uses={}
+    term Branch ExprVar(text='$a', name='a', start=0, end=1)
+  block if_end_2
+    term Goto
+  block if_then_3
+    term Branch ExprVar(text='$b', name='b', start=0, end=1)
+  block if_next_4
+    term Goto
+  block if_end_5
+    term Goto
+  block if_then_6
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block if_next_7
+    term Goto
+  block exit_8
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-08`)
+
+`if_then_3` branches on `$b` (the EXPR-role condition); the recurse-into-EXPR var scanner catches this `$b` reference and blocks O109/O126 from deleting `set b 0`.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_manager.py:419-465` — the `VarReferenceScanner` for O112 replacements is constructed with `recurse_into_script_roles=True, recurse_into_expr_roles=True` (line 421-425), so it walks into the EXPR-role `if`-condition.  The overlap filter (line 440-464) uses `segment_commands(text)` to extract the proposed deletion's LHS — Tcl-parser-correct instead of `split(None, 2)`.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_08_nested_if_constant_chain_does_not_delete_inner_var` (TP — confirms the optimised source doesn't break the inner if)
+- `tests/test_fp_opt.py::test_FP_OPT_08_unrelated_set_still_eligible_for_o126` (TN control — when no surviving replacement references the var, the deletion is still allowed)
+
+---
+
 
 ## TNT — taint flow (T100/T101)
 

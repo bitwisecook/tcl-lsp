@@ -2108,6 +2108,127 @@ register(
 )
 
 
+register(
+    "FP-OPT-05",
+    _Entry(
+        label="O126 must NOT delete an RHS with observable side effects (D2-O126)",
+        proc="::f",
+        vars=("unused",),
+        show=("ssa", "unused"),
+        notes=(
+            "``set unused [puts side]`` -- the assignment is unused but the\n"
+            "RHS prints to stdout.  Pre-fix the optimiser deleted the whole\n"
+            "statement (O126), silently dropping the puts.  D2-O126 closure\n"
+            "in compiler/optimiser/_elimination.py adds a purity gate via\n"
+            "``_word_has_observable_side_effect`` / ``_expr_has_observable_\n"
+            "side_effect`` consumed by ``_assignment_safe_to_delete``: any RHS\n"
+            "whose command has a side effect (puts, file I/O, channel ops,\n"
+            "exec, etc.) makes the statement unsafe to delete.\n"
+            "tclsh ground truth: orig prints ``side\\ndone``; pre-fix optimised\n"
+            "version printed only ``done``."
+        ),
+        source=_dedent(
+            """
+            proc f {} { set unused [puts side]; puts done }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-06",
+    _Entry(
+        label="O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)",
+        proc="::f",
+        vars=("x", "y"),
+        show=("ssa", "values"),
+        notes=(
+            "Shared root cause across O100 (constant propagation), O109 (DCE),\n"
+            "O127 (load-forwarding).  ``set x a; set y [append x b]`` -- the\n"
+            "``[append x b]`` cmd-sub MUTATES x as a side effect.  Pre-fix\n"
+            "the optimiser didn't include the cmd-sub write in the per-stmt\n"
+            "kill_sites, so it propagated the stale ``a`` value into a later\n"
+            "``puts $x``.  Closure: compiler/optimiser/_manager.py:208 now\n"
+            "imports ``statement_cmd_sub_write_names`` and includes every\n"
+            "cmd-sub write target in kill_sites for the statement.\n"
+            "tclsh ground truth: ``set x a; set y [append x b]; puts $x; puts $y``\n"
+            "prints ``ab\\nab\\n``; pre-fix optimised version printed ``a\\nb\\n``."
+        ),
+        source=_dedent(
+            """
+            proc f {} { set x a; set y [append x b]; puts $x; puts $y }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-07",
+    _Entry(
+        label="O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)",
+        proc="::f",
+        vars=("unused",),
+        show=("ssa", "unused"),
+        notes=(
+            "Follow-up to D2-O126.  Pre-FU the purity gate only knew about\n"
+            "registry-marked builtins, so ``set unused [add 1 2]`` (where\n"
+            "``add`` is a user-defined pure proc) conservatively refused to\n"
+            "fold the unused assignment.  D2-O126-FU closure: ``optimise_\n"
+            "elimination_passes`` now builds ``interproc_pure`` (qnames\n"
+            "with ``summary.pure==True`` from the interproc fixpoint) and\n"
+            "threads it through ``_word_has_observable_side_effect``,\n"
+            "``_expr_has_observable_side_effect``, and ``_assignment_safe_\n"
+            "to_delete``.  Pure user-proc cmd-subs are now allowed; impure\n"
+            "ones (puts, file I/O) still refuse."
+        ),
+        source=_dedent(
+            """
+            proc add {a b} { expr {$a + $b} }
+            proc f {} { set unused [add 1 2]; puts done }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-OPT-08",
+    _Entry(
+        label="O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)",
+        proc="::f",
+        vars=("a", "b"),
+        show=("ssa",),
+        notes=(
+            "Two related cleanups, same closure (D4-F10):\n"
+            "  (a) The overlap filter that prevents O109/O126 from deleting a\n"
+            "      ``set X V`` when an O112 replacement still references ``$X``\n"
+            "      used to extract the LHS via ``text.split(None, 2)`` -- a\n"
+            "      Tcl-parser bypass that mangled braced/quoted words,\n"
+            "      escaped whitespace, qualified ``::set`` spellings, etc.\n"
+            "      Replaced with ``segment_commands(text) + normalise_var_name``.\n"
+            "  (b) The O112-replacement var-reference scanner now descends into\n"
+            "      BODY/EXPR script-role args (``if {$b} {...}``), so a\n"
+            "      surviving ``$b`` inside an inner if-condition correctly\n"
+            "      blocks the outer ``set b 0`` from O109 deletion.\n"
+            "See compiler/optimiser/_manager.py:395-465."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                set a 1
+                set b 0
+                if {$a} {
+                    if {$b} { puts X }
+                }
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # SH family (04..06) -- shimmer fixes (post-PR review)
 # ----------------------------------------------------------------------
