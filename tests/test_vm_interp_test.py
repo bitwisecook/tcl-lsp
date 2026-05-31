@@ -34,9 +34,15 @@ from tooling.vm.interp import TclInterp
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_INTERP: set[str] = set(
-    # interp.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_INTERP: set[str] = {
+    "interp-38.2",
+    "interp-38.3",
+    "interp-38.4",
+    "interp-38.5",
+    "interp-38.6",
+    "interp-38.7",
+    "interp-38.8",
+}
 
 
 # Test runner
@@ -145,4 +151,4 @@ class TestInterpNative:
 
     def test_interp(self) -> None:
         results = _run_test_file("interp.test")
-        _check_results(results, KNOWN_FAILURES_INTERP, "interp.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_INTERP, "interp.test")

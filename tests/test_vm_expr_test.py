@@ -46,19 +46,30 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_COMPEXPR_OLD: set[str] = set(
-    # compExpr-old.test raises TclReturn immediately (``source`` or
-    # ``package require`` at the top level returns before any tcltest
-    # cases run), so Total=0 and no test ever fails.
-)
+KNOWN_FAILURES_COMPEXPR_OLD: set[str] = {
+    "compExpr-old-1.13",
+    "compExpr-old-14.31",
+    "compExpr-old-15.2",
+    "compExpr-old-15.3",
+    "compExpr-old-15.4",
+    "compExpr-old-15.5",
+    "compExpr-old-19.1",
+    "compExpr-old-3.7",
+}
 
-KNOWN_FAILURES_COMPEXPR: set[str] = set(
-    # compExpr.test raises TclReturn immediately; Total=0.
-)
+KNOWN_FAILURES_COMPEXPR: set[str] = {
+    "compExpr-2.10",
+    "compExpr-2.5",
+    "compExpr-8.1",
+    "compExpr-8.2",
+    "compExpr-8.3",
+    "compExpr-8.4",
+}
 
-KNOWN_FAILURES_EXPR_OLD: set[str] = set(
-    # expr-old.test raises TclReturn immediately; Total=0.
-)
+KNOWN_FAILURES_EXPR_OLD: set[str] = {
+    "expr-old-32.50",
+    "expr-old-36.7",
+}
 
 
 # Test runner
@@ -197,9 +208,7 @@ class TestCompExprOldNative:
 
     def test_compexpr_old(self) -> None:
         results = _run_test_file("compExpr-old.test")
-        _check_results(
-            results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test", expect_zero_total=True
-        )
+        _check_results(results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test")
 
 
 class TestCompExprNative:
@@ -207,7 +216,7 @@ class TestCompExprNative:
 
     def test_compexpr(self) -> None:
         results = _run_test_file("compExpr.test")
-        _check_results(results, KNOWN_FAILURES_COMPEXPR, "compExpr.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_COMPEXPR, "compExpr.test")
 
 
 class TestExprOldNative:
@@ -215,4 +224,4 @@ class TestExprOldNative:
 
     def test_expr_old(self) -> None:
         results = _run_test_file("expr-old.test")
-        _check_results(results, KNOWN_FAILURES_EXPR_OLD, "expr-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_EXPR_OLD, "expr-old.test")

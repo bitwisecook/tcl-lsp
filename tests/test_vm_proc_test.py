@@ -44,25 +44,68 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_PROC_OLD: set[str] = set(
-    # proc-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_PROC_OLD: set[str] = {
+    "proc-old-3.7",
+    "proc-old-3.9",
+    "proc-old-5.11",
+    "proc-old-5.16",
+    "proc-old-7.11",
+    "proc-old-7.12",
+    "proc-old-7.13",
+    "proc-old-7.14",
+    "proc-old-7.6",
+}
 
-KNOWN_FAILURES_RENAME: set[str] = set(
-    # rename.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_RENAME: set[str] = {
+    "rename-2.1",
+    "rename-3.1",
+    "rename-3.2",
+}
 
-KNOWN_FAILURES_UNKNOWN: set[str] = set(
-    # unknown.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_UNKNOWN: set[str] = {
+    "unknown-3.1",
+}
 
-KNOWN_FAILURES_PROC: set[str] = set(
-    # proc.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_PROC: set[str] = {
+    "proc-1.2",
+    "proc-1.3",
+    "proc-1.6",
+    "proc-2.3",
+    "proc-3.3",
+    "proc-3.4",
+    "proc-3.6",
+    "proc-3.7",
+}
 
-KNOWN_FAILURES_APPLY: set[str] = set(
-    # apply.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_APPLY: set[str] = {
+    "apply-2.1",
+    "apply-2.2",
+    "apply-2.3",
+    "apply-2.4",
+    "apply-2.5",
+    "apply-3.1",
+    "apply-3.2",
+    "apply-3.3",
+    "apply-3.4",
+    "apply-4.1",
+    "apply-4.2",
+    "apply-4.3",
+    "apply-4.4",
+    "apply-4.5",
+    "apply-5.1",
+    "apply-6.2",
+    "apply-6.3",
+    "apply-7.2",
+    "apply-7.3",
+    "apply-7.4",
+    "apply-7.6",
+    "apply-7.7",
+    "apply-7.8",
+    "apply-8.10",
+    "apply-8.2",
+    "apply-8.3",
+    "apply-8.9",
+}
 
 
 # Test runner
@@ -201,7 +244,7 @@ class TestProcOldNative:
 
     def test_proc_old(self) -> None:
         results = _run_test_file("proc-old.test")
-        _check_results(results, KNOWN_FAILURES_PROC_OLD, "proc-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PROC_OLD, "proc-old.test")
 
 
 class TestRenameNative:
@@ -209,7 +252,7 @@ class TestRenameNative:
 
     def test_rename(self) -> None:
         results = _run_test_file("rename.test")
-        _check_results(results, KNOWN_FAILURES_RENAME, "rename.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_RENAME, "rename.test")
 
 
 class TestUnknownNative:
@@ -217,7 +260,7 @@ class TestUnknownNative:
 
     def test_unknown(self) -> None:
         results = _run_test_file("unknown.test")
-        _check_results(results, KNOWN_FAILURES_UNKNOWN, "unknown.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_UNKNOWN, "unknown.test")
 
 
 class TestProcNative:
@@ -225,7 +268,7 @@ class TestProcNative:
 
     def test_proc(self) -> None:
         results = _run_test_file("proc.test")
-        _check_results(results, KNOWN_FAILURES_PROC, "proc.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PROC, "proc.test")
 
 
 class TestApplyNative:
@@ -239,4 +282,4 @@ class TestApplyNative:
             "apply.test",
             pre_script="interp alias {} ::apply {} apply",
         )
-        _check_results(results, KNOWN_FAILURES_APPLY, "apply.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_APPLY, "apply.test")
