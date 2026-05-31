@@ -2576,17 +2576,20 @@ class _Lowerer:
                 continue
             if (
                 isinstance(stmt, (IRCall, IRBarrier))
-                and stmt.command in ("oo::class", "oo::define")
+                and stmt.canonical_command in ("::oo::class", "::oo::define")
                 and stmt.tokens is not None
             ):
+                # Normalise to the bare spelling so the shape predicate
+                # matches both ``oo::class`` and ``::oo::class``.
+                cmd_name = stmt.canonical_command[2:]
                 argv = list(stmt.tokens.argv)
                 texts = list(stmt.tokens.argv_texts)
                 single = list(stmt.tokens.single_token_word)
                 args = texts[1:]
                 arg_tokens = argv[1:]
                 arg_single = single[1:]
-                if self._is_oo_definition_shape(stmt.command, args, arg_tokens, arg_single):
-                    self._extract_oo_methods(stmt.command, args, arg_tokens, namespace=namespace)
+                if self._is_oo_definition_shape(cmd_name, args, arg_tokens, arg_single):
+                    self._extract_oo_methods(cmd_name, args, arg_tokens, namespace=namespace)
 
     @staticmethod
     def _is_static_braced(arg_tokens: list[Token], arg_single: list[bool], idx: int) -> bool:
@@ -2716,11 +2719,7 @@ class _Lowerer:
             # these mutates object state (impure for O126).
             method_ivars = set(class_ivars)
             for st in body_script.statements:
-                if (
-                    isinstance(st, IRCall)
-                    and (st.command == "variable" or st.canonical_command == "::variable")
-                    and st.args
-                ):
+                if isinstance(st, IRCall) and st.canonical_command == "::variable" and st.args:
                     for nm in st.args:
                         if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
                             method_ivars.add(nm)

@@ -672,7 +672,9 @@ def test_FP_OPT_12_methods_survive_incremental_chunk_cache():
     )
     with green_tree_scope():
         chunks = segment_top_level_chunks(src)
-        cache = [lower_commands_to_ir(src, list(ch.commands)) for ch in chunks]
+        cache: list[tuple[tuple, dict] | None] = [
+            lower_commands_to_ir(src, list(ch.commands)) for ch in chunks
+        ]
         m = lower_to_ir(src, chunk_ir=cache, chunks=chunks)
     assert "::C::pure_helper" in m.methods
     assert "::C::m" in m.methods
