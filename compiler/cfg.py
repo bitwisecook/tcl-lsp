@@ -1020,6 +1020,25 @@ class _CFGBuilder:
                     # Codegen builds bail immediately to drop them.
                     if not self._faithful_exceptions:
                         return None
+                case IRBarrier(reason="return with options" | "return with expansion") if (
+                    self._faithful_exceptions
+                ):
+                    # ``return -code error "..."`` is lowered as an
+                    # IRBarrier (codegen keeps the options as raw_args),
+                    # but it still unconditionally exits the proc.  For
+                    # analysis builds, treat it as a CFGReturn-style
+                    # terminator so the fall-through edges to the rest
+                    # of the block / loop back-edge are correctly cut
+                    # off -- otherwise an ``unset $token; return -code
+                    # error "..."`` pattern propagates the killed token
+                    # version through the loop-header phi and false-fires
+                    # W210 on a later use of $token.  Codegen builds
+                    # leave this as an IRBarrier statement (bytecode
+                    # parity unchanged).
+                    block.statements.append(stmt)
+                    block.terminator = CFGReturn(
+                        value=None, range=stmt.range, expr=None, braced=False
+                    )
                 case _:
                     stmt = self._apply_upvar_invalidation(stmt, block)
                     block.statements.append(stmt)

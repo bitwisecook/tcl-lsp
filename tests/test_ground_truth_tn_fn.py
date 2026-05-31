@@ -455,6 +455,37 @@ def test_TP_W210_dynamic_target_upvar_read():
     assert _any(src, "W210"), "dynamic-target upvar + unconditional read must fire W210"
 
 
+def test_TN_unset_then_return_with_options_no_propagation():
+    """``unset $v; return -code error ...`` inside a loop body must not
+    propagate the killed version through the loop-header phi to a
+    post-loop read.  The block ALWAYS exits via the error return, so
+    the back-edge to the loop header from that block is infeasible.
+
+    Without this property the http.tcl ``CreateToken`` pattern
+    spuriously fires W210 on a post-loop ``return $token`` after a
+    ``foreach { ... unset $token; return -code error ... }`` loop.
+
+    runtime: ``f http://x -unknown bad`` -> ERROR (clean: token created
+    and discarded, no W210 on the post-loop return)
+    """
+    src = (
+        "proc f {url args} {\n"
+        "    set token [incr uid]\n"
+        "    foreach {flag value} $args {\n"
+        '        if {$flag eq "-x"} {\n'
+        "            unset $token\n"
+        '            return -code error "bad"\n'
+        "        }\n"
+        "    }\n"
+        "    return $token\n"
+        "}\n"
+    )
+    diags_w210 = [c for c in _codes(src, "W210", "W213")]
+    assert not diags_w210, (
+        f"return -code error must terminate the block; post-loop W210 must NOT fire, got {diags_w210}"
+    )
+
+
 def test_TN_static_target_upvar_read():
     """``upvar 1 caller local`` with a STATIC target IS sound -- the
     callee must be invoked under a caller that has ``caller`` defined,
