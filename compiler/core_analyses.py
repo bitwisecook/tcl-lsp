@@ -3009,14 +3009,19 @@ def _return_type_for_command(
 
 
 def _literal_type(text: str) -> TypeLattice:
-    """Infer the intrep type from a literal string value."""
+    """Infer the intrep type from a literal string value.
+
+    Hex (``0x...``) and binary (``0b...``) literals are typed INT to
+    match the natural Tcl path: ``set n 0x80; incr n`` does a single
+    clean string→int parse and is the canonical idiom in tcllib
+    (cookiejar/idna's ``variable initial_n 0x80; incr n``).  Treating
+    hex/binary as STRING here would fire a per-iteration S101 on that
+    pattern when really the cost is a one-time parse.  The matching
+    EXPR-context classifier in ``compiler/expr_types.py`` agrees.
+    """
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.INT)
-    # Tcl recognises hex (``0x...``) and binary (``0b...``) prefixes as
-    # integer literals — they convert to INT on first numeric use.
-    # Typing as INT prevents string→int shimmer FPs on patterns like
-    # ``variable initial_n 0x80; set n \$initial_n; incr n`` (idna.tcl).
     if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.INT)
     if _FLOAT_RE.fullmatch(stripped):
