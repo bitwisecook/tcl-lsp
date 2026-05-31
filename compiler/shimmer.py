@@ -1301,8 +1301,7 @@ def _expr_string_is_numeric(text: str) -> bool:
     stripped = text
     # Strip wrapping braces or quotes that the parser preserved.
     if len(stripped) >= 2 and (
-        (stripped[0] == "{" and stripped[-1] == "}")
-        or (stripped[0] == '"' and stripped[-1] == '"')
+        (stripped[0] == "{" and stripped[-1] == "}") or (stripped[0] == '"' and stripped[-1] == '"')
     ):
         stripped = stripped[1:-1]
     stripped = stripped.strip()
@@ -1509,9 +1508,7 @@ def _find_expr_shimmers(
         # exit_versions (uses follow the last write).
         term = block.terminator
         if isinstance(term, CFGBranch):
-            term_range = term.range or (
-                block.statements[-1].range if block.statements else None
-            )
+            term_range = term.range or (block.statements[-1].range if block.statements else None)
             if term_range is not None:
                 warnings.extend(
                     _emit_expr_shimmer_warnings(

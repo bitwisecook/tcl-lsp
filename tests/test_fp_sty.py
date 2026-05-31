@@ -278,7 +278,11 @@ def test_FP_STY_09_arity_incompatible_dispatcher_does_not_suppress():
     dispatch's positional arg count, and the protocol-match heuristic
     filters out arity-incompatible dispatchers before the
     "≥1 compatible dispatcher" check (analyser/checks/_param.py)."""
-    diags = [d for d in get_diagnostics(FP_STY_09_REPRO) if d.code == "W214" and "'token'" in (d.message or "")]
+    diags = [
+        d
+        for d in get_diagnostics(FP_STY_09_REPRO)
+        if d.code == "W214" and "'token'" in (d.message or "")
+    ]
     assert len(diags) == 3, (
         "W214 must fire on 'token' in all three peers (a/b/c); the 1-arg "
         f"unrelated dispatcher is arity-incompatible.  Got {len(diags)}: {diags}"
@@ -298,9 +302,7 @@ namespace eval ::n {
 }
 """
     diags = [d for d in get_diagnostics(src) if d.code == "W214" and "'token'" in (d.message or "")]
-    assert not diags, (
-        f"2-arg dispatcher must suppress 2-arg peer family W214; got {diags}"
-    )
+    assert not diags, f"2-arg dispatcher must suppress 2-arg peer family W214; got {diags}"
 
 
 # FP-STY-10 — scan_provably_no_match soundness (%n / Inf / format whitespace, D4-F1)
@@ -374,9 +376,7 @@ def test_FP_STY_11_lassign_many_vars_no_false_w210():
 
 def test_FP_STY_11_binary_scan_many_vars_no_false_w210():
     """FP: same fix for ``binary scan`` (dialects/tcl/binary.py:105)."""
-    src = (
-        "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n"
-    )
+    src = "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n"
     assert _codes(src, "W210") == []
 
 

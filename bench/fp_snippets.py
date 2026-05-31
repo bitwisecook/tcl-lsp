@@ -2511,12 +2511,12 @@ register(
         vars=("a",),
         show=("ssa", "values", "types"),
         notes=(
-            "Pre-fix: O120 rewrote ``$a == \"1\"`` -> ``$a eq \"1\"`` when\n"
+            'Pre-fix: O120 rewrote ``$a == "1"`` -> ``$a eq "1"`` when\n'
             "``$a`` was KNOWN STRING-typed.  But STRING type proves only\n"
             "the *internal representation*; the runtime VALUE can still\n"
-            "be numeric-looking text (e.g. ``set a [string trim \"1.0\"]``\n"
-            "is STRING-typed but holds ``\"1.0\"``).  tclsh: ``$a == \"1\"``\n"
-            "with ``a=\"1.0\"`` is 1 (numeric); ``$a eq \"1\"`` is 0 (string)\n"
+            'be numeric-looking text (e.g. ``set a [string trim "1.0"]``\n'
+            'is STRING-typed but holds ``"1.0"``).  tclsh: ``$a == "1"``\n'
+            'with ``a="1.0"`` is 1 (numeric); ``$a eq "1"`` is 0 (string)\n'
             "-- the rewrite flips the result.\n"
             "\n"
             "Post-fix: ``_rewrite_eq_ne_string_compare_node`` now requires\n"
@@ -2528,7 +2528,7 @@ register(
             "numeric.  KNOWN STRING type alone is rejected.\n"
             "\n"
             "The reproducer pattern is the reviewer's case: the literal\n"
-            "``\"1\"`` IS numeric-looking, the var ``$a`` has no SCCP\n"
+            '``"1"`` IS numeric-looking, the var ``$a`` has no SCCP\n'
             "CONST proof (only STRING type from ``string trim``), so\n"
             "neither operand satisfies the predicate -- the rewrite is\n"
             "correctly refused.  See D5-O120."
@@ -2557,7 +2557,7 @@ register(
             "+ N}]`` to ``incr x N`` for any matching syntactic shape.\n"
             "tclsh: ``expr {$x + 1}`` on ``1.5`` is ``2.5`` (silent float\n"
             "promotion); ``incr x`` on ``1.5`` errors with ``expected\n"
-            "integer but got \"1.5\"``.  The rewrite turns successful\n"
+            'integer but got "1.5"``.  The rewrite turns successful\n'
             "execution into a runtime error.\n"
             "Post-fix: ``optimise_incr_idioms`` consults\n"
             "``analysis.types[(var, ver)].tcl_type is TclType.INT`` before\n"
@@ -2589,9 +2589,9 @@ register(
             "``$x * 1`` -> ``$x``, ``$x * 0`` -> ``0``, ``$x % 1`` -> ``0``,\n"
             "``$x << 0`` -> ``$x``, ``$x & 0`` -> ``0``, ``$x ^ $x`` -> ``0``\n"
             "etc. unconditionally.  These rewrites DROP an operand, which\n"
-            "removes Tcl's numeric coercion error: ``expr {\"abc\" + 0}``\n"
+            'removes Tcl\'s numeric coercion error: ``expr {"abc" + 0}``\n'
             "errors with ``cannot use non-numeric string`` but ``expr\n"
-            "{\"abc\"}`` simply returns the string.  Post-fix: every drop-\n"
+            '{"abc"}`` simply returns the string.  Post-fix: every drop-\n'
             "operand identity/annihilator now consults a\n"
             "``_is_provably_numeric_expr_node`` predicate that requires the\n"
             "operand to be an ExprLiteral, a numeric ExprString literal,\n"
@@ -2722,7 +2722,7 @@ register(
             "\n"
             "tclsh 9.0.3 (representation BEFORE/AFTER ``if {$s + 1}``)::\n"
             "\n"
-            "    % set s [string trim \"5\"]\n"
+            '    % set s [string trim "5"]\n'
             "    % tcl::unsupported::representation $s\n"
             "    value is a pure string ...\n"
             "    % if {$s + 1} { puts yes }\n"
@@ -2767,10 +2767,10 @@ register(
             "tclsh 9.0.3 (verified)::\n"
             "\n"
             "    % set s hello\n"
-            "    % expr {$s == \"hello\"}\n"
+            '    % expr {$s == "hello"}\n'
             "    1                ;# string path, no intrep change\n"
-            "    % set s2 \"5\"\n"
-            "    % expr {$s2 == \"5\"}\n"
+            '    % set s2 "5"\n'
+            '    % expr {$s2 == "5"}\n'
             "    1                ;# numeric path (both parse) -- shimmer\n"
             "    % expr {$s2 + 0}\n"
             "    5                ;# always-numeric op -- shimmer\n"
@@ -3161,12 +3161,12 @@ register(
             "\n"
             "tclsh 9.0.3::\n"
             "\n"
-            "    % set pat \"-nocase\"\n"
+            '    % set pat "-nocase"\n'
             "    % regexp -- $pat ABC      ;# pat at idx 1, -- at idx 0\n"
             "    0\n"
             "    % regexp $pat -- ABC      ;# pat at idx 0, -- at idx 1\n"
-            "    wrong # args: should be \"regexp ?-option ...?\n"
-            "                exp string ?matchVar? ?subMatchVar ...?\"\n"
+            '    wrong # args: should be "regexp ?-option ...?\n'
+            '                exp string ?matchVar? ?subMatchVar ...?"\n'
             "\n"
             "Post-fix: T102 is always classified as a sink when the\n"
             "command has an option terminator profile; suppression is\n"
@@ -3206,7 +3206,7 @@ register(
             "    % set raw marker\n"
             "    % eval [list $raw]    ;# UNSAFE -- prints EXECUTED\n"
             "    EXECUTED\n"
-            "    % eval [list puts $raw] ;# SAFE -- prints \"marker\"\n"
+            '    % eval [list puts $raw] ;# SAFE -- prints "marker"\n'
             "    marker\n"
             "\n"
             "Post-fix: T100/T105 suppression for eval/uplevel/interp\n"

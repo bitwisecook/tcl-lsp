@@ -785,9 +785,8 @@ def test_FP_RBS_12_regexp_match_arm_read_silent():
     NOT fire."""
     src = "proc f {} { if {[regexp {x} y -> v]} { puts $v } }\n"
     w210 = [d for d in _rbs(src) if d.code == "W210" and "'v'" in (d.message or "")]
-    assert not w210, (
-        "regexp match-arm read of $v is safe; W210 must NOT fire; got: "
-        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    assert not w210, "regexp match-arm read of $v is safe; W210 must NOT fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
     )
 
 

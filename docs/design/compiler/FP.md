@@ -3971,7 +3971,12 @@ Tcl substitutes and dispatches normally.
 
 #### Compiler evidence
 
-The W307 detector inspects command-word shape; the namespaced-ensemble suppression matches the regex / shape `\[...\](::[a-zA-Z_][a-zA-Z0-9_]*)+`.
+The W307 detector inspects command-word shape; the namespaced-ensemble
+suppression matches the regex/shape:
+
+```
+\[...\](::[a-zA-Z_][a-zA-Z0-9_]*)+
+```
 
 #### Why the analyser reaches that verdict
 

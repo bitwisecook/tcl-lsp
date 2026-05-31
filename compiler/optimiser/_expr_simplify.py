@@ -441,9 +441,7 @@ def _is_provably_non_numeric_expr_node(
 
 
 # Numeric types for which Tcl expr arithmetic coercion is guaranteed to succeed.
-_NUMERIC_TCL_TYPES = frozenset(
-    {TclType.INT, TclType.DOUBLE, TclType.NUMERIC, TclType.BOOLEAN}
-)
+_NUMERIC_TCL_TYPES = frozenset({TclType.INT, TclType.DOUBLE, TclType.NUMERIC, TclType.BOOLEAN})
 
 
 def _is_provably_numeric_expr_node(

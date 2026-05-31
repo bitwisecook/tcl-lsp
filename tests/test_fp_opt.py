@@ -267,9 +267,7 @@ def test_FP_OPT_06_o100_does_not_propagate_past_cmd_sub_write():
 # FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
 
 
-FP_OPT_07_REPRO = (
-    "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }"
-)
+FP_OPT_07_REPRO = "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }"
 
 
 def test_FP_OPT_07_pure_user_proc_rhs_is_deleted():
@@ -281,9 +279,7 @@ def test_FP_OPT_07_pure_user_proc_rhs_is_deleted():
     from compiler.optimiser import optimise_source
 
     _, rewrites = optimise_source(FP_OPT_07_REPRO)
-    assert "O126" in [r.code for r in rewrites], (
-        "pure user-proc RHS must allow O126 deletion"
-    )
+    assert "O126" in [r.code for r in rewrites], "pure user-proc RHS must allow O126 deletion"
 
 
 def test_FP_OPT_07_impure_user_proc_rhs_preserved():
@@ -292,10 +288,7 @@ def test_FP_OPT_07_impure_user_proc_rhs_preserved():
     purity gate refuses O126."""
     from compiler.optimiser import optimise_source
 
-    src = (
-        "proc shout {x} { puts $x; expr {$x + 1} }\n"
-        "proc f {} { set unused [shout 1]; puts done }"
-    )
+    src = "proc shout {x} { puts $x; expr {$x + 1} }\nproc f {} { set unused [shout 1]; puts done }"
     _, rewrites = optimise_source(src)
     assert "O126" not in [r.code for r in rewrites], (
         "impure user-proc RHS must NOT be deleted by O126 (loses side effect)"
@@ -410,13 +403,7 @@ def test_FP_OPT_09_provably_numeric_var_still_fires():
 # tclsh ``expr {$x + 1}`` on ``1.5`` yields ``2.5`` (float promotion);
 # ``incr x`` on ``1.5`` errors with ``expected integer but got "1.5"``.
 
-FP_OPT_10_TP_REPRO = (
-    "proc foo {x} {\n"
-    "  set x [expr {$x + 1}]\n"
-    "  puts $x\n"
-    "}\n"
-    "foo 1.5\n"
-)
+FP_OPT_10_TP_REPRO = "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n"
 FP_OPT_10_TN_REPRO = (
     "proc foo {n} {\n"
     "  for {set x 0} {$x < $n} {incr x} {\n"
@@ -457,14 +444,14 @@ def test_FP_OPT_10_provably_int_var_still_fires():
 FP_OPT_11_TP_REPRO = (
     "proc f {raw} {\n"
     "    set a [string trim $raw]\n"
-    "    if {$a == \"1\"} { puts yes } else { puts no }\n"
+    '    if {$a == "1"} { puts yes } else { puts no }\n'
     "}\n"
 )
 
 FP_OPT_11_TN_REPRO = (
     "proc f {raw} {\n"
     "    set a [string trim $raw]\n"
-    "    if {$a == \"hello\"} { puts yes } else { puts no }\n"
+    '    if {$a == "hello"} { puts yes } else { puts no }\n'
     "}\n"
 )
 
@@ -568,6 +555,4 @@ def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
     # Method body NOT lowered to IR today -- the optimiser cannot see
     # inside the class body, so nothing inside `m` is rewritten.  The
     # PARTIAL status will flip to FIXED when method-body analysis lands.
-    assert not o126s, (
-        f"TclOO method bodies not yet lowered: O126 cannot fire today; got {o126s}"
-    )
+    assert not o126s, f"TclOO method bodies not yet lowered: O126 cannot fire today; got {o126s}"

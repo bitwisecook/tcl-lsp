@@ -695,11 +695,7 @@ def test_FP_OBJ_14_namespaced_known_object_factory_silent():
     known_classes), the ``[::pkg::Tree new]`` factory site IS typed
     OBJECT and the dispatch stays suppressed."""
     src = (
-        "oo::class create ::pkg::Tree {}\n"
-        "proc f {} {\n"
-        "    set x [::pkg::Tree new]\n"
-        "    $x op\n"
-        "}\n"
+        "oo::class create ::pkg::Tree {}\nproc f {} {\n    set x [::pkg::Tree new]\n    $x op\n}\n"
     )
     assert _codes(src, "W307") == []
 
@@ -709,12 +705,7 @@ def test_FP_OBJ_14_unregistered_external_namespaced_still_silent():
     with NO proc visible AND no registry spec still suppresses W307.
     Closing this needs registry data work (tracked under D1-11 spec
     coverage; D3-P5 marked PARTIAL in the tracker)."""
-    src = (
-        "proc f {} {\n"
-        "    set x [::pkg::plain]\n"
-        "    $x op\n"
-        "}\n"
-    )
+    src = "proc f {} {\n    set x [::pkg::plain]\n    $x op\n}\n"
     # The deferred-coverage suppression keeps W307 silent here.  If
     # registry coverage closes the gap and this starts firing, this
     # test should be flipped to assert _codes(...) != [] and the
@@ -743,8 +734,7 @@ def test_FP_OBJ_15_known_oo_class_new_silent():
     """TN control: ``[C new]`` where C IS a known oo::class correctly
     suppresses W307."""
     src = (
-        "oo::class create C { method run {} { return ok } }\n"
-        "proc f {} { set x [C new]; $x run }\n"
+        "oo::class create C { method run {} { return ok } }\nproc f {} { set x [C new]; $x run }\n"
     )
     assert _codes(src, "W307") == []
 
@@ -773,17 +763,13 @@ def test_FP_OBJ_16_const_prefix_unknown_proc_fires():
     NO known proc must still fire W307 -- a genuinely unresolvable
     dynamic dispatch."""
     src = "proc f {} { set ns mypkg; ${ns}::unknownproc arg }\n"
-    assert _codes(src, "W307"), (
-        "composed ${ns}::unknownproc must fire W307 when not resolvable"
-    )
+    assert _codes(src, "W307"), "composed ${ns}::unknownproc must fire W307 when not resolvable"
 
 
 # FP-OBJ-17 — array set literal-element harvester for callback array (D3-P7)
 
 
-FP_OBJ_17_REPRO = (
-    "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n"
-)
+FP_OBJ_17_REPRO = "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n"
 
 
 def test_FP_OBJ_17_callback_array_holds_noncommand_fires():
@@ -805,9 +791,7 @@ def test_FP_OBJ_17_callback_array_holds_known_command_silent():
 # FP-OBJ-18 — dict-with key-value pair harvester for interproc callback (D3-P8)
 
 
-FP_OBJ_18_REPRO = (
-    "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n"
-)
+FP_OBJ_18_REPRO = "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n"
 
 
 def test_FP_OBJ_18_interproc_dict_with_noncommand_fires():

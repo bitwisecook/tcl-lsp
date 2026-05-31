@@ -279,7 +279,7 @@ def test_FP_SH_08_eq_both_non_numeric_no_shimmer():
     it sits in ``_CONDITIONAL_NUMERIC_OPS`` and the predicate requires
     at least one operand to be provably numeric-looking.
     """
-    src = "proc f {} { set s [string trim hello]; set y [expr {$s == \"world\"}]; puts $y }"
+    src = 'proc f {} { set s [string trim hello]; set y [expr {$s == "world"}]; puts $y }'
     codes = [d.code for d in get_diagnostics(src)]
     assert "S100" not in codes and "S101" not in codes, (
         f"both-non-numeric == must not fire shimmer; got {codes}"
@@ -290,7 +290,7 @@ def test_FP_SH_08_eq_with_numeric_literal_still_fires():
     """TP control: ``expr {$s == "5"}`` with ``s`` STRING-typed -- the
     other operand parses as numeric, so tclsh attempts the numeric path
     and coerces $s.  Genuine shimmer."""
-    src = "proc f {} { set s [string trim hello]; set y [expr {$s == \"5\"}]; puts $y }"
+    src = 'proc f {} { set s [string trim hello]; set y [expr {$s == "5"}]; puts $y }'
     codes = [d.code for d in get_diagnostics(src)]
     assert "S100" in codes or "S101" in codes, (
         f"==/numeric-literal mix must still fire shimmer; got {codes}"
@@ -300,11 +300,9 @@ def test_FP_SH_08_eq_with_numeric_literal_still_fires():
 def test_FP_SH_08_add_still_fires():
     """TP control: ``expr {$s + 0}`` always takes numeric path, regardless
     of operand types.  ADD is in the unconditional ``_NUMERIC_OPS``."""
-    src = "proc f {} { set s [string trim \"5\"]; set y [expr {$s + 0}]; puts $y }"
+    src = 'proc f {} { set s [string trim "5"]; set y [expr {$s + 0}]; puts $y }'
     codes = [d.code for d in get_diagnostics(src)]
-    assert "S100" in codes or "S101" in codes, (
-        f"$s + 0 must still fire shimmer; got {codes}"
-    )
+    assert "S100" in codes or "S101" in codes, f"$s + 0 must still fire shimmer; got {codes}"
 
 
 # FP-SH-07 — `_find_expr_shimmers` covers standalone `expr`, `if {…}`,
@@ -326,7 +324,7 @@ def test_FP_SH_07_if_condition_shimmer_fires():
         % tcl::unsupported::representation $s
         value is a int ...
     """
-    src = "proc f {} { set s [string trim \"5\"]; if {$s + 1} { puts yes } }"
+    src = 'proc f {} { set s [string trim "5"]; if {$s + 1} { puts yes } }'
     codes = [d.code for d in get_diagnostics(src)]
     assert "S100" in codes, f"if-condition shimmer must fire; got {codes}"
 
@@ -334,17 +332,15 @@ def test_FP_SH_07_if_condition_shimmer_fires():
 def test_FP_SH_07_while_condition_shimmer_fires():
     """TP: ``while {$s + 1}`` -- expr in while-cond promotes $s.  In a
     loop context fires S101 (loop shimmer)."""
-    src = "proc f {} { set s [string trim \"5\"]; while {$s + 1} { break } }"
+    src = 'proc f {} { set s [string trim "5"]; while {$s + 1} { break } }'
     codes = [d.code for d in get_diagnostics(src)]
-    assert "S101" in codes or "S100" in codes, (
-        f"while-condition shimmer must fire; got {codes}"
-    )
+    assert "S101" in codes or "S100" in codes, f"while-condition shimmer must fire; got {codes}"
 
 
 def test_FP_SH_07_standalone_expr_shimmer_fires():
     """TP: standalone ``expr {$s + 1}`` (result dropped) is also a real
     lex-promotion site -- the expr command still evaluates and coerces."""
-    src = "proc f {} { set s [string trim \"5\"]; expr {$s + 1} }"
+    src = 'proc f {} { set s [string trim "5"]; expr {$s + 1} }'
     codes = [d.code for d in get_diagnostics(src)]
     assert "S100" in codes, f"standalone-expr shimmer must fire; got {codes}"
 
