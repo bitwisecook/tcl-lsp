@@ -527,6 +527,55 @@ def test_TN_unknown_dict_with_return_var():
     assert not _any(src, "W210")
 
 
+def test_TP_optimiser_O126_preserves_puts_side_effect():
+    """``set unused [puts side]`` -- the assignment IS unused but the
+    RHS prints to stdout.  Deleting it changes program output.  After
+    the D2-O126 closure the optimiser must NOT emit O126 here.
+
+    runtime: orig prints ``side`` then ``done``; the OLD optimised
+    version printed only ``done`` (lost the side-effect).
+    """
+    from compiler.optimiser import optimise_source
+
+    src = "proc f {} { set unused [puts side]; puts done }"
+    _, rewrites = optimise_source(src)
+    codes = [r.code for r in rewrites]
+    assert "O126" not in codes, f"O126 must NOT delete a [puts X] RHS; got codes {codes}"
+
+
+def test_TP_optimiser_O126_keeps_for_pure_RHS():
+    """TP control: when the RHS is a literal or a pure command, O126
+    SHOULD still fire.  Confirms the purity gate didn't disable the
+    optimisation entirely."""
+    from compiler.optimiser import optimise_source
+
+    src = "proc f {} { set unused [list 1 2 3]; puts done }"
+    _, rewrites = optimise_source(src)
+    codes = [r.code for r in rewrites]
+    assert "O126" in codes, f"O126 must fire when RHS is pure (list); got codes {codes}"
+
+
+def test_TP_optimiser_O100_does_not_propagate_past_cmd_sub_write():
+    """``set x a; set y [append x b]; puts $x`` -- the ``[append x b]``
+    mutates x as a side effect.  The optimiser must NOT propagate the
+    stale ``a`` value into the subsequent ``puts $x`` (D2-O100 closure
+    via kill_sites including statement_cmd_sub_write_names).
+
+    runtime: tclsh prints ``ab\\nab\\n``; pre-fix optimiser produced
+    a program that printed ``a\\nb\\n``.
+    """
+    from compiler.optimiser import optimise_source
+
+    src = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }"
+    opt_src, _ = optimise_source(src)
+    # The propagation that would replace ``$x`` with ``a`` is unsound;
+    # the optimised source must keep the original ``$x`` (or otherwise
+    # not embed the literal ``a`` as the puts argument).
+    assert "puts a" not in opt_src, (
+        f"O100 must NOT propagate stale value past [append x b]; got: {opt_src.strip()}"
+    )
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a

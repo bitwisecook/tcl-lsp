@@ -6,20 +6,129 @@ from shared.codes import opt
 
 from ..cfg import CFGBranch, CFGReturn
 from ..execution_intent import EscapeClass, FunctionExecutionIntent, SideEffectClass
-from ..expr_ast import vars_in_expr_node
+from ..expr_ast import ExprNode, vars_in_expr_node
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
     IRCall,
     IRIncr,
+    IRStatement,
 )
+from ..parsing.command_segmenter import segment_commands
+from ..parsing.lexer import TclLexer
+from ..registry.runtime import REGISTRY
+from ..side_effects import classify_side_effects
 from ..var_refs import VarReferenceScanner
 from ._expr_simplify import _expr_has_command_subst
 from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
 from ._types import Optimisation, PassContext
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
+
+
+def _word_has_observable_side_effect(text: str) -> bool:
+    """True when *text* (a Tcl word body) contains a command substitution
+    that has an observable side effect (writes a variable, prints to
+    stdout, mutates global state, runs a dynamic barrier, …).
+
+    Used to gate elimination of unused / dead assignments: ``set v
+    [puts X]`` discards the result but the call still prints, so the
+    assignment is NOT safe to delete.
+
+    Conservative: any command we can't classify (unknown user proc,
+    dynamic dispatch) is treated as having side effects -- deletion is
+    only allowed when every embedded command is provably side-effect-
+    free.  (D2-O126 closure: pre-fix, O126 deleted any unused-result
+    assignment, losing observable behaviour for any command-sub RHS.)
+    """
+    if "[" not in text:
+        return False
+    from shared.tokens import TokenType
+
+    try:
+        tokens = TclLexer(text).tokenise_all()
+    except Exception:
+        return True  # unparseable -> conservative
+    for tok in tokens:
+        if tok.type is not TokenType.CMD:
+            continue
+        # Parse the embedded command to get name + args.
+        try:
+            cmds = segment_commands(tok.text)
+        except Exception:
+            return True
+        if len(cmds) != 1 or not cmds[0].texts:
+            # Multi-command substitution or empty -- conservative.
+            return True
+        cmd_name = cmds[0].texts[0]
+        cmd_args = tuple(cmds[0].texts[1:])
+        se = classify_side_effects(cmd_name, cmd_args)
+        if not se.pure:
+            return True
+        # Recurse into nested substitutions inside the args.
+        for arg in cmd_args:
+            if _word_has_observable_side_effect(arg):
+                return True
+    return False
+
+
+def _expr_has_observable_side_effect(node: ExprNode) -> bool:
+    """Expr-tree analogue of :func:`_word_has_observable_side_effect` --
+    True if any embedded command substitution in the expression has
+    an observable side effect."""
+    from ..expr_ast import (
+        ExprBinary,
+        ExprCall,
+        ExprCommand,
+        ExprRaw,
+        ExprTernary,
+        ExprUnary,
+    )
+
+    match node:
+        case ExprCommand(text=text) | ExprRaw(text=text):
+            return _word_has_observable_side_effect(text)
+        case ExprBinary(left=left, right=right):
+            return _expr_has_observable_side_effect(left) or _expr_has_observable_side_effect(right)
+        case ExprUnary(operand=operand):
+            return _expr_has_observable_side_effect(operand)
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            return (
+                _expr_has_observable_side_effect(cond)
+                or _expr_has_observable_side_effect(tb)
+                or _expr_has_observable_side_effect(fb)
+            )
+        case ExprCall(args=args):
+            return any(_expr_has_observable_side_effect(a) for a in args)
+        case _:
+            return False
+
+
+def _assignment_safe_to_delete(stmt: IRStatement) -> bool:
+    """True when *stmt* is an assignment whose RHS can be discarded
+    without losing observable behaviour.  ``IRAssignConst`` is always
+    safe (literal RHS); other forms require every embedded command
+    substitution to be classified as pure."""
+    if isinstance(stmt, IRAssignConst):
+        return True
+    if isinstance(stmt, IRAssignValue):
+        return not _word_has_observable_side_effect(stmt.value)
+    if isinstance(stmt, IRAssignExpr):
+        return not _expr_has_observable_side_effect(stmt.expr)
+    if isinstance(stmt, IRIncr):
+        # ``incr v`` reads + writes ``v`` -- the assignment itself IS the
+        # observable side effect.  Eliminating it is OK only when ``v``
+        # is dead and the optional amount word has no side effects.
+        if stmt.amount is None:
+            return True
+        return not _word_has_observable_side_effect(stmt.amount)
+    # Unknown statement form -- conservative.
+    return False
+
+
+# Keep ``REGISTRY`` importable from this module (avoids re-imports below).
+_ = REGISTRY
 
 # O-code registrations for codes primarily emitted from this module
 opt(code="O107", description="Eliminate unreachable dead code.", opt_category="dce")
@@ -270,6 +379,24 @@ def optimise_elimination_passes(
         if not any(ver > dead.version for ver in later_versions):
             continue
         key = (dead.block, dead.statement_index)
+        # D2-O109 closure: gate elimination on RHS purity (same reasoning
+        # as O126).  ``set x a; set y [append x b]; ...`` -- the first
+        # ``set x a`` is observably dead at the SSA level, but if we
+        # deleted ``set x a`` *and* the second store happened to write
+        # x as a side effect, the printed value would change.  Stay
+        # safe: only delete when the assignment's RHS is provably
+        # side-effect-free.  (The O100 / O109 stale-fact problem the
+        # reviewer flagged shares the same root cause -- cmd-sub writes
+        # not tracked in SSA -- but the purity gate fixes the
+        # observable-behaviour-loss part of it.)
+        block_stmts = cfg.blocks.get(dead.block)
+        if block_stmts is None:
+            continue
+        if dead.statement_index < 0 or dead.statement_index >= len(block_stmts.statements):
+            continue
+        ir_stmt = block_stmts.statements[dead.statement_index]
+        if not _assignment_safe_to_delete(ir_stmt):
+            continue
         stmt_range = range_by_stmt.get(key)
         if stmt_range is None:
             continue
@@ -323,6 +450,21 @@ def optimise_elimination_passes(
                 continue
             key = (unused.block, unused.statement_index)
             if key in baseline_dse_keys:
+                continue
+            # D2-O126 closure: gate elimination on RHS purity.  The
+            # variable is provably unused, but the assignment's RHS may
+            # have observable side effects (``set unused [puts X]``
+            # prints) or mutate state (``set unused [set x 1]``).
+            # ``_assignment_safe_to_delete`` returns True only when
+            # every embedded command substitution is classified ``pure``
+            # by ``compiler.side_effects.classify_side_effects``.
+            block_stmts = cfg.blocks.get(unused.block)
+            if block_stmts is None:
+                continue
+            if unused.statement_index < 0 or unused.statement_index >= len(block_stmts.statements):
+                continue
+            ir_stmt = block_stmts.statements[unused.statement_index]
+            if not _assignment_safe_to_delete(ir_stmt):
                 continue
             stmt_range = range_by_stmt.get(key)
             if stmt_range is None:

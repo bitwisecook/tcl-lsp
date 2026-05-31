@@ -199,14 +199,27 @@ class _CompilerOptimiser:
         _pattern_recognition.optimise_end_offset_indexes(ctx, cfg, ssa)
 
         kill_sites: list[tuple[int, str]] = []
+        # D2-O100 closure: also include variables written by command
+        # substitutions inside non-top-level positions (e.g. ``set y
+        # [set x 1]`` writes ``x`` even though SSA's top-level ``defs``
+        # only records ``y``).  Without this, O100 propagates the
+        # stale pre-cmd-sub value of ``x`` past the cmd-sub write,
+        # producing unsound rewrites that change program output.
+        from compiler.ssa import statement_cmd_sub_write_names
+
         for block in cfg.blocks.values():
             for stmt in block.statements:
-                if not isinstance(stmt, IRCall):
-                    continue
                 stmt_range = getattr(stmt, "range", None)
                 if stmt_range is None:
                     continue
-                for name in stmt.defs:
+                if isinstance(stmt, IRCall):
+                    for name in stmt.defs:
+                        if name:
+                            kill_sites.append((stmt_range.start.offset, name))
+                # Cmd-sub writes apply to every statement form (IRCall,
+                # IRAssignValue, IRAssignExpr, IRReturn, IRBranch).  The
+                # helper inspects each form's value/expr internally.
+                for name in statement_cmd_sub_write_names(stmt):
                     if name:
                         kill_sites.append((stmt_range.start.offset, name))
         kill_sites.sort()

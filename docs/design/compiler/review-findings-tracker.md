@@ -43,10 +43,11 @@ Verified by running `optimise_source()` and comparing tclsh stdout/stderr.
 
 | ID | Finding | Status | Closure |
 |---|---|---|---|
-| D2-O126 | O126 deletes RHS with side effects (e.g. `set unused [puts side]`) | ⬜ TODO | Need purity check on RHS before deletion |
-| D2-O100 | O100 propagates stale constants across `[append x b]` / `[set x b]` / `[incr x]` cmd-sub writes | ⬜ TODO | Need cmd-sub writes as SSA kills (or barrier flag) |
-| D2-O109 | O109 dead-store decisions miss cmd-sub read-own-def → wrong DCE | ⬜ TODO | Same root cause as O100 |
-| D2-O127 | O127 load-forwarding participates in stale-fact combinations | ⬜ TODO | Same root cause |
+| D2-O126 | O126 deletes RHS with side effects (e.g. `set unused [puts side]`) | ✅ FIXED | Purity gate via `_assignment_safe_to_delete` consuming `classify_side_effects` |
+| D2-O100 | O100 propagates stale constants across `[append x b]` / `[set x b]` / `[incr x]` cmd-sub writes | ✅ FIXED | `kill_sites` now includes `statement_cmd_sub_write_names` for every statement |
+| D2-O109 | O109 dead-store decisions miss cmd-sub read-own-def → wrong DCE | ✅ FIXED | Same purity gate on RHS + cmd-sub-write kill_sites |
+| D2-O127 | O127 load-forwarding participates in stale-fact combinations | ✅ FIXED | Resolved as side effect of O100/O109 kill_sites extension |
+| **D2-O126-FU** | **FOLLOW-UP: O126 / O109 purity gate is currently registry-trait only -- user-defined procs and TclOO methods are conservatively treated as impure even when the analyser can prove otherwise.** Extend `_assignment_safe_to_delete` to consume interprocedural purity summaries (`analysis.interproc.purity[qname]`) and TclOO method purity (`ClassDef.method_purity`).  We already have side-effect classification for registry commands; the interproc layer already computes purity for user procs.  Connecting the two would let `set unused [my pureMethod]` and `set unused [pureUserProc 1]` correctly fold to deletion.  Sound by construction: missing summary → fall back to current conservative refusal. | ⬜ TODO | New finding tracked at user's request |
 
 All four have ONE shared root cause: command-substitution writes are not modelled as SSA kills.
 
