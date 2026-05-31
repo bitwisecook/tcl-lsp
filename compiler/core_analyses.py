@@ -1907,6 +1907,73 @@ def _regexp_literal_no_match(pat: str, inp: str) -> bool:
     return pat not in inp
 
 
+def _iter_embedded_regexp_scan(node) -> list[tuple[str, tuple[str, ...]]]:
+    """Walk an ``ExprNode`` and yield ``(cmd_text, def_vars)`` pairs for
+    every embedded ``[regexp ...]`` / ``[scan ...]`` command substitution.
+
+    ``cmd_text`` is the full bracketed string (so callers can re-use
+    ``parse_command_substitution`` to extract the head + args).  ``def_vars``
+    is the conservative list of trailing-arg names that the embedded
+    call could write -- ``regexp`` capture vars or ``scan`` output vars.
+
+    Returns a list (not a generator) so the caller can iterate without
+    holding open an ExprNode subtree.  Defensive: any unknown / unparseable
+    node yields nothing.
+    """
+    from compiler.expr_ast import (
+        ExprBinary,
+        ExprCall,
+        ExprCommand,
+        ExprTernary,
+        ExprUnary,
+    )
+    from compiler.value_shapes import (
+        parse_command_substitution as _parse_cs,
+    )
+
+    out: list[tuple[str, tuple[str, ...]]] = []
+
+    def _visit(n) -> None:
+        if isinstance(n, ExprCommand):
+            text = n.text
+            parsed = _parse_cs(text)
+            if parsed is None:
+                return
+            head, args = parsed
+            if head not in ("regexp", "scan"):
+                return
+            # Defensive def-var extraction: skip options up to the
+            # first non-flag arg, then take the trailing arg names
+            # after the (pattern, input) pair (regexp) or (input,
+            # format) pair (scan).
+            from compiler.registry.runtime import options_with_value, skip_options
+
+            pos = skip_options(list(args), options_with_value(head))
+            # regexp: ?switches? pattern input ?var1 var2 ...?
+            # scan:   input format ?var1 var2 ...?
+            first_var_idx = pos + 2
+            def_vars = tuple(a for a in args[first_var_idx:] if a)
+            out.append((text, def_vars))
+            return
+        # Recurse through structural nodes.
+        if isinstance(n, ExprUnary):
+            _visit(n.operand)
+        elif isinstance(n, ExprBinary):
+            _visit(n.left)
+            _visit(n.right)
+        elif isinstance(n, ExprTernary):
+            _visit(n.cond)
+            _visit(n.then)
+            _visit(n.otherwise)
+        elif isinstance(n, ExprCall):
+            for arg in n.args:
+                _visit(arg)
+        # ExprLiteral / ExprString / ExprVar / ExprRaw -- no embedded cmd-subs.
+
+    _visit(node)
+    return out
+
+
 def _must_alias_killed_in_block(
     block_name: str,
     def_idx: int,
@@ -3042,6 +3109,83 @@ def _read_before_set(
             if no_match:
                 for def_var in stmt.defs:
                     provably_unset[def_var] = (bn, stmt_idx)
+
+    # F2 extension (PR #498/#499 follow-up): regexp/scan calls embedded
+    # in an ``if`` / ``while`` condition expression don't appear as
+    # top-level IRCalls -- they go into the ``<cond>`` synthetic IRCall
+    # and the original expression hangs off the CFGBranch terminator.
+    # When the embedded call is provably no-match, ONLY the CFG branch
+    # taken for "regexp/scan returned 0" reads the output vars as unset;
+    # the other branch may legitimately use them.  Determine which
+    # target corresponds to the no-match outcome via the condition
+    # shape and mark provably_unset on that target ONLY.
+    from compiler.cfg import CFGBranch as _CFGBranch
+    from compiler.expr_ast import ExprCommand as _ExprCommand
+    from compiler.expr_ast import ExprUnary as _ExprUnary
+    from compiler.expr_ast import UnaryOp as _UnaryOp
+
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None or not isinstance(block.terminator, _CFGBranch):
+            continue
+        term = block.terminator
+        cond = term.condition
+        if cond is None:
+            continue
+        for cmd_text, def_vars in _iter_embedded_regexp_scan(cond):
+            from compiler.value_shapes import parse_command_substitution as _parse_cs2
+
+            parsed = _parse_cs2(cmd_text)
+            if parsed is None or not def_vars:
+                continue
+            cmd_name, cmd_args = parsed
+            if cmd_name not in ("regexp", "scan"):
+                continue
+            pos = skip_options(list(cmd_args), options_with_value(cmd_name))
+            if pos + 1 >= len(cmd_args):
+                continue
+            if cmd_name == "regexp":
+                pat, inp = cmd_args[pos], cmd_args[pos + 1]
+            else:
+                inp, pat = cmd_args[pos], cmd_args[pos + 1]
+            if any(c in pat for c in "$[") or any(c in inp for c in "$["):
+                continue
+            no_match = (
+                _regexp_literal_no_match(pat, inp)
+                if cmd_name == "regexp"
+                else scan_provably_no_match(pat, inp)
+            )
+            if not no_match:
+                continue
+            # Determine which branch runs when the embedded call
+            # returns 0.  Two recognised condition shapes:
+            #   [regexp ...]  -> 0 -> false-target runs
+            #   ![regexp ...] -> !0 = 1 -> true-target runs
+            # Anything more complex (e.g. ``[regexp ...] && other``)
+            # is conservatively skipped -- the no-match branch may not
+            # be uniquely identifiable.
+            no_match_target: str | None = None
+            if isinstance(cond, _ExprCommand) and cond.text == cmd_text:
+                no_match_target = term.false_target
+            elif (
+                isinstance(cond, _ExprUnary)
+                and cond.op is _UnaryOp.NOT
+                and isinstance(cond.operand, _ExprCommand)
+                and cond.operand.text == cmd_text
+            ):
+                no_match_target = term.true_target
+            else:
+                continue
+            if no_match_target is None:
+                continue
+            # Mark provably_unset against the target block at index -1
+            # (before any of its statements).  The downstream dominance
+            # walk then fires W210 on uses in that block and any
+            # blocks it dominates.
+            for v in def_vars:
+                if v:
+                    provably_unset[v] = (no_match_target, -1)
+
     # Now fire W210 for any USE of a provably-unset var that's
     # reachable from the regexp/scan call.  The use must come AFTER
     # the call (later in the same block, OR in an EXECUTABLE descendant

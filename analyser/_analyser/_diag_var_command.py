@@ -633,16 +633,28 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # barrier), so it never reaches the compiler CU; recover it from the
         # snit ClassDefs the analyser built.  Scoped to each type's body range
         # so a same-named scalar elsewhere is unaffected.
+        # Build per-class body ranges + their declared instance/type
+        # variables for ALL class definitions, not just snit (oo::class
+        # and oo::define classes use the same ``class_def.variables``
+        # data from analyser/_analyser/_oo.py).  Both kinds of methods
+        # legitimately dispatch on the class's instance vars without
+        # the analyser seeing the var's binding via SCCP; the var-name
+        # check below uses these ranges to suppress W307 on those
+        # variables ONLY (no longer a blanket "anywhere in a method"
+        # suppression).  (F4 of the PR #498/#499 follow-up review.)
         snit_var_ranges: list[tuple[int, int, frozenset[str]]] = []
         snit_body_ranges: list[tuple[int, int]] = []
         for class_def in self.result.all_classes.values():
+            br = class_def.body_range
+            # snit-style bodies keep the historical name; record their
+            # range separately because some checks (snit reserved
+            # self-refs ``$self`` etc.) only apply inside snit bodies.
             if "snit::" in class_def.metaclass:
-                br = class_def.body_range
                 snit_body_ranges.append((br.start.offset, br.end.offset))
-                if class_def.variables:
-                    snit_var_ranges.append(
-                        (br.start.offset, br.end.offset, frozenset(class_def.variables))
-                    )
+            if class_def.variables:
+                snit_var_ranges.append(
+                    (br.start.offset, br.end.offset, frozenset(class_def.variables))
+                )
 
         for (
             var_name,
@@ -954,19 +966,24 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     is_proc_param_dispatcher = False
                     is_switch_callback_element = False
                     is_namespaced_ensemble = False
-                    # SCCP CONST evidence also overrides the soft
-                    # ``in_method`` / ``in_dict_with`` gates -- a TclOO
-                    # method body or ``dict with`` scope is NOT by itself
-                    # evidence the var holds an object handle.  When
-                    # SCCP knows the value is a non-command literal,
-                    # W307 must fire even inside those scopes.
-                    # (Findings 3+4 of the PR #498/PR #499 follow-up.)
-                    in_method = False
                     in_dict_with = False
 
+                # F4 closure (PR #498/#499 follow-up): the old
+                # ``in_method`` blanket suppression hid genuine W307
+                # cases like ``oo::class create C { method m {} { set
+                # cmd nope; \$cmd arg } }``.  Drop it as a standalone
+                # gate -- object-dispatch evidence inside a method
+                # body must come from a specific positive signal:
+                # ``is_snit_member`` (which now also covers oo::class
+                # instance vars via the widened class-vars range),
+                # snit reserved self-ref (caught via the OO_SELF_REFS
+                # exemption above), factory-object provenance,
+                # multi-dispatch, switch-callback array element,
+                # namespaced ensemble, or (via SCCP) a known-command
+                # CONST value.  Locals set to non-command literals
+                # inside a method body now correctly fire W307.
                 if (
-                    not in_method
-                    and not in_dict_with
+                    not in_dict_with
                     and not is_factory_object
                     and not is_snit_member
                     and not is_proc_param_dispatcher

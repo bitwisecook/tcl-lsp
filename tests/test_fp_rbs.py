@@ -188,6 +188,28 @@ def test_FP_RBS_02_regexp_no_match_reaches_dominated_block_fires():
     assert diags, f"reached-by-dominator W210 must fire, got {get_diagnostics(src)}"
 
 
+def test_FP_RBS_02_regexp_in_negated_condition_fires():
+    """TP: regexp embedded in ``if {![regexp ...]} { ... }`` -- the
+    body executes ONLY on no-match, so the var is unset there.  The
+    F2 closure walks the branch's condition expression for embedded
+    regexp/scan calls and tracks which target corresponds to the
+    no-match outcome."""
+    src = "proc f {} { if {![regexp {x} y -> v]} { puts $v } }"
+    diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert diags, f"no-match branch use must fire W210; got {get_diagnostics(src)}"
+
+
+def test_FP_RBS_02_regexp_in_positive_condition_success_branch_silent():
+    """FP / control: ``if {[regexp ...]} { puts $v }`` -- the body
+    executes ONLY on match, so v IS set.  Even when the pattern is
+    statically provable no-match (so the body is "dead code" at
+    runtime), W210 must not fire here -- the branch-aware tracker
+    correctly attributes the unset state to the false-target only."""
+    src = "proc f {} { if {[regexp {x} y -> v]} { puts $v } }"
+    diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert not diags, f"success-branch use must NOT fire W210; got {diags}"
+
+
 def test_FP_RBS_02_scan_provably_no_match_fires_w210():
     """TP / SCCP-driven match analysis: ``scan abc %d n`` -- the
     format ``%d`` requires the input to start with a digit (or sign),

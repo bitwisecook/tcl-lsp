@@ -567,3 +567,40 @@ def test_FP_W307_oo_class_bare_name_factory_propagates():
         "factory proc returning [C new] (bare TclOO class command) "
         "must propagate object provenance and suppress W307"
     )
+
+
+# Finding 4 closure: ``in_method`` is no longer a blanket W307 gate.
+# Method bodies must surface object-dispatch evidence through specific
+# positive signals (instance/type var, factory provenance, multi-
+# dispatch, callback shape) -- otherwise a local non-command literal
+# dispatched inside a method body fires W307.
+
+
+def test_FP_W307_oo_class_method_local_literal_fires():
+    """A bare local set to a literal non-command inside an oo::class
+    method body must fire W307 -- ``in_method`` is no longer a
+    blanket suppression."""
+    src = "oo::class create C {\n    method m {} { set cmd nope; $cmd arg }\n}"
+    assert _codes(src, "W307"), "local 'set cmd nope' inside method body must fire W307 on $cmd"
+
+
+def test_FP_W307_oo_class_instance_var_dispatch_silent():
+    """FP / control: a dispatch on an oo::class instance variable
+    inside a method body is suppressed via the (now-widened)
+    ``snit_var_ranges`` which tracks instance vars for ALL class
+    metaclasses, not just snit."""
+    src = "oo::class create C {\n    variable handle\n    method m {} { $handle op }\n}"
+    assert _codes(src, "W307") == [], "dispatch on declared instance var must NOT fire W307"
+
+
+def test_FP_W307_snit_typevariable_dispatch_silent():
+    """FP / control: snit typevariables are now tracked alongside
+    instance vars in the class definition, so dispatch via a
+    typevariable from inside a typemethod stays suppressed."""
+    src = (
+        "snit::type T {\n"
+        "    typevariable registry\n"
+        "    typemethod lookup {k} { return [$registry get $k] }\n"
+        "}"
+    )
+    assert _codes(src, "W307") == [], "snit typevariable dispatch must NOT fire W307"
