@@ -499,8 +499,8 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 from compiler.types import TclType as _TT
 
                 _spec = _REG_W307.get_any(cmd_head) or _REG_W307.get_any(qualified)
-                if _spec is not None and _spec.forms:
-                    rt = _spec.forms[0].return_type
+                if _spec is not None:
+                    rt = getattr(_spec, "return_type", None)
                     if rt is not None and rt is not _TT.OBJECT:
                         return False
                 # D3-P5 fully open: unregistered ``::pkg::plain``-style
