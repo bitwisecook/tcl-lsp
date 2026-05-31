@@ -652,6 +652,32 @@ def test_FP_OPT_12_nested_proc_in_method_body_not_lifted():
     assert "::C::m" in m.methods
 
 
+def test_FP_OPT_12_methods_survive_incremental_chunk_cache():
+    """SF-2 consistency: method extraction is a post-pass over the
+    assembled module, so methods are populated even when every chunk is
+    replayed from the incremental chunk-IR cache (which stores only
+    statements + procedures).  Without this the O126 method optimisation
+    would intermittently disappear in the editor as unrelated edits cache
+    the class chunk."""
+    from compiler.lowering import lower_commands_to_ir, lower_to_ir
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+    from compiler.parsing.green_tree import green_tree_scope
+
+    src = (
+        "oo::class create C {\n"
+        "    method pure_helper {} { return 42 }\n"
+        "    method m {} { set unused [my pure_helper]; puts done }\n"
+        "}\n"
+        "proc other {} { return 9 }\n"
+    )
+    with green_tree_scope():
+        chunks = segment_top_level_chunks(src)
+        cache = [lower_commands_to_ir(src, list(ch.commands)) for ch in chunks]
+        m = lower_to_ir(src, chunk_ir=cache, chunks=chunks)
+    assert "::C::pure_helper" in m.methods
+    assert "::C::m" in m.methods
+
+
 def test_FP_OPT_12_oo_define_pure_method_rhs_deleted():
     """SF-2 TP via ``oo::define`` body form: methods added through
     ``oo::define C { method ... }`` are lowered and summarised the same

@@ -2464,17 +2464,6 @@ class _Lowerer:
                     tokens=cmd.cmd_tokens,
                 )
 
-            case "oo::class" | "oo::define" if self._is_oo_definition_shape(
-                cmd_name, args, arg_tokens, arg_single
-            ):
-                # Descend into the class/define body and lift each
-                # ``method`` / ``constructor`` / ``destructor`` body to an
-                # ``IRMethodDef`` in ``module.methods`` (analysis-only —
-                # SF-2 method purity for O126).  Emission is then delegated
-                # to the default path so codegen sees byte-identical IR.
-                self._extract_oo_methods(cmd_name, args, arg_tokens, namespace=namespace)
-                return self._lower_default_command(cmd, namespace=namespace)
-
             case _:
                 return self._lower_default_command(cmd, namespace=namespace)
 
@@ -2558,6 +2547,47 @@ class _Lowerer:
     # ---------------------------------------------------------------
     # TclOO method-body lowering (SF-2: method purity for O126)
     # ---------------------------------------------------------------
+    def extract_oo_methods_pass(self) -> None:
+        """Populate ``module.methods`` from the fully-assembled IR.
+
+        Runs as a post-pass over the assembled module (not inline in the
+        command match) so it is **independent of incremental chunk
+        caching**: a cached class chunk replays its statements without
+        re-lowering, but this pass still sees the ``oo::class`` /
+        ``oo::define`` barrier in the assembled ``top_level`` and extracts
+        its methods.  Mirrors ``_extract_class_names``'s walk (top-level +
+        ``namespace eval`` blocks + proc bodies, namespace-tracked).
+
+        Method bodies are lowered here for analysis only — codegen never
+        reads ``module.methods``, and the barrier emitted for the class
+        command is unchanged, so bytecode is byte-identical.
+        """
+        self._walk_for_oo_methods(self.module.top_level.statements, namespace="::")
+        for qname, proc in list(self.module.procedures.items()):
+            proc_ns = _normalise_qualified_name(qname).rsplit("::", 1)[0] or "::"
+            self._walk_for_oo_methods(proc.body.statements, namespace=proc_ns)
+
+    def _walk_for_oo_methods(self, statements: tuple[IRStatement, ...], *, namespace: str) -> None:
+        for stmt in statements:
+            if isinstance(stmt, IRBlock):
+                self._walk_for_oo_methods(
+                    stmt.body.statements, namespace=stmt.namespace or namespace
+                )
+                continue
+            if (
+                isinstance(stmt, (IRCall, IRBarrier))
+                and stmt.command in ("oo::class", "oo::define")
+                and stmt.tokens is not None
+            ):
+                argv = list(stmt.tokens.argv)
+                texts = list(stmt.tokens.argv_texts)
+                single = list(stmt.tokens.single_token_word)
+                args = texts[1:]
+                arg_tokens = argv[1:]
+                arg_single = single[1:]
+                if self._is_oo_definition_shape(stmt.command, args, arg_tokens, arg_single):
+                    self._extract_oo_methods(stmt.command, args, arg_tokens, namespace=namespace)
+
     @staticmethod
     def _is_static_braced(arg_tokens: list[Token], arg_single: list[bool], idx: int) -> bool:
         """True iff arg *idx* is a single braced-literal (STR) token.
@@ -2745,7 +2775,9 @@ def _lower_to_ir_inner(
     from .inline_uplevel import inline_uplevel_passthrough
 
     if chunk_ir is None or chunks is None:
-        mod = _Lowerer().lower(source)
+        lw = _Lowerer()
+        mod = lw.lower(source)
+        lw.extract_oo_methods_pass()
         inline_uplevel_passthrough(mod)
         return mod
 
@@ -2774,6 +2806,10 @@ def _lower_to_ir_inner(
     lowerer.module.namespace_imports = tuple(lowerer._namespace_imports)
     lowerer.module.namespace_exports = tuple(lowerer._namespace_exports)
     lowerer.module.command_traces = tuple(lowerer._command_traces)
+    # Extract TclOO methods from the fully-assembled module (cache-
+    # independent — see extract_oo_methods_pass).  Runs after top_level is
+    # spliced so cached class chunks contribute their methods too.
+    lowerer.extract_oo_methods_pass()
     inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
