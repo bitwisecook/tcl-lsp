@@ -3042,28 +3042,42 @@ def _read_before_set(
             if no_match:
                 for def_var in stmt.defs:
                     provably_unset[def_var] = (bn, stmt_idx)
-    # Now fire W210 for any USE of a provably-unset var that's not
-    # already reported AND not guarded by a conditional branch testing
-    # the regexp/scan return.  (For the deep-review test case, the read
-    # is unguarded; for the trust-the-match idiom, the value isn't
-    # proven non-matching so this code path doesn't fire.)
+    # Now fire W210 for any USE of a provably-unset var that's
+    # reachable from the regexp/scan call.  The use must come AFTER
+    # the call (later in the same block, OR in an EXECUTABLE descendant
+    # block dominated by the call's block).  SCCP keeps the post-fixpoint
+    # ``considered`` set restricted to executable blocks, so a use
+    # inside an ``if {[regexp ...]}`` true-branch is naturally excluded
+    # when the regexp is statically no-match (SCCP marks the condition
+    # constant-false and the then-branch unreachable).  Conversely the
+    # ``if {![regexp ...]}`` false-arm IS executable and a use there is
+    # a real W210.  (Finding 2 of the PR #498/#499 follow-up review.)
     if provably_unset:
+        # Build a reverse postorder traversal of the call block's
+        # forward-reachable executable subgraph -- cheap once per
+        # provably-unset variable.  Then walk every executable block;
+        # fire if (a) the block is dominated by the call's block or
+        # (b) it IS the call's block and the use is after the call.
         for bn in considered:
             ssa_block = ssa.blocks.get(bn)
             if ssa_block is None:
                 continue
             for idx, stmt in enumerate(ssa_block.statements):
                 for name in stmt.uses:
-                    if name in provably_unset and name not in reported:
-                        # Confirm the use comes AFTER the proven-unset
-                        # def by checking the statement appears later
-                        # in the same block (simple form).
-                        def_block, def_idx = provably_unset[name]
-                        if bn == def_block and idx > def_idx:
-                            reported.add(name)
-                            result.append(
-                                ReadBeforeSet(block=bn, statement_index=idx, variable=name)
-                            )
+                    if name not in provably_unset or name in reported:
+                        continue
+                    def_block, def_idx = provably_unset[name]
+                    in_def_block_after_def = bn == def_block and idx > def_idx
+                    # ``_block_dominates`` is the same predicate used
+                    # for the existence-narrowing pass; the def-block
+                    # dominates exactly when every path to ``bn``
+                    # passes through it, which guarantees the regexp /
+                    # scan call has already executed (or its truth-arm
+                    # has already been chosen) by the time ``bn`` runs.
+                    dominated_use = bn != def_block and _block_dominates(ssa, def_block, bn)
+                    if in_def_block_after_def or dominated_use:
+                        reported.add(name)
+                        result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))
 
     return tuple(result)
 

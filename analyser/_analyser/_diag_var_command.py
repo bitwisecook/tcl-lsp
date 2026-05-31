@@ -264,21 +264,20 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # assigned from [known_proc] and that proc always returns a constant,
         # record the constant value so W307 can check it.
         if cu.interproc is not None:
-            import re as _re
-
-            _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
-
             for qname, fu_unit in _all_fus_named:
                 func_cs = _func_constsets.setdefault(qname, {})
                 for block in fu_unit.cfg.blocks.values():
                     for stmt in block.statements:
                         if not isinstance(stmt, IRAssignValue):
                             continue
-                        val = stmt.value.strip()
-                        m = _CMD_SUB_RE.match(val)
-                        if m is None:
+                        # Use the shared parser (lexer-backed) instead
+                        # of a bespoke regex -- it handles braced /
+                        # quoted / nested cmd-subs.  (Finding 9 of the
+                        # PR #498 / PR #499 follow-up review.)
+                        parsed_cs = parse_command_substitution(stmt.value)
+                        if parsed_cs is None:
                             continue
-                        called = m.group(1)
+                        called = parsed_cs[0]
                         for qn, summary in cu.interproc.procedures.items():
                             bare = qn.rsplit("::", 1)[-1]
                             if bare == called or qn == called:
@@ -307,13 +306,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
         )
 
         # Collect source offset ranges of procedures that contain
-        # ``dict with``/``dict update`` barriers.  Variables in these
-        # scopes may have been created by dict unpacking — suppress W307.
+        # ``dict with``/``dict update`` barriers, paired with the set
+        # of LOCAL variable names that are EXPLICITLY assigned in the
+        # same proc by ``set``/``foreach``/``lassign`` etc.  A dispatch
+        # site whose target name is in the explicit-assignment set
+        # cannot have been unpacked by the dict (the explicit local
+        # def came from the source, not from the dict), so the
+        # ``in_dict_with`` blanket suppression does NOT apply.
+        # (Finding 3 of the PR #498 / PR #499 follow-up review.)
+        # ``dict_with_ranges`` entries are tuples
+        # ``(start, end, locally_defined_names)``.
 
-        dict_with_ranges: list[tuple[int, int]] = []
+        dict_with_ranges: list[tuple[int, int, frozenset[str]]] = []
         _all_fus = [("::top", cu.top_level)] + list(cu.procedures.items())
         for qname, fu_unit in _all_fus:
             func_has_dw = False
+            local_defs: set[str] = set()
             for block in fu_unit.cfg.blocks.values():
                 for stmt in block.statements:
                     if (
@@ -323,16 +331,36 @@ class _AnalyserDiagVarCommandMixin(_Base):
                         and stmt.args[0] in ("with", "update")
                     ):
                         func_has_dw = True
-                        break
-                if func_has_dw:
-                    break
+                    # Collect explicit local defs from every IR statement
+                    # type: ``IRAssignConst`` / ``IRAssignValue`` /
+                    # ``IRAssignExpr`` / ``IRIncr`` carry a ``name``;
+                    # ``IRCall`` / ``IRBarrier`` carry ``defs``.  These
+                    # cover all the source-visible local-binding shapes
+                    # (``set X ...``, ``incr X``, foreach-binding,
+                    # regexp/scan output vars when written, etc.) and
+                    # are exactly the names "unpacked from dict" cannot
+                    # collide with.
+                    name_attr = getattr(stmt, "name", None)
+                    if name_attr:
+                        local_defs.add(name_attr)
+                    stmt_defs = getattr(stmt, "defs", ())
+                    if stmt_defs:
+                        for n in stmt_defs:
+                            if n:
+                                local_defs.add(n)
             if func_has_dw:
                 ir_proc = cu.ir_module.procedures.get(qname)
                 if ir_proc is not None:
-                    dict_with_ranges.append((ir_proc.range.start.offset, ir_proc.range.end.offset))
+                    dict_with_ranges.append(
+                        (
+                            ir_proc.range.start.offset,
+                            ir_proc.range.end.offset,
+                            frozenset(local_defs),
+                        )
+                    )
                 else:
                     # Top-level: covers entire source.
-                    dict_with_ranges.append((0, 2**31))
+                    dict_with_ranges.append((0, 2**31, frozenset(local_defs)))
 
         # Object-factory provenance (W307 suppression).  A variable assigned
         # from a *namespaced* command substitution (``set obj [::struct::tree
@@ -412,9 +440,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 for stmt in block.statements:
                     if isinstance(stmt, IRAssignValue) and stmt.name:
                         parsed = parse_command_substitution(stmt.value)
-                        if parsed is not None and _is_object_returning_command_head(
-                            parsed[0]
-                        ):
+                        if parsed is not None and _is_object_returning_command_head(parsed[0]):
                             # G3: defer to fixpoint when the head is a
                             # user proc -- only add as factory local if
                             # the user proc is later proven object-
@@ -750,8 +776,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
 
                 # Emit W307 unless inside a method body or a function with
                 # dict-with where $var is very likely an object from dict
-                # unpacking.
-                in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
+                # unpacking.  Finding 3 of the PR #498 / PR #499 follow-up:
+                # the suppression only applies to var-names that DON'T
+                # have an explicit local def in the same proc.  When the
+                # source has ``set cmd nope; $cmd arg``, ``cmd`` has an
+                # explicit local def, so the dict can't be its source
+                # and W307 must still fire on the dispatch.  The base-
+                # name check handles array-element dispatches like
+                # ``$state(-foo)`` -- ``state`` is the local def.
+                _site_off = site_range.start.offset
+                _base_for_dw_check = var_name
+                if "(" in var_name and var_name.endswith(")"):
+                    _base_for_dw_check = var_name[: var_name.index("(")]
+                in_dict_with = any(
+                    s <= _site_off <= e and _base_for_dw_check not in locals_set
+                    for s, e, locals_set in dict_with_ranges
+                )
                 _off = site_range.start.offset
                 is_factory_object = any(
                     s <= _off <= e and var_name in names for s, e, names in factory_object_ranges

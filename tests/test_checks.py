@@ -1380,6 +1380,21 @@ class TestMissingOptionTerminator:
         assert len(diags[0].fixes) == 1
         assert diags[0].fixes[0].new_text.startswith("-- ")
 
+    def test_top_level_lexical_after_shadowing_proc(self):
+        """Follow-up review finding 7: a top-level ``$path`` reference
+        AFTER a ``proc p {path} {...}`` declaration is not inside the
+        shadowing proc's body -- the lexical lookup must still pick
+        up the top-level ``set path -force`` evidence and report at
+        WARNING severity (the value resolves to ``-force``)."""
+        src = "set path -force\nproc p {path} { puts $path }\nfile delete $path\n"
+        diags = _diag_with_code(src, "W304")
+        # We expect the main diag at WARNING (the value really is
+        # ``-force`` at the file-delete call site) plus an origin INFO.
+        assert any(d.severity is Severity.WARNING for d in diags), (
+            f"top-level $path after shadowing proc must resolve to outer "
+            f"'-force' value at WARNING severity; got {[d.severity.name for d in diags]}"
+        )
+
 
 # Integration: multiple checks on realistic code
 
@@ -4688,6 +4703,23 @@ class TestDispatchProtocolSuppression:
         # All three procs share the leading ``{s e}``; protocol applies.
         # No unused (each body either ignores or uses the args).
         assert self._w214(src) == set()
+
+    def test_unrelated_dispatcher_does_not_count_as_evidence(self):
+        """Follow-up review finding 5: ``$cmd x`` dispatcher in an
+        unrelated namespace is not evidence for ``::n``'s peer trio.
+        W214 must fire."""
+        src = (
+            "namespace eval ::n {\n"
+            "    proc a {ctx token} { puts $ctx }\n"
+            "    proc b {ctx token} { puts $ctx }\n"
+            "    proc c {ctx token} { puts $ctx }\n"
+            "}\n"
+            "proc unrelated {cmd} { $cmd x }\n"
+        )
+        assert "token" in self._w214(src), (
+            "unrelated dispatcher in ::ns must not satisfy the dispatch-evidence "
+            "requirement; token must fire W214"
+        )
 
 
 class TestExprSubstitutionReadTracking:

@@ -64,7 +64,7 @@ diag(
 # Taint diagnostic codes (T-series) — co-registered with codes_taint.py
 diag(
     "T100",
-    "Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+    "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).",
     section="taint",
 )
 diag("T101", "Tainted data flows into an output command (`puts`).", section="taint")

@@ -539,3 +539,31 @@ proc f {} { set g [createGraph]
 $g op }
 """
     assert _codes(src, "W307") == []
+
+
+# Follow-up review finding 3: ``dict with`` should not blanket-suppress
+# W307 on a same-named local that has an explicit ``set`` in the same proc.
+
+
+def test_FP_W307_dict_with_does_not_suppress_explicit_local_dispatch():
+    src = "proc f {} { set d {}\n dict with d {}\n set cmd nope\n $cmd arg }"
+    assert _codes(src, "W307"), (
+        "explicit set cmd in same proc as dict with must still fire W307 on $cmd"
+    )
+
+
+# Follow-up review finding 8: TclOO class commands invoked by their bare
+# tail name (``C new``) must be recognised as object-returning by the
+# inter-proc fixpoint.
+
+
+def test_FP_W307_oo_class_bare_name_factory_propagates():
+    src = (
+        "oo::class create C {}\n"
+        "proc make {} { return [C new] }\n"
+        "proc f {} { set x [make]\n $x destroy }\n"
+    )
+    assert _codes(src, "W307") == [], (
+        "factory proc returning [C new] (bare TclOO class command) "
+        "must propagate object provenance and suppress W307"
+    )

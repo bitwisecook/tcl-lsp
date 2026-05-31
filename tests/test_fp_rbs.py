@@ -162,6 +162,32 @@ proc f {} {
     )
 
 
+def test_FP_RBS_02_regexp_with_options_does_not_fire():
+    """FP guard: a ``regexp`` with switches like ``-nocase``,
+    ``-lineanchor``, ``-expanded`` has different semantics than the
+    no-option form; the no-match proof must not fire.  The literal-
+    only restriction (pattern contains a regex metacharacter) handles
+    most cases automatically, but options like ``-nocase`` could turn
+    a "no" into a "yes" for case-shifted text -- our analyser must
+    not fire.  PR #498/#499 follow-up finding 1."""
+    for src in [
+        "proc f {} { regexp -nocase {(x)} X -> v\n puts $v }",
+        "proc f {} { regexp -lineanchor {^(x)} {a\nx} -> v\n puts $v }",
+        "proc f {} { regexp -expanded {(x) # comment} x -> v\n puts $v }",
+    ]:
+        diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
+        assert not diags, f"regexp with options must not fire W210: {src!r} → {diags}"
+
+
+def test_FP_RBS_02_regexp_no_match_reaches_dominated_block_fires():
+    """TP: regexp no-match followed by a use in a DOMINATED block
+    (not just the same block) fires W210 -- the post-pass now does
+    a CFG dominance check.  PR #498/#499 follow-up finding 2."""
+    src = "proc f {} { regexp {x} y -> v\n if {1} { puts $v } }"
+    diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert diags, f"reached-by-dominator W210 must fire, got {get_diagnostics(src)}"
+
+
 def test_FP_RBS_02_scan_provably_no_match_fires_w210():
     """TP / SCCP-driven match analysis: ``scan abc %d n`` -- the
     format ``%d`` requires the input to start with a digit (or sign),
@@ -714,3 +740,54 @@ proc f {} {
         "scan output-var read must not fire any RBS code; current: "
         + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
     )
+
+
+# PR #498/#499 follow-up: DYNAMIC_NAME_LOCAL trait must reach the
+# manual scan/regexp/regsub/lassign handlers, not just the generic
+# registry path.  (Finding 6.)
+
+
+def test_FP_callbyname_scan_target_not_caller_alias():
+    src = "proc maybe {target} { scan 42 %d $target }\nproc caller {} { set x 1; maybe x }"
+    diags = [
+        d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
+    ]
+    assert diags, "scan $target -- caller's x must still fire W211/W220"
+
+
+def test_FP_callbyname_regexp_target_not_caller_alias():
+    src = "proc maybe {target} { regexp {(.)} a -> $target }\nproc caller {} { set x 1; maybe x }"
+    diags = [
+        d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
+    ]
+    assert diags, "regexp $target -- caller's x must still fire W211/W220"
+
+
+def test_FP_callbyname_regsub_target_not_caller_alias():
+    src = "proc maybe {target} { regsub a a b $target }\nproc caller {} { set x 1; maybe x }"
+    diags = [
+        d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
+    ]
+    assert diags, "regsub $target -- caller's x must still fire W211/W220"
+
+
+def test_FP_callbyname_lassign_target_not_caller_alias():
+    src = "proc maybe {target} { lassign {1} $target }\nproc caller {} { set x 1; maybe x }"
+    diags = [
+        d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
+    ]
+    assert diags, "lassign $target -- caller's x must still fire W211/W220"
+
+
+def test_FP_callbyname_upvar_alias_still_suppresses():
+    """TP control: when the callee actually uses ``upvar $target v``,
+    the caller-side x IS being read/written through the alias -- the
+    DYNAMIC_NAME_LOCAL refinement must not break that."""
+    src = (
+        "proc maybe {target} { upvar 1 $target v\n scan 42 %d v }\n"
+        "proc caller {} { set x 1; maybe x }"
+    )
+    diags = [
+        d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
+    ]
+    assert not diags, "upvar-aliased callee write must continue to suppress caller W211/W220"

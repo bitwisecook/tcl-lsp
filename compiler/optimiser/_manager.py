@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 
 from compiler.interprocedural import InterproceduralAnalysis
 from shared.naming import normalise_var_name as _NORMALISE
@@ -387,11 +386,17 @@ def find_optimisations(
     # When O112 replaces a large range, inner O101/O112 optimisations get
     # dropped by overlap resolution.  Prevent O109/O126 from removing
     # definitions that are still textually referenced in an O112 replacement.
+    # Use the shared lexer-backed scanner instead of a ``\\$(\\w+)`` regex
+    # so ``${ns::x}``, array refs (``\\$arr(idx)``), escaped dollars
+    # (``\\\\$``), and other Tcl variable-name edge cases are handled
+    # correctly.  (Finding 11 of the PR #498 / PR #499 follow-up.)
+    from compiler.var_refs import VarReferenceScanner
+
+    _ref_scanner = VarReferenceScanner()
     var_refs_in_replacements: set[str] = set()
     for opt in selected:
         if opt.code == "O112" and opt.replacement:
-            for m in re.finditer(r"\$(\w+)", opt.replacement):
-                var_refs_in_replacements.add(m.group(1))
+            var_refs_in_replacements.update(_ref_scanner.scan_script(opt.replacement))
     if var_refs_in_replacements:
         filtered: list[Optimisation] = []
         for opt in selected:

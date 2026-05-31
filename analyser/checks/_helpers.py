@@ -239,12 +239,7 @@ def _last_literal_set_value_for_var(
         # use the top-level ``set path -force`` evidence.)
         body_offset_end = cmd.range.end.offset
         use_inside_proc = body_offset_end >= before_offset
-        if (
-            use_inside_proc
-            and cmd.texts
-            and cmd.texts[0] == "proc"
-            and len(cmd.texts) >= 4
-        ):
+        if use_inside_proc and cmd.texts and cmd.texts[0] == "proc" and len(cmd.texts) >= 4:
             # cmd.texts[2] is the param-list literal -- the segmenter
             # has already brace-stripped braced words so this is the
             # *contents* (e.g. ``'a b {c default}'``).
