@@ -240,6 +240,49 @@ def _proc_cache_key(
     )
 
 
+def _proc_reposition_key(
+    source: str,
+    qname: str,
+    start_offset: int,
+    end_offset: int,
+    stub_fingerprint: int = 0,
+    context_fingerprint: int = 0,
+    known_classes_fp: int = 0,
+) -> tuple[str, int] | None:
+    """Build a *position-independent* procedure key for the reposition cache.
+
+    This is :func:`_proc_cache_key` with the proc's start line/char/offset
+    deliberately **excluded**.  Two compilations whose only difference is that
+    the proc moved (e.g. a blank line inserted above it) produce the same
+    reposition key even though their primary cache keys differ.
+
+    A hit means the body text and every non-positional validity input (stub
+    overlay, CFG-construction context, known-class set) are unchanged, so the
+    proc's *dataflow* is identical — only its absolute source ranges shifted.
+    The caller may therefore reuse the cached unit's position-independent
+    ``analysis`` / ``execution_intent`` (keyed by block name + statement index
+    + SSA value key, never by absolute position) and rebuild just the cheap
+    CFG + SSA to recover correct ranges.  The validity contract matches the
+    primary cache exactly minus position, so this is no less sound than the
+    existing whole-unit reuse.
+    """
+    if start_offset < 0 or end_offset < start_offset or end_offset > len(source):
+        return None
+    # Slice end-exclusive at end_offset+1 to match _proc_cache_key (end_offset
+    # is the proc's last character, inclusive).
+    return (
+        qname,
+        hash(
+            (
+                source[start_offset : end_offset + 1],
+                stub_fingerprint,
+                context_fingerprint,
+                known_classes_fp,
+            )
+        ),
+    )
+
+
 def known_classes_fingerprint(known_classes: frozenset[str]) -> int:
     """Stable per-process fingerprint of the TclOO/snit class-name set.
 
@@ -278,6 +321,7 @@ def compile_source(
     *,
     ir_module: IRModule | None = None,
     proc_cache: dict[tuple[str, int], FunctionUnit] | None = None,
+    reposition_cache: dict[tuple[str, int], FunctionUnit] | None = None,
     interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_interproc_cache: bool = True,
     known_classes: frozenset[str] = frozenset(),
@@ -294,6 +338,12 @@ def compile_source(
     whose source text has not changed are reused instead of rebuilding
     SSA and dataflow analysis from scratch.  The cache key is
     ``(qualified_name, hash(procedure_source_text))``.
+
+    When *reposition_cache* is provided, a procedure whose body text is
+    unchanged but which has *moved* (a primary-cache miss because its absolute
+    positions shifted) reuses the cached unit's position-independent ``analysis``
+    / ``execution_intent`` and rebuilds only the cheap CFG + SSA, instead of
+    re-running the expensive dataflow analysis.  See :func:`_proc_reposition_key`.
 
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
@@ -321,6 +371,7 @@ def compile_source(
             source,
             ir_module=ir_module,
             proc_cache=proc_cache,
+            reposition_cache=reposition_cache,
             interproc_cache=interproc_cache,
             prune_interproc_cache=prune_interproc_cache,
             known_classes=known_classes,
@@ -334,6 +385,7 @@ def _compile_source_inner(
     *,
     ir_module: IRModule | None,
     proc_cache: dict[tuple[str, int], FunctionUnit] | None,
+    reposition_cache: dict[tuple[str, int], FunctionUnit] | None = None,
     interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None,
     prune_interproc_cache: bool,
     known_classes: frozenset[str],
@@ -445,6 +497,39 @@ def _compile_source_inner(
             faithful_exceptions=True,
         )
         proc_cfgs[qname] = cfg
+
+        # Reposition fast-path: the proc body text (and every non-positional
+        # validity input) is unchanged but the proc moved, so the primary cache
+        # missed only because its absolute positions shifted.  The freshly-built
+        # CFG above already carries correct ranges; the cached unit's SSA +
+        # dataflow ``analysis`` / ``execution_intent`` are position-independent
+        # (keyed by block name + statement index + SSA value key), so reuse them
+        # instead of paying for SSA + the ~85%-of-cost dataflow analysis.  We
+        # still rebuild SSA (cheap, ~11%) because the cached SSA wraps the *old*
+        # IR statements with stale ranges and is consumed for ranges downstream.
+        if reposition_cache is not None and not byte_guarded:
+            repos_key = _proc_reposition_key(
+                source,
+                qname,
+                ir_proc.range.start.offset,
+                ir_proc.range.end.offset,
+                stub_fingerprint=stub_fingerprint,
+                context_fingerprint=context_fingerprint,
+                known_classes_fp=known_classes_fp,
+            )
+            repos = reposition_cache.get(repos_key) if repos_key is not None else None
+            if repos is not None and not repos.complexity_guarded:
+                ssa = build_ssa(cfg)
+                proc_units[qname] = FunctionUnit(
+                    cfg=cfg,
+                    ssa=ssa,
+                    analysis=repos.analysis,
+                    execution_intent=repos.execution_intent,
+                    complexity_guarded=repos.complexity_guarded,
+                )
+                time.sleep(0)  # Yield GIL between procedures
+                continue
+
         ssa = build_ssa(cfg, force_guard=byte_guarded)
         proc_params = frozenset(ir_proc.params)
         param_constants = _params_constants_from_call_sites(ir_proc, call_site_constants, qname)

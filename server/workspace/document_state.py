@@ -582,6 +582,48 @@ def _build_proc_cache(
     return cache
 
 
+def _build_reposition_cache(
+    cu: CompilationUnit,
+) -> dict[tuple[str, int], FunctionUnit]:
+    """Build a *position-independent* proc index for the reposition fast-path.
+
+    Keys mirror :func:`compiler.compilation_unit._proc_reposition_key`: body
+    text plus the stub / context / known-class fingerprints, but **not** the
+    proc's start line/char/offset.  A proc that merely moved (a primary-cache
+    miss) hits here, letting ``compile_source`` reuse the cached unit's
+    position-independent ``analysis`` / ``execution_intent`` and rebuild only
+    the cheap CFG + SSA.
+    """
+    from compiler.cfg import cfg_context_fingerprint, prepare_cfg_context
+    from compiler.compilation_unit import (
+        _proc_reposition_key,
+        compute_stub_fingerprint,
+        known_classes_fingerprint,
+    )
+
+    cache: dict[tuple[str, int], FunctionUnit] = {}
+    stub_fingerprint = compute_stub_fingerprint(cu.source)
+    upvar_procs, proc_params = prepare_cfg_context(cu.ir_module)
+    context_fingerprint = cfg_context_fingerprint(upvar_procs, proc_params)
+    known_classes_fp = known_classes_fingerprint(cu.known_classes)
+    for qname, fu in cu.procedures.items():
+        ir_proc = cu.ir_module.procedures.get(qname)
+        if ir_proc is None:
+            continue
+        key = _proc_reposition_key(
+            cu.source,
+            qname,
+            ir_proc.range.start.offset,
+            ir_proc.range.end.offset,
+            stub_fingerprint=stub_fingerprint,
+            context_fingerprint=context_fingerprint,
+            known_classes_fp=known_classes_fp,
+        )
+        if key is not None:
+            cache[key] = fu
+    return cache
+
+
 @dataclass
 class ChunkCache:
     """Cached artefacts for a single ``TopLevelChunk``.
@@ -652,6 +694,13 @@ class DocumentState:
     # Internal caches for the compilation pipeline — not accessed by
     # request handlers, so they live outside the snapshot.
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # Position-independent companion to ``_proc_cache``: lets a proc that merely
+    # moved (a primary-cache miss because its absolute positions shifted) reuse
+    # its cached dataflow analysis while rebuilding only the cheap CFG + SSA.
+    _reposition_cache: dict[tuple[str, int], FunctionUnit] = field(
         default_factory=dict,
         repr=False,
     )
@@ -1288,6 +1337,7 @@ class DocumentState:
             # stub/context fingerprints) do not encode the dialect, so a dialect
             # switch would otherwise reuse a unit analysed under the old dialect.
             self._proc_cache = {}
+            self._reposition_cache = {}
             self._interproc_cache = {}
             self._prev_analysed = None
         with self._signature_profile():
@@ -1455,6 +1505,7 @@ class DocumentState:
 
         # Lower IR incrementally.
         prev_proc_cache = dict(self._proc_cache)
+        prev_reposition_cache = dict(self._reposition_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         ir_module = None
         compilation_unit: CompilationUnit | None = None
@@ -1465,6 +1516,7 @@ class DocumentState:
                 source,
                 ir_module=ir_module,
                 proc_cache=self._proc_cache,
+                reposition_cache=self._reposition_cache,
                 interproc_cache=self._interproc_cache,
                 prune_interproc_cache=not has_partial,
             )
@@ -1472,6 +1524,7 @@ class DocumentState:
             t_lower = time.perf_counter()
             log.debug("document_state: incremental compilation failed", exc_info=True)
             self._proc_cache = prev_proc_cache
+            self._reposition_cache = prev_reposition_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
@@ -1712,18 +1765,21 @@ class DocumentState:
                 return
 
         prev_proc_cache = dict(self._proc_cache)
+        prev_reposition_cache = dict(self._reposition_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         compilation_unit: CompilationUnit | None = None
         try:
             compilation_unit = compile_source(
                 source,
                 proc_cache=self._proc_cache,
+                reposition_cache=self._reposition_cache,
                 interproc_cache=self._interproc_cache,
                 prune_interproc_cache=not has_partial,
             )
         except Exception:
             log.debug("document_state: compilation failed, preserving caches", exc_info=True)
             self._proc_cache = prev_proc_cache
+            self._reposition_cache = prev_reposition_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
@@ -1964,15 +2020,21 @@ class DocumentState:
         """Update the procedure cache from the given compilation unit."""
         if compilation_unit is not None:
             next_proc_cache = _build_proc_cache(compilation_unit)
+            next_reposition_cache = _build_reposition_cache(compilation_unit)
             if has_partial:
                 merged = dict(self._proc_cache)
                 merged.update(next_proc_cache)
                 self._proc_cache = merged
+                merged_repos = dict(self._reposition_cache)
+                merged_repos.update(next_reposition_cache)
+                self._reposition_cache = merged_repos
             else:
                 self._proc_cache = next_proc_cache
+                self._reposition_cache = next_reposition_cache
         else:
             if not has_partial:
                 self._proc_cache = {}
+                self._reposition_cache = {}
                 self._interproc_cache = {}
 
 
