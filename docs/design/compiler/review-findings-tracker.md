@@ -116,3 +116,55 @@ Code-quality cleanups (regex → parser):
 15. **D4-F11** `is_pure_var_ref()`
 
 Architectural deferreds (D1-10, D1-11, D1-12) tracked separately.
+
+---
+
+## Doc 5: Compiler optimisation, shimmer & taint follow-up review (8 findings, 2026-05-31)
+
+Re-review of `bitwisecook/tcl-lsp#499` at `b8654117`.  Previous O100/O109/O126/O127
+cmd-sub / RHS-deletion issues confirmed clean.  New high-confidence issues:
+
+All 8 verified against `/usr/local/bin/tclsh9.0` (Tcl 9.0.3).
+
+| ID | Severity | Finding | Status | Closure |
+|---|---|---|---|---|
+| D5-O110 | HIGH | O110 InstCombine drops Tcl numeric coercion/error semantics (`$x + 0`, `$x * 1`, `$x * 0`, `$x / 1`, `$x << 0`, `$x & 0`, `$x % 1` removed without proving operand is numeric).  tclsh: `expr {"abc" + 0}` ERRORS but `expr {"abc"}` returns `"abc"` — the rewrite changes a tclsh error into successful string output. | ⬜ TODO | — |
+| D5-O114 | HIGH | O114 rewrites `set x [expr {$x + 1}]` to `incr x` without integer proof.  tclsh: `expr {$x + 1}` on `1.5` = `2.5`; `incr` on `1.5` errors `expected integer but got "1.5"`. | ⬜ TODO | — |
+| D5-O120 | HIGH | O120 rewrites numeric `==`/`!=` to string `eq`/`ne` even when both operands could be numeric-looking.  tclsh: `1.0 == "1"` is `1` (numeric); `1.0 eq "1"` is `0` (string) — the rewrite flips the result. | ⬜ TODO | — |
+| D5-SH-EXPR | HIGH | `_find_expr_shimmers` only analyses `IRAssignExpr`, misses standalone `expr`, `if {…}`, `while {…}`, `for {…}` expr contexts.  All four are real expr lex-promotion sites in tclsh. | ⬜ TODO | — |
+| D5-SH-EQ | MEDIUM | Shimmer treats `==`/`!=` as universally numeric.  tclsh: `$s == "hello"` with `s=hello` short-circuits to STRING comparison (both operands non-numeric); no shimmer happens.  Currently fires S100 falsely. | ⬜ TODO | — |
+| D5-T100 | HIGH | T100/T105 suppression on `LIST_CANONICAL` is unsound: `eval [list $raw]` where `$raw` is tainted runs `$raw` as a command word (proved with `proc marker args {puts EXECUTED}; eval [list marker]` → `EXECUTED`).  `LIST_CANONICAL` only proves word boundaries, NOT command-word trustedness. | ⬜ TODO | — |
+| D5-T102 | HIGH | T102 suppressed when `--` appears anywhere ≥ `scan_start`, but a `--` AFTER a tainted option candidate cannot protect that candidate.  tclsh: `regexp -- -nocase ABC` treats `-nocase` as pattern (rc=0 match=0); `regexp -nocase -- ABC abc` treats it as option (rc=0 match=1). | ⬜ TODO | — |
+| D5-T104 | MEDIUM | T104 ignores `taint_network_sink_args` argument positions in the registry — fires on any tainted var in the statement (e.g. `http::geturl URL -headers $hdr` fires for `$hdr`, but the URL is positional[0], `$hdr` is an option value). | ⬜ TODO | — |
+
+---
+
+## Stage-2 follow-ons (deferred from earlier waves)
+
+| ID | Finding | Status | Notes |
+|---|---|---|---|
+| SF-1 | Registry data coverage: add `return_type=TclType.STRING` / `OBJECT` to specific tcllib/Tk commands so D3-P5 / D4-F6 partial closures catch unregistered external factories (`::pkg::plain` style). | ⬜ TODO | Pure data work; no architecture left.  Would chip away at the residual W307 corpus count. |
+| SF-2 | Wire `ClassDef.method_purity` into D2-O126-FU's `interproc_pure` set so pure-method RHS (`set unused [my pure_method ...]`) can be safely folded. | ⬜ TODO | Small, scoped.  `IRCall my <method>` currently goes through `classify_side_effects` which conservatively treats methods as impure. |
+
+---
+
+## Doc 5 + stage-2 working order
+
+Critical correctness (changes program behaviour or hides security issues):
+
+1. **D5-O110** numeric-coercion preserving guards on identity/annihilator rewrites
+2. **D5-O114** integer-domain proof gate on set/expr→incr
+3. **D5-O120** numeric-vs-string `==/!=` rewrite gate (value-domain aware)
+4. **D5-T100/T105** drop LIST_CANONICAL suppression for eval/uplevel/interp eval; require trusted command-word evidence
+5. **D5-T102** option-region-aware `--` suppression (only suppress vars whose argument index is past a real terminator)
+
+Precision (changes diagnostics, no runtime behaviour):
+
+6. **D5-SH-EXPR** expr-shimmer collection from `IRExprEval` + branch/loop terminator exprs (not just `IRAssignExpr`)
+7. **D5-SH-EQ** value-sensitive `==/!=` shimmer (numeric only when operands provably numeric-compatible)
+8. **D5-T104** thread `taint_network_sink_args` through `TaintSinkInfo`; position-filter T104
+
+Stage-2 follow-ons:
+
+9. **SF-2** TclOO method purity for O126
+10. **SF-1** Registry return-type coverage for tcllib/Tk factories
