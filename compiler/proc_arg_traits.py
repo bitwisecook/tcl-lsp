@@ -22,6 +22,8 @@ Two analysis tiers:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from compiler.parsing.lexer import TclLexer, TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
@@ -522,7 +524,7 @@ def _scan_expr_node(node, scan_text) -> None:
 
 
 def build_proc_index_from_summaries(
-    summaries: dict[str, object],
+    summaries: Mapping[str, object],
 ) -> dict[str, list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]]]:
     """Build the ``proc_index`` for ``collect_call_by_name_reads`` from
     ``InterproceduralAnalysis.procedures`` (``ProcSummary``-valued).

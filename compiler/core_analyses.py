@@ -95,7 +95,9 @@ from .place_bridge import (
 )
 from .ssa import (
     _COMPLEXITY_GUARD_BLOCKS,
+    BlockName,
     SSAFunction,
+    SSAPhi,
     SSAStatement,
     SSAValueKey,
     build_ssa,
@@ -3053,7 +3055,7 @@ def _read_before_set(
     # SCCP already knows which predecessors are reachable, and the phi
     # graph already encodes the merge structure.  We just trace the
     # transitive can-be-undef property along it.
-    phi_def: dict[tuple[str, int], object] = {}  # phi statement by (name, version)
+    phi_def: dict[tuple[str, int], tuple[BlockName, SSAPhi]] = {}  # phi by (name, ver)
     # ``unset v`` is lowered as an IRCall with ``defs=('v',)`` even though
     # semantically it KILLS rather than defines.  Track the (name, version)
     # pairs created by an unset so ``_phi_can_undef`` treats them as undef
@@ -4042,7 +4044,8 @@ def _params_constants_from_call_sites(
             continue
         if len(values_seen) == 1:
             val = next(iter(values_seen))
-            consts[(pname, 0)] = LatticeValue.const(val)
+            if isinstance(val, (int, float, bool, str)):
+                consts[(pname, 0)] = LatticeValue.const(val)
     return consts or None
 
 

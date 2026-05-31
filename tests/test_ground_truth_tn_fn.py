@@ -38,7 +38,7 @@ from server.features.diagnostics import get_diagnostics
 def _codes(source: str, *codes: str) -> list[str]:
     """All firings of *codes* on *source* (returns the per-firing code list)."""
     wanted = set(codes)
-    return [d.code for d in get_diagnostics(source) if d.code in wanted]
+    return [str(d.code) for d in get_diagnostics(source) if d.code in wanted]
 
 
 def _any(source: str, *codes: str) -> bool:

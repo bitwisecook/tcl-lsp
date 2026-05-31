@@ -26,8 +26,10 @@ class AnalyserSnapshot:
     # Map from old scope id → scope object for scope identity reconstruction.
     scope_id_map: dict[int, Scope] = field(default_factory=dict)
     # Variable-as-command sites: (var_name, method_name_or_None,
-    # token_range, in_method, is_single_token_word).
-    var_command_sites: list[tuple[str, str | None, Range, bool, bool]] = field(default_factory=list)
+    # token_range, in_method, is_single_token_word, positional_arg_count).
+    var_command_sites: list[tuple[str, str | None, Range, bool, bool, int]] = field(
+        default_factory=list
+    )
     # Command-substitution-as-command sites: (cmd_text, method_name_or_None,
     # range, in_method, is_single_token_word).
     cmd_command_sites: list[tuple[str, str | None, Range, bool, bool]] = field(default_factory=list)

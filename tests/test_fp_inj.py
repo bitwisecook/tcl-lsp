@@ -160,7 +160,7 @@ def test_FP_INJ_05_code_action_rewrites_to_eval_list():
     diag = diags[0]
     # Quick-fixes are produced by `analyse(...)` -> `diagnostic.fixes` (see
     # tests/test_checks.py::TestEvalInjection.test_eval_string_offers_list_fix).
-    fixes = getattr(diag, "fixes", ()) or ()
+    fixes = list(getattr(diag, "fixes", None) or ())
     assert len(fixes) == 1, f"expected exactly one quick-fix on W101, got {fixes}"
     fix = fixes[0]
     rewritten = src[: fix.range.start.offset] + fix.new_text + src[fix.range.end.offset :]
