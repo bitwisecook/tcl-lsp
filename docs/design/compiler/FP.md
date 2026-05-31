@@ -6084,6 +6084,81 @@ For literals the predicate is trivially True (the parser only emits ExprLiteral 
 
 ---
 
+### FP-OPT-10 — O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)
+
+- **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_10_*`
+- **Codes:** O114 (use `incr` instead of `set`/`expr`)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O114
+
+#### Reproducer
+
+```tcl
+proc foo {x} {
+    set x [expr {$x + 1}]
+    puts $x
+}
+foo 1.5
+```
+
+#### Per-line reasoning
+
+1. `proc foo {x}` — parameter `x` has UNKNOWN type at entry; SCCP can't prove `x` is an integer.
+2. `set x [expr {$x + 1}]` — the syntactic shape matches the O114 idiom (set-self-plus-integer-literal), but `expr {$x + 1}` on a float silently promotes (tclsh: `foo 1.5` → `2.5`), while `incr x` errors with `expected integer but got "1.5"`.  The rewrite turns successful execution into a runtime error.
+3. D5-O114 closure: `optimise_incr_idioms` now takes `analysis` and, before calling `_try_incr_idiom`, checks `analysis.types[(var, ver)].tcl_type is TclType.INT` for the variable's SSA use version.  Only INT is accepted — DOUBLE, NUMERIC (the join of INT and DOUBLE), BOOLEAN, OBJECT and unknown are all conservatively refused.  `_try_incr_idiom` itself gained a `var_is_int=False` default kwarg that bails fast.
+4. Counter-example: `for {set x 0} {$x < $n} {incr x} { set x [expr {$x + 1}]; puts $x }` — the for-loop initialiser + `incr` typecheck `x` as INT (OVERDEFINED value at the use site but KNOWN INT type); the rewrite fires correctly.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc foo {x} { set x [expr {$x + 1}]; puts $x }
+% foo 1.5
+2.5
+
+% # Compare to the unsound post-rewrite (set x [expr ...] -> incr x):
+% proc bar {x} { incr x; puts $x }
+% catch {bar 1.5} err
+1
+% puts $err
+expected integer but got "1.5"
+```
+
+The pre-rewrite SUCCEEDS with a float result; the post-rewrite ERRORS — not behaviour-equivalent.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-10: O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)
+regen: python -m bench.fp_snippets --id FP-OPT-10
+function ::foo
+  block entry_1
+    [0] AssignExpr 'x'  defs={x#1}  uses={x#0}
+    [1] Call cmd='puts'  defs={}  uses={x#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  types
+    x#1: NUMERIC
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-10`)
+
+`x#0` is the param entry version with no type lattice entry — the predicate falls back to "not INT" and the rewrite is skipped.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_pattern_recognition.py::optimise_incr_idioms` now accepts the `analysis` arg from `compiler/optimiser/_manager.py:197` and, for each candidate `set X [expr {$X + N}]`, looks up the SSA use version of `X` in `ssa_block.statements[idx].uses` and checks `analysis.types[(X, ver)].tcl_type is TclType.INT` (and `kind is TypeKind.KNOWN`).  Only INT passes the gate.  `_try_incr_idiom` in `compiler/optimiser/_helpers.py` short-circuits to None when `var_is_int=False`.
+
+DOUBLE, NUMERIC, BOOLEAN, OBJECT — and the more common UNKNOWN/OVERDEFINED — are all refused.  This is conservative on purpose: only INT guarantees `incr`'s arithmetic semantics match `expr`'s.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_10_unknown_type_param_blocks_incr_rewrite` (TP)
+- `tests/test_fp_opt.py::test_FP_OPT_10_provably_int_var_still_fires` (TN control)
+- `tests/test_optimiser_coverage.py::TestO114IncrIdiom::test_no_incr_on_unknown_type_param` (TP)
+
+---
+
 
 ## TNT — taint flow (T100/T101)
 

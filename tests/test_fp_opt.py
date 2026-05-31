@@ -403,3 +403,49 @@ def test_FP_OPT_09_provably_numeric_var_still_fires():
         f"provably-numeric identity simplification must still fire O110; "
         f"got {get_diagnostics(FP_OPT_09_TN_REPRO)}"
     )
+
+
+# FP-OPT-10 — D5-O114: ``set x [expr {$x + N}]`` -> ``incr x N`` requires
+# proof that x is TclType.INT.  Without the proof the rewrite is unsound:
+# tclsh ``expr {$x + 1}`` on ``1.5`` yields ``2.5`` (float promotion);
+# ``incr x`` on ``1.5`` errors with ``expected integer but got "1.5"``.
+
+FP_OPT_10_TP_REPRO = (
+    "proc foo {x} {\n"
+    "  set x [expr {$x + 1}]\n"
+    "  puts $x\n"
+    "}\n"
+    "foo 1.5\n"
+)
+FP_OPT_10_TN_REPRO = (
+    "proc foo {n} {\n"
+    "  for {set x 0} {$x < $n} {incr x} {\n"
+    "    set x [expr {$x + 1}]\n"
+    "    puts $x\n"
+    "  }\n"
+    "}\n"
+    "foo 3\n"
+)
+
+
+def test_FP_OPT_10_unknown_type_param_blocks_incr_rewrite():
+    """TP: ``set x [expr {$x + 1}]`` on a param ``x`` (unknown type)
+    MUST NOT rewrite to ``incr x`` -- the rewrite would error at
+    runtime if the caller passes a float."""
+    from compiler.optimiser import optimise_source
+
+    optimised, rewrites = optimise_source(FP_OPT_10_TP_REPRO)
+    assert not any(r.code == "O114" for r in rewrites), (
+        f"unsound O114 rewrite on unknown-type param; got {rewrites}"
+    )
+
+
+def test_FP_OPT_10_provably_int_var_still_fires():
+    """TN: ``set x [expr {$x + 1}]`` inside a for-loop where ``x`` is
+    SCCP-typed INT IS sound -- O114 MUST fire."""
+    from compiler.optimiser import optimise_source
+
+    _, rewrites = optimise_source(FP_OPT_10_TN_REPRO)
+    assert any(r.code == "O114" for r in rewrites), (
+        f"provably-INT incr-idiom rewrite must still fire O114; got {rewrites}"
+    )

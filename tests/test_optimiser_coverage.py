@@ -1273,6 +1273,18 @@ class TestO114IncrIdiom:
         """).rstrip()
         assert _not_has(s, "O114")
 
+    def test_no_incr_on_unknown_type_param(self):
+        """D5-O114: param with unknown type must NOT be incr-rewritten.
+
+        tclsh: ``set x [expr {$x + 1}]`` on ``x=1.5`` -> ``2.5``;
+        ``incr x`` on ``1.5`` errors ``expected integer but got "1.5"``.
+        Without an INT type proof the rewrite is unsound."""
+        s = textwrap.dedent("""\
+            proc foo {x} {
+                set x [expr {$x + 1}]
+            }
+        """).rstrip()
+        assert _not_has(s, "O114")
 
 
 # O115: Redundant nested expr elimination

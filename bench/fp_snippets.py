@@ -2457,6 +2457,38 @@ register(
 
 
 register(
+    "FP-OPT-10",
+    _Entry(
+        label="O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)",
+        proc="::foo",
+        vars=("x",),
+        show=("ssa", "types"),
+        notes=(
+            "Pre-fix: ``optimise_incr_idioms`` rewrote ``set x [expr {$x\n"
+            "+ N}]`` to ``incr x N`` for any matching syntactic shape.\n"
+            "tclsh: ``expr {$x + 1}`` on ``1.5`` is ``2.5`` (silent float\n"
+            "promotion); ``incr x`` on ``1.5`` errors with ``expected\n"
+            "integer but got \"1.5\"``.  The rewrite turns successful\n"
+            "execution into a runtime error.\n"
+            "Post-fix: ``optimise_incr_idioms`` consults\n"
+            "``analysis.types[(var, ver)].tcl_type is TclType.INT`` before\n"
+            "calling ``_try_incr_idiom``; DOUBLE/NUMERIC/BOOLEAN/unknown\n"
+            "are all conservatively refused.  See D5-O114."
+        ),
+        source=_dedent(
+            """
+            proc foo {x} {
+                set x [expr {$x + 1}]
+                puts $x
+            }
+            foo 1.5
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-OPT-09",
     _Entry(
         label="O110 identity/annihilator drops require provably-numeric operand (D5-O110)",

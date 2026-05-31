@@ -413,9 +413,19 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
     description="Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).",
     opt_category="readability",
 )
-def optimise_incr_idioms(ctx: PassContext, cfg, ssa) -> None:
-    """O114: Recognise ``set x [expr {$x + N}]`` -> ``incr x N``."""
+def optimise_incr_idioms(ctx: PassContext, cfg, ssa, analysis=None) -> None:
+    """O114: Recognise ``set x [expr {$x + N}]`` -> ``incr x N``.
+
+    D5-O114: requires that *x* is provably ``TclType.INT`` in the SSA
+    type lattice at the use point in ``$x + N``.  Without that proof
+    the rewrite is unsound -- ``expr`` would silently promote a float
+    operand, whereas ``incr`` would error.
+    """
+    from compiler.types import TclType, TypeKind
+
     source = ctx.source
+    types_map = getattr(analysis, "types", None) if analysis is not None else None
+
     for block_name, block in cfg.blocks.items():
         ssa_block = ssa.blocks.get(block_name)
         if ssa_block is None:
@@ -439,7 +449,25 @@ def optimise_incr_idioms(ctx: PassContext, cfg, ssa) -> None:
             if not argv_texts:
                 continue
 
-            replacement = _try_incr_idiom(argv_texts, argv_tokens, argv_single)
+            # D5-O114: prove the loop variable is INT at the use site
+            # before allowing the set/expr -> incr rewrite.
+            var_is_int = False
+            if len(argv_texts) == 3 and types_map is not None:
+                var_name = argv_texts[1]
+                stmt_uses = ssa_block.statements[idx].uses
+                ver = stmt_uses.get(var_name, 0)
+                if ver > 0:
+                    lat = types_map.get((var_name, ver))
+                    if (
+                        lat is not None
+                        and lat.kind is TypeKind.KNOWN
+                        and lat.tcl_type is TclType.INT
+                    ):
+                        var_is_int = True
+
+            replacement = _try_incr_idiom(
+                argv_texts, argv_tokens, argv_single, var_is_int=var_is_int
+            )
             if replacement is None:
                 continue
 
