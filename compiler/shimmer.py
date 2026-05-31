@@ -41,7 +41,7 @@ from .expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRIncr
+from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRExprEval, IRIncr
 from .ssa import SSAFunction, SSAValueKey, SSAVersion
 from .types import TclType, TypeKind, TypeLattice
 from .value_shapes import parse_command_substitution
@@ -1394,6 +1394,54 @@ def _check_operand_shimmer(
             out.append((var_name, actual, TclType.STRING))
 
 
+def _emit_expr_shimmer_warnings(
+    expr_node: ExprNode,
+    uses: dict[str, SSAVersion],
+    types: dict[SSAValueKey, TypeLattice],
+    values: dict[SSAValueKey, LatticeValue] | None,
+    *,
+    range_,
+    command: str,
+    in_loop: bool,
+    seen: set[tuple[str, str]],
+) -> list[ShimmerWarning]:
+    """Walk *expr_node* collecting shimmer triples and turn them into
+    :class:`ShimmerWarning` records.  De-duplication is per (block-range,
+    var) so that several expr operands on the same statement only emit
+    once per variable.
+    """
+    if isinstance(expr_node, ExprRaw):
+        return []
+    triples: list[tuple[str, TclType, TclType]] = []
+    _collect_expr_shimmers(expr_node, uses, types, triples, values)
+    out: list[ShimmerWarning] = []
+    for var_name, from_type, to_type in triples:
+        key = (f"{range_!r}", var_name)
+        if key in seen:
+            continue
+        seen.add(key)
+        code = "S101" if in_loop else "S100"
+        severity = "loop " if in_loop else ""
+        msg = (
+            f"Shimmer: ${var_name} has intrep "
+            f"{_type_name(from_type)} but expr operator "
+            f"expects {_type_name(to_type)} ({severity}S{code[-3:]})"
+        )
+        out.append(
+            ShimmerWarning(
+                range=range_,
+                variable=var_name,
+                from_type=from_type,
+                to_type=to_type,
+                command=command,
+                in_loop=in_loop,
+                code=code,
+                message=msg,
+            )
+        )
+    return out
+
+
 def _find_expr_shimmers(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -1402,7 +1450,17 @@ def _find_expr_shimmers(
     loop_blocks: set[str],
     values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> list[ShimmerWarning]:
-    """Find expression-level shimmers where operator expects incompatible operand type."""
+    """Find expression-level shimmers where operator expects incompatible operand type.
+
+    Covered expr-context sites (D5-SH-EXPR):
+
+    * ``IRAssignExpr`` -- ``set y [expr {...}]``.
+    * ``IRExprEval`` -- standalone ``expr {...}`` whose result is dropped.
+    * ``CFGBranch.condition`` -- ``if {...}`` / ``while {...}`` / ``for ..
+      {...} ..`` loop / branch terminators.  All four are real expr
+      lex-promotion sites in tclsh (the condition expression evaluates
+      and may coerce operands).
+    """
     warnings: list[ShimmerWarning] = []
 
     for bn in executable_blocks:
@@ -1411,44 +1469,60 @@ def _find_expr_shimmers(
         if block is None or ssa_block is None:
             continue
         in_loop = bn in loop_blocks
+        seen: set[tuple[str, str]] = set()
 
         for idx, ssa_stmt in enumerate(ssa_block.statements):
             if idx >= len(block.statements):
                 continue
             stmt = block.statements[idx]
-
-            if not isinstance(stmt, IRAssignExpr):
-                continue
-            if isinstance(stmt.expr, ExprRaw):
-                continue
-
-            shimmer_triples: list[tuple[str, TclType, TclType]] = []
-            _collect_expr_shimmers(stmt.expr, ssa_stmt.uses, types, shimmer_triples, values)
-
-            # Deduplicate by variable name (report each variable once per statement).
-            seen_vars: set[str] = set()
-            for var_name, from_type, to_type in shimmer_triples:
-                if var_name in seen_vars:
-                    continue
-                seen_vars.add(var_name)
-
-                code = "S101" if in_loop else "S100"
-                severity = "loop " if in_loop else ""
-                msg = (
-                    f"Shimmer: ${var_name} has intrep "
-                    f"{_type_name(from_type)} but expr operator "
-                    f"expects {_type_name(to_type)} ({severity}S{code[-3:]})"
-                )
-                warnings.append(
-                    ShimmerWarning(
-                        range=stmt.range,
-                        variable=var_name,
-                        from_type=from_type,
-                        to_type=to_type,
+            if isinstance(stmt, IRAssignExpr):
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        stmt.expr,
+                        ssa_stmt.uses,
+                        types,
+                        values,
+                        range_=stmt.range,
                         command="expr",
                         in_loop=in_loop,
-                        code=code,
-                        message=msg,
+                        seen=seen,
+                    )
+                )
+            elif isinstance(stmt, IRExprEval):
+                # Standalone ``expr {...}``; same lex-promotion rules.
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        stmt.expr,
+                        ssa_stmt.uses,
+                        types,
+                        values,
+                        range_=stmt.range,
+                        command="expr",
+                        in_loop=in_loop,
+                        seen=seen,
+                    )
+                )
+
+        # CFG terminator expressions: if/while/for/break-condition all
+        # lower to CFGBranch with the original ExprNode preserved.  The
+        # SSA versions in scope at the terminator are the block's
+        # exit_versions (uses follow the last write).
+        term = block.terminator
+        if isinstance(term, CFGBranch):
+            term_range = term.range or (
+                block.statements[-1].range if block.statements else None
+            )
+            if term_range is not None:
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        term.condition,
+                        ssa_block.exit_versions,
+                        types,
+                        values,
+                        range_=term_range,
+                        command="if",
+                        in_loop=in_loop,
+                        seen=seen,
                     )
                 )
 

@@ -2654,6 +2654,55 @@ register(
 
 
 register(
+    "FP-SH-07",
+    _Entry(
+        label="expr-context shimmers also detected for standalone expr/if/while/for (D5-SH-EXPR)",
+        proc="::f",
+        vars=("s",),
+        show=("ssa", "types"),
+        notes=(
+            "Pre-fix: ``_find_expr_shimmers`` only walked ``IRAssignExpr``\n"
+            "statements (``set y [expr {...}]``).  It missed three other\n"
+            "expr lex-promotion sites:\n"
+            "\n"
+            "  * Standalone ``expr {...}`` (result dropped) -> ``IRExprEval``.\n"
+            "  * ``if {...}`` / ``while {...}`` / ``for ... {...} ...`` -> the\n"
+            "    expr lives on ``CFGBranch.condition`` (CFG terminator).\n"
+            "\n"
+            "All four are real lex-promotion sites in tclsh -- the expr\n"
+            "command always evaluates its argument as an expression, and\n"
+            "operands undergo numeric coercion.\n"
+            "\n"
+            "tclsh 9.0.3 (representation BEFORE/AFTER ``if {$s + 1}``)::\n"
+            "\n"
+            "    % set s [string trim \"5\"]\n"
+            "    % tcl::unsupported::representation $s\n"
+            "    value is a pure string ...\n"
+            "    % if {$s + 1} { puts yes }\n"
+            "    yes\n"
+            "    % tcl::unsupported::representation $s\n"
+            "    value is a int ...\n"
+            "\n"
+            "Post-fix: ``_find_expr_shimmers`` walks IRAssignExpr +\n"
+            "IRExprEval statement bodies AND ``CFGBranch.condition`` on\n"
+            "each block's terminator.  The SSA uses for the terminator\n"
+            "expr come from the block's ``exit_versions`` (uses follow\n"
+            "the last writes in the block).  Per-block de-duplication\n"
+            "prevents multiple emissions for the same (range, var)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                set s [string trim "5"]
+                if {$s + 1} { puts yes }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-SH-08",
     _Entry(
         label="==/!= falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)",

@@ -3412,6 +3412,80 @@ Sample impact (six tcllib files): S102 93→30 (−68%).  me_cpucore.tcl: 29→3
 
 ---
 
+### FP-SH-07 — expr-context shimmers detected for standalone expr/if/while/for (D5-SH-EXPR)
+
+- **Verdict:** TRUE POSITIVE / precision FN (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_07_*`
+- **Codes:** S100 (use-site shimmer), S101 (loop variant)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-SH-EXPR
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set s [string trim "5"]
+    # $s is STRING-typed; the if-condition is an expr context that
+    # promotes $s to INT.  Pre-fix the analyser only walked
+    # IRAssignExpr, so this site was missed.
+    if {$s + 1} { puts yes }
+}
+```
+
+#### Per-line reasoning
+
+1. `set s [string trim "5"]` — `s` is KNOWN STRING-typed.
+2. `if {$s + 1} { ... }` — the expr `$s + 1` lives on `CFGBranch.condition` of the if-terminator (NOT in an `IRAssignExpr` statement).  Pre-fix `_find_expr_shimmers` only iterated `IRAssignExpr` bodies, so the terminator was never examined.
+3. Tcl evaluates the if-condition with the same numeric-coercion rules as `expr`; `$s + 1` triggers `Tcl_GetIntFromObj($s)` which silently converts the STRING intrep to INT.  A genuine shimmer site that should be reported.
+4. Post-fix `_find_expr_shimmers` walks: (a) `IRAssignExpr` bodies (unchanged), (b) `IRExprEval` statement bodies (standalone `expr {...}`), and (c) `CFGBranch.condition` on each block's terminator (covers if/while/for conditions).  The SSA uses for the terminator come from the block's `exit_versions`.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set s [string trim "5"]
+% tcl::unsupported::representation $s
+value is a pure string with a refcount of N, ..., string representation "5"
+% if {$s + 1} { puts yes }
+yes
+% tcl::unsupported::representation $s
+value is a int with a refcount of N, ..., internal representation 0x5:..., string representation "5"
+```
+
+The if-condition lex-promoted `$s` from STRING to INT — a real shimmer.
+
+#### Compiler evidence
+
+```
+--- FP-SH-07: expr-context shimmers also detected for standalone expr/if/while/for (D5-SH-EXPR)
+regen: python -m bench.fp_snippets --id FP-SH-07
+function ::f
+  block entry_1
+    [0] AssignValue 's' value='[string trim "5"]'  defs={s#1}  uses={}
+    term Branch ExprBinary(op=<BinOp.ADD: '+'>, left=ExprVar(text='$s', name='s', start=0, end=1), right=ExprLiteral(text='1', start=5, end=5))
+  ...
+  types
+    s#1: STRING
+```
+(regen: `python -m bench.fp_snippets --id FP-SH-07`)
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py` — `_find_expr_shimmers`:
+
+- Iterates IRAssignExpr (existing) AND IRExprEval (new) statements with `ssa_stmt.uses` as the in-scope versions.
+- After per-statement processing, examines `block.terminator` — if it's a `CFGBranch`, walks `term.condition` using `ssa_block.exit_versions` as the in-scope SSA versions.
+- All three call paths funnel through `_emit_expr_shimmer_warnings` which calls `_collect_expr_shimmers` and de-dups by `(range, var_name)` within the block.
+- The terminator's `range` is preferred; falls back to the last statement's range if the terminator's range is None.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_07_if_condition_shimmer_fires` (TP, `if {$s + 1}`)
+- `tests/test_fp_sh.py::test_FP_SH_07_while_condition_shimmer_fires` (TP, `while {$s + 1}`)
+- `tests/test_fp_sh.py::test_FP_SH_07_standalone_expr_shimmer_fires` (TP, `expr {$s + 1}` result dropped)
+- `tests/test_fp_sh.py::test_FP_SH_07_pure_numeric_if_no_shimmer` (TN, `if {1 + 1}`)
+
+---
+
 ### FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)
 
 - **Verdict:** FALSE POSITIVE (now fixed)

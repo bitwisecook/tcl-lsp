@@ -305,3 +305,55 @@ def test_FP_SH_08_add_still_fires():
     assert "S100" in codes or "S101" in codes, (
         f"$s + 0 must still fire shimmer; got {codes}"
     )
+
+
+# FP-SH-07 — `_find_expr_shimmers` covers standalone `expr`, `if {…}`,
+# `while {…}`, `for ... {...} ...` expr contexts (D5-SH-EXPR).
+
+
+def test_FP_SH_07_if_condition_shimmer_fires():
+    """TP: ``if {$s + 1}`` -- expr in if-cond promotes $s from STRING to
+    INT.  Pre-fix `_find_expr_shimmers` only walked IRAssignExpr, missing
+    the CFGBranch.condition expr.
+
+    tclsh 9.0.3::
+
+        % set s [string trim "5"]
+        % tcl::unsupported::representation $s
+        value is a pure string ...
+        % if {$s + 1} { puts yes }
+        yes
+        % tcl::unsupported::representation $s
+        value is a int ...
+    """
+    src = "proc f {} { set s [string trim \"5\"]; if {$s + 1} { puts yes } }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" in codes, f"if-condition shimmer must fire; got {codes}"
+
+
+def test_FP_SH_07_while_condition_shimmer_fires():
+    """TP: ``while {$s + 1}`` -- expr in while-cond promotes $s.  In a
+    loop context fires S101 (loop shimmer)."""
+    src = "proc f {} { set s [string trim \"5\"]; while {$s + 1} { break } }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S101" in codes or "S100" in codes, (
+        f"while-condition shimmer must fire; got {codes}"
+    )
+
+
+def test_FP_SH_07_standalone_expr_shimmer_fires():
+    """TP: standalone ``expr {$s + 1}`` (result dropped) is also a real
+    lex-promotion site -- the expr command still evaluates and coerces."""
+    src = "proc f {} { set s [string trim \"5\"]; expr {$s + 1} }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" in codes, f"standalone-expr shimmer must fire; got {codes}"
+
+
+def test_FP_SH_07_pure_numeric_if_no_shimmer():
+    """TN: ``if {1 + 1}`` -- both operands are numeric literals, no var
+    is involved, no shimmer."""
+    src = "proc f {} { if {1 + 1} { puts yes } }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" not in codes and "S101" not in codes, (
+        f"pure-numeric if must not fire shimmer; got {codes}"
+    )
