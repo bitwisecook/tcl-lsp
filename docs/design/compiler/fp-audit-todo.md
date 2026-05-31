@@ -23,6 +23,22 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 
 ---
 
+# Status note (2026-05-30): all resolved items below now have formal
+# FP.md catalog entries with reproducers, evidence, and paired TP+FP
+# tests.  Mapping:
+#
+# OPT family (4 entries, 10 tests) — O106/O109/O110/O116/O126
+# TNT family (2 entries, 6 tests)  — T100/T101
+# STY family (8 entries, 23 tests) — W001/W104/W120/W122/W124/W126/W214/W302/W306
+# NAB extensions (7 entries, 10 tests, NAB-04..10) — W110/W304/W103/W313/W212/W301/W002
+# OBJ extensions (3 entries, 6 tests, OBJ-09..11) — W307 multi-dispatch / switch-callback / factory
+# SH extensions (3 entries, 7 tests, SH-04..06) — hex/binary literals, destructure foreach, per-loop body_types
+# OBJ extensions (2 entries, 4 tests, OBJ-07..08) — W307 cmd-sub namespaced ensemble, W307/W101 dedup
+#
+# 177 paired FP tests passing (+ 2 expected xfails for genuine
+# open findings: namespace upvar, ARRAY_ELEM dead-store).  Catalog
+# is now complete for every resolved item in this checklist.
+
 ## Resolved this audit (FP fixed, paired tests landed)
 
 - [x] **W210** read-before-set — fixed: `dict for`/`dict map` body recovery;

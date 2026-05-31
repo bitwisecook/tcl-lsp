@@ -158,7 +158,7 @@ class TclLspSettingsPanel {
     private val diagS102 = JBCheckBox("S102: Variable oscillates between two types across loop it...")
 
     // Diagnostics — Taint
-    private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous code-execution s...")
+    private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous sink: eval/uplev...")
     private val diagT101 = JBCheckBox("T101: Tainted data flows into an output command (puts)")
     private val diagT102 = JBCheckBox("T102: Tainted data in option position without -- terminator")
 

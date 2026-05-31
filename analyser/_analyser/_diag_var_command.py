@@ -9,6 +9,7 @@ else:
     _Base = object
 
 from compiler.compilation_unit import CompilationUnit
+from compiler.core_analyses import LatticeKind
 from compiler.ir import (
     IRAssignValue,
     IRBarrier,
@@ -18,6 +19,77 @@ from compiler.parsing.known_commands import known_command_names
 from compiler.value_shapes import parse_command_substitution
 
 from ..semantic_model import Diagnostic, Severity
+
+# snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
+# ``$win``/``$hull`` used as a command word are object dispatch, but *only*
+# inside a snit type body (``$hull configure`` is the widgetadaptor delegation
+# idiom).  Outside a snit body these are ordinary variable names, so the
+# exemption must be scoped (see the membership check at the use site) — a
+# vanilla ``proc f {} { set self …; $self foo }`` must still get W307.
+_OO_SELF_REFS = frozenset({"self", "type", "selfns", "win", "hull"})
+
+
+def _last_return_var(cfg) -> str | None:
+    """Return the name of the variable returned by the proc, or None.
+
+    Walks the CFG looking for the LAST IRReturn whose value is a single
+    ``$var`` or ``${var}`` substitution.  Used by the object-returning
+    -proc inference in the W307 suppression pass: a proc returning
+    ``$X`` where ``X`` was assigned from a factory is itself an object
+    factory.
+    """
+    from compiler.cfg import CFGReturn
+    from compiler.ir import IRReturn
+
+    def _extract(v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.strip()
+        if not v.startswith("$"):
+            return None
+        rest = v[1:]
+        # Braced form ``${name}``.
+        if rest.startswith("{") and rest.endswith("}") and rest.count("{") == 1:
+            inner = rest[1:-1]
+            if inner and all(c.isalnum() or c in "_:" for c in inner):
+                return inner
+            return None
+        # Bare ``$name``.
+        if rest and all(c.isalnum() or c in "_:" for c in rest):
+            return rest
+        return None
+
+    last: str | None = None
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if isinstance(stmt, IRReturn):
+                name = _extract(stmt.value)
+                if name is not None:
+                    last = name
+        term = block.terminator
+        if isinstance(term, CFGReturn):
+            v = term.value if isinstance(term.value, str) else None
+            name = _extract(v)
+            if name is not None:
+                last = name
+    return last
+
+
+def _scan_tcl_command_name(source: str, start: int) -> str:
+    """Return the longest Tcl command-name token at *source[start:]*.
+
+    Walks contiguous Tcl identifier characters (alphanumeric + ``_`` +
+    ``:``) -- the canonical class used by
+    ``compiler.parsing.lexer._is_valid_tcl_name`` and the Tcl expr
+    lexer.  Returns the empty string when the start position is past
+    end-of-source or doesn't begin with an identifier character.
+    """
+    i = start
+    n = len(source)
+    while i < n and (source[i].isalnum() or source[i] in "_:"):
+        i += 1
+    return source[start:i]
+
 
 # snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
 # ``$win``/``$hull`` used as a command word are object dispatch, but *only*
@@ -203,11 +275,112 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 _func_ranges.append(("::top", 0, 2**31))
 
         def _constsets_for_offset(offset: int) -> dict[str, frozenset[int | float | bool | str]]:
-            """Return the CONSTSET map for the function containing *offset*."""
+            """Return the CONSTSET map for the function containing *offset*.
+
+            ``_func_ranges`` includes ``::top`` (covering the whole source)
+            and one entry per proc.  When an offset is inside a proc, BOTH
+            ranges contain it -- but the proc's locals must win.  Pick the
+            NARROWEST containing range so a proc's CONSTSETs aren't shadowed
+            by the top-level fallback (which is empty for variables defined
+            only inside a proc).
+            """
+            best: tuple[int, str] | None = None
             for qname, start, end in _func_ranges:
                 if start <= offset <= end:
-                    return _func_constsets.get(qname, {})
+                    width = end - start
+                    if best is None or width < best[0]:
+                        best = (width, qname)
+            if best is not None:
+                return _func_constsets.get(best[1], {})
             return all_constsets  # fallback to merged
+
+        # D3-P7 closure: harvest literal element values from
+        # ``array set arr {k1 v1 k2 v2 ...}`` so the W307 callback-
+        # array suppression can check the ACTUAL value of
+        # ``$arr(-command)`` against the known-command set.  Without
+        # this, the heuristic suppression on dash-prefixed / callback-
+        # suffixed array keys fires even when SCCP-equivalent literal
+        # evidence proves the value isn't a command.
+        # D3-P8 closure helper -- also harvest dict-unpacked variable
+        # values: when ``dict with d {body}`` runs with ``d`` known to
+        # be a literal dict (via SCCP CONST -- usually from D3-P2
+        # call-site propagation), the inner ``body`` sees each dict
+        # key as a local variable bound to its value.  Register those
+        # bindings in the CONSTSET map so the W307 check can fire on
+        # ``$cmd hi`` when the dict's ``cmd`` -> ``notACommand``.
+        for qname, fu_unit in _all_fus_named:
+            func_cs = _func_constsets.setdefault(qname, {})
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, IRBarrier)
+                        and stmt.canonical_command == "::dict"
+                        and stmt.args
+                        and stmt.args[0] == "with"
+                        and len(stmt.args) >= 2
+                    ):
+                        dict_var = stmt.args[1]
+                        # Strip ``$`` / ``${...}`` if present (the IR
+                        # arg form may include the substitution syntax).
+                        if dict_var.startswith("${") and dict_var.endswith("}"):
+                            dict_var = dict_var[2:-1]
+                        elif dict_var.startswith("$"):
+                            dict_var = dict_var[1:]
+                        # Look up dict_var's SCCP value at v0 (param
+                        # entry) -- D3-P2 propagation puts the literal
+                        # dict here.
+                        sccp_val = fu_unit.analysis.values.get((dict_var, 0))
+                        if sccp_val is None or sccp_val.kind is not LatticeKind.CONST:
+                            continue
+                        dict_text = sccp_val.value
+                        if not isinstance(dict_text, str):
+                            continue
+                        try:
+                            from compiler.tcl_expr_eval import _split_tcl_list
+
+                            items = _split_tcl_list(dict_text)
+                        except Exception:
+                            continue
+                        if len(items) % 2 != 0:
+                            continue
+                        for i in range(0, len(items), 2):
+                            key = items[i]
+                            value = items[i + 1]
+                            if key not in func_cs:
+                                func_cs[key] = frozenset((value,))
+                                all_constsets.setdefault(key, frozenset((value,)))
+
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if not (
+                        isinstance(stmt, IRCall)
+                        and stmt.canonical_command == "::array"
+                        and len(stmt.args) >= 2
+                        and stmt.args[0] == "set"
+                    ):
+                        continue
+                    # Args after ``set`` are: arr-name, key-value-list.
+                    if len(stmt.args) < 3:
+                        continue
+                    arr_name = stmt.args[1]
+                    kv_text = stmt.args[2]
+                    try:
+                        from compiler.tcl_expr_eval import _split_tcl_list
+
+                        items = _split_tcl_list(kv_text)
+                    except Exception:
+                        continue
+                    if len(items) % 2 != 0:
+                        continue
+                    for i in range(0, len(items), 2):
+                        key = items[i]
+                        value = items[i + 1]
+                        elem_name = f"{arr_name}({key})"
+                        if elem_name in func_cs:
+                            continue
+                        vs = frozenset((value,))
+                        func_cs[elem_name] = vs
+                        all_constsets.setdefault(elem_name, vs)
 
         # Fallback: directly extract foreach iteration elements from the CFG.
         # SCCP barriers (e.g. oo::class create) may have widened foreach
@@ -234,21 +407,20 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # assigned from [known_proc] and that proc always returns a constant,
         # record the constant value so W307 can check it.
         if cu.interproc is not None:
-            import re as _re
-
-            _CMD_SUB_RE = _re.compile(r"^\[(\S+?)(?:\s.*)?\]$")
-
             for qname, fu_unit in _all_fus_named:
                 func_cs = _func_constsets.setdefault(qname, {})
                 for block in fu_unit.cfg.blocks.values():
                     for stmt in block.statements:
                         if not isinstance(stmt, IRAssignValue):
                             continue
-                        val = stmt.value.strip()
-                        m = _CMD_SUB_RE.match(val)
-                        if m is None:
+                        # Use the shared parser (lexer-backed) instead
+                        # of a bespoke regex -- it handles braced /
+                        # quoted / nested cmd-subs.  (Finding 9 of the
+                        # PR #498 / PR #499 follow-up review.)
+                        parsed_cs = parse_command_substitution(stmt.value)
+                        if parsed_cs is None:
                             continue
-                        called = m.group(1)
+                        called = parsed_cs[0]
                         for qn, summary in cu.interproc.procedures.items():
                             bare = qn.rsplit("::", 1)[-1]
                             if bare == called or qn == called:
@@ -277,13 +449,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
         )
 
         # Collect source offset ranges of procedures that contain
-        # ``dict with``/``dict update`` barriers.  Variables in these
-        # scopes may have been created by dict unpacking — suppress W307.
+        # ``dict with``/``dict update`` barriers, paired with the set
+        # of LOCAL variable names that are EXPLICITLY assigned in the
+        # same proc by ``set``/``foreach``/``lassign`` etc.  A dispatch
+        # site whose target name is in the explicit-assignment set
+        # cannot have been unpacked by the dict (the explicit local
+        # def came from the source, not from the dict), so the
+        # ``in_dict_with`` blanket suppression does NOT apply.
+        # (Finding 3 of the PR #498 / PR #499 follow-up review.)
+        # ``dict_with_ranges`` entries are tuples
+        # ``(start, end, locally_defined_names)``.
 
-        dict_with_ranges: list[tuple[int, int]] = []
+        dict_with_ranges: list[tuple[int, int, frozenset[str]]] = []
         _all_fus = [("::top", cu.top_level)] + list(cu.procedures.items())
         for qname, fu_unit in _all_fus:
             func_has_dw = False
+            local_defs: set[str] = set()
             for block in fu_unit.cfg.blocks.values():
                 for stmt in block.statements:
                     if (
@@ -293,16 +474,36 @@ class _AnalyserDiagVarCommandMixin(_Base):
                         and stmt.args[0] in ("with", "update")
                     ):
                         func_has_dw = True
-                        break
-                if func_has_dw:
-                    break
+                    # Collect explicit local defs from every IR statement
+                    # type: ``IRAssignConst`` / ``IRAssignValue`` /
+                    # ``IRAssignExpr`` / ``IRIncr`` carry a ``name``;
+                    # ``IRCall`` / ``IRBarrier`` carry ``defs``.  These
+                    # cover all the source-visible local-binding shapes
+                    # (``set X ...``, ``incr X``, foreach-binding,
+                    # regexp/scan output vars when written, etc.) and
+                    # are exactly the names "unpacked from dict" cannot
+                    # collide with.
+                    name_attr = getattr(stmt, "name", None)
+                    if name_attr:
+                        local_defs.add(name_attr)
+                    stmt_defs = getattr(stmt, "defs", ())
+                    if stmt_defs:
+                        for n in stmt_defs:
+                            if n:
+                                local_defs.add(n)
             if func_has_dw:
                 ir_proc = cu.ir_module.procedures.get(qname)
                 if ir_proc is not None:
-                    dict_with_ranges.append((ir_proc.range.start.offset, ir_proc.range.end.offset))
+                    dict_with_ranges.append(
+                        (
+                            ir_proc.range.start.offset,
+                            ir_proc.range.end.offset,
+                            frozenset(local_defs),
+                        )
+                    )
                 else:
                     # Top-level: covers entire source.
-                    dict_with_ranges.append((0, 2**31))
+                    dict_with_ranges.append((0, 2**31, frozenset(local_defs)))
 
         # Object-factory provenance (W307 suppression).  A variable assigned
         # from a *namespaced* command substitution (``set obj [::struct::tree
@@ -324,6 +525,94 @@ class _AnalyserDiagVarCommandMixin(_Base):
         #    [struct::graph]; return $X }`` returns an object.  Callers
         #    ``set TGraph [f ...]`` also hold an object.  Iterate to fixpoint
         #    so a chain ``f -> g -> h`` propagates.
+        # Build a set of user-proc qualified-name candidates so we can
+        # distinguish user-proc calls from builtin/namespaced builtins.
+        # User procs go through the fixpoint (only added to factory
+        # locals if they're proven object-returning); builtins (or
+        # unknown commands) get the shape-based heuristic (any
+        # namespaced cmd-sub is treated as a factory).
+        # G3 closure: a namespaced user proc that returns a plain string
+        # (e.g. ``namespace eval ::ns { proc make {} { return foo } }``)
+        # is no longer falsely treated as an object factory.
+        _user_proc_qnames = set(cu.ir_module.procedures.keys())
+
+        def _is_user_proc(cmd_head: str) -> bool:
+            """Return True iff *cmd_head* refers to a user-defined proc
+            in this compilation unit (rather than a Tcl builtin or
+            unknown command).  Conservative: false negatives just mean
+            we'll treat the cmd as a (possibly object-returning) builtin,
+            which is the pre-G3 behaviour."""
+            if cmd_head in _user_proc_qnames:
+                return True
+            if f"::{cmd_head}" in _user_proc_qnames:
+                return True
+            return False
+
+        # Set of qualified TclOO class names + their bare-tail aliases
+        # for object-factory recognition.
+        _oo_class_qnames = set(self.result.all_classes.keys())
+        _oo_class_tails = {qn.rsplit("::", 1)[-1] for qn in _oo_class_qnames if "::" in qn}
+
+        def _is_object_returning_command_head(cmd_head: str) -> bool:
+            """Return True iff *cmd_head* is a command whose value-returning
+            invocation produces an object handle.
+
+            Recognises:
+            * Known TclOO class commands (``C new``, ``C create %AUTO%``)
+              -- the class command is registered globally and its return
+              value is the instance command name.
+            * Namespaced commands (``::ns::cmd``) -- the documented
+              tcllib / TclOO factory convention.  This is a heuristic
+              (an unknown namespaced command MAY return a plain string),
+              kept because removing it loses suppressions across the
+              tcllib corpus (``struct::graph``, ``pt::*``, etc.) that
+              aren't yet registry-modelled.  D4-F6 partial closure:
+              the ``new``-spelling heuristic on bare names (handled
+              in ``_return_type_for_command``) IS removed, and the
+              ``::`` rule is tightened below by REQUIRING the head to
+              not be a known non-object-returning user proc.
+
+            User procs are intentionally excluded here: they go through
+            the fixpoint (only added to factory locals if all their
+            returns are themselves object-returning).
+            """
+            if cmd_head in _oo_class_tails or f"::{cmd_head}" in _oo_class_qnames:
+                return True
+            if "::" in cmd_head:
+                # D4-F6 partial: when the namespaced command IS a known
+                # user proc and the fixpoint has NOT classified it as
+                # object-returning, that's evidence it returns a plain
+                # value -- override the ``::`` heuristic.
+                qualified = cmd_head if cmd_head.startswith("::") else f"::{cmd_head}"
+                if qualified in self.result.all_procs:
+                    # User proc -- defer to the fixpoint (which uses
+                    # ``object_returning_procs`` membership).
+                    return False
+                # D3-P5 closure: a registered namespaced command whose
+                # return type is EXPLICITLY known to not be OBJECT
+                # (e.g. STRING / INT / LIST) overrides the heuristic
+                # too.  Most tcllib factories don't have return_type
+                # set in the registry (they default to None which is
+                # treated as unknown), so this catches the small set
+                # of namespaced commands that do (http::*, clock::*,
+                # etc.) without losing the factory suppression on the
+                # bulk of tcllib factory commands.
+                from compiler.registry.runtime import REGISTRY as _REG_W307
+                from compiler.types import TclType as _TT
+
+                _spec = _REG_W307.get_any(cmd_head) or _REG_W307.get_any(qualified)
+                if _spec is not None:
+                    rt = getattr(_spec, "return_type", None)
+                    if rt is not None and rt is not _TT.OBJECT:
+                        return False
+                # D3-P5 fully open: unregistered ``::pkg::plain``-style
+                # namespaced commands can't be distinguished from
+                # legitimate factories without per-command registry
+                # data.  Documented in tracker; fix requires tcllib /
+                # Tk factory return-type registry coverage.
+                return True
+            return False
+
         factory_locals_by_proc: dict[str, set[str]] = {}
         return_var_by_proc: dict[str, str | None] = {}
         for qname, fu_unit in _all_fus:
@@ -332,8 +621,13 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 for stmt in block.statements:
                     if isinstance(stmt, IRAssignValue) and stmt.name:
                         parsed = parse_command_substitution(stmt.value)
-                        if parsed is not None and "::" in parsed[0]:
-                            names.add(stmt.name)
+                        if parsed is not None and _is_object_returning_command_head(parsed[0]):
+                            # G3: defer to fixpoint when the head is a
+                            # user proc -- only add as factory local if
+                            # the user proc is later proven object-
+                            # returning (handled by the extension pass).
+                            if not _is_user_proc(parsed[0]):
+                                names.add(stmt.name)
             factory_locals_by_proc[qname] = names
             # Find the LAST IRReturn statement and its returned var (if any).
             return_var_by_proc[qname] = _last_return_var(fu_unit.cfg)
@@ -344,25 +638,36 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # OR its last assignment to the returned var is ``[other_user_proc]``
         # where other_user_proc is object-returning.
         object_returning_procs: set[str] = set()
-        # Seed: proc whose LAST return value is ``[namespaced::cmd ...]``.
+        # Seed: a proc is object-returning when EVERY feasible return
+        # value is itself a namespaced cmd-sub.
+        # G4 closure: tracking only the LAST return (current pre-fix
+        # behaviour) was wrong -- a wrapper that returns ``[factory]``
+        # on one branch and ``foo`` (a plain string) on another isn't
+        # an object factory; ``$x method`` on the string-branch result
+        # is a runtime error and W307 should fire.  Collect ALL returns
+        # and require ALL of them to be namespaced cmd-subs.
         direct_return_factory_by_proc: dict[str, bool] = {}
         for qname, fu_unit in _all_fus:
             from compiler.cfg import CFGReturn
             from compiler.ir import IRReturn as _IRRet
 
-            last_value: str | None = None
+            return_values: list[str] = []
             for block in fu_unit.cfg.blocks.values():
                 for s in block.statements:
                     if isinstance(s, _IRRet) and s.value:
-                        last_value = s.value
+                        return_values.append(s.value)
                 term = block.terminator
                 if isinstance(term, CFGReturn) and isinstance(term.value, str):
-                    last_value = term.value
-            if last_value is not None:
-                parsed = parse_command_substitution(last_value.strip())
-                if parsed is not None and "::" in parsed[0]:
-                    object_returning_procs.add(qname)
-                    direct_return_factory_by_proc[qname] = True
+                    return_values.append(term.value)
+            if return_values and all(
+                (
+                    (parsed := parse_command_substitution(rv.strip())) is not None
+                    and _is_object_returning_command_head(parsed[0])
+                )
+                for rv in return_values
+            ):
+                object_returning_procs.add(qname)
+                direct_return_factory_by_proc[qname] = True
         for qname, ret_var in return_var_by_proc.items():
             if ret_var is None:
                 continue
@@ -478,7 +783,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # dispatch could be a typo, multiple is clearly designed).
         proc_dispatcher_vars: dict[str, set[str]] = {}
         proc_dispatch_counts: dict[str, dict[str, int]] = {}
-        for var_name, _mn, site_range, _im, _cws in self._var_command_sites:
+        for var_name, _mn, site_range, _im, _cws, _argc in self._var_command_sites:
             qname, _params = _enclosing_proc_params(site_range.start.offset)
             proc_dispatcher_vars.setdefault(qname, set()).add(var_name)
             counts = proc_dispatch_counts.setdefault(qname, {})
@@ -509,16 +814,28 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # barrier), so it never reaches the compiler CU; recover it from the
         # snit ClassDefs the analyser built.  Scoped to each type's body range
         # so a same-named scalar elsewhere is unaffected.
+        # Build per-class body ranges + their declared instance/type
+        # variables for ALL class definitions, not just snit (oo::class
+        # and oo::define classes use the same ``class_def.variables``
+        # data from analyser/_analyser/_oo.py).  Both kinds of methods
+        # legitimately dispatch on the class's instance vars without
+        # the analyser seeing the var's binding via SCCP; the var-name
+        # check below uses these ranges to suppress W307 on those
+        # variables ONLY (no longer a blanket "anywhere in a method"
+        # suppression).  (F4 of the PR #498/#499 follow-up review.)
         snit_var_ranges: list[tuple[int, int, frozenset[str]]] = []
         snit_body_ranges: list[tuple[int, int]] = []
         for class_def in self.result.all_classes.values():
+            br = class_def.body_range
+            # snit-style bodies keep the historical name; record their
+            # range separately because some checks (snit reserved
+            # self-refs ``$self`` etc.) only apply inside snit bodies.
             if "snit::" in class_def.metaclass:
-                br = class_def.body_range
                 snit_body_ranges.append((br.start.offset, br.end.offset))
-                if class_def.variables:
-                    snit_var_ranges.append(
-                        (br.start.offset, br.end.offset, frozenset(class_def.variables))
-                    )
+            if class_def.variables:
+                snit_var_ranges.append(
+                    (br.start.offset, br.end.offset, frozenset(class_def.variables))
+                )
 
         for (
             var_name,
@@ -526,6 +843,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
             site_range,
             in_method,
             cmd_word_single,
+            _positional_argc,  # 6th tuple element -- used by W214 dispatcher check
         ) in self._var_command_sites:
             # snit's reserved object/type self-references (``$self foo``,
             # ``$type bar``, ``$selfns``, ``$win``, ``$hull configure``) are
@@ -652,8 +970,22 @@ class _AnalyserDiagVarCommandMixin(_Base):
 
                 # Emit W307 unless inside a method body or a function with
                 # dict-with where $var is very likely an object from dict
-                # unpacking.
-                in_dict_with = any(s <= site_range.start.offset <= e for s, e in dict_with_ranges)
+                # unpacking.  Finding 3 of the PR #498 / PR #499 follow-up:
+                # the suppression only applies to var-names that DON'T
+                # have an explicit local def in the same proc.  When the
+                # source has ``set cmd nope; $cmd arg``, ``cmd`` has an
+                # explicit local def, so the dict can't be its source
+                # and W307 must still fire on the dispatch.  The base-
+                # name check handles array-element dispatches like
+                # ``$state(-foo)`` -- ``state`` is the local def.
+                _site_off = site_range.start.offset
+                _base_for_dw_check = var_name
+                if "(" in var_name and var_name.endswith(")"):
+                    _base_for_dw_check = var_name[: var_name.index("(")]
+                in_dict_with = any(
+                    s <= _site_off <= e and _base_for_dw_check not in locals_set
+                    for s, e, locals_set in dict_with_ranges
+                )
                 _off = site_range.start.offset
                 is_factory_object = any(
                     s <= _off <= e and var_name in names for s, e, names in factory_object_ranges
@@ -748,9 +1080,116 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     _src_off += 1
                 if _src_off + 1 < len(cu.source) and cu.source[_src_off : _src_off + 2] == "::":
                     is_namespaced_ensemble = True
+
+                # SCCP evidence override (PR #498 deep-review gaps G5-G8):
+                # the heuristic suppressions above (multi-dispatch local,
+                # callback-shaped array key, dash-prefixed array key,
+                # namespaced ensemble) are shape-based -- they assume the
+                # user designed the slot as an object handle / callback
+                # registration / namespaced command path.  But when SCCP
+                # has concrete evidence the variable holds a CONST string
+                # value that ISN'T a registered command/proc/class, the
+                # heuristic is wrong and W307 should fire.  Compute the
+                # SCCP-says-not-a-command predicate and use it to nullify
+                # the heuristic suppressions for *this* site.
+                _scoped_cs_w307 = _constsets_for_offset(site_range.start.offset)
+                _const_vals_w307 = _scoped_cs_w307.get(var_name)
+                # For array elements (``foo(key)``), SCCP often tracks
+                # the value on the BASE name -- check it too.
+                if _const_vals_w307 is None and _base_name != var_name:
+                    _const_vals_w307 = _scoped_cs_w307.get(_base_name)
+
+                def _const_value_is_known_command(v) -> bool:
+                    if not isinstance(v, str):
+                        return False
+                    return (
+                        v in _known_cmds
+                        or v in _known_procs
+                        or v in _known_proc_bare
+                        or f"::{v}" in _known_procs
+                        or v in all_typed_vars
+                        or v in _class_tail_names
+                        or f"::{v}" in self.result.all_classes
+                    )
+
+                sccp_says_not_a_command = (
+                    _const_vals_w307 is not None
+                    and len(_const_vals_w307) > 0
+                    and not any(_const_value_is_known_command(v) for v in _const_vals_w307)
+                )
+
+                # D4-F7 closure -- composed-name check for the
+                # ``${ns}::tail`` ensemble idiom.  The *prefix* var
+                # holds the namespace name; the user is dispatching
+                # ``$prefix::tail`` as a known qualified command path.
+                # The previous gate (``not sccp_says_not_a_command``)
+                # only ran the composition when the prefix alone was a
+                # known command, which never matches real ensembles.
+                # Run the composition unconditionally when:
+                #
+                #   1. The site is a namespaced-ensemble shape
+                #      (``${var}::literal-tail``), AND
+                #   2. SCCP knows the prefix value(s) (CONST or CONSTSET).
+                #
+                # If EVERY composed name resolves to a known command,
+                # set ``sccp_says_not_a_command = False`` and keep
+                # ``is_namespaced_ensemble = True`` -- the user's
+                # composition is statically resolvable, so the W307 is
+                # an FP.  If EVERY composition is unknown, set
+                # ``sccp_says_not_a_command = True`` -- the user
+                # constructed a path the analyser can't model, fire
+                # W307.  Mixed: stay conservative (silent) -- the
+                # namespaced ensemble suppression already applies.
+                if is_namespaced_ensemble and _const_vals_w307:
+                    _tail_start = _src_off + 2
+                    _tail = _scan_tcl_command_name(cu.source, _tail_start)
+                    if _tail:
+                        all_composed_known = all(
+                            isinstance(v, str)
+                            and (
+                                _const_value_is_known_command(f"{v}::{_tail}")
+                                or _const_value_is_known_command(f"::{v}::{_tail}")
+                            )
+                            for v in _const_vals_w307
+                        )
+                        all_composed_unknown = all(
+                            isinstance(v, str)
+                            and not _const_value_is_known_command(f"{v}::{_tail}")
+                            and not _const_value_is_known_command(f"::{v}::{_tail}")
+                            for v in _const_vals_w307
+                        )
+                        if all_composed_known:
+                            # The composed command is statically
+                            # resolvable -- override the prefix-only
+                            # not-a-command verdict.
+                            sccp_says_not_a_command = False
+                        elif all_composed_unknown:
+                            sccp_says_not_a_command = True
+                        # mixed -> leave sccp_says_not_a_command as the
+                        # prefix-only verdict (conservative).
+
+                if sccp_says_not_a_command:
+                    is_proc_param_dispatcher = False
+                    is_switch_callback_element = False
+                    is_namespaced_ensemble = False
+                    in_dict_with = False
+
+                # F4 closure (PR #498/#499 follow-up): the old
+                # ``in_method`` blanket suppression hid genuine W307
+                # cases like ``oo::class create C { method m {} { set
+                # cmd nope; \$cmd arg } }``.  Drop it as a standalone
+                # gate -- object-dispatch evidence inside a method
+                # body must come from a specific positive signal:
+                # ``is_snit_member`` (which now also covers oo::class
+                # instance vars via the widened class-vars range),
+                # snit reserved self-ref (caught via the OO_SELF_REFS
+                # exemption above), factory-object provenance,
+                # multi-dispatch, switch-callback array element,
+                # namespaced ensemble, or (via SCCP) a known-command
+                # CONST value.  Locals set to non-command literals
+                # inside a method body now correctly fire W307.
                 if (
-                    not in_method
-                    and not in_dict_with
+                    not in_dict_with
                     and not is_factory_object
                     and not is_snit_member
                     and not is_proc_param_dispatcher
@@ -825,12 +1264,48 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # ``my`` and ``self`` are TclOO self-dispatch — the return
                 # value is very likely an object when used in chained calls.
                 is_oo_self_dispatch = cmd_name_ in ("my", "self")
-                # Inside an OO method body, [cmd] method chaining is common
-                # for accessing objects stored in instance variables.
-                if (
-                    in_method
-                    or is_oo_self_dispatch
-                    or (ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT)
+                # D3-P4 closure (partial): when ``my <method>`` /
+                # ``self <method>`` resolves to a method in the current
+                # class whose body is a simple ``return <literal>``, we
+                # KNOW the return value is a plain string -- override
+                # the self-dispatch object heuristic and fire W307.
+                # For more complex method bodies (any cmd-sub, var
+                # interpolation, multiple statements, ``return [...]``)
+                # we conservatively keep the heuristic (chained-call
+                # idiom dominates).
+                if is_oo_self_dispatch and len(cmd_args_) >= 1:
+                    method_name_ = cmd_args_[0]
+                    site_off = site_range.start.offset
+                    for class_def in self.result.all_classes.values():
+                        cb = class_def.body_range
+                        if not (cb.start.offset <= site_off <= cb.end.offset):
+                            continue
+                        md = class_def.methods.get(method_name_) or class_def.class_methods.get(
+                            method_name_
+                        )
+                        if md is None:
+                            break
+                        # body_range may exclude the closing brace, so
+                        # be lenient: try both as-is and brace-stripped.
+                        body_text = cu.source[md.body_range.start.offset : md.body_range.end.offset]
+                        bt = body_text.strip()
+                        if bt.startswith("{"):
+                            # Drop leading ``{`` (and trailing ``}`` if
+                            # present) to get the inner body text.
+                            bt = bt[1:].rstrip()
+                            if bt.endswith("}"):
+                                bt = bt[:-1].rstrip()
+                        bt = bt.strip()
+                        # Simple ``return <literal>`` -- no cmd-sub, no
+                        # var interpolation, no other commands.
+                        if bt.startswith("return ") and "\n" not in bt and ";" not in bt:
+                            ret_arg = bt[len("return ") :].strip()
+                            if ret_arg and "[" not in ret_arg and "$" not in ret_arg:
+                                # Plain literal return -- string, not object.
+                                is_oo_self_dispatch = False
+                        break
+                if is_oo_self_dispatch or (
+                    ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT
                 ):
                     # Command returns an object — suppress W307.
                     key = (site_range.start.offset, site_range.end.offset)

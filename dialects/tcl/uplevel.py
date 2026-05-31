@@ -6,7 +6,6 @@ from __future__ import annotations
 from compiler.registry._base import CommandDef
 from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from compiler.registry.signatures import Arity
-from compiler.registry.taint_hints import TaintColour
 from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from compiler.types import TclType
 
@@ -44,7 +43,12 @@ class UplevelCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
-            taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
+            # NOTE (D5-T100/T105): LIST_CANONICAL is NO LONGER a sound
+            # suppression for uplevel -- it only proves list-quoting,
+            # not that the synthesised command word is trusted.  T100
+            # suppression now requires a literal ``[list <known-cmd>
+            # ...]`` cmd-sub with the tainted var at index >= 1; see
+            # compiler/taint/_sinks.py.
             xc_translatable=False,
             return_type=TclType.STRING,
             side_effect_hints=(

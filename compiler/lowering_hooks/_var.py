@@ -237,12 +237,38 @@ def lower_variable(lowerer: _LowererLike, cmd: _Command) -> object | None:
 
 
 def lower_upvar(lowerer: _LowererLike, cmd: _Command) -> object | None:
-    """Lower ``upvar`` to IRCall with defs."""
+    """Lower ``upvar`` (and ``namespace upvar``) to IRCall with defs.
+
+    Uses the shared :func:`compiler.var_scoping.upvar_local_declaration_indices`
+    helper which knows the full grammar for *both* commands -- ``upvar
+    ?level? otherVar myVar ...?`` AND ``namespace upvar ns otherVar myVar
+    ...?`` (or the lowered ``namespace`` + ``upvar`` subcommand form).
+    Centralising the local-alias index logic there means there's a
+    single source of truth for the LSP declaration provider
+    (server/features/declaration.py), the memory-SSA aliasing
+    (compiler/memory_ssa.py), the Place bridge
+    (compiler/place_bridge.py), and this lowering -- no per-command
+    duplicate parsing.
+
+    When registered on ``namespace``, this hook fires for *every*
+    namespace subcommand; only the ``upvar`` subcommand has any locals
+    to record.  Return ``None`` for other subcommands so the lowering
+    falls through to the generic ``namespace`` path.
+    """
+    from compiler.var_scoping import upvar_local_declaration_indices
+
     args = cmd.args
     if len(args) < 2:
-        return None  # fall through to default
-    start = 1 if args[0].lstrip("-").isdigit() or args[0].startswith("#") else 0
-    my_vars = tuple(_normalise_var_name(args[i]) for i in range(start + 1, len(args), 2))
+        return None
+    # Normalise the command name to the bare form so the shared helper
+    # (which dispatches on the literal command string) sees ``upvar`` /
+    # ``namespace`` even when the source spelled the call qualified
+    # (``::upvar`` / ``::namespace``).
+    cmd_name = cmd.name.lstrip(":") if cmd.name else cmd.name
+    if cmd_name == "namespace" and (not args or args[0] != "upvar"):
+        return None
+    indices = upvar_local_declaration_indices(cmd_name, list(args))
+    my_vars = tuple(_normalise_var_name(args[i]) for i in indices if 0 <= i < len(args))
     return IRCall(
         range=cmd.range,
         command=cmd.name,
@@ -264,3 +290,9 @@ def register() -> None:
     REGISTRY.register_lowering("global", lower_global)
     REGISTRY.register_lowering("variable", lower_variable)
     REGISTRY.register_lowering("upvar", lower_upvar)
+    # ``namespace upvar`` shares the alias-pair grammar with bare
+    # ``upvar``; route it through the same hook so its local alias is
+    # recorded in ``IRCall.defs``.  ``lower_upvar`` returns ``None`` for
+    # non-``upvar`` namespace subcommands so other subcommands continue
+    # to fall through to the generic ``namespace`` lowering.
+    REGISTRY.register_lowering("namespace", lower_upvar)

@@ -598,9 +598,19 @@ class _AnalyserOOMixin(_Base):
                     if sub_args:
                         type_vars.append(sub_args[0])
 
-        # Record instance variables on the class so method-scope seeding (and
-        # any future hover/refs work) can see them.
-        class_def.variables = [v for v in instance_vars if v not in self._SNIT_INSTANCE_IMPLICIT]
+        # Record instance variables AND type variables on the class so
+        # method-scope seeding, any future hover/refs work, and the W307
+        # suppression in ``_diag_var_command.py`` (which treats class
+        # variables as legitimate dispatch sources inside method bodies)
+        # can see them.  Type variables are similarly long-lived /
+        # externally-bound and must not blanket-fire W307 on
+        # ``$typevar method`` dispatch from inside a typemethod.
+        # (PR #498/#499 follow-up F4 closure -- the dispatch suppression
+        # used to come from a method-body blanket; now it requires
+        # positive evidence, of which class-var membership is one.)
+        explicit_instance = [v for v in instance_vars if v not in self._SNIT_INSTANCE_IMPLICIT]
+        explicit_type = [v for v in type_vars if v not in self._SNIT_TYPE_IMPLICIT]
+        class_def.variables = explicit_instance + explicit_type
 
         # Second pass: analyse method-bearing declarations.
         for cmd in commands:

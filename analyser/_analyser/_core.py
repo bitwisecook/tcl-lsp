@@ -96,11 +96,16 @@ class _AnalyserBase:
         # determine whether the variable holds a TclOO object (suppress W307)
         # or not (emit W307).
         # Each entry: (var_name, method_name_or_None, cmd_token_range,
-        # in_method, is_single_token_word).  ``is_single_token_word`` is
-        # True only when the command word consists of just ``$var`` —
-        # composite words like ``${cmd}x`` (where the runtime command
-        # is the *concatenation*, not the variable's value) are False.
-        self._var_command_sites: list[tuple[str, str | None, Range, bool, bool]] = []
+        # in_method, is_single_token_word, positional_arg_count).
+        # ``is_single_token_word`` is True only when the command word
+        # consists of just ``$var`` -- composite words like
+        # ``${cmd}x`` (where the runtime command is the
+        # *concatenation*, not the variable's value) are False.
+        # ``positional_arg_count`` is the number of args passed AFTER
+        # the dispatched-command word; used by the W214 dispatch-
+        # protocol check to ensure a candidate dispatcher actually
+        # passes enough args for the peer signature (D4-F4 closure).
+        self._var_command_sites: list[tuple[str, str | None, Range, bool, bool, int]] = []
         # Command-substitution-as-command sites: records where [cmd] is used
         # as a command name (e.g. ``[Dog new] bark``).  The post-pass checks
         # if the command returns a TclOO object and suppresses W307.

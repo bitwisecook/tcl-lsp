@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 
 from compiler.interprocedural import InterproceduralAnalysis
 from shared.naming import normalise_var_name as _NORMALISE
@@ -195,19 +194,32 @@ class _CompilerOptimiser:
 
         # Pattern recognition (pre-loop)
         _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa)
-        _pattern_recognition.optimise_incr_idioms(ctx, cfg, ssa)
+        _pattern_recognition.optimise_incr_idioms(ctx, cfg, ssa, analysis)
         _pattern_recognition.optimise_multi_set_packing(ctx, cfg, ssa)
         _pattern_recognition.optimise_end_offset_indexes(ctx, cfg, ssa)
 
         kill_sites: list[tuple[int, str]] = []
+        # D2-O100 closure: also include variables written by command
+        # substitutions inside non-top-level positions (e.g. ``set y
+        # [set x 1]`` writes ``x`` even though SSA's top-level ``defs``
+        # only records ``y``).  Without this, O100 propagates the
+        # stale pre-cmd-sub value of ``x`` past the cmd-sub write,
+        # producing unsound rewrites that change program output.
+        from compiler.ssa import statement_cmd_sub_write_names
+
         for block in cfg.blocks.values():
             for stmt in block.statements:
-                if not isinstance(stmt, IRCall):
-                    continue
                 stmt_range = getattr(stmt, "range", None)
                 if stmt_range is None:
                     continue
-                for name in stmt.defs:
+                if isinstance(stmt, IRCall):
+                    for name in stmt.defs:
+                        if name:
+                            kill_sites.append((stmt_range.start.offset, name))
+                # Cmd-sub writes apply to every statement form (IRCall,
+                # IRAssignValue, IRAssignExpr, IRReturn, IRBranch).  The
+                # helper inspects each form's value/expr internally.
+                for name in statement_cmd_sub_write_names(stmt):
                     if name:
                         kill_sites.append((stmt_range.start.offset, name))
         kill_sites.sort()
@@ -256,6 +268,7 @@ class _CompilerOptimiser:
                     namespace=namespace,
                     ssa_uses=ssa_stmt.uses,
                     types=analysis.types,
+                    values=analysis.values,
                 )
                 optimise_expr_substitutions(
                     ctx,
@@ -264,6 +277,7 @@ class _CompilerOptimiser:
                     constants,
                     ssa_uses=ssa_stmt.uses,
                     types=analysis.types,
+                    values=analysis.values,
                 )
                 optimise_static_proc_calls(
                     ctx, arg_tokens, arg_single, constants, namespace=namespace
@@ -387,18 +401,67 @@ def find_optimisations(
     # When O112 replaces a large range, inner O101/O112 optimisations get
     # dropped by overlap resolution.  Prevent O109/O126 from removing
     # definitions that are still textually referenced in an O112 replacement.
+    # Use the shared lexer-backed scanner instead of a ``\\$(\\w+)`` regex
+    # so ``${ns::x}``, array refs (``\\$arr(idx)``), escaped dollars
+    # (``\\\\$``), and other Tcl variable-name edge cases are handled
+    # correctly.  (Finding 11 of the PR #498 / PR #499 follow-up.)
+    #
+    # IMPORTANT: O112 replacements typically contain control-flow
+    # commands whose conditions/bodies are EXPR/BODY-role args (e.g.
+    # ``if {$b} {puts X}``).  A default-options scanner sees only
+    # top-level VAR tokens and misses the ``$b`` inside the if
+    # condition -- exactly the case the filter is supposed to catch.
+    # Enable script + expr recursion so ``recurse_into_script_roles``
+    # + ``recurse_into_expr_roles`` descend into ``if``/``while``/
+    # ``for`` condition + body words.  (Fixes the
+    # ``test_nested_constant_if_chain`` multi-pass interaction bug:
+    # O112 replaces the outer ``if {$a}`` with the inner ``if {$b}
+    # ...``; O109 must NOT then delete ``set b 0`` -- the surviving
+    # inner condition references it.)
+    from compiler.var_refs import VarReferenceScanner, VarScanOptions
+
+    _ref_scanner = VarReferenceScanner(
+        VarScanOptions(
+            recurse_into_script_roles=True,
+            recurse_into_expr_roles=True,
+        ),
+    )
     var_refs_in_replacements: set[str] = set()
     for opt in selected:
         if opt.code == "O112" and opt.replacement:
-            for m in re.finditer(r"\$(\w+)", opt.replacement):
-                var_refs_in_replacements.add(m.group(1))
+            var_refs_in_replacements.update(_ref_scanner.scan_script(opt.replacement))
     if var_refs_in_replacements:
+        # D4-F10 closure: use the command segmenter to recover the
+        # defining variable name from the original source range instead
+        # of ``text.split(None, 2)`` (which can't handle braced/quoted
+        # words, escaped whitespace, qualified ``set`` spellings, etc.).
+        from compiler.parsing.command_segmenter import segment_commands
+        from shared.naming import normalise_var_name as _normalise
+
         filtered: list[Optimisation] = []
         for opt in selected:
             if opt.code in ("O109", "O126") and opt.replacement == "":
                 text = source[opt.range.start.offset : opt.range.end.offset + 1].strip()
-                parts = text.split(None, 2)
-                if len(parts) >= 2 and parts[0] == "set" and parts[1] in var_refs_in_replacements:
+                # Parse text as ONE Tcl command.  Skip if it's not a
+                # plain ``set`` invocation -- O109/O126 can also fire
+                # on ``incr``/``append``/``lappend`` (read-modify-write
+                # forms whose RHS purity is gated separately upstream),
+                # and those reads of the LHS DON'T flow through the
+                # O112 replacement so the filter doesn't apply.
+                try:
+                    cmds = segment_commands(text)
+                except Exception:
+                    filtered.append(opt)
+                    continue
+                if len(cmds) != 1 or len(cmds[0].texts) < 2:
+                    filtered.append(opt)
+                    continue
+                cmd_name = cmds[0].texts[0]
+                if cmd_name != "set":
+                    filtered.append(opt)
+                    continue
+                var_name = _normalise(cmds[0].texts[1])
+                if var_name and var_name in var_refs_in_replacements:
                     continue
             filtered.append(opt)
         selected = filtered

@@ -14,6 +14,7 @@ from compiler.registry.models import (
 )
 from compiler.registry.signatures import Arity
 from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from compiler.types import TclType
 
 from ._base import register
 
@@ -69,66 +70,79 @@ class StructSetCommand(CommandDef):
                     arg_values={0: _SUBCOMMANDS},
                 ),
             ),
+            # Return types verified against real tclsh 9.0.3 + tcllib 2.0
+            # (SF-1 data-coverage closure): tcl::unsupported::representation
+            # reports list / int / int for the union/contains/size families.
             subcommands={
                 "contains": SubCommand(
                     name="contains",
                     arity=Arity(2, 2),
                     detail="Test if set contains an element.",
                     synopsis="struct::set contains set element",
+                    return_type=TclType.BOOLEAN,
                 ),
                 "difference": SubCommand(
                     name="difference",
                     arity=Arity(2, 2),
                     detail="Return elements in A but not in B.",
                     synopsis="struct::set difference setA setB",
+                    return_type=TclType.LIST,
                 ),
                 "empty": SubCommand(
                     name="empty",
                     arity=Arity(1, 1),
                     detail="Test if a set is empty.",
                     synopsis="struct::set empty set",
+                    return_type=TclType.BOOLEAN,
                 ),
                 "equal": SubCommand(
                     name="equal",
                     arity=Arity(2, 2),
                     detail="Test if two sets are equal.",
                     synopsis="struct::set equal setA setB",
+                    return_type=TclType.BOOLEAN,
                 ),
                 "exclude": SubCommand(
                     name="exclude",
                     arity=Arity(2, 2),
                     detail="Remove elements from a set variable.",
                     synopsis="struct::set exclude setVar element",
+                    return_type=TclType.STRING,
                 ),
                 "include": SubCommand(
                     name="include",
                     arity=Arity(2, 2),
                     detail="Add an element to a set variable.",
                     synopsis="struct::set include setVar element",
+                    return_type=TclType.STRING,
                 ),
                 "intersect": SubCommand(
                     name="intersect",
                     arity=Arity(0),
                     detail="Return the intersection of two or more sets.",
                     synopsis="struct::set intersect ?set ...?",
+                    return_type=TclType.LIST,
                 ),
                 "subsetof": SubCommand(
                     name="subsetof",
                     arity=Arity(2, 2),
                     detail="Test if A is a subset of B.",
                     synopsis="struct::set subsetof setA setB",
+                    return_type=TclType.BOOLEAN,
                 ),
                 "symdiff": SubCommand(
                     name="symdiff",
                     arity=Arity(2, 2),
                     detail="Return the symmetric difference of two sets.",
                     synopsis="struct::set symdiff setA setB",
+                    return_type=TclType.LIST,
                 ),
                 "union": SubCommand(
                     name="union",
                     arity=Arity(0),
                     detail="Return the union of two or more sets.",
                     synopsis="struct::set union ?set ...?",
+                    return_type=TclType.LIST,
                 ),
                 "size": SubCommand(
                     name="size",
@@ -136,6 +150,7 @@ class StructSetCommand(CommandDef):
                     detail="Return the number of elements in a set.",
                     synopsis="struct::set size set",
                     pure=True,
+                    return_type=TclType.INT,
                 ),
                 "intersect3": SubCommand(
                     name="intersect3",
@@ -143,18 +158,21 @@ class StructSetCommand(CommandDef):
                     detail="Return a three-element list: elements only in A, elements in both, elements only in B.",
                     synopsis="struct::set intersect3 setA setB",
                     pure=True,
+                    return_type=TclType.LIST,
                 ),
                 "add": SubCommand(
                     name="add",
                     arity=Arity(2, 2),
                     detail="Add elements of set B to set variable A.",
                     synopsis="struct::set add setVar setB",
+                    return_type=TclType.STRING,
                 ),
                 "subtract": SubCommand(
                     name="subtract",
                     arity=Arity(2, 2),
                     detail="Remove elements of set B from set variable A.",
                     synopsis="struct::set subtract setVar setB",
+                    return_type=TclType.STRING,
                 ),
             },
             validation=ValidationSpec(

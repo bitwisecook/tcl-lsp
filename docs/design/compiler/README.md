@@ -25,6 +25,16 @@ User-facing compiler troubleshooting and how-tos live in
 - [review-findings-deferred.md](review-findings-deferred.md) — verified-real
   external code-review findings that remain deferred, with root cause and fix
   approach.
+- [review-findings-tracker.md](review-findings-tracker.md) — five-wave
+  per-finding ledger (Docs 1-5) tracking status (✅ FIXED / 🔄 PARTIAL /
+  ❌ NOT-A-BUG) and cross-linking each closure to its FP.md entry.
+- [post-stage2-followups.md](post-stage2-followups.md) — architectural
+  follow-ups that unblock the 4 PARTIAL closures (VAR-as-cmd type inference;
+  TclOO method-body lowering to per-method FunctionUnits).
+- [FP.md](FP.md) — false-positive / true-positive determination catalog: for
+  each precision decision (shipped or open), a trimmed real-corpus reproducer,
+  a line-by-line walkthrough of why it's FP/TP/not-a-bug, the SSA / SCCP /
+  bounds evidence, and a paired must-fire + must-stay-silent regression test.
 - [fp-audit-todo.md](fp-audit-todo.md) — living checklist of the full
   diagnostic / optimisation / shimmer code inventory: which codes have been
   swept against the corpus for false positives and which remain, plus the

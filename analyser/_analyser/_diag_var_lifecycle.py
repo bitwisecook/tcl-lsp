@@ -360,11 +360,23 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         in ``pt::peg::from::peg::GEN::*`` all accept ``{s e}`` (start/end
         positions); most pure-pattern rules don't read either.
 
-        Heuristic (sound for noise reduction; not for hiding real findings):
-        a ``(namespace, tuple-of-leading-param-names)`` qualifies when AT
-        LEAST 3 peer procs in the same namespace share that exact
-        leading-param prefix.  ``args`` is excluded from the prefix
-        (variadic catch-all should not count toward shape identity).
+        Heuristic (sound for noise reduction; not for hiding real findings),
+        requires **two** signals:
+
+        1. **Peer count**: AT LEAST 3 peer procs in the same namespace
+           share that exact leading-param prefix.
+        2. **Dispatcher evidence**: AT LEAST one variable-command dispatch
+           site exists anywhere in the program (``$cmd arg1 arg2 ...``)
+           with at least ``len(params)`` positional args.  Without this,
+           the 3 peers are likely just helpers and ``token`` / ``s`` /
+           etc. could be genuinely unused -- W214 should fire.
+
+        (PR #498 deep-review finding 8 / G10: pre-fix, three ordinary
+        helpers sharing ``{ctx token}`` suppressed W214 on ``token``
+        even when no dispatcher existed.)
+
+        ``args`` is excluded from the prefix (variadic catch-all should
+        not count toward shape identity).
 
         Lazy: computed once per AnalysisResult and cached on the mixin.
         Returns the set of qualifying ``(namespace, params_tuple)`` keys.
@@ -387,8 +399,55 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 continue
             key = (ns, tuple(params))
             groups[key] = groups.get(key, 0) + 1
-        # A protocol needs ≥3 peer procs sharing the signature shape.
-        proto = {key for key, n in groups.items() if n >= 3}
+        # Peer-count signal: ≥3 peer procs sharing the signature shape.
+        peer_protos = {key for key, n in groups.items() if n >= 3}
+        # Dispatcher-evidence signal: does any variable-command site exist
+        # whose dispatch has at least len(params) positional args?  Maps
+        # each candidate (ns, params) to True iff dispatcher evidence is
+        # found.  The check is conservative: we count any var-command
+        # site that COULD plausibly be a dispatcher for the protocol.
+        proto: set[tuple[str, tuple[str, ...]]] = set()
+        var_command_sites = getattr(self, "_var_command_sites", ())
+        # PR #498/#499 follow-up finding 5 + D4-F4 closure: tie the
+        # dispatcher evidence to the *candidate family* AND require
+        # the dispatcher's argument count to be compatible with the
+        # peer signature.  A protocol (ns, params) is supported by a
+        # var-command site iff:
+        #
+        #   1. The dispatching proc lives in ``ns`` (or a child
+        #      namespace that naturally calls up into ``ns``), AND
+        #   2. The dispatch site passes AT LEAST ``len(params)``
+        #      positional args -- a dispatcher passing only ``$cmd x``
+        #      (1 arg) is NOT evidence for a ``(ctx, token)`` 2-arg
+        #      peer protocol.
+        #
+        # Map each dispatcher namespace -> set of arg-counts observed
+        # there, so the per-candidate match below is precise.
+        dispatcher_ns_argc: dict[str, set[int]] = {}
+        for _vn, _mn, site_range, _im, _cws, argc in var_command_sites:
+            off = site_range.start.offset
+            for qname, pdef in self.result.all_procs.items():
+                pr = pdef.body_range
+                if pr.start.offset <= off <= pr.end.offset:
+                    dispatcher_ns = qname.rsplit("::", 1)[0] or "::"
+                    dispatcher_ns_argc.setdefault(dispatcher_ns, set()).add(argc)
+                    break
+            else:
+                # No enclosing proc -> top-level dispatcher.
+                dispatcher_ns_argc.setdefault("::", set()).add(argc)
+        # Walk the peer-protocol candidates and only keep those whose
+        # namespace (or ancestor) contains a dispatcher that passes
+        # enough args.  Ordinary helpers in a namespace whose only
+        # var-command sites are arity-incompatible are NOT a protocol.
+        for key in peer_protos:
+            ns_key, params_tuple = key
+            min_argc = len(params_tuple)
+            for dns, argcs in dispatcher_ns_argc.items():
+                if (dns == ns_key or dns.startswith(ns_key + "::")) and any(
+                    a >= min_argc for a in argcs
+                ):
+                    proto.add(key)
+                    break
         self._dispatch_proto_cache = (self.result, proto)
         return proto
 

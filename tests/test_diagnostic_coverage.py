@@ -398,12 +398,18 @@ FIXTURES: dict[str, Case] = {
         "set x [expr 1]\n",
     ),
     "O110": Case(
-        "puts [expr {$x + 0}]\n",
-        "[expr {$x + 0}]",
+        # D5-O110: identity drops require provably-numeric operand.  The
+        # ``set i 0; ... [expr {$i + 0}]`` shape gives ``$i`` SCCP type
+        # INT so the drop is sound and O110 fires.
+        "proc f {n} {\n  for {set i 0} {$i < $n} {incr i} {\n    set y [expr {$i + 0}]\n    puts $y\n  }\n}\nf 3\n",
+        "[expr {$i + 0}]",
         "puts $x\n",
     ),
     "O114": Case(
-        "set x [expr {$x + 1}]\nputs $x\n",
+        # D5-O114: incr rewrite requires SSA-known INT.  Use a loop
+        # counter pattern so x is INT-typed but OVERDEFINED in value
+        # (SCCP can't fold to a literal, leaving O114 to fire).
+        "proc f {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nf 3\n",
         "set x [expr {$x + 1}]",
         "incr x\nputs $x\n",
     ),

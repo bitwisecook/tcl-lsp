@@ -624,8 +624,21 @@ def _try_incr_idiom(
     argv_texts: list[str],
     argv_tokens: list[Token],
     argv_single: list[bool],
+    *,
+    var_is_int: bool = False,
 ) -> str | None:
-    """Detect ``set var [expr {$var + N}]`` -> ``incr var N``."""
+    """Detect ``set var [expr {$var + N}]`` -> ``incr var N``.
+
+    D5-O114: only safe when *var* is provably INT.  ``expr {$x + 1}`` on
+    a float-typed *x* silently promotes to a float (``1.5`` -> ``2.5``),
+    while ``incr x`` errors with ``expected integer but got "1.5"``.  The
+    caller must set ``var_is_int=True`` only when the SSA type lattice
+    for *var* at this program point is ``TclType.INT`` (not DOUBLE, not
+    NUMERIC, not BOOLEAN).
+    """
+    if not var_is_int:
+        return None
+
     from compiler.parsing.expr_parser import parse_expr
     from compiler.registry.dialect import active_dialect
 

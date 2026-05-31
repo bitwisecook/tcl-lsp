@@ -413,7 +413,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "T100",
     section: "taint",
     description:
-      "Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+      "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).",
     defaultEnabled: true,
   },
   {

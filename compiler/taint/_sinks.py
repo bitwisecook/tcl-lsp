@@ -64,7 +64,7 @@ diag(
 # Taint diagnostic codes (T-series) — co-registered with codes_taint.py
 diag(
     "T100",
-    "Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+    "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).",
     section="taint",
 )
 diag("T101", "Tainted data flows into an output command (`puts`).", section="taint")
@@ -92,12 +92,72 @@ _OUTPUT_MESSAGES: dict[str, str] = {
 }
 
 
-def _has_option_terminator(args: tuple[str, ...], scan_start: int) -> bool:
-    """Return True if ``--`` appears at or after *scan_start* in *args*."""
+def _option_terminator_index(args: tuple[str, ...], scan_start: int) -> int | None:
+    """Return the index of the first ``--`` at or after *scan_start*, or None.
+
+    Used by T102 (option injection) to determine which positions are
+    *protected* by ``--``.  A late ``--`` only protects positions that
+    come AFTER it (D5-T102); the earlier check ``_has_option_terminator``
+    incorrectly returned True for any ``--`` and let the entire sink
+    be suppressed even when a tainted var sat BEFORE the ``--``.
+    """
     for i in range(scan_start, len(args)):
         if args[i] == "--":
-            return True
-    return False
+            return i
+    return None
+
+
+def _arg_can_be_option(arg: str) -> bool:
+    """Return True when *arg* could expand to a string beginning with ``-``.
+
+    Only an argument whose first character is ``-`` (a literal switch) or a
+    leading substitution (``$``/``[`` or a ``{*}`` expansion, whose runtime
+    value is unknown) can be (mis)interpreted as a switch.  An argument
+    beginning with any other literal character (e.g. a regexp's brace-stripped
+    pattern ``version ([0-9]+)``) is a definite positional and cannot start
+    with ``-``.  The check is leading-character only because lowering strips
+    braces, so embedded ``[``/``$`` no longer indicate substitution.
+    """
+    if not arg:
+        return False
+    return arg[0] in "-$[" or arg.startswith("{*}")
+
+
+def _option_scan_region(
+    args: tuple[str, ...],
+    scan_start: int,
+    options_with_values: frozenset[str],
+) -> set[int]:
+    """Return the arg indexes still within the option-scanning region.
+
+    Tcl scans for ``-switch`` arguments from *scan_start* until the first
+    *definite positional* argument — a literal that cannot begin with ``-``
+    (e.g. a regexp's literal pattern) — or ``--``.  Only an argument inside
+    this region can be misinterpreted as an option if it expands to a ``-…``
+    string, so only such arguments are T102 (option-injection) candidates.  A
+    literal ``-option`` that takes a value also consumes the following arg.  A
+    leading-substitution argument is ambiguous: it stays in the region but
+    cannot be proven to *end* it, so scanning conservatively continues past it
+    (over-warning in genuinely ambiguous cases, which is sound for a security
+    check).
+    """
+    region: set[int] = set()
+    i = scan_start
+    n = len(args)
+    while i < n:
+        arg = args[i]
+        if arg == "--":
+            region.add(i)
+            break
+        if not _arg_can_be_option(arg):
+            # Definite positional literal → option scanning ends here.
+            break
+        region.add(i)
+        if arg.startswith("-") and arg in options_with_values and i + 1 < n:
+            i += 2
+            continue
+        i += 1
+    return region
 
 
 def _arg_can_be_option(arg: str) -> bool:
@@ -193,6 +253,107 @@ def _stmt_var_arg_indexes(stmt, var_name: str) -> tuple[int, ...]:
         return ()
     _, args = parsed
     return _args_var_indexes(args, var_name)
+
+
+def _arg_var_names_deep(arg: str) -> frozenset[str]:
+    """Return variable names referenced anywhere in *arg*, including names
+    nested inside a single layer of ``[cmd ...]`` substitution.
+
+    ``_arg_var_names`` only sees TopLevel VAR tokens — the lexer wraps
+    ``[...]`` text into a CMD token so a ``$var`` inside a cmd-sub
+    arg (e.g. ``[list $raw]``) is invisible to it.  This deep variant
+    additionally parses cmd-sub text and unions in its arg vars.  Used
+    by the eval-list-literal protection check so we can ask "does
+    ``raw`` appear anywhere in ``[list puts $raw]``?".
+    """
+    names = set(_arg_var_names(arg))
+    parsed = parse_command_substitution(arg)
+    if parsed is not None:
+        _, inner_args = parsed
+        for inner in inner_args:
+            names.update(_arg_var_names(inner))
+    return frozenset(names)
+
+
+def _eval_arg_protected_by_list_literal(arg: str, var_name: str) -> bool:
+    """Return True iff *arg* is a literal ``[list <known-cmd> ...]`` cmd-sub
+    AND *var_name* is referenced only at list-index >= 1 (not at the command-
+    head position).
+
+    Background (D5-T100/T105).  Tcl's ``eval``/``uplevel``/``interp eval``
+    take their args, concat them, and re-parse as a script.  ``LIST_CANONICAL``
+    only proves the value is a *properly quoted Tcl list* — it does NOT
+    prove that the FIRST list element is a trusted command name.  So
+    ``eval [list $raw]`` (tainted at index 0) is a real T100 (the tainted
+    value becomes the command word).  Only when the literal ``[list ...]``
+    cmd-sub places a *literal known command* at index 0, and the tainted
+    var sits at index >= 1, can we treat it as an argument-position taint
+    that the script-eval can't elevate to code execution.
+
+    Verified with tclsh 9.0.3::
+
+        % proc marker args { puts EXECUTED }
+        % set raw marker
+        % eval [list $raw]      ;# UNSAFE -- prints EXECUTED
+        EXECUTED
+        % eval [list puts $raw] ;# SAFE -- prints "marker"
+        marker
+    """
+    parsed = parse_command_substitution(arg)
+    if parsed is None:
+        return False
+    inner_cmd, inner_args = parsed
+    if inner_cmd != "list":
+        return False
+    # Index 0 within the [list ...] is the synthesised command word
+    # after eval/concat-and-reparse.  inner_args[0] is the first list
+    # element (the future command head); subsequent elements are args.
+    if not inner_args:
+        return False
+    head = inner_args[0]
+    # Head must be a pure literal (no $var, no [cmd], no {*} expansion).
+    if not head or head[0] in "-$[" or head.startswith("{*}"):
+        return False
+    # Refuse braced/quoted shapes that still wrap substitution-bearing
+    # text; segment_commands has already stripped clean braces/quotes,
+    # so any remaining $ / [ inside head means it's not pure-literal.
+    if "$" in head or "[" in head:
+        return False
+    # Head must be a registry-known command (or a registered alias).
+    if head not in REGISTRY.specs_by_name and (
+        not head.startswith("::") or head[2:] not in REGISTRY.specs_by_name
+    ):
+        return False
+    # The tainted variable must NOT appear in head; it can appear in
+    # later positions safely.
+    head_vars = _arg_var_names(head)
+    if var_name in head_vars:
+        return False
+    # Tainted var must appear in at least one of inner_args[1:].
+    for elt in inner_args[1:]:
+        if var_name in _arg_var_names(elt):
+            return True
+    return False
+
+
+def _eval_stmt_protected_by_list_literal(stmt, var_name: str) -> bool:
+    """Return True iff the eval/uplevel/interp-eval statement *stmt* has
+    a tainted-var-bearing arg which is a literal ``[list <known-cmd> ...]``
+    cmd-sub with the tainted var at index >= 1.  See
+    :func:`_eval_arg_protected_by_list_literal` for the security rationale.
+    """
+    parsed = _stmt_command_args(stmt)
+    if parsed is None:
+        return False
+    _, args = parsed
+    saw_protected = False
+    for arg in args:
+        if var_name not in _arg_var_names_deep(arg):
+            continue
+        if not _eval_arg_protected_by_list_literal(arg, var_name):
+            return False
+        saw_protected = True
+    return saw_protected
 
 
 def _direct_expr_operand_names(node) -> set[str]:
@@ -307,16 +468,21 @@ def _classify_sink(
     if sink.log_sink is not None:
         results.append((sink.log_sink, command))
 
-    # T102: option injection via tainted input (colour-suppressed below)
+    # T102: option injection via tainted input (colour-suppressed below).
+    # The presence of `--` no longer suppresses the sink globally -- a `--`
+    # only protects positions that come AFTER it (D5-T102).  Position-aware
+    # filtering happens at the per-var check below (see ``t102_terminator_idx``).
     profile = REGISTRY.resolve_option_terminator(command, args)
-    if profile is not None and not _has_option_terminator(args, profile.scan_start):
+    if profile is not None:
         cmd_label = command
         if profile.subcommand is not None:
             cmd_label = f"{command} {profile.subcommand}"
         results.append(("T102", cmd_label))
 
-    # T104: network address sinks (SSRF)
-    if sink.is_network_sink:
+    # T104: network address sinks (SSRF).  Always emit when the registry
+    # marks the command as a network sink; per-arg position filtering
+    # happens at the per-var loop below using sink.network_sink_args.
+    if sink.network_sink_args is not None:
         results.append(("T104", command))
 
     # T105: cross-interpreter code execution
@@ -333,12 +499,19 @@ def _classify_sink(
 # Suppression logic
 
 
-def _should_suppress_t100(stmt, taint: TaintLattice) -> bool:
+def _should_suppress_t100(stmt, var_name: str, taint: TaintLattice) -> bool:
     """Return True if T100 should be suppressed for this taint colour + sink.
 
     The suppression colour for each sink command is declared on its
     ``CommandSpec.taint_sink_safe_colour`` field (e.g. ``exec`` →
-    ``SHELL_ATOM``, ``eval``/``uplevel`` → ``LIST_CANONICAL``).
+    ``SHELL_ATOM``).
+
+    For ``eval``/``uplevel``/``interp eval`` the LIST_CANONICAL colour
+    is NO LONGER consulted — it only proves *list quoting*, not that
+    the synthesised command word is trusted (D5-T100/T105).  Instead,
+    suppression is granted only when the eval arg is a literal
+    ``[list <known-cmd> ...]`` cmd-sub AND the tainted variable sits
+    at list-index >= 1 (so it never becomes the command word).
     """
     if not taint.tainted:
         return False
@@ -346,6 +519,10 @@ def _should_suppress_t100(stmt, taint: TaintLattice) -> bool:
     if parsed is None:
         return False
     command, _ = parsed
+    # Eval-family: only the literal-list-head guard suppresses (no
+    # LIST_CANONICAL colour shortcut).
+    if command in ("eval", "uplevel", "::eval", "::uplevel"):
+        return _eval_stmt_protected_by_list_literal(stmt, var_name)
     safe_colour = taint_sink_safe_colours().get(command)
     if safe_colour is not None and bool(taint.colour & safe_colour):
         return True
@@ -399,7 +576,7 @@ def _should_suppress_sink_warning(
 ) -> bool:
     """Return True when a sink warning is mitigated by taint colour."""
     if code == "T100":
-        return _should_suppress_t100(stmt, taint)
+        return _should_suppress_t100(stmt, var_name, taint)
     if code == "T102":
         return _should_suppress_t102(taint)
     if code == "T103":
@@ -424,8 +601,14 @@ def _should_suppress_sink_warning(
             and (taint.colour & (TaintColour.IP_ADDRESS | TaintColour.PORT | TaintColour.FQDN))
         )
     if code == "T105":
-        # LIST_CANONICAL preserves element boundaries, same as eval suppression.
-        return bool(taint.tainted and (taint.colour & TaintColour.LIST_CANONICAL))
+        # interp eval / interp invokehidden: same literal-known-cmd-head
+        # guard as T100/eval (LIST_CANONICAL alone is unsound -- it only
+        # proves list-quoting, not command-word trustedness).  Suppress
+        # only when the tainted var sits at list-index >= 1 of a literal
+        # [list <known-cmd> ...] cmd-sub. See D5-T100/T105.
+        if not taint.tainted:
+            return False
+        return _eval_stmt_protected_by_list_literal(stmt, var_name)
     return False
 
 
@@ -484,8 +667,19 @@ def _find_taint_sinks(
                                 sink_command="expr",
                                 code="T100",
                                 message=(
-                                    f"Tainted variable ${name} used in expr; "
-                                    f"possible code injection"
+                                    # NOTE (post-PR-499 deep-review): braced
+                                    # ``expr {\$x + 1}`` does NOT re-parse the
+                                    # substituted value as expression text --
+                                    # it goes through Tcl's numeric coercion.
+                                    # The real code-execution vector is the
+                                    # UNBRACED ``expr \$x + 1`` form (and
+                                    # ``eval`` / ``uplevel`` / etc.) covered
+                                    # by W101.  The hazard here is type-
+                                    # coercion / numeric-parse foot-guns
+                                    # (\"inf\" / \"0xff\" / domain errors).
+                                    f"Tainted variable ${name} flows into expr operand; "
+                                    f"numeric coercion may misinterpret value "
+                                    f"(use Tcl numeric-validation guards)"
                                 ),
                             )
                         )
@@ -577,6 +771,19 @@ def _find_taint_sinks(
                 if _cmd in ("puts", "::puts"):
                     t101_output_idxs = _puts_output_positions(_cmd_args)
 
+            # T104 position filter (D5-T104): only tainted vars in the
+            # registry-declared network-address argument slots are SSRF
+            # candidates.  ``http::geturl URL -headers $hdr`` -- URL is
+            # positional[0], $hdr is an option value, so $hdr must NOT
+            # fire T104.  An empty tuple means "scan whole statement"
+            # (used by iRules ``connect`` with opaque option-driven addr).
+            t104_addr_idxs: tuple[int, ...] | None = None
+            if parsed is not None and any(code == "T104" for code, _ in sinks):
+                _cmd, _cmd_args = parsed
+                _sub = _cmd_args[0] if _cmd_args else None
+                _t104_sink = REGISTRY.classify_taint_sinks(_cmd, _sub, dialect)
+                t104_addr_idxs = _t104_sink.network_sink_args
+
             # Check each used variable for taint.
             for name, ver in uses.items():
                 t = taints.get((name, ver), _UNTAINTED)
@@ -591,6 +798,16 @@ def _find_taint_sinks(
                         if code == "T101" and t101_output_idxs is not None:
                             var_idxs = _stmt_var_arg_indexes(stmt, name)
                             if not any(i in t101_output_idxs for i in var_idxs):
+                                continue
+                        if (
+                            code == "T104"
+                            and t104_addr_idxs is not None
+                            and len(t104_addr_idxs) > 0
+                        ):
+                            # Non-empty -> position-filtered.  Empty
+                            # tuple -> whole-statement scan (no filter).
+                            var_idxs = _stmt_var_arg_indexes(stmt, name)
+                            if not any(i in t104_addr_idxs for i in var_idxs):
                                 continue
                         template = _OUTPUT_MESSAGES.get(code)
                         if template is not None:

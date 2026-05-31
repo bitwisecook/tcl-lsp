@@ -95,7 +95,9 @@ from .place_bridge import (
 )
 from .ssa import (
     _COMPLEXITY_GUARD_BLOCKS,
+    BlockName,
     SSAFunction,
+    SSAPhi,
     SSAStatement,
     SSAValueKey,
     build_ssa,
@@ -1453,14 +1455,40 @@ def _sccp(
 
                 for s in ssa_block.statements:
                     if isinstance(s.statement, IRBarrier):
-                        # Barriers can modify any variable — widen all
-                        # currently-tracked values to OVERDEFINED.  Only the
-                        # not-yet-widened keys need touching.
+                        # Barriers can modify any variable -- widen all
+                        # currently-tracked values to OVERDEFINED, with
+                        # one principled exception:
+                        #
+                        # D3-P2 / D3-P8 closure: version-0 entries
+                        # represent the ENTRY value of a name at
+                        # function start (param init or pre-first-def
+                        # default).  A barrier inside the proc body
+                        # may mutate the CURRENT value (a later
+                        # version), but it cannot retroactively change
+                        # what the caller passed in.  Preserving
+                        # version-0 CONST values lets interproc
+                        # constant propagation (param_constants seeded
+                        # from caller literal args) survive a dict-
+                        # with / eval / uplevel barrier so the callee
+                        # can prove ``dict with d {}`` has no keys.
+                        #
+                        # Sound: version-0 is by construction the
+                        # input-from-outside value, never re-written
+                        # inside the function (later SSA versions
+                        # would shadow it).
                         if non_overdefined:
+                            widened: set[SSAValueKey] = set()
                             for key in non_overdefined:
-                                values[key] = OVERDEFINED
-                            non_overdefined.clear()
-                            changed = True
+                                if key[1] != 0:
+                                    values[key] = OVERDEFINED
+                                    widened.add(key)
+                            if widened:
+                                non_overdefined.difference_update(widened)
+                                changed = True
+                            # No ``changed = True`` when nothing was
+                            # actually widened (all remaining keys are
+                            # version-0 entry values, preserved) --
+                            # otherwise the fixpoint never terminates.
                         continue
                     for var, ver in s.defs.items():
                         if _is_externally_mutable(var):
@@ -1883,6 +1911,201 @@ def _def_place(ir_stmt: IRStatement, ctx) -> Place | None:
     return places[0] if len(places) == 1 else None
 
 
+_TCL_REGEX_METACHARS = frozenset(r"\^$.|?*+()[]{}")
+
+# ``regexp`` switches that do NOT change match-vs-no-match for a
+# pure-literal pattern (one with no metacharacters): they either alter
+# the return shape (``-indices``/``-inline``/``-all``), restrict where
+# the match may begin (``-start``; tcl-match ⊆ naive-substring), or
+# only affect anchor / whitespace semantics that a no-metachar pattern
+# cannot use (``-line``/``-lineanchor``/``-linestop``/``-expanded``).
+# ``--`` is the option terminator and is also benign.  Anything outside
+# this set (e.g. ``-nocase`` which weakens matching, ``-about`` which
+# does not return a match at all, or an option we simply don't know
+# about) forces the caller to bail conservatively.
+_REGEXP_LITERAL_SAFE_SWITCHES = frozenset(
+    {
+        "-indices",
+        "-inline",
+        "-all",
+        "-line",
+        "-lineanchor",
+        "-linestop",
+        "-expanded",
+        "-start",
+        "--",
+    }
+)
+
+
+def _regexp_literal_no_match(pat: str, inp: str, options: tuple[str, ...] = ()) -> bool:
+    """Return True iff Tcl's ``regexp PATTERN INPUT`` provably returns 0.
+
+    Sound only when *pat* is a pure-literal pattern: it contains no
+    Tcl Advanced Regular Expression (ARE) metacharacters.  In that case
+    Tcl ARE's match reduces to substring search.
+
+    *options* is the list of switch tokens stripped from the front of
+    the ``regexp`` invocation (``args[:skip_options(...)]``).  Only
+    switches in ``_REGEXP_LITERAL_SAFE_SWITCHES`` are safe to ignore
+    on the literal path; ``-nocase`` is handled by case-folding both
+    sides; anything else bails (returns False = cannot prove no-match).
+    This is the conservative bar -- a false "no match" verdict would
+    fire a spurious W210, which must never happen.  (F5 of the PR #498
+    special-casing review.)
+
+    Python's ``re.search`` is NOT used as the oracle: Python regex
+    and Tcl ARE differ on several constructs (``\\w`` Unicode handling,
+    locale class names, atomic groups, etc.), so a Python "no match"
+    does NOT imply a Tcl "no match" for non-literal patterns.  The
+    literal-only restriction keeps the W210 emission sound for the
+    deep-review test case (``regexp {x} y -> v``) while passing on any
+    pattern with structure we'd have to interpret.
+    """
+    if any(c in _TCL_REGEX_METACHARS for c in pat):
+        return False
+    nocase = False
+    for opt in options:
+        # Skip option values (the token after ``-start`` etc.) -- only
+        # the switches themselves carry semantics for this analysis.
+        if not opt.startswith("-"):
+            continue
+        if opt == "-nocase":
+            nocase = True
+            continue
+        if opt in _REGEXP_LITERAL_SAFE_SWITCHES:
+            continue
+        # Unknown / unsafe switch (e.g. ``-about``, or a switch added in
+        # a future Tcl release we don't model).  Bail conservatively.
+        return False
+    if nocase:
+        return pat.casefold() not in inp.casefold()
+    return pat not in inp
+
+
+def _iter_embedded_regexp_scan(node) -> list[tuple[str, tuple[str, ...]]]:
+    """Walk an ``ExprNode`` and yield ``(cmd_text, def_vars)`` pairs for
+    every embedded ``[regexp ...]`` / ``[scan ...]`` command substitution.
+
+    ``cmd_text`` is the full bracketed string (so callers can re-use
+    ``parse_command_substitution`` to extract the head + args).  ``def_vars``
+    is the conservative list of trailing-arg names that the embedded
+    call could write -- ``regexp`` capture vars or ``scan`` output vars.
+
+    Returns a list (not a generator) so the caller can iterate without
+    holding open an ExprNode subtree.  Defensive: any unknown / unparseable
+    node yields nothing.
+    """
+    from compiler.expr_ast import (
+        ExprBinary,
+        ExprCall,
+        ExprCommand,
+        ExprTernary,
+        ExprUnary,
+    )
+    from compiler.value_shapes import (
+        parse_command_substitution as _parse_cs,
+    )
+
+    out: list[tuple[str, tuple[str, ...]]] = []
+
+    def _visit(n) -> None:
+        if isinstance(n, ExprCommand):
+            text = n.text
+            parsed = _parse_cs(text)
+            if parsed is None:
+                return
+            head, args = parsed
+            if head not in ("regexp", "scan"):
+                return
+            # Defensive def-var extraction: skip options up to the
+            # first non-flag arg, then take the trailing arg names
+            # after the (pattern, input) pair (regexp) or (input,
+            # format) pair (scan).
+            from compiler.registry.runtime import options_with_value, skip_options
+
+            pos = skip_options(list(args), options_with_value(head))
+            # regexp: ?switches? pattern input ?var1 var2 ...?
+            # scan:   input format ?var1 var2 ...?
+            first_var_idx = pos + 2
+            def_vars = tuple(a for a in args[first_var_idx:] if a)
+            out.append((text, def_vars))
+            return
+        # Recurse through structural nodes.
+        if isinstance(n, ExprUnary):
+            _visit(n.operand)
+        elif isinstance(n, ExprBinary):
+            _visit(n.left)
+            _visit(n.right)
+        elif isinstance(n, ExprTernary):
+            _visit(n.condition)
+            _visit(n.true_branch)
+            _visit(n.false_branch)
+        elif isinstance(n, ExprCall):
+            for arg in n.args:
+                _visit(arg)
+        # ExprLiteral / ExprString / ExprVar / ExprRaw -- no embedded cmd-subs.
+
+    _visit(node)
+    return out
+
+
+def _must_alias_killed_in_block(
+    block_name: str,
+    def_idx: int,
+    def_place: "Place",
+    ssa,
+    cfg,
+    resolve_ctx,
+) -> bool:
+    """Return True iff *def_place* (an ARRAY_ELEM/DICT_PATH write at
+    ``block.statements[def_idx]``) is overwritten by a *later* write
+    in the same block to the EXACT same place, with no intervening
+    read of that specific element.
+
+    PR #498 deep-review G15: prior code's overlap relation is suppress-
+    only -- it can't say "this earlier write was killed" because the
+    folded-name version stream doesn't preserve element identity.  For
+    *literal-key* writes we can detect must-alias by comparing the
+    Place's (ns, name, index) tuple directly.  Dynamic keys (where
+    ``index.dynamic`` is true) fall back to the conservative behaviour.
+    """
+    if def_place.index is None or getattr(def_place.index, "dynamic", False):
+        return False
+    cfg_block = cfg.blocks.get(block_name)
+    ssa_block = ssa.blocks.get(block_name)
+    if cfg_block is None or ssa_block is None:
+        return False
+    # Walk forward in the block.  A read of the same place between us
+    # and the killing write disqualifies the kill.
+    for j in range(def_idx + 1, len(cfg_block.statements)):
+        ir_stmt = cfg_block.statements[j]
+        # Intervening read of the same element?
+        for rp in read_places(ir_stmt, resolve_ctx):
+            if (
+                rp.kind is def_place.kind
+                and rp.ns == def_place.ns
+                and rp.name == def_place.name
+                and rp.index is not None
+                and not getattr(rp.index, "dynamic", False)
+                and rp.index == def_place.index
+            ):
+                return False
+        # Killing write?
+        kill_place = _def_place(ir_stmt, resolve_ctx)
+        if (
+            kill_place is not None
+            and kill_place.kind is def_place.kind
+            and kill_place.ns == def_place.ns
+            and kill_place.name == def_place.name
+            and kill_place.index is not None
+            and not getattr(kill_place.index, "dynamic", False)
+            and kill_place.index == def_place.index
+        ):
+            return True
+    return False
+
+
 def _make_element_observed(cfg, ssa, resolve_ctx, considered_blocks):
     """A lazy predicate: is an ``ARRAY_ELEM``/``DICT_PATH`` def-place observed by
     any read in the function under ``place.overlap``?
@@ -2051,11 +2274,17 @@ def _dead_stores(
                 if place is None or not _reportable_local(place):
                     continue
                 # Element / dict writes can't trust the folded-name `used` set —
-                # use place-overlap (8E-refined) instead.
-                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH) and _element_observed(
-                    place
-                ):
-                    continue
+                # use place-overlap (8E-refined) instead.  G15 closure:
+                # before suppressing on overlap, check for a must-alias
+                # kill -- a later write to the SAME (ns, name, index)
+                # in the same block with no intervening read of THAT
+                # exact element overwrites this store.
+                if place.kind in (PlaceKind.ARRAY_ELEM, PlaceKind.DICT_PATH):
+                    if _must_alias_killed_in_block(bn, idx, place, ssa, cfg, resolve_ctx):
+                        # Killed by a later same-element write -> dead.
+                        pass
+                    elif _element_observed(place):
+                        continue
                 # Read inside a command-substituted expr (missed by stmt.uses).
                 if n in expr_sub_reads:
                     continue
@@ -2563,6 +2792,7 @@ def _read_before_set(
     *,
     executable_blocks: set[str] | None = None,
     params: frozenset[str] = frozenset(),
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> tuple[ReadBeforeSet, ...]:
     """Find variables that are read before being set.
 
@@ -2575,16 +2805,51 @@ def _read_before_set(
     # exists in its true region, so a read there is not a read-before-set.
     narrowed = _existence_narrowed_blocks(cfg, ssa, considered)
 
+    # SCCP values fallback: when not passed, treat as empty (no const
+    # evidence -> conservative behaviour for the dict-with key check).
+    if values is None:
+        values = {}
+
     # dict with/update creates local variables from dict keys at runtime.
-    # We cannot know which variables statically, so suppress
-    # read-before-set for variables that could have been unpacked.
-    # Collect dict variable names and mark the function as having dict-with.
+    # When the dict value is statically known (CONST/CONSTSET), use its
+    # ACTUAL keys as the suppression set -- a tight scope that doesn't
+    # hide unrelated bugs.  When the dict is unknown, fall back to the
+    # conservative whole-function suppression (matches pre-fix behaviour)
+    # but limit it via ``_has_dict_with`` semantics.
+    #
+    # PR #498 deep-review finding 6 / G9: pre-fix, ANY ``dict with`` in
+    # the function silenced every version-0 unknown-variable read in
+    # the entire proc -- hiding unrelated W210 / W307 noise.
     _has_dict_with = False
+    _dict_with_known_keys: set[str] = set()
+    _dict_with_any_unknown = False
+
+    def _harvest_dict_keys(value_str: str) -> bool:
+        """Extract dict keys from *value_str* into ``_dict_with_known_keys``.
+
+        Returns True if parsing succeeded (even for empty), False on
+        a Tcl list-parse error (caller should mark unknown).  Uses the
+        shared :func:`compiler.tcl_expr_eval._split_tcl_list` parser
+        which handles braces, quotes, and backslash escapes correctly
+        (no hand-rolled list splitter here).
+        """
+        from compiler.tcl_expr_eval import _split_tcl_list
+
+        try:
+            elements = _split_tcl_list(value_str)
+        except Exception:
+            return False
+        # Dict = alternating key/value; only even-index elements are keys.
+        for i in range(0, len(elements), 2):
+            _dict_with_known_keys.add(elements[i])
+        return True
+
     for bn in considered:
         block = cfg.blocks.get(bn)
-        if block is None:
+        ssa_block = ssa.blocks.get(bn)
+        if block is None or ssa_block is None:
             continue
-        for stmt in block.statements:
+        for stmt_idx, stmt in enumerate(block.statements):
             if (
                 isinstance(stmt, IRBarrier)
                 and stmt.canonical_command == "::dict"
@@ -2592,10 +2857,73 @@ def _read_before_set(
                 and stmt.args[0] in ("with", "update")
             ):
                 _has_dict_with = True
-                # The dict variable itself is read by dict with.
                 dict_var = stmt.args[1] if len(stmt.args) >= 2 else ""
-                if dict_var:
-                    skip = skip | {dict_var}
+                if not dict_var:
+                    continue
+                skip = skip | {dict_var}
+                # Look up the SCCP value of the SPECIFIC version of
+                # dict_var being read by this dict-with (the IRBarrier's
+                # ``uses`` records ``{dict_var: input_version}``).  This
+                # is the value BEFORE the dict-with widens it; using the
+                # function-wide ``values[dict_var]`` would catch the
+                # post-widening OVERDEFINED.
+                # SCCP retroactively widens ``d#1`` to OVERDEFINED when
+                # any IRBarrier touches it (the conservative side-effect
+                # model).  Fall back to the raw IR: scan backwards in
+                # the SAME block for the most recent IRAssignConst /
+                # IRAssignValue of ``dict_var`` and use its literal value
+                # if statically known.
+                literal_value: str | None = None
+                for prev_idx in range(stmt_idx - 1, -1, -1):
+                    prev_stmt = block.statements[prev_idx]
+                    if isinstance(prev_stmt, IRAssignConst):
+                        # IRAssignConst's defined variable is in
+                        # ``prev_stmt`` itself (the IR doesn't have a
+                        # direct ``name`` field on the statement; check
+                        # the SSA defs).
+                        prev_ssa = (
+                            ssa_block.statements[prev_idx]
+                            if prev_idx < len(ssa_block.statements)
+                            else None
+                        )
+                        if prev_ssa is None:
+                            continue
+                        if dict_var in prev_ssa.defs and isinstance(prev_stmt.value, str):
+                            literal_value = prev_stmt.value
+                            break
+                    elif isinstance(prev_stmt, (IRBarrier, IRCall)):
+                        # An IRBarrier or impure call between us and
+                        # the literal assignment invalidates the trace.
+                        # IRCall: only break for impure calls (pure
+                        # commands can't mutate dict_var).
+                        if isinstance(prev_stmt, IRBarrier):
+                            break
+                        from compiler.side_effects import classify_side_effects
+
+                        if not classify_side_effects(
+                            getattr(prev_stmt, "command", ""),
+                            getattr(prev_stmt, "args", ()),
+                        ).pure:
+                            break
+                # D3-P2 / D3-P8 closure: when the in-proc backward
+                # scan found no literal, consult the SCCP value of
+                # ``dict_var`` at the version the dict-with reads
+                # (typically version 0 for a parameter).  With the
+                # SCCP-barrier-widening refinement preserving v0
+                # CONST values, an interprocedurally-propagated
+                # call-site literal arrives here as a CONST.
+                if literal_value is None and stmt_idx < len(ssa_block.statements):
+                    ssa_stmt_here = ssa_block.statements[stmt_idx]
+                    use_ver = ssa_stmt_here.uses.get(dict_var, 0)
+                    sccp_val = values.get((dict_var, use_ver))
+                    if sccp_val is not None and sccp_val.kind is LatticeKind.CONST:
+                        v = sccp_val.value
+                        if isinstance(v, str):
+                            literal_value = v
+                if literal_value is None:
+                    _dict_with_any_unknown = True
+                elif not _harvest_dict_keys(literal_value):
+                    _dict_with_any_unknown = True
 
     # When dict with/update is present, collect all variable names that
     # have an explicit definition somewhere in the function.  Variables
@@ -2712,6 +3040,108 @@ def _read_before_set(
     reported: set[str] = set()
     result: list[ReadBeforeSet] = []
 
+    # Phi-from-undef detection: a use's SSA version > 0 is normally a
+    # proof that some prior definition reached it, BUT when the version
+    # is a phi result whose reachable incomings include an undefined
+    # (version 0) origin, that "definition" only reaches on a subset of
+    # paths -- the others read an unset variable.  Compute the transitive
+    # closure ``phi_can_undef[(name, version)]`` over the phi DAG,
+    # restricted to SCCP-reachable predecessors.  Version-0 itself is
+    # the undef origin; non-phi defs are concrete (never undef); a phi
+    # result is undef if any of its reachable incomings is undef.
+    #
+    # This is the proper fix for the "if-arm-only def", "switch without
+    # default", and "read after constant-false if body" precision gaps:
+    # SCCP already knows which predecessors are reachable, and the phi
+    # graph already encodes the merge structure.  We just trace the
+    # transitive can-be-undef property along it.
+    phi_def: dict[tuple[str, int], tuple[BlockName, SSAPhi]] = {}  # phi by (name, ver)
+    # ``unset v`` is lowered as an IRCall with ``defs=('v',)`` even though
+    # semantically it KILLS rather than defines.  Track the (name, version)
+    # pairs created by an unset so ``_phi_can_undef`` treats them as undef
+    # for downstream uses -- the proper fix for the use-after-unset FN.
+    #
+    # IMPORTANT: ``unset v(elem)`` only removes a single array element,
+    # not the whole binding -- after ``unset history(x)`` the array
+    # ``history`` is still defined.  Only treat the unset as killing
+    # the whole binding when the raw arg has NO ``(...)`` element
+    # subscript.  The SSA-level ``defs`` has already collapsed
+    # ``history(x)`` -> ``history`` via ``normalise_var_name``, so we
+    # have to inspect the raw args.
+    killed_versions: set[tuple[str, int]] = set()
+    for bn in considered:
+        sblock = ssa.blocks.get(bn)
+        if sblock is None:
+            continue
+        for phi in sblock.phis:
+            phi_def[(phi.name, phi.version)] = (bn, phi)
+        for s in sblock.statements:
+            stmt = s.statement
+            if not (isinstance(stmt, IRCall) and stmt.canonical_command == "::unset"):
+                continue
+            # Build the set of names whose targets in this ``unset`` are
+            # WHOLE variables (no ``(...)`` element subscript).  Per-
+            # element unsets DON'T kill the array binding.
+            whole_unset: set[str] = set()
+            args = stmt.args
+            i = 0
+            while i < len(args) and args[i].startswith("-"):
+                if args[i] == "--":
+                    i += 1
+                    break
+                i += 1
+            for raw in args[i:]:
+                v = raw
+                if v.startswith("${") and v.endswith("}"):
+                    v = v[2:-1]
+                elif v.startswith("$"):
+                    v = v[1:]
+                if "(" in v:
+                    continue  # element subscript -> not a whole-var kill
+                base, _ = split_array_name(v)
+                if base:
+                    whole_unset.add(base)
+            for name, ver in s.defs.items():
+                if name in whole_unset:
+                    killed_versions.add((name, ver))
+
+    def _phi_can_undef(name: str, version: int, _seen: set[tuple[str, int]]) -> bool:
+        if version == 0:
+            return True
+        key = (name, version)
+        if key in killed_versions:
+            return True
+        if key in _seen:
+            # Cycle (loop-header phi): conservatively treat as NOT-undef
+            # on the cycle -- the seed of this DFS already accounted for
+            # the entry path's contribution.  Without this, every loop-
+            # header phi would self-trigger and over-fire.
+            return False
+        entry = phi_def.get(key)
+        if entry is None:
+            # Concrete (non-phi) definition reached this version -- safe.
+            return False
+        _seen.add(key)
+        try:
+            bn_def, phi = entry
+            for pred, incoming_ver in phi.incoming.items():
+                if pred not in considered:
+                    continue
+                # A dominating existence guard (``if {[info exists v]}``
+                # or its negated form ``if {![info exists v]} {set v X}``)
+                # proves the variable is defined at the predecessor; that
+                # incoming cannot be undef regardless of its SSA version.
+                # Without this check, the merge after the latter idiom
+                # false-fires because the "ns was already defined"
+                # incoming has SSA version 0.
+                if name in narrowed.get(pred, frozenset()):
+                    continue
+                if _phi_can_undef(name, incoming_ver, _seen):
+                    return True
+            return False
+        finally:
+            _seen.discard(key)
+
     order = cfg.reverse_postorder()
     for bn in order:
         if bn not in considered:
@@ -2725,14 +3155,26 @@ def _read_before_set(
         for idx, stmt in enumerate(ssa_block.statements):
             occ_checks: set[str] | None = None
             for name, ver in stmt.uses.items():
-                if ver != 0:
+                # Fire when the use is version-0 (no prior def found) OR
+                # when its version is a phi whose reachable incomings
+                # transitively include an undef.  Concrete (non-phi)
+                # defs guarantee the value reached this point on every
+                # reachable path -- those skip.
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
                 # In dict-with scopes, suppress for variables that have
                 # no explicit definition — they were likely unpacked.
+                # G9 closure: when SCCP knows the dict's keys (e.g. for
+                # ``set d {}; dict with d {}``, the empty dict has NO
+                # keys), only suppress for names in that key set.  When
+                # the dict's value is unknown, fall back to the previous
+                # broad suppression (preserves pre-fix behaviour for
+                # dynamically-built dicts).
                 if _has_dict_with and name not in explicitly_defined:
-                    continue
+                    if _dict_with_any_unknown or name in _dict_with_known_keys:
+                        continue
                 # A ``::`` anywhere marks a namespace-qualified reference
                 # (Tcl local names cannot contain ``::``) — e.g. a direct read
                 # of a namespace var ``array names ${name}::parent`` resolves
@@ -2760,7 +3202,7 @@ def _read_before_set(
             cond_checks = _existence_checks_in_expr(term.condition)
             for name in vars_in_expr_node(term.condition):
                 ver = ssa_block.exit_versions.get(name, 0)
-                if ver != 0:
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
@@ -2789,16 +3231,206 @@ def _read_before_set(
             if term.expr is not None:
                 return_reads |= vars_in_expr_node(term.expr)
             for name in return_reads:
-                if ssa_block.exit_versions.get(name, 0) != 0:
+                ver = ssa_block.exit_versions.get(name, 0)
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
+                # D4-F3 / D3-P1 closure: mirror the key-aware
+                # ``dict with`` logic from the statement-use path.  An
+                # empty / known-keys dict only suppresses reads of names
+                # that the dict actually unpacks; an unknown-shape dict
+                # falls back to the previous blanket suppression.
                 if _has_dict_with and name not in explicitly_defined:
-                    continue
+                    if _dict_with_any_unknown or name in _dict_with_known_keys:
+                        continue
                 if "::" in name:
                     continue
                 reported.add(name)
                 result.append(ReadBeforeSet(block=bn, statement_index=-1, variable=name))
+
+    # PR #498 deep-review G1/G2 closure: regexp/scan output vars are
+    # CONDITIONAL defs (only written on success).  When the pattern +
+    # input are both statically known AND can be statically proven not
+    # to match, the def is provably unreached and any subsequent read
+    # is a real W210.  This is the precise approach (only fire when
+    # SCCP proves no-match), not the naive approach (treat every
+    # regexp/scan output as conditional, which breaks trust-the-match
+    # Tcl idioms like ``regexp -- \$WordBreakRE(after) abc result``).
+    provably_unset: dict[str, tuple[str, int]] = {}  # var_name -> (block, stmt_idx)
+    from compiler.registry.runtime import options_with_value, skip_options
+    from compiler.scan_format import scan_provably_no_match
+
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None:
+            continue
+        for stmt_idx, stmt in enumerate(block.statements):
+            if not isinstance(stmt, IRCall):
+                continue
+            if stmt.command not in ("regexp", "scan"):
+                continue
+            if not stmt.defs:
+                continue
+            tokens = stmt.tokens
+            if tokens is None:
+                continue
+            pos = skip_options(list(stmt.args), options_with_value(stmt.command))
+            if pos + 1 >= len(stmt.args):
+                continue
+            # Use the LEXER's representative token type for each arg --
+            # purely literal words are STR (braced ``{...}``) or ESC
+            # (bare / escaped); VAR (``$x``) and CMD (``[c]``) are
+            # substitutions whose value is unknown statically.  Only the
+            # STR/ESC case lets us reason about the runtime value.
+            from shared.tokens import TokenType
+
+            argv = tokens.argv
+            argv_texts = tokens.argv_texts
+            # ``argv``/``argv_texts`` count the command word at index 0;
+            # ``stmt.args`` does not, so add 1 to translate.
+            t_pos = pos + 1
+            if t_pos + 1 >= len(argv):
+                continue
+            tok_a, tok_b = argv[t_pos], argv[t_pos + 1]
+            if tok_a.type not in (TokenType.STR, TokenType.ESC):
+                continue
+            if tok_b.type not in (TokenType.STR, TokenType.ESC):
+                continue
+            text_a = argv_texts[t_pos]
+            text_b = argv_texts[t_pos + 1]
+            # Arg ordering differs:
+            #   regexp ?switches? PATTERN STRING ?VAR...?
+            #   scan   STRING FORMAT ?VAR...?
+            if stmt.canonical_command == "::regexp":
+                pat, inp = text_a, text_b
+            else:
+                inp, pat = text_a, text_b
+            no_match = False
+            if stmt.canonical_command == "::regexp":
+                # Pass the switches stripped from the front so the
+                # estimator can reject ``-nocase`` / ``-about`` / any
+                # option that would weaken the literal-match assumption.
+                opts = tuple(stmt.args[:pos])
+                no_match = _regexp_literal_no_match(pat, inp, opts)
+            else:
+                no_match = scan_provably_no_match(pat, inp)
+            if no_match:
+                for def_var in stmt.defs:
+                    provably_unset[def_var] = (bn, stmt_idx)
+
+    # F2 extension (PR #498/#499 follow-up): regexp/scan calls embedded
+    # in an ``if`` / ``while`` condition expression don't appear as
+    # top-level IRCalls -- they go into the ``<cond>`` synthetic IRCall
+    # and the original expression hangs off the CFGBranch terminator.
+    # When the embedded call is provably no-match, ONLY the CFG branch
+    # taken for "regexp/scan returned 0" reads the output vars as unset;
+    # the other branch may legitimately use them.  Determine which
+    # target corresponds to the no-match outcome via the condition
+    # shape and mark provably_unset on that target ONLY.
+    from compiler.cfg import CFGBranch as _CFGBranch
+    from compiler.expr_ast import ExprCommand as _ExprCommand
+    from compiler.expr_ast import ExprUnary as _ExprUnary
+    from compiler.expr_ast import UnaryOp as _UnaryOp
+
+    for bn in considered:
+        block = cfg.blocks.get(bn)
+        if block is None or not isinstance(block.terminator, _CFGBranch):
+            continue
+        term = block.terminator
+        cond = term.condition
+        if cond is None:
+            continue
+        for cmd_text, def_vars in _iter_embedded_regexp_scan(cond):
+            from compiler.value_shapes import parse_command_substitution as _parse_cs2
+
+            parsed = _parse_cs2(cmd_text)
+            if parsed is None or not def_vars:
+                continue
+            cmd_name, cmd_args = parsed
+            if cmd_name not in ("regexp", "scan"):
+                continue
+            pos = skip_options(list(cmd_args), options_with_value(cmd_name))
+            if pos + 1 >= len(cmd_args):
+                continue
+            if cmd_name == "regexp":
+                pat, inp = cmd_args[pos], cmd_args[pos + 1]
+            else:
+                inp, pat = cmd_args[pos], cmd_args[pos + 1]
+            if any(c in pat for c in "$[") or any(c in inp for c in "$["):
+                continue
+            if cmd_name == "regexp":
+                opts = tuple(cmd_args[:pos])
+                no_match = _regexp_literal_no_match(pat, inp, opts)
+            else:
+                no_match = scan_provably_no_match(pat, inp)
+            if not no_match:
+                continue
+            # Determine which branch runs when the embedded call
+            # returns 0.  Two recognised condition shapes:
+            #   [regexp ...]  -> 0 -> false-target runs
+            #   ![regexp ...] -> !0 = 1 -> true-target runs
+            # Anything more complex (e.g. ``[regexp ...] && other``)
+            # is conservatively skipped -- the no-match branch may not
+            # be uniquely identifiable.
+            no_match_target: str | None = None
+            if isinstance(cond, _ExprCommand) and cond.text == cmd_text:
+                no_match_target = term.false_target
+            elif (
+                isinstance(cond, _ExprUnary)
+                and cond.op is _UnaryOp.NOT
+                and isinstance(cond.operand, _ExprCommand)
+                and cond.operand.text == cmd_text
+            ):
+                no_match_target = term.true_target
+            else:
+                continue
+            if no_match_target is None:
+                continue
+            # Mark provably_unset against the target block at index -1
+            # (before any of its statements).  The downstream dominance
+            # walk then fires W210 on uses in that block and any
+            # blocks it dominates.
+            for v in def_vars:
+                if v:
+                    provably_unset[v] = (no_match_target, -1)
+
+    # Now fire W210 for any USE of a provably-unset var that's
+    # reachable from the regexp/scan call.  The use must come AFTER
+    # the call (later in the same block, OR in an EXECUTABLE descendant
+    # block dominated by the call's block).  SCCP keeps the post-fixpoint
+    # ``considered`` set restricted to executable blocks, so a use
+    # inside an ``if {[regexp ...]}`` true-branch is naturally excluded
+    # when the regexp is statically no-match (SCCP marks the condition
+    # constant-false and the then-branch unreachable).  Conversely the
+    # ``if {![regexp ...]}`` false-arm IS executable and a use there is
+    # a real W210.  (Finding 2 of the PR #498/#499 follow-up review.)
+    if provably_unset:
+        # Build a reverse postorder traversal of the call block's
+        # forward-reachable executable subgraph -- cheap once per
+        # provably-unset variable.  Then walk every executable block;
+        # fire if (a) the block is dominated by the call's block or
+        # (b) it IS the call's block and the use is after the call.
+        for bn in considered:
+            ssa_block = ssa.blocks.get(bn)
+            if ssa_block is None:
+                continue
+            for idx, stmt in enumerate(ssa_block.statements):
+                for name in stmt.uses:
+                    if name not in provably_unset or name in reported:
+                        continue
+                    def_block, def_idx = provably_unset[name]
+                    in_def_block_after_def = bn == def_block and idx > def_idx
+                    # ``_block_dominates`` is the same predicate used
+                    # for the existence-narrowing pass; the def-block
+                    # dominates exactly when every path to ``bn``
+                    # passes through it, which guarantees the regexp /
+                    # scan call has already executed (or its truth-arm
+                    # has already been chosen) by the time ``bn`` runs.
+                    dominated_use = bn != def_block and _block_dominates(ssa, def_block, bn)
+                    if in_def_block_after_def or dominated_use:
+                        reported.add(name)
+                        result.append(ReadBeforeSet(block=bn, statement_index=idx, variable=name))
 
     return tuple(result)
 
@@ -2988,11 +3620,17 @@ def _return_type_for_command(
                     ns_qualified = _normalise_qualified_name(f"{namespace}::{command}")
                     if ns_qualified in known_classes:
                         return TypeLattice.object_of(ns_qualified)
-            # ``new`` is unique to TclOO — treat unknown commands calling
-            # ``new`` as external class constructors so the type lattice
-            # suppresses W307 for ``$obj method`` patterns.
-            if args[0] == "new":
-                return TypeLattice.object_of(command)
+            # D4-F6 closure: do NOT infer object-of-`command` from
+            # the ``new`` subcommand spelling alone.  ``new`` is a TclOO
+            # convention but any user command can accept ``new`` and
+            # return a plain string -- ``interp alias {} NotAClass {}
+            # apply {args {return notACommand}}; NotAClass new`` returns
+            # ``notACommand`` not an object handle.  When the command
+            # isn't in ``known_classes`` (which DOES include all
+            # ``oo::class`` / ``snit::type`` definitions in the file),
+            # the return is unknown.  External factories needing
+            # OBJECT typing should register via the command registry,
+            # not via name-shape heuristics.
         return _TYPE_OVERDEFINED
     if isinstance(hint, SubcommandTypeHint):
         if not args:
@@ -3268,6 +3906,7 @@ def analyse_function(
         ssa,
         executable_blocks=executable_blocks,
         params=params,
+        values=values,
     )
     unused = _unused_variables(
         cfg,
@@ -3328,6 +3967,84 @@ def analyse_function(
     )
 
 
+# Sentinel for call-site-arg collection: marks an arg position where
+# at least one call passes a non-literal value (variable / cmd-sub) --
+# forces conservative fallback (no param binding).
+_UNKNOWN_ARG: object = object()
+
+
+def _collect_call_site_constants(ir_module: IRModule) -> dict[str, dict[int, set[object]]]:
+    """D3-P2 / D3-P8 closure helper: collect literal arg values per
+    user-proc call site.
+
+    Returns a map ``{callee_qname -> {arg_index -> set-of-literal-values}}``.
+    An arg position is marked with the ``_UNKNOWN_ARG`` sentinel when
+    at least one call passes a non-literal (variable / cmd-sub) value
+    -- callers should refuse to bind that param.
+    """
+    call_site_constants: dict[str, dict[int, set[object]]] = {}
+
+    def _visit(script) -> None:
+        if script is None:
+            return
+        for stmt in script.statements:
+            if isinstance(stmt, IRCall):
+                cmd = stmt.command
+                target = None
+                for cand in (cmd, f"::{cmd}", cmd.lstrip(":")):
+                    qn = cand if cand.startswith("::") else f"::{cand}"
+                    if qn in ir_module.procedures:
+                        target = qn
+                        break
+                if target is not None:
+                    by_idx = call_site_constants.setdefault(target, {})
+                    for i, arg in enumerate(stmt.args):
+                        if "$" in arg or "[" in arg:
+                            by_idx.setdefault(i, set()).add(_UNKNOWN_ARG)
+                        else:
+                            by_idx.setdefault(i, set()).add(arg)
+            for attr in ("body", "init", "next"):
+                sub = getattr(stmt, attr, None)
+                if sub is not None and hasattr(sub, "statements"):
+                    _visit(sub)
+            clauses = getattr(stmt, "clauses", None)
+            if clauses:
+                for clause in clauses:
+                    cb = getattr(clause, "body", None)
+                    if cb is not None and hasattr(cb, "statements"):
+                        _visit(cb)
+
+    _visit(ir_module.top_level)
+    for _qn, _ir_proc in ir_module.procedures.items():
+        _visit(_ir_proc.body)
+    return call_site_constants
+
+
+def _params_constants_from_call_sites(
+    ir_proc, call_site_constants: dict[str, dict[int, set[object]]], qname: str
+) -> dict[SSAValueKey, LatticeValue] | None:
+    """Build ``param_constants`` for *ir_proc* from collected call-site
+    literals.  Only binds a parameter when EVERY call site passes the
+    same literal value at that position; returns None when nothing is
+    bindable (conservative fallback)."""
+    by_idx = call_site_constants.get(qname, {})
+    if not by_idx:
+        return None
+    consts: dict[SSAValueKey, LatticeValue] = {}
+    for i, param_def in enumerate(ir_proc.params):
+        pname = param_def.name if hasattr(param_def, "name") else param_def
+        if pname == "args":
+            break
+        values_seen = by_idx.get(i, set())
+        if not values_seen or _UNKNOWN_ARG in values_seen:
+            continue
+        if len(values_seen) == 1:
+            val = next(iter(values_seen))
+            if isinstance(val, (int, float, bool, str)):
+                consts[(pname, 0)] = LatticeValue.const(val)
+    return consts or None
+
+
 def analyse_ir_module(
     ir_module: IRModule,
     known_classes: frozenset[str] = frozenset(),
@@ -3336,17 +4053,41 @@ def analyse_ir_module(
     top_ssa = build_ssa(cfg_module.top_level)
     top = analyse_function(cfg_module.top_level, top_ssa, known_classes=known_classes)
 
+    call_site_constants = _collect_call_site_constants(ir_module)
+
     procs: dict[str, FunctionAnalysis] = {}
     for qname, cfg in cfg_module.procedures.items():
         ssa = build_ssa(cfg)
         ir_proc = ir_module.procedures.get(qname)
         proc_params = frozenset(ir_proc.params) if ir_proc else frozenset()
-        procs[qname] = analyse_function(cfg, ssa, params=proc_params, known_classes=known_classes)
+        param_constants = (
+            _params_constants_from_call_sites(ir_proc, call_site_constants, qname)
+            if ir_proc is not None
+            else None
+        )
+        procs[qname] = analyse_function(
+            cfg,
+            ssa,
+            params=proc_params,
+            known_classes=known_classes,
+            param_constants=param_constants,
+        )
 
     return ModuleAnalysis(top_level=top, procedures=procs)
 
 
 def analyse_source(source: str) -> ModuleAnalysis:
-    """Lower source to IR and run Phase 3 core analyses."""
+    """Lower source to IR and run Phase 3 core analyses.
+
+    Extracts TclOO / snit class names from the IR before running
+    the analysis so ``_return_type_for_command`` can correctly type
+    ``[ClassName new]`` as ``object_of(ClassName)``.  Pre-fix
+    (before the D4-F6 closure removed the ``new``-spelling
+    fallback), this happened to work for unknown classes too via
+    the heuristic; now it requires the explicit class set.
+    """
     ir_module = lower_to_ir(source)
-    return analyse_ir_module(ir_module)
+    from compiler.compilation_unit import _extract_class_names
+
+    known_classes = _extract_class_names(ir_module)
+    return analyse_ir_module(ir_module, known_classes=known_classes)

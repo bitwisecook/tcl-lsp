@@ -50,39 +50,215 @@ KNOWN_FAILURES_LLENGTH: set[str] = set()
 KNOWN_FAILURES_LREPEAT: set[str] = set()
 
 # lsearch.test — same.
-KNOWN_FAILURES_LSEARCH: set[str] = set()
+KNOWN_FAILURES_LSEARCH: set[str] = {
+    "lsearch-10.1",
+    "lsearch-10.10",
+    "lsearch-10.2",
+    "lsearch-10.3",
+    "lsearch-10.4",
+    "lsearch-10.5",
+    "lsearch-10.6",
+    "lsearch-10.7",
+    "lsearch-10.8",
+    "lsearch-10.9",
+    "lsearch-12.2",
+    "lsearch-14.5",
+    "lsearch-14.6",
+    "lsearch-14.7",
+    "lsearch-14.8",
+    "lsearch-15.1",
+    "lsearch-17.1",
+    "lsearch-17.10",
+    "lsearch-17.11",
+    "lsearch-17.12",
+    "lsearch-17.13",
+    "lsearch-17.14",
+    "lsearch-17.15",
+    "lsearch-17.16",
+    "lsearch-17.2",
+    "lsearch-17.3",
+    "lsearch-17.4",
+    "lsearch-17.5",
+    "lsearch-17.6",
+    "lsearch-17.7",
+    "lsearch-17.8",
+    "lsearch-17.9",
+    "lsearch-18.1",
+    "lsearch-18.2",
+    "lsearch-18.3",
+    "lsearch-18.4",
+    "lsearch-18.5",
+    "lsearch-19.1",
+    "lsearch-19.2",
+    "lsearch-19.3",
+    "lsearch-19.4",
+    "lsearch-19.5",
+    "lsearch-19.6",
+    "lsearch-19.7",
+    "lsearch-19.8",
+    "lsearch-2.10",
+    "lsearch-2.6",
+    "lsearch-20.1",
+    "lsearch-20.2",
+    "lsearch-20.3",
+    "lsearch-22.1",
+    "lsearch-22.2",
+    "lsearch-22.3",
+    "lsearch-22.4",
+    "lsearch-22.5",
+    "lsearch-23.1",
+    "lsearch-23.2",
+    "lsearch-23.3",
+    "lsearch-23.4",
+    "lsearch-23.5",
+    "lsearch-24.1",
+    "lsearch-24.10",
+    "lsearch-24.11",
+    "lsearch-24.2",
+    "lsearch-24.3",
+    "lsearch-24.4",
+    "lsearch-24.5",
+    "lsearch-24.6",
+    "lsearch-24.7",
+    "lsearch-24.8",
+    "lsearch-24.9",
+    "lsearch-25.1",
+    "lsearch-25.2",
+    "lsearch-25.3",
+    "lsearch-25.4",
+    "lsearch-25.5",
+    "lsearch-25.6",
+    "lsearch-26.1",
+    "lsearch-26.2",
+    "lsearch-26.3",
+    "lsearch-26.4",
+    "lsearch-26.5",
+    "lsearch-26.6",
+    "lsearch-27.1",
+    "lsearch-27.2",
+    "lsearch-27.3",
+    "lsearch-27.4",
+    "lsearch-27.5",
+    "lsearch-27.6",
+    "lsearch-27.7",
+    "lsearch-27.8",
+    "lsearch-28.1",
+    "lsearch-28.10",
+    "lsearch-28.2",
+    "lsearch-28.3",
+    "lsearch-28.4",
+    "lsearch-28.5",
+    "lsearch-28.6",
+    "lsearch-28.7",
+    "lsearch-28.8",
+    "lsearch-28.9",
+    "lsearch-3.1",
+    "lsearch-3.2",
+    "lsearch-3.3",
+    "lsearch-3.4",
+    "lsearch-3.6",
+    "lsearch-3.7",
+    "lsearch-8.1",
+    "lsearch-8.2",
+    "lsearch-8.3",
+    "lsearch-8.4",
+}
 
-KNOWN_FAILURES_JOIN: set[str] = set(
-    # join.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_JOIN: set[str] = {
+    "join-2.1",
+    "join-2.2",
+    "join-2.3",
+}
 
-KNOWN_FAILURES_LINDEX: set[str] = set(
-    # lindex.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LINDEX: set[str] = {
+    "lindex-10.1",
+    "lindex-10.3",
+    "lindex-10.4",
+    "lindex-12.10",
+    "lindex-12.8",
+    "lindex-14.3",
+    "lindex-15.3",
+    "lindex-16.4",
+    "lindex-16.5",
+    "lindex-16.6",
+    "lindex-16.7",
+    "lindex-17.0",
+    "lindex-18.0",
+    "lindex-3.9",
+}
 
-KNOWN_FAILURES_LRANGE: set[str] = set(
-    # lrange.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LRANGE: set[str] = {
+    "lrange-1.15",
+    "lrange-1.16",
+    "lrange-3.3",
+    "lrange-3.5",
+    "lrange-3.6",
+    "lrange-3.7a",
+    "lrange-4.1",
+    "lrange-4.2",
+    "lrange-4.3",
+    "lrange-4.4",
+}
 
-KNOWN_FAILURES_LIST: set[str] = set(
-    # list.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LIST: set[str] = {
+    "list-1.10",
+    "list-1.12",
+    "list-1.17",
+    "list-1.18",
+    "list-1.19",
+    "list-1.20",
+    "list-1.21",
+    "list-1.25",
+    "list-1.26",
+    "list-1.27",
+    "list-1.30",
+    "list-1.4",
+    "list-1.5",
+    "list-2.10-0",
+    "list-2.10-1",
+    "list-2.10-2",
+    "list-2.11-0",
+    "list-2.11-1",
+    "list-2.11-2",
+    "list-2.13-1",
+    "list-2.13-2",
+    "list-2.14-0",
+    "list-2.7-0",
+    "list-2.7-2",
+    "list-3.1",
+    "list-4.2",
+    "list-4.3",
+}
 
-KNOWN_FAILURES_LINSERT: set[str] = set(
-    # linsert.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LINSERT: set[str] = {
+    "linsert-1.15",
+    "linsert-1.16",
+    "linsert-1.8",
+    "linsert-3.2",
+}
 
-KNOWN_FAILURES_LREPLACE: set[str] = set(
-    # lreplace.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LREPLACE: set[str] = {
+    "lreplace-1.25",
+}
 
-KNOWN_FAILURES_LMAP: set[str] = set(
-    # lmap.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LMAP: set[str] = {
+    "lmap-1.13",
+    "lmap-1.15",
+    "lmap-2.9",
+    "lmap-4.13",
+    "lmap-4.15",
+    "lmap-5.9",
+    "lmap-8.1",
+    "lmap-8.2",
+}
 
-KNOWN_FAILURES_LPOP: set[str] = set(
-    # lpop.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_LPOP: set[str] = {
+    "lpop-1.4",
+    "lpop-1.4b",
+    "lpop-1.5",
+    "lpop-1.6",
+    "lpop-1.8",
+}
 
 KNOWN_FAILURES_CMDIL: set[str] = set(
     # cmdIL.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
@@ -195,7 +371,7 @@ class TestConcatNative:
 
     def test_concat(self) -> None:
         results = _run_test_file("concat.test")
-        _check_results(results, KNOWN_FAILURES_CONCAT, "concat.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_CONCAT, "concat.test")
 
 
 class TestLlengthNative:
@@ -203,7 +379,7 @@ class TestLlengthNative:
 
     def test_llength(self) -> None:
         results = _run_test_file("llength.test")
-        _check_results(results, KNOWN_FAILURES_LLENGTH, "llength.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LLENGTH, "llength.test")
 
 
 class TestLrepeatNative:
@@ -211,7 +387,7 @@ class TestLrepeatNative:
 
     def test_lrepeat(self) -> None:
         results = _run_test_file("lrepeat.test")
-        _check_results(results, KNOWN_FAILURES_LREPEAT, "lrepeat.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LREPEAT, "lrepeat.test")
 
 
 class TestLsearchNative:
@@ -219,7 +395,7 @@ class TestLsearchNative:
 
     def test_lsearch(self) -> None:
         results = _run_test_file("lsearch.test")
-        _check_results(results, KNOWN_FAILURES_LSEARCH, "lsearch.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LSEARCH, "lsearch.test")
 
 
 class TestJoinNative:
@@ -227,7 +403,7 @@ class TestJoinNative:
 
     def test_join(self) -> None:
         results = _run_test_file("join.test")
-        _check_results(results, KNOWN_FAILURES_JOIN, "join.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_JOIN, "join.test")
 
 
 class TestLindexNative:
@@ -235,7 +411,7 @@ class TestLindexNative:
 
     def test_lindex(self) -> None:
         results = _run_test_file("lindex.test")
-        _check_results(results, KNOWN_FAILURES_LINDEX, "lindex.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LINDEX, "lindex.test")
 
 
 class TestLrangeNative:
@@ -243,7 +419,7 @@ class TestLrangeNative:
 
     def test_lrange(self) -> None:
         results = _run_test_file("lrange.test")
-        _check_results(results, KNOWN_FAILURES_LRANGE, "lrange.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LRANGE, "lrange.test")
 
 
 class TestListNative:
@@ -251,7 +427,7 @@ class TestListNative:
 
     def test_list(self) -> None:
         results = _run_test_file("list.test")
-        _check_results(results, KNOWN_FAILURES_LIST, "list.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LIST, "list.test")
 
 
 class TestLinsertNative:
@@ -259,7 +435,7 @@ class TestLinsertNative:
 
     def test_linsert(self) -> None:
         results = _run_test_file("linsert.test")
-        _check_results(results, KNOWN_FAILURES_LINSERT, "linsert.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LINSERT, "linsert.test")
 
 
 class TestLreplaceNative:
@@ -267,7 +443,7 @@ class TestLreplaceNative:
 
     def test_lreplace(self) -> None:
         results = _run_test_file("lreplace.test")
-        _check_results(results, KNOWN_FAILURES_LREPLACE, "lreplace.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LREPLACE, "lreplace.test")
 
 
 class TestLmapNative:
@@ -275,7 +451,7 @@ class TestLmapNative:
 
     def test_lmap(self) -> None:
         results = _run_test_file("lmap.test")
-        _check_results(results, KNOWN_FAILURES_LMAP, "lmap.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LMAP, "lmap.test")
 
 
 class TestLpopNative:
@@ -283,7 +459,7 @@ class TestLpopNative:
 
     def test_lpop(self) -> None:
         results = _run_test_file("lpop.test")
-        _check_results(results, KNOWN_FAILURES_LPOP, "lpop.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_LPOP, "lpop.test")
 
 
 class TestCmdILNative:
