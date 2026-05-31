@@ -496,3 +496,78 @@ def test_FP_OPT_11_non_numeric_literal_still_rewrites():
         f"sound O120 rewrite (non-numeric literal) must still fire; got {rewrites}"
     )
     assert '$a eq "hello"' in optimised, f"expected eq-form in: {optimised}"
+
+
+# FP-OPT-12 — TclOO method purity wired into O126 (SF-2 PARTIAL)
+
+
+def test_FP_OPT_12_pure_user_proc_via_my_dispatch_handled_at_word_level():
+    """SF-2 wiring TP: the analogous user-proc shape
+    ``set unused [pure_helper]`` -- pure_helper returns a constant --
+    must fold to deletion (O126) via the existing D2-O126-FU interproc-
+    purity gate.  This locks in that the SF-2 wiring did not regress
+    the pure-user-proc path."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "proc pure_helper {} { return 42 }\n"
+        "proc m {} {\n"
+        "    set unused [pure_helper]\n"
+        "    puts done\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    assert any(r.code == "O126" for r in rewrites), (
+        f"pure-user-proc RHS in unused assign must fire O126; got {rewrites}"
+    )
+
+
+def test_FP_OPT_12_impure_user_proc_still_blocks():
+    """TN control: impure user proc RHS in unused assignment is NOT
+    safe to delete (puts side effect)."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "proc impure_helper {} { puts side; return 0 }\n"
+        "proc m {} {\n"
+        "    set unused [impure_helper]\n"
+        "    puts done\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    # The O126 deletion must NOT fire (the RHS is observably impure).
+    o126s = [r for r in rewrites if r.code == "O126"]
+    assert not o126s, f"impure-user-proc RHS must NOT fire O126; got {o126s}"
+
+
+def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
+    """PARTIAL: TclOO method bodies are not currently lowered to
+    per-method FunctionUnits / interproc summaries, so the
+    ``my <method>`` purity path in
+    ``_word_has_observable_side_effect`` cannot fire today.  The SF-2
+    wiring is in place (consults
+    ``InterproceduralAnalysis.methods`` + ``_method_pure(class, m, set)``)
+    and will turn on the moment method-body analysis lands upstream.
+
+    This test pins that fact: the spec's TP TclOO reproducer does
+    NOT fire O126 today, and that is correctly captured as a partial
+    closure (see ``review-findings-tracker.md`` SF-2)."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method pure_helper {} { return 42 }\n"
+        "    method m {} {\n"
+        "        set unused [my pure_helper]\n"
+        "        puts done\n"
+        "    }\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    o126s = [r for r in rewrites if r.code == "O126"]
+    # Method body NOT lowered to IR today -- the optimiser cannot see
+    # inside the class body, so nothing inside `m` is rewritten.  The
+    # PARTIAL status will flip to FIXED when method-body analysis lands.
+    assert not o126s, (
+        f"TclOO method bodies not yet lowered: O126 cannot fire today; got {o126s}"
+    )

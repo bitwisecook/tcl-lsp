@@ -2457,6 +2457,53 @@ register(
 
 
 register(
+    "FP-OPT-12",
+    _Entry(
+        label="TclOO method purity wired into O126 (SF-2 PARTIAL)",
+        proc="::m",
+        vars=("unused",),
+        show=("ssa",),
+        notes=(
+            "SF-2 PARTIAL: TclOO method bodies are not currently lowered\n"
+            "to per-method FunctionUnits / interproc summaries, so the\n"
+            "``my <method>`` purity path cannot fire today.  The wiring\n"
+            "is fully in place:\n"
+            "\n"
+            "  * ``optimise_elimination_passes`` builds\n"
+            "    ``interproc_pure_methods`` from\n"
+            "    ``ctx.interproc.methods`` (today: empty -- the dict isn't\n"
+            "    populated upstream).\n"
+            "  * ``_word_has_observable_side_effect`` /\n"
+            "    ``_expr_has_observable_side_effect`` /\n"
+            "    ``_assignment_safe_to_delete`` take an extra\n"
+            "    ``interproc_pure_methods`` + ``enclosing_class`` pair.\n"
+            "  * The recursive scanner recognises ``my <method>`` and\n"
+            "    looks up ``class::method`` via ``_method_pure`` (which\n"
+            "    tries several common qualifier spellings).\n"
+            "\n"
+            "When method-body lowering populates\n"
+            "``InterproceduralAnalysis.methods``, O126 will start\n"
+            "folding ``set unused [my pureMethod]`` for free.\n"
+            "\n"
+            "The user-proc analogue (``set unused [pureUserProc]``) is\n"
+            "already folded via the existing D2-O126-FU interproc-purity\n"
+            "gate; this entry's reproducer uses that form to lock in\n"
+            "the wired-up path."
+        ),
+        source=_dedent(
+            """
+            proc pure_helper {} { return 42 }
+            proc m {} {
+                set unused [pure_helper]
+                puts done
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-OPT-11",
     _Entry(
         label="O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)",

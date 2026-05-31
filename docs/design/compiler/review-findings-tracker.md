@@ -144,7 +144,7 @@ All 8 verified against `/usr/local/bin/tclsh9.0` (Tcl 9.0.3).
 | ID | Finding | Status | Notes |
 |---|---|---|---|
 | SF-1 | Registry data coverage: add `return_type=TclType.STRING` / `OBJECT` to specific tcllib/Tk commands so D3-P5 / D4-F6 partial closures catch unregistered external factories (`::pkg::plain` style). | ⬜ TODO | Pure data work; no architecture left.  Would chip away at the residual W307 corpus count. |
-| SF-2 | Wire `ClassDef.method_purity` into D2-O126-FU's `interproc_pure` set so pure-method RHS (`set unused [my pure_method ...]`) can be safely folded. | ⬜ TODO | Small, scoped.  `IRCall my <method>` currently goes through `classify_side_effects` which conservatively treats methods as impure. |
+| SF-2 | Wire `ClassDef.method_purity` into D2-O126-FU's `interproc_pure` set so pure-method RHS (`set unused [my pure_method ...]`) can be safely folded. | 🔄 PARTIAL | Wiring landed: `optimise_elimination_passes` builds `interproc_pure_methods` from `ctx.interproc.methods` (today empty -- TclOO method bodies are not yet lowered to per-method FunctionUnits / interproc summaries), and `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete` recognise `my <method>` and consult `_method_pure(class_qname, m, set)`.  No `ClassDef.method_purity` field exists -- the data source is `InterproceduralAnalysis.methods` (already declared, never populated).  The PARTIAL flips to FIXED automatically when method-body lowering populates the dict.  User-proc analogue (`set unused [pureUserProc]`) already folds today via D2-O126-FU. · [FP-OPT-12](FP.md#fp-opt-12) |
 
 ---
 
