@@ -85,7 +85,7 @@ Tclsh-verified positive/negative pairs.
 | D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ✅ FIXED | Added whitespace-split fallback alongside the regex so proc names with non-`\w` chars (`do-work`, `+`, ...) aren't silently dropped |
 | D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ✅ FIXED | New `_scan_namespaced_cmds_in_text` uses lexer + segmenter to find namespaced cmd-subs; recurses into args; falls back to regex only on unparseable input |
 | D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ✅ FIXED | Replaced `split(None, 2)` with `segment_commands(text)` + `normalise_var_name`; also fixed O112-replacement var scanner to descend into BODY/EXPR script-role args (was missing `$b` in `if {$b} {...}`) |
-| D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) |
+| D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) · [FP-NAB-12](FP.md#fp-nab-12) |
 
 ---
 

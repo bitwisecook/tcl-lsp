@@ -1776,6 +1776,35 @@ register(
 )
 
 
+register(
+    "FP-NAB-12",
+    _Entry(
+        label="is_pure_var_ref handles backslash-escaped close paren in array index (D4-F11)",
+        proc="::f",
+        vars=("a",),
+        show=("ssa",),
+        notes=(
+            "Tooling-API audit (D4-F11 closure).  Old\n"
+            "``re.compile(r'\\$[\\w:]+(\\([^)]*\\))?')`` terminated the array\n"
+            "index at the first ``)`` even when escaped, so\n"
+            "``$a(x\\)y)`` was rejected as a pure var ref.  tclsh accepts\n"
+            "``set a(x\\)y) 1; puts $a(x\\)y)`` (the index literally is\n"
+            "``x\\)y``).  Hand-rolled scanner ``_scan_pure_var_ref`` in\n"
+            "compiler/value_shapes.py now handles the escape correctly.\n"
+            "Snippet wraps the value-shape so the bench has a parseable proc."
+        ),
+        source=_dedent(
+            r"""
+            proc f {} {
+                set a(x\)y) 1
+                puts $a(x\)y)
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # OBJ family (07..11) -- W307 cmd-sub ensembles + multi-dispatch + factory
 # ----------------------------------------------------------------------

@@ -377,3 +377,47 @@ proc logit {msg} {
     logit = cu.interproc.procedures.get("::logit")
     assert logit is not None, "::logit missing from interproc summary"
     assert logit.pure is False, f"a proc that calls puts must be impure; got pure={logit.pure}"
+
+
+# FP-NAB-12 — is_pure_var_ref handles escaped close paren in array index (D4-F11)
+
+
+FP_NAB_12_REPRO = r"""proc f {} {
+    set a(x\)y) 1
+    puts $a(x\)y)
+}
+"""
+
+
+def test_FP_NAB_12_escaped_paren_array_index_is_pure_var_ref():
+    """TP: ``$a(x\\)y)`` IS one pure var reference (tclsh-verified).  The
+    hand-rolled `_scan_pure_var_ref` parser in `compiler/value_shapes.py`
+    consumes backslash-escaped close parens inside the array index so
+    the reference doesn't terminate at the first ``)`` (the old regex
+    bug).  The FP_NAB_12_REPRO snippet documents the same tclsh contract
+    -- ``set a(x\\)y) 1; puts $a(x\\)y)`` works -- the assertion here
+    targets the tooling API directly."""
+    from compiler.value_shapes import is_pure_var_ref
+
+    assert is_pure_var_ref(r"$a(x\)y)"), (
+        "escaped close-paren inside array index must count as one pure var ref"
+    )
+    # Companion controls to lock in the parser's overall correctness.
+    assert is_pure_var_ref("$x")
+    assert is_pure_var_ref("${some name}")
+    assert is_pure_var_ref("$ns::x")
+    assert is_pure_var_ref("$arr(plain)")
+
+
+def test_FP_NAB_12_unescaped_paren_terminates_index():
+    """TP control: ``$a(x)y`` is NOT one pure var ref -- the unescaped
+    ``)`` correctly terminates the index, leaving the trailing ``y``
+    as a concatenated literal.  Catches the inverse regression where
+    the new parser would over-greedily swallow trailing characters."""
+    from compiler.value_shapes import is_pure_var_ref
+
+    assert not is_pure_var_ref("$a(x)y"), "unescaped ) must terminate the index"
+    # Other concatenations / non-refs the old test set asserted reject.
+    assert not is_pure_var_ref("$x$y")
+    assert not is_pure_var_ref("$x.foo")
+    assert not is_pure_var_ref("foo$x")

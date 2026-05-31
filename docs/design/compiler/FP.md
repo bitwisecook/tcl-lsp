@@ -733,6 +733,67 @@ a `package require argparse` (which would import its stub).
 
 ---
 
+### FP-NAB-12 — `is_pure_var_ref("$a(x\)y)")` handles escaped close-paren in array index (D4-F11)
+
+- **Verdict:** TRUE POSITIVE / tooling-API correctness fix (now fixed)
+- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_12_*`
+- **Codes:** N/A (tooling-API audit — `is_pure_var_ref` is a shared helper consumed by W301 and the uplevel/safe-eval idioms)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F11
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set a(x\)y) 1
+    puts $a(x\)y)
+}
+```
+
+#### Per-line reasoning
+
+1. `set a(x\)y) 1` — tclsh parses the array name as `a`, the index as the literal four-character string `x\)y` (the backslash escapes the close paren so the index doesn't terminate there).  This is a well-formed array element assignment.
+2. `puts $a(x\)y)` — same escape rule for the var reference.  Tcl reads the value back from the same element; the reference is exactly one pure var ref (no concatenation, no surrounding syntax).
+3. The old `is_pure_var_ref` regex `\$[\w:]+(\([^)]*\))?` rejected this because `[^)]*` stopped at the FIRST close paren regardless of the preceding backslash.  The hand-rolled scanner `_scan_pure_var_ref` walks the index character-by-character and consumes `\<any>` as an escaped pair, so the escaped `)` is no longer treated as the index terminator.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set a(x\)y) 1
+1
+% puts $a(x\)y)
+1
+```
+
+The set, the read, and the printf all succeed; the index literally is `x\)y`.
+
+#### Compiler evidence
+
+```
+--- FP-NAB-12: is_pure_var_ref handles backslash-escaped close paren in array index (D4-F11)
+regen: python -m bench.fp_snippets --id FP-NAB-12
+function ::f
+  block entry_1
+    [0] AssignConst 'a(x)y)' value='1'  defs={a#1}  uses={}
+    [1] Call cmd='puts'  defs={}  uses={a#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-NAB-12`)
+
+#### Why the analyser reaches that verdict
+
+`compiler/value_shapes.py:6` — `_scan_pure_var_ref` is a hand-rolled Tcl-correct parser for the three documented variable-reference forms (`$name`, `${name}`, `$arr(idx)`).  For the array form, the index scanner explicitly consumes `\<any>` as a two-character escape sequence (line 53-55) so a backslash-escaped close paren no longer terminates the index.  `is_pure_var_ref` (line 63) succeeds iff the scan consumes the entire input text.
+
+#### Tests
+
+- `tests/test_fp_nab.py::test_FP_NAB_12_escaped_paren_array_index_is_pure_var_ref` (TP — the tooling-API call returns True on the escaped form)
+- `tests/test_fp_nab.py::test_FP_NAB_12_unescaped_paren_terminates_index` (TP control — `$a(x)y` parses as `$a(x)` followed by literal `y`, so it is NOT a single pure var ref)
+- `tests/test_ground_truth_tn_fn.py::test_TN_pure_var_ref_handles_escaped_paren_in_array_index` (ground-truth audit pair)
+
+---
+
 ## RBS — read-before-set (W210/W213/W214)
 
 W210 (read-before-set), W213 (`unset` on possibly-unset var, derives from RBS),
