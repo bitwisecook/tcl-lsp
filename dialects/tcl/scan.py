@@ -14,6 +14,15 @@ from ._base import register
 _SOURCE = "Tcl man page scan.n"
 
 
+def _scan_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """D4-F2 closure: scan accepts variable-name args from index 2
+    onward to the end of the call (``scan STRING FORMAT ?var var ...?``).
+    Rather than hard-coding a finite slot count, return VAR_WRITE for
+    every trailing arg dynamically, so calls with 20 / 50 / 100 vars
+    don't false-fire W210 on the unmodelled tail."""
+    return {i: frozenset({ArgRole.VAR_WRITE}) for i in range(2, len(args))}
+
+
 @register
 class ScanCommand(CommandDef):
     name = "scan"
@@ -34,26 +43,7 @@ class ScanCommand(CommandDef):
                     synopsis="scan string format ?varName varName ...?",
                 ),
             ),
-            arg_roles={
-                2: frozenset({ArgRole.VAR_WRITE}),
-                3: frozenset({ArgRole.VAR_WRITE}),
-                4: frozenset({ArgRole.VAR_WRITE}),
-                5: frozenset({ArgRole.VAR_WRITE}),
-                6: frozenset({ArgRole.VAR_WRITE}),
-                7: frozenset({ArgRole.VAR_WRITE}),
-                8: frozenset({ArgRole.VAR_WRITE}),
-                9: frozenset({ArgRole.VAR_WRITE}),
-                10: frozenset({ArgRole.VAR_WRITE}),
-                11: frozenset({ArgRole.VAR_WRITE}),
-                12: frozenset({ArgRole.VAR_WRITE}),
-                13: frozenset({ArgRole.VAR_WRITE}),
-                14: frozenset({ArgRole.VAR_WRITE}),
-                15: frozenset({ArgRole.VAR_WRITE}),
-                16: frozenset({ArgRole.VAR_WRITE}),
-                17: frozenset({ArgRole.VAR_WRITE}),
-                18: frozenset({ArgRole.VAR_WRITE}),
-                19: frozenset({ArgRole.VAR_WRITE}),
-            },
+            arg_role_resolver=_scan_arg_roles,
             validation=ValidationSpec(
                 arity=Arity(2),
             ),

@@ -576,6 +576,81 @@ def test_TP_optimiser_O100_does_not_propagate_past_cmd_sub_write():
     )
 
 
+def test_TN_namespaced_ensemble_resolved_known_proc():
+    """D4-F7 closure: ``${ns}::dowork`` where ``ns`` is a CONST proven by
+    SCCP and ``::mypkg::dowork`` IS a known proc in the same file --
+    the analyser must NOT fire W307.  The composed-name check
+    (``$prefix::tail`` -> ``mypkg::dowork``) resolves to a known proc.
+
+    runtime: ``f`` -> ``(no output, dowork was a no-op)``
+    """
+    src = (
+        "namespace eval ::mypkg { proc dowork {arg} {} }\n"
+        "proc f {} { set ns mypkg; ${ns}::dowork arg }\n"
+    )
+    assert not _any(src, "W307"), (
+        "composed ${ns}::dowork must NOT fire W307 when ::mypkg::dowork is a known proc"
+    )
+
+
+def test_TP_namespaced_ensemble_composed_unknown():
+    """D4-F7 control: ``${ns}::unknownproc`` where the composed name
+    has NO known proc must still fire W307 -- it's a genuinely
+    unresolvable dynamic dispatch."""
+    src = "proc f {} { set ns mypkg; ${ns}::unknownproc arg }\n"
+    assert _any(src, "W307"), "composed ${ns}::unknownproc must fire W307 when not resolvable"
+
+
+def test_TN_pure_var_ref_handles_escaped_paren_in_array_index():
+    """D4-F11 closure: ``$a(x\\)y)`` is a valid Tcl variable reference
+    (tclsh accepts ``set a(x\\)y) 1; puts $a(x\\)y)``).  The old regex-
+    based ``is_pure_var_ref`` terminated the index at the first ``)``
+    and returned False; the new lexer-correct parser accepts it."""
+    from compiler.value_shapes import is_pure_var_ref
+
+    assert is_pure_var_ref(r"$a(x\)y)"), (
+        "escaped close-paren inside array index must count as one pure var ref"
+    )
+    # Companion controls.
+    assert is_pure_var_ref("$x")
+    assert is_pure_var_ref("${some name}")
+    assert not is_pure_var_ref("$x$y")
+    assert not is_pure_var_ref("$x.foo")
+
+
+def test_TN_scan_with_more_than_18_vars_no_false_w210():
+    """D4-F2 closure: the previous fixed-slot ``arg_roles`` only
+    recognised the first 18 varName args; vars 19+ weren't classified
+    as VAR_WRITE and fired W210 at use.  Dynamic resolver fixes it.
+
+    runtime: ``puts [f]`` -> ``19``  (no error)
+    """
+    src = (
+        "proc f {} {\n"
+        "    scan {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19} "
+        "{%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} "
+        "v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 v16 v17 v18 v19\n"
+        "    return $v19\n"
+        "}\n"
+    )
+    assert not _any(src, "W210"), "scan with 20 vars must not false-fire W210 on v18/v19"
+
+
+def test_TN_lassign_with_many_vars_no_false_w210():
+    """D4-F2 closure: same fix for ``lassign``.  Calls with more
+    varNames than the old hard-coded slot count must not false-fire."""
+    src = (
+        "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n"
+    )
+    assert not _any(src, "W210")
+
+
+def test_TN_binary_scan_with_many_vars_no_false_w210():
+    """D4-F2 closure: same fix for ``binary scan``."""
+    src = "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n"
+    assert not _any(src, "W210")
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a

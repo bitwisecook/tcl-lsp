@@ -97,25 +97,13 @@ class BinaryCommand(CommandDef):
                     arity=Arity(2),
                     detail="Scan a binary string.",
                     return_type=TclType.INT,
-                    arg_roles={
-                        2: frozenset({ArgRole.VAR_WRITE}),
-                        3: frozenset({ArgRole.VAR_WRITE}),
-                        4: frozenset({ArgRole.VAR_WRITE}),
-                        5: frozenset({ArgRole.VAR_WRITE}),
-                        6: frozenset({ArgRole.VAR_WRITE}),
-                        7: frozenset({ArgRole.VAR_WRITE}),
-                        8: frozenset({ArgRole.VAR_WRITE}),
-                        9: frozenset({ArgRole.VAR_WRITE}),
-                        10: frozenset({ArgRole.VAR_WRITE}),
-                        11: frozenset({ArgRole.VAR_WRITE}),
-                        12: frozenset({ArgRole.VAR_WRITE}),
-                        13: frozenset({ArgRole.VAR_WRITE}),
-                        14: frozenset({ArgRole.VAR_WRITE}),
-                        15: frozenset({ArgRole.VAR_WRITE}),
-                        16: frozenset({ArgRole.VAR_WRITE}),
-                        17: frozenset({ArgRole.VAR_WRITE}),
-                        18: frozenset({ArgRole.VAR_WRITE}),
-                        19: frozenset({ArgRole.VAR_WRITE}),
+                    # D4-F2 closure: dynamic resolver instead of
+                    # hard-coded slots.  ``binary scan VALUE FORMAT
+                    # ?var var ...?`` -- indices are 0-based against
+                    # ``args`` AFTER the ensemble strip, so VALUE=0,
+                    # FORMAT=1, varName=2..len.
+                    arg_role_resolver=lambda args: {
+                        i: frozenset({ArgRole.VAR_WRITE}) for i in range(2, len(args))
                     },
                     arg_types={
                         0: ArgTypeHint(expected=TclType.BYTEARRAY, shimmers=True),

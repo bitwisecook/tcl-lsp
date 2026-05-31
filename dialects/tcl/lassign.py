@@ -14,6 +14,14 @@ from ._base import register
 _SOURCE = "Tcl man page lassign.n"
 
 
+def _lassign_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """D4-F2 closure: ``lassign list ?varName ...?`` -- every arg after
+    the list (index >= 1) is a varName.  Dynamic resolver supports any
+    number of trailing varName args (the previous hard-coded 18 slots
+    falsely flagged W210 on lassigns with more)."""
+    return {i: frozenset({ArgRole.VAR_WRITE}) for i in range(1, len(args))}
+
+
 @register
 class LassignCommand(CommandDef):
     name = "lassign"
@@ -36,27 +44,7 @@ class LassignCommand(CommandDef):
                     synopsis="lassign list ?varName ...?",
                 ),
             ),
-            arg_roles={
-                1: frozenset({ArgRole.VAR_WRITE}),
-                2: frozenset({ArgRole.VAR_WRITE}),
-                3: frozenset({ArgRole.VAR_WRITE}),
-                4: frozenset({ArgRole.VAR_WRITE}),
-                5: frozenset({ArgRole.VAR_WRITE}),
-                6: frozenset({ArgRole.VAR_WRITE}),
-                7: frozenset({ArgRole.VAR_WRITE}),
-                8: frozenset({ArgRole.VAR_WRITE}),
-                9: frozenset({ArgRole.VAR_WRITE}),
-                10: frozenset({ArgRole.VAR_WRITE}),
-                11: frozenset({ArgRole.VAR_WRITE}),
-                12: frozenset({ArgRole.VAR_WRITE}),
-                13: frozenset({ArgRole.VAR_WRITE}),
-                14: frozenset({ArgRole.VAR_WRITE}),
-                15: frozenset({ArgRole.VAR_WRITE}),
-                16: frozenset({ArgRole.VAR_WRITE}),
-                17: frozenset({ArgRole.VAR_WRITE}),
-                18: frozenset({ArgRole.VAR_WRITE}),
-                19: frozenset({ArgRole.VAR_WRITE}),
-            },
+            arg_role_resolver=_lassign_arg_roles,
             validation=ValidationSpec(
                 arity=Arity(1),
             ),

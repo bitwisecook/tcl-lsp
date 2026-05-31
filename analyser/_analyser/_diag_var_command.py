@@ -936,31 +936,55 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     and not any(_const_value_is_known_command(v) for v in _const_vals_w307)
                 )
 
-                # For the namespaced-ensemble case (``${ns}::tail``), the
-                # *prefix* variable has the SCCP value -- check whether
-                # composing prefix+::tail yields a known command.  When
-                # SCCP knows the prefix is a CONST string and the full
-                # composed name isn't registered, the ensemble heuristic
-                # is wrong and W307 should fire.
-                if is_namespaced_ensemble and not sccp_says_not_a_command:
-                    # Extract the literal tail after `::`.  Source layout:
-                    # ``${var}::tail args`` -- the `::tail` text starts
-                    # at _src_off.  We need the contiguous run of Tcl
-                    # command-name characters: alnum + ``_`` + ``:``
-                    # (the canonical Tcl identifier class also used by
-                    # ``compiler/parsing/lexer.py:_is_valid_tcl_name``
-                    # and ``compiler/parsing/expr_lexer.py``).
+                # D4-F7 closure -- composed-name check for the
+                # ``${ns}::tail`` ensemble idiom.  The *prefix* var
+                # holds the namespace name; the user is dispatching
+                # ``$prefix::tail`` as a known qualified command path.
+                # The previous gate (``not sccp_says_not_a_command``)
+                # only ran the composition when the prefix alone was a
+                # known command, which never matches real ensembles.
+                # Run the composition unconditionally when:
+                #
+                #   1. The site is a namespaced-ensemble shape
+                #      (``${var}::literal-tail``), AND
+                #   2. SCCP knows the prefix value(s) (CONST or CONSTSET).
+                #
+                # If EVERY composed name resolves to a known command,
+                # set ``sccp_says_not_a_command = False`` and keep
+                # ``is_namespaced_ensemble = True`` -- the user's
+                # composition is statically resolvable, so the W307 is
+                # an FP.  If EVERY composition is unknown, set
+                # ``sccp_says_not_a_command = True`` -- the user
+                # constructed a path the analyser can't model, fire
+                # W307.  Mixed: stay conservative (silent) -- the
+                # namespaced ensemble suppression already applies.
+                if is_namespaced_ensemble and _const_vals_w307:
                     _tail_start = _src_off + 2
                     _tail = _scan_tcl_command_name(cu.source, _tail_start)
-                    if _tail and _const_vals_w307:
+                    if _tail:
+                        all_composed_known = all(
+                            isinstance(v, str)
+                            and (
+                                _const_value_is_known_command(f"{v}::{_tail}")
+                                or _const_value_is_known_command(f"::{v}::{_tail}")
+                            )
+                            for v in _const_vals_w307
+                        )
                         all_composed_unknown = all(
                             isinstance(v, str)
                             and not _const_value_is_known_command(f"{v}::{_tail}")
                             and not _const_value_is_known_command(f"::{v}::{_tail}")
                             for v in _const_vals_w307
                         )
-                        if all_composed_unknown:
+                        if all_composed_known:
+                            # The composed command is statically
+                            # resolvable -- override the prefix-only
+                            # not-a-command verdict.
+                            sccp_says_not_a_command = False
+                        elif all_composed_unknown:
                             sccp_says_not_a_command = True
+                        # mixed -> leave sccp_says_not_a_command as the
+                        # prefix-only verdict (conservative).
 
                 if sccp_says_not_a_command:
                     is_proc_param_dispatcher = False

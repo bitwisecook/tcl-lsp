@@ -76,16 +76,16 @@ Tclsh-verified positive/negative pairs.
 | ID | Finding | Status | Closure |
 |---|---|---|---|
 | D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | 🔄 IN-PROGRESS | Fix in `compiler/scan_format.py` started |
-| D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ⬜ TODO | Need dynamic resolver |
+| D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ✅ FIXED | Dynamic `arg_role_resolver` per command -- no more finite slot budget |
 | D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ⬜ TODO | Apply key-aware logic to CFGReturn path |
 | D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ⬜ TODO | Real dispatch-family evidence |
 | D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ⬜ TODO | Use return-type facts; resolve `my`/`self` |
 | D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | ⬜ TODO | Use registry/class/proc evidence only |
-| D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ⬜ TODO | Use SCCP + known-procs lookup |
+| D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative |
 | D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ⬜ TODO | Use compiler facts (tokens, SCCP) |
 | D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ⬜ TODO | Recurse via segmenter |
 | D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ⬜ TODO | Carry defining var name on Optimisation record |
-| D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ⬜ TODO | Lexer-backed exact-word check |
+| D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) |
 
 ---
 
