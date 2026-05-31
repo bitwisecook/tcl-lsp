@@ -863,6 +863,66 @@ register(
 
 
 register(
+    "FP-DS-08",
+    _Entry(
+        label="dict with key-aware suppression on the return-terminator path (D3-P1/D4-F3)",
+        proc="::f",
+        vars=("d", "missing"),
+        show=("ssa", "rbs", "values"),
+        notes=(
+            "Pre-fix the W210 statement-use path had the key-aware dict-with\n"
+            "suppression (only the keys that the literal dict actually unpacks\n"
+            "exempt their corresponding read), but the CFGReturn arm of\n"
+            "_read_before_set used a blanket suppression -- ANY dict with in\n"
+            "the function suppressed ANY return-path read.  D3-P1 / D4-F3\n"
+            "closure mirrors the key-aware logic into the return-terminator\n"
+            "arm: if the dict is a known empty literal, no names are exempted\n"
+            "and a ``return $missing`` correctly fires W210.  See\n"
+            "compiler/core_analyses.py:3237 (the CFGReturn branch of\n"
+            "_read_before_set)."
+        ),
+        source=_dedent(
+            """
+            proc f {} { set d {}; dict with d {}; return $missing }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-DS-09",
+    _Entry(
+        label="interproc literal-dict propagation feeds dict-with key check (D3-P2)",
+        proc="::f",
+        vars=("d", "missing"),
+        show=("ssa", "rbs", "values"),
+        notes=(
+            "When a caller passes a literal dict to a callee that uses it via\n"
+            "``dict with d {...}``, the callee can do key-aware suppression\n"
+            "(if the literal has no keys, no reads are exempted).  Two-part\n"
+            "closure:\n"
+            "  (a) compiler.core_analyses._collect_call_site_constants harvests\n"
+            "      per-callee literal-arg values across all call sites; the\n"
+            "      seed only propagates when EVERY caller agrees on the literal\n"
+            "      (mixed callers -> conservative).\n"
+            "  (b) SCCP barrier-widening refined to PRESERVE version-0 entries\n"
+            "      (param-entry values are by construction the input-from-outside\n"
+            "      value, never re-written in the function body).\n"
+            "Together they let f {} propagate to d#0 = CONST(''), and the\n"
+            "callee's dict-with sees no keys -> ``return $missing`` fires W210."
+        ),
+        source=_dedent(
+            """
+            proc f {d} { dict with d { return $missing } }
+            f {}
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-DS-07",
     _Entry(
         label="namespace-eval body scope survives an inline/factory IRBlock rebuild",

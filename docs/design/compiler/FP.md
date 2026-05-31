@@ -2739,6 +2739,148 @@ body's unqualified reads unrecovered — and the unused-parameter pass still see
 
 ---
 
+### FP-DS-08 — `dict with` key-aware suppression on the return-terminator path (D3-P1 / D4-F3)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure) — earlier suppression was over-broad on the return arm
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_08_*`
+- **Codes:** W210 (read-before-set)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P1, D4-F3
+
+#### Reproducer
+
+```tcl
+proc f {} { set d {}; dict with d {}; return $missing }
+```
+
+#### Per-line reasoning
+
+1. `set d {}` — `d` is bound to the empty dict literal.  SCCP knows the value statically.
+2. `dict with d {}` — Tcl unpacks the dict's keys as local variables in the current scope.  Since the dict is empty, NO keys are unpacked; the local namespace gains nothing.
+3. `return $missing` — reads a variable named `missing`.  Nothing in the proc ever defined it, and the empty `dict with` couldn't have created it either.  tclsh errors at runtime.
+4. Pre-fix the statement-use path of `_read_before_set` already had the key-aware logic (only the keys the literal dict actually unpacks exempt reads), but the `CFGReturn` arm used a blanket "any dict-with in the function suppresses any return-path read".  D4-F3 closure mirrors the key-aware check into the return arm.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { set d {}; dict with d {}; return $missing }
+% f
+can't read "missing": no such variable
+```
+
+The empty `dict with` unpacks no keys, and `missing` is genuinely never defined.
+
+#### Compiler evidence
+
+```
+--- FP-DS-08: dict with key-aware suppression on the return-terminator path (D3-P1/D4-F3)
+regen: python -m bench.fp_snippets --id FP-DS-08
+function ::f
+  block entry_1
+    [0] AssignConst 'd' value=''  defs={d#1}  uses={}
+    [1] InterpBoundary  defs={}  uses={}
+    [2] Barrier cmd='dict'  defs={d#2}  uses={d#1}
+    term Return ${missing}
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    d#1: OVERDEFINED
+  read_before_set
+    ReadBeforeSet(block='entry_1', statement_index=-1, variable='missing')
+```
+(regen: `python -m bench.fp_snippets --id FP-DS-08`)
+
+The `read_before_set` row pins the verdict: the return-terminator's `$missing` read is reported even though a `dict with` is in scope, because the (empty) literal dict's keys don't include `missing`.
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py:3237` — the `CFGReturn` arm of `_read_before_set` now consults `_dict_with_known_keys` and `_dict_with_any_unknown` the same way the statement-use arm does: if the dict shape is fully known and the name isn't a literal key, the suppression doesn't apply and the read is reported.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_08_empty_dict_with_return_missing_fires` (TP)
+- `tests/test_fp_ds.py::test_FP_DS_08_known_key_dict_with_return_var_silent` (TN — literal dict has the key)
+- `tests/test_fp_ds.py::test_FP_DS_08_unknown_dict_with_return_var_silent` (TN — unknown dict shape stays conservatively silent)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W210_empty_dict_with_return_missing_var`
+- `tests/test_ground_truth_tn_fn.py::test_TN_known_key_dict_with_return_var`
+- `tests/test_ground_truth_tn_fn.py::test_TN_unknown_dict_with_return_var`
+
+---
+
+### FP-DS-09 — interprocedural literal-dict propagation feeds the dict-with key check (D3-P2)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure) — interproc literal-arg propagation
+- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_09_*`
+- **Codes:** W210 (read-before-set)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P2
+
+#### Reproducer
+
+```tcl
+proc f {d} { dict with d { return $missing } }
+f {}
+```
+
+#### Per-line reasoning
+
+1. `proc f {d}` — `d` is a parameter; its in-callee value comes entirely from the call sites.
+2. `dict with d { return $missing }` — unpacks `d`'s keys as locals, then returns `$missing`.  Whether this errors depends on whether `d` has a `missing` key.
+3. `f {}` — the call site passes the empty dict literal.  Interprocedural propagation makes the callee's `d#0` provably `CONST('')`.
+4. With `d#0 = CONST('')`, the dict-with key harvester registers NO keys; `_read_before_set` therefore doesn't exempt `missing`; the body's read fires W210.
+5. Two-part closure: (a) `_collect_call_site_constants` builds a per-callee literal-arg map (only when ALL callers agree on the literal value); `_compile_source_inner` seeds the callee's SCCP lattice with `param_constants={(p,0): CONST(v)}`.  (b) The SCCP barrier-widening pass preserves version-0 entries (param-entry values are by construction the from-outside value, never re-written in the body), so the CONST survives the barrier.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {d} { dict with d { return $missing } }
+% f {}
+can't read "missing": no such variable
+% f {missing ok}
+ok
+```
+
+The first call errors (empty dict, no `missing` key); the second succeeds (key present, unpacked as a local).
+
+#### Compiler evidence
+
+```
+--- FP-DS-09: interproc literal-dict propagation feeds dict-with key check (D3-P2)
+regen: python -m bench.fp_snippets --id FP-DS-09
+function ::f
+  block entry_1
+    [0] InterpBoundary  defs={}  uses={}
+    [1] Barrier cmd='dict'  defs={d#1}  uses={d#0, missing#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    d#0: CONST('')
+    missing#0: OVERDEFINED
+  read_before_set
+    ReadBeforeSet(block='entry_1', statement_index=1, variable='missing')
+```
+(regen: `python -m bench.fp_snippets --id FP-DS-09`)
+
+`d#0: CONST('')` is the load-bearing fact — interproc propagation from the call site `f {}` seeded the lattice; the dict-with key check then exempts no names; `$missing` is reported.
+
+#### Why the analyser reaches that verdict
+
+- `compiler/core_analyses.py:3978` — `_collect_call_site_constants(ir_module)` builds the per-callee literal-arg dictionary (skipped when any call site has a non-literal in the same slot, so mixed callers fall back to conservative).
+- `compiler/core_analyses.py:1257-1289` — `param_constants` parameter to the SCCP driver seeds `(name, 0)` lattice entries with the agreed-CONST values before fixpoint.
+- `compiler/core_analyses.py:2910` — the SCCP barrier-widening refinement preserves version-0 entries (param-entry values never re-written in the function body), so the CONST survives the barrier through to the dict-with key-aware check.
+
+#### Tests
+
+- `tests/test_fp_ds.py::test_FP_DS_09_interproc_empty_dict_fires` (TP)
+- `tests/test_fp_ds.py::test_FP_DS_09_interproc_key_present_silent` (TN — caller passes key)
+- `tests/test_fp_ds.py::test_FP_DS_09_interproc_mixed_callers_conservative_silent` (TN — mixed callers fall back to conservative)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W210_interproc_dict_with_empty_arg_unpacks_no_keys`
+- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_dict_with_key_present_silent`
+- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_mixed_callers_conservative`
+
+---
+
 
 ## SH — shimmer (S100/S101/S102)
 

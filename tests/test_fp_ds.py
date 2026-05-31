@@ -257,3 +257,68 @@ def test_FP_DS_smoke_analyse_pipeline():
         # yields a well-formed diagnostics list (not merely some non-None
         # object), so a pipeline that silently returned a stub would fail here.
         assert isinstance(result.diagnostics, list)
+
+
+# FP-DS-08 — dict with key-aware suppression on the return-terminator path (D3-P1/D4-F3)
+
+
+FP_DS_08_REPRO = "proc f {} { set d {}; dict with d {}; return $missing }\n"
+
+
+def test_FP_DS_08_empty_dict_with_return_missing_fires():
+    """TP: an empty literal dict ``set d {}`` followed by ``dict with d {}``
+    unpacks no keys.  A subsequent ``return $missing`` reads an unset
+    variable -- tclsh errors.  The CFGReturn arm of _read_before_set must
+    apply the same key-aware logic as the statement-use arm (D4-F3 closure
+    in compiler/core_analyses.py:3237)."""
+    assert _codes(FP_DS_08_REPRO, "W210"), (
+        "empty dict with does not unpack 'missing'; return $missing must fire W210"
+    )
+
+
+def test_FP_DS_08_known_key_dict_with_return_var_silent():
+    """TN control: when the literal dict has ``missing`` as a key,
+    ``dict with`` unpacks it as a local; reading ``$missing`` is safe."""
+    src = "proc f {} { set d {missing ok}; dict with d {}; return $missing }\n"
+    assert _codes(src, "W210") == []
+
+
+def test_FP_DS_08_unknown_dict_with_return_var_silent():
+    """TN control: when the dict shape is unknown (callee param), the
+    return-path read of any name must conservatively stay silent --
+    the analyser can't prove the key is absent."""
+    src = "proc f {d} { dict with d {}; return $missing }\n"
+    assert _codes(src, "W210") == []
+
+
+# FP-DS-09 — interproc literal-dict propagation feeds the dict-with key check (D3-P2)
+
+
+FP_DS_09_REPRO = "proc f {d} { dict with d { return $missing } }\nf {}\n"
+
+
+def test_FP_DS_09_interproc_empty_dict_fires():
+    """TP: caller passes literal ``{}``; interproc propagation
+    (compiler/core_analyses.py:3978 _collect_call_site_constants +
+    the SCCP barrier-widening v0-preserve refinement) makes the
+    callee see ``d#0 = CONST('')``.  The dict-with key-aware check
+    then exempts no names; ``return $missing`` fires W210."""
+    assert _codes(FP_DS_09_REPRO, "W210"), (
+        "caller-passed empty dict must propagate to callee dict-with key check"
+    )
+
+
+def test_FP_DS_09_interproc_key_present_silent():
+    """TN control: caller passes ``{missing ok}`` -- key matches;
+    callee dict-with unpacks ``missing`` as a local; ``return $missing``
+    is safe."""
+    src = "proc f {d} { dict with d { return $missing } }\nf {missing ok}\n"
+    assert _codes(src, "W210") == []
+
+
+def test_FP_DS_09_interproc_mixed_callers_conservative_silent():
+    """TN control: when callers disagree on the literal (one empty,
+    one with key), the per-callee constants collector falls back to
+    conservative -- W210 must NOT fire on the speculative empty path."""
+    src = "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n"
+    assert _codes(src, "W210") == []
