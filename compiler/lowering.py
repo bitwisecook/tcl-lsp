@@ -374,6 +374,14 @@ class _Lowerer:
         # positive depth enables the const-map.  Incremented at the
         # entry of a proc body lowering, decremented on exit.
         self._proc_depth = 0
+        # True while lowering a TclOO method body (SF-2).  A ``proc`` (or
+        # ``namespace eval``-lifted proc) defined inside a method body is
+        # created at method-call time in the global namespace, NOT at
+        # class-definition time — so it must not be lifted into
+        # ``module.procedures`` (codegen would otherwise emit it
+        # unconditionally at script load).  The method body is still lowered
+        # for analysis; only the global registration is suppressed.
+        self._suppress_proc_register = False
         # Depth of syntactically-dead branches currently being lowered.
         # ``if {0} { … }`` / ``if {1} { … } else { … }`` / ``while {0}
         # { … }`` bump this counter around the body lowering so any
@@ -2239,7 +2247,13 @@ class _Lowerer:
                 # critical for: (a) parameter validation inside
                 # ``catch``, (b) proc redefinitions, and (c) correct
                 # ``rename`` interaction with pre-registered procs.
-                if qualified not in self.module.procedures:
+                if self._suppress_proc_register:
+                    # Inside a TclOO method body: do not lift this proc into
+                    # the module (it is defined at method-call time, not at
+                    # script load).  Still emit the runtime ``proc`` IRCall
+                    # below so the method body analyses faithfully.
+                    pass
+                elif qualified not in self.module.procedures:
                     self.module.procedures[qualified] = IRProcedure(
                         name=proc_name,
                         qualified_name=qualified,
@@ -2646,11 +2660,14 @@ class _Lowerer:
             # the ``proc`` case does for nested proc bodies.
             self._proc_depth += 1
             self._const_map_stack.append({})
+            prev_suppress = self._suppress_proc_register
+            self._suppress_proc_register = True
             try:
                 body_script = self._lower_body_arg(
                     seg.texts[b_idx], seg.argv[b_idx], namespace=namespace
                 )
             finally:
+                self._suppress_proc_register = prev_suppress
                 self._const_map_stack.pop()
                 self._proc_depth -= 1
             method_qname = f"{class_qname}::{name}"

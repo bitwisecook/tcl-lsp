@@ -575,6 +575,31 @@ def test_FP_OPT_12_tcloo_impure_method_rhs_preserved():
     assert not o126s, f"impure-method RHS must NOT fire O126; got {o126s}"
 
 
+def test_FP_OPT_12_nested_proc_in_method_body_not_lifted():
+    """SF-2 codegen safety: a ``proc`` defined *inside* a method body is
+    created at method-call time, not at class definition — so it must NOT
+    be lifted into ``ir_module.procedures`` (codegen would otherwise emit
+    it unconditionally at script load, changing bytecode).  Method-body
+    lowering suppresses the global registration while still analysing the
+    body."""
+    from compiler.lowering import lower_to_ir
+
+    src = (
+        "proc top {} { return 1 }\n"
+        "oo::class create C {\n"
+        "    method m {} {\n"
+        "        proc inner {} { return 2 }\n"
+        "        return 0\n"
+        "    }\n"
+        "}\n"
+    )
+    m = lower_to_ir(src)
+    # Only the genuine top-level proc is registered; the method-local
+    # ``inner`` proc is not, and the method itself is captured separately.
+    assert list(m.procedures) == ["::top"], f"unexpected procedures: {list(m.procedures)}"
+    assert "::C::m" in m.methods
+
+
 def test_FP_OPT_12_oo_define_pure_method_rhs_deleted():
     """SF-2 TP via ``oo::define`` body form: methods added through
     ``oo::define C { method ... }`` are lowered and summarised the same
