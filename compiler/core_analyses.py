@@ -1883,6 +1883,30 @@ def _def_place(ir_stmt: IRStatement, ctx) -> Place | None:
     return places[0] if len(places) == 1 else None
 
 
+_TCL_REGEX_METACHARS = frozenset(r"\^$.|?*+()[]{}")
+
+
+def _regexp_literal_no_match(pat: str, inp: str) -> bool:
+    """Return True iff Tcl's ``regexp PATTERN INPUT`` provably returns 0.
+
+    Sound only when *pat* is a pure-literal pattern: it contains no
+    Tcl Advanced Regular Expression (ARE) metacharacters.  In that case
+    Tcl ARE's match reduces to substring search and ``pat in inp``
+    is the exact predicate.
+
+    Python's ``re.search`` is NOT used as the oracle: Python regex
+    and Tcl ARE differ on several constructs (``\\w`` Unicode handling,
+    locale class names, atomic groups, etc.), so a Python "no match"
+    does NOT imply a Tcl "no match" for non-literal patterns.  The
+    literal-only restriction keeps the W210 emission sound for the
+    deep-review test case (``regexp {x} y -> v``) while passing on any
+    pattern with structure we'd have to interpret.
+    """
+    if any(c in _TCL_REGEX_METACHARS for c in pat):
+        return False
+    return pat not in inp
+
+
 def _must_alias_killed_in_block(
     block_name: str,
     def_idx: int,
@@ -2661,20 +2685,20 @@ def _read_before_set(
         """Extract dict keys from *value_str* into ``_dict_with_known_keys``.
 
         Returns True if parsing succeeded (even for empty), False on
-        complexity (caller should mark unknown).
+        a Tcl list-parse error (caller should mark unknown).  Uses the
+        shared :func:`compiler.tcl_expr_eval._split_tcl_list` parser
+        which handles braces, quotes, and backslash escapes correctly
+        (no hand-rolled list splitter here).
         """
-        s = value_str.strip()
-        if s == "":
-            # Empty dict literal -> NO keys unpacked.
-            return True
-        # Non-empty: simple top-level whitespace split when no special
-        # Tcl chars present.  Complex literals (with braces/quotes) are
-        # marked unknown.
-        if any(c in s for c in '{}[]"\\'):
+        from compiler.tcl_expr_eval import _split_tcl_list
+
+        try:
+            elements = _split_tcl_list(value_str)
+        except Exception:
             return False
-        parts = s.split()
-        for i in range(0, len(parts), 2):
-            _dict_with_known_keys.add(parts[i])
+        # Dict = alternating key/value; only even-index elements are keys.
+        for i in range(0, len(elements), 2):
+            _dict_with_known_keys.add(elements[i])
         return True
 
     for bn in considered:
@@ -2962,6 +2986,9 @@ def _read_before_set(
     # regexp/scan output as conditional, which breaks trust-the-match
     # Tcl idioms like ``regexp -- \$WordBreakRE(after) abc result``).
     provably_unset: dict[str, tuple[str, int]] = {}  # var_name -> (block, stmt_idx)
+    from compiler.registry.runtime import options_with_value, skip_options
+    from compiler.scan_format import scan_provably_no_match
+
     for bn in considered:
         block = cfg.blocks.get(bn)
         if block is None:
@@ -2973,59 +3000,45 @@ def _read_before_set(
                 continue
             if not stmt.defs:
                 continue
-            # Check if pattern + input are statically known.  The args
-            # tuple holds the raw arg strings; for our purposes both
-            # must be bare literals (no $/[).
-            from compiler.registry.runtime import options_with_value, skip_options
-
+            tokens = stmt.tokens
+            if tokens is None:
+                continue
             pos = skip_options(list(stmt.args), options_with_value(stmt.command))
             if pos + 1 >= len(stmt.args):
                 continue
+            # Use the LEXER's representative token type for each arg --
+            # purely literal words are STR (braced ``{...}``) or ESC
+            # (bare / escaped); VAR (``$x``) and CMD (``[c]``) are
+            # substitutions whose value is unknown statically.  Only the
+            # STR/ESC case lets us reason about the runtime value.
+            from shared.tokens import TokenType
+
+            argv = tokens.argv
+            argv_texts = tokens.argv_texts
+            # ``argv``/``argv_texts`` count the command word at index 0;
+            # ``stmt.args`` does not, so add 1 to translate.
+            t_pos = pos + 1
+            if t_pos + 1 >= len(argv):
+                continue
+            tok_a, tok_b = argv[t_pos], argv[t_pos + 1]
+            if tok_a.type not in (TokenType.STR, TokenType.ESC):
+                continue
+            if tok_b.type not in (TokenType.STR, TokenType.ESC):
+                continue
+            text_a = argv_texts[t_pos]
+            text_b = argv_texts[t_pos + 1]
             # Arg ordering differs:
             #   regexp ?switches? PATTERN STRING ?VAR...?
             #   scan   STRING FORMAT ?VAR...?
             if stmt.command == "regexp":
-                pattern_arg = stmt.args[pos]
-                input_arg = stmt.args[pos + 1]
-            else:  # scan
-                input_arg = stmt.args[pos]
-                pattern_arg = stmt.args[pos + 1]
-            # Reject anything that looks like a substitution.
-            if any(c in pattern_arg for c in "$[") or any(c in input_arg for c in "$["):
-                continue
-            # Strip outer braces / quotes if present (the lexer
-            # preserves them for the analyser to inspect).
-            pat = pattern_arg.strip()
-            if (pat.startswith("{") and pat.endswith("}")) or (
-                pat.startswith('"') and pat.endswith('"')
-            ):
-                pat = pat[1:-1]
-            inp = input_arg.strip()
-            if (inp.startswith("{") and inp.endswith("}")) or (
-                inp.startswith('"') and inp.endswith('"')
-            ):
-                inp = inp[1:-1]
-            # Try to prove no-match using Python's re for regexp
-            # (with a syntax check) and a simple %d-only simulator
-            # for scan.  Be conservative: any exception or uncertain
-            # case skips marking.
+                pat, inp = text_a, text_b
+            else:
+                inp, pat = text_a, text_b
             no_match = False
             if stmt.command == "regexp":
-                try:
-                    import re
-
-                    if re.search(pat, inp) is None:
-                        no_match = True
-                except re.error:
-                    pass  # invalid regex -> can't prove
-            elif stmt.command == "scan":
-                # Very conservative: only handle the simple %d case
-                # (the deep-review repro).  ``scan abc %d n`` returns 0
-                # because ``abc`` doesn't start with a digit.
-                if pat == "%d":
-                    stripped = inp.lstrip()
-                    if not stripped or not (stripped[0].isdigit() or stripped[0] in "+-"):
-                        no_match = True
+                no_match = _regexp_literal_no_match(pat, inp)
+            else:
+                no_match = scan_provably_no_match(pat, inp)
             if no_match:
                 for def_var in stmt.defs:
                     provably_unset[def_var] = (bn, stmt_idx)

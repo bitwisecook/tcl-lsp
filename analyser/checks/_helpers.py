@@ -222,29 +222,36 @@ def _last_literal_set_value_for_var(
     if not var_name or before_offset <= 0:
         return None
 
+    from compiler.tcl_expr_eval import _split_tcl_list
+
     for cmd in reversed(segment_commands(source[:before_offset])):
         # Cross-scope guard: if we encounter a proc whose body contains
         # the use offset AND whose params include var_name, the
         # parameter shadows any outer scope -- stop searching.
         if cmd.texts and cmd.texts[0] == "proc" and len(cmd.texts) >= 4:
-            # cmd.texts[2] is the param-list literal (braced or quoted).
+            # cmd.texts[2] is the param-list literal -- the segmenter
+            # has already brace-stripped braced words so this is the
+            # *contents* (e.g. ``'a b {c default}'``).
             param_text = cmd.texts[2]
             # Quick prefilter: var_name must appear in the param text.
             if var_name in param_text:
-                # Parse param names: tcl proc params are whitespace-
-                # separated, optionally braced ``{name default}`` for
-                # defaults.  Get top-level whitespace tokens of the
-                # param-list literal.
-                param_inner = param_text.strip()
-                if param_inner.startswith("{") and param_inner.endswith("}"):
-                    param_inner = param_inner[1:-1]
-                param_names: list[str] = []
-                for tok in param_inner.split():
-                    # ``{name default}`` -> take name from leading brace
-                    name = tok.lstrip("{").split()[0] if tok else ""
-                    # Simpler: drop a leading "{" and take up to next space
-                    if name.startswith("{"):
-                        name = name[1:]
+                # Parse via the shared Tcl list splitter (handles
+                # braces, quotes, escapes).  Each list element is
+                # either a bare name or ``{name default}``; for the
+                # latter the splitter returns ``"name default"`` (the
+                # outer braces stripped), so the param name is the
+                # first whitespace-separated word.
+                try:
+                    elements = _split_tcl_list(param_text)
+                except Exception:
+                    elements = []
+                param_names = []
+                for el in elements:
+                    s = el.strip()
+                    if not s:
+                        continue
+                    # Split off the optional default value.
+                    name = s.split(None, 1)[0]
                     param_names.append(name)
                 if var_name in param_names:
                     # Use offset is INSIDE this proc body iff the proc's

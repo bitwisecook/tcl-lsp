@@ -19,6 +19,23 @@ from compiler.value_shapes import parse_command_substitution
 
 from ..semantic_model import Diagnostic, Severity
 
+
+def _scan_tcl_command_name(source: str, start: int) -> str:
+    """Return the longest Tcl command-name token at *source[start:]*.
+
+    Walks contiguous Tcl identifier characters (alphanumeric + ``_`` +
+    ``:``) -- the canonical class used by
+    ``compiler.parsing.lexer._is_valid_tcl_name`` and the Tcl expr
+    lexer.  Returns the empty string when the start position is past
+    end-of-source or doesn't begin with an identifier character.
+    """
+    i = start
+    n = len(source)
+    while i < n and (source[i].isalnum() or source[i] in "_:"):
+        i += 1
+    return source[start:i]
+
+
 # snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
 # ``$win``/``$hull`` used as a command word are object dispatch, but *only*
 # inside a snit type body (``$hull configure`` is the widgetadaptor delegation
@@ -846,14 +863,14 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # is wrong and W307 should fire.
                 if is_namespaced_ensemble and not sccp_says_not_a_command:
                     # Extract the literal tail after `::`.  Source layout:
-                    # ``${var}::tail args`` -- the `::tail` is at _src_off.
+                    # ``${var}::tail args`` -- the `::tail` text starts
+                    # at _src_off.  We need the contiguous run of Tcl
+                    # command-name characters: alnum + ``_`` + ``:``
+                    # (the canonical Tcl identifier class also used by
+                    # ``compiler/parsing/lexer.py:_is_valid_tcl_name``
+                    # and ``compiler/parsing/expr_lexer.py``).
                     _tail_start = _src_off + 2
-                    _tail_end = _tail_start
-                    while _tail_end < len(cu.source) and (
-                        cu.source[_tail_end].isalnum() or cu.source[_tail_end] in "_:"
-                    ):
-                        _tail_end += 1
-                    _tail = cu.source[_tail_start:_tail_end]
+                    _tail = _scan_tcl_command_name(cu.source, _tail_start)
                     if _tail and _const_vals_w307:
                         all_composed_unknown = all(
                             isinstance(v, str)

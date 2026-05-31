@@ -19,36 +19,6 @@ from compiler.types import TclType
 
 from ._base import register
 
-
-def _namespace_upvar_arg_role_resolver(args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Mark local-alias positions in ``namespace upvar`` as VAR_WRITE.
-
-    ``namespace upvar ns otherVar myVar ?otherVar myVar ...?`` -- arg 0
-    is the namespace, then alternating (otherVar, myVar) pairs.  The
-    myVar positions (odd indices >= 2) name CALLER-frame locals that
-    the command creates as aliases to namespace variables; mark them
-    VAR_WRITE so the lowering records them in ``IRCall.defs`` and the
-    SSA-driven W210 check treats subsequent reads as defined.
-
-    (PR #498 deep-review G14: pre-fix, ``namespace upvar ::ns state
-    alias`` followed by ``$alias`` falsely fired W210 because no
-    lowering hook recorded ``alias`` as a def.)
-    """
-    result: dict[int, frozenset[ArgRole]] = {}
-    var_write = frozenset({ArgRole.VAR_WRITE})
-    # Args are: [ns, srcVar, dstVar, srcVar, dstVar, ...].  Pairs start
-    # at index 1; the dstVar (local alias) is at odd offsets +2.
-    i = 2
-    while i < len(args):
-        # Skip pairs whose source is dynamic ($var) -- we can't track
-        # those aliases statically.
-        src = args[i - 1] if i - 1 < len(args) else ""
-        if not src.startswith("$") and "[" not in src:
-            result[i] = var_write
-        i += 2
-    return result
-
-
 _SOURCE = "Tcl man page namespace.n"
 
 
@@ -329,7 +299,10 @@ class NamespaceCommand(CommandDef):
                     synopsis="namespace upvar namespace ?otherVar myVar ...?",
                     return_type=TclType.STRING,
                     creates_scope_alias=True,
-                    arg_role_resolver=_namespace_upvar_arg_role_resolver,
+                    # Local-alias defs are recorded by ``lower_upvar`` in
+                    # ``compiler/lowering_hooks/_var.py`` (registered
+                    # against this subcommand) which delegates to the
+                    # shared ``upvar_local_declaration_indices`` grammar.
                 ),
                 "which": SubCommand(
                     name="which",
