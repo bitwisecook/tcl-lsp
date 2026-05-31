@@ -403,20 +403,63 @@ def find_optimisations(
     # so ``${ns::x}``, array refs (``\\$arr(idx)``), escaped dollars
     # (``\\\\$``), and other Tcl variable-name edge cases are handled
     # correctly.  (Finding 11 of the PR #498 / PR #499 follow-up.)
-    from compiler.var_refs import VarReferenceScanner
+    #
+    # IMPORTANT: O112 replacements typically contain control-flow
+    # commands whose conditions/bodies are EXPR/BODY-role args (e.g.
+    # ``if {$b} {puts X}``).  A default-options scanner sees only
+    # top-level VAR tokens and misses the ``$b`` inside the if
+    # condition -- exactly the case the filter is supposed to catch.
+    # Enable script + expr recursion so ``recurse_into_script_roles``
+    # + ``recurse_into_expr_roles`` descend into ``if``/``while``/
+    # ``for`` condition + body words.  (Fixes the
+    # ``test_nested_constant_if_chain`` multi-pass interaction bug:
+    # O112 replaces the outer ``if {$a}`` with the inner ``if {$b}
+    # ...``; O109 must NOT then delete ``set b 0`` -- the surviving
+    # inner condition references it.)
+    from compiler.var_refs import VarReferenceScanner, VarScanOptions
 
-    _ref_scanner = VarReferenceScanner()
+    _ref_scanner = VarReferenceScanner(
+        VarScanOptions(
+            recurse_into_script_roles=True,
+            recurse_into_expr_roles=True,
+        ),
+    )
     var_refs_in_replacements: set[str] = set()
     for opt in selected:
         if opt.code == "O112" and opt.replacement:
             var_refs_in_replacements.update(_ref_scanner.scan_script(opt.replacement))
     if var_refs_in_replacements:
+        # D4-F10 closure: use the command segmenter to recover the
+        # defining variable name from the original source range instead
+        # of ``text.split(None, 2)`` (which can't handle braced/quoted
+        # words, escaped whitespace, qualified ``set`` spellings, etc.).
+        from compiler.parsing.command_segmenter import segment_commands
+        from shared.naming import normalise_var_name as _normalise
+
         filtered: list[Optimisation] = []
         for opt in selected:
             if opt.code in ("O109", "O126") and opt.replacement == "":
                 text = source[opt.range.start.offset : opt.range.end.offset + 1].strip()
-                parts = text.split(None, 2)
-                if len(parts) >= 2 and parts[0] == "set" and parts[1] in var_refs_in_replacements:
+                # Parse text as ONE Tcl command.  Skip if it's not a
+                # plain ``set`` invocation -- O109/O126 can also fire
+                # on ``incr``/``append``/``lappend`` (read-modify-write
+                # forms whose RHS purity is gated separately upstream),
+                # and those reads of the LHS DON'T flow through the
+                # O112 replacement so the filter doesn't apply.
+                try:
+                    cmds = segment_commands(text)
+                except Exception:
+                    filtered.append(opt)
+                    continue
+                if len(cmds) != 1 or len(cmds[0].texts) < 2:
+                    filtered.append(opt)
+                    continue
+                cmd_name = cmds[0].texts[0]
+                if cmd_name != "set":
+                    filtered.append(opt)
+                    continue
+                var_name = _normalise(cmds[0].texts[1])
+                if var_name and var_name in var_refs_in_replacements:
                     continue
             filtered.append(opt)
         selected = filtered

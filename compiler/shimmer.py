@@ -28,6 +28,7 @@ from shared.tokens import SourcePosition
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
+from .core_analyses import LatticeKind, LatticeValue
 from .execution_intent import CommandSubstitutionIntent, FunctionExecutionIntent
 from .expr_ast import (
     BinOp,
@@ -189,6 +190,7 @@ def _check_command_substitution_intent(
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
     loop_def_names: frozenset[str] | None = None,
+    loop_use_expected_types: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -202,6 +204,7 @@ def _check_command_substitution_intent(
         in_loop,
         already_coerced,
         loop_def_names,
+        loop_use_expected_types,
     )
 
 
@@ -224,6 +227,7 @@ def _check_args_for_shimmer(
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
     loop_def_names: frozenset[str] | None = None,
+    loop_use_expected_types: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check a command invocation's arguments for type mismatches."""
     warnings: list[ShimmerWarning] = []
@@ -270,9 +274,25 @@ def _check_args_for_shimmer(
         # names ever defined inside the enclosing loop's blocks; absence means
         # invariant.  None means the caller didn't supply the lattice, so we
         # fall back to the historical pessimistic classification.
+        #
+        # IMPORTANT: the invariant exemption only holds when there's a
+        # SINGLE target intrep across all loop uses of this variable.
+        # If the same loop body has uses expecting DIFFERENT types
+        # (``dict get $data; lindex $data 2``), the converters thrash
+        # the intrep against each other each iteration -- S101 is the
+        # right verdict, not S100.  ``loop_use_expected_types`` is the
+        # per-var set of distinct expected types observed in the loop.
         effective_in_loop = in_loop
-        if in_loop and loop_def_names is not None and var_name not in loop_def_names:
-            effective_in_loop = False  # loop-invariant → one-time, not per-iteration
+        if (
+            in_loop
+            and loop_def_names is not None
+            and var_name not in loop_def_names
+            and (
+                loop_use_expected_types is None
+                or len(loop_use_expected_types.get(var_name, ())) <= 1
+            )
+        ):
+            effective_in_loop = False  # loop-invariant + single-target → one-time
 
         code = "S101" if effective_in_loop else "S100"
         severity = "loop " if effective_in_loop else ""
@@ -298,6 +318,38 @@ def _check_args_for_shimmer(
     return warnings
 
 
+_HEX_OCT_BIN_PREFIX = ("0x", "0X", "0o", "0O", "0b", "0B")
+
+
+def _value_is_int_literal_string(value: LatticeValue | None) -> bool:
+    """True when *value* is a SCCP CONST string whose text is a hex /
+    octal / binary integer literal (``0xff``, ``0o15``, ``0b1010``,
+    optionally signed).
+
+    These spellings classify as STRING by ``_literal_type`` (the
+    canonical stringified intrep differs from the source text) but
+    promote cleanly to INT at the first arithmetic op -- not a real
+    shimmer.  Shimmer detectors should skip the STRING->INT warning
+    for these.
+    """
+    if value is None or value.kind is not LatticeKind.CONST:
+        return False
+    text = value.value
+    if not isinstance(text, str):
+        return False
+    sign_stripped = text[1:] if text[:1] in "+-" else text
+    if not sign_stripped.startswith(_HEX_OCT_BIN_PREFIX):
+        return False
+    body = sign_stripped[2:]
+    if not body:
+        return False
+    if sign_stripped[1] in "xX":
+        return all(c in "0123456789abcdefABCDEF" for c in body)
+    if sign_stripped[1] in "oO":
+        return all(c in "01234567" for c in body)
+    return all(c in "01" for c in body)  # binary
+
+
 def _find_use_site_shimmers(
     fu_intent: FunctionExecutionIntent,
     cfg: CFGFunction,
@@ -305,10 +357,12 @@ def _find_use_site_shimmers(
     types: dict[SSAValueKey, TypeLattice],
     executable_blocks: set[str],
     loop_blocks: set[str],
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> list[ShimmerWarning]:
     """Find use-sites where a known-typed variable is passed to a command
     expecting a different type."""
     warnings: list[ShimmerWarning] = []
+    sccp_values: dict[SSAValueKey, LatticeValue] = values or {}
 
     # Loop-invariance lattice for the in-loop classification: a variable used
     # inside a loop is "per-iteration" (S101) only if its intrep can be reset
@@ -319,6 +373,14 @@ def _find_use_site_shimmers(
     # defined in any loop block — absence means invariant.  Cheap, single
     # pass; only computed when loops exist.
     loop_def_names: frozenset[str] = frozenset()
+    # For the loop-invariant exemption: a variable used inside a loop
+    # whose intrep gets thrashed between TWO conflicting types each
+    # iteration (e.g. ``dict get $data`` then ``lindex $data 2``) is
+    # NOT one-time -- the converters fight over the intrep each pass.
+    # Map var-name -> set of expected types observed in loop blocks.
+    # If |types| >= 2 for an invariant var, downgrade to S101 (real
+    # per-iteration cost).
+    loop_use_expected: dict[str, set[TclType]] = {}
     if loop_blocks:
         defs: set[str] = set()
         for lbn in loop_blocks:
@@ -330,6 +392,24 @@ def _find_use_site_shimmers(
             for phi in sb.phis:
                 defs.add(phi.name)
         loop_def_names = frozenset(defs)
+        # Scan every IRCall in the loop body for arg-position expected
+        # types so the oscillation check can compare against the
+        # invariant-exemption candidate.
+        for lbn in loop_blocks:
+            cb = cfg.blocks.get(lbn)
+            if cb is None:
+                continue
+            for st in cb.statements:
+                if not isinstance(st, IRCall):
+                    continue
+                for ai, atext in enumerate(st.args):
+                    a = atext.strip()
+                    if not a.startswith("$"):
+                        continue
+                    nm = _normalise_var_name(a)
+                    exp = _arg_type_for_call(st.command, st.args, ai)
+                    if exp is not None:
+                        loop_use_expected.setdefault(nm, set()).add(exp)
 
     for bn in executable_blocks:
         block = cfg.blocks.get(bn)
@@ -359,6 +439,7 @@ def _find_use_site_shimmers(
                         in_loop,
                         already_coerced,
                         loop_def_names,
+                        loop_use_expected,
                     )
                 )
             elif isinstance(stmt, IRAssignValue):
@@ -374,6 +455,7 @@ def _find_use_site_shimmers(
                             in_loop,
                             already_coerced,
                             loop_def_names,
+                            loop_use_expected,
                         )
                     )
                 else:
@@ -390,6 +472,7 @@ def _find_use_site_shimmers(
                                 in_loop,
                                 already_coerced,
                                 loop_def_names,
+                                loop_use_expected,
                             )
                         )
             elif isinstance(stmt, IRIncr):
@@ -398,12 +481,21 @@ def _find_use_site_shimmers(
                 ver = ssa_stmt.uses.get(var_name, 0)
                 if ver > 0:
                     var_type = types.get((var_name, ver))
+                    # Hex / octal / binary literal strings (``0xff``,
+                    # ``0o15``, ``0b1010``) classify as STRING (their
+                    # canonical stringified intrep differs from the
+                    # source) but are unambiguous integer literals that
+                    # promote cleanly to INT at the first numeric op.
+                    # Skip the shimmer warning when SCCP proves the
+                    # value IS a hex/binary integer literal -- that
+                    # promotion is intentional, not accidental.
                     if (
                         var_type is not None
                         and var_type.kind is TypeKind.KNOWN
                         and var_type.tcl_type is not None
                         and not _is_numeric_compatible(var_type.tcl_type, TclType.INT)
                         and var_type.tcl_type is not TclType.INT
+                        and not _value_is_int_literal_string(sccp_values.get((var_name, ver)))
                     ):
                         code = "S101" if in_loop else "S100"
                         severity = "loop " if in_loop else ""
@@ -434,12 +526,20 @@ def _find_use_site_shimmers(
                         amt_ver = ssa_stmt.uses.get(amt_name, 0)
                         if amt_ver > 0:
                             amt_type = types.get((amt_name, amt_ver))
+                            # Same hex/binary literal-string exemption
+                            # as the target check above -- the SCCP
+                            # CONST text proves an unambiguous int
+                            # literal whose STRING classification is
+                            # just the source-spelling discipline.
                             if (
                                 amt_type is not None
                                 and amt_type.kind is TypeKind.KNOWN
                                 and amt_type.tcl_type is not None
                                 and amt_type.tcl_type is not TclType.INT
                                 and not _is_numeric_compatible(amt_type.tcl_type, TclType.INT)
+                                and not _value_is_int_literal_string(
+                                    sccp_values.get((amt_name, amt_ver))
+                                )
                             ):
                                 code = "S101" if in_loop else "S100"
                                 severity = "loop " if in_loop else ""
@@ -1277,6 +1377,7 @@ def find_shimmer_warnings(
                 fu.analysis.types,
                 executable,
                 loops,
+                fu.analysis.values,
             )
         )
         all_warnings.extend(

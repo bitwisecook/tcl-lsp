@@ -4071,7 +4071,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**T100:** Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
+            "markdownDescription": "**T100:** Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).",
             "order": 0
           },
           "tclLsp.diagnostics.T101": {

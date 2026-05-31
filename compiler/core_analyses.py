@@ -2010,9 +2010,9 @@ def _iter_embedded_regexp_scan(node) -> list[tuple[str, tuple[str, ...]]]:
             _visit(n.left)
             _visit(n.right)
         elif isinstance(n, ExprTernary):
-            _visit(n.cond)
-            _visit(n.then)
-            _visit(n.otherwise)
+            _visit(n.condition)
+            _visit(n.true_branch)
+            _visit(n.false_branch)
         elif isinstance(n, ExprCall):
             for arg in n.args:
                 _visit(arg)
@@ -3259,12 +3259,12 @@ def _read_before_set(
             # Arg ordering differs:
             #   regexp ?switches? PATTERN STRING ?VAR...?
             #   scan   STRING FORMAT ?VAR...?
-            if stmt.command == "regexp":
+            if stmt.canonical_command == "::regexp":
                 pat, inp = text_a, text_b
             else:
                 inp, pat = text_a, text_b
             no_match = False
-            if stmt.command == "regexp":
+            if stmt.canonical_command == "::regexp":
                 # Pass the switches stripped from the front so the
                 # estimator can reject ``-nocase`` / ``-about`` / any
                 # option that would weaken the literal-match assumption.
@@ -3598,15 +3598,24 @@ def _return_type_for_command(
 
 
 def _literal_type(text: str) -> TypeLattice:
-    """Infer the intrep type from a literal string value."""
+    """Infer the intrep type from a literal string value.
+
+    The rule matches ``compiler.expr_types._literal_type_from_text``:
+    plain decimal is INT, hex/octal/binary are STRING (their canonical
+    stringified intrep is the decimal form, not the source spelling --
+    treating them as INT would lose the user-written text identity for
+    downstream comparison / display analysis).
+
+    Note on shimmer: an earlier version of this helper classified
+    ``0xff`` / ``0b1010`` as INT to avoid string->int shimmer FPs on
+    patterns like ``variable initial_n 0x80; incr n``.  That was a
+    workaround for the type-merge edge case; the real fix is to allow
+    STRING (the text spelling) -> INT promotion at the first
+    arithmetic op without flagging it as shimmer.  See the shimmer
+    detector's handling of hex/binary literal seeds.
+    """
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
-        return TypeLattice.of(TclType.INT)
-    # Tcl recognises hex (``0x...``) and binary (``0b...``) prefixes as
-    # integer literals — they convert to INT on first numeric use.
-    # Typing as INT prevents string→int shimmer FPs on patterns like
-    # ``variable initial_n 0x80; set n \$initial_n; incr n`` (idna.tcl).
-    if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.INT)
     if _FLOAT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.DOUBLE)

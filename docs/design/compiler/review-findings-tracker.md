@@ -84,7 +84,7 @@ Tclsh-verified positive/negative pairs.
 | D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative |
 | D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ⬜ TODO | Use compiler facts (tokens, SCCP) |
 | D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ⬜ TODO | Recurse via segmenter |
-| D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ⬜ TODO | Carry defining var name on Optimisation record |
+| D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ✅ FIXED | Replaced `split(None, 2)` with `segment_commands(text)` + `normalise_var_name`; also fixed O112-replacement var scanner to descend into BODY/EXPR script-role args (was missing `$b` in `if {$b} {...}`) |
 | D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) |
 
 ---

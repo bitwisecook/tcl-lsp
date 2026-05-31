@@ -52,7 +52,22 @@ VarTypes: TypeAlias = dict[str, TypeLattice]
 
 
 def _literal_type_from_text(text: str) -> TypeLattice:
-    """Infer the type of a literal value from its text."""
+    """Infer the type of a literal value from its text.
+
+    The classification reflects what Tcl ``set`` would observably store
+    (the STRING value as written), shimmered to the most natural
+    intrep when the text looks like a canonical numeric:
+
+    * Plain decimal (``5``, ``-12``) -> ``INT`` -- the canonical
+      string form of an int intrep matches the source text.
+    * Hex/octal/binary (``0xff``, ``0o15``, ``0b1010``) -> ``STRING``
+      -- these are TEXT-only spellings that don't round-trip through
+      Tcl's intrep ``Tcl_NewIntObj``/``Tcl_GetString`` pair (the
+      stringified intrep would be ``255``/``13``/``10``, not the
+      source form).  For analyser purposes the value's observable
+      identity is the literal string, so treat it as STRING.
+    * Doubles, booleans, plain strings: as before.
+    """
     stripped = text.strip()
     low = stripped.lower()
 
@@ -62,9 +77,12 @@ def _literal_type_from_text(text: str) -> TypeLattice:
     if low in TCL_BOOL_LITERALS:
         return TypeLattice.of(TclType.BOOLEAN)
 
-    # Integer (decimal, hex, octal, binary)
-    if stripped.startswith(("0x", "0X", "0o", "0O", "0b", "0B")):
-        return TypeLattice.of(TclType.INT)
+    # Hex/octal/binary forms: TEXT-only spellings whose canonical
+    # stringification differs from the source -- treat as STRING so
+    # downstream comparison checks see the original text.
+    sign_stripped = stripped[1:] if stripped[:1] in "+-" else stripped
+    if sign_stripped.startswith(("0x", "0X", "0o", "0O", "0b", "0B")):
+        return TypeLattice.of(TclType.STRING)
     try:
         int(stripped)
         return TypeLattice.of(TclType.INT)

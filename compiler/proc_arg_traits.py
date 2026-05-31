@@ -126,9 +126,19 @@ def _scan_commands(
                 # See PR #498 deep-review finding 10: conflating these caused
                 # ``proc f {p} { set \$p 1 }`` to wrongly suppress the caller's
                 # ``set x 1; f x`` as if ``x`` were consumed by the callee.
+                #
+                # Also emit VAR_READ: the param's string value IS read
+                # (used as a variable name).  VAR_READ is the broader
+                # "param value is consumed" trait; DYNAMIC_NAME_LOCAL
+                # is the refinement that says "consumed as a callee-
+                # local var name, not as a caller-frame alias".
+                # Consumers querying VAR_READ-alone for "is the param
+                # used at all" must still see this case.
                 traits[source_param].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
+                traits[source_param].add(ProcArgTrait.VAR_READ)
             if ArgRole.VAR_READ in roles:
                 traits[source_param].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
+                traits[source_param].add(ProcArgTrait.VAR_READ)
 
         # Commands that evaluate code (eval, uplevel, subst, etc.)
         spec = REGISTRY.get_any(cmd_name)
@@ -199,11 +209,16 @@ def _scan_commands(
                         # (``_extract_var_name`` only matches that), so the
                         # param's VALUE names a variable in the CURRENT scope
                         # (``set $p …``, ``variable $p``) — not a write-back to
-                        # the caller's passed variable.  DYNAMIC_NAME_LOCAL
-                        # captures this callee-local dynamic-name use;
-                        # VAR_READ/VAR_WRITE are reserved for genuine
-                        # upvar-aliased caller-frame access.
+                        # the caller's passed variable.  Emit BOTH the
+                        # DYNAMIC_NAME_LOCAL refinement (so caller-arg
+                        # suppression honours the callee-local rule)
+                        # AND VAR_READ (the param string IS consumed),
+                        # so broader "is the param used" queries see it.
+                        # VAR_READ is OK to add since the param string
+                        # IS being read; only VAR_WRITE (genuine
+                        # upvar-aliased caller-frame write) is held back.
                         traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
+                        traits[vn].add(ProcArgTrait.VAR_READ)
 
         # Track writes through upvar aliases
         if cmd_name in ("set", "incr", "append", "lappend") and cmd_args:
@@ -687,7 +702,13 @@ def _handle_variadic_var_write(
     for arg in args[start:]:
         vn = _extract_var_name(arg)
         if vn and vn in param_set:
+            # See the corresponding note at the generic handler above:
+            # DYNAMIC_NAME_LOCAL refines VAR_READ for callee-local
+            # name use.  Both are emitted so consumers querying
+            # VAR_READ-alone (broader "param is consumed at all" check)
+            # still see this case.
             traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
+            traits[vn].add(ProcArgTrait.VAR_READ)
 
 
 # Options that regexp/regsub accept before the positional arguments.
@@ -754,3 +775,4 @@ def _handle_regsub_var(
         vn = _extract_var_name(args[var_idx])
         if vn and vn in param_set:
             traits[vn].add(ProcArgTrait.DYNAMIC_NAME_LOCAL)
+            traits[vn].add(ProcArgTrait.VAR_READ)
