@@ -1146,7 +1146,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1  # tainted first element becomes the command word
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_lsort_eval_fires(self):
         """[lsort] result -> eval STILL fires T100 (D5-T100).
@@ -1160,7 +1160,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_lrange_eval_fires(self):
         """[lrange] result -> eval STILL fires T100 (D5-T100).
@@ -1174,7 +1174,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_split_eval_fires(self):
         """[split] result -> eval STILL fires T100 (D5-T100).
@@ -1188,7 +1188,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_list_command_propagates_taint_to_puts(self):
         """[list] wrapping → taint still flows to non-eval sinks (T101)."""
@@ -1213,7 +1213,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_interpolation_preserves_taint_from_list(self):
         """String interpolation of list-wrapped tainted data keeps taint."""
@@ -1237,7 +1237,7 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_list_canonical_copy_still_tainted(self):
         """LIST_CANONICAL copy is still tainted for non-eval sinks."""
@@ -1679,7 +1679,7 @@ eval $lst
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_helper_list_wrapper_still_tainted(self):
         """Proc that wraps in list still propagates taint to non-eval sinks."""
@@ -1916,7 +1916,7 @@ class TestT100SinkSuppression:
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_eval_with_generic_taint_not_suppressed(self):
         """eval with generic tainted data → T100 fires."""
@@ -1936,7 +1936,7 @@ class TestT100SinkSuppression:
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'uplevel' in sinks, f"expected {'uplevel'!r} in sink_commands, got {sinks}"
+        assert "uplevel" in sinks, f"expected {'uplevel'!r} in sink_commands, got {sinks}"
 
     def test_eval_with_literal_list_known_head_suppressed(self):
         """eval [list <known-cmd> $raw] -> T100 SUPPRESSED.
@@ -1969,7 +1969,7 @@ class TestT100SinkSuppression:
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert 'eval' in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
+        assert "eval" in sinks, f"expected {'eval'!r} in sink_commands, got {sinks}"
 
     def test_uplevel_with_generic_taint_not_suppressed(self):
         """uplevel with generic tainted data → T100 fires."""
@@ -2325,9 +2325,7 @@ class TestT105InterpEvalSinks:
         ws = _taint_warnings(source, "T105")
         assert len(ws) >= 1
         sinks = {w.sink_command for w in ws}
-        assert "interp eval" in sinks, (
-            f"expected 'interp eval' in sink_commands, got {sinks}"
-        )
+        assert "interp eval" in sinks, f"expected 'interp eval' in sink_commands, got {sinks}"
 
     def test_interp_eval_literal_list_known_head_suppressed(self):
         """interp eval $child [list <known-cmd> $raw] -> T105 SUPPRESSED.
