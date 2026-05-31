@@ -60,13 +60,13 @@ Tclsh-verified positive/negative pairs.
 | ID | Pair | FN status | TN status | Closure target |
 |---|---|---|---|---|
 | D3-P1 | empty `dict with` + `return $missing` | ✅ FIXED | ✅ silent | Via D4-F3 (key-aware dict-with on return path) |
-| D3-P2 | call-site literal dict not used interproc | 📋 DEFERRED | ✅ silent | Closing this would require BOTH (a) interprocedural call-site literal-arg collection AND (b) a refined SCCP barrier-widening model that preserves param-version-0 CONST values across barriers.  Currently the IRBarrier (which models `dict with` side effects) widens EVERY tracked value to OVERDEFINED -- erasing any param_constants we'd seed.  Attempted in this session; reverted because the barrier-widening change has wide-ranging soundness implications that need separate audit. |
+| D3-P2 | call-site literal dict not used interproc | ✅ FIXED | ✅ silent | Two-part fix: (a) `compiler.core_analyses._collect_call_site_constants` collects per-callee literal arg values across all call sites in the IR module; `_compile_source_inner` + `analyse_ir_module` seed `param_constants={(p,0): CONST(v)}` only when EVERY caller agrees on the literal (mixed callers -> conservative fallback).  (b) SCCP barrier-widening refined to PRESERVE version-0 entries (param entry values are by construction the input-from-outside value, never re-written in the function body).  Together they let `f {}` propagate to `d#0 = CONST('')` in the callee, the dict-with key-aware logic sees no keys, and `return $missing` correctly fires W210. |
 | D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) |
 | D3-P4 | `[my plain] run` where plain returns string | ✅ FIXED | Lightweight method-body inspection: when `my <method>` resolves to a method in the enclosing class whose body is a simple `return <literal>` (no cmd-sub, no var interpolation), override the self-dispatch object heuristic and fire W307.  Compound bodies stay conservatively suppressed. |
 | D3-P5 | `[::pkg::plain]` external returns string | 📋 DEFERRED | D4-F6 partial -- `::`-prefix heuristic kept for tcllib corpus compat; full closure requires registry coverage of factory commands |
 | D3-P6 | `[NotAClass new]` external returns string | ✅ FIXED | Via D4-F6 (`new`-subcommand heuristic on bare names removed) |
 | D3-P7 | `array set state {-command notACommand}` non-cmd | ✅ FIXED | New `array set` literal-element harvester feeds SCCP CONST evidence to override the callback-key heuristic |
-| D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | 📋 DEFERRED | Requires interprocedural literal-dict propagation (cross-proc call-site argument analysis) |
+| D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | ✅ FIXED | Built on D3-P2 closure: the dict-with key-value-pair harvester in `_emit_var_command_diagnostics` reads the dict_var's SCCP CONST value at v0 and registers each key->value pair in the CONSTSET map.  The W307 check then sees `cmd -> notACommand` and fires (the value isn't a known command). |
 | D3-P9 | W214 unrelated dispatcher suppresses peers | ✅ FIXED | Via D4-F4 (arity-compatible dispatcher requirement) |
 
 ---

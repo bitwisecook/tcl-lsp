@@ -796,6 +796,58 @@ def test_TN_W307_my_method_returns_object_silent():
     assert not _any(src, "W307")
 
 
+def test_TP_W210_interproc_dict_with_empty_arg_unpacks_no_keys():
+    """D3-P2 closure: ``proc f {d} { dict with d { return $missing } }``
+    called with literal ``{}``.  The caller's empty dict is
+    interprocedurally propagated to ``d`` (call-site literal
+    collection + SCCP barrier preserving v0).  The dict-with reads
+    SCCP CONST('') for d, harvests no keys, exempts NO names; the
+    return reads ``$missing`` which IS read-before-set.
+
+    runtime: ``f {}`` -> ERROR ``can't read "missing"``
+    """
+    src = "proc f {d} { dict with d { return $missing } }\nf {}\n"
+    assert _any(src, "W210"), (
+        "caller-passed empty dict must propagate to callee dict-with key check"
+    )
+
+
+def test_TN_interproc_dict_with_key_present_silent():
+    """D3-P2 control: caller passes ``{missing ok}``, key matches.
+    Callee dict-with unpacks ``missing`` as a local; reading ``$missing``
+    is safe."""
+    src = "proc f {d} { dict with d { return $missing } }\nf {missing ok}\n"
+    assert not _any(src, "W210")
+
+
+def test_TN_interproc_mixed_callers_conservative():
+    """D3-P2 control: when callers pass DIFFERENT literals (one empty,
+    one with key), the analysis falls back to conservative -- W210
+    must NOT fire (some path defines missing)."""
+    src = "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n"
+    assert not _any(src, "W210")
+
+
+def test_TP_W307_interproc_dict_with_unpacks_non_command():
+    """D3-P8 closure: ``proc f {d} { dict with d { $cmd hi } }`` called
+    with literal ``{cmd notACommand}``.  Interproc propagation puts the
+    literal dict in d at v0; the dict-with-key harvester registers
+    ``cmd`` -> ``notACommand`` as a CONSTSET; the W307 SCCP-evidence
+    override fires because ``notACommand`` isn't a known command.
+
+    runtime: ``f {cmd notACommand}`` -> ERROR ``invalid command "notACommand"``
+    """
+    src = "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n"
+    assert _any(src, "W307"), "interproc-propagated callback non-command must fire W307"
+
+
+def test_TN_interproc_dict_with_unpacks_known_command_silent():
+    """D3-P8 control: same shape but the unpacked value is a known
+    command (``puts``).  Must NOT fire."""
+    src = "proc f {d} { dict with d { $cmd hi } }\nf {cmd puts}\n"
+    assert not _any(src, "W307")
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a

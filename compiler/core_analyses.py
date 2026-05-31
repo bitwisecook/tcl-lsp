@@ -1453,14 +1453,40 @@ def _sccp(
 
                 for s in ssa_block.statements:
                     if isinstance(s.statement, IRBarrier):
-                        # Barriers can modify any variable — widen all
-                        # currently-tracked values to OVERDEFINED.  Only the
-                        # not-yet-widened keys need touching.
+                        # Barriers can modify any variable -- widen all
+                        # currently-tracked values to OVERDEFINED, with
+                        # one principled exception:
+                        #
+                        # D3-P2 / D3-P8 closure: version-0 entries
+                        # represent the ENTRY value of a name at
+                        # function start (param init or pre-first-def
+                        # default).  A barrier inside the proc body
+                        # may mutate the CURRENT value (a later
+                        # version), but it cannot retroactively change
+                        # what the caller passed in.  Preserving
+                        # version-0 CONST values lets interproc
+                        # constant propagation (param_constants seeded
+                        # from caller literal args) survive a dict-
+                        # with / eval / uplevel barrier so the callee
+                        # can prove ``dict with d {}`` has no keys.
+                        #
+                        # Sound: version-0 is by construction the
+                        # input-from-outside value, never re-written
+                        # inside the function (later SSA versions
+                        # would shadow it).
                         if non_overdefined:
+                            widened: set[SSAValueKey] = set()
                             for key in non_overdefined:
-                                values[key] = OVERDEFINED
-                            non_overdefined.clear()
-                            changed = True
+                                if key[1] != 0:
+                                    values[key] = OVERDEFINED
+                                    widened.add(key)
+                            if widened:
+                                non_overdefined.difference_update(widened)
+                                changed = True
+                            # No ``changed = True`` when nothing was
+                            # actually widened (all remaining keys are
+                            # version-0 entry values, preserved) --
+                            # otherwise the fixpoint never terminates.
                         continue
                     for var, ver in s.defs.items():
                         if _is_externally_mutable(var):
@@ -2877,6 +2903,21 @@ def _read_before_set(
                             getattr(prev_stmt, "args", ()),
                         ).pure:
                             break
+                # D3-P2 / D3-P8 closure: when the in-proc backward
+                # scan found no literal, consult the SCCP value of
+                # ``dict_var`` at the version the dict-with reads
+                # (typically version 0 for a parameter).  With the
+                # SCCP-barrier-widening refinement preserving v0
+                # CONST values, an interprocedurally-propagated
+                # call-site literal arrives here as a CONST.
+                if literal_value is None and stmt_idx < len(ssa_block.statements):
+                    ssa_stmt_here = ssa_block.statements[stmt_idx]
+                    use_ver = ssa_stmt_here.uses.get(dict_var, 0)
+                    sccp_val = values.get((dict_var, use_ver))
+                    if sccp_val is not None and sccp_val.kind is LatticeKind.CONST:
+                        v = sccp_val.value
+                        if isinstance(v, str):
+                            literal_value = v
                 if literal_value is None:
                     _dict_with_any_unknown = True
                 elif not _harvest_dict_keys(literal_value):
@@ -3928,6 +3969,83 @@ def analyse_function(
     )
 
 
+# Sentinel for call-site-arg collection: marks an arg position where
+# at least one call passes a non-literal value (variable / cmd-sub) --
+# forces conservative fallback (no param binding).
+_UNKNOWN_ARG: object = object()
+
+
+def _collect_call_site_constants(ir_module: IRModule) -> dict[str, dict[int, set[object]]]:
+    """D3-P2 / D3-P8 closure helper: collect literal arg values per
+    user-proc call site.
+
+    Returns a map ``{callee_qname -> {arg_index -> set-of-literal-values}}``.
+    An arg position is marked with the ``_UNKNOWN_ARG`` sentinel when
+    at least one call passes a non-literal (variable / cmd-sub) value
+    -- callers should refuse to bind that param.
+    """
+    call_site_constants: dict[str, dict[int, set[object]]] = {}
+
+    def _visit(script) -> None:
+        if script is None:
+            return
+        for stmt in script.statements:
+            if isinstance(stmt, IRCall):
+                cmd = stmt.command
+                target = None
+                for cand in (cmd, f"::{cmd}", cmd.lstrip(":")):
+                    qn = cand if cand.startswith("::") else f"::{cand}"
+                    if qn in ir_module.procedures:
+                        target = qn
+                        break
+                if target is not None:
+                    by_idx = call_site_constants.setdefault(target, {})
+                    for i, arg in enumerate(stmt.args):
+                        if "$" in arg or "[" in arg:
+                            by_idx.setdefault(i, set()).add(_UNKNOWN_ARG)
+                        else:
+                            by_idx.setdefault(i, set()).add(arg)
+            for attr in ("body", "init", "next"):
+                sub = getattr(stmt, attr, None)
+                if sub is not None and hasattr(sub, "statements"):
+                    _visit(sub)
+            clauses = getattr(stmt, "clauses", None)
+            if clauses:
+                for clause in clauses:
+                    cb = getattr(clause, "body", None)
+                    if cb is not None and hasattr(cb, "statements"):
+                        _visit(cb)
+
+    _visit(ir_module.top_level)
+    for _qn, _ir_proc in ir_module.procedures.items():
+        _visit(_ir_proc.body)
+    return call_site_constants
+
+
+def _params_constants_from_call_sites(
+    ir_proc, call_site_constants: dict[str, dict[int, set[object]]], qname: str
+) -> dict[SSAValueKey, LatticeValue] | None:
+    """Build ``param_constants`` for *ir_proc* from collected call-site
+    literals.  Only binds a parameter when EVERY call site passes the
+    same literal value at that position; returns None when nothing is
+    bindable (conservative fallback)."""
+    by_idx = call_site_constants.get(qname, {})
+    if not by_idx:
+        return None
+    consts: dict[SSAValueKey, LatticeValue] = {}
+    for i, param_def in enumerate(ir_proc.params):
+        pname = param_def.name if hasattr(param_def, "name") else param_def
+        if pname == "args":
+            break
+        values_seen = by_idx.get(i, set())
+        if not values_seen or _UNKNOWN_ARG in values_seen:
+            continue
+        if len(values_seen) == 1:
+            val = next(iter(values_seen))
+            consts[(pname, 0)] = LatticeValue.const(val)
+    return consts or None
+
+
 def analyse_ir_module(
     ir_module: IRModule,
     known_classes: frozenset[str] = frozenset(),
@@ -3936,12 +4054,25 @@ def analyse_ir_module(
     top_ssa = build_ssa(cfg_module.top_level)
     top = analyse_function(cfg_module.top_level, top_ssa, known_classes=known_classes)
 
+    call_site_constants = _collect_call_site_constants(ir_module)
+
     procs: dict[str, FunctionAnalysis] = {}
     for qname, cfg in cfg_module.procedures.items():
         ssa = build_ssa(cfg)
         ir_proc = ir_module.procedures.get(qname)
         proc_params = frozenset(ir_proc.params) if ir_proc else frozenset()
-        procs[qname] = analyse_function(cfg, ssa, params=proc_params, known_classes=known_classes)
+        param_constants = (
+            _params_constants_from_call_sites(ir_proc, call_site_constants, qname)
+            if ir_proc is not None
+            else None
+        )
+        procs[qname] = analyse_function(
+            cfg,
+            ssa,
+            params=proc_params,
+            known_classes=known_classes,
+            param_constants=param_constants,
+        )
 
     return ModuleAnalysis(top_level=top, procedures=procs)
 

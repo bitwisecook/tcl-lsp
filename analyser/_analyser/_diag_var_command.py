@@ -9,6 +9,7 @@ else:
     _Base = object
 
 from compiler.compilation_unit import CompilationUnit
+from compiler.core_analyses import LatticeKind
 from compiler.ir import (
     IRAssignValue,
     IRBarrier,
@@ -246,8 +247,55 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # this, the heuristic suppression on dash-prefixed / callback-
         # suffixed array keys fires even when SCCP-equivalent literal
         # evidence proves the value isn't a command.
+        # D3-P8 closure helper -- also harvest dict-unpacked variable
+        # values: when ``dict with d {body}`` runs with ``d`` known to
+        # be a literal dict (via SCCP CONST -- usually from D3-P2
+        # call-site propagation), the inner ``body`` sees each dict
+        # key as a local variable bound to its value.  Register those
+        # bindings in the CONSTSET map so the W307 check can fire on
+        # ``$cmd hi`` when the dict's ``cmd`` -> ``notACommand``.
         for qname, fu_unit in _all_fus_named:
             func_cs = _func_constsets.setdefault(qname, {})
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, IRBarrier)
+                        and stmt.canonical_command == "::dict"
+                        and stmt.args
+                        and stmt.args[0] == "with"
+                        and len(stmt.args) >= 2
+                    ):
+                        dict_var = stmt.args[1]
+                        # Strip ``$`` / ``${...}`` if present (the IR
+                        # arg form may include the substitution syntax).
+                        if dict_var.startswith("${") and dict_var.endswith("}"):
+                            dict_var = dict_var[2:-1]
+                        elif dict_var.startswith("$"):
+                            dict_var = dict_var[1:]
+                        # Look up dict_var's SCCP value at v0 (param
+                        # entry) -- D3-P2 propagation puts the literal
+                        # dict here.
+                        sccp_val = fu_unit.analysis.values.get((dict_var, 0))
+                        if sccp_val is None or sccp_val.kind is not LatticeKind.CONST:
+                            continue
+                        dict_text = sccp_val.value
+                        if not isinstance(dict_text, str):
+                            continue
+                        try:
+                            from compiler.tcl_expr_eval import _split_tcl_list
+
+                            items = _split_tcl_list(dict_text)
+                        except Exception:
+                            continue
+                        if len(items) % 2 != 0:
+                            continue
+                        for i in range(0, len(items), 2):
+                            key = items[i]
+                            value = items[i + 1]
+                            if key not in func_cs:
+                                func_cs[key] = frozenset((value,))
+                                all_constsets.setdefault(key, frozenset((value,)))
+
             for block in fu_unit.cfg.blocks.values():
                 for stmt in block.statements:
                     if not (

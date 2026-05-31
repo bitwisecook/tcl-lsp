@@ -391,6 +391,21 @@ def _compile_source_inner(
 
     proc_cfgs: dict[str, CFGFunction] = {}
     proc_units: dict[str, FunctionUnit] = {}
+    # D3-P2 / D3-P8 closure: collect call-site literal arg values per
+    # user proc so the SCCP analysis can fold them.  Shared helper
+    # also used by ``analyse_ir_module``; see its docstring for the
+    # full reasoning.  This is gated by the param-cache-key including
+    # ``call_site_constants_fp`` -- but for simplicity we collect once
+    # and pass through; the cache eviction is OK since proc bodies
+    # don't usually contain enough literal-call diversity to force
+    # frequent rebuilds.
+    from compiler.core_analyses import (
+        _collect_call_site_constants,
+        _params_constants_from_call_sites,
+    )
+
+    call_site_constants = _collect_call_site_constants(ir_module)
+
     for qname, ir_proc in ir_module.procedures.items():
         cache_key = _proc_cache_key(
             source,
@@ -432,8 +447,14 @@ def _compile_source_inner(
         proc_cfgs[qname] = cfg
         ssa = build_ssa(cfg, force_guard=byte_guarded)
         proc_params = frozenset(ir_proc.params)
+        param_constants = _params_constants_from_call_sites(ir_proc, call_site_constants, qname)
         analysis = analyse_function(
-            cfg, ssa, params=proc_params, known_classes=known_classes, force_guard=byte_guarded
+            cfg,
+            ssa,
+            params=proc_params,
+            known_classes=known_classes,
+            force_guard=byte_guarded,
+            param_constants=param_constants,
         )
         # Single complexity-guard decision consulted by every per-proc
         # diagnostic pass: byte-heavy (decided above) OR block-heavy.
