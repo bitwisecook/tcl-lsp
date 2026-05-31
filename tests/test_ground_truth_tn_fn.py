@@ -360,20 +360,29 @@ def test_TP_W220_dead_after_error_command():
 
 
 # =====================================================================
-# Section 3 — False Negatives.
+# Section 3 — Precision-gap closures.
 #
-# Each xfail records a precision gap where the analyser is silent but
-# tclsh proves the snippet errors at runtime.  ``strict=True`` flips
-# the xfail to a failure the moment the gap is closed -- prompting
-# removal of the xfail marker.
+# Each of these was previously an ``xfail(strict=True)`` precision gap;
+# the analyser was silent on a snippet that tclsh proves wrong at
+# runtime.  All five gaps were closed by the phi-from-undef detector
+# + the post-terminator-orphan CFG construction:
+#
+#   * phi-from-undef trace in ``_read_before_set`` walks the SSA phi
+#     DAG (restricted to SCCP-reachable predecessors) and fires W210
+#     when any leaf is version 0 (undef) -- catches if-arm-only,
+#     switch-without-default, and the if{0} dead-body case.
+#   * ``unset v``-defined SSA versions are recorded as ``killed`` and
+#     treated as undef-equivalent by ``_phi_can_undef`` -- catches
+#     use-after-unset.
+#   * The CFG builder now routes post-terminator dead statements
+#     (``return 1; set x 2``) into an orphan unreachable block in
+#     analysis builds -- O107 picks them up.  Codegen builds keep
+#     the original behaviour (drop them) so default bytecode stays
+#     byte-identical to tclsh.
 # =====================================================================
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FN: read of var set only on some if-arms — phi-from-undef not flagged",
-)
-def test_FN_if_arm_only_def_read_in_merge():
+def test_TP_W210_if_arm_only_def_read_in_merge():
     """``v`` is defined only when ``$x > 0``; the unconditional
     ``return $v`` reads it on the no-set path too.
 
@@ -381,74 +390,146 @@ def test_FN_if_arm_only_def_read_in_merge():
     """
     src = "proc f {x} {\n    if {$x > 0} { set v 1 }\n    return $v\n}\n"
     assert _any(src, "W210"), (
-        "phi-from-undef should fire W210; the merge has an incoming where v is unset"
+        "phi-from-undef must fire W210; the merge has an incoming where v is unset"
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FN: switch without default — phi-from-undef on the no-arm path",
-)
-def test_FN_switch_no_default_arm_read():
+def test_TP_W210_switch_no_default_arm_read():
     """``switch`` with no ``default`` clause and a value matching none
     of the arms leaves ``v`` unset.
 
     runtime: ``f c`` -> ERROR ``can't read "v": no such variable``
     """
     src = "proc f {x} {\n    switch $x { a { set v 1 } b { set v 2 } }\n    return $v\n}\n"
-    assert _any(src, "W210"), "switch-no-default + unconditional read should fire W210"
+    assert _any(src, "W210"), "switch-no-default + unconditional read must fire W210"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FN: use-after-unset not flagged (Place model doesn't track unset as a kill)",
-)
-def test_FN_use_after_unset_in_same_proc():
+def test_TP_W210_use_after_unset_in_same_proc():
     """``unset v`` deletes the binding; the subsequent ``return $v``
-    errors at runtime.
+    errors at runtime.  The SSA version of ``v`` defined by ``unset``
+    is recorded as ``killed`` so phi-from-undef treats it as undef.
 
     runtime: ``f`` -> ERROR ``can't read "v": no such variable``
     """
     src = "proc f {} {\n    set v 1\n    unset v\n    return $v\n}\n"
-    assert _any(src, "W210", "W213"), (
-        "use-after-unset must fire either W210 (read of unset) or W213"
-    )
+    assert _any(src, "W210", "W213"), "use-after-unset must fire W210 (read of killed var) or W213"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "FN: if{0} body is dead per SCCP (I230/O112 do fire), but the read in the "
-        "merge isn't flagged W210 — read_before_set doesn't propagate the dead-body kill"
-    ),
-)
-def test_FN_if_zero_dead_body_read_in_merge():
-    """SCCP knows ``if {0}`` body is unreachable (I230 + O112 fire).
-    On every reachable path ``v`` is never defined, so reading
-    ``$v`` after the dead if is a real W210.
+def test_TP_W210_if_zero_dead_body_read_in_merge():
+    """SCCP knows ``if {0}`` body is unreachable.  On every reachable
+    path ``v`` is never defined, so the phi-from-undef trace finds
+    only an undef incoming on the entry path.
 
     runtime: ``f`` -> ERROR ``can't read "v": no such variable``
     """
     src = "proc f {} {\n    if {0} { set v 1 }\n    return $v\n}\n"
     assert _any(src, "W210"), (
-        "reachable-only def is unreached when if-cond is constant-0; read_before_set "
-        "should consume SCCP reachability"
+        "reachable-only def is unreached when if-cond is constant-0; W210 must fire"
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "FN: post-return code is unreachable but neither O107 nor W220 fires on the dead store"
-    ),
-)
-def test_FN_dead_store_after_unconditional_return():
-    """``return 1`` makes ``set x 2`` unreachable.  No diagnostic
-    currently fires.
+def test_TP_W210_loop_body_only_init_with_empty_input():
+    """Loop body provides the only init of a variable.  When the loop
+    runs at least once the var is set; when the input list is empty
+    the loop body never runs and the variable stays unset, so the
+    subsequent read errors.  The phi-from-undef detector catches this
+    via the loop-header phi's entry-path incoming being undef.
+
+    runtime: ``foo {}`` -> ERROR ``can't read "result": no such variable``
+             ``foo {a b}`` -> ``a b``  (no error)
+    """
+    src = "proc foo {items} {\n    foreach item $items { lappend result $item }\n    return $result\n}\n"
+    assert _any(src, "W210"), (
+        "loop-body-only def + post-loop read must fire W210 (empty input leaves var unset)"
+    )
+
+
+def test_TP_W210_dynamic_target_upvar_read():
+    """``upvar 1 $varName local`` aliases ``local`` to the caller var
+    named by ``$varName``.  When ``$varName`` names a caller var that
+    doesn't exist, the alias is a no-op and reading ``$local`` errors.
+
+    runtime: ``foo nonexistent`` -> ERROR ``can't read "local": no such variable``
+    """
+    src = "proc foo {varName} {\n    upvar 1 $varName local\n    puts $local\n}\n"
+    assert _any(src, "W210"), "dynamic-target upvar + unconditional read must fire W210"
+
+
+def test_TN_static_target_upvar_read():
+    """``upvar 1 caller local`` with a STATIC target IS sound -- the
+    callee must be invoked under a caller that has ``caller`` defined,
+    a documented Tcl contract.  Must NOT fire W210.
+
+    runtime: ``caller`` -> ``1``  (no error)
+    """
+    src = "proc f1 {} { set v 1; f2 }\nproc f2 {} { upvar 1 v local; puts $local }\n"
+    diags_w210 = [c for c in _codes(src, "W210")]
+    assert not diags_w210, f"static-target upvar must stay silent, got {diags_w210}"
+
+
+def test_TP_O107_dead_store_after_unconditional_return():
+    """``return 1`` makes ``set x 2`` unreachable.  The CFG builder's
+    analysis path routes post-terminator statements into an orphan
+    unreachable block; O107 fires on them.
 
     runtime: ``puts [f]`` -> ``1``  (the dead store never runs)
     """
     src = "proc f {} {\n    return 1\n    set x 2\n}\n"
     assert _any(src, "O107", "W220"), (
-        "Statement after unconditional return should fire O107 (unreachable) or W220 (dead store)"
+        "Statement after unconditional return must fire O107 (unreachable) or W220"
     )
+
+
+# Companion controls -- analyser must stay silent on the
+# look-alike-but-actually-safe variants that exercise the same machinery.
+
+
+def test_TN_unset_then_reset_then_read():
+    """After ``unset v; set v 2``, reading ``$v`` is safe -- the
+    re-set re-establishes the binding.  Must NOT fire W210.
+
+    runtime: ``puts [f]`` -> ``2``  (no error)
+    """
+    src = "proc f {} {\n    set v 1\n    unset v\n    set v 2\n    return $v\n}\n"
+    assert not _any(src, "W210", "W213")
+
+
+def test_TN_unset_nocomplain_no_read():
+    """``unset -nocomplain v`` on a never-set var is a documented
+    idempotent cleanup; with no subsequent read it must NOT fire.
+
+    runtime: ``puts [f]`` -> empty  (no error)
+    """
+    src = "proc f {} {\n    unset -nocomplain v\n    return done\n}\n"
+    assert not _any(src, "W210", "W213")
+
+
+def test_TN_if_else_both_arms_set():
+    """Both arms of an if/else set ``v``, so on every path it's
+    defined before the read.  Phi-from-undef must NOT fire.
+
+    runtime: ``puts [f 1]`` -> ``1``  (no error)
+    """
+    src = "proc f {x} {\n    if {$x > 0} { set v 1 } else { set v 2 }\n    return $v\n}\n"
+    assert not _any(src, "W210")
+
+
+def test_TN_switch_with_default_sets():
+    """``switch`` with a ``default`` clause that also sets ``v`` covers
+    every path; must NOT fire W210.
+
+    runtime: ``puts [f c]`` -> ``other``  (no error)
+    """
+    src = (
+        "proc f {x} {\n"
+        "    switch $x { a { set v 1 } b { set v 2 } default { set v other } }\n"
+        "    return $v\n"
+        "}\n"
+    )
+    assert not _any(src, "W210")
+
+
+# pytest is imported in this module for the historical xfail-strict
+# markers; keep the import alive so a future re-introduction of an FN
+# is a one-line edit.
+_pytest_alive = pytest

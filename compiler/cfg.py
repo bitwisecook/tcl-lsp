@@ -839,10 +839,22 @@ class _CFGBuilder:
 
     def _lower_script(self, script: IRScript, block_name: str) -> str | None:
         current = block_name
+        # When ``faithful_exceptions`` is on (analysis builds), preserve
+        # post-terminator dead statements in an orphan unreachable block
+        # so the read_before_set / O107 / W220 passes can see them.
+        # In codegen builds we drop them silently to keep the default
+        # bytecode byte-identical to tclsh 9 (tclsh's compiler also
+        # discards post-return statements).
+        orphan: str | None = None
         for stmt in script.statements:
             block = self._block(current)
             if block.terminator is not None:
-                return None
+                if not self._faithful_exceptions:
+                    return None
+                if orphan is None:
+                    orphan = self._new_block("unreachable")
+                current = orphan
+                block = self._block(current)
 
             match stmt:
                 case IRIf():
@@ -1002,7 +1014,12 @@ class _CFGBuilder:
                     block.terminator = CFGReturn(
                         value=value, range=r, expr=stmt.expr, braced=stmt.braced
                     )
-                    return None
+                    # In analysis builds, fall through so the
+                    # top-of-loop terminator-check routes post-return
+                    # statements into the orphan unreachable block.
+                    # Codegen builds bail immediately to drop them.
+                    if not self._faithful_exceptions:
+                        return None
                 case _:
                     stmt = self._apply_upvar_invalidation(stmt, block)
                     block.statements.append(stmt)

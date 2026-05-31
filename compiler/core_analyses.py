@@ -2997,6 +2997,108 @@ def _read_before_set(
     reported: set[str] = set()
     result: list[ReadBeforeSet] = []
 
+    # Phi-from-undef detection: a use's SSA version > 0 is normally a
+    # proof that some prior definition reached it, BUT when the version
+    # is a phi result whose reachable incomings include an undefined
+    # (version 0) origin, that "definition" only reaches on a subset of
+    # paths -- the others read an unset variable.  Compute the transitive
+    # closure ``phi_can_undef[(name, version)]`` over the phi DAG,
+    # restricted to SCCP-reachable predecessors.  Version-0 itself is
+    # the undef origin; non-phi defs are concrete (never undef); a phi
+    # result is undef if any of its reachable incomings is undef.
+    #
+    # This is the proper fix for the "if-arm-only def", "switch without
+    # default", and "read after constant-false if body" precision gaps:
+    # SCCP already knows which predecessors are reachable, and the phi
+    # graph already encodes the merge structure.  We just trace the
+    # transitive can-be-undef property along it.
+    phi_def: dict[tuple[str, int], object] = {}  # phi statement by (name, version)
+    # ``unset v`` is lowered as an IRCall with ``defs=('v',)`` even though
+    # semantically it KILLS rather than defines.  Track the (name, version)
+    # pairs created by an unset so ``_phi_can_undef`` treats them as undef
+    # for downstream uses -- the proper fix for the use-after-unset FN.
+    #
+    # IMPORTANT: ``unset v(elem)`` only removes a single array element,
+    # not the whole binding -- after ``unset history(x)`` the array
+    # ``history`` is still defined.  Only treat the unset as killing
+    # the whole binding when the raw arg has NO ``(...)`` element
+    # subscript.  The SSA-level ``defs`` has already collapsed
+    # ``history(x)`` -> ``history`` via ``normalise_var_name``, so we
+    # have to inspect the raw args.
+    killed_versions: set[tuple[str, int]] = set()
+    for bn in considered:
+        sblock = ssa.blocks.get(bn)
+        if sblock is None:
+            continue
+        for phi in sblock.phis:
+            phi_def[(phi.name, phi.version)] = (bn, phi)
+        for s in sblock.statements:
+            stmt = s.statement
+            if not (isinstance(stmt, IRCall) and stmt.canonical_command == "::unset"):
+                continue
+            # Build the set of names whose targets in this ``unset`` are
+            # WHOLE variables (no ``(...)`` element subscript).  Per-
+            # element unsets DON'T kill the array binding.
+            whole_unset: set[str] = set()
+            args = stmt.args
+            i = 0
+            while i < len(args) and args[i].startswith("-"):
+                if args[i] == "--":
+                    i += 1
+                    break
+                i += 1
+            for raw in args[i:]:
+                v = raw
+                if v.startswith("${") and v.endswith("}"):
+                    v = v[2:-1]
+                elif v.startswith("$"):
+                    v = v[1:]
+                if "(" in v:
+                    continue  # element subscript -> not a whole-var kill
+                base, _ = split_array_name(v)
+                if base:
+                    whole_unset.add(base)
+            for name, ver in s.defs.items():
+                if name in whole_unset:
+                    killed_versions.add((name, ver))
+
+    def _phi_can_undef(name: str, version: int, _seen: set[tuple[str, int]]) -> bool:
+        if version == 0:
+            return True
+        key = (name, version)
+        if key in killed_versions:
+            return True
+        if key in _seen:
+            # Cycle (loop-header phi): conservatively treat as NOT-undef
+            # on the cycle -- the seed of this DFS already accounted for
+            # the entry path's contribution.  Without this, every loop-
+            # header phi would self-trigger and over-fire.
+            return False
+        entry = phi_def.get(key)
+        if entry is None:
+            # Concrete (non-phi) definition reached this version -- safe.
+            return False
+        _seen.add(key)
+        try:
+            bn_def, phi = entry
+            for pred, incoming_ver in phi.incoming.items():
+                if pred not in considered:
+                    continue
+                # A dominating existence guard (``if {[info exists v]}``
+                # or its negated form ``if {![info exists v]} {set v X}``)
+                # proves the variable is defined at the predecessor; that
+                # incoming cannot be undef regardless of its SSA version.
+                # Without this check, the merge after the latter idiom
+                # false-fires because the "ns was already defined"
+                # incoming has SSA version 0.
+                if name in narrowed.get(pred, frozenset()):
+                    continue
+                if _phi_can_undef(name, incoming_ver, _seen):
+                    return True
+            return False
+        finally:
+            _seen.discard(key)
+
     order = cfg.reverse_postorder()
     for bn in order:
         if bn not in considered:
@@ -3010,7 +3112,12 @@ def _read_before_set(
         for idx, stmt in enumerate(ssa_block.statements):
             occ_checks: set[str] | None = None
             for name, ver in stmt.uses.items():
-                if ver != 0:
+                # Fire when the use is version-0 (no prior def found) OR
+                # when its version is a phi whose reachable incomings
+                # transitively include an undef.  Concrete (non-phi)
+                # defs guarantee the value reached this point on every
+                # reachable path -- those skip.
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
@@ -3052,7 +3159,7 @@ def _read_before_set(
             cond_checks = _existence_checks_in_expr(term.condition)
             for name in vars_in_expr_node(term.condition):
                 ver = ssa_block.exit_versions.get(name, 0)
-                if ver != 0:
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
@@ -3081,7 +3188,8 @@ def _read_before_set(
             if term.expr is not None:
                 return_reads |= vars_in_expr_node(term.expr)
             for name in return_reads:
-                if ssa_block.exit_versions.get(name, 0) != 0:
+                ver = ssa_block.exit_versions.get(name, 0)
+                if ver != 0 and not _phi_can_undef(name, ver, set()):
                     continue
                 if name in skip or name in reported:
                     continue
