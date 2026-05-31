@@ -2286,6 +2286,91 @@ body-write mechanism, here applied through the qualified path).
 
 ---
 
+### FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure)
+- **Status:** locked in by `tests/test_fp_rbs.py::test_FP_RBS_12_*`
+- **Codes:** W210 (read-before-set)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D1-4
+
+#### Reproducer
+
+```tcl
+proc f {} { regexp {x} y -> v; if {1} { puts $v } }
+```
+
+Plus the embedded-condition reviewer case:
+
+```tcl
+proc f {} { if {![regexp {x} y -> v]} { puts $v } }
+```
+
+#### Per-line reasoning
+
+`regexp` writes its match-var (`v`) ONLY on a successful match.  When the read of `$v` sits on a path that includes the no-match outcome, the read is provably read-before-set.
+
+1. **Reviewer case A** — `regexp {x} y -> v; if {1} { puts $v }`.  The pattern `{x}` against the literal input `y` doesn't match (the regex pattern is the literal letter `x`; the input is the literal letter `y`).  So `v` is provably unset on the no-match path; the subsequent unconditional `if {1} { puts $v }` always reads it.  W210 must fire on the body's `$v`.
+2. **Reviewer case B** — `if {![regexp {x} y -> v]} { puts $v }`.  The if-arm body executes when regexp returns 0 (no match); on that path `v` was not written.  Reading `$v` in the body is read-before-set.
+3. The closure has three pieces:
+   - **F2 same-statement dominator walk** — walks back from each `$v` read to determine whether the def at the same statement reaches.
+   - **F2 extension for embedded conditions** — propagates the "no-match implies unset" fact into the negated/short-circuit arms of an `if`/`while`/`for` condition.
+   - **scan no-match estimator with D4-F1 conservative bail** — same logic for `scan`; bails conservatively on inputs containing `\\`/`$`/`[` (since the analyser sees pre-escape text).
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {} { regexp {x} y -> v; if {1} { puts $v } }
+% f
+can't read "v": no such variable
+
+% proc g {} { if {![regexp {x} y -> v]} { puts $v } }
+% g
+can't read "v": no such variable
+
+% # TN control: read only on the match arm — safe.
+% proc h {} { if {[regexp {x} y -> v]} { puts $v }; puts done }
+% h
+done
+```
+
+#### Compiler evidence
+
+```
+--- FP-RBS-12: regexp/scan output vars: conditional defs reach both reviewer cases (D1-4)
+regen: python -m bench.fp_snippets --id FP-RBS-12
+function ::f
+  block entry_1
+    [0] Call cmd='regexp'  defs={->#1, v#1}  uses={}
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block if_end_2
+    term Goto
+  block if_then_3
+    [0] Call cmd='puts'  defs={}  uses={v#1}
+    term Goto
+  block if_next_4
+    term Goto
+  block exit_5
+    term (none — fall-through exit)
+  read_before_set
+    ReadBeforeSet(block='if_then_3', statement_index=0, variable='v')
+```
+(regen: `python -m bench.fp_snippets --id FP-RBS-12`)
+
+The `read_before_set` row pins the verdict: the `$v` read in `if_then_3` is reported even though `regexp` produced a `v#1` def — the post-pass detects that the regexp pattern is provably non-matching and treats the def as unreached.
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py:3250-` (the `provably_unset` post-pass in `_read_before_set`) — when a `regexp` / `scan` call has both literal pattern and literal input, the analyser runs Python's `re` (or the `scan_provably_no_match` predicate) to determine whether the match is provably impossible.  When it is, the output vars are marked `provably_unset` and subsequent reads — including reads in same-statement embedded conditions — fire W210.  D4-F1 closure for `scan_provably_no_match` is the conservative-bail piece (see [FP-STY-10](#fp-sty-10)).
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_unconditional_read_after_no_match_fires` (TP — reviewer case A)
+- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_in_negated_if_arm_fires` (TP — reviewer case B)
+- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_match_arm_read_silent` (TN control — read only on the match arm)
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

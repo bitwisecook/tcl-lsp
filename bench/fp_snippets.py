@@ -644,6 +644,38 @@ register(
 
 
 register(
+    "FP-RBS-12",
+    _Entry(
+        label="regexp/scan output vars: conditional defs reach both reviewer cases (D1-4)",
+        proc="::f",
+        vars=("v",),
+        show=("ssa", "rbs"),
+        notes=(
+            "regexp/scan output vars are CONDITIONAL defs -- written only on\n"
+            "match.  Pre-fix the analyser flagged some unconditional reads but\n"
+            "missed two reviewer cases:\n"
+            "  (A) ``regexp {x} y -> v; if {1} { puts $v }`` -- regexp may not\n"
+            "      match (it doesn't, statically; `x` not in `y`), so $v is\n"
+            "      unset on the no-match path which the unconditional read\n"
+            "      always takes.\n"
+            "  (B) ``if {![regexp {x} y -> v]} { puts $v }`` -- the read\n"
+            "      sits inside the if-negated arm where the regexp definitely\n"
+            "      did NOT match.\n"
+            "Closures: F2 same-statement dominator walk (catches both\n"
+            "reviewer cases) + F2 extension for embedded conditions (the\n"
+            "if/while/for nested-condition shape) + scan no-match estimator\n"
+            "with D4-F1 conservative bail.  Both reviewer cases now fire W210."
+        ),
+        source=_dedent(
+            """
+            proc f {} { regexp {x} y -> v; if {1} { puts $v } }
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-RBS-11",
     _Entry(
         label="qualified-builtin loops (::foreach / ::lmap / ::for / ::while)",

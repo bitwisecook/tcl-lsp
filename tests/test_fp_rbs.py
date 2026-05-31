@@ -746,6 +746,51 @@ proc f {dict} {
     )
 
 
+# FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
+
+
+FP_RBS_12_REPRO = "proc f {} { regexp {x} y -> v; if {1} { puts $v } }\n"
+
+
+def test_FP_RBS_12_regexp_unconditional_read_after_no_match_fires():
+    """TP (reviewer case A): the regexp pattern ``{x}`` against the
+    literal input ``y`` is provably non-matching.  The subsequent
+    unconditional ``if {1} { puts $v }`` reads $v on a path where the
+    regexp never wrote it.  D1-4 closure (F2 same-statement dominator
+    walk) detects this and fires W210."""
+    w210 = [d for d in _rbs(FP_RBS_12_REPRO) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert w210, (
+        "post-regexp unconditional read of $v after provably-no-match "
+        "must fire W210; got: " + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_12_REPRO))
+    )
+
+
+def test_FP_RBS_12_regexp_in_negated_if_arm_fires():
+    """TP (reviewer case B): ``if {![regexp {x} y -> v]} { puts $v }``
+    -- the if-arm executes when regexp returns 0 (no match); on that
+    path $v was not written.  D1-4 closure F2 extension for embedded
+    conditions propagates the "no-match implies unset" fact into the
+    negated condition arm."""
+    src = "proc f {} { if {![regexp {x} y -> v]} { puts $v } }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert w210, (
+        "regexp output var read inside the no-match arm of an if-negated "
+        "condition must fire W210; got: " + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_12_regexp_match_arm_read_silent():
+    """TN control: ``if {[regexp {x} y -> v]} { puts $v }`` -- read
+    only on the MATCH arm where regexp definitely wrote $v.  W210 must
+    NOT fire."""
+    src = "proc f {} { if {[regexp {x} y -> v]} { puts $v } }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert not w210, (
+        "regexp match-arm read of $v is safe; W210 must NOT fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
 # FP-RBS-05 — namespace upvar alias-not-a-def (OPEN, xfail until lower_namespace_upvar lands)
 
 
