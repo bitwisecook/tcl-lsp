@@ -254,3 +254,52 @@ interp eval $child [list puts $raw]
     assert _codes(src, "T105") == [], (
         f"[list puts $raw] in interp eval must suppress T105; got {get_diagnostics(src)}"
     )
+
+
+# FP-TNT-04 — late `--` doesn't protect earlier option candidates (D5-T102)
+
+
+def test_FP_TNT_04_late_terminator_does_not_protect_tainted_var():
+    """TP: ``regexp $pat -- subject`` with tainted $pat -- $pat sits at
+    index 0 (option region), -- sits at index 1.  A `--` AFTER the
+    tainted candidate cannot retroactively protect it; T102 must fire.
+
+    tclsh 9.0.3::
+
+        % set pat "-nocase"
+        % regexp $pat -- ABC
+        wrong # args: should be "regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?"
+
+    The runtime treats $pat as an option when it expands to "-nocase",
+    proving the late `--` does not protect index 0.
+    """
+    src = "set pat [gets stdin]\nregexp $pat -- subject\n"
+    assert _codes(src, "T102"), (
+        f"late `--` must not protect earlier tainted candidate; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_04_early_terminator_protects_tainted_var():
+    """TN: ``regexp -- $pat subject`` -- `--` sits at index 0, tainted
+    $pat sits at index 1.  The `--` terminates option scanning at
+    index 0, so $pat is a definite positional pattern.  No T102.
+
+    tclsh 9.0.3::
+
+        % set pat "-nocase"
+        % regexp -- $pat ABC
+        0
+    """
+    src = "set pat [gets stdin]\nregexp -- $pat subject\n"
+    assert _codes(src, "T102") == [], (
+        f"early `--` must protect later tainted candidate; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_04_no_terminator_fires():
+    """TP control: ``regexp $pat subject`` -- no `--` at all, tainted
+    $pat at index 0 in option region.  T102 fires."""
+    src = "set pat [gets stdin]\nregexp $pat subject\n"
+    assert _codes(src, "T102"), (
+        f"tainted pattern with no `--` must fire T102; got {get_diagnostics(src)}"
+    )

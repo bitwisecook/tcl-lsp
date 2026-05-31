@@ -92,12 +92,19 @@ _OUTPUT_MESSAGES: dict[str, str] = {
 }
 
 
-def _has_option_terminator(args: tuple[str, ...], scan_start: int) -> bool:
-    """Return True if ``--`` appears at or after *scan_start* in *args*."""
+def _option_terminator_index(args: tuple[str, ...], scan_start: int) -> int | None:
+    """Return the index of the first ``--`` at or after *scan_start*, or None.
+
+    Used by T102 (option injection) to determine which positions are
+    *protected* by ``--``.  A late ``--`` only protects positions that
+    come AFTER it (D5-T102); the earlier check ``_has_option_terminator``
+    incorrectly returned True for any ``--`` and let the entire sink
+    be suppressed even when a tainted var sat BEFORE the ``--``.
+    """
     for i in range(scan_start, len(args)):
         if args[i] == "--":
-            return True
-    return False
+            return i
+    return None
 
 
 def _arg_can_be_option(arg: str) -> bool:
@@ -408,9 +415,12 @@ def _classify_sink(
     if sink.log_sink is not None:
         results.append((sink.log_sink, command))
 
-    # T102: option injection via tainted input (colour-suppressed below)
+    # T102: option injection via tainted input (colour-suppressed below).
+    # The presence of `--` no longer suppresses the sink globally -- a `--`
+    # only protects positions that come AFTER it (D5-T102).  Position-aware
+    # filtering happens at the per-var check below (see ``t102_terminator_idx``).
     profile = REGISTRY.resolve_option_terminator(command, args)
-    if profile is not None and not _has_option_terminator(args, profile.scan_start):
+    if profile is not None:
         cmd_label = command
         if profile.subcommand is not None:
             cmd_label = f"{command} {profile.subcommand}"

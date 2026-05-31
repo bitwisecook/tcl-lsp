@@ -2968,6 +2968,46 @@ register(
 
 
 register(
+    "FP-TNT-04",
+    _Entry(
+        label="late `--` doesn't protect earlier option candidates (D5-T102)",
+        proc="::top",
+        vars=("pat",),
+        show=("ssa",),
+        notes=(
+            "Pre-fix: ``_has_option_terminator`` returned True for any\n"
+            "``--`` at or after ``scan_start``, suppressing the entire\n"
+            "T102 sink classification.  But a ``--`` AFTER a tainted\n"
+            "option candidate cannot retroactively protect it.\n"
+            "\n"
+            "tclsh 9.0.3::\n"
+            "\n"
+            "    % set pat \"-nocase\"\n"
+            "    % regexp -- $pat ABC      ;# pat at idx 1, -- at idx 0\n"
+            "    0\n"
+            "    % regexp $pat -- ABC      ;# pat at idx 0, -- at idx 1\n"
+            "    wrong # args: should be \"regexp ?-option ...?\n"
+            "                exp string ?matchVar? ?subMatchVar ...?\"\n"
+            "\n"
+            "Post-fix: T102 is always classified as a sink when the\n"
+            "command has an option terminator profile; suppression is\n"
+            "delegated to per-var position filtering via\n"
+            "``_option_scan_region``, which already includes positions\n"
+            "BEFORE the ``--`` (and stops at it).  A tainted var at an\n"
+            "index inside the scan region but before the ``--`` correctly\n"
+            "fires T102."
+        ),
+        source=_dedent(
+            """
+            set pat [gets stdin]
+            regexp $pat -- subject
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-TNT-03",
     _Entry(
         label="eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)",

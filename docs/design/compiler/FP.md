@@ -6544,6 +6544,82 @@ The eval statement's args are `('[list $raw]',)`; `_eval_arg_protected_by_list_l
 
 ---
 
+### FP-TNT-04 — late `--` doesn't protect earlier option candidates (D5-T102)
+
+- **Verdict:** TRUE POSITIVE / security FN (now fixed)
+- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_04_*`
+- **Codes:** T102 (option-injection via tainted input)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T102
+
+#### Reproducer
+
+```tcl
+# UNSAFE -- $pat at index 0, -- at index 1 (cannot protect earlier $pat)
+set pat [gets stdin]
+regexp $pat -- subject
+```
+
+vs
+
+```tcl
+# SAFE -- -- at index 0, $pat at index 1 (terminator protects $pat)
+set pat [gets stdin]
+regexp -- $pat subject
+```
+
+#### Per-line reasoning
+
+1. `set pat [gets stdin]` — `$pat` is tainted.
+2. `regexp $pat -- subject` — Tcl scans option args left-to-right.  `$pat` at index 0 is treated as a switch candidate; if it expands to `-nocase`, Tcl consumes it as an option.  The `--` at index 1 is reached AFTER `$pat` has already been mis-classified, so it cannot retroactively protect index 0.
+3. Pre-fix `_has_option_terminator` returned True for any `--` at or after `scan_start`, which caused the entire T102 sink classification to be suppressed — so even the index-0 tainted candidate produced no T102.
+4. Post-fix the sink is always classified when the command has an option-terminator profile; the existing position filter `_option_scan_region` correctly stops at the first `--` (positions before the `--` remain candidates).  A tainted var at index 0 with `--` at index 1 sits in the scan region and fires.
+5. The TN case (`regexp -- $pat subject`) is unchanged: `_option_scan_region` adds index 0 (`--`) and breaks, so `$pat` at index 1 is outside the region — no T102.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set pat "-nocase"
+
+% # SAFE: -- at index 0 protects $pat at index 1
+% regexp -- $pat ABC
+0
+
+% # UNSAFE: $pat at index 0 is mis-classified before -- at index 1 is reached
+% regexp $pat -- ABC
+wrong # args: should be "regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?"
+```
+
+#### Compiler evidence
+
+```
+--- FP-TNT-04: late `--` doesn't protect earlier option candidates (D5-T102)
+regen: python -m bench.fp_snippets --id FP-TNT-04
+function ::top
+  block entry_1
+    [0] AssignValue 'pat' value='[gets stdin]'  defs={pat#1}  uses={}
+    [1] Call cmd='regexp'  defs={subject#1}  uses={pat#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-TNT-04`)
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_sinks.py`:
+
+- `_option_terminator_index` (replaces `_has_option_terminator`) — returns the first index of `--` >= `scan_start` instead of a bool.  Unused at the classification step now; kept for future use.
+- `_classify_sink` — always emits T102 when the command has an option-terminator profile.  Per-var protection is handled below by the `_option_scan_region` filter, which already stops at the first `--` so positions before it remain candidates and positions after it are outside the region.
+
+#### Tests
+
+- `tests/test_fp_tnt.py::test_FP_TNT_04_late_terminator_does_not_protect_tainted_var` (TP, `regexp $pat -- subject`)
+- `tests/test_fp_tnt.py::test_FP_TNT_04_early_terminator_protects_tainted_var` (TN, `regexp -- $pat subject`)
+- `tests/test_fp_tnt.py::test_FP_TNT_04_no_terminator_fires` (TP control, no `--`)
+
+---
+
 
 ## STY — style / usage (W001/W104/W120/W122/W124/W126/W214/W302/W306)
 
