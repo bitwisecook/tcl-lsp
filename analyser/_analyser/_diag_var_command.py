@@ -239,6 +239,47 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 return _func_constsets.get(best[1], {})
             return all_constsets  # fallback to merged
 
+        # D3-P7 closure: harvest literal element values from
+        # ``array set arr {k1 v1 k2 v2 ...}`` so the W307 callback-
+        # array suppression can check the ACTUAL value of
+        # ``$arr(-command)`` against the known-command set.  Without
+        # this, the heuristic suppression on dash-prefixed / callback-
+        # suffixed array keys fires even when SCCP-equivalent literal
+        # evidence proves the value isn't a command.
+        for qname, fu_unit in _all_fus_named:
+            func_cs = _func_constsets.setdefault(qname, {})
+            for block in fu_unit.cfg.blocks.values():
+                for stmt in block.statements:
+                    if not (
+                        isinstance(stmt, IRCall)
+                        and stmt.canonical_command == "::array"
+                        and len(stmt.args) >= 2
+                        and stmt.args[0] == "set"
+                    ):
+                        continue
+                    # Args after ``set`` are: arr-name, key-value-list.
+                    if len(stmt.args) < 3:
+                        continue
+                    arr_name = stmt.args[1]
+                    kv_text = stmt.args[2]
+                    try:
+                        from compiler.tcl_expr_eval import _split_tcl_list
+
+                        items = _split_tcl_list(kv_text)
+                    except Exception:
+                        continue
+                    if len(items) % 2 != 0:
+                        continue
+                    for i in range(0, len(items), 2):
+                        key = items[i]
+                        value = items[i + 1]
+                        elem_name = f"{arr_name}({key})"
+                        if elem_name in func_cs:
+                            continue
+                        vs = frozenset((value,))
+                        func_cs[elem_name] = vs
+                        all_constsets.setdefault(elem_name, vs)
+
         # Fallback: directly extract foreach iteration elements from the CFG.
         # SCCP barriers (e.g. oo::class create) may have widened foreach
         # variables to OVERDEFINED even when the list is statically known.
@@ -415,20 +456,40 @@ class _AnalyserDiagVarCommandMixin(_Base):
             invocation produces an object handle.
 
             Recognises:
-            * Namespaced commands (``::ns::cmd``) -- the documented
-              tcllib / TclOO factory convention.
             * Known TclOO class commands (``C new``, ``C create %AUTO%``)
               -- the class command is registered globally and its return
-              value is the instance command name.  Finding 8 of the
-              PR #498 / PR #499 follow-up.
+              value is the instance command name.
+            * Namespaced commands (``::ns::cmd``) -- the documented
+              tcllib / TclOO factory convention.  This is a heuristic
+              (an unknown namespaced command MAY return a plain string),
+              kept because removing it loses suppressions across the
+              tcllib corpus (``struct::graph``, ``pt::*``, etc.) that
+              aren't yet registry-modelled.  D4-F6 partial closure:
+              the ``new``-spelling heuristic on bare names (handled
+              in ``_return_type_for_command``) IS removed, and the
+              ``::`` rule is tightened below by REQUIRING the head to
+              not be a known non-object-returning user proc.
 
             User procs are intentionally excluded here: they go through
             the fixpoint (only added to factory locals if all their
             returns are themselves object-returning).
             """
-            if "::" in cmd_head:
-                return True
             if cmd_head in _oo_class_tails or f"::{cmd_head}" in _oo_class_qnames:
+                return True
+            if "::" in cmd_head:
+                # D4-F6 partial: when the namespaced command IS a known
+                # user proc and the fixpoint has NOT classified it as
+                # object-returning, that's evidence it returns a plain
+                # value -- override the ``::`` heuristic.  (For
+                # external / unregistered namespaced commands, we still
+                # assume object-factory by convention; D3-P5 documents
+                # this as an open precision case requiring registry
+                # coverage of tcllib factory commands.)
+                qualified = cmd_head if cmd_head.startswith("::") else f"::{cmd_head}"
+                if qualified in self.result.all_procs:
+                    # User proc -- defer to the fixpoint (which uses
+                    # ``object_returning_procs`` membership).
+                    return False
                 return True
             return False
 
@@ -602,7 +663,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
         # dispatch could be a typo, multiple is clearly designed).
         proc_dispatcher_vars: dict[str, set[str]] = {}
         proc_dispatch_counts: dict[str, dict[str, int]] = {}
-        for var_name, _mn, site_range, _im, _cws in self._var_command_sites:
+        for var_name, _mn, site_range, _im, _cws, _argc in self._var_command_sites:
             qname, _params = _enclosing_proc_params(site_range.start.offset)
             proc_dispatcher_vars.setdefault(qname, set()).add(var_name)
             counts = proc_dispatch_counts.setdefault(qname, {})
@@ -662,6 +723,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
             site_range,
             in_method,
             cmd_word_single,
+            _positional_argc,  # 6th tuple element -- used by W214 dispatcher check
         ) in self._var_command_sites:
             # snit's reserved object/type self-references (``$self foo``,
             # ``$type bar``, ``$selfns``, ``$win``, ``$hull configure``) are
@@ -1082,12 +1144,20 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # ``my`` and ``self`` are TclOO self-dispatch — the return
                 # value is very likely an object when used in chained calls.
                 is_oo_self_dispatch = cmd_name_ in ("my", "self")
-                # Inside an OO method body, [cmd] method chaining is common
-                # for accessing objects stored in instance variables.
-                if (
-                    in_method
-                    or is_oo_self_dispatch
-                    or (ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT)
+                # D4-F5 closure: drop the blanket ``in_method``
+                # suppression -- a method body is NOT positive
+                # evidence that an arbitrary ``[cmd] method`` returns
+                # an object.  ``[format "notACommand"] run`` inside
+                # ``method m {} {...}`` legitimately fires W307;
+                # ``[D new] run`` is silent because D's ``new`` is
+                # known-class with OBJECT return type.  Keep the
+                # ``my``/``self`` self-dispatch heuristic (TclOO
+                # convention is that ``my`` / ``self`` calls return
+                # objects in the chained-call idiom -- noisy
+                # otherwise; D3-P4 method-body return-type resolution
+                # for ``my plain`` -> STRING is a deeper follow-up).
+                if is_oo_self_dispatch or (
+                    ret_type.kind is TypeKind.KNOWN and ret_type.tcl_type is TclType.OBJECT
                 ):
                     # Command returns an object — suppress W307.
                     key = (site_range.start.offset, site_range.end.offset)

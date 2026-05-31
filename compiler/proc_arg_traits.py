@@ -400,6 +400,18 @@ def collect_call_by_name_reads(
                 traits = traits_map.get(pname, frozenset())
                 if ProcArgTrait.VAR_READ not in traits and ProcArgTrait.VAR_WRITE not in traits:
                     continue
+                # DYNAMIC_NAME_LOCAL refines VAR_READ: the param's
+                # VALUE is used as a name for a CALLEE-LOCAL variable,
+                # NOT as a caller-frame alias.  The caller's literal
+                # arg ``x`` is NOT consumed by the callee's reference
+                # (``$param`` inside the callee references whatever
+                # the param's value names in the callee's own frame).
+                # See ``test_FP_callbyname_scan_target_not_caller_alias``
+                # -- D4-F4 / proc-arg-traits VAR_READ alongside fix.
+                if ProcArgTrait.DYNAMIC_NAME_LOCAL in traits and (
+                    ProcArgTrait.VAR_WRITE not in traits
+                ):
+                    continue
                 if not arg or "$" in arg or "[" in arg:
                     continue
                 if arg and all(ch.isalnum() or ch in "_:" for ch in arg):

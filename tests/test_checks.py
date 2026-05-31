@@ -2308,14 +2308,31 @@ $obj destroy
         diags = _diag_with_code(source, "W308")
         assert len(diags) == 0
 
-    def test_external_class_new_no_w307(self):
-        """$obj method should NOT emit W307 when obj was set from [ExternalClass new]."""
+    def test_external_class_new_w307_fires_without_registry_evidence(self):
+        """D4-F6 closure (was test_external_class_new_no_w307): the old
+        behaviour suppressed W307 for ``[Circuit new ...]`` purely on the
+        ``new`` subcommand spelling -- an unsound heuristic verified
+        against tclsh in the PR #498 special-casing review:
+
+            interp alias {} NotAClass {} apply {args {return notACommand}}
+            set x [NotAClass new]
+            $x method
+            ## tclsh: invalid command name "notACommand"
+
+        ``Circuit`` is not in ``all_classes`` and has no registry hint,
+        so the analyser CANNOT prove the substitution returns an object
+        command.  W307 MUST fire -- silence would be a confident
+        wrong-answer (false negative).  Users with real external
+        factories should register them via the command registry's
+        ``return_type=TclType.OBJECT`` annotation, not rely on the
+        ``Cmd new`` spelling.
+        """
         source = """\
 set circuit [Circuit new {Monte-Carlo}]
 $circuit runAndRead
 """
         diags = _diag_with_code(source, "W307")
-        assert len(diags) == 0
+        assert len(diags) == 1, f"W307 must fire on unknown ``[Circuit new ...]``: got {diags}"
 
     def test_external_class_no_w308(self):
         """Methods on external classes should not emit W308."""

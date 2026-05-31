@@ -207,6 +207,7 @@ class _AnalyserCommandsMixin(_Base):
                     range_from_token(cmd_tok),
                     in_method,
                     cmd_word_single,
+                    len(args),  # positional_arg_count -- see _core.py docstring
                 )
             )
         elif cmd_tok is not None and cmd_tok.type is TokenType.CMD:

@@ -229,9 +229,7 @@ def test_FP_RBS_02_regexp_unknown_switch_bails():
     returns metadata, not a match result)."""
     for opt in ("-bogus", "-about"):
         src = f"proc f {{}} {{ regexp {opt} {{x}} X v; puts $v }}"
-        diags = [
-            d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")
-        ]
+        diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
         assert not diags, f"{opt} must conservatively NOT fire W210; got {diags}"
 
 
@@ -243,9 +241,7 @@ def test_FP_RBS_02_regexp_safe_switch_still_fires():
     is a real no-match under every one of those, so W210 must fire."""
     for opt in ("-line", "-lineanchor", "-linestop", "-expanded", "-indices", "-inline", "-all"):
         src = f"proc f {{}} {{ regexp {opt} {{x}} X v; puts $v }}"
-        diags = [
-            d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")
-        ]
+        diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
         assert diags, f"{opt} must still allow W210 to fire; got {get_diagnostics(src)}"
 
 

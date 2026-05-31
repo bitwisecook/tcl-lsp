@@ -3577,11 +3577,17 @@ def _return_type_for_command(
                     ns_qualified = _normalise_qualified_name(f"{namespace}::{command}")
                     if ns_qualified in known_classes:
                         return TypeLattice.object_of(ns_qualified)
-            # ``new`` is unique to TclOO — treat unknown commands calling
-            # ``new`` as external class constructors so the type lattice
-            # suppresses W307 for ``$obj method`` patterns.
-            if args[0] == "new":
-                return TypeLattice.object_of(command)
+            # D4-F6 closure: do NOT infer object-of-`command` from
+            # the ``new`` subcommand spelling alone.  ``new`` is a TclOO
+            # convention but any user command can accept ``new`` and
+            # return a plain string -- ``interp alias {} NotAClass {}
+            # apply {args {return notACommand}}; NotAClass new`` returns
+            # ``notACommand`` not an object handle.  When the command
+            # isn't in ``known_classes`` (which DOES include all
+            # ``oo::class`` / ``snit::type`` definitions in the file),
+            # the return is unknown.  External factories needing
+            # OBJECT typing should register via the command registry,
+            # not via name-shape heuristics.
         return _TYPE_OVERDEFINED
     if isinstance(hint, SubcommandTypeHint):
         if not args:

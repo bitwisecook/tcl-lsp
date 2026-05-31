@@ -61,13 +61,13 @@ Tclsh-verified positive/negative pairs.
 |---|---|---|---|---|
 | D3-P1 | empty `dict with` + `return $missing` | ⬜ TODO (FN) | ✅ already silent | D4-F3: extend key-aware logic to return path |
 | D3-P2 | call-site literal dict not used interproc | ⬜ TODO (FN) | ✅ already silent | Interproc dict propagation |
-| D3-P3 | `[format X] run` in method | ⬜ TODO (FN) | ✅ already silent | D4-F5: remove in-method cmd-sub-as-cmd blanket |
-| D3-P4 | `[my plain] run` where plain returns string | ⬜ TODO (FN) | ✅ already silent | Use method return-type facts |
-| D3-P5 | `[::pkg::plain]` external returns string | ⬜ TODO (FN) | ✅ already silent | D4-F6: don't infer object from `::` |
-| D3-P6 | `[NotAClass new]` external returns string | ⬜ TODO (FN) | ✅ already silent | D4-F6: don't infer object from `new` |
-| D3-P7 | `array set state {-command notACommand}` non-cmd | ⬜ TODO (FN) | ✅ already silent | Harvest literal element value |
-| D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | ⬜ TODO (FN) | ✅ already silent | Interproc literal dict propagation |
-| D3-P9 | W214 unrelated dispatcher suppresses peers | ⬜ TODO (FN) | ✅ already silent | D4-F4: tie dispatch evidence to actual call graph |
+| D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) |
+| D3-P4 | `[my plain] run` where plain returns string | 📋 DEFERRED | Requires `my`/`self` method-return-type resolution -- noisy without it (TclOO chained-call idiom is the norm) |
+| D3-P5 | `[::pkg::plain]` external returns string | 📋 DEFERRED | D4-F6 partial -- `::`-prefix heuristic kept for tcllib corpus compat; full closure requires registry coverage of factory commands |
+| D3-P6 | `[NotAClass new]` external returns string | ✅ FIXED | Via D4-F6 (`new`-subcommand heuristic on bare names removed) |
+| D3-P7 | `array set state {-command notACommand}` non-cmd | ✅ FIXED | New `array set` literal-element harvester feeds SCCP CONST evidence to override the callback-key heuristic |
+| D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | 📋 DEFERRED | Requires interprocedural literal-dict propagation (cross-proc call-site argument analysis) |
+| D3-P9 | W214 unrelated dispatcher suppresses peers | ✅ FIXED | Via D4-F4 (arity-compatible dispatcher requirement) |
 
 ---
 
@@ -78,12 +78,12 @@ Tclsh-verified positive/negative pairs.
 | D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | 🔄 IN-PROGRESS | Fix in `compiler/scan_format.py` started |
 | D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ✅ FIXED | Dynamic `arg_role_resolver` per command -- no more finite slot budget |
 | D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ⬜ TODO | Apply key-aware logic to CFGReturn path |
-| D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ⬜ TODO | Real dispatch-family evidence |
-| D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ⬜ TODO | Use return-type facts; resolve `my`/`self` |
-| D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | ⬜ TODO | Use registry/class/proc evidence only |
+| D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ✅ FIXED | Extended var_command_sites to record positional arg count; protocol match now requires arity-compatible dispatcher (1-arg `$cmd x` no longer suppresses 2-arg peer family) |
+| D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ✅ FIXED | Removed blanket `in_method` suppression for cmd-sub-as-command; only `my`/`self` self-dispatch + KNOWN OBJECT return-type now suppress |
+| D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | 🔄 PARTIAL | `new`-subcommand heuristic removed; `::`-prefix heuristic kept for tcllib corpus compat but downgraded -- user procs with non-object-returning fixpoint result override.  D3-P5 (unknown external `::pkg::plain`) still suppressed pending registry coverage of tcllib factory commands. |
 | D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative |
-| D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ⬜ TODO | Use compiler facts (tokens, SCCP) |
-| D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ⬜ TODO | Recurse via segmenter |
+| D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ✅ FIXED | Added whitespace-split fallback alongside the regex so proc names with non-`\w` chars (`do-work`, `+`, ...) aren't silently dropped |
+| D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ✅ FIXED | New `_scan_namespaced_cmds_in_text` uses lexer + segmenter to find namespaced cmd-subs; recurses into args; falls back to regex only on unparseable input |
 | D4-F10 | Optimiser O109/O126 overlap filter `split(None, 2)` Tcl parser bypass | ✅ FIXED | Replaced `split(None, 2)` with `segment_commands(text)` + `normalise_var_name`; also fixed O112-replacement var scanner to descend into BODY/EXPR script-role args (was missing `$b` in `if {$b} {...}`) |
 | D4-F11 | `is_pure_var_ref()` Python regex over Tcl variable syntax | ✅ FIXED | Hand-rolled Tcl-correct parser `_scan_pure_var_ref`; handles backslash-escaped close-paren in array index (reviewer's `$a(x\)y)` case) |
 

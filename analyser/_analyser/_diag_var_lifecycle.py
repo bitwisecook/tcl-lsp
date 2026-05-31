@@ -408,35 +408,44 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         # site that COULD plausibly be a dispatcher for the protocol.
         proto: set[tuple[str, tuple[str, ...]]] = set()
         var_command_sites = getattr(self, "_var_command_sites", ())
-        # PR #498/#499 follow-up finding 5: tie the dispatcher evidence
-        # to the *candidate family*, not the program globally.  A
-        # protocol (ns, params) is supported by a var-command site
-        # whose dispatching proc lives in ``ns`` (or in a child
-        # namespace whose dispatchers naturally call up into ``ns``).
-        # Build the set of namespaces that contain *any* var-command
-        # dispatcher.  ``site_range`` lets us locate the enclosing
-        # proc via the ``all_procs`` table and read its qualified
-        # name, from which we derive the dispatcher's namespace.
-        dispatcher_namespaces: set[str] = set()
-        for _vn, _mn, site_range, _im, _cws in var_command_sites:
+        # PR #498/#499 follow-up finding 5 + D4-F4 closure: tie the
+        # dispatcher evidence to the *candidate family* AND require
+        # the dispatcher's argument count to be compatible with the
+        # peer signature.  A protocol (ns, params) is supported by a
+        # var-command site iff:
+        #
+        #   1. The dispatching proc lives in ``ns`` (or a child
+        #      namespace that naturally calls up into ``ns``), AND
+        #   2. The dispatch site passes AT LEAST ``len(params)``
+        #      positional args -- a dispatcher passing only ``$cmd x``
+        #      (1 arg) is NOT evidence for a ``(ctx, token)`` 2-arg
+        #      peer protocol.
+        #
+        # Map each dispatcher namespace -> set of arg-counts observed
+        # there, so the per-candidate match below is precise.
+        dispatcher_ns_argc: dict[str, set[int]] = {}
+        for _vn, _mn, site_range, _im, _cws, argc in var_command_sites:
             off = site_range.start.offset
             for qname, pdef in self.result.all_procs.items():
                 pr = pdef.body_range
                 if pr.start.offset <= off <= pr.end.offset:
                     dispatcher_ns = qname.rsplit("::", 1)[0] or "::"
-                    dispatcher_namespaces.add(dispatcher_ns)
+                    dispatcher_ns_argc.setdefault(dispatcher_ns, set()).add(argc)
                     break
             else:
                 # No enclosing proc -> top-level dispatcher.
-                dispatcher_namespaces.add("::")
+                dispatcher_ns_argc.setdefault("::", set()).add(argc)
         # Walk the peer-protocol candidates and only keep those whose
-        # namespace (or an ancestor) contains a dispatcher.  Ordinary
-        # helpers in a namespace without any dispatcher are NOT a
-        # protocol; their unused params fire W214.
+        # namespace (or ancestor) contains a dispatcher that passes
+        # enough args.  Ordinary helpers in a namespace whose only
+        # var-command sites are arity-incompatible are NOT a protocol.
         for key in peer_protos:
-            ns_key = key[0]
-            for dns in dispatcher_namespaces:
-                if dns == ns_key or dns.startswith(ns_key + "::"):
+            ns_key, params_tuple = key
+            min_argc = len(params_tuple)
+            for dns, argcs in dispatcher_ns_argc.items():
+                if (dns == ns_key or dns.startswith(ns_key + "::")) and any(
+                    a >= min_argc for a in argcs
+                ):
                     proto.add(key)
                     break
         self._dispatch_proto_cache = (self.result, proto)

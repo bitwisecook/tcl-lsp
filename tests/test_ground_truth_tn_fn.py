@@ -651,6 +651,100 @@ def test_TN_binary_scan_with_many_vars_no_false_w210():
     assert not _any(src, "W210")
 
 
+def test_TP_W307_unrelated_dispatcher_does_not_suppress_peer_family():
+    """D4-F4 / D3-P9 closure: a ``$cmd x`` (1-arg) dispatcher in the
+    same namespace as three 2-arg peer procs is NOT evidence for the
+    peer protocol -- the arities are incompatible.  W214 must still
+    fire on the unused ``token`` parameter of each peer.
+
+    runtime: each peer ignores ``token``, ``unrelated`` only dispatches
+    its own ``$cmd x`` (1 arg) -- nothing actually calls a/b/c with
+    the (ctx, token) shape.
+    """
+    src = (
+        "namespace eval ::n {\n"
+        "    proc a {ctx token} { puts $ctx }\n"
+        "    proc b {ctx token} { puts $ctx }\n"
+        "    proc c {ctx token} { puts $ctx }\n"
+        "    proc unrelated {cmd} { $cmd x }\n"
+        "}\n"
+    )
+    w214 = [d for d in get_diagnostics(src) if d.code == "W214" and "'token'" in d.message]
+    assert len(w214) == 3, (
+        f"W214 must fire on token in a/b/c when no protocol-compatible dispatcher exists, got {w214}"
+    )
+
+
+def test_TN_W307_protocol_compatible_dispatcher_suppresses_peer_family():
+    """D4-F4 control: when a same-namespace dispatcher has matching
+    arity (``$cmd ctx token``, 2 args >= peer signature), the protocol
+    evidence applies and W214 stays silent."""
+    src = (
+        "namespace eval ::n {\n"
+        "    proc a {ctx token} { puts $ctx }\n"
+        "    proc b {ctx token} { puts $ctx }\n"
+        "    proc c {ctx token} { puts $ctx }\n"
+        "    proc dispatch {cmd ctx token} { $cmd $ctx $token }\n"
+        "}\n"
+    )
+    assert not _any(src, "W214")
+
+
+def test_TP_W307_format_in_method_fires():
+    """D4-F5 / D3-P3 closure: ``[format X] run`` inside a method body
+    must fire W307 -- the in-method blanket suppression is gone; only
+    a known OBJECT return type, ``my``/``self`` self-dispatch, or
+    other positive evidence suppresses now."""
+    src = "oo::class create C { method m {} { [format notACommand] run } }"
+    assert _any(src, "W307")
+
+
+def test_TN_W307_known_class_new_in_method_silent():
+    """D4-F5 control: ``[D new] run`` IS suppressed because ``D``'s
+    constructor return type is known OBJECT via ``known_classes``."""
+    src = (
+        "oo::class create D { method run {} { return ok } }\n"
+        "oo::class create C { method m {} { [D new] run } }\n"
+    )
+    assert not _any(src, "W307")
+
+
+def test_TP_W307_unknown_class_new_does_not_suppress():
+    """D4-F6 / D3-P6 closure: ``[NotAClass new]`` MUST fire W307 --
+    the analyser has no evidence (registry / class definition) that
+    NotAClass is an object factory.  The bare ``new``-subcommand
+    heuristic that used to silently type the result as OBJECT was
+    unsound (verified vs tclsh in the special-casing review)."""
+    src = "proc f {} { set x [NotAClass new]; $x method }\n"
+    assert _any(src, "W307")
+
+
+def test_TN_W307_known_tclOO_class_new_silent():
+    """D4-F6 control: ``[C new]`` where C IS a known oo::class
+    correctly suppresses W307."""
+    src = (
+        "oo::class create C { method run {} { return ok } }\nproc f {} { set x [C new]; $x run }\n"
+    )
+    assert not _any(src, "W307")
+
+
+def test_TP_W307_callback_array_holds_noncommand():
+    """D3-P7 closure: ``array set state {-command notACommand}; $state(-command)
+    hi`` MUST fire W307 -- the literal element value proves the slot
+    holds a non-command, so the callback-key heuristic suppression
+    is overridden by the SCCP-CONST evidence (now harvested from
+    ``array set`` literal lists)."""
+    src = "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n"
+    assert _any(src, "W307")
+
+
+def test_TN_W307_callback_array_holds_known_command():
+    """D3-P7 control: ``array set state {-command puts}`` -- the
+    literal value IS a known command, so W307 stays silent."""
+    src = "proc f {} { array set state {-command puts}; $state(-command) hi }\n"
+    assert not _any(src, "W307")
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a

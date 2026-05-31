@@ -1088,6 +1088,56 @@ def _analyse_drop_without_disable(
 _NS_CMD_RE = re.compile(r"\b(\w+::\w+)\b")
 
 
+def _scan_namespaced_cmds_in_text(text: str) -> set[str]:
+    """Find namespaced command names invoked as command substitutions
+    inside *text*.  D4-F9 closure: replaces a raw ``\\b\\w+::\\w+\\b``
+    regex over arbitrary text -- which both missed Tcl-valid names
+    outside ``\\w`` (``do-work::run``) and falsely matched literal
+    data strings (``{key foo::bar}``).
+
+    Use the lexer to find CMD tokens (``[...]`` cmd-subs); for each,
+    run ``segment_commands`` to recover the *invoked* command name
+    and recurse into its args.  Only names actually dispatched count;
+    literal data inside braced words is ignored.
+
+    Returns the set of all namespaced command names invoked.  Returns
+    a superset of the regex's matches (any name the regex caught is
+    also caught here, plus the cases the regex missed).
+    """
+    from compiler.parsing.command_segmenter import segment_commands
+    from compiler.parsing.lexer import TclLexer
+    from shared.tokens import TokenType
+
+    found: set[str] = set()
+    if "[" not in text and "::" not in text:
+        return found
+    try:
+        tokens = TclLexer(text).tokenise_all()
+    except Exception:
+        # Unparseable -- fall back to the regex match (sound: caller
+        # will refuse to hoist if any cmd looks unavailable).
+        for m in _NS_CMD_RE.finditer(text):
+            found.add(m.group(1))
+        return found
+    for tok in tokens:
+        if tok.type is not TokenType.CMD:
+            continue
+        try:
+            cmds = segment_commands(tok.text)
+        except Exception:
+            continue
+        for cmd in cmds:
+            if not cmd.texts:
+                continue
+            name = cmd.texts[0]
+            if "::" in name:
+                found.add(name)
+            # Recurse into args -- they may contain further cmd-subs.
+            for arg in cmd.texts[1:]:
+                found |= _scan_namespaced_cmds_in_text(arg)
+    return found
+
+
 def _cmd_available_at_event(cmd_name: str, target_event: str) -> bool:
     """Return True if *cmd_name* can run in *target_event*."""
     target_props = EVENT_REGISTRY.get_props(target_event)
@@ -1130,8 +1180,12 @@ def _ir_value_hoistable_to(
         for arg in stmt.args:
             if "$" in arg:
                 return False
-            for m in _NS_CMD_RE.finditer(arg):
-                if not _cmd_available_at_event(m.group(1), target_event):
+            # D4-F9 closure: use lexer/segmenter to find namespaced
+            # cmd-subs inside the arg instead of a regex over arbitrary
+            # text (which both missed non-identifier names and matched
+            # literal data inside braced words).
+            for ns_cmd in _scan_namespaced_cmds_in_text(arg):
+                if not _cmd_available_at_event(ns_cmd, target_event):
                     return False
         return True
 
@@ -1145,9 +1199,9 @@ def _ir_value_hoistable_to(
     if "[" not in value:
         return True
 
-    # Check all namespace::subcommand references in the value.
-    for m in _NS_CMD_RE.finditer(value):
-        ns_cmd = m.group(1)
+    # Check all namespaced commands invoked in the value.  D4-F9
+    # closure: same fix as IRCall args above.
+    for ns_cmd in _scan_namespaced_cmds_in_text(value):
         if not _cmd_available_at_event(ns_cmd, target_event):
             return False
 
