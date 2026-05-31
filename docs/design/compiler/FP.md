@@ -6770,6 +6770,78 @@ function ::top
 
 ---
 
+### FP-TNT-05 — T104 honours registry network-address arg positions (D5-T104)
+
+- **Verdict:** FALSE POSITIVE (precision) (now fixed)
+- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_05_*`
+- **Codes:** T104 (SSRF via tainted network address)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T104
+
+#### Reproducer
+
+```tcl
+# TP -- URL slot is positional[0]; tainted $url fires T104.
+set url [gets stdin]
+http::geturl $url
+
+# TN -- $hdr is an option VALUE, NOT the network address; no T104.
+set hdr [gets stdin]
+http::geturl http://example.com -headers $hdr
+```
+
+#### Per-line reasoning
+
+1. `dialects/stdlib/http_.py` declares `taint_network_sink_args=(0,)` for `http::geturl` — only positional[0] is the network address.
+2. `dialects/tcl/socket_.py` declares `taint_network_sink_args=(0, 1)` for `socket` — host + port positions.
+3. Pre-fix `TaintSinkInfo` collapsed `taint_network_sink_args` into a single `is_network_sink: bool`; the per-var loop fired T104 on ANY tainted var in the statement.  That's the precision bug: `$hdr` in `http::geturl URL -headers $hdr` falsely fired even though it can't drive SSRF.
+4. Post-fix the dataclass exposes the position tuple as `network_sink_args: tuple[int, ...] | None`; the per-var filter restricts T104 to vars whose arg index is in that tuple (empty tuple `()` keeps the whole-statement-scan semantics for iRules `connect`).
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% namespace eval http {}
+% proc http::geturl {url args} { puts "url=$url\nargs=$args" }
+% set hdr "X-Custom: bad"
+% http::geturl http://example.com -headers $hdr
+url=http://example.com
+args=-headers {X-Custom: bad}
+```
+
+The URL is positional[0]; `$hdr` is consumed by the variadic `args` as an option-value pair — not a network address.
+
+#### Compiler evidence
+
+```
+--- FP-TNT-05: T104 honours registry network-address arg positions (D5-T104)
+regen: python -m bench.fp_snippets --id FP-TNT-05
+function ::top
+  block entry_1
+    [0] AssignValue 'hdr' value='[gets stdin]'  defs={hdr#1}  uses={}
+    [1] Call cmd='http::geturl'  defs={}  uses={hdr#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-TNT-05`)
+
+`$hdr` appears at arg index 2 in this statement; `taint_network_sink_args=(0,)` for `http::geturl`, so the position filter rejects it and T104 stays silent.
+
+#### Why the analyser reaches that verdict
+
+- `compiler/registry/taint_sink_info.py` — `TaintSinkInfo.is_network_sink: bool` replaced with `network_sink_args: tuple[int, ...] | None`.  Docstring documents the None / empty-tuple / non-empty semantics.
+- `compiler/registry/command_registry.py::classify_taint_sinks` — propagates the tuple instead of collapsing to bool.
+- `compiler/taint/_sinks.py::_classify_sink` — still emits T104 when the spec marks the command as a network sink (`network_sink_args is not None`).
+- `compiler/taint/_sinks.py::_find_taint_sinks` — adds `t104_addr_idxs` cache (same shape as T101/T102 region caches) and rejects per-var emissions when `len(t104_addr_idxs) > 0` and none of the var's arg indexes are in the tuple.  Empty tuple bypasses the filter (whole-statement scan).
+
+#### Tests
+
+- `tests/test_fp_tnt.py::test_FP_TNT_05_tainted_url_fires_t104` (TP, URL at positional[0])
+- `tests/test_fp_tnt.py::test_FP_TNT_05_tainted_header_value_no_t104` (FP suppressed, `-headers $hdr`)
+- `tests/test_fp_tnt.py::test_FP_TNT_05_socket_tainted_host_and_port_fire` (TP control, socket(0,1))
+
+---
+
 
 ## STY — style / usage (W001/W104/W120/W122/W124/W126/W214/W302/W306)
 

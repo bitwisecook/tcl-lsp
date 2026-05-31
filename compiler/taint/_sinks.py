@@ -426,8 +426,10 @@ def _classify_sink(
             cmd_label = f"{command} {profile.subcommand}"
         results.append(("T102", cmd_label))
 
-    # T104: network address sinks (SSRF)
-    if sink.is_network_sink:
+    # T104: network address sinks (SSRF).  Always emit when the registry
+    # marks the command as a network sink; per-arg position filtering
+    # happens at the per-var loop below using sink.network_sink_args.
+    if sink.network_sink_args is not None:
         results.append(("T104", command))
 
     # T105: cross-interpreter code execution
@@ -716,6 +718,19 @@ def _find_taint_sinks(
                 if _cmd in ("puts", "::puts"):
                     t101_output_idxs = _puts_output_positions(_cmd_args)
 
+            # T104 position filter (D5-T104): only tainted vars in the
+            # registry-declared network-address argument slots are SSRF
+            # candidates.  ``http::geturl URL -headers $hdr`` -- URL is
+            # positional[0], $hdr is an option value, so $hdr must NOT
+            # fire T104.  An empty tuple means "scan whole statement"
+            # (used by iRules ``connect`` with opaque option-driven addr).
+            t104_addr_idxs: tuple[int, ...] | None = None
+            if parsed is not None and any(code == "T104" for code, _ in sinks):
+                _cmd, _cmd_args = parsed
+                _sub = _cmd_args[0] if _cmd_args else None
+                _t104_sink = REGISTRY.classify_taint_sinks(_cmd, _sub, dialect)
+                t104_addr_idxs = _t104_sink.network_sink_args
+
             # Check each used variable for taint.
             for name, ver in uses.items():
                 t = taints.get((name, ver), _UNTAINTED)
@@ -730,6 +745,16 @@ def _find_taint_sinks(
                         if code == "T101" and t101_output_idxs is not None:
                             var_idxs = _stmt_var_arg_indexes(stmt, name)
                             if not any(i in t101_output_idxs for i in var_idxs):
+                                continue
+                        if (
+                            code == "T104"
+                            and t104_addr_idxs is not None
+                            and len(t104_addr_idxs) > 0
+                        ):
+                            # Non-empty -> position-filtered.  Empty
+                            # tuple -> whole-statement scan (no filter).
+                            var_idxs = _stmt_var_arg_indexes(stmt, name)
+                            if not any(i in t104_addr_idxs for i in var_idxs):
                                 continue
                         template = _OUTPUT_MESSAGES.get(code)
                         if template is not None:

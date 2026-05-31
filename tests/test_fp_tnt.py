@@ -303,3 +303,62 @@ def test_FP_TNT_04_no_terminator_fires():
     assert _codes(src, "T102"), (
         f"tainted pattern with no `--` must fire T102; got {get_diagnostics(src)}"
     )
+
+
+# FP-TNT-05 — T104 honours registry ``taint_network_sink_args`` arg positions (D5-T104)
+
+
+def test_FP_TNT_05_tainted_url_fires_t104():
+    """TP: ``http::geturl $url`` with tainted $url -- $url sits at the
+    registered network-address slot (positional[0]); T104 must fire.
+
+    tclsh ground truth (mock)::
+
+        % namespace eval http {}
+        % proc http::geturl {url args} { puts \"url=$url\nargs=$args\" }
+        % set url \"http://example.com\"
+        % http::geturl $url
+        url=http://example.com
+        args=
+
+    Registry: ``dialects/stdlib/http_.py`` sets
+    ``taint_network_sink_args=(0,)``.
+    """
+    src = "set url [gets stdin]\nhttp::geturl $url\n"
+    assert _codes(src, "T104"), (
+        f"tainted URL at positional[0] must fire T104; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_05_tainted_header_value_no_t104():
+    """TN: ``http::geturl http://example.com -headers $hdr`` -- $hdr is
+    an option VALUE (after the -headers switch), NOT the network
+    address.  Pre-fix T104 fired on any tainted var in the statement;
+    post-fix the position filter restricts it to ``taint_network_sink_args``.
+
+    tclsh (mock)::
+
+        % http::geturl http://example.com -headers $hdr
+        url=http://example.com
+        args=-headers {X-Custom: bad}
+
+    $hdr is an HTTP header, not the network destination.  No SSRF.
+    """
+    src = "set hdr [gets stdin]\nhttp::geturl http://example.com -headers $hdr\n"
+    assert _codes(src, "T104") == [], (
+        f"tainted header value must not fire T104; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_05_socket_tainted_host_and_port_fire():
+    """TP control: ``socket`` declares positions (0, 1) (host + port)
+    in ``taint_network_sink_args``.  Tainted host OR port at either
+    declared position fires T104."""
+    src_host = "set host [gets stdin]\nsocket $host 80\n"
+    src_port = "set port [gets stdin]\nsocket example.com $port\n"
+    assert _codes(src_host, "T104"), (
+        f"tainted host at socket[0] must fire T104; got {get_diagnostics(src_host)}"
+    )
+    assert _codes(src_port, "T104"), (
+        f"tainted port at socket[1] must fire T104; got {get_diagnostics(src_port)}"
+    )

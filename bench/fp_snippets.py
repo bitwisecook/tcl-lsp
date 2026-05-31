@@ -3064,6 +3064,42 @@ register(
 
 
 register(
+    "FP-TNT-05",
+    _Entry(
+        label="T104 honours registry network-address arg positions (D5-T104)",
+        proc="::top",
+        vars=("hdr",),
+        show=("ssa",),
+        notes=(
+            "Pre-fix: T104 fired on ANY tainted var in a network-sink\n"
+            "statement, ignoring the per-positional ``taint_network_sink_\n"
+            "args`` tuple already on ``CommandSpec``.  So ``http::geturl\n"
+            "URL -headers $hdr`` falsely fired on $hdr even though the\n"
+            "URL slot is positional[0] and $hdr is an option value.\n"
+            "\n"
+            "Post-fix:\n"
+            "\n"
+            "  * ``TaintSinkInfo.is_network_sink: bool`` renamed to\n"
+            "    ``network_sink_args: tuple[int, ...] | None``.  ``None``\n"
+            "    = not a sink, ``()`` = whole-statement scan (iRules\n"
+            "    ``connect``), non-empty = the declared positional slots.\n"
+            "  * ``_classify_sink`` still emits T104 when the registry\n"
+            "    declares the command as a network sink; the per-var loop\n"
+            "    in ``_find_taint_sinks`` then position-filters using\n"
+            "    ``classify_taint_sinks(...).network_sink_args``, mirroring\n"
+            "    the T102/T101 position filters."
+        ),
+        source=_dedent(
+            """
+            set hdr [gets stdin]
+            http::geturl http://example.com -headers $hdr
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-TNT-04",
     _Entry(
         label="late `--` doesn't protect earlier option candidates (D5-T102)",
