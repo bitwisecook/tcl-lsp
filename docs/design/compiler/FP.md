@@ -6159,6 +6159,128 @@ DOUBLE, NUMERIC, BOOLEAN, OBJECT — and the more common UNKNOWN/OVERDEFINED —
 
 ---
 
+### FP-OPT-11 — O120 ==/!= → eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
+
+- **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_11_*`
+- **Codes:** O120 (prefer `eq`/`ne` over `==`/`!=` for string comparison)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O120
+
+#### Reproducer
+
+```tcl
+proc f {raw} {
+    set a [string trim $raw]
+    if {$a == "1"} { puts yes } else { puts no }
+}
+```
+
+#### Per-line reasoning
+
+1. `set a [string trim $raw]` — `$a` is typed `STRING` (the type lattice
+   correctly tracks the *internal representation* of `[string trim]`'s
+   output) but its **runtime value** is unknown — could be `"1"`,
+   `"1.0"`, `"foo"`, etc.
+2. `if {$a == "1"}` — pre-fix O120 rewrote this to `if {$a eq "1"}`
+   under the "left side KNOWN STRING-typed → safe to rewrite" rule.
+   That rule is **unsound**: a STRING-typed Tcl value can still hold
+   numeric-looking text.  When `raw="1.0"`, `$a == "1"` is `1`
+   (numeric: `1.0 == 1.0`) but `$a eq "1"` is `0` (string:
+   `"1.0" ne "1"`).  The rewrite flips the result.
+3. **Tcl `==` semantics (expr(n)):** attempts int-then-double parse
+   on **both** operands; falls through to **string** compare iff at
+   least one operand fails to parse.  So the rewrite `==` → `eq` is
+   sound iff we can prove at least one operand cannot parse as a number.
+4. **D5-O120 closure:** `_rewrite_eq_ne_string_compare_node` now
+   requires **at least one** operand to satisfy
+   `_is_provably_non_numeric_expr_node`, defined as:
+   - `ExprString` literal AND text fails `_is_numeric_string_value`, OR
+   - `ExprVar` AND SCCP CONST value is a non-numeric string.
+
+   KNOWN STRING type is no longer accepted as proof (the unsound
+   heuristic).  In this reproducer the literal `"1"` IS numeric-looking
+   and `$a` has no SCCP CONST proof — neither side qualifies, so the
+   rewrite is correctly refused.
+5. **Why "at least one" (not "both"):** if either operand can't parse
+   as a number, Tcl's `==` falls through to string compare regardless
+   of the other operand's value.  Requiring both would block the
+   dominant `$a == "hello"` idiom where "hello" alone forces the
+   string path.  See the TN test for the contrast.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set a "1.0"
+% expr {$a == "1"}
+1
+% expr {$a eq "1"}
+0
+%
+% # The rewrite would flip 1 -> 0 for any raw containing numeric-
+% # looking text.  Confirmation for the at-least-one rule:
+% set a foo
+% expr {$a == "1"}
+0
+% expr {$a eq "1"}
+0
+% # Both 0 — "foo" is provably non-numeric, the rewrite is sound.
+```
+
+#### Compiler evidence
+
+```
+--- FP-OPT-11: O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
+regen: python -m bench.fp_snippets --id FP-OPT-11
+function ::f
+  block entry_1
+    [0] AssignValue 'a' value='[string trim $raw]'  defs={a#1}  uses={raw#0}
+    term Branch ExprBinary(op=<BinOp.EQ: '=='>, left=ExprVar(text='$a', name='a', start=0, end=1), right=ExprString(text='"1"', start=6, end=8))
+  block if_end_2
+    term Goto
+  block if_then_3
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block if_next_4
+    [0] Call cmd='puts'  defs={}  uses={}
+    term Goto
+  block exit_5
+    term (none — fall-through exit)
+  values (SCCP lattice)
+    a#1: OVERDEFINED
+  types
+    a#1: STRING
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-11`)
+
+`a#1` is typed STRING (correct internal-rep tracking) but its SCCP
+value is OVERDEFINED — no proof the runtime string is non-numeric.
+The literal `"1"` IS numeric-looking, so neither operand qualifies and
+the rewrite is correctly refused.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_expr_simplify.py::_rewrite_eq_ne_string_compare_node`
+now calls `_is_provably_non_numeric_expr_node` on each side and gates
+the rewrite on `left_non_num or right_non_num`.  The predicate inspects
+literal text OR SCCP CONST values — KNOWN STRING type alone is
+rejected (the previously-unsound shortcut).  `_try_eq_ne_string_compare_simplify_expr`
+gained a `values=None` kwarg and the propagation/branch-folding callers
+pass `analysis.values` through.
+
+The at-least-one rule (not both) preserves the dominant
+`$a == "hello"` idiom: "hello" alone forces Tcl's string path, so the
+rewrite remains sound regardless of `$a`'s runtime value.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_11_numeric_like_literal_string_typed_var_no_rewrite` (TP, must NOT rewrite)
+- `tests/test_fp_opt.py::test_FP_OPT_11_non_numeric_literal_still_rewrites` (TN, `$a == "hello"` MUST rewrite)
+- `tests/test_optimiser.py::TestStringCompareEqNe::test_numeric_like_literal_NOT_rewritten_for_string_typed_var` (TP)
+- `tests/test_optimiser.py::TestStringCompareEqNe::test_var_vs_var_from_string_producers_NOT_rewritten` (TP)
+
+---
+
 
 ## TNT — taint flow (T100/T101)
 

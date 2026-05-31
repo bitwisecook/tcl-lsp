@@ -1549,10 +1549,14 @@ class TestO120StringCompareEqNe:
         s = 'set a [clock seconds]\nif {$a == "1"} {}'
         assert _not_has(s, "O120")
 
-    def test_numeric_like_rewritten_for_string_var(self):
+    def test_numeric_like_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type proves internal-rep, NOT the runtime
+        value.  ``[string trim "1.0"]`` is STRING-typed but holds
+        ``"1.0"``; ``==`` is 1 (numeric), ``eq`` is 0 (string).  Per
+        the at-least-one-non-numeric rule, neither operand is provably
+        non-numeric, so the rewrite must NOT fire."""
         s = 'set a [string trim $raw]\nif {$a == "1"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "1"' in o
+        assert _not_has(s, "O120")
 
     def test_eq_in_expr_substitution(self):
         s = 'set ok [expr {$a == "world"}]'
@@ -1582,20 +1586,31 @@ class TestO120StringCompareEqNe:
         s = 'if {$a == "1.25"} {}'
         assert _not_has(s, "O120")
 
-    def test_boolean_like_literal_rewritten_for_string_var(self):
+    def test_boolean_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: ``"true"`` is in our BOOLEAN_WORDS predicate so
+        ``_is_numeric_string_value`` returns True (over-conservative
+        for ``==``; tclsh actually takes the string path on quoted
+        ``"true"``).  Safely conservative -- we lose an optimisation
+        but never introduce wrong output.  STRING type alone is no
+        longer accepted as proof per D5-O120."""
         s = 'set a [string trim $raw]\nif {$a == "true"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "true"' in o
+        assert _not_has(s, "O120")
 
-    def test_float_like_literal_rewritten_for_string_var(self):
+    def test_float_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: ``"1.25"`` is numeric-looking; STRING type doesn't
+        prove the var's runtime value is non-numeric (could be ``"1.25"``
+        too).  tclsh: ``set a "1.250"; expr {$a == "1.25"}`` is 1
+        (numeric), ``eq`` is 0 (string).  Must NOT rewrite."""
         s = 'set a [string trim $raw]\nif {$a == "1.25"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "1.25"' in o
+        assert _not_has(s, "O120")
 
-    def test_var_vs_var_known_string_types_rewritten(self):
+    def test_var_vs_var_known_string_types_NOT_rewritten(self):
+        """D5-O120: two STRING-typed vars without SCCP CONST proof --
+        both could hold numeric-looking text at runtime (``"1.0"`` /
+        ``"1"`` is the canonical case).  Without at-least-one operand
+        provably non-numeric, the rewrite must NOT fire."""
         s = "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}"
-        o, _ = _opt(s)
-        assert "$a eq $b" in o
+        assert _not_has(s, "O120")
 
     def test_mixed_expression_only_rewrites_string_compare(self):
         s = 'set a [string trim $raw]\nif {$a == "x" && $n == 1} {}'

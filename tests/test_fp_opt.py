@@ -449,3 +449,50 @@ def test_FP_OPT_10_provably_int_var_still_fires():
     assert any(r.code == "O114" for r in rewrites), (
         f"provably-INT incr-idiom rewrite must still fire O114; got {rewrites}"
     )
+
+
+# FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
+
+
+FP_OPT_11_TP_REPRO = (
+    "proc f {raw} {\n"
+    "    set a [string trim $raw]\n"
+    "    if {$a == \"1\"} { puts yes } else { puts no }\n"
+    "}\n"
+)
+
+FP_OPT_11_TN_REPRO = (
+    "proc f {raw} {\n"
+    "    set a [string trim $raw]\n"
+    "    if {$a == \"hello\"} { puts yes } else { puts no }\n"
+    "}\n"
+)
+
+
+def test_FP_OPT_11_numeric_like_literal_string_typed_var_no_rewrite():
+    """TP: STRING-typed ``$a`` + numeric-looking literal ``"1"`` MUST
+    NOT rewrite to ``eq``.  STRING type tracks the internal-rep but a
+    STRING-typed value can still hold ``"1.0"`` text where ``==`` is
+    1 (numeric) and ``eq`` is 0 (string) -- the rewrite flips the
+    result.  Per the at-least-one-non-numeric rule, neither operand
+    is provably non-numeric here."""
+    from compiler.optimiser import optimise_source
+
+    _, rewrites = optimise_source(FP_OPT_11_TP_REPRO)
+    assert not any(r.code == "O120" for r in rewrites), (
+        f"unsound O120 rewrite when neither operand provably non-numeric; got {rewrites}"
+    )
+
+
+def test_FP_OPT_11_non_numeric_literal_still_rewrites():
+    """TN: ``$a == "hello"`` -- the literal "hello" is provably non-
+    numeric, so Tcl ``==`` MUST take the string-compare path
+    regardless of $a's runtime value.  The rewrite to ``eq`` is
+    sound; at-least-one rule fires correctly."""
+    from compiler.optimiser import optimise_source
+
+    optimised, rewrites = optimise_source(FP_OPT_11_TN_REPRO)
+    assert any(r.code == "O120" for r in rewrites), (
+        f"sound O120 rewrite (non-numeric literal) must still fire; got {rewrites}"
+    )
+    assert '$a eq "hello"' in optimised, f"expected eq-form in: {optimised}"

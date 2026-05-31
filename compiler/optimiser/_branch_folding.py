@@ -114,12 +114,14 @@ def optimise_branch_proc_calls(
             expr_text,
             ssa_uses=ssa_block.exit_versions if ssa_block is not None else None,
             types=analysis.types,
+            values=analysis.values,
         )[1]
 
         compared, compare_changed = _try_eq_ne_string_compare_simplify_expr(
             substituted,
             ssa_uses=ssa_block.exit_versions if ssa_block is not None else None,
             types=analysis.types,
+            values=analysis.values,
         )
         combined, combine_changed = _instcombine_expr(
             compared,

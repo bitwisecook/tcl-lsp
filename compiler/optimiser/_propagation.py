@@ -127,6 +127,7 @@ def optimise_expression_args(
     namespace: str = "::",
     ssa_uses: dict[str, int] | None = None,
     types: dict[tuple[str, int], TypeLattice] | None = None,
+    values: dict | None = None,
 ) -> None:
     for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
         if idx >= len(args) or idx >= len(arg_tokens) or idx >= len(arg_single):
@@ -178,12 +179,14 @@ def optimise_expression_args(
             expr_text,
             ssa_uses=ssa_uses,
             types=types,
+            values=values,
         )[1]
 
         compared_expr, compare_changed = _try_eq_ne_string_compare_simplify_expr(
             substituted_expr,
             ssa_uses=ssa_uses,
             types=types,
+            values=values,
         )
 
         is_bool_ctx = REGISTRY.has_boolean_condition(cmd_name) or cmd_name == "elseif"
@@ -270,6 +273,7 @@ def optimise_expr_substitutions(
     *,
     ssa_uses: dict[str, int] | None = None,
     types: dict[tuple[str, int], TypeLattice] | None = None,
+    values: dict | None = None,
 ) -> None:
     from ._helpers import _try_fold_lindex_command, _try_fold_list_command
 
@@ -314,11 +318,13 @@ def optimise_expr_substitutions(
             expr_arg,
             ssa_uses=ssa_uses,
             types=types,
+            values=values,
         )[1]
         compared_expr, compare_changed = _try_eq_ne_string_compare_simplify_expr(
             substituted_expr,
             ssa_uses=ssa_uses,
             types=types,
+            values=values,
         )
         combined_expr, combine_changed = _instcombine_expr(
             compared_expr,

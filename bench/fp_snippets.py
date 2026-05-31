@@ -2457,6 +2457,48 @@ register(
 
 
 register(
+    "FP-OPT-11",
+    _Entry(
+        label="O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)",
+        proc="::f",
+        vars=("a",),
+        show=("ssa", "values", "types"),
+        notes=(
+            "Pre-fix: O120 rewrote ``$a == \"1\"`` -> ``$a eq \"1\"`` when\n"
+            "``$a`` was KNOWN STRING-typed.  But STRING type proves only\n"
+            "the *internal representation*; the runtime VALUE can still\n"
+            "be numeric-looking text (e.g. ``set a [string trim \"1.0\"]``\n"
+            "is STRING-typed but holds ``\"1.0\"``).  tclsh: ``$a == \"1\"``\n"
+            "with ``a=\"1.0\"`` is 1 (numeric); ``$a eq \"1\"`` is 0 (string)\n"
+            "-- the rewrite flips the result.\n"
+            "\n"
+            "Post-fix: ``_rewrite_eq_ne_string_compare_node`` now requires\n"
+            "AT LEAST ONE operand to be provably non-numeric.  Tcl ``==``\n"
+            "takes the string-compare path iff at least one operand can't\n"
+            "parse as a number (int-then-double parse on BOTH).  Proof\n"
+            "sources: ``ExprString`` literal whose text is not numeric-\n"
+            "looking, or ``ExprVar`` whose SCCP CONST value is non-\n"
+            "numeric.  KNOWN STRING type alone is rejected.\n"
+            "\n"
+            "The reproducer pattern is the reviewer's case: the literal\n"
+            "``\"1\"`` IS numeric-looking, the var ``$a`` has no SCCP\n"
+            "CONST proof (only STRING type from ``string trim``), so\n"
+            "neither operand satisfies the predicate -- the rewrite is\n"
+            "correctly refused.  See D5-O120."
+        ),
+        source=_dedent(
+            """
+            proc f {raw} {
+                set a [string trim $raw]
+                if {$a == "1"} { puts yes } else { puts no }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
     "FP-OPT-10",
     _Entry(
         label="O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)",

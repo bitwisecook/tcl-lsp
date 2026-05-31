@@ -397,6 +397,49 @@ def _is_definitely_string_expr_node(
     return known is TclType.STRING
 
 
+def _is_provably_non_numeric_expr_node(
+    node: ExprNode,
+    *,
+    ssa_uses: dict[str, int] | None,
+    values: "dict | None",
+) -> bool:
+    """Return True when *node* is provably NOT numeric-looking.
+
+    D5-O120: the ``==``/``!=`` -> ``eq``/``ne`` rewrite is sound only when
+    BOTH operands are provably non-numeric.  A KNOWN STRING-typed Tcl
+    value can still contain numeric-looking text (e.g. ``set a [string
+    trim "1.0"]`` is STRING-typed but value ``"1.0"``); numeric ``==``
+    treats it as the number 1.0, but ``eq`` treats it as the string
+    ``"1.0"`` -- result flips.
+
+    Safe shapes:
+        * ExprString literal whose text does NOT parse as numeric.
+        * ExprVar whose SCCP CONST value is a non-numeric string.
+
+    Everything else (variable without a CONST proof, command sub,
+    arithmetic result, …) is conservatively rejected.  This subsumes
+    the older "KNOWN STRING type" check, which is unsound -- STRING
+    type tells us the internal representation, not the textual value.
+    """
+    from ..core_analyses import LatticeKind
+
+    if isinstance(node, ExprString):
+        return not _is_numeric_string_value(_strip_expr_string(node.text))
+    if isinstance(node, ExprVar) and ssa_uses is not None and values is not None:
+        ver = ssa_uses.get(node.name, 0)
+        if ver <= 0:
+            return False
+        lv = values.get((node.name, ver))
+        if lv is None or getattr(lv, "kind", None) is not LatticeKind.CONST:
+            return False
+        val = getattr(lv, "value", None)
+        if not isinstance(val, str):
+            # Non-string CONST (int, float, bool) is by definition numeric.
+            return False
+        return not _is_numeric_string_value(val)
+    return False
+
+
 # Numeric types for which Tcl expr arithmetic coercion is guaranteed to succeed.
 _NUMERIC_TCL_TYPES = frozenset(
     {TclType.INT, TclType.DOUBLE, TclType.NUMERIC, TclType.BOOLEAN}
@@ -445,19 +488,31 @@ def _rewrite_eq_ne_string_compare_node(
     *,
     ssa_uses: dict[str, int] | None,
     types: dict[tuple[str, int], TypeLattice] | None,
+    values: "dict | None" = None,
 ) -> tuple[ExprNode, bool]:
-    """Rewrite ``==``/``!=`` string compares to ``eq``/``ne``."""
+    """Rewrite ``==``/``!=`` string compares to ``eq``/``ne``.
+
+    D5-O120: tightened to require BOTH operands provably non-numeric.
+    A KNOWN STRING-typed value can still hold numeric-looking text
+    (``set a [string trim "1.0"]`` is STRING-typed; ``$a == "1"`` is
+    1 in tclsh but ``$a eq "1"`` is 0).  The older "KNOWN STRING" check
+    is therefore unsound; replaced with
+    ``_is_provably_non_numeric_expr_node`` which inspects the literal
+    text or the SCCP CONST value.
+    """
     match node:
         case ExprBinary(op=op, left=left, right=right):
             left_new, left_changed = _rewrite_eq_ne_string_compare_node(
                 left,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             right_new, right_changed = _rewrite_eq_ne_string_compare_node(
                 right,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             changed = left_changed or right_changed
 
@@ -466,50 +521,28 @@ def _rewrite_eq_ne_string_compare_node(
                     return ExprBinary(op=op, left=left_new, right=right_new), True
                 return node, False
 
-            left_is_str = isinstance(left_new, ExprString)
-            right_is_str = isinstance(right_new, ExprString)
-
-            if not left_is_str and not right_is_str:
-                # Neither side is a literal — check SSA types.
-                # Require *both* operands to be definitively string-typed
-                # to avoid changing semantics for mixed string/numeric
-                # comparisons (e.g. STRING vs INT).
-                left_def_str = _is_definitely_string_expr_node(
-                    left_new,
-                    ssa_uses=ssa_uses,
-                    types=types,
-                )
-                right_def_str = _is_definitely_string_expr_node(
-                    right_new,
-                    ssa_uses=ssa_uses,
-                    types=types,
-                )
-                if not (left_def_str and right_def_str):
-                    if changed:
-                        return ExprBinary(op=op, left=left_new, right=right_new), True
-                    return node, False
-            elif left_is_str:
-                assert isinstance(left_new, ExprString)
-                literal_text = _strip_expr_string(left_new.text)
-                if _is_numeric_string_value(literal_text) and not _is_definitely_string_expr_node(
-                    right_new,
-                    ssa_uses=ssa_uses,
-                    types=types,
-                ):
-                    if changed:
-                        return ExprBinary(op=op, left=left_new, right=right_new), True
-                    return node, False
-            else:
-                assert isinstance(right_new, ExprString)
-                literal_text = _strip_expr_string(right_new.text)
-                if _is_numeric_string_value(literal_text) and not _is_definitely_string_expr_node(
-                    left_new,
-                    ssa_uses=ssa_uses,
-                    types=types,
-                ):
-                    if changed:
-                        return ExprBinary(op=op, left=left_new, right=right_new), True
-                    return node, False
+            # D5-O120: rewrite ``==``/``!=`` -> ``eq``/``ne`` is sound iff
+            # Tcl would definitely take the string-compare path, i.e.
+            # AT LEAST ONE operand cannot parse as a number.  Tcl ``==``
+            # attempts int then double parse on BOTH operands and falls
+            # through to string compare iff at least one parse fails.
+            # So proving one operand provably non-numeric is sufficient;
+            # requiring BOTH would block the dominant ``$a == "hello"``
+            # idiom where "hello" alone forces the string path.
+            left_non_num = _is_provably_non_numeric_expr_node(
+                left_new,
+                ssa_uses=ssa_uses,
+                values=values,
+            )
+            right_non_num = _is_provably_non_numeric_expr_node(
+                right_new,
+                ssa_uses=ssa_uses,
+                values=values,
+            )
+            if not (left_non_num or right_non_num):
+                if changed:
+                    return ExprBinary(op=op, left=left_new, right=right_new), True
+                return node, False
 
             new_op = BinOp.STR_EQ if op is BinOp.EQ else BinOp.STR_NE
             return ExprBinary(op=new_op, left=left_new, right=right_new), True
@@ -519,6 +552,7 @@ def _rewrite_eq_ne_string_compare_node(
                 operand,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             if changed:
                 return ExprUnary(op=op, operand=operand_new), True
@@ -529,16 +563,19 @@ def _rewrite_eq_ne_string_compare_node(
                 cond,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             tb_new, t_changed = _rewrite_eq_ne_string_compare_node(
                 tb,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             fb_new, f_changed = _rewrite_eq_ne_string_compare_node(
                 fb,
                 ssa_uses=ssa_uses,
                 types=types,
+                values=values,
             )
             if c_changed or t_changed or f_changed:
                 return ExprTernary(
@@ -554,6 +591,7 @@ def _rewrite_eq_ne_string_compare_node(
                     arg,
                     ssa_uses=ssa_uses,
                     types=types,
+                    values=values,
                 )
                 changed = changed or arg_changed
                 new_args.append(arg_new)
@@ -570,8 +608,14 @@ def _try_eq_ne_string_compare_simplify_expr(
     *,
     ssa_uses: dict[str, int] | None = None,
     types: dict[tuple[str, int], TypeLattice] | None = None,
+    values: "dict | None" = None,
 ) -> tuple[str, bool]:
-    """Simplify string compares from numeric to string operators."""
+    """Simplify string compares from numeric to string operators.
+
+    See ``_rewrite_eq_ne_string_compare_node`` for the D5-O120 soundness
+    constraint.  ``values`` is the SCCP value lattice; required to
+    classify SCCP-known string constants as non-numeric.
+    """
     stripped = expr.strip()
     parsed = parse_expr(stripped, dialect=active_dialect())
     if isinstance(parsed, ExprRaw):
@@ -580,6 +624,7 @@ def _try_eq_ne_string_compare_simplify_expr(
         parsed,
         ssa_uses=ssa_uses,
         types=types,
+        values=values,
     )
     if not changed:
         return expr, False

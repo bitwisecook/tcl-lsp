@@ -268,6 +268,7 @@ class _CompilerOptimiser:
                     namespace=namespace,
                     ssa_uses=ssa_stmt.uses,
                     types=analysis.types,
+                    values=analysis.values,
                 )
                 optimise_expr_substitutions(
                     ctx,
@@ -276,6 +277,7 @@ class _CompilerOptimiser:
                     constants,
                     ssa_uses=ssa_stmt.uses,
                     types=analysis.types,
+                    values=analysis.values,
                 )
                 optimise_static_proc_calls(
                     ctx, arg_tokens, arg_single, constants, namespace=namespace

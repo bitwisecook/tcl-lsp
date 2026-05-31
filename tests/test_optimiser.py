@@ -1244,11 +1244,20 @@ class TestStringCompareEqNe:
         assert '$a == "1"' in optimised
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_numeric_like_literal_rewritten_for_known_string_var(self):
+    def test_numeric_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
+
+        tclsh: ``set a [string trim "1.0"]`` is STRING-typed (intrep),
+        but its value "1.0" parses as a double.  ``expr {$a == "1"}``
+        takes the numeric path: 1.0 == 1.0 -> 1.  ``expr {$a eq "1"}``
+        takes the string path: "1.0" ne "1" -> 0.  The rewrite would
+        flip the result.  Per the at-least-one-non-numeric rule, the
+        literal "1" IS numeric-looking and the var is unproven, so we
+        must NOT rewrite.
+        """
         source = 'set a [string trim $raw]\nif {$a == "1"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "1"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_both_string_typed(self):
         source = "set a foo\nset b bar\nif {$a == $b} {}"
@@ -1258,11 +1267,19 @@ class TestStringCompareEqNe:
         assert "==" not in optimised
         assert any(r.code == "O120" for r in rewrites)
 
-    def test_var_vs_var_one_string_typed_not_rewritten(self):
-        """Only one side is known-string; the other is unknown — don't rewrite."""
+    def test_var_vs_var_one_const_non_numeric_IS_rewritten(self):
+        """D5-O120: SCCP CONST proves the runtime value is non-numeric.
+
+        ``set a foo`` gives ``a`` an SCCP CONST("foo").  "foo" cannot
+        parse as a number, so Tcl ``==`` will always take the string
+        path regardless of $b's runtime value -- the rewrite to ``eq``
+        is sound (at-least-one-non-numeric rule).  tclsh-verified:
+        ``set a foo; set b X; expr {$a == $b}`` == ``expr {$a eq $b}``
+        for every X tested (foo/1/1.0/true/yes/...).
+        """
         source = "set a foo\nif {$a == $b} {}"
         _, rewrites = optimise_source(source)
-        assert not any(r.code == "O120" for r in rewrites)
+        assert any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_int_typed_not_rewritten(self):
         source = "set a [expr {1 + 2}]\nset b [expr {3 + 4}]\nif {$a == $b} {}"
@@ -1284,17 +1301,36 @@ class TestStringCompareEqNe:
         _, rewrites = optimise_source(source)
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_boolean_like_literal_rewritten_for_known_string_var(self):
-        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "true"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
+    def test_boolean_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
 
-    def test_var_vs_var_from_string_producers_rewritten(self):
+        While tclsh actually treats ``"true"`` as a string in ``==``
+        contexts (``expr {"1" == "true"}`` -> 0, never 1), our
+        ``_is_numeric_string_value("true")`` is over-conservative
+        because it shares the BOOLEAN_WORDS predicate with the
+        constant-substitution path (where ``true`` IS the boolean 1).
+        Safely conservative: we lose this optimisation but never
+        introduce wrong output.  Test pins the conservatism so a
+        future precision tightening must remove ``true``/``false``
+        from the O120 numeric-looking set deliberately.
+        """
+        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
+
+    def test_var_vs_var_from_string_producers_NOT_rewritten(self):
+        """D5-O120: two STRING-typed vars without CONST proof.
+
+        Both ``$a`` and ``$b`` are typed STRING (output of ``string
+        trim``) but neither has an SCCP CONST value -- they could
+        both hold "1.0"/"1" at runtime, where ``==`` is 1 (numeric)
+        and ``eq`` is 0 (string).  The old test encoded the unsound
+        STRING-typed-is-enough heuristic; per the at-least-one-non-
+        numeric rule we now correctly bail.
+        """
         source = "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}"
-        optimised, rewrites = optimise_source(source)
-        assert "$a eq $b" in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
 
     def test_mixed_expr_only_rewrites_string_compare(self):
         source = 'set a [string trim $raw]\nif {$a == "x" && $n == 1} {}'
