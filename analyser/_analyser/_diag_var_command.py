@@ -294,6 +294,75 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 return _func_constsets.get(best[1], {})
             return all_constsets  # fallback to merged
 
+        # Map qname -> FunctionUnit for the per-SSA-version precise lookup.
+        _fu_by_qname = dict(_all_fus_named)
+
+        def _fu_qname_for_offset(offset: int) -> str | None:
+            """Return the qname of the NARROWEST function range containing
+            *offset* (mirrors ``_constsets_for_offset``'s scoping)."""
+            best: tuple[int, str] | None = None
+            for qname, start, end in _func_ranges:
+                if start <= offset <= end:
+                    width = end - start
+                    if best is None or width < best[0]:
+                        best = (width, qname)
+            return best[1] if best is not None else None
+
+        def _precise_cmd_values(
+            offset: int, var_name: str
+        ) -> frozenset[int | float | bool | str] | None:
+            """The SCCP value set of *var_name* at the SSA use-version that
+            reaches the dispatch statement at *offset*.
+
+            This is the per-SSA-version refinement (post-stage2 §A): the
+            merged ``_func_constsets`` map unions every version of a
+            variable, so ``set c notacommand; set c parse; $c x`` wrongly
+            keeps ``notacommand`` in the set even though only the ``parse``
+            version reaches the dispatch.  Reading the value at the use
+            site's exact version removes that false positive.
+
+            Purely additive: returns a set only when an SSA statement that
+            contains *offset* AND uses *var_name* is found and its version
+            has a concrete CONST/CONSTSET value; otherwise ``None`` and the
+            caller falls back to the merged-set logic.  Never broadens a
+            fire into a suppression unsoundly — the value is the exact one
+            flowing into the dispatch.
+            """
+            qname = _fu_qname_for_offset(offset)
+            if qname is None:
+                return None
+            fu_unit = _fu_by_qname.get(qname)
+            if fu_unit is None:
+                return None
+            # Find the narrowest CFG statement containing *offset* that uses
+            # *var_name*, and read its SSA use-version (CFG/SSA blocks are
+            # parallel-indexed, as the optimiser relies on).
+            best_width: int | None = None
+            best_version: int | None = None
+            for block_name, block in fu_unit.cfg.blocks.items():
+                ssa_block = fu_unit.ssa.blocks.get(block_name)
+                if ssa_block is None:
+                    continue
+                for idx, stmt in enumerate(block.statements):
+                    rng = getattr(stmt, "range", None)
+                    if rng is None or not (rng.start.offset <= offset <= rng.end.offset):
+                        continue
+                    if idx >= len(ssa_block.statements):
+                        continue
+                    version = ssa_block.statements[idx].uses.get(var_name)
+                    if version is None:
+                        continue
+                    width = rng.end.offset - rng.start.offset
+                    if best_width is None or width < best_width:
+                        best_width = width
+                        best_version = version
+            if best_version is None:
+                return None
+            lv = fu_unit.analysis.values.get((var_name, best_version))
+            if lv is None:
+                return None
+            return _lattice_to_set(lv)
+
         # D3-P7 closure: harvest literal element values from
         # ``array set arr {k1 v1 k2 v2 ...}`` so the W307 callback-
         # array suppression can check the ACTUAL value of
@@ -939,6 +1008,16 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # Use per-function scoping to avoid cross-procedure conflation.
                 scoped_cs = _constsets_for_offset(site_range.start.offset)
                 constset_vals = scoped_cs.get(var_name)
+                # Per-SSA-version refinement (post-stage2 §A): prefer the
+                # value at the dispatch's exact use-version when available.
+                # This drops the merged-set false positive on a variable
+                # reassigned from a non-command to a known command before
+                # the dispatch (``set c x; set c parse; $c ...``).  Falls
+                # back to the merged set when no precise version is found.
+                if cmd_word_single:
+                    precise_vals = _precise_cmd_values(site_range.start.offset, var_name)
+                    if precise_vals is not None:
+                        constset_vals = precise_vals
                 if (
                     cmd_word_single
                     and constset_vals is not None
