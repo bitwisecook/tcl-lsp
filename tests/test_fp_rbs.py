@@ -210,6 +210,45 @@ def test_FP_RBS_02_regexp_in_positive_condition_success_branch_silent():
     assert not diags, f"success-branch use must NOT fire W210; got {diags}"
 
 
+def test_FP_RBS_02_regexp_nocase_silent_on_literal_match():
+    """FP / control: ``regexp -nocase`` makes the literal-match path
+    case-insensitive, so ``regexp -nocase {x} X v`` MATCHES and sets
+    ``v``.  The no-match estimator now case-folds both sides when
+    ``-nocase`` is in the switches, so this must stay silent.  (F5 of
+    the PR #498 special-casing review.)"""
+    src = "proc f {} { regexp -nocase {x} X v; puts $v }"
+    diags = [d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")]
+    assert not diags, f"-nocase literal match must NOT fire W210; got {diags}"
+
+
+def test_FP_RBS_02_regexp_unknown_switch_bails():
+    """FP / safety: the estimator must bail (return cannot-prove) on
+    any unrecognised ``regexp`` switch -- a future Tcl release could
+    add a switch that weakens the literal-match assumption.  Tested
+    with a synthetic ``-bogus`` and the real ``-about`` switch (which
+    returns metadata, not a match result)."""
+    for opt in ("-bogus", "-about"):
+        src = f"proc f {{}} {{ regexp {opt} {{x}} X v; puts $v }}"
+        diags = [
+            d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")
+        ]
+        assert not diags, f"{opt} must conservatively NOT fire W210; got {diags}"
+
+
+def test_FP_RBS_02_regexp_safe_switch_still_fires():
+    """TP / control: switches that don't change match-vs-no-match for a
+    literal pattern (``-line``/``-lineanchor``/``-linestop``/
+    ``-expanded``/``-indices``/``-inline``/``-all``/``-start``/``--``)
+    must NOT inhibit the no-match verdict.  Pattern ``x`` vs input ``X``
+    is a real no-match under every one of those, so W210 must fire."""
+    for opt in ("-line", "-lineanchor", "-linestop", "-expanded", "-indices", "-inline", "-all"):
+        src = f"proc f {{}} {{ regexp {opt} {{x}} X v; puts $v }}"
+        diags = [
+            d for d in get_diagnostics(src) if d.code == "W210" and "'v'" in (d.message or "")
+        ]
+        assert diags, f"{opt} must still allow W210 to fire; got {get_diagnostics(src)}"
+
+
 def test_FP_RBS_02_scan_provably_no_match_fires_w210():
     """TP / SCCP-driven match analysis: ``scan abc %d n`` -- the
     format ``%d`` requires the input to start with a digit (or sign),

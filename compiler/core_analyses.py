@@ -1885,14 +1885,46 @@ def _def_place(ir_stmt: IRStatement, ctx) -> Place | None:
 
 _TCL_REGEX_METACHARS = frozenset(r"\^$.|?*+()[]{}")
 
+# ``regexp`` switches that do NOT change match-vs-no-match for a
+# pure-literal pattern (one with no metacharacters): they either alter
+# the return shape (``-indices``/``-inline``/``-all``), restrict where
+# the match may begin (``-start``; tcl-match ⊆ naive-substring), or
+# only affect anchor / whitespace semantics that a no-metachar pattern
+# cannot use (``-line``/``-lineanchor``/``-linestop``/``-expanded``).
+# ``--`` is the option terminator and is also benign.  Anything outside
+# this set (e.g. ``-nocase`` which weakens matching, ``-about`` which
+# does not return a match at all, or an option we simply don't know
+# about) forces the caller to bail conservatively.
+_REGEXP_LITERAL_SAFE_SWITCHES = frozenset(
+    {
+        "-indices",
+        "-inline",
+        "-all",
+        "-line",
+        "-lineanchor",
+        "-linestop",
+        "-expanded",
+        "-start",
+        "--",
+    }
+)
 
-def _regexp_literal_no_match(pat: str, inp: str) -> bool:
+
+def _regexp_literal_no_match(pat: str, inp: str, options: tuple[str, ...] = ()) -> bool:
     """Return True iff Tcl's ``regexp PATTERN INPUT`` provably returns 0.
 
     Sound only when *pat* is a pure-literal pattern: it contains no
     Tcl Advanced Regular Expression (ARE) metacharacters.  In that case
-    Tcl ARE's match reduces to substring search and ``pat in inp``
-    is the exact predicate.
+    Tcl ARE's match reduces to substring search.
+
+    *options* is the list of switch tokens stripped from the front of
+    the ``regexp`` invocation (``args[:skip_options(...)]``).  Only
+    switches in ``_REGEXP_LITERAL_SAFE_SWITCHES`` are safe to ignore
+    on the literal path; ``-nocase`` is handled by case-folding both
+    sides; anything else bails (returns False = cannot prove no-match).
+    This is the conservative bar -- a false "no match" verdict would
+    fire a spurious W210, which must never happen.  (F5 of the PR #498
+    special-casing review.)
 
     Python's ``re.search`` is NOT used as the oracle: Python regex
     and Tcl ARE differ on several constructs (``\\w`` Unicode handling,
@@ -1904,6 +1936,22 @@ def _regexp_literal_no_match(pat: str, inp: str) -> bool:
     """
     if any(c in _TCL_REGEX_METACHARS for c in pat):
         return False
+    nocase = False
+    for opt in options:
+        # Skip option values (the token after ``-start`` etc.) -- only
+        # the switches themselves carry semantics for this analysis.
+        if not opt.startswith("-"):
+            continue
+        if opt == "-nocase":
+            nocase = True
+            continue
+        if opt in _REGEXP_LITERAL_SAFE_SWITCHES:
+            continue
+        # Unknown / unsafe switch (e.g. ``-about``, or a switch added in
+        # a future Tcl release we don't model).  Bail conservatively.
+        return False
+    if nocase:
+        return pat.casefold() not in inp.casefold()
     return pat not in inp
 
 
@@ -3103,7 +3151,11 @@ def _read_before_set(
                 inp, pat = text_a, text_b
             no_match = False
             if stmt.command == "regexp":
-                no_match = _regexp_literal_no_match(pat, inp)
+                # Pass the switches stripped from the front so the
+                # estimator can reject ``-nocase`` / ``-about`` / any
+                # option that would weaken the literal-match assumption.
+                opts = tuple(stmt.args[:pos])
+                no_match = _regexp_literal_no_match(pat, inp, opts)
             else:
                 no_match = scan_provably_no_match(pat, inp)
             if no_match:
@@ -3150,11 +3202,11 @@ def _read_before_set(
                 inp, pat = cmd_args[pos], cmd_args[pos + 1]
             if any(c in pat for c in "$[") or any(c in inp for c in "$["):
                 continue
-            no_match = (
-                _regexp_literal_no_match(pat, inp)
-                if cmd_name == "regexp"
-                else scan_provably_no_match(pat, inp)
-            )
+            if cmd_name == "regexp":
+                opts = tuple(cmd_args[:pos])
+                no_match = _regexp_literal_no_match(pat, inp, opts)
+            else:
+                no_match = scan_provably_no_match(pat, inp)
             if not no_match:
                 continue
             # Determine which branch runs when the embedded call
