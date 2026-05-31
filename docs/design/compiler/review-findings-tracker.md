@@ -60,7 +60,7 @@ Tclsh-verified positive/negative pairs.
 | ID | Pair | FN status | TN status | Closure target |
 |---|---|---|---|---|
 | D3-P1 | empty `dict with` + `return $missing` | ✅ FIXED | ✅ silent | Via D4-F3 (key-aware dict-with on return path) |
-| D3-P2 | call-site literal dict not used interproc | ⬜ TODO (FN) | ✅ already silent | Interproc dict propagation |
+| D3-P2 | call-site literal dict not used interproc | 📋 DEFERRED | ✅ silent | Closing this would require BOTH (a) interprocedural call-site literal-arg collection AND (b) a refined SCCP barrier-widening model that preserves param-version-0 CONST values across barriers.  Currently the IRBarrier (which models `dict with` side effects) widens EVERY tracked value to OVERDEFINED -- erasing any param_constants we'd seed.  Attempted in this session; reverted because the barrier-widening change has wide-ranging soundness implications that need separate audit. |
 | D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) |
 | D3-P4 | `[my plain] run` where plain returns string | ✅ FIXED | Lightweight method-body inspection: when `my <method>` resolves to a method in the enclosing class whose body is a simple `return <literal>` (no cmd-sub, no var interpolation), override the self-dispatch object heuristic and fire W307.  Compound bodies stay conservatively suppressed. |
 | D3-P5 | `[::pkg::plain]` external returns string | 📋 DEFERRED | D4-F6 partial -- `::`-prefix heuristic kept for tcllib corpus compat; full closure requires registry coverage of factory commands |

@@ -480,16 +480,34 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 # D4-F6 partial: when the namespaced command IS a known
                 # user proc and the fixpoint has NOT classified it as
                 # object-returning, that's evidence it returns a plain
-                # value -- override the ``::`` heuristic.  (For
-                # external / unregistered namespaced commands, we still
-                # assume object-factory by convention; D3-P5 documents
-                # this as an open precision case requiring registry
-                # coverage of tcllib factory commands.)
+                # value -- override the ``::`` heuristic.
                 qualified = cmd_head if cmd_head.startswith("::") else f"::{cmd_head}"
                 if qualified in self.result.all_procs:
                     # User proc -- defer to the fixpoint (which uses
                     # ``object_returning_procs`` membership).
                     return False
+                # D3-P5 closure: a registered namespaced command whose
+                # return type is EXPLICITLY known to not be OBJECT
+                # (e.g. STRING / INT / LIST) overrides the heuristic
+                # too.  Most tcllib factories don't have return_type
+                # set in the registry (they default to None which is
+                # treated as unknown), so this catches the small set
+                # of namespaced commands that do (http::*, clock::*,
+                # etc.) without losing the factory suppression on the
+                # bulk of tcllib factory commands.
+                from compiler.registry.runtime import REGISTRY as _REG_W307
+                from compiler.types import TclType as _TT
+
+                _spec = _REG_W307.get_any(cmd_head) or _REG_W307.get_any(qualified)
+                if _spec is not None and _spec.forms:
+                    rt = _spec.forms[0].return_type
+                    if rt is not None and rt is not _TT.OBJECT:
+                        return False
+                # D3-P5 fully open: unregistered ``::pkg::plain``-style
+                # namespaced commands can't be distinguished from
+                # legitimate factories without per-command registry
+                # data.  Documented in tracker; fix requires tcllib /
+                # Tk factory return-type registry coverage.
                 return True
             return False
 
