@@ -61,6 +61,20 @@ from .ir import (
 # Short names: r = Range, bn = block name (str).
 
 
+# Commands that unconditionally exit the proc (``error``, ``throw``,
+# ``exit``) -- collected from the registry's ``terminates_block`` trait.
+# ``return`` is also in the trait set but is lowered separately as an
+# IRReturn / IRBarrier; this set is consulted in the analysis-only
+# block-terminator promotion path for IRCalls.
+def _terminating_commands() -> frozenset[str]:
+    # Drop ``return`` -- it's handled by the IRReturn / IRBarrier arms;
+    # the trait set is used here only for IRCall-form terminators.
+    return REGISTRY.check_trait_commands("terminates_block") - {"return"}
+
+
+_TERMINATING_COMMANDS = _terminating_commands()
+
+
 def _defs_from_body_script(body_text: str) -> list[str]:
     """Extract variable names defined by commands in a body script.
 
@@ -1042,6 +1056,24 @@ class _CFGBuilder:
                 case _:
                     stmt = self._apply_upvar_invalidation(stmt, block)
                     block.statements.append(stmt)
+                    # Non-returning commands (``error``, ``throw``,
+                    # ``exit`` -- registered via the ``terminates_block``
+                    # trait) unconditionally exit the proc.  In analysis
+                    # builds, terminate the block so post-statement dead
+                    # code is routed to the orphan unreachable block
+                    # and downstream phi-merges don't see versions
+                    # that can never actually be observed at the
+                    # successor.  Codegen builds leave the IRCall as-is
+                    # so the bytecode path matches tclsh.
+                    if (
+                        self._faithful_exceptions
+                        and isinstance(stmt, IRCall)
+                        and stmt.canonical_command
+                        and stmt.canonical_command.lstrip(":") in _TERMINATING_COMMANDS
+                    ):
+                        block.terminator = CFGReturn(
+                            value=None, range=stmt.range, expr=None, braced=False
+                        )
 
         return current
 

@@ -349,14 +349,18 @@ def test_TP_S101_per_iteration_mixed_intrep_thrash():
     assert _any(src, "S100", "S101", "S102")
 
 
-def test_TP_W220_dead_after_error_command():
+def test_TP_dead_after_error_command():
     """``error oops`` unconditionally raises; statements after it are
-    unreachable.  Analyser fires W220 on the dead ``set x 2``.
+    unreachable.  The CFG builder promotes ``error`` (registered with
+    the ``terminates_block`` registry trait) to a block terminator in
+    analysis builds, so O107 fires on the post-error dead code.
 
     runtime: ``catch f msg; puts $msg`` -> ``oops``  (the dead set never runs)
     """
     src = "proc f {} {\n    error oops\n    set x 2\n}\n"
-    assert _any(src, "W220")
+    assert _any(src, "O107", "W220"), (
+        "post-error statement must fire either O107 (unreachable) or W220 (dead store)"
+    )
 
 
 # =====================================================================
