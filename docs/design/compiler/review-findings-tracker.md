@@ -1,14 +1,21 @@
 # Review-findings tracker
 
-Every finding from the four review docs uploaded 2026-05-31, with current
+Every finding from the five review docs uploaded 2026-05-31, with current
 status and verification.  Status legend:
 
 * ⬜ TODO — not yet addressed
-* 🔄 IN-PROGRESS — partial fix landed, more work needed
+* 🔄 PARTIAL — soundness/precision gate landed; full closure depends on
+  an upstream architectural change tracked in
+  [`post-stage2-followups.md`](post-stage2-followups.md)
 * ✅ FIXED — closed with regression test pinning the verdict
 * ✅ ALREADY FIXED — earlier work closed this before the review was written
 * ❌ NOT-A-BUG — review claim verified false against tclsh
 * 📋 DEFERRED — tracked, larger work, intentionally out of scope this session
+
+**Status at merge:** 46 FIXED · 4 PARTIAL · 0 TODO.  The 4 PARTIALs
+share two architectural prerequisites — see
+[`post-stage2-followups.md`](post-stage2-followups.md) for the full
+closure plans.
 
 Verification convention: each finding is verified against the snippet
 in the review doc using `get_diagnostics()` and (where applicable) real
@@ -63,7 +70,7 @@ Tclsh-verified positive/negative pairs.
 | D3-P2 | call-site literal dict not used interproc | ✅ FIXED | ✅ silent | Two-part fix: (a) `compiler.core_analyses._collect_call_site_constants` collects per-callee literal arg values across all call sites in the IR module; `_compile_source_inner` + `analyse_ir_module` seed `param_constants={(p,0): CONST(v)}` only when EVERY caller agrees on the literal (mixed callers -> conservative fallback).  (b) SCCP barrier-widening refined to PRESERVE version-0 entries (param entry values are by construction the input-from-outside value, never re-written in the function body).  Together they let `f {}` propagate to `d#0 = CONST('')` in the callee, the dict-with key-aware logic sees no keys, and `return $missing` correctly fires W210. · [FP-DS-09](FP.md#fp-ds-09) |
 | D3-P3 | `[format X] run` in method | ✅ FIXED | Via D4-F5 (in_method blanket removed) · [FP-OBJ-12](FP.md#fp-obj-12) |
 | D3-P4 | `[my plain] run` where plain returns string | ✅ FIXED | Lightweight method-body inspection: when `my <method>` resolves to a method in the enclosing class whose body is a simple `return <literal>` (no cmd-sub, no var interpolation), override the self-dispatch object heuristic and fire W307.  Compound bodies stay conservatively suppressed. · [FP-OBJ-13](FP.md#fp-obj-13) |
-| D3-P5 | `[::pkg::plain]` external returns string | 🔄 PARTIAL | D3-P5 partial closure shipped: registered ``::ns::cmd`` with EXPLICIT non-OBJECT ``return_type`` overrides the ``::``-prefix factory heuristic.  Unregistered commands like the literal reviewer example (`::pkg::plain` — not in the registry at all) still suppress W307.  Complete closure = adding ``return_type=TclType.STRING`` to specs for the small number of tcllib/Tk commands that return strings; pure data work tracked under D1-11 spec coverage. · [FP-OBJ-14](FP.md#fp-obj-14) |
+| D3-P5 | `[::pkg::plain]` external returns string | 🔄 PARTIAL | D3-P5 partial closure shipped: registered ``::ns::cmd`` with EXPLICIT non-OBJECT ``return_type`` overrides the ``::``-prefix factory heuristic.  Unregistered commands like the literal reviewer example (`::pkg::plain` — not in the registry at all) still suppress W307.  Full closure plan: [`post-stage2-followups.md` §A](post-stage2-followups.md#a-var-as-cmd-type-inference) (VAR-as-cmd type inference). · [FP-OBJ-14](FP.md#fp-obj-14) |
 | D3-P6 | `[NotAClass new]` external returns string | ✅ FIXED | Via D4-F6 (`new`-subcommand heuristic on bare names removed) · [FP-OBJ-15](FP.md#fp-obj-15) |
 | D3-P7 | `array set state {-command notACommand}` non-cmd | ✅ FIXED | New `array set` literal-element harvester feeds SCCP CONST evidence to override the callback-key heuristic · [FP-OBJ-17](FP.md#fp-obj-17) |
 | D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | ✅ FIXED | Built on D3-P2 closure: the dict-with key-value-pair harvester in `_emit_var_command_diagnostics` reads the dict_var's SCCP CONST value at v0 and registers each key->value pair in the CONSTSET map.  The W307 check then sees `cmd -> notACommand` and fires (the value isn't a known command). · [FP-OBJ-18](FP.md#fp-obj-18) |
@@ -80,7 +87,7 @@ Tclsh-verified positive/negative pairs.
 | D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ✅ FIXED | Mirrored key-aware logic from statement-use path to the CFGReturn arm of `_read_before_set` · [FP-DS-08](FP.md#fp-ds-08) |
 | D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ✅ FIXED | Extended var_command_sites to record positional arg count; protocol match now requires arity-compatible dispatcher (1-arg `$cmd x` no longer suppresses 2-arg peer family) · [FP-STY-09](FP.md#fp-sty-09) |
 | D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ✅ FIXED | Removed blanket `in_method` suppression for cmd-sub-as-command; only `my`/`self` self-dispatch + KNOWN OBJECT return-type now suppress · [FP-OBJ-12](FP.md#fp-obj-12) |
-| D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | 🔄 PARTIAL | `new`-subcommand heuristic removed; `::`-prefix heuristic kept for tcllib corpus compat but downgraded -- user procs with non-object-returning fixpoint result override.  D3-P5 (unknown external `::pkg::plain`) still suppressed pending registry coverage of tcllib factory commands. · [FP-OBJ-14](FP.md#fp-obj-14) · [FP-OBJ-15](FP.md#fp-obj-15) |
+| D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | 🔄 PARTIAL | `new`-subcommand heuristic removed; `::`-prefix heuristic kept for tcllib corpus compat but downgraded -- user procs with non-object-returning fixpoint result override.  Full closure plan: [`post-stage2-followups.md` §A](post-stage2-followups.md#a-var-as-cmd-type-inference). · [FP-OBJ-14](FP.md#fp-obj-14) · [FP-OBJ-15](FP.md#fp-obj-15) |
 | D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative · [FP-OBJ-16](FP.md#fp-obj-16) |
 | D4-F8 | Inline-pass proc liveness uses `_PROC_NAME_WORD_RE` Python regex | ✅ FIXED | Added whitespace-split fallback alongside the regex so proc names with non-`\w` chars (`do-work`, `+`, ...) aren't silently dropped |
 | D4-F9 | iRules IRULE4004 hoistability regex-scans Tcl values | ✅ FIXED | New `_scan_namespaced_cmds_in_text` uses lexer + segmenter to find namespaced cmd-subs; recurses into args; falls back to regex only on unparseable input |
@@ -143,8 +150,8 @@ All 8 verified against `/usr/local/bin/tclsh9.0` (Tcl 9.0.3).
 
 | ID | Finding | Status | Notes |
 |---|---|---|---|
-| SF-1 | Registry data coverage: add `return_type=TclType.STRING` / `OBJECT` to specific tcllib/Tk commands so D3-P5 / D4-F6 partial closures catch unregistered external factories (`::pkg::plain` style). | 🔄 PARTIAL | `struct::set` subcommands (contains/difference/empty/equal/exclude/include/intersect/intersect3/size/subsetof/symdiff/union/add/subtract) got `return_type=BOOLEAN/INT/LIST/STRING` matching real tclsh `tcl::unsupported::representation` output.  Census against `tmp/diag_dump.jsonl` showed the residual W307 corpus is dominated by **variable-as-command** firings (4714 / 4755 = 99% are `$var` dispatchers; only 35 are cmd-sub-as-cmd, most of which already have correct return_types).  Adding registry return_types to the few unregistered tcllib factory candidates (`cons`, `K`, `FormatData`) doesn't apply — they're per-package user procs, not registry commands.  The "≥50 reduction" target isn't achievable through registry data alone for this corpus; it requires improving VAR-as-cmd type inference (the unimplemented D3-P5 fully-open closure: track per-SSA-version the literal command name a variable holds).  See FP-OBJ-14 for the broader closure plan. |
-| SF-2 | Wire `ClassDef.method_purity` into D2-O126-FU's `interproc_pure` set so pure-method RHS (`set unused [my pure_method ...]`) can be safely folded. | 🔄 PARTIAL | Wiring landed: `optimise_elimination_passes` builds `interproc_pure_methods` from `ctx.interproc.methods` (today empty -- TclOO method bodies are not yet lowered to per-method FunctionUnits / interproc summaries), and `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete` recognise `my <method>` and consult `_method_pure(class_qname, m, set)`.  No `ClassDef.method_purity` field exists -- the data source is `InterproceduralAnalysis.methods` (already declared, never populated).  The PARTIAL flips to FIXED automatically when method-body lowering populates the dict.  User-proc analogue (`set unused [pureUserProc]`) already folds today via D2-O126-FU. · [FP-OPT-12](FP.md#fp-opt-12) |
+| SF-1 | Registry data coverage: add `return_type=TclType.STRING` / `OBJECT` to specific tcllib/Tk commands so D3-P5 / D4-F6 partial closures catch unregistered external factories (`::pkg::plain` style). | 🔄 PARTIAL | `struct::set` subcommands got `return_type=BOOLEAN/INT/LIST/STRING` matching real tclsh `tcl::unsupported::representation` output (~17 firings improvement).  Census against `tmp/diag_dump.jsonl` showed 99% (4714 / 4755) of residual W307 is **variable-as-command** firings — registry data alone can't close that; full closure plan: [`post-stage2-followups.md` §A](post-stage2-followups.md#a-var-as-cmd-type-inference). |
+| SF-2 | Wire `ClassDef.method_purity` into D2-O126-FU's `interproc_pure` set so pure-method RHS (`set unused [my pure_method ...]`) can be safely folded. | 🔄 PARTIAL | Wiring landed: `_elimination.py` builds `interproc_pure_methods` from `ctx.interproc.methods` and recognises `my <method>` at the side-effect predicates.  Today inactive — `ctx.interproc.methods` is always empty because TclOO method bodies aren't lowered to per-method FunctionUnits.  PARTIAL flips to FIXED automatically when method-body lowering populates the dict.  Full closure plan: [`post-stage2-followups.md` §B](post-stage2-followups.md#b-tcloo-method-body-lowering-to-per-method-functionunits). · [FP-OPT-12](FP.md#fp-opt-12) |
 
 ---
 
