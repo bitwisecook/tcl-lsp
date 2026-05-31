@@ -27,7 +27,10 @@ from ._types import Optimisation, PassContext
 _RETURN_VAR_SCANNER = VarReferenceScanner()
 
 
-def _word_has_observable_side_effect(text: str) -> bool:
+def _word_has_observable_side_effect(
+    text: str,
+    interproc_pure: frozenset[str] | None = None,
+) -> bool:
     """True when *text* (a Tcl word body) contains a command substitution
     that has an observable side effect (writes a variable, prints to
     stdout, mutates global state, runs a dynamic barrier, …).
@@ -36,11 +39,16 @@ def _word_has_observable_side_effect(text: str) -> bool:
     [puts X]`` discards the result but the call still prints, so the
     assignment is NOT safe to delete.
 
-    Conservative: any command we can't classify (unknown user proc,
-    dynamic dispatch) is treated as having side effects -- deletion is
-    only allowed when every embedded command is provably side-effect-
-    free.  (D2-O126 closure: pre-fix, O126 deleted any unused-result
-    assignment, losing observable behaviour for any command-sub RHS.)
+    *interproc_pure* is the set of qualified user-proc names that
+    interprocedural analysis has proven pure (D2-O126-FU closure).
+    When provided, a cmd-sub of a user proc in this set is treated
+    as side-effect-free even though ``classify_side_effects`` would
+    conservatively say "impure" for any user-defined command.
+
+    Conservative: any command we can't classify (unknown user proc
+    NOT in ``interproc_pure``, dynamic dispatch, unparseable text) is
+    treated as having side effects -- deletion is only allowed when
+    every embedded command is provably side-effect-free.
     """
     if "[" not in text:
         return False
@@ -65,15 +73,29 @@ def _word_has_observable_side_effect(text: str) -> bool:
         cmd_args = tuple(cmds[0].texts[1:])
         se = classify_side_effects(cmd_name, cmd_args)
         if not se.pure:
-            return True
+            # D2-O126-FU: a user proc that classify_side_effects
+            # treats as impure (no registry hint) may have been
+            # interprocedurally proven pure.  Consult the summary.
+            if interproc_pure is not None and (
+                cmd_name in interproc_pure
+                or f"::{cmd_name}" in interproc_pure
+                or cmd_name.lstrip(":") in interproc_pure
+            ):
+                # Pure per interproc analysis -- but still need to
+                # check nested cmd-subs in the args.
+                pass
+            else:
+                return True
         # Recurse into nested substitutions inside the args.
         for arg in cmd_args:
-            if _word_has_observable_side_effect(arg):
+            if _word_has_observable_side_effect(arg, interproc_pure):
                 return True
     return False
 
 
-def _expr_has_observable_side_effect(node: ExprNode) -> bool:
+def _expr_has_observable_side_effect(
+    node: ExprNode, interproc_pure: frozenset[str] | None = None
+) -> bool:
     """Expr-tree analogue of :func:`_word_has_observable_side_effect` --
     True if any embedded command substitution in the expression has
     an observable side effect."""
@@ -88,41 +110,50 @@ def _expr_has_observable_side_effect(node: ExprNode) -> bool:
 
     match node:
         case ExprCommand(text=text) | ExprRaw(text=text):
-            return _word_has_observable_side_effect(text)
+            return _word_has_observable_side_effect(text, interproc_pure)
         case ExprBinary(left=left, right=right):
-            return _expr_has_observable_side_effect(left) or _expr_has_observable_side_effect(right)
+            return _expr_has_observable_side_effect(
+                left, interproc_pure
+            ) or _expr_has_observable_side_effect(right, interproc_pure)
         case ExprUnary(operand=operand):
-            return _expr_has_observable_side_effect(operand)
+            return _expr_has_observable_side_effect(operand, interproc_pure)
         case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
             return (
-                _expr_has_observable_side_effect(cond)
-                or _expr_has_observable_side_effect(tb)
-                or _expr_has_observable_side_effect(fb)
+                _expr_has_observable_side_effect(cond, interproc_pure)
+                or _expr_has_observable_side_effect(tb, interproc_pure)
+                or _expr_has_observable_side_effect(fb, interproc_pure)
             )
         case ExprCall(args=args):
-            return any(_expr_has_observable_side_effect(a) for a in args)
+            return any(_expr_has_observable_side_effect(a, interproc_pure) for a in args)
         case _:
             return False
 
 
-def _assignment_safe_to_delete(stmt: IRStatement) -> bool:
+def _assignment_safe_to_delete(
+    stmt: IRStatement, interproc_pure: frozenset[str] | None = None
+) -> bool:
     """True when *stmt* is an assignment whose RHS can be discarded
     without losing observable behaviour.  ``IRAssignConst`` is always
     safe (literal RHS); other forms require every embedded command
-    substitution to be classified as pure."""
+    substitution to be classified as pure.
+
+    *interproc_pure* (D2-O126-FU): the set of user-proc qualified
+    names interprocedural analysis has proven pure.  Without it,
+    every user-proc cmd-sub is conservatively impure; with it, the
+    optimiser can fold ``set unused [pureUserProc]`` to deletion."""
     if isinstance(stmt, IRAssignConst):
         return True
     if isinstance(stmt, IRAssignValue):
-        return not _word_has_observable_side_effect(stmt.value)
+        return not _word_has_observable_side_effect(stmt.value, interproc_pure)
     if isinstance(stmt, IRAssignExpr):
-        return not _expr_has_observable_side_effect(stmt.expr)
+        return not _expr_has_observable_side_effect(stmt.expr, interproc_pure)
     if isinstance(stmt, IRIncr):
         # ``incr v`` reads + writes ``v`` -- the assignment itself IS the
         # observable side effect.  Eliminating it is OK only when ``v``
         # is dead and the optional amount word has no side effects.
         if stmt.amount is None:
             return True
-        return not _word_has_observable_side_effect(stmt.amount)
+        return not _word_has_observable_side_effect(stmt.amount, interproc_pure)
     # Unknown statement form -- conservative.
     return False
 
@@ -333,6 +364,16 @@ def optimise_elimination_passes(
     source = ctx.source
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
 
+    # D2-O126-FU closure: build the set of user procs that
+    # interprocedural analysis has proven pure.  Threaded into the
+    # RHS-purity gates below so ``set unused [pureUserProc 1]`` and
+    # ``set unused [my pureMethod]`` (where the user proc / method is
+    # proven pure) can be folded to deletion.  Sound by construction:
+    # missing summary => conservative refusal.
+    interproc_pure: frozenset[str] = frozenset(
+        qn for qn, summary in ctx.interproc.procedures.items() if getattr(summary, "pure", False)
+    )
+
     executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
     removable_def_versions: dict[str, set[int]] = {}
     for block_name in executable_blocks:
@@ -395,7 +436,7 @@ def optimise_elimination_passes(
         if dead.statement_index < 0 or dead.statement_index >= len(block_stmts.statements):
             continue
         ir_stmt = block_stmts.statements[dead.statement_index]
-        if not _assignment_safe_to_delete(ir_stmt):
+        if not _assignment_safe_to_delete(ir_stmt, interproc_pure):
             continue
         stmt_range = range_by_stmt.get(key)
         if stmt_range is None:
@@ -464,7 +505,7 @@ def optimise_elimination_passes(
             if unused.statement_index < 0 or unused.statement_index >= len(block_stmts.statements):
                 continue
             ir_stmt = block_stmts.statements[unused.statement_index]
-            if not _assignment_safe_to_delete(ir_stmt):
+            if not _assignment_safe_to_delete(ir_stmt, interproc_pure):
                 continue
             stmt_range = range_by_stmt.get(key)
             if stmt_range is None:

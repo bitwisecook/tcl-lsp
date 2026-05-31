@@ -745,6 +745,31 @@ def test_TN_W307_callback_array_holds_known_command():
     assert not _any(src, "W307")
 
 
+def test_TP_O126_pure_user_proc_RHS_is_deleted():
+    """D2-O126-FU closure: when ``set unused [add 1 2]`` and ``add``
+    is interprocedurally proven pure (only ``expr``, no I/O), the
+    optimiser CAN safely fold the unused assignment.  Prior behaviour
+    conservatively refused on any user-proc RHS."""
+    from compiler.optimiser import optimise_source
+
+    src = "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }"
+    _, rewrites = optimise_source(src)
+    assert "O126" in [r.code for r in rewrites], "pure user-proc RHS must allow O126 deletion"
+
+
+def test_TN_O126_impure_user_proc_RHS_preserved():
+    """D2-O126-FU control: ``set unused [shout x]`` where ``shout``
+    contains ``puts`` (impure) MUST NOT be deleted.  Interproc summary
+    correctly classifies ``shout`` as impure, so the gate refuses."""
+    from compiler.optimiser import optimise_source
+
+    src = "proc shout {x} { puts $x; expr {$x + 1} }\nproc f {} { set unused [shout 1]; puts done }"
+    _, rewrites = optimise_source(src)
+    assert "O126" not in [r.code for r in rewrites], (
+        "impure user-proc RHS must NOT be deleted by O126 (loses side effect)"
+    )
+
+
 def test_TN_unset_then_return_with_options_no_propagation():
     """``unset $v; return -code error ...`` inside a loop body must not
     propagate the killed version through the loop-header phi to a
