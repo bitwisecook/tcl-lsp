@@ -1124,7 +1124,7 @@ class CommandRegistry:
         output_sink: str | None = None
         output_sink_sub_qualified = False
         log_sink: str | None = None
-        is_network_sink = False
+        network_sink_args: tuple[int, ...] | None = None
         interp_eval_subs: frozenset[str] | None = None
 
         for spec in specs:
@@ -1139,8 +1139,8 @@ class CommandRegistry:
                     output_sink_sub_qualified = subs is not None
             if log_sink is None and spec.taint_log_sink is not None:
                 log_sink = spec.taint_log_sink
-            if not is_network_sink and spec.taint_network_sink_args is not None:
-                is_network_sink = True
+            if network_sink_args is None and spec.taint_network_sink_args is not None:
+                network_sink_args = spec.taint_network_sink_args
             if interp_eval_subs is None and spec.taint_interp_eval_subcommands is not None:
                 interp_eval_subs = spec.taint_interp_eval_subcommands
 
@@ -1149,7 +1149,7 @@ class CommandRegistry:
             output_sink=output_sink,
             output_sink_is_subcommand_qualified=output_sink_sub_qualified,
             log_sink=log_sink,
-            is_network_sink=is_network_sink,
+            network_sink_args=network_sink_args,
             interp_eval_subcommands=interp_eval_subs,
         )
 

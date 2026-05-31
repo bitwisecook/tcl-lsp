@@ -28,17 +28,20 @@ from shared.tokens import SourcePosition
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
 from .compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
+from .core_analyses import LatticeKind, LatticeValue
 from .execution_intent import CommandSubstitutionIntent, FunctionExecutionIntent
 from .expr_ast import (
     BinOp,
     ExprBinary,
+    ExprLiteral,
     ExprNode,
     ExprRaw,
+    ExprString,
     ExprUnary,
     ExprVar,
     UnaryOp,
 )
-from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRIncr
+from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRExprEval, IRIncr
 from .ssa import SSAFunction, SSAValueKey, SSAVersion
 from .types import TclType, TypeKind, TypeLattice
 from .value_shapes import parse_command_substitution
@@ -189,6 +192,7 @@ def _check_command_substitution_intent(
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
     loop_def_names: frozenset[str] | None = None,
+    loop_use_targets: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -202,6 +206,7 @@ def _check_command_substitution_intent(
         in_loop,
         already_coerced,
         loop_def_names,
+        loop_use_targets,
     )
 
 
@@ -303,6 +308,38 @@ def _check_args_for_shimmer(
     return warnings
 
 
+_HEX_OCT_BIN_PREFIX = ("0x", "0X", "0o", "0O", "0b", "0B")
+
+
+def _value_is_int_literal_string(value: LatticeValue | None) -> bool:
+    """True when *value* is a SCCP CONST string whose text is a hex /
+    octal / binary integer literal (``0xff``, ``0o15``, ``0b1010``,
+    optionally signed).
+
+    These spellings classify as STRING by ``_literal_type`` (the
+    canonical stringified intrep differs from the source text) but
+    promote cleanly to INT at the first arithmetic op -- not a real
+    shimmer.  Shimmer detectors should skip the STRING->INT warning
+    for these.
+    """
+    if value is None or value.kind is not LatticeKind.CONST:
+        return False
+    text = value.value
+    if not isinstance(text, str):
+        return False
+    sign_stripped = text[1:] if text[:1] in "+-" else text
+    if not sign_stripped.startswith(_HEX_OCT_BIN_PREFIX):
+        return False
+    body = sign_stripped[2:]
+    if not body:
+        return False
+    if sign_stripped[1] in "xX":
+        return all(c in "0123456789abcdefABCDEF" for c in body)
+    if sign_stripped[1] in "oO":
+        return all(c in "01234567" for c in body)
+    return all(c in "01" for c in body)  # binary
+
+
 def _find_use_site_shimmers(
     fu_intent: FunctionExecutionIntent,
     cfg: CFGFunction,
@@ -310,10 +347,59 @@ def _find_use_site_shimmers(
     types: dict[SSAValueKey, TypeLattice],
     executable_blocks: set[str],
     loop_blocks: set[str],
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> list[ShimmerWarning]:
     """Find use-sites where a known-typed variable is passed to a command
     expecting a different type."""
     warnings: list[ShimmerWarning] = []
+    sccp_values: dict[SSAValueKey, LatticeValue] = values or {}
+
+    # Loop-invariance lattice for the in-loop classification: a variable used
+    # inside a loop is "per-iteration" (S101) only if its intrep can be reset
+    # each iteration — i.e. SOMETHING in the loop body defines it.  A
+    # loop-invariant variable (no def inside the loop) shimmers once at first
+    # iteration and is cached for the rest, so the right code is S100
+    # (one-time), not S101 (per-iteration).  Build the set of names ever
+    # defined in any loop block — absence means invariant.  Cheap, single
+    # pass; only computed when loops exist.
+    loop_def_names: frozenset[str] = frozenset()
+    # For the loop-invariant exemption: a variable used inside a loop
+    # whose intrep gets thrashed between TWO conflicting types each
+    # iteration (e.g. ``dict get $data`` then ``lindex $data 2``) is
+    # NOT one-time -- the converters fight over the intrep each pass.
+    # Map var-name -> set of expected types observed in loop blocks.
+    # If |types| >= 2 for an invariant var, downgrade to S101 (real
+    # per-iteration cost).
+    loop_use_expected: dict[str, set[TclType]] = {}
+    if loop_blocks:
+        defs: set[str] = set()
+        for lbn in loop_blocks:
+            sb = ssa.blocks.get(lbn)
+            if sb is None:
+                continue
+            for st in sb.statements:
+                defs.update(st.defs.keys())
+            for phi in sb.phis:
+                defs.add(phi.name)
+        loop_def_names = frozenset(defs)
+        # Scan every IRCall in the loop body for arg-position expected
+        # types so the oscillation check can compare against the
+        # invariant-exemption candidate.
+        for lbn in loop_blocks:
+            cb = cfg.blocks.get(lbn)
+            if cb is None:
+                continue
+            for st in cb.statements:
+                if not isinstance(st, IRCall):
+                    continue
+                for ai, atext in enumerate(st.args):
+                    a = atext.strip()
+                    if not a.startswith("$"):
+                        continue
+                    nm = _normalise_var_name(a)
+                    exp = _arg_type_for_call(st.command, st.args, ai)
+                    if exp is not None:
+                        loop_use_expected.setdefault(nm, set()).add(exp)
 
     # Loop-invariance lattice for the in-loop classification: a variable used
     # inside a loop is "per-iteration" (S101) only if its intrep can be reset
@@ -413,6 +499,7 @@ def _find_use_site_shimmers(
                             in_loop,
                             already_coerced,
                             loop_def_names,
+                            loop_use_targets,
                         )
                     )
                 else:
@@ -438,12 +525,21 @@ def _find_use_site_shimmers(
                 ver = ssa_stmt.uses.get(var_name, 0)
                 if ver > 0:
                     var_type = types.get((var_name, ver))
+                    # Hex / octal / binary literal strings (``0xff``,
+                    # ``0o15``, ``0b1010``) classify as STRING (their
+                    # canonical stringified intrep differs from the
+                    # source) but are unambiguous integer literals that
+                    # promote cleanly to INT at the first numeric op.
+                    # Skip the shimmer warning when SCCP proves the
+                    # value IS a hex/binary integer literal -- that
+                    # promotion is intentional, not accidental.
                     if (
                         var_type is not None
                         and var_type.kind is TypeKind.KNOWN
                         and var_type.tcl_type is not None
                         and not _is_numeric_compatible(var_type.tcl_type, TclType.INT)
                         and var_type.tcl_type is not TclType.INT
+                        and not _value_is_int_literal_string(sccp_values.get((var_name, ver)))
                     ):
                         code = "S101" if in_loop else "S100"
                         severity = "loop " if in_loop else ""
@@ -474,12 +570,20 @@ def _find_use_site_shimmers(
                         amt_ver = ssa_stmt.uses.get(amt_name, 0)
                         if amt_ver > 0:
                             amt_type = types.get((amt_name, amt_ver))
+                            # Same hex/binary literal-string exemption
+                            # as the target check above -- the SCCP
+                            # CONST text proves an unambiguous int
+                            # literal whose STRING classification is
+                            # just the source-spelling discipline.
                             if (
                                 amt_type is not None
                                 and amt_type.kind is TypeKind.KNOWN
                                 and amt_type.tcl_type is not None
                                 and amt_type.tcl_type is not TclType.INT
                                 and not _is_numeric_compatible(amt_type.tcl_type, TclType.INT)
+                                and not _value_is_int_literal_string(
+                                    sccp_values.get((amt_name, amt_ver))
+                                )
                             ):
                                 code = "S101" if in_loop else "S100"
                                 severity = "loop " if in_loop else ""
@@ -1119,7 +1223,8 @@ def _phi_range(cfg: CFGFunction, block, ssa_block) -> Range | None:
     return None
 
 
-# Operators that require numeric operands — STRING → shimmer.
+# Operators that ALWAYS require numeric operands — STRING operand → shimmer
+# (D5-SH-EQ: EQ/NE excluded; see _CONDITIONAL_NUMERIC_OPS below).
 _NUMERIC_OPS = frozenset(
     {
         BinOp.ADD,
@@ -1135,14 +1240,35 @@ _NUMERIC_OPS = frozenset(
         BinOp.BIT_XOR,
         BinOp.AND,
         BinOp.OR,
-        BinOp.EQ,
-        BinOp.NE,
         BinOp.LT,
         BinOp.LE,
         BinOp.GT,
         BinOp.GE,
     }
 )
+
+
+# Operators that are numeric-context ONLY when at least one operand is
+# provably numeric (D5-SH-EQ).  Tcl's ``==``/``!=`` semantics:
+#
+#     if BOTH operands can parse as numeric -> numeric compare
+#     else                                  -> string compare (fall-through)
+#
+# So a STRING-typed var compared with a STRING-typed other (e.g.
+# ``$s == "hello"`` when ``s = "hello"``) does NOT trigger numeric
+# coercion -- no shimmer happens.  But ``$s == "1"`` when ``s`` is
+# string-typed and the other side is numeric-looking text DOES trigger
+# the numeric path on the other operand, and Tcl will attempt to coerce
+# ``$s`` to a number -- a real shimmer.
+#
+# Verified with tclsh 9.0.3::
+#
+#     % set s hello
+#     % expr {$s == "hello"}   ;# 1 -- string path, no shimmer
+#     % set s2 "5"
+#     % expr {$s2 == "5"}      ;# 1 -- numeric path (both parse), promotes s2
+#     % expr {$s2 + 0}         ;# 5  -- always numeric path
+_CONDITIONAL_NUMERIC_OPS = frozenset({BinOp.EQ, BinOp.NE})
 
 # Operators that require string operands — INT/DOUBLE → shimmer.
 _STRING_OPS = frozenset(
@@ -1159,11 +1285,94 @@ _STRING_OPS = frozenset(
 _NUMERIC_UNARY_OPS = frozenset({UnaryOp.NEG, UnaryOp.POS, UnaryOp.BIT_NOT, UnaryOp.NOT})
 
 
+def _operand_looks_numeric(
+    operand: ExprNode,
+    uses: dict[str, SSAVersion],
+    types: dict[SSAValueKey, TypeLattice],
+    values: dict | None,
+) -> bool:
+    """Return True when *operand* is provably numeric-looking (D5-SH-EQ).
+
+    Used to gate the conditional EQ/NE numeric-shimmer check: Tcl ``==``/
+    ``!=`` only takes the numeric-coercion path when at least one side
+    can parse as a number.  When both operands are provably non-numeric
+    (literal text that isn't a number, var whose SCCP CONST is non-
+    numeric), the comparison short-circuits to the string path and no
+    shimmer occurs.
+
+    Recognises:
+        * ExprLiteral (parser-validated int/float/boolean).
+        * ExprString whose stripped text parses as a number.
+        * ExprVar whose KNOWN SSA type is INT/DOUBLE/NUMERIC/BOOLEAN.
+        * ExprVar whose SCCP CONST value parses as a number (or is non-
+          string CONST -- int/float/bool).
+    """
+    if isinstance(operand, ExprLiteral):
+        return True
+    if isinstance(operand, ExprString):
+        return _expr_string_is_numeric(operand.text)
+    if isinstance(operand, ExprVar):
+        ver = uses.get(operand.name, 0)
+        if ver > 0:
+            var_type = types.get((operand.name, ver))
+            if var_type is not None and var_type.kind is TypeKind.KNOWN:
+                if var_type.tcl_type in (
+                    TclType.INT,
+                    TclType.DOUBLE,
+                    TclType.NUMERIC,
+                    TclType.BOOLEAN,
+                ):
+                    return True
+            if values is not None:
+                lv = values.get((operand.name, ver))
+                if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
+                    val = getattr(lv, "value", None)
+                    if isinstance(val, str):
+                        return _expr_string_is_numeric(val)
+                    if val is not None:
+                        # Non-string CONST (int/float/bool) is by definition numeric.
+                        return True
+    return False
+
+
+def _expr_string_is_numeric(text: str) -> bool:
+    """Return True if *text* (an ExprString.text or raw value) parses as
+    an integer, float, or Tcl boolean literal.  Used by the D5-SH-EQ
+    operand classifier.
+    """
+    stripped = text
+    # Strip wrapping braces or quotes that the parser preserved.
+    if len(stripped) >= 2 and (
+        (stripped[0] == "{" and stripped[-1] == "}") or (stripped[0] == '"' and stripped[-1] == '"')
+    ):
+        stripped = stripped[1:-1]
+    stripped = stripped.strip()
+    if not stripped:
+        return False
+    # Try int parse first.
+    try:
+        int(stripped, 0)
+        return True
+    except ValueError:
+        pass
+    # Then float (handles 1.0, 1e3, Inf, NaN per tclsh's accepts).
+    try:
+        float(stripped)
+        return True
+    except ValueError:
+        pass
+    # Boolean words tclsh accepts in numeric coercion.
+    if stripped.lower() in {"true", "false", "yes", "no", "on", "off"}:
+        return True
+    return False
+
+
 def _collect_expr_shimmers(
     node: ExprNode,
     uses: dict[str, SSAVersion],
     types: dict[SSAValueKey, TypeLattice],
     out: list[tuple[str, TclType, TclType]],
+    values: dict | None = None,
 ) -> None:
     """Walk an expression AST and collect (variable, from_type, to_type) shimmer triples."""
     match node:
@@ -1171,17 +1380,27 @@ def _collect_expr_shimmers(
             if op in _NUMERIC_OPS:
                 _check_operand_shimmer(left, uses, types, TclType.NUMERIC, out)
                 _check_operand_shimmer(right, uses, types, TclType.NUMERIC, out)
+            elif op in _CONDITIONAL_NUMERIC_OPS:
+                # D5-SH-EQ: ``==``/``!=`` only triggers numeric coercion
+                # when at least one operand is provably numeric-looking.
+                # Otherwise tclsh short-circuits to the string compare
+                # path and no shimmer occurs.
+                left_numeric = _operand_looks_numeric(left, uses, types, values)
+                right_numeric = _operand_looks_numeric(right, uses, types, values)
+                if left_numeric or right_numeric:
+                    _check_operand_shimmer(left, uses, types, TclType.NUMERIC, out)
+                    _check_operand_shimmer(right, uses, types, TclType.NUMERIC, out)
             elif op in _STRING_OPS:
                 _check_operand_shimmer(left, uses, types, TclType.STRING, out)
                 _check_operand_shimmer(right, uses, types, TclType.STRING, out)
             # Recurse into sub-expressions.
-            _collect_expr_shimmers(left, uses, types, out)
-            _collect_expr_shimmers(right, uses, types, out)
+            _collect_expr_shimmers(left, uses, types, out, values)
+            _collect_expr_shimmers(right, uses, types, out, values)
 
         case ExprUnary(op=op, operand=operand):
             if op in _NUMERIC_UNARY_OPS:
                 _check_operand_shimmer(operand, uses, types, TclType.NUMERIC, out)
-            _collect_expr_shimmers(operand, uses, types, out)
+            _collect_expr_shimmers(operand, uses, types, out, values)
 
         case _:
             pass  # Atoms, calls, ternary, raw — no operator shimmer check
@@ -1216,14 +1435,73 @@ def _check_operand_shimmer(
             out.append((var_name, actual, TclType.STRING))
 
 
+def _emit_expr_shimmer_warnings(
+    expr_node: ExprNode,
+    uses: dict[str, SSAVersion],
+    types: dict[SSAValueKey, TypeLattice],
+    values: dict[SSAValueKey, LatticeValue] | None,
+    *,
+    range_,
+    command: str,
+    in_loop: bool,
+    seen: set[tuple[str, str]],
+) -> list[ShimmerWarning]:
+    """Walk *expr_node* collecting shimmer triples and turn them into
+    :class:`ShimmerWarning` records.  De-duplication is per (block-range,
+    var) so that several expr operands on the same statement only emit
+    once per variable.
+    """
+    if isinstance(expr_node, ExprRaw):
+        return []
+    triples: list[tuple[str, TclType, TclType]] = []
+    _collect_expr_shimmers(expr_node, uses, types, triples, values)
+    out: list[ShimmerWarning] = []
+    for var_name, from_type, to_type in triples:
+        key = (f"{range_!r}", var_name)
+        if key in seen:
+            continue
+        seen.add(key)
+        code = "S101" if in_loop else "S100"
+        severity = "loop " if in_loop else ""
+        msg = (
+            f"Shimmer: ${var_name} has intrep "
+            f"{_type_name(from_type)} but expr operator "
+            f"expects {_type_name(to_type)} ({severity}S{code[-3:]})"
+        )
+        out.append(
+            ShimmerWarning(
+                range=range_,
+                variable=var_name,
+                from_type=from_type,
+                to_type=to_type,
+                command=command,
+                in_loop=in_loop,
+                code=code,
+                message=msg,
+            )
+        )
+    return out
+
+
 def _find_expr_shimmers(
     cfg: CFGFunction,
     ssa: SSAFunction,
     types: dict[SSAValueKey, TypeLattice],
     executable_blocks: set[str],
     loop_blocks: set[str],
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> list[ShimmerWarning]:
-    """Find expression-level shimmers where operator expects incompatible operand type."""
+    """Find expression-level shimmers where operator expects incompatible operand type.
+
+    Covered expr-context sites (D5-SH-EXPR):
+
+    * ``IRAssignExpr`` -- ``set y [expr {...}]``.
+    * ``IRExprEval`` -- standalone ``expr {...}`` whose result is dropped.
+    * ``CFGBranch.condition`` -- ``if {...}`` / ``while {...}`` / ``for ..
+      {...} ..`` loop / branch terminators.  All four are real expr
+      lex-promotion sites in tclsh (the condition expression evaluates
+      and may coerce operands).
+    """
     warnings: list[ShimmerWarning] = []
 
     for bn in executable_blocks:
@@ -1232,44 +1510,58 @@ def _find_expr_shimmers(
         if block is None or ssa_block is None:
             continue
         in_loop = bn in loop_blocks
+        seen: set[tuple[str, str]] = set()
 
         for idx, ssa_stmt in enumerate(ssa_block.statements):
             if idx >= len(block.statements):
                 continue
             stmt = block.statements[idx]
-
-            if not isinstance(stmt, IRAssignExpr):
-                continue
-            if isinstance(stmt.expr, ExprRaw):
-                continue
-
-            shimmer_triples: list[tuple[str, TclType, TclType]] = []
-            _collect_expr_shimmers(stmt.expr, ssa_stmt.uses, types, shimmer_triples)
-
-            # Deduplicate by variable name (report each variable once per statement).
-            seen_vars: set[str] = set()
-            for var_name, from_type, to_type in shimmer_triples:
-                if var_name in seen_vars:
-                    continue
-                seen_vars.add(var_name)
-
-                code = "S101" if in_loop else "S100"
-                severity = "loop " if in_loop else ""
-                msg = (
-                    f"Shimmer: ${var_name} has intrep "
-                    f"{_type_name(from_type)} but expr operator "
-                    f"expects {_type_name(to_type)} ({severity}S{code[-3:]})"
-                )
-                warnings.append(
-                    ShimmerWarning(
-                        range=stmt.range,
-                        variable=var_name,
-                        from_type=from_type,
-                        to_type=to_type,
+            if isinstance(stmt, IRAssignExpr):
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        stmt.expr,
+                        ssa_stmt.uses,
+                        types,
+                        values,
+                        range_=stmt.range,
                         command="expr",
                         in_loop=in_loop,
-                        code=code,
-                        message=msg,
+                        seen=seen,
+                    )
+                )
+            elif isinstance(stmt, IRExprEval):
+                # Standalone ``expr {...}``; same lex-promotion rules.
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        stmt.expr,
+                        ssa_stmt.uses,
+                        types,
+                        values,
+                        range_=stmt.range,
+                        command="expr",
+                        in_loop=in_loop,
+                        seen=seen,
+                    )
+                )
+
+        # CFG terminator expressions: if/while/for/break-condition all
+        # lower to CFGBranch with the original ExprNode preserved.  The
+        # SSA versions in scope at the terminator are the block's
+        # exit_versions (uses follow the last write).
+        term = block.terminator
+        if isinstance(term, CFGBranch):
+            term_range = term.range or (block.statements[-1].range if block.statements else None)
+            if term_range is not None:
+                warnings.extend(
+                    _emit_expr_shimmer_warnings(
+                        term.condition,
+                        ssa_block.exit_versions,
+                        types,
+                        values,
+                        range_=term_range,
+                        command="if",
+                        in_loop=in_loop,
+                        seen=seen,
                     )
                 )
 
@@ -1317,6 +1609,7 @@ def find_shimmer_warnings(
                 fu.analysis.types,
                 executable,
                 loops,
+                fu.analysis.values,
             )
         )
         all_warnings.extend(
@@ -1326,6 +1619,7 @@ def find_shimmer_warnings(
                 fu.analysis.types,
                 executable,
                 loops,
+                fu.analysis.values,
             )
         )
         all_warnings.extend(

@@ -299,6 +299,10 @@ class NamespaceCommand(CommandDef):
                     synopsis="namespace upvar namespace ?otherVar myVar ...?",
                     return_type=TclType.STRING,
                     creates_scope_alias=True,
+                    # Local-alias defs are recorded by ``lower_upvar`` in
+                    # ``compiler/lowering_hooks/_var.py`` (registered
+                    # against this subcommand) which delegates to the
+                    # shared ``upvar_local_declaration_indices`` grammar.
                 ),
                 "which": SubCommand(
                     name="which",

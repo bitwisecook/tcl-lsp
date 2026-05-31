@@ -171,7 +171,7 @@ class TestParseTestNative:
 
     def test_parse_test(self) -> None:
         results = _run_test_file("parse.test")
-        _check_results(results, KNOWN_FAILURES_PARSE, "parse.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PARSE, "parse.test")
 
 
 class TestParseOldTestNative:
@@ -179,4 +179,4 @@ class TestParseOldTestNative:
 
     def test_parse_old_test(self) -> None:
         results = _run_test_file("parseOld.test")
-        _check_results(results, KNOWN_FAILURES_PARSE_OLD, "parseOld.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PARSE_OLD, "parseOld.test")

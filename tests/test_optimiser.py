@@ -309,44 +309,58 @@ class TestOptimiser:
         assert any(r.code == "O110" for r in rewrites)
 
     # Identity / absorbing element rules
+    #
+    # D5-O110: identity/annihilator drops require provably-numeric
+    # operands; wrap each in a loop where ``x`` is SCCP-typed INT.
+
+    @staticmethod
+    def _int_x(body: str) -> str:
+        return (
+            "proc f {n} {\n"
+            "  for {set x 0} {$x < $n} {incr x} {\n"
+            "    " + body + "\n"
+            "    puts $v\n"
+            "  }\n"
+            "}\n"
+        )
 
     def test_instcombine_pow_zero(self):
-        source = "set v [expr {$x ** 0}]"
+        source = self._int_x("set v [expr {$x ** 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 1" in optimised
 
     def test_instcombine_pow_one(self):
-        source = "set v [expr {$x ** 1}]"
+        source = self._int_x("set v [expr {$x ** 1}]")
         optimised, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_shift_zero(self):
-        source = "set v [expr {$x << 0}]"
+        source = self._int_x("set v [expr {$x << 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_rshift_zero(self):
-        source = "set v [expr {$x >> 0}]"
+        source = self._int_x("set v [expr {$x >> 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitand_zero(self):
-        source = "set v [expr {$x & 0}]"
+        source = self._int_x("set v [expr {$x & 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
     def test_instcombine_bitor_zero(self):
-        source = "set v [expr {$x | 0}]"
+        source = self._int_x("set v [expr {$x | 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitxor_zero(self):
-        source = "set v [expr {$x ^ 0}]"
+        source = self._int_x("set v [expr {$x ^ 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_mod_one(self):
-        source = "set v [expr {$x % 1}]"
+        source = self._int_x("set v [expr {$x % 1}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -450,8 +464,10 @@ class TestOptimiser:
         assert "!$x || !$y" in o110.replacement
 
     def test_instcombine_double_bitnot(self):
-        """~~$x → $x."""
-        source = "set v [expr {~~$x}]"
+        """~~$x → $x.
+
+        D5-O110: drops the bitwise-not operator; needs provably-numeric x."""
+        source = self._int_x("set v [expr {~~$x}]")
         optimised, _ = optimise_source(source)
         assert "set v [expr {$x}]" in optimised
 
@@ -468,7 +484,8 @@ class TestOptimiser:
         assert "set v 0" in optimised
 
     def test_instcombine_self_xor(self):
-        source = "set v [expr {$x ^ $x}]"
+        # D5-O110: x ^ x drops both operands; needs numeric proof.
+        source = self._int_x("set v [expr {$x ^ $x}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -1120,11 +1137,15 @@ class TestStrengthReduction:
 
 
 class TestIncrIdiom:
-    """O114 — incr idiom recognition."""
+    """O114 — incr idiom recognition.
+
+    D5-O114: requires SSA-known INT type on the loop var.  Seeding with
+    ``set x 0`` lets SCCP type ``x`` as INT and the rewrite fires."""
 
     def test_incr_add_one(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 1}]
             }
         """).rstrip()
@@ -1134,7 +1155,8 @@ class TestIncrIdiom:
 
     def test_incr_add_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 5}]
             }
         """).rstrip()
@@ -1144,7 +1166,8 @@ class TestIncrIdiom:
 
     def test_incr_sub_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x - 3}]
             }
         """).rstrip()
@@ -1221,11 +1244,20 @@ class TestStringCompareEqNe:
         assert '$a == "1"' in optimised
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_numeric_like_literal_rewritten_for_known_string_var(self):
+    def test_numeric_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
+
+        tclsh: ``set a [string trim "1.0"]`` is STRING-typed (intrep),
+        but its value "1.0" parses as a double.  ``expr {$a == "1"}``
+        takes the numeric path: 1.0 == 1.0 -> 1.  ``expr {$a eq "1"}``
+        takes the string path: "1.0" ne "1" -> 0.  The rewrite would
+        flip the result.  Per the at-least-one-non-numeric rule, the
+        literal "1" IS numeric-looking and the var is unproven, so we
+        must NOT rewrite.
+        """
         source = 'set a [string trim $raw]\nif {$a == "1"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "1"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_both_string_typed(self):
         source = "set a foo\nset b bar\nif {$a == $b} {}"
@@ -1235,11 +1267,19 @@ class TestStringCompareEqNe:
         assert "==" not in optimised
         assert any(r.code == "O120" for r in rewrites)
 
-    def test_var_vs_var_one_string_typed_not_rewritten(self):
-        """Only one side is known-string; the other is unknown — don't rewrite."""
+    def test_var_vs_var_one_const_non_numeric_IS_rewritten(self):
+        """D5-O120: SCCP CONST proves the runtime value is non-numeric.
+
+        ``set a foo`` gives ``a`` an SCCP CONST("foo").  "foo" cannot
+        parse as a number, so Tcl ``==`` will always take the string
+        path regardless of $b's runtime value -- the rewrite to ``eq``
+        is sound (at-least-one-non-numeric rule).  tclsh-verified:
+        ``set a foo; set b X; expr {$a == $b}`` == ``expr {$a eq $b}``
+        for every X tested (foo/1/1.0/true/yes/...).
+        """
         source = "set a foo\nif {$a == $b} {}"
         _, rewrites = optimise_source(source)
-        assert not any(r.code == "O120" for r in rewrites)
+        assert any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_int_typed_not_rewritten(self):
         source = "set a [expr {1 + 2}]\nset b [expr {3 + 4}]\nif {$a == $b} {}"
@@ -1261,17 +1301,36 @@ class TestStringCompareEqNe:
         _, rewrites = optimise_source(source)
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_boolean_like_literal_rewritten_for_known_string_var(self):
-        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "true"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
+    def test_boolean_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
 
-    def test_var_vs_var_from_string_producers_rewritten(self):
+        While tclsh actually treats ``"true"`` as a string in ``==``
+        contexts (``expr {"1" == "true"}`` -> 0, never 1), our
+        ``_is_numeric_string_value("true")`` is over-conservative
+        because it shares the BOOLEAN_WORDS predicate with the
+        constant-substitution path (where ``true`` IS the boolean 1).
+        Safely conservative: we lose this optimisation but never
+        introduce wrong output.  Test pins the conservatism so a
+        future precision tightening must remove ``true``/``false``
+        from the O120 numeric-looking set deliberately.
+        """
+        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
+
+    def test_var_vs_var_from_string_producers_NOT_rewritten(self):
+        """D5-O120: two STRING-typed vars without CONST proof.
+
+        Both ``$a`` and ``$b`` are typed STRING (output of ``string
+        trim``) but neither has an SCCP CONST value -- they could
+        both hold "1.0"/"1" at runtime, where ``==`` is 1 (numeric)
+        and ``eq`` is 0 (string).  The old test encoded the unsound
+        STRING-typed-is-enough heuristic; per the at-least-one-non-
+        numeric rule we now correctly bail.
+        """
         source = "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}"
-        optimised, rewrites = optimise_source(source)
-        assert "$a eq $b" in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
 
     def test_mixed_expr_only_rewrites_string_compare(self):
         source = 'set a [string trim $raw]\nif {$a == "x" && $n == 1} {}'
@@ -2808,13 +2867,21 @@ class TestLoadForwarding:
         assert not any(r.code == "O127" for r in rewrites)
 
     def test_skip_when_pre_loop_pass_already_rewrites_def(self):
-        """If O114 (incr idiom) already targets the def, O127 must not conflict."""
+        """If O114 (incr idiom) already targets the def, O127 must not conflict.
+
+        D5-O114: O114 only fires when x is provably INT.  Loop-counter
+        pattern: x is INT-typed but OVERDEFINED in value, so O114 fires
+        and O127 must defer to it."""
         source = textwrap.dedent("""\
-            proc test {} {
-                set x [expr {$x + 1}]
-                puts $x
+            proc test {n} {
+                for {set x 0} {$x < $n} {incr x} {
+                    set x [expr {$x + 1}]
+                    puts $x
+                }
             }""")
         _optimised, rewrites = optimise_source(source)
+        codes = [r.code for r in rewrites]
+        assert "O114" in codes, f"sanity: O114 should fire here; got {codes}"
         # O114 rewrites the set→incr. O127 should not also try to
         # inline and delete the same statement.
         assert not any(r.code == "O127" for r in rewrites)

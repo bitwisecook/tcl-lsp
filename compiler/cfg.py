@@ -61,6 +61,20 @@ from .ir import (
 # Short names: r = Range, bn = block name (str).
 
 
+# Commands that unconditionally exit the proc (``error``, ``throw``,
+# ``exit``) -- collected from the registry's ``terminates_block`` trait.
+# ``return`` is also in the trait set but is lowered separately as an
+# IRReturn / IRBarrier; this set is consulted in the analysis-only
+# block-terminator promotion path for IRCalls.
+def _terminating_commands() -> frozenset[str]:
+    # Drop ``return`` -- it's handled by the IRReturn / IRBarrier arms;
+    # the trait set is used here only for IRCall-form terminators.
+    return REGISTRY.check_trait_commands("terminates_block") - {"return"}
+
+
+_TERMINATING_COMMANDS = _terminating_commands()
+
+
 def _defs_from_body_script(body_text: str) -> list[str]:
     """Extract variable names defined by commands in a body script.
 
@@ -839,10 +853,22 @@ class _CFGBuilder:
 
     def _lower_script(self, script: IRScript, block_name: str) -> str | None:
         current = block_name
+        # When ``faithful_exceptions`` is on (analysis builds), preserve
+        # post-terminator dead statements in an orphan unreachable block
+        # so the read_before_set / O107 / W220 passes can see them.
+        # In codegen builds we drop them silently to keep the default
+        # bytecode byte-identical to tclsh 9 (tclsh's compiler also
+        # discards post-return statements).
+        orphan: str | None = None
         for stmt in script.statements:
             block = self._block(current)
             if block.terminator is not None:
-                return None
+                if not self._faithful_exceptions:
+                    return None
+                if orphan is None:
+                    orphan = self._new_block("unreachable")
+                current = orphan
+                block = self._block(current)
 
             match stmt:
                 case IRIf():
@@ -1002,10 +1028,52 @@ class _CFGBuilder:
                     block.terminator = CFGReturn(
                         value=value, range=r, expr=stmt.expr, braced=stmt.braced
                     )
-                    return None
+                    # In analysis builds, fall through so the
+                    # top-of-loop terminator-check routes post-return
+                    # statements into the orphan unreachable block.
+                    # Codegen builds bail immediately to drop them.
+                    if not self._faithful_exceptions:
+                        return None
+                case IRBarrier(reason="return with options" | "return with expansion") if (
+                    self._faithful_exceptions
+                ):
+                    # ``return -code error "..."`` is lowered as an
+                    # IRBarrier (codegen keeps the options as raw_args),
+                    # but it still unconditionally exits the proc.  For
+                    # analysis builds, treat it as a CFGReturn-style
+                    # terminator so the fall-through edges to the rest
+                    # of the block / loop back-edge are correctly cut
+                    # off -- otherwise an ``unset $token; return -code
+                    # error "..."`` pattern propagates the killed token
+                    # version through the loop-header phi and false-fires
+                    # W210 on a later use of $token.  Codegen builds
+                    # leave this as an IRBarrier statement (bytecode
+                    # parity unchanged).
+                    block.statements.append(stmt)
+                    block.terminator = CFGReturn(
+                        value=None, range=stmt.range, expr=None, braced=False
+                    )
                 case _:
                     stmt = self._apply_upvar_invalidation(stmt, block)
                     block.statements.append(stmt)
+                    # Non-returning commands (``error``, ``throw``,
+                    # ``exit`` -- registered via the ``terminates_block``
+                    # trait) unconditionally exit the proc.  In analysis
+                    # builds, terminate the block so post-statement dead
+                    # code is routed to the orphan unreachable block
+                    # and downstream phi-merges don't see versions
+                    # that can never actually be observed at the
+                    # successor.  Codegen builds leave the IRCall as-is
+                    # so the bytecode path matches tclsh.
+                    if (
+                        self._faithful_exceptions
+                        and isinstance(stmt, IRCall)
+                        and stmt.canonical_command
+                        and stmt.canonical_command.lstrip(":") in _TERMINATING_COMMANDS
+                    ):
+                        block.terminator = CFGReturn(
+                            value=None, range=stmt.range, expr=None, braced=False
+                        )
 
         return current
 

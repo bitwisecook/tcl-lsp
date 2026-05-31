@@ -624,70 +624,85 @@ class TestO110InstCombine:
         assert "$a + 2" in o
 
     # Identity elements
+    #
+    # D5-O110: identity/annihilator drops require the surviving operand
+    # to be provably numeric.  All identity tests below use a loop
+    # counter pattern so SCCP types ``x`` as INT at the use point.
+
+    @staticmethod
+    def _int_x(body: str) -> str:
+        """Wrap *body* in a loop where ``x`` is INT-typed via SCCP.
+
+        The body should assign to ``v``; the wrapper adds ``puts $v`` so
+        O126/O109 don't delete the assignment we want to test."""
+        return (
+            "proc f {n} {\n"
+            "  for {set x 0} {$x < $n} {incr x} {\n"
+            "    " + body + "\n"
+            "    puts $v\n"
+            "  }\n"
+            "}\n"
+        )
 
     def test_add_zero_identity(self):
-        s = "set v [expr {$x + 0}]"
-        o, rw = _opt(s)
+        s = self._int_x("set v [expr {$x + 0}]")
         assert _has(s, "O110")
 
     def test_sub_zero_identity(self):
-        s = "set v [expr {$x - 0}]"
-        o, rw = _opt(s)
+        s = self._int_x("set v [expr {$x - 0}]")
         assert _has(s, "O110")
 
     def test_mul_one_identity(self):
-        s = "set v [expr {$x * 1}]"
-        o, rw = _opt(s)
+        s = self._int_x("set v [expr {$x * 1}]")
         assert _has(s, "O110")
 
     def test_mul_zero_absorbing(self):
-        s = "set v [expr {$x * 0}]"
+        s = self._int_x("set v [expr {$x * 0}]")
         o, _ = _opt(s)
         assert "set v 0" in o
 
     def test_div_one_identity(self):
-        s = "set v [expr {$x / 1}]"
-        o, rw = _opt(s)
+        s = self._int_x("set v [expr {$x / 1}]")
         assert _has(s, "O110")
 
     # Power identities
 
     def test_pow_zero(self):
-        s = "set v [expr {$x ** 0}]"
+        s = self._int_x("set v [expr {$x ** 0}]")
         o, _ = _opt(s)
         assert "set v 1" in o
 
     def test_pow_one(self):
-        s = "set v [expr {$x ** 1}]"
+        s = self._int_x("set v [expr {$x ** 1}]")
         assert _has(s, "O110")
 
     # Shift identities
 
     def test_lshift_zero(self):
-        s = "set v [expr {$x << 0}]"
+        s = self._int_x("set v [expr {$x << 0}]")
         assert _has(s, "O110")
 
     def test_rshift_zero(self):
-        s = "set v [expr {$x >> 0}]"
+        s = self._int_x("set v [expr {$x >> 0}]")
         assert _has(s, "O110")
 
     # Bitwise identities
 
     def test_bitand_zero_absorbing(self):
-        s = "set v [expr {$x & 0}]"
+        s = self._int_x("set v [expr {$x & 0}]")
         o, _ = _opt(s)
         assert "set v 0" in o
 
     def test_bitor_zero_identity(self):
-        s = "set v [expr {$x | 0}]"
+        s = self._int_x("set v [expr {$x | 0}]")
         assert _has(s, "O110")
 
     def test_bitxor_zero_identity(self):
-        s = "set v [expr {$x ^ 0}]"
+        s = self._int_x("set v [expr {$x ^ 0}]")
         assert _has(s, "O110")
 
     def test_mod_one_absorbing(self):
-        s = "set v [expr {$x % 1}]"
+        s = self._int_x("set v [expr {$x % 1}]")
         o, _ = _opt(s)
         assert "set v 0" in o
 
@@ -714,11 +729,11 @@ class TestO110InstCombine:
     # Left-side identity (commutativity)
 
     def test_zero_bitor_left(self):
-        s = "set v [expr {0 | $x}]"
+        s = self._int_x("set v [expr {0 | $x}]")
         assert _has(s, "O110")
 
     def test_zero_bitxor_left(self):
-        s = "set v [expr {0 ^ $x}]"
+        s = self._int_x("set v [expr {0 ^ $x}]")
         assert _has(s, "O110")
 
     def test_zero_and_left(self):
@@ -794,7 +809,9 @@ class TestO110InstCombine:
 
     def test_o110_additive_identity_still_fires(self):
         # ``$x + 0`` -> ``$x`` is a real identity removal, not a reorder.
-        s = "proc f {x} { return [expr {$x + 0}] }"
+        # D5-O110: requires provably-numeric ``$x``; use a SCCP-INT loop
+        # counter so the rewrite is sound.
+        s = self._int_x("set v [expr {$x + 0}]")
         assert _has(s, "O110")
 
     def test_o110_real_fold_through_reassoc_still_fires(self):
@@ -872,7 +889,8 @@ class TestO110InstCombine:
         assert "set v 0" in o
 
     def test_self_xor(self):
-        s = "set v [expr {$x ^ $x}]"
+        # D5-O110: x ^ x drops x; needs provably-numeric proof.
+        s = self._int_x("set v [expr {$x ^ $x}]")
         o, _ = _opt(s)
         assert "set v 0" in o
 
@@ -958,18 +976,20 @@ class TestO110InstCombine:
         assert "$a eq $b" in o
 
     def test_double_bitnot(self):
-        s = "set v [expr {~~$x}]"
+        # D5-O110: ~~x drops the operator; needs numeric proof on x.
+        s = self._int_x("set v [expr {~~$x}]")
         o, _ = _opt(s)
         assert "$x" in o and "~" not in o
 
     def test_double_negation(self):
-        s = "set v [expr {-(-$x)}]"
+        # D5-O110: -(-x) drops the operator; needs numeric proof on x.
+        s = self._int_x("set v [expr {-(-$x)}]")
         o, _ = _opt(s)
         assert "$x" in o
 
     def test_unary_pos_identity(self):
-        s = "set v [expr {+$x}]"
-        o, rw = _opt(s)
+        # D5-O110: +x drops the unary coercion; needs numeric proof on x.
+        s = self._int_x("set v [expr {+$x}]")
         assert _has(s, "O110")
 
     def test_negation_of_literal(self):
@@ -1155,9 +1175,18 @@ class TestO113StrengthReduction:
 
 
 class TestO114IncrIdiom:
+    # D5-O114: O114 now requires that *var* is provably ``TclType.INT`` at
+    # the use point.  The pattern ``proc foo {x}`` leaves *x* with unknown
+    # type (param), so ``set x [expr {$x + 1}]`` does NOT fire O114 -- the
+    # rewrite would change semantics if the caller passes a float (``1.5``
+    # -> tclsh: ``expr {1.5 + 1} == 2.5``; ``incr x`` errors).  All the
+    # firing-cases now use a literal ``set x 0`` first so SCCP types *x*
+    # as INT.
+
     def test_set_expr_add_one(self):
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 1}]
             }
         """).rstrip()
@@ -1166,7 +1195,8 @@ class TestO114IncrIdiom:
 
     def test_set_expr_add_n(self):
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 5}]
             }
         """).rstrip()
@@ -1175,7 +1205,8 @@ class TestO114IncrIdiom:
 
     def test_set_expr_sub_n(self):
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x - 3}]
             }
         """).rstrip()
@@ -1185,7 +1216,8 @@ class TestO114IncrIdiom:
     def test_commutative_add(self):
         """N + $x should also match (not just $x + N)."""
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {1 + $x}]
             }
         """).rstrip()
@@ -1202,7 +1234,8 @@ class TestO114IncrIdiom:
 
     def test_no_incr_multiplication(self):
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x * 2}]
             }
         """).rstrip()
@@ -1210,22 +1243,45 @@ class TestO114IncrIdiom:
 
     def test_sub_negative_is_incr(self):
         """$x - -1 gets InstCombined (O110) to $x + 1 first, so incr
-        idiom (O114) may or may not fire depending on pass ordering."""
+        idiom (O114) may or may not fire depending on pass ordering.
+
+        With SCCP-known INT seed ``set x 0`` the constant folder reaches
+        the expression first and folds to ``set x 1`` (O102) — no O114
+        opportunity remains.  When SCCP value is OVERDEFINED (e.g. loop
+        counter), the O110 -> O114 chain fires."""
         s = textwrap.dedent("""\
-            proc foo {x} {
-                set x [expr {$x - -1}]
+            proc foo {n} {
+                for {set x 0} {$x < $n} {incr x} {
+                    set x [expr {$x - -1}]
+                }
             }
         """).rstrip()
         o, rw = _opt(s)
         codes = [r.code for r in rw]
-        # O110 fires for the double-negation; incr may or may not follow
-        assert "O110" in codes or "O114" in codes
+        # O110 fires for the double-negation; incr may or may not follow.
+        # Some constant folding (O102) might also pre-empt -- but at least
+        # SOMETHING fires on the rewrite of $x - -1.
+        assert "O110" in codes or "O114" in codes or "O102" in codes
 
     def test_sub_zero_no_incr(self):
         """set x [expr {$x - 0}] is identity, not incr."""
         s = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x - 0}]
+            }
+        """).rstrip()
+        assert _not_has(s, "O114")
+
+    def test_no_incr_on_unknown_type_param(self):
+        """D5-O114: param with unknown type must NOT be incr-rewritten.
+
+        tclsh: ``set x [expr {$x + 1}]`` on ``x=1.5`` -> ``2.5``;
+        ``incr x`` on ``1.5`` errors ``expected integer but got "1.5"``.
+        Without an INT type proof the rewrite is unsound."""
+        s = textwrap.dedent("""\
+            proc foo {x} {
+                set x [expr {$x + 1}]
             }
         """).rstrip()
         assert _not_has(s, "O114")
@@ -1493,10 +1549,14 @@ class TestO120StringCompareEqNe:
         s = 'set a [clock seconds]\nif {$a == "1"} {}'
         assert _not_has(s, "O120")
 
-    def test_numeric_like_rewritten_for_string_var(self):
+    def test_numeric_like_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type proves internal-rep, NOT the runtime
+        value.  ``[string trim "1.0"]`` is STRING-typed but holds
+        ``"1.0"``; ``==`` is 1 (numeric), ``eq`` is 0 (string).  Per
+        the at-least-one-non-numeric rule, neither operand is provably
+        non-numeric, so the rewrite must NOT fire."""
         s = 'set a [string trim $raw]\nif {$a == "1"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "1"' in o
+        assert _not_has(s, "O120")
 
     def test_eq_in_expr_substitution(self):
         s = 'set ok [expr {$a == "world"}]'
@@ -1526,20 +1586,31 @@ class TestO120StringCompareEqNe:
         s = 'if {$a == "1.25"} {}'
         assert _not_has(s, "O120")
 
-    def test_boolean_like_literal_rewritten_for_string_var(self):
+    def test_boolean_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: ``"true"`` is in our BOOLEAN_WORDS predicate so
+        ``_is_numeric_string_value`` returns True (over-conservative
+        for ``==``; tclsh actually takes the string path on quoted
+        ``"true"``).  Safely conservative -- we lose an optimisation
+        but never introduce wrong output.  STRING type alone is no
+        longer accepted as proof per D5-O120."""
         s = 'set a [string trim $raw]\nif {$a == "true"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "true"' in o
+        assert _not_has(s, "O120")
 
-    def test_float_like_literal_rewritten_for_string_var(self):
+    def test_float_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: ``"1.25"`` is numeric-looking; STRING type doesn't
+        prove the var's runtime value is non-numeric (could be ``"1.25"``
+        too).  tclsh: ``set a "1.250"; expr {$a == "1.25"}`` is 1
+        (numeric), ``eq`` is 0 (string).  Must NOT rewrite."""
         s = 'set a [string trim $raw]\nif {$a == "1.25"} {}'
-        o, _ = _opt(s)
-        assert '$a eq "1.25"' in o
+        assert _not_has(s, "O120")
 
-    def test_var_vs_var_known_string_types_rewritten(self):
+    def test_var_vs_var_known_string_types_NOT_rewritten(self):
+        """D5-O120: two STRING-typed vars without SCCP CONST proof --
+        both could hold numeric-looking text at runtime (``"1.0"`` /
+        ``"1"`` is the canonical case).  Without at-least-one operand
+        provably non-numeric, the rewrite must NOT fire."""
         s = "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}"
-        o, _ = _opt(s)
-        assert "$a eq $b" in o
+        assert _not_has(s, "O120")
 
     def test_mixed_expression_only_rewrites_string_compare(self):
         s = 'set a [string trim $raw]\nif {$a == "x" && $n == 1} {}'
@@ -2162,7 +2233,8 @@ class TestPassInteractions:
             ),
             (
                 "O114",
-                'set n [expr {$n + 1}]\nset a [string trim $raw]\nif {$a == "foo"} {puts yes}',
+                # D5-O114: requires SSA-known INT seed.
+                'set n 0\nset n [expr {$n + 1}]\nset a [string trim $raw]\nif {$a == "foo"} {puts yes}',
             ),
             (
                 "O115",

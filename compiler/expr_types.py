@@ -52,7 +52,16 @@ VarTypes: TypeAlias = dict[str, TypeLattice]
 
 
 def _literal_type_from_text(text: str) -> TypeLattice:
-    """Infer the type of a literal value from its text."""
+    """Infer the type of a literal value from its text in **EXPR context**.
+
+    The expr parser tokenises hex / octal / binary forms (``0xff``,
+    ``0o15``, ``0b1010``) as integers (``Tcl_GetInt`` accepts them),
+    so they all map to ``INT`` here.  This is distinct from the
+    set-statement classifier in ``core_analyses._literal_type`` which
+    treats those forms as STRING -- ``set x 0xff`` stores the text
+    "0xff" whose canonical stringified intrep is the decimal form,
+    while ``expr {0xff + 1}`` evaluates the literal AS an integer.
+    """
     stripped = text.strip()
     low = stripped.lower()
 
@@ -62,7 +71,8 @@ def _literal_type_from_text(text: str) -> TypeLattice:
     if low in TCL_BOOL_LITERALS:
         return TypeLattice.of(TclType.BOOLEAN)
 
-    # Integer (decimal, hex, octal, binary)
+    # Integer (decimal, hex, octal, binary) -- in expr context, all
+    # integer-form literals tokenise to int.
     if stripped.startswith(("0x", "0X", "0o", "0O", "0b", "0B")):
         return TypeLattice.of(TclType.INT)
     try:

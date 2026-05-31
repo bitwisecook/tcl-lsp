@@ -1659,6 +1659,36 @@ _PROC_NAME_WORD_RE = re.compile(
 )
 
 
+# Tcl proc names can contain any character (the dict store is byte-
+# indexed), so a regex restricted to ``\w``-style identifiers will
+# silently miss valid names like ``do-work``, ``+``, or ``my::ns-foo``
+# -- D4-F8 closure.  Augment the regex-based scan with a whitespace-
+# split fallback so any non-empty token in *text* is also looked up
+# against the name index.  False positives just keep procs alive;
+# false negatives would drop a live proc (unsafe).
+def _scan_text_tokens(text: str, name_index: dict[str, set[str]], out: set[str]) -> None:
+    """Best-effort whole-word lookup over whitespace-split tokens.
+
+    Splits on whitespace + a small set of Tcl special chars so a
+    single quoted/braced word containing non-``\\w`` proc names is
+    still discoverable.  Conservative additions only -- this never
+    removes anything from *out*.
+    """
+    # Strip ``$`` / ``[`` / ``]`` / ``;`` / quote chars so a word like
+    # ``$cb`` or ``[do-work]`` is matched as ``cb`` / ``do-work``.
+    for tok in text.replace("[", " ").replace("]", " ").replace(";", " ").split():
+        tok = tok.strip("\"'{}")
+        if tok.startswith("$"):
+            tok = tok[1:]
+            if tok.startswith("{") and tok.endswith("}"):
+                tok = tok[1:-1]
+        if not tok:
+            continue
+        targets = name_index.get(tok)
+        if targets:
+            out.update(targets)
+
+
 # Commands whose args are NOT proc-name references — the
 # textual scan would generate spurious matches (e.g. ``source
 # helper.tcl`` would match ``helper`` inside the filename).
@@ -1699,6 +1729,10 @@ def _scan_text_for_procs(
         targets = name_index.get(word)
         if targets:
             out.update(targets)
+    # D4-F8 closure: also do a whitespace-split scan so proc names
+    # containing non-``\w`` characters (``do-work``, ``my+f``, etc.)
+    # are not silently missed by the regex's identifier restriction.
+    _scan_text_tokens(text, name_index, out)
 
 
 def _collect_referenced_procs(

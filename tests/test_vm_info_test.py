@@ -22,9 +22,18 @@ pytestmark = pytest.mark.slow
 
 # Known failures
 
-KNOWN_FAILURES_INFO: set[str] = set(
-    # info.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_INFO: set[str] = {
+    "info-2.3",
+    "info-3.1",
+    "info-3.2",
+    "info-3.3",
+    "info-3.4",
+    "info-4.5",
+    "info-7.9",
+    "info-8.3",
+    "info-8.4",
+    "info-9.5",
+}
 
 
 # Test runner
@@ -132,4 +141,4 @@ class TestInfoNative:
 
     def test_info(self) -> None:
         results = _run_test_file("info.test")
-        _check_results(results, KNOWN_FAILURES_INFO, "info.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_INFO, "info.test")
