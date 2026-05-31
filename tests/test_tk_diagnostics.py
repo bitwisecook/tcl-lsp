@@ -163,3 +163,91 @@ class TestNoDiagnosticsWithoutTk:
         result = analyse(source)
         diags = check_tk_diagnostics(source, result)
         assert diags == []
+
+
+class TestTkGeometryManagerShortcut:
+    """``grid pathName ?args?`` / ``pack pathName ?args?`` / ``place pathName
+    ?args?`` are documented Tk shortcuts for the ``configure`` subcommand
+    (per Tk man pages grid.n / pack.n / place.n).  A window path starts with
+    ``.`` (Tk's path convention), which is not a valid Tcl subcommand-name
+    first character — so the analyser must NOT raise W001
+    ('Unknown subcommand') on the shortcut form."""
+
+    @staticmethod
+    def _codes(src: str) -> list[tuple[str, str]]:
+        from server.features.diagnostics import get_diagnostics
+
+        return [
+            (str(d.code), d.message)
+            for d in get_diagnostics(src)
+            if isinstance(d.code, str) and d.code == "W001"
+        ]
+
+    def test_grid_window_path_no_w001(self):
+        assert self._codes("grid .x\n") == []
+        assert self._codes("grid .x -row 0 -column 0\n") == []
+        assert self._codes("grid .frame.button -sticky ew\n") == []
+
+    def test_pack_window_path_no_w001(self):
+        assert self._codes("pack .x\n") == []
+        assert self._codes("pack .x -side left\n") == []
+
+    def test_place_window_path_no_w001(self):
+        assert self._codes("place .x -x 0 -y 0\n") == []
+
+    def test_genuine_typo_still_flagged(self):
+        # TP control: a real subcommand typo must still fire.  ``colmconfigure``
+        # is a typo for ``columnconfigure`` — no window path, no exemption.
+        codes = self._codes("grid colmconfigure . 0 -weight 1\n")
+        assert any("Unknown subcommand 'colmconfigure'" in m for _, m in codes)
+
+    def test_real_subcommand_still_silent(self):
+        # FP control: a real subcommand (``info ?pathName?``) is silent.
+        assert self._codes("grid info .x\n") == []
+        assert self._codes("grid columnconfigure . 0 -weight 1\n") == []
+
+
+class TestTkGateWhitespaceVariants:
+    """The cheap pre-``analyse()`` gate in ``get_diagnostics`` must recognise a
+    ``package require Tk`` written with any word separator, not just a single
+    space — the lexer splits words on ``\\t``/multiple spaces/``;`` and a
+    backslash-newline continuation, so those are all real requires (tclsh
+    tokenises identically).  Missing them silently dropped TK100x (the pre-A8
+    unconditional analyse() caught them)."""
+
+    _BASE = (
+        "package require Tk\n"
+        "frame .f\n"
+        "button .f.b1 -text Hello\n"
+        "button .f.b2 -text World\n"
+        "pack .f.b1 -side left\n"
+        "grid .f.b2 -row 0 -column 0\n"
+    )
+
+    @staticmethod
+    def _tk_codes(src: str) -> set[str]:
+        from server.features.diagnostics import get_diagnostics
+
+        return {
+            d.code
+            for d in get_diagnostics(src)
+            if isinstance(d.code, str) and d.code.startswith("TK")
+        }
+
+    def test_single_space_fires_tk1001(self):
+        assert "TK1001" in self._tk_codes(self._BASE)
+
+    def test_tab_separated_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package\trequire Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_double_space_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package  require Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_line_continued_require_still_fires(self):
+        src = self._BASE.replace("package require Tk", "package \\\n    require Tk")
+        assert "TK1001" in self._tk_codes(src)
+
+    def test_non_tk_file_still_silent(self):
+        assert self._tk_codes("set x 1\nputs hello\n") == set()

@@ -635,6 +635,13 @@ def _check_missing_package_require(
     if result.has_dynamic_providers:
         return []
     imported = result.active_package_names()
+    # Self-call suppression: a file that ``package provide``s package X
+    # is X's own implementation.  Calls to ``X::foo`` from inside the
+    # implementation don't need ``package require X`` — that would be
+    # the package importing itself.  tcllib's ``msgcat.tcl`` calling
+    # ``msgcat::mcutil`` is the canonical example.
+    provided = frozenset(pp.name for pp in result.package_provides)
+    imported = imported | provided
     # Expand with packages from files that ``source`` this file (parent
     # files in the dependency graph).  If no source graph is available,
     # fall back to all workspace package names.
@@ -731,6 +738,14 @@ def get_basic_diagnostics(
     if workspace_context and workspace_context.alias_names_by_uri:
         _ws_alias_tails = _inherited_aliases(uri, workspace_context)
 
+    # Tcl's package machinery sets the variable ``dir`` (the directory holding
+    # the index file) before sourcing any ``pkgIndex.tcl``, so a ``$dir`` read
+    # there is the ambient package var, not a real read-before-set.  Suppress
+    # that one name in that one file kind (gated on the document URI).
+    _is_pkgindex = bool(uri) and uri.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1] == (
+        "pkgIndex.tcl"
+    )
+
     diags: list[types.Diagnostic] = []
     for d in result.diagnostics:
         if disabled_diagnostics and d.code in disabled_diagnostics:
@@ -744,6 +759,14 @@ def get_basic_diagnostics(
                 continue
             if _ws_alias_tails is not None and cmd in _ws_alias_tails:
                 continue
+        # pkgIndex.tcl: the ambient ``dir`` variable is read-before-set only in
+        # appearance — the package loader provides it.
+        if (
+            _is_pkgindex
+            and d.code == "W210"
+            and d.message.startswith("Variable 'dir' is read before")
+        ):
+            continue
         diags.append(_to_lsp_diagnostic(d, uri=uri))
         if (
             optimiser_enabled
@@ -812,6 +835,9 @@ def _run_deep_diagnostics(
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
     generic_variable_patterns: list[str] | None = None,
+    shimmer_target_procs: frozenset[str] | None = None,
+    extra_commands: tuple[str, ...] = (),
+    stub_commands: tuple = (),
 ) -> list[types.Diagnostic]:
     """Subprocess-safe wrapper for deep diagnostics.
 
@@ -819,11 +845,24 @@ def _run_deep_diagnostics(
     Rebuilds the CompilationUnit from source (no pre-built CU or
     analysis needed) so the only data crossing the process boundary
     is the source string and config flags.
+
+    *shimmer_target_procs* (a set of qnames, or ``None`` for all) restricts the
+    body-local shimmer pass to the procs the incremental memoizer flagged dirty;
+    the caller reuses re-offset cached shimmer for the rest.
+
+    The subprocess does not share ContextVars with the parent, so the
+    per-folder ``extra_commands`` (dialect/EDA command overlay, issue #407) and
+    the workspace ``.tcl.stubs`` must be forwarded and re-applied here — exactly
+    as ``_analyse_document_fresh`` does for the cold build.  Without this the
+    deep pass (optimiser / taint / GVN) re-lexes against a bare registry and
+    can mis-resolve folder-scoped or stub-declared commands.
     """
     import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
+    from compiler.registry.stub_comments import set_ambient_stubs
 
-    configure_signatures(dialect=dialect)
+    configure_signatures(dialect=dialect, extra_commands=list(extra_commands))
+    set_ambient_stubs(stub_commands)
     return get_deep_diagnostics(
         source,
         suppressed,
@@ -837,6 +876,7 @@ def _run_deep_diagnostics(
         disabled_optimisations=disabled_optimisations,
         uri=uri,
         generic_variable_patterns=generic_variable_patterns,
+        shimmer_target_procs=shimmer_target_procs,
     )
 
 
@@ -854,6 +894,7 @@ def get_deep_diagnostics(
     disabled_optimisations: set[str] | None = None,
     uri: str | None = None,
     generic_variable_patterns: list[str] | None = None,
+    shimmer_target_procs: frozenset[str] | None = None,
 ) -> list[types.Diagnostic]:
     """Return deep diagnostics: optimiser, shimmer, taint, iRules flow, GVN.
 
@@ -947,7 +988,7 @@ def get_deep_diagnostics(
                 diags.append(_optimisation_to_diagnostic(opt))
     time.sleep(0)  # Yield GIL between deep diagnostic passes
     if shimmer_enabled:
-        for w in find_shimmer_warnings(source, cu=cu):
+        for w in find_shimmer_warnings(source, cu=cu, target_procs=shimmer_target_procs):
             if disabled_diagnostics and w.code in disabled_diagnostics:
                 continue
             if suppressed and _is_suppressed(w.code, w.range.start.line, suppressed):
@@ -997,23 +1038,34 @@ def get_deep_diagnostics(
         except Exception:
             pass  # XC diagnostics are advisory — don't break normal diagnostics
 
-    # Tk-specific diagnostics (only when package require Tk is present)
-    if analysis is None:
-        analysis = analyse(source, cu=cu)
-    if has_tk_require(analysis):
-        try:
-            from analyser.checks.tk import check_tk_diagnostics
+    # Tk-specific diagnostics (only when ``package require Tk`` is present).
+    # A literal ``package require Tk`` — the only thing has_tk_require detects —
+    # must mention all three tokens in the source, so this cheap necessary-
+    # condition gate skips the otherwise-wasted full analyse() for the common
+    # non-Tk file (the deep path passes analysis=None, and analysis is used only
+    # by the Tk check below).  When Tk *might* be required we run analyse() — the
+    # Tk check needs the analysis anyway.  The tokens are checked *separately*
+    # (not the substring ``"package require"``): the lexer splits words on any of
+    # ``\t\n\r\x0b\x0c;`` and a backslash-newline continuation, so
+    # ``package\trequire Tk`` / ``package  require Tk`` / a line-continued form
+    # are all real requires that the substring test would miss → TK100x dropped.
+    if "package" in source and "require" in source and "Tk" in source:
+        if analysis is None:
+            analysis = analyse(source, cu=cu)
+        if has_tk_require(analysis):
+            try:
+                from analyser.checks.tk import check_tk_diagnostics
 
-            for tk_diag in check_tk_diagnostics(source, analysis):
-                if disabled_diagnostics and tk_diag.code in disabled_diagnostics:
-                    continue
-                if suppressed and _is_suppressed(
-                    tk_diag.code, tk_diag.range.start.line, suppressed
-                ):
-                    continue
-                diags.append(_to_lsp_diagnostic(tk_diag))
-        except Exception:
-            pass  # Tk diagnostics are advisory — don't break normal diagnostics
+                for tk_diag in check_tk_diagnostics(source, analysis):
+                    if disabled_diagnostics and tk_diag.code in disabled_diagnostics:
+                        continue
+                    if suppressed and _is_suppressed(
+                        tk_diag.code, tk_diag.range.start.line, suppressed
+                    ):
+                        continue
+                    diags.append(_to_lsp_diagnostic(tk_diag))
+            except Exception:
+                pass  # Tk diagnostics are advisory — don't break normal diagnostics
 
     return diags
 

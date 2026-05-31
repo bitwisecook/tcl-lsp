@@ -34,6 +34,16 @@ class _AnalyserDiagBranchesMixin(_Base):
             names = (branch.block, branch.taken_target, branch.not_taken_target)
             is_switch = any(name.startswith("switch_") for name in names)
             is_if = any(name.startswith("if_") for name in names)
+            is_loop = any(name.startswith(("while_", "for_", "foreach_")) for name in names)
+
+            # A constant-*true* loop condition (`while 1`, `for {…} 1 {…}`,
+            # `while true`) is the idiomatic infinite loop — it exits via
+            # ``break``/``return``, not the condition, so the loop-exit "branch"
+            # is not really unreachable and flagging it is pure noise.  Keep
+            # constant-*false* loop conditions (`while 0` — the body genuinely
+            # never runs) and all if/switch constant branches.
+            if is_loop and not is_if and not is_switch and branch.value:
+                continue
 
             if is_switch:
                 code = "I231"

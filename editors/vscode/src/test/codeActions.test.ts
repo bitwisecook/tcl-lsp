@@ -103,23 +103,18 @@ suite("Code Actions", () => {
     });
     assert.ok(irule1005, "IRULE1005 diagnostic should be present");
 
-    let collectFix: vscode.CodeAction | undefined;
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
-      const actions = (await vscode.commands.executeCommand(
-        "vscode.executeCodeActionProvider",
-        irulesDocUri,
-        irule1005.range,
-      )) as vscode.CodeAction[];
-      collectFix = actions.find(
-        (a) =>
-          typeof a.title === "string" &&
-          a.title.includes("collect") &&
-          a.title.includes("CLIENT_ACCEPTED"),
-      );
-      if (collectFix) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      irulesDocUri,
+      irule1005.range,
+    )) as vscode.CodeAction[];
+
+    const collectFix = actions.find(
+      (a) =>
+        typeof a.title === "string" &&
+        a.title.includes("collect") &&
+        a.title.includes("CLIENT_ACCEPTED"),
+    );
     assert.ok(collectFix, "Should provide a collect bootstrap quick fix");
   });
 });

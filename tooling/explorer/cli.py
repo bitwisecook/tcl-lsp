@@ -11,6 +11,7 @@ Features:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +51,7 @@ from tooling.cli.formatters import (
     format_type,
     preview,
 )
+from tooling.explorer.cfg_layout import build_cfg_edges
 from tooling.explorer.pipeline import (
     ALL_VIEWS,
     AVAILABLE_DIALECTS,
@@ -692,14 +694,86 @@ def _print_function_analysis_summary(snap: FunctionSnapshot, *, use_colour: bool
         print(style("    inferred-types: none", Ansi.DIM, use_colour))
 
 
-def print_cfg_pre_ssa(
+# Box-drawing glyph for a 4-bit cell mask (N=1, E=2, S=4, W=8).  Used to merge
+# overlapping edge segments in the ASCII control-flow gutter so crossings and
+# fan-in/out render as proper junctions.
+_GUTTER_GLYPH = {
+    0: " ",
+    1: "│",
+    4: "│",
+    5: "│",
+    2: "─",
+    8: "─",
+    10: "─",
+    6: "┌",
+    12: "┐",
+    3: "└",
+    9: "┘",
+    7: "├",
+    14: "┬",
+    13: "┤",
+    11: "┴",
+    15: "┼",
+}
+
+_N, _E, _S, _W = 1, 2, 4, 8
+
+
+def _cfg_gutter(n_rows: int, edges: list[tuple[int, int, int, str]]) -> list[str]:
+    """Render an ASCII control-flow gutter, one string per printed row.
+
+    *edges* are ``(src_row, dst_row, lane, kind)`` tuples; lanes come from the
+    shared ``cfg_layout`` routing model so the nesting matches the web SVG.  The
+    arrowhead (``▶``) lands on the destination row, immediately left of the
+    block text.  Returns ``[""] * n_rows`` when there are no edges (so an
+    edgeless function prints exactly as before, with no left margin).
+    """
+    if not edges:
+        return [""] * n_rows
+    width = max(lane for _, _, lane, _ in edges) + 1
+    grid = [[0] * width for _ in range(n_rows)]
+    arrow_rows: set[int] = set()
+    for src_row, dst_row, lane, _kind in edges:
+        col = width - 1 - lane
+        down = dst_row > src_row
+        top, bot = (src_row, dst_row) if down else (dst_row, src_row)
+        for r in range(top + 1, bot):
+            grid[r][col] |= _N | _S
+        # Corner at each endpoint: the horizontal stub always runs east (toward
+        # the block text); the vertical runs toward the other endpoint.
+        if down:
+            grid[src_row][col] |= _E | _S
+            grid[dst_row][col] |= _N | _E
+        else:
+            grid[src_row][col] |= _N | _E
+            grid[dst_row][col] |= _E | _S
+        for r in (src_row, dst_row):
+            for c in range(col + 1, width):
+                grid[r][c] |= _E | _W
+        arrow_rows.add(dst_row)
+    out: list[str] = []
+    for r in range(n_rows):
+        cells = [_GUTTER_GLYPH[b] for b in grid[r]]
+        if r in arrow_rows:
+            cells[width - 1] = "▶"
+        out.append("".join(cells))
+    return out
+
+
+def _render_cfg(
     snapshots: list[FunctionSnapshot],
     *,
     line_index: LineIndex,
     use_colour: bool,
+    post_ssa: bool,
 ) -> None:
+    """Shared renderer for the pre- and post-SSA CFG views.
+
+    Both build the same block listing (post-SSA adds phis, use/def sets, and an
+    analysis summary) and prepend an ASCII edge gutter routed by ``cfg_layout``.
+    """
     print()
-    print(style("cfg-pre-ssa", Ansi.BOLD, use_colour))
+    print(style("cfg-post-ssa" if post_ssa else "cfg-pre-ssa", Ansi.BOLD, use_colour))
 
     for snap in snapshots:
         print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
@@ -707,48 +781,20 @@ def print_cfg_pre_ssa(
             style(f"  entry={snap.cfg.entry} blocks={len(snap.cfg.blocks)}", Ansi.DIM, use_colour)
         )
 
-        for block_name, block in snap.cfg.blocks.items():
-            entry_suffix = " [entry]" if block_name == snap.cfg.entry else ""
-            print(style(f"  block {block_name}{entry_suffix}", Ansi.BOLD, use_colour))
-
-            for idx, stmt in enumerate(block.statements):
-                span = line_index.format_range(stmt.range)
-                summary = _stmt_summary(stmt)
-                print(
-                    f"    [{idx}] {style(summary, _stmt_colour(stmt), use_colour)} "
-                    f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
-                )
-
-            term = block.terminator
-            term_summary = _terminator_summary(term)
-            term_span = ""
-            if isinstance(term, (CFGGoto, CFGBranch, CFGReturn)) and term.range is not None:
-                term_span = f" [{line_index.format_range(term.range)}]"
-            print(style(f"    term {term_summary}{term_span}", Ansi.BLUE, use_colour))
-
-        print()
-
-
-def print_cfg_post_ssa(
-    snapshots: list[FunctionSnapshot],
-    *,
-    line_index: LineIndex,
-    use_colour: bool,
-) -> None:
-    print()
-    print(style("cfg-post-ssa", Ansi.BOLD, use_colour))
-
-    for snap in snapshots:
-        print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
-        print(
-            style(f"  entry={snap.cfg.entry} blocks={len(snap.cfg.blocks)}", Ansi.DIM, use_colour)
-        )
+        lines: list[str] = []
+        header_row: dict[str, int] = {}
+        term_row: dict[str, int] = {}
 
         for block_name, block in snap.cfg.blocks.items():
-            ssa_block = snap.ssa.blocks.get(block_name)
+            ssa_block = snap.ssa.blocks.get(block_name) if post_ssa else None
             entry_suffix = " [entry]" if block_name == snap.cfg.entry else ""
-            dead_suffix = " [unreachable]" if block_name in snap.analysis.unreachable_blocks else ""
-            print(style(f"  block {block_name}{entry_suffix}{dead_suffix}", Ansi.BOLD, use_colour))
+            dead_suffix = ""
+            if post_ssa and block_name in snap.analysis.unreachable_blocks:
+                dead_suffix = " [unreachable]"
+            header_row[block_name] = len(lines)
+            lines.append(
+                style(f"  block {block_name}{entry_suffix}{dead_suffix}", Ansi.BOLD, use_colour)
+            )
 
             if ssa_block is not None and ssa_block.phis:
                 for phi in ssa_block.phis:
@@ -759,7 +805,7 @@ def print_cfg_post_ssa(
                     type_suffix = ""
                     if phi_type is not None and phi_type.kind is not TypeKind.UNKNOWN:
                         type_suffix = f" : {format_type(phi_type)}"
-                    print(
+                    lines.append(
                         style(
                             f"    phi {phi.name}#{phi.version} <- {incoming}{type_suffix}",
                             Ansi.MAGENTA,
@@ -770,27 +816,59 @@ def print_cfg_post_ssa(
             for idx, stmt in enumerate(block.statements):
                 span = line_index.format_range(stmt.range)
                 summary = _stmt_summary(stmt)
-                uses = "{}"
-                defs = "{}"
-                if ssa_block is not None and idx < len(ssa_block.statements):
-                    ssa_stmt = ssa_block.statements[idx]
-                    uses = _format_uses(ssa_stmt.uses)
-                    defs = _format_defs(ssa_stmt.defs, snap.analysis.values, snap.analysis.types)
-                print(
+                lines.append(
                     f"    [{idx}] {style(summary, _stmt_colour(stmt), use_colour)} "
                     f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
                 )
-                print(style(f"         uses={uses} defs={defs}", Ansi.DIM, use_colour))
+                if post_ssa:
+                    uses = "{}"
+                    defs = "{}"
+                    if ssa_block is not None and idx < len(ssa_block.statements):
+                        ssa_stmt = ssa_block.statements[idx]
+                        uses = _format_uses(ssa_stmt.uses)
+                        defs = _format_defs(
+                            ssa_stmt.defs, snap.analysis.values, snap.analysis.types
+                        )
+                    lines.append(style(f"         uses={uses} defs={defs}", Ansi.DIM, use_colour))
 
             term = block.terminator
             term_summary = _terminator_summary(term)
             term_span = ""
             if isinstance(term, (CFGGoto, CFGBranch, CFGReturn)) and term.range is not None:
                 term_span = f" [{line_index.format_range(term.range)}]"
-            print(style(f"    term {term_summary}{term_span}", Ansi.BLUE, use_colour))
+            term_row[block_name] = len(lines)
+            lines.append(style(f"    term {term_summary}{term_span}", Ansi.BLUE, use_colour))
 
-        _print_function_analysis_summary(snap, use_colour=use_colour)
+        gutter_edges = [
+            (term_row[e.src], header_row[e.dst], e.lane, e.kind)
+            for e in build_cfg_edges(snap.cfg)
+            if e.src in term_row and e.dst in header_row
+        ]
+        gutter = _cfg_gutter(len(lines), gutter_edges)
+        for g, line in zip(gutter, lines):
+            print(f"{style(g, Ansi.BLUE, use_colour)} {line}" if g else line)
+
+        if post_ssa:
+            _print_function_analysis_summary(snap, use_colour=use_colour)
         print()
+
+
+def print_cfg_pre_ssa(
+    snapshots: list[FunctionSnapshot],
+    *,
+    line_index: LineIndex,
+    use_colour: bool,
+) -> None:
+    _render_cfg(snapshots, line_index=line_index, use_colour=use_colour, post_ssa=False)
+
+
+def print_cfg_post_ssa(
+    snapshots: list[FunctionSnapshot],
+    *,
+    line_index: LineIndex,
+    use_colour: bool,
+) -> None:
+    _render_cfg(snapshots, line_index=line_index, use_colour=use_colour, post_ssa=True)
 
 
 def _summary_return_shape(summary: ProcSummary) -> str:
@@ -802,6 +880,158 @@ def _summary_return_shape(summary: ProcSummary) -> str:
         deps = ",".join(summary.return_depends_on_params)
         return f"depends({deps})"
     return "unknown"
+
+
+def _render_green_node(node, *, depth: int, use_colour: bool, max_depth: int = 16) -> None:
+    from shared.tokens import TokenType
+
+    indent = "  " * depth
+    print(
+        style(
+            f"{indent}{node.kind.name.lower()} [{node.mode.name.lower()}] "
+            f"@{node.base_offset} w={node.width} tokens={len(node.tokens)}",
+            Ansi.CYAN if node.kind.name != "ERROR" else Ansi.RED,
+            use_colour,
+        )
+    )
+    if depth >= max_depth:
+        return
+    for tok in node.tokens:
+        if tok.type in (TokenType.STR, TokenType.CMD) and tok.text:
+            _render_green_node(
+                node.descend(tok), depth=depth + 1, use_colour=use_colour, max_depth=max_depth
+            )
+
+
+def print_greentree(source: str, *, use_colour: bool) -> None:
+    """Render the lossless green token tree (Phase 0 lexer-layer visibility).
+
+    Shows each region's structural kind and tokenisation :class:`Mode`
+    (SCRIPT / QUOTED / EXPR / RAW), recursively descending opaque ``{...}`` /
+    ``[...]`` leaves — the same lazy, memoised descent the analyser consumes.
+    Unterminated/recovered regions render as ERROR nodes.
+    """
+    from compiler.parsing.green_tree import green_tree_scope, node_for
+
+    print()
+    print(style("green-tree", Ansi.BOLD, use_colour))
+    with green_tree_scope():
+        _render_green_node(node_for(source), depth=0, use_colour=use_colour)
+
+
+def print_loops(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
+    """Render the natural-loop forest per function (Phase 1 ``LoopForest``).
+
+    Shows each loop's header, body-block count, latches and nesting depth so
+    the loop structure the optimiser/LICM and (future) range-widening see is
+    inspectable alongside the cfg/ssa views.
+    """
+    from compiler.loops import build_loop_forest, dominates
+
+    print()
+    print(style("loops", Ansi.BOLD, use_colour))
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        executable = set(snap.cfg.blocks) - snap.analysis.unreachable_blocks
+        forest = build_loop_forest(snap.cfg, snap.ssa, executable)
+        print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
+        if forest.is_empty():
+            print(style("  (no loops)", Ansi.DIM, use_colour))
+            continue
+        headers = list(forest.by_header)
+        for loop in forest.loops:
+            depth = 1 + sum(
+                1 for h in headers if h != loop.header and dominates(snap.ssa, h, loop.header)
+            )
+            latches = ", ".join(sorted(loop.latches)) or "-"
+            print(
+                style(
+                    f"  header {loop.header} (depth {depth}): "
+                    f"{len(loop.blocks)} block(s), latch(es): {latches}",
+                    Ansi.BLUE,
+                    use_colour,
+                )
+            )
+
+
+def print_intervals(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
+    """Render the integer-interval abstract domain per SSA value (Phase 3).
+
+    Shows the ``[lo, hi]`` range computed for each ``name#version`` (``-inf`` /
+    ``+inf`` for unbounded), so the numeric facts the bounds / divide-by-zero
+    checks consult — and the loop-header widening behind them — are inspectable
+    next to the ``types``/``dataflow`` views.  Only non-trivial (bounded)
+    ranges are listed; everything else is ``[-inf, +inf]`` (top).
+    """
+    from compiler.intervals import compute_intervals
+
+    print()
+    print(style("intervals", Ansi.BOLD, use_colour))
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        intervals = compute_intervals(snap.cfg, snap.ssa, snap.analysis.values)
+        bounded = {
+            key: iv
+            for key, iv in intervals.items()
+            if not iv.is_top and (iv.lo is not None or iv.hi is not None)
+        }
+        print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
+        if not bounded:
+            print(style("  (no bounded ranges)", Ansi.DIM, use_colour))
+            continue
+        for (name, ver), iv in sorted(bounded.items()):
+            lo = "-inf" if iv.lo is None else str(iv.lo)
+            hi = "+inf" if iv.hi is None else str(iv.hi)
+            print(style(f"  {name}#{ver}: [{lo}, {hi}]", Ansi.BLUE, use_colour))
+
+
+def print_bounds(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
+    """Render the interval-driven dynamic bounds findings (Phase 3).
+
+    Shows each provable out-of-range ``lindex``/``lset`` access (W230/W231) and
+    divide-by-zero (W233) the interval domain finds — the resolved index range,
+    the container length, and why it is out of range — so a finding (and the
+    interval reasoning behind it) is explainable next to the ``intervals`` view.
+    """
+    from compiler.interval_bounds import find_interval_findings
+
+    print()
+    print(style("bounds", Ansi.BOLD, use_colour))
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        # Both passes share one interval fixpoint (find_interval_bounds and
+        # find_divide_by_zero each recompute it otherwise — paid twice here).
+        executable = set(snap.cfg.blocks) - snap.analysis.unreachable_blocks
+        findings, divzero = find_interval_findings(
+            snap.cfg, snap.ssa, snap.execution_intent, snap.analysis.values, executable
+        )
+        print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
+        if not findings and not divzero:
+            print(style("  (no provable out-of-range / divide-by-zero)", Ansi.DIM, use_colour))
+            continue
+        for f in findings:
+            iv = f.index_interval
+            lo = "-inf" if iv.lo is None else str(iv.lo)
+            hi = "+inf" if iv.hi is None else str(iv.hi)
+            print(
+                style(
+                    f"  {f.code} {f.command} ${f.index_var}#? in [{lo}, {hi}] "
+                    f"vs length {f.length} → {f.reason}",
+                    Ansi.YELLOW,
+                    use_colour,
+                )
+            )
+        for dz in divzero:
+            print(
+                style(
+                    f"  W233 '{dz.op}' divisor is provably 0 (divide by zero)",
+                    Ansi.YELLOW,
+                    use_colour,
+                )
+            )
 
 
 def print_interprocedural(
@@ -895,6 +1125,8 @@ def print_types(
     *,
     use_colour: bool,
 ) -> None:
+    from compiler.intervals import compute_intervals
+
     print(style("type-inference", Ansi.BOLD, use_colour))
 
     any_types = False
@@ -907,10 +1139,20 @@ def print_types(
         if not interesting:
             continue
         any_types = True
+        # Annotate each typed value with its integer interval (the Phase 3
+        # RANGE domain) when bounded, so the numeric facts the bounds /
+        # divide-by-zero checks consult are visible alongside the type.
+        intervals = compute_intervals(snap.cfg, snap.ssa, snap.analysis.values)
         print(style(f"  function {snap.name}", Ansi.CYAN, use_colour))
         for (name, ver), tl in sorted(interesting.items()):
             colour = Ansi.YELLOW if tl.kind is TypeKind.SHIMMERED else Ansi.GREEN
-            print(style(f"    {name}#{ver}: {format_type(tl)}", colour, use_colour))
+            rng = ""
+            iv = intervals.get((name, ver))
+            if iv is not None and not iv.is_top and (iv.lo is not None or iv.hi is not None):
+                lo = "-inf" if iv.lo is None else str(iv.lo)
+                hi = "+inf" if iv.hi is None else str(iv.hi)
+                rng = style(f"  range [{lo}, {hi}]", Ansi.DIM, use_colour)
+            print(style(f"    {name}#{ver}: {format_type(tl)}", colour, use_colour) + rng)
 
     if not any_types:
         print(style("  no type information inferred", Ansi.DIM, use_colour))
@@ -1162,6 +1404,29 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Disable ANSI colours.",
     )
+    fmt = parser.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--tui",
+        dest="format",
+        action="store_const",
+        const="tui",
+        help="Live Textual UI (default on an interactive terminal).",
+    )
+    fmt.add_argument(
+        "--text",
+        dest="format",
+        action="store_const",
+        const="text",
+        help="Flat scrolling text (default when piped / non-interactive).",
+    )
+    fmt.add_argument(
+        "--json",
+        dest="format",
+        action="store_const",
+        const="json",
+        help="Machine-readable JSON (same serialisation as the web explorer).",
+    )
+    parser.set_defaults(format=None)
     args = parser.parse_args(argv)
 
     show_raw = args.focus if args.focus is not None else args.show
@@ -1172,35 +1437,128 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
-    use_colour = (not args.no_colour) and sys.stdout.isatty()
+# Ordered view list — the order in which views render in text mode and appear
+# in the TUI sidebar.
+_VIEW_ORDER: tuple[str, ...] = (
+    "greentree",
+    "ir",
+    "cfg",
+    "ssa",
+    "loops",
+    "types",
+    "intervals",
+    "bounds",
+    "dataflow",
+    "interproc",
+    "opt",
+    "gvn",
+    "shimmer",
+    "taint",
+    "irules",
+    "callouts",
+    "asm",
+    "wasm",
+    "asm-opt",
+    "wasm-opt",
+)
 
-    try:
-        source = load_source(args.path, args.source)
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
 
-    views = args.views
+def render_view(
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    *,
+    use_colour: bool,
+    line_index: LineIndex,
+    views: frozenset[str] = frozenset(),
+    show_optimised_source: bool = False,
+    max_annotations: int = 80,
+) -> None:
+    """Render a single explorer *view* to stdout.
 
-    try:
-        result = run_pipeline(source, dialect=args.dialect)
-    except Exception as exc:
-        print(f"error: compiler exploration failed: {exc}", file=sys.stderr)
-        return 2
+    The single source of truth for view rendering, shared by the flat-text CLI
+    path and the Textual TUI (which captures this output per view).  Each view
+    is self-contained so it can be rendered independently.
+    """
+    if view == "ir":
+        print_ir_module(result.ir_module, line_index=line_index, use_colour=use_colour)
+    elif view == "cfg":
+        print_cfg_pre_ssa(result.snapshots, line_index=line_index, use_colour=use_colour)
+    elif view == "ssa":
+        print_cfg_post_ssa(result.snapshots, line_index=line_index, use_colour=use_colour)
+    elif view == "greentree":
+        print_greentree(source, use_colour=use_colour)
+    elif view == "loops":
+        print_loops(result.snapshots, use_colour=use_colour)
+    elif view == "intervals":
+        print_intervals(result.snapshots, use_colour=use_colour)
+    elif view == "bounds":
+        print_bounds(result.snapshots, use_colour=use_colour)
+    elif view == "interproc":
+        print_interprocedural(result.interproc, use_colour=use_colour)
+    elif view == "types":
+        print_types(result.snapshots, use_colour=use_colour)
+    elif view == "opt":
+        print_optimiser(result.optimisations, line_index=line_index, use_colour=use_colour)
+        if show_optimised_source and result.optimised_source != source:
+            print_source_listing("optimised-source", result.optimised_source, use_colour=use_colour)
+    elif view == "gvn":
+        print_gvn_warnings(result.gvn_warnings, line_index=line_index, use_colour=use_colour)
+    elif view == "shimmer":
+        print_shimmer_warnings(
+            result.shimmer_warnings, line_index=line_index, use_colour=use_colour
+        )
+    elif view == "taint":
+        print_taint(
+            result.taint_warnings, result.snapshots, line_index=line_index, use_colour=use_colour
+        )
+    elif view == "irules":
+        print_irules_flow(result.irules_flow_warnings, line_index=line_index, use_colour=use_colour)
+    elif view in ("asm", "wasm"):
+        from compiler.cfg import build_cfg
 
-    line_index = LineIndex(source)
+        cfg = build_cfg(result.ir_module)
+        if view == "asm":
+            print_asm(result.ir_module, cfg_module=cfg, use_colour=use_colour)
+        else:
+            try:
+                print_wasm(result.ir_module, cfg_module=cfg, use_colour=use_colour)
+            except Exception as exc:
+                print(f"warning: wasm generation failed: {exc}", file=sys.stderr)
+    elif view in ("asm-opt", "wasm-opt"):
+        if result.optimised_source == result.source:
+            print("(no optimisations applied — optimised output is identical to the default path)")
+            return
+        from compiler.cfg import build_cfg
+        from compiler.lowering import lower_to_ir
+
+        try:
+            opt_ir = lower_to_ir(result.optimised_source)
+            opt_cfg = build_cfg(opt_ir)
+        except Exception as exc:
+            print(f"warning: optimised IR lowering failed: {exc}", file=sys.stderr)
+            return
+        try:
+            if view == "asm-opt":
+                print_asm(opt_ir, cfg_module=opt_cfg, use_colour=use_colour)
+            else:
+                print_wasm(opt_ir, optimise=True, cfg_module=opt_cfg, use_colour=use_colour)
+        except Exception as exc:
+            print(f"warning: optimised {view} generation failed: {exc}", file=sys.stderr)
+    elif view == "callouts":
+        annotations, omitted = _collect_annotations(
+            result, views=views or frozenset(_VIEW_ORDER), max_annotations=max_annotations
+        )
+        print_source_callouts(
+            source, annotations, use_colour=use_colour, omitted_annotations=omitted
+        )
+
+
+def _summary_parts(result: CompilerExplorerResult, dialect: str) -> list[str]:
     total_dead_stores = sum(len(s.analysis.dead_stores) for s in result.snapshots)
     total_unreachable = sum(len(s.analysis.unreachable_blocks) for s in result.snapshots)
-
-    # Summary header
-    _version = FULL_VERSION
-    if BUILD_TIMESTAMP:
-        _version += f" ({BUILD_TIMESTAMP})"
-    print(style(f"compiler-optimiser-explorer {_version}", Ansi.BOLD, use_colour))
     parts = [
-        f"dialect={args.dialect}",
+        f"dialect={dialect}",
         f"procedures={len(result.ir_module.procedures)}",
         f"functions={len(result.snapshots)}",
         f"blocks={result.total_blocks}",
@@ -1215,107 +1573,82 @@ def main(argv: list[str] | None = None) -> int:
         parts.append(f"taint={len(result.taint_warnings)}")
     if result.irules_flow_warnings:
         parts.append(f"irules_flow={len(result.irules_flow_warnings)}")
-    print(style(" ".join(parts), Ansi.DIM, use_colour))
-    print(style(f"views: {','.join(sorted(views))}", Ansi.DIM, use_colour))
+    return parts
+
+
+def _render_text(
+    result: CompilerExplorerResult, source: str, args: argparse.Namespace, *, use_colour: bool
+) -> int:
+    line_index = LineIndex(source)
+    _version = FULL_VERSION + (f" ({BUILD_TIMESTAMP})" if BUILD_TIMESTAMP else "")
+    print(style(f"compiler-optimiser-explorer {_version}", Ansi.BOLD, use_colour))
+    print(style(" ".join(_summary_parts(result, args.dialect)), Ansi.DIM, use_colour))
+    print(style(f"views: {','.join(sorted(args.views))}", Ansi.DIM, use_colour))
     print()
-
-    # Selected views
-    if "ir" in views:
-        print_ir_module(result.ir_module, line_index=line_index, use_colour=use_colour)
-
-    if "cfg" in views:
-        print_cfg_pre_ssa(result.snapshots, line_index=line_index, use_colour=use_colour)
-
-    if "ssa" in views:
-        print_cfg_post_ssa(result.snapshots, line_index=line_index, use_colour=use_colour)
-
-    if "interproc" in views:
-        print_interprocedural(result.interproc, use_colour=use_colour)
-        print()
-
-    if "types" in views:
-        print_types(result.snapshots, use_colour=use_colour)
-        print()
-
-    if "opt" in views:
-        print_optimiser(result.optimisations, line_index=line_index, use_colour=use_colour)
-        if args.show_optimised_source and result.optimised_source != source:
-            print_source_listing("optimised-source", result.optimised_source, use_colour=use_colour)
-        print()
-
-    if "gvn" in views:
-        print_gvn_warnings(result.gvn_warnings, line_index=line_index, use_colour=use_colour)
-        print()
-
-    if "shimmer" in views:
-        print_shimmer_warnings(
-            result.shimmer_warnings, line_index=line_index, use_colour=use_colour
-        )
-        print()
-
-    if "taint" in views:
-        print_taint(
-            result.taint_warnings,
-            result.snapshots,
-            line_index=line_index,
-            use_colour=use_colour,
-        )
-        print()
-
-    if "irules" in views:
-        print_irules_flow(result.irules_flow_warnings, line_index=line_index, use_colour=use_colour)
-        print()
-
-    if views & {"asm", "wasm"}:
-        from compiler.cfg import build_cfg
-
-        cfg = build_cfg(result.ir_module)
-        if "asm" in views:
-            print_asm(result.ir_module, cfg_module=cfg, use_colour=use_colour)
-            print()
-        if "wasm" in views:
-            try:
-                print_wasm(result.ir_module, cfg_module=cfg, use_colour=use_colour)
-                print()
-            except Exception as exc:
-                print(f"warning: wasm generation failed: {exc}", file=sys.stderr)
-
-    if ("asm-opt" in views or "wasm-opt" in views) and result.optimised_source != result.source:
-        from compiler.cfg import build_cfg
-        from compiler.lowering import lower_to_ir
-
-        try:
-            opt_ir = lower_to_ir(result.optimised_source)
-            opt_cfg = build_cfg(opt_ir)
-        except Exception as exc:
-            print(f"warning: optimised IR lowering failed: {exc}", file=sys.stderr)
-            opt_ir = None
-            opt_cfg = None
-        if opt_ir is not None:
-            if "asm-opt" in views:
-                try:
-                    print_asm(opt_ir, cfg_module=opt_cfg, use_colour=use_colour)
-                    print()
-                except Exception as exc:
-                    print(f"warning: optimised asm generation failed: {exc}", file=sys.stderr)
-            if "wasm-opt" in views:
-                try:
-                    print_wasm(opt_ir, optimise=True, cfg_module=opt_cfg, use_colour=use_colour)
-                    print()
-                except Exception as exc:
-                    print(f"warning: optimised wasm generation failed: {exc}", file=sys.stderr)
-
-    if "callouts" in views and not args.no_source_callouts:
-        annotations, omitted = _collect_annotations(
+    for view in _VIEW_ORDER:
+        if view not in args.views:
+            continue
+        if view == "callouts" and args.no_source_callouts:
+            continue
+        render_view(
+            view,
             result,
-            views=views,
+            source,
+            use_colour=use_colour,
+            line_index=line_index,
+            views=args.views,
+            show_optimised_source=args.show_optimised_source,
             max_annotations=args.max_annotations,
         )
-        print_source_callouts(
-            source,
-            annotations,
-            use_colour=use_colour,
-            omitted_annotations=omitted,
-        )
-
+        print()
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+
+    try:
+        source = load_source(args.path, args.source)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    # Resolve output mode: explicit flag wins; otherwise TUI on an interactive
+    # terminal (and only if Textual is installed), else flat text.
+    mode = args.format
+    if mode is None:
+        mode = "tui" if sys.stdout.isatty() and _textual_available() else "text"
+
+    if mode == "json":
+        from tooling.cli.serialise import serialise_result
+
+        try:
+            result = run_pipeline(source, dialect=args.dialect)
+        except Exception as exc:
+            print(f"error: compiler exploration failed: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(serialise_result(result), indent=2))
+        return 0
+
+    if mode == "tui":
+        from tooling.explorer.tui import run_tui
+
+        return run_tui(source, args)
+
+    # text
+    use_colour = (not args.no_colour) and sys.stdout.isatty()
+    try:
+        result = run_pipeline(source, dialect=args.dialect)
+    except Exception as exc:
+        print(f"error: compiler exploration failed: {exc}", file=sys.stderr)
+        return 2
+    return _render_text(result, source, args, use_colour=use_colour)
+
+
+def _textual_available() -> bool:
+    try:
+        import textual  # noqa: F401
+
+        return True
+    except ImportError:
+        return False

@@ -26,9 +26,12 @@ falls back to a full re-segmentation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace as _dc_replace
 from typing import TYPE_CHECKING
 
-from shared.document_buffer import DocumentBuffer
+from shared.diagnostic import Range, SourcePosition
+from shared.hashing import stable_text_hash
+from shared.rebase import shift_position
 from shared.tokens import Token, TokenType
 
 from .command_segmenter import (
@@ -37,10 +40,10 @@ from .command_segmenter import (
     segment_commands,
     tile_commands,
 )
-from .token_positions import shift_range, shift_token
+from .token_positions import shift_range, shift_token, token_content_shift
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +57,11 @@ class EditRange:
     start: int
     old_end: int
     new_end: int
+    line_delta: int = 0
+    """Net newline-count change in the edited region (``new[start:new_end]`` vs
+    ``old[start:old_end]``).  Computed once by :func:`infer_edit_range` so both
+    the rope splice (``update_source_quick``) and the incremental chunk
+    shift reuse it rather than each recounting."""
 
     @property
     def offset_delta(self) -> int:
@@ -61,35 +69,51 @@ class EditRange:
         return self.new_end - self.old_end
 
 
+# Window size for the block-wise prefix/suffix scans below.  Each step compares
+# at most this many characters per side (a single C-speed string compare), so
+# peak allocation is bounded regardless of document size.
+_SCAN_BLOCK = 4096
+
+
 def _common_prefix_len(a: str, b: str, hi: int) -> int:
     """Largest ``k`` in ``[0, hi]`` with ``a[:k] == b[:k]``.
 
-    Binary search on slice equality: O(log hi) comparisons, each a C-speed
-    string compare, rather than a Python char-by-char loop — which matters
-    because this runs on every keystroke over the whole document.
+    Block-wise forward scan: compare bounded ``_SCAN_BLOCK``-sized windows (each
+    a single C-speed string compare) until one differs, then pin down the exact
+    divergence char-by-char within that block.  This runs on every keystroke, so
+    it avoids the old binary search whose every probe sliced an ``O(mid)`` whole
+    prefix — allocating up to ``a[:hi // 2]`` on the very first comparison.
     """
-    lo = 0
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if a[:mid] == b[:mid]:
-            lo = mid
-        else:
-            hi = mid - 1
-    return lo
+    i = 0
+    while i < hi:
+        end = min(i + _SCAN_BLOCK, hi)
+        if a[i:end] == b[i:end]:
+            i = end
+            continue
+        while i < end and a[i] == b[i]:
+            i += 1
+        return i
+    return hi
 
 
 def _common_suffix_len(a: str, b: str, hi: int) -> int:
-    """Largest ``k`` in ``[0, hi]`` with ``a[len(a)-k:] == b[len(b)-k:]``."""
+    """Largest ``k`` in ``[0, hi]`` with ``a[len(a)-k:] == b[len(b)-k:]``.
+
+    Block-wise backward scan mirroring :func:`_common_prefix_len`: bounded
+    windows from each string's tail, then a char-by-char pinpoint on divergence.
+    """
     na = len(a)
     nb = len(b)
-    lo = 0
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if a[na - mid :] == b[nb - mid :]:
-            lo = mid
-        else:
-            hi = mid - 1
-    return lo
+    i = 0
+    while i < hi:
+        end = min(i + _SCAN_BLOCK, hi)
+        if a[na - end : na - i] == b[nb - end : nb - i]:
+            i = end
+            continue
+        while i < end and a[na - 1 - i] == b[nb - 1 - i]:
+            i += 1
+        return i
+    return hi
 
 
 def infer_edit_range(old: str, new: str) -> EditRange | None:
@@ -108,7 +132,10 @@ def infer_edit_range(old: str, new: str) -> EditRange | None:
     # Common suffix, not crossing back past the prefix in either string.
     suffix_max = min(n_old - start, n_new - start)
     slen = _common_suffix_len(old, new, suffix_max)
-    return EditRange(start=start, old_end=n_old - slen, new_end=n_new - slen)
+    old_end = n_old - slen
+    new_end = n_new - slen
+    line_delta = new[start:new_end].count("\n") - old[start:old_end].count("\n")
+    return EditRange(start=start, old_end=old_end, new_end=new_end, line_delta=line_delta)
 
 
 def _shift_command(cmd: SegmentedCommand, offset_delta: int, line_delta: int) -> SegmentedCommand:
@@ -156,11 +183,157 @@ def _chunks_equal_ignoring_index(a: TopLevelChunk, b: TopLevelChunk) -> bool:
     )
 
 
+def _offset_to_position(text: str, offset: int) -> SourcePosition:
+    """``offset`` → ``SourcePosition`` (line, character, offset), clamped.
+
+    Identical result to ``DocumentBuffer.offset_to_position`` but a direct
+    C-level newline scan — the incremental segmenter only needs two such
+    conversions (to anchor the window's body token), so building a whole O(n)
+    balanced rope just to discard it was pure per-keystroke waste.
+    """
+    n = len(text)
+    safe = 0 if offset < 0 else (n if offset > n else offset)
+    line = text.count("\n", 0, safe)
+    last_nl = text.rfind("\n", 0, safe)
+    return SourcePosition(line=line, character=safe - (last_nl + 1), offset=safe)
+
+
+def _reuse_edit_in_braced_body(
+    old_source: str,
+    old_chunks: Sequence[TopLevelChunk],
+    new_source: str,
+    edit: EditRange,
+) -> list[TopLevelChunk] | None:
+    """Fast path for a *brace-safe interior edit* of a large braced-body command.
+
+    A file dominated by one huge top-level command — ``namespace eval ns {
+    …thousands of lines… }`` (e.g. tcllib's 1.3 MB ``filetypes.tcl``) — has no
+    reusable top-level chunk boundary, so :func:`incremental_top_level_chunks`'s
+    window would re-lex the whole command on every keystroke: the lexer must
+    scan the entire braced body to find the matching ``}``.
+
+    But when the edit lies strictly *inside* that body word and changes no brace
+    structure (inserts/deletes no ``{``, ``}`` or ``\\``), the command's word
+    structure is provably unchanged — only the body word's text and its end
+    position shift.  Reuse the command, splicing the body word's text and
+    shifting its end (the body's close ``}`` sits on a line strictly below the
+    edit, so the shift is a pure offset/line bump with columns unchanged), reuse
+    the prefix verbatim, and shift the suffix.  No body re-lex.
+
+    Returns ``None`` (caller falls back) whenever any precondition isn't met.
+    """
+    start = edit.start
+    old_end = edit.old_end
+    offset_delta = edit.offset_delta
+    line_delta = edit.line_delta
+
+    # The edited text on both sides must introduce no brace / escape change, so
+    # the braced body's nesting (and thus the command's extent) is preserved.
+    old_edit = old_source[start:old_end]
+    new_edit = new_source[start : edit.new_end]
+    if any(c in old_edit for c in "{}\\") or any(c in new_edit for c in "{}\\"):
+        return None
+
+    # Brace-free edited text is not enough: an edit *adjacent* to an existing
+    # backslash-escape can change brace nesting without the edited text itself
+    # containing any brace/backslash.  e.g. splicing a space into ``\{`` yields
+    # ``\ {`` — the brace was escaped (inert) and is now a live open brace.
+    # Bail whenever the splice could alter escaping/nesting at either boundary:
+    #   * a backslash immediately *before* the edit (it now escapes a different
+    #     char — the first spliced char rather than what followed it), or
+    #   * a brace/backslash sitting immediately *at* the boundary on either side
+    #     (its escaping could flip as the adjacent text changes).
+    # (Explicit per-char comparison, not ``slice in "{}\\"``: an empty slice at
+    # EOF is a substring of every string and would wrongly match.)
+    if start > 0 and old_source[start - 1] == "\\":
+        return None
+    after_old = old_source[old_end : old_end + 1]
+    after_new = new_source[edit.new_end : edit.new_end + 1]
+    if after_old in ("{", "}", "\\") or after_new in ("{", "}", "\\"):
+        return None
+
+    # Locate the unique chunk whose tile contains the whole edit.
+    target = -1
+    for i, chunk in enumerate(old_chunks):
+        if chunk.start_offset <= start and old_end <= chunk.end_offset:
+            target = i
+            break
+    if target < 0:
+        return None
+    chunk = old_chunks[target]
+    if len(chunk.commands) != 1:
+        return None
+    cmd = chunk.commands[0]
+    if cmd.is_partial or not cmd.argv or not cmd.single_token_word:
+        return None
+    if not cmd.single_token_word[-1]:
+        return None
+    body = cmd.argv[-1]
+    # Must be a *braced* word (leading "{" + trailing "}"), and the edit must be
+    # strictly interior to its content (not touching either brace).
+    if token_content_shift(body) != 1:
+        return None
+    bstart = body.start.offset
+    bend = body.end.offset  # last content char; the "}" is at bend + 1
+    if not (0 <= bstart < len(old_source)) or old_source[bstart] != "{":
+        return None
+    if bend + 1 >= len(old_source) or old_source[bend + 1] != "}":
+        return None
+    if not (bstart < start and old_end <= bend + 1):
+        return None
+    # The body's close (and everything after the edit in this command) must be
+    # on a line strictly below the edit's last line, so the shift keeps columns.
+    edit_end_line = new_source.count("\n", 0, edit.new_end)
+    if body.end.line + line_delta <= edit_end_line:
+        return None
+
+    # Reconstruct the edited command: head words unchanged; body word keeps its
+    # start, gets the new content text, and its end shifted; range end shifted.
+    new_body_end = shift_position(body.end, line_delta, 0, offset_delta)
+    new_body_text = new_source[bstart + 1 : new_body_end.offset + 1]
+    new_body = Token(
+        type=body.type,
+        text=new_body_text,
+        start=body.start,
+        end=new_body_end,
+        in_quote=body.in_quote,
+    )
+    new_argv = list(cmd.argv[:-1]) + [new_body]
+    # all_tokens equals argv for a head-words + single braced-body command; only
+    # support that shape (the giant-command case) — otherwise bail.
+    if cmd.all_tokens != cmd.argv:
+        return None
+    new_texts = list(cmd.texts[:-1]) + [new_body_text] if cmd.texts else cmd.texts
+    new_range = Range(
+        start=cmd.range.start,
+        end=shift_position(cmd.range.end, line_delta, 0, offset_delta),
+    )
+    new_cmd = _dc_replace(cmd, range=new_range, argv=new_argv, all_tokens=new_argv, texts=new_texts)
+
+    new_cmd_end = new_range.end.offset
+    new_chunk = TopLevelChunk(
+        index=chunk.index,
+        start_offset=chunk.start_offset,
+        end_offset=chunk.end_offset + offset_delta,
+        source_hash=stable_text_hash(new_source[chunk.start_offset : new_cmd_end + 1]),
+        commands=(new_cmd,),
+    )
+
+    result: list[TopLevelChunk] = list(old_chunks[:target])
+    result.append(new_chunk)
+    for c in old_chunks[target + 1 :]:
+        result.append(
+            _shift_chunk(c, index=c.index, offset_delta=offset_delta, line_delta=line_delta)
+        )
+    return result
+
+
 def incremental_top_level_chunks(
     old_source: str,
     old_chunks: Sequence[TopLevelChunk],
     new_source: str,
     edit: EditRange,
+    offset_to_position: "Callable[[int], SourcePosition] | None" = None,
 ) -> list[TopLevelChunk] | None:
     """Rebuild the top-level chunk list for *new_source* incrementally.
 
@@ -179,14 +352,20 @@ def incremental_top_level_chunks(
     """
     if not old_chunks:
         return None
+
+    # Fast path: a brace-safe interior edit of one large braced-body command
+    # (the single-giant-command file) — reuse it with a body splice instead of
+    # re-lexing the whole body.
+    spliced = _reuse_edit_in_braced_body(old_source, old_chunks, new_source, edit)
+    if spliced is not None:
+        return spliced
+
     n = len(old_chunks)
 
     start = edit.start
     old_end = edit.old_end
     offset_delta = edit.offset_delta
-    line_delta = new_source[start : edit.new_end].count("\n") - old_source[start:old_end].count(
-        "\n"
-    )
+    line_delta = edit.line_delta
 
     # Prefix: chunks whose tile ends strictly before the edit start are
     # untouched.  The strict ``<`` matters: a chunk whose tile boundary
@@ -238,9 +417,16 @@ def incremental_top_level_chunks(
     val_end_new = val_end_old + offset_delta
     window_text = new_source[ws:val_end_new]
 
-    buf = DocumentBuffer.from_source(new_source)
-    pos_ws = buf.offset_to_position(ws)
-    pos_end = buf.offset_to_position(val_end_new)
+    # Reuse the caller's already-spliced rope for the two position conversions
+    # (O(log n) and no new structure) when available; otherwise a direct
+    # C-level newline scan.  Either way, no throwaway full rope is built here.
+    to_pos = (
+        offset_to_position
+        if offset_to_position is not None
+        else (lambda o: _offset_to_position(new_source, o))
+    )
+    pos_ws = to_pos(ws)
+    pos_end = to_pos(val_end_new)
     # Anchored at absolute offset ws with recovery disabled (a body_token
     # slice); ws sits just past a command in the unchanged prefix, so the
     # lexer's entry state there is clean.

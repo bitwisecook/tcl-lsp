@@ -246,9 +246,25 @@ def optimise_elimination_passes(
                     continue
                 removable_def_versions.setdefault(name, set()).add(ver)
 
+    # Call-by-name suppression (mirrors W211/W220 in
+    # ``analyser/_diag_var_lifecycle``).  A literal-name arg passed to a
+    # user proc whose param carries ``VAR_READ`` / ``VAR_WRITE`` is an
+    # indirect read of the caller-local of that name.  Deleting the
+    # preceding ``set`` would feed an uninitialised name to the callee —
+    # a hard correctness bug if the quick-fix were applied.
+    from compiler.proc_arg_traits import (
+        build_proc_index_from_summaries,
+        collect_call_by_name_reads,
+    )
+
+    proc_index = build_proc_index_from_summaries(ctx.interproc.procedures)
+    call_by_name = collect_call_by_name_reads(cfg, proc_index)
+
     dead_entries: list[tuple[int, tuple[str, int]]] = []
     for dead in analysis.dead_stores:
         if dead.variable in ctx.cross_event_vars:
+            continue
+        if dead.variable in call_by_name:
             continue
         later_versions = removable_def_versions.get(dead.variable, set())
         if not any(ver > dead.version for ver in later_versions):
@@ -301,6 +317,9 @@ def optimise_elimination_passes(
             if unused.variable in ctx.cross_event_vars:
                 continue
             if unused.variable in scope_aliases:
+                continue
+            # Call-by-name suppression (see dead-store section above).
+            if unused.variable in call_by_name:
                 continue
             key = (unused.block, unused.statement_index)
             if key in baseline_dse_keys:

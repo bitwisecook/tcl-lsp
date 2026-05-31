@@ -8,9 +8,9 @@ from compiler.registry import REGISTRY
 from compiler.registry.runtime import canonical_list_commands
 from shared.codes import diag
 from shared.ranges import range_from_token, widen_range_for_closer
-from shared.tokens import Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
-from ..semantic_model import Diagnostic, Severity
+from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 from ._helpers import (
     _find_regex_patterns_in_command,
     _first_token_is_braced,
@@ -58,16 +58,50 @@ def check_eval_string_concat(
     )
 
     if has_substitution:
+        # Offer a one-click rewrite to the safe `eval [list …]` form for the
+        # common `eval "cmd $a …"` (single quoted-string) shape.  `[list]`
+        # builds a properly-quoted list, so each substituted word is passed as
+        # exactly one argument and is never re-parsed — verified in tclsh:
+        # `eval "puts $a"` with a={x; exec cmd} executes the payload, whereas
+        # `eval [list puts $a]` passes it as one literal argument.  This is the
+        # canonical "eval is evil → use [list]" remedy.
+        fixes: tuple[CodeFix, ...] = ()
+        arg_start = arg_tokens[0].start
+        o0 = arg_start.offset
+        # Quick-fix only the common single-line `eval "cmd $a …"` shape: rewrite
+        # the quoted string to `eval [list cmd $a …]`.  Skip if it spans lines
+        # or has backslash escapes (list re-quoting could differ there).
+        if 0 <= o0 < len(source) and source[o0] == '"':
+            close = source.find('"', o0 + 1)
+            if close != -1:
+                inner = source[o0 + 1 : close]
+                if inner and "\n" not in inner and "\\" not in inner:
+                    end_pos = SourcePosition(
+                        line=arg_start.line,
+                        character=arg_start.character + (close + 1 - o0),
+                        offset=close + 1,
+                    )
+                    fixes = (
+                        CodeFix(
+                            range=Range(start=arg_start, end=end_pos),
+                            new_text=f"[list {inner}]",
+                            description="Rewrite to `eval [list …]` (passes each "
+                            "substituted word as one argument; no re-parsing)",
+                        ),
+                    )
         diagnostics.append(
             Diagnostic(
                 range=range_from_token(arg_tokens[0]),
                 message=(
-                    "eval with substituted arguments risks code injection. "
-                    "Prefer direct invocation or {*}$cmdList to preserve "
-                    "argument boundaries."
+                    "eval with a substituted string re-parses its argument as "
+                    "Tcl, so a value containing spaces or `[`/`;`/`$` changes "
+                    "the command (argument-boundary bugs and code injection). "
+                    "Use `eval [list cmd $a …]` (or `{*}$cmdList`), which passes "
+                    "each substituted word as a single argument."
                 ),
                 severity=Severity.WARNING,
                 code="W101",
+                fixes=fixes,
             )
         )
 
@@ -287,6 +321,20 @@ def check_uplevel_injection(
             # it produces a properly-quoted single-element list that
             # won't undergo double substitution.
             if _is_list_command_token(tok):
+                return []
+            # A single *pure* variable substitution (``uplevel 1 $body`` /
+            # ``$arr(i)`` / ``${body}``) is the other safe idiom: ``$body``'s
+            # value is taken verbatim and the script evaluated *once* in the
+            # target frame — no call-site re-interpolation, so no double
+            # substitution (verified in tclsh).  And it cannot be braced
+            # (``{...}`` would eval the literal text, not the variable's script).
+            # The script arg must be *exactly one* VAR token: a concatenation
+            # like ``$x$y`` / ``$x.foo`` (multiple tokens) composes a value and
+            # IS double substitution, so it stays flagged.  (``remaining_args``
+            # gives the ``$``-stripped, already-concatenated name ``"xy"``, so it
+            # cannot distinguish the two — we count the underlying tokens.)
+            script_toks = all_tokens[1 + script_idx :]
+            if len(script_toks) == 1 and script_toks[0].type is TokenType.VAR:
                 return []
             has_substitution = any(
                 t.type in (TokenType.VAR, TokenType.CMD)

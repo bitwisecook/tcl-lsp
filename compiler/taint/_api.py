@@ -124,6 +124,8 @@ def find_taint_warnings(
     )
 
     for qname, fu in cu.procedures.items():
+        if fu.complexity_guarded:
+            continue  # deep analysis skipped for pathologically large bodies
         proc_taints = solved.proc_taints.get(qname, fu.analysis.taints)
         executable = set(fu.cfg.blocks) - fu.analysis.unreachable_blocks
         all_warnings.extend(

@@ -212,3 +212,35 @@ class TestMalformedNestedSubstitutionDiagnostics:
     def test_unbraced_array_ref_in_braces_has_no_parse_error(self):
         result = get_diagnostics("puts {$a(1) [set x}")
         assert not any(d.code and str(d.code).startswith("E") for d in result)
+
+
+class TestCachedStyleDiagnosticsNoDuplication:
+    """A whole-line style diagnostic must be published once even when several
+    top-level chunks share the physical line (``cmd1 ; cmd2``).  Regression for
+    chunk-cache partitioning handing the same line-level diagnostic to every
+    chunk on that line."""
+
+    def test_w111_not_duplicated_across_same_line_chunks(self):
+        from server.features.diagnostics import get_basic_diagnostics
+        from server.workspace.document_state import DocumentState
+
+        # Two commands on one >120-char physical line → two top-level chunks,
+        # both spanning line 0; the line-too-long W111 must appear once.
+        src = "set x " + "a" * 130 + "; set y 2\n"
+        st = DocumentState(uri="dup://t.tcl")
+        st.update(src)
+        assert len(st.chunks) >= 2, "fixture must produce >1 chunk on the same line"
+
+        cached = st.get_cached_style_diagnostics(line_length=120) or []
+        assert sum(1 for d in cached if d.code == "W111") == 1
+
+        # And through the published basic-diagnostics path, which appends the
+        # cached style diagnostics verbatim.
+        diags, _analysis, _suppressed = get_basic_diagnostics(
+            src,
+            analysis=st.analysis,
+            cu=st.compilation_unit,
+            line_length=120,
+            cached_style_diagnostics=cached,
+        )
+        assert sum(1 for d in diags if d.code == "W111") == 1

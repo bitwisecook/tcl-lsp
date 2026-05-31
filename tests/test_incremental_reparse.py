@@ -70,6 +70,72 @@ class TestInferEditRange:
             assert old[e.old_end :] == new[e.new_end :]
             assert new == old[: e.start] + new[e.start : e.new_end] + old[e.old_end :]
 
+    def test_edits_across_scan_block_boundary(self):
+        # Common prefix/suffix far larger than the scan block: the block-wise
+        # scan must land on the exact divergence regardless of where it falls
+        # relative to a block boundary.
+        from compiler.parsing.incremental import _SCAN_BLOCK
+
+        pad = "a" * (_SCAN_BLOCK * 2 + 7)
+        for k in (0, 1, _SCAN_BLOCK - 1, _SCAN_BLOCK, _SCAN_BLOCK + 1, len(pad)):
+            old = pad
+            new = pad[:k] + "Z" + pad[k:]  # single-char insertion at offset k
+            e = infer_edit_range(old, new)
+            assert e is not None
+            assert e == EditRange(start=k, old_end=k, new_end=k + 1)
+            assert new == old[: e.start] + new[e.start : e.new_end] + old[e.old_end :]
+
+
+class TestCommonPrefixSuffixLen:
+    """The block-wise prefix/suffix scans must equal a naive char-by-char
+    reference across boundaries — the inputs run on every keystroke, so the
+    low-allocation rewrite must preserve exact semantics."""
+
+    @staticmethod
+    def _ref_prefix(a, b, hi):
+        k = 0
+        while k < hi and a[k] == b[k]:
+            k += 1
+        return k
+
+    @staticmethod
+    def _ref_suffix(a, b, hi):
+        na, nb, k = len(a), len(b), 0
+        while k < hi and a[na - 1 - k] == b[nb - 1 - k]:
+            k += 1
+        return k
+
+    def test_matches_reference_random_and_boundaries(self):
+        import random
+
+        from compiler.parsing.incremental import (
+            _SCAN_BLOCK,
+            _common_prefix_len,
+            _common_suffix_len,
+        )
+
+        base = "a" * (_SCAN_BLOCK * 2 + 5)
+        cases = [
+            ("", ""),
+            ("a", ""),
+            ("", "a"),
+            ("abc", "abc"),
+            ("abc", "abd"),
+            (base, base),
+            (base, base[:-1] + "b"),
+            ("z" + base, "z" + base[:-3] + "qqq"),
+            (base[:_SCAN_BLOCK] + "X" + base, base[:_SCAN_BLOCK] + "Y" + base),
+        ]
+        rng = random.Random(1234)
+        for _ in range(1500):
+            a = "".join(rng.choice("ab") for _ in range(rng.randint(0, 40)))
+            b = "".join(rng.choice("ab") for _ in range(rng.randint(0, 40)))
+            cases.append((a, b))
+        for a, b in cases:
+            hi = min(len(a), len(b))
+            assert _common_prefix_len(a, b, hi) == self._ref_prefix(a, b, hi), (a[:20], b[:20])
+            assert _common_suffix_len(a, b, hi) == self._ref_suffix(a, b, hi), (a[:20], b[:20])
+
 
 # --- chunk equivalence helpers ----------------------------------------------
 
@@ -232,6 +298,12 @@ _SNIPPETS = [
     "puts [string length $s]\n",
     "\n",
     "namespace eval ns {\n    variable v 0\n}\n",
+    # Escaped braces: a random edit landing adjacent to a ``\\{``/``\\}`` can
+    # flip brace nesting, exercising the brace-fast-path's escape-adjacency
+    # guard (incremental must still equal full).
+    "set lit \\{\n",
+    "set lit \\}\n",
+    "namespace eval ns {\n    set lit \\{\n    set y 2\n}\n",
 ]
 
 

@@ -246,6 +246,11 @@ ignore_imports =
     ; the test subject, so this dev-only harness legitimately reaches
     ; into server/ to exercise it.
     tooling.fuzzing.incremental_diff -> server.workspace.document_state
+    ; The `tcl minimize` CLI verb wraps server.features.minimize, which
+    ; deliberately hosts the shared minimize_diagnostic logic for both the
+    ; CLI and the LSP code action.  Lazy import behind the verb dispatcher
+    ; so the CLI itself stays usable, mirroring the irule verb above.
+    tooling.tcl.verbs.minimize -> server.features.minimize
 
 ; ---------------------------------------------------------------------------
 ; 7.  ai/ may sit on top of any concern — no outbound restriction.

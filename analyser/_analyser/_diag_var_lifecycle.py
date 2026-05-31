@@ -21,6 +21,7 @@ from compiler.ir import (
 )
 from shared.document_buffer import DocumentBuffer
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.proc_traits import ProcArgTrait
 
 from ..semantic_model import Diagnostic, Severity
 from ._utils import (
@@ -44,6 +45,35 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             return buffer
         return cached[1]
 
+    def _collect_call_by_name_reads(self, cfg: CFGFunction) -> set[str]:
+        """Caller-local var names passed *by name* to a user proc with
+        ``VAR_READ`` / ``VAR_WRITE`` param traits.  Suppresses W211/W220
+        on those names (and the optimiser's O109/O126 use the same
+        ``compiler.proc_arg_traits.collect_call_by_name_reads`` helper
+        — see ``optimise_elimination_passes`` — so both layers honour
+        the suppression).
+        """
+        from compiler.proc_arg_traits import collect_call_by_name_reads
+
+        all_procs = self.result.all_procs
+        if not all_procs:
+            return set()
+        proc_index: dict[
+            str,
+            list[tuple[tuple[str, ...], dict[str, frozenset[ProcArgTrait]]]],
+        ] = {}
+        for qname, pdef in all_procs.items():
+            if not pdef.param_traits:
+                continue
+            entry = (
+                tuple(p.name for p in pdef.params),
+                dict(pdef.param_traits),
+            )
+            bare = qname.split("::")[-1]
+            for key in (bare, qname, qname.lstrip(":")):
+                proc_index.setdefault(key, []).append(entry)
+        return collect_call_by_name_reads(cfg, proc_index)
+
     def _emit_dead_store_diagnostics(
         self,
         cfg: CFGFunction,
@@ -62,8 +92,14 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
             existing_unused.add((m.group(1), d.range.start.offset))
 
         all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
+        call_by_name = self._collect_call_by_name_reads(cfg)
         for dead in analysis.dead_stores:
             if dead.variable in cross_event_vars:
+                continue
+            if dead.variable in call_by_name:
+                # The variable is passed by literal name to a user proc that
+                # upvar's it — that is an indirect read/write the per-function
+                # SSA can't see.  Suppress (interprocedural call-by-name lattice).
                 continue
             block = cfg.blocks.get(dead.block)
             if block is None:
@@ -275,8 +311,13 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         defined_vars: set[str] | None = None,
     ) -> None:
         all_vars = defined_vars if defined_vars is not None else self._collect_defined_vars(cfg)
+        call_by_name = self._collect_call_by_name_reads(cfg)
         for unused in analysis.unused_variables:
             if unused.variable in cross_event_vars:
+                continue
+            if unused.variable in call_by_name:
+                # Same as W220: passed by literal name to a name-receiver
+                # user proc — the upvar makes it an indirect read.
                 continue
             block = cfg.blocks.get(unused.block)
             if block is None:
@@ -307,12 +348,65 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 )
             )
 
+    def _dispatch_protocol_signatures(self) -> set[tuple[str, tuple[str, ...]]]:
+        """Identify ``(namespace, leading-param-list)`` pairs that look like a
+        **dispatch protocol** — a family of peer procs in the same namespace
+        all accepting an identical leading-param signature dictated by an
+        external dispatcher (parser-rule visitor, snit method protocol, etc.).
+
+        For procs in such a family, the protocol params are part of an
+        external contract and most rules genuinely don't use them; firing
+        W214 on every rule is noise.  Concrete tcllib example: ~140 procs
+        in ``pt::peg::from::peg::GEN::*`` all accept ``{s e}`` (start/end
+        positions); most pure-pattern rules don't read either.
+
+        Heuristic (sound for noise reduction; not for hiding real findings):
+        a ``(namespace, tuple-of-leading-param-names)`` qualifies when AT
+        LEAST 3 peer procs in the same namespace share that exact
+        leading-param prefix.  ``args`` is excluded from the prefix
+        (variadic catch-all should not count toward shape identity).
+
+        Lazy: computed once per AnalysisResult and cached on the mixin.
+        Returns the set of qualifying ``(namespace, params_tuple)`` keys.
+        """
+        cached = getattr(self, "_dispatch_proto_cache", None)
+        if cached is not None and cached[0] is self.result:
+            return cached[1]
+        # Group user procs by (namespace, leading-param-tuple).
+        groups: dict[tuple[str, tuple[str, ...]], int] = {}
+        for qname, pdef in self.result.all_procs.items():
+            # Namespace = everything up to the last ``::`` (or top-level).
+            ns = qname.rsplit("::", 1)[0] or "::"
+            # Build the leading-param tuple, stopping at ``args`` (variadic).
+            params: list[str] = []
+            for p in pdef.params:
+                if p.name == "args":
+                    break
+                params.append(p.name)
+            if not params:
+                continue
+            key = (ns, tuple(params))
+            groups[key] = groups.get(key, 0) + 1
+        # A protocol needs ≥3 peer procs sharing the signature shape.
+        proto = {key for key, n in groups.items() if n >= 3}
+        self._dispatch_proto_cache = (self.result, proto)
+        return proto
+
     def _emit_unused_param_diagnostics(
         self,
         ir_proc: IRProcedure,
         analysis: FunctionAnalysis,
     ) -> None:
         """W214: flag proc parameters that are never read in the body."""
+        # Empty-body procs (``proc foo {a b} {}``) are signature
+        # placeholders — stubs declaring an API whose implementation
+        # lives elsewhere (eg ``grammar_fa/faop.tcl:21`` declares an FA
+        # algebra API).  Every parameter is necessarily "unused" since
+        # there is no body to use it — flagging is pure noise.  Detect
+        # via the IR script: zero statements (the body is just ``{}``).
+        body = getattr(ir_proc, "body", None)
+        if body is not None and not getattr(body, "statements", ()):
+            return
         # Procs registered as ``trace`` callbacks must accept the fixed
         # trailing signature dictated by Tcl's trace API
         # (e.g. ``name1 name2 op``); the body legitimately may not use
@@ -320,7 +414,51 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         proc_def = self.result.all_procs.get(ir_proc.qualified_name)
         if proc_def is not None and proc_def.is_trace_callback:
             return
-        for param_name in analysis.unused_params:
+        # Positional keyword markers: a param whose name is a quoted
+        # literal (``{"as" ""}``) is a snit-style syntactic placeholder
+        # that captures a fixed keyword in the call form ``expose comp
+        # as method``.  The body never USES the keyword as a variable
+        # (it is consumed by being PRESENT in the call); flagging is
+        # noise.  Detect: param name starts AND ends with a quote, or
+        # contains a non-identifier char that makes it impossible to
+        # ``$ref`` normally.  Conservative: only suppress params whose
+        # name is itself a quoted literal — keep flagging normal-named
+        # but unused params.
+        quoted_markers: set[str] = set()
+        if proc_def is not None:
+            for p in proc_def.params:
+                if len(p.name) >= 2 and p.name[0] == '"' and p.name[-1] == '"':
+                    quoted_markers.add(p.name)
+        # Dispatch-protocol suppression: when ≥3 peer procs in the same
+        # namespace share the same leading-param signature, those params are
+        # an external contract (parser-rule visitor, snit method protocol,
+        # tcllib pt::peg::from::peg::GEN::* rules — every rule gets ``{s e}``
+        # whether it uses them or not).  Firing W214 on every rule that
+        # ignores its protocol params is noise.  The shared-signature
+        # detection is structural and sound: a contract is only inferred
+        # when multiple peers carry it.
+        if proc_def is not None:
+            ns = ir_proc.qualified_name.rsplit("::", 1)[0] or "::"
+            params: list[str] = []
+            for p in proc_def.params:
+                if p.name == "args":
+                    break
+                params.append(p.name)
+            proto = self._dispatch_protocol_signatures()
+            if (ns, tuple(params)) in proto:
+                # All leading (non-``args``) params are protocol-dictated.
+                # Suppress W214 only on those — if the proc has additional
+                # params beyond the protocol, those would still fire.
+                protocol_params = frozenset(params)
+                remaining = [p for p in analysis.unused_params if p not in protocol_params]
+            else:
+                remaining = list(analysis.unused_params)
+            # Always filter quoted-keyword markers (eg snit ``{"as" ""}``).
+            if quoted_markers:
+                remaining = [p for p in remaining if p not in quoted_markers]
+        else:
+            remaining = list(analysis.unused_params)
+        for param_name in remaining:
             self.result.diagnostics.append(
                 Diagnostic(
                     range=ir_proc.range,

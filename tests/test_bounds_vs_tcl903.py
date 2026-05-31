@@ -175,7 +175,6 @@ def test_w231_negative_append_positions(snippet: str, setup: str):
         "string range abc end-99 -50",
         "string replace abc -1 -1 X",
         "string replace abc 10 20 X",
-        "string insert abc -5 X",
     ],
 )
 def test_w232_runtime_behaviour_is_silent(snippet: str):
@@ -199,6 +198,12 @@ def test_w232_runtime_behaviour_is_silent(snippet: str):
         ("string index abc 0", "a"),
         ("string index abc end", "c"),
         ("string range abc 0 2", "abc"),
+        # ``string insert`` clamps out-of-range indices to a valid position: a
+        # negative index prepends (Xabc), a past-end index appends — never empty
+        # or a no-op, so W232 must not fire.
+        ("string insert abc -5 X", "Xabc"),
+        ("string insert abc -1 X", "Xabc"),
+        ("string insert abc 100 X", "abcX"),
     ],
 )
 def test_in_range_no_diagnostic(snippet: str, expected: str):

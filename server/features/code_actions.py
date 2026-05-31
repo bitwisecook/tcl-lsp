@@ -266,6 +266,31 @@ def get_code_actions(
     if profiles_action is not None:
         actions.append(profiles_action)
 
+    # "Create minimal repro" — one per distinct diagnostic code in range.  A
+    # command (not an edit): the client runs ``tcl-lsp.minimizeDiagnostic`` and
+    # shows the returned minimal snippet for a bug report.
+    seen_repro_codes: set[str] = set()
+    for lsp_diag in diagnostics:
+        code = _diag_code(lsp_diag.code)
+        if not code or code in seen_repro_codes:
+            continue
+        seen_repro_codes.add(code)
+        actions.append(
+            types.CodeAction(
+                title=f"Create minimal repro for {code}",
+                kind=types.CodeActionKind.RefactorExtract,
+                diagnostics=[lsp_diag],
+                command=types.Command(
+                    title=f"Create minimal repro for {code}",
+                    # Client command (extension.ts) — it round-trips to the
+                    # server's ``tcl-lsp.minimizeDiagnostic`` and opens the
+                    # result in a new buffer.
+                    command="tclLsp.minimizeDiagnostic",
+                    arguments=[uri, code],
+                ),
+            )
+        )
+
     if context.only:
         return [
             action

@@ -524,6 +524,22 @@ class _SignaturesProxy:
 SIGNATURES: _SignaturesProxy = _SignaturesProxy()
 
 
+def signature_overlay_epoch() -> tuple:
+    """A hashable key identifying the active signature overlay.
+
+    The overlay is ``(dialect, extra_commands, stub signatures)``; anything
+    derived from ``arg_indices_for_role`` / ``SIGNATURES`` (e.g. the
+    ``VarReferenceScanner`` cache) resolves the *same* source text differently
+    under a different overlay — most notably inside ``stub_signature_scope`` —
+    so such caches must fold this epoch into their key.  Cheap in the common
+    no-stub case; the stub contribution is content-based so a swap to a
+    different overlay with the same command names still invalidates.
+    """
+    stubs = _stub_signatures_var.get()
+    stub_key = tuple(sorted((k, repr(v)) for k, v in stubs.items())) if stubs else ()
+    return (_dialect_var.get(), _extra_commands_var.get(), stub_key)
+
+
 def _canonical_dialect(dialect: str) -> str | None:
     value = dialect.strip().lower()
     if value in _KNOWN_DIALECTS:
@@ -1267,9 +1283,21 @@ def resolve_rewrite_alias(command: str) -> tuple[str, str] | None:
 def _canonicalise_command_name(command: str) -> str:
     """Resolve a :data:`_COMMAND_NAME_ALIASES` entry to its source spec name.
 
-    Returns *command* unchanged when no alias is registered.
+    Returns *command* unchanged when no alias is registered, except that a
+    fully-qualified *global* builtin (``::info``, ``::array``, ``::string``)
+    resolves to its bare name — it is the same command, and the registry keys
+    on the unqualified spelling, so without this ``::info exists x`` would miss
+    its VAR_READ arg (false unused/read-before-set).  Only a top-level ``::cmd``
+    is stripped; a deeper ``::ns::cmd`` is left alone so it can't be mistaken
+    for a builtin.  All callers consult this only as a fallback after a direct
+    lookup on the written name, so this never shadows a real registration.
     """
-    return _COMMAND_NAME_ALIASES.get(command, command)
+    aliased = _COMMAND_NAME_ALIASES.get(command)
+    if aliased is not None:
+        return aliased
+    if command.startswith("::") and "::" not in command[2:]:
+        return command[2:]
+    return command
 
 
 def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, frozenset[ArgRole]], int]:

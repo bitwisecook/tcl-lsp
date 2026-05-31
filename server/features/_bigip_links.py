@@ -42,7 +42,6 @@ from dialects.f5.bigip.registry import (
 from dialects.f5.bigip.registry.pilot import pilot_property_spec_for
 from server._lsp_conv import to_lsp_range
 from shared.diagnostic import Range
-from shared.document_buffer import DocumentBuffer
 from shared.tokens import SourcePosition
 
 
@@ -86,8 +85,10 @@ def _links_from_registry_refs(
     :class:`Reference` arrives with an absolute :class:`SourceRange`
     so the link points at the exact reference token — no per-line
     approximation."""
+    import server.state as _state
+
     out: list[types.DocumentLink] = []
-    buffer = DocumentBuffer.from_source(source)
+    buffer = _state.document_buffer_for(self_uri, source)
     for block in _extract_blocks(source):
         generic = _parse_generic_header(block.header)
         if generic is None:

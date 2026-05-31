@@ -36,7 +36,7 @@ string ready to feed through
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.subst_nocommands import subst_nocommands
@@ -395,13 +395,11 @@ def _rewrite_stmt(
             cap=cap,
         )
         if new_body is not stmt.body:
-            return IRBlock(
-                range=stmt.range,
-                body=new_body,
-                namespace=stmt.namespace,
-                source_args=stmt.source_args,
-                source_tokens=stmt.source_tokens,
-            )
+            # replace() preserves every other field — notably caller_scope (False
+            # for ``namespace eval``): rebuilding by hand would silently revert it
+            # to its True default, re-enabling the body→caller read recovery and
+            # falsely suppressing W214/W220 in the namespace body.
+            return replace(stmt, body=new_body)
         return stmt
     return stmt
 

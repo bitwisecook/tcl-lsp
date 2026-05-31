@@ -7,6 +7,7 @@ from ._diag_brace_then_paren import _AnalyserDiagBraceThenParenMixin
 from ._diag_branches import _AnalyserDiagBranchesMixin
 from ._diag_channel import _AnalyserDiagChannelMixin
 from ._diag_commands import _AnalyserDiagCommandsMixin
+from ._diag_interval_bounds import _AnalyserDiagIntervalBoundsMixin
 from ._diag_ip import _AnalyserDiagIPMixin
 from ._diag_racy import _AnalyserDiagRacyMixin
 from ._diag_var_command import _AnalyserDiagVarCommandMixin
@@ -34,6 +35,7 @@ class Analyser(
     _AnalyserDiagBraceThenParenMixin,
     _AnalyserDiagBranchesMixin,
     _AnalyserDiagChannelMixin,
+    _AnalyserDiagIntervalBoundsMixin,
     _AnalyserDiagIPMixin,
     _AnalyserDiagRacyMixin,
     _AnalyserDiagVarLifecycleMixin,

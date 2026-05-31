@@ -8,6 +8,7 @@ from lsprotocol import types
 
 from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
+from compiler.compilation_unit import CompilationUnit
 from compiler.core_analyses import analyse_source
 from compiler.parsing.lexer import TclLexer
 from compiler.registry import REGISTRY
@@ -124,19 +125,37 @@ def _var_hover_text(
     return text
 
 
-def _infer_var_type(source: str, var_name: str) -> str | None:
+def _function_analyses(source: str, cu: CompilationUnit | None):
+    """The per-function ``FunctionAnalysis`` objects to scan for a variable's
+    type/taint.
+
+    Reuses the already-cached ``CompilationUnit`` when given (the live hover
+    path) — no recompute, and it was built under the correct dialect. Only when
+    no CU is cached does it recompute from source via ``analyse_source`` (which
+    depends on ambient dialect/registry config, hence not cacheable by source
+    alone). Returns ``None`` on analysis failure.
+    """
+    if cu is not None:
+        return [cu.top_level.analysis, *(fu.analysis for fu in cu.procedures.values())]
+    try:
+        module_analysis = analyse_source(source)
+    except Exception:
+        log.debug("hover: analysis failed for type/taint inference", exc_info=True)
+        return None
+    return [module_analysis.top_level, *module_analysis.procedures.values()]
+
+
+def _infer_var_type(source: str, var_name: str, cu: CompilationUnit | None = None) -> str | None:
     """Try to infer the dominant type for a variable from compiler analysis.
 
     Returns a human-readable string if a consistent type is found, or None.
     """
-    try:
-        module_analysis = analyse_source(source)
-    except Exception:
-        log.debug("hover: analysis failed for type inference", exc_info=True)
+    analyses = _function_analyses(source, cu)
+    if analyses is None:
         return None
 
     # Check top-level and all procedures.
-    for analysis in [module_analysis.top_level, *module_analysis.procedures.values()]:
+    for analysis in analyses:
         type_entries = [tl for (name, _ver), tl in analysis.types.items() if name == var_name]
         if not type_entries:
             continue
@@ -202,15 +221,13 @@ def _taint_colour_labels(taint: TaintLattice) -> list[str]:
     return labels
 
 
-def _infer_var_taint(source: str, var_name: str) -> str | None:
+def _infer_var_taint(source: str, var_name: str, cu: CompilationUnit | None = None) -> str | None:
     """Check if a variable carries tainted data from compiler analysis."""
-    try:
-        module_analysis = analyse_source(source)
-    except Exception:
-        log.debug("hover: analysis failed for taint inference", exc_info=True)
+    analyses = _function_analyses(source, cu)
+    if analyses is None:
         return None
 
-    for analysis in [module_analysis.top_level, *module_analysis.procedures.values()]:
+    for analysis in analyses:
         taint_entries = [tl for (name, _ver), tl in analysis.taints.items() if name == var_name]
         if not taint_entries:
             continue
@@ -891,6 +908,7 @@ def get_hover(
     character: int,
     analysis: AnalysisResult | None = None,
     *,
+    cu: CompilationUnit | None = None,
     lines: list[str] | None = None,
     analyse_if_missing: bool = True,
 ) -> types.Hover | None:
@@ -915,8 +933,8 @@ def get_hover(
         current: Scope | None = scope
         while current is not None:
             if var_name in current.variables:
-                type_info = _infer_var_type(source, var_name)
-                taint_info = _infer_var_taint(source, var_name)
+                type_info = _infer_var_type(source, var_name, cu=cu)
+                taint_info = _infer_var_taint(source, var_name, cu=cu)
                 return types.Hover(
                     contents=types.MarkupContent(
                         kind=types.MarkupKind.Markdown,

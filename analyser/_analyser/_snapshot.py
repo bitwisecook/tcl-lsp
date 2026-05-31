@@ -34,3 +34,10 @@ class AnalyserSnapshot:
     # Pending trace-callback registrations: tuples of candidate qualified
     # proc names for callbacks whose target may not yet be parsed.
     pending_trace_callbacks: list[tuple[str, ...]] = field(default_factory=list)
+    # Cumulative cross-chunk state that must survive snapshot/restore, or an
+    # incremental run drops it and diverges from a full rebuild:
+    #   objdefined_vars  — vars given object-specific methods via oo::objdefine
+    #                      (else a later ``$obj extra`` falsely warns W308).
+    #   ensemble_namespaces — namespaces declared as ensembles.
+    objdefined_vars: set[str] = field(default_factory=set)
+    ensemble_namespaces: set[str] = field(default_factory=set)

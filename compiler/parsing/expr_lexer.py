@@ -376,7 +376,12 @@ class ExprLexer:
             self._pos += 1
         text = self._src[start : self._pos]
 
-        if text in ("true", "false", "yes", "no", "on", "off"):
+        # Tcl ``expr`` accepts boolean keywords case-insensitively (``True``,
+        # ``TRUE``, ``Yes`` are all valid), so recognise them regardless of case
+        # — otherwise a capitalised bool fell through to the FUNCTION branch and
+        # the whole expression degraded to an opaque ExprRaw (losing const-guard
+        # and dead-arm reasoning, e.g. W233/W123 on ``True && 1/0``).
+        if text.lower() in ("true", "false", "yes", "no", "on", "off"):
             return ExprToken(ExprTokenType.BOOL, text, start, self._pos - 1)
         if self._dialect == "f5-irules" and text in _IRULES_OPS:
             return ExprToken(ExprTokenType.OPERATOR, text, start, self._pos - 1)

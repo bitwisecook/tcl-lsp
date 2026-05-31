@@ -53,6 +53,10 @@ CORPUS = {
     "for": "for {set i 0} {$i < 10} {incr i} {\n  puts $i\n}\n",
     "foreach": "foreach item {a b c} {\n  puts $item\n}\n",
     "switch": "switch -- $x {\n  one {set y 1}\n  two {set y 2}\n  default {set y 0}\n}\n",
+    # A switch arm whose *last* statement is optimised (dead-store / fold):
+    # the rewrite's reported range must stop before the arm's closing brace,
+    # not cover `set y 2}` (regression: glued enclosing brace).
+    "switch_opt": "switch -- $x {\n  one {set y 1\n    set y 2}\n}\nputs $y\n",
     "proc": 'proc greet {name} {\n  puts "hi $name"\n}\n',
     "catch": "catch {error boom} result\n",
     "nested": "if {$a} {\n  while {$b} {\n    set z [expr {$z + 1}]\n  }\n}\n",

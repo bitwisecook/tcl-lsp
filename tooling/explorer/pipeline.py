@@ -12,6 +12,7 @@ from compiler.cfg import CFGFunction
 from compiler.compilation_unit import CompilationUnit, ensure_compilation_unit
 from compiler.core_analyses import FunctionAnalysis
 from compiler.dataflow_graph import DataFlowGraph, extract_dataflow_graph
+from compiler.execution_intent import FunctionExecutionIntent
 from compiler.gvn import RedundantComputation, find_redundant_computations
 from compiler.interprocedural import InterproceduralAnalysis
 from compiler.ir import IRModule
@@ -41,6 +42,7 @@ class FunctionSnapshot:
     cfg: CFGFunction
     ssa: SSAFunction
     analysis: FunctionAnalysis
+    execution_intent: FunctionExecutionIntent
 
 
 @dataclass(slots=True, frozen=True)
@@ -66,9 +68,13 @@ class CompilerExplorerResult:
 
 ALL_VIEWS = frozenset(
     {
+        "greentree",
         "ir",
         "cfg",
         "ssa",
+        "loops",
+        "intervals",
+        "bounds",
         "interproc",
         "types",
         "dataflow",
@@ -100,12 +106,18 @@ AVAILABLE_DIALECTS = tuple(sorted(available_dialects()))
 def build_snapshots(cu: CompilationUnit) -> tuple[list[FunctionSnapshot], int]:
     """Build per-function snapshots from a shared ``CompilationUnit``."""
     snapshots: list[FunctionSnapshot] = [
-        FunctionSnapshot("::top", cu.top_level.cfg, cu.top_level.ssa, cu.top_level.analysis)
+        FunctionSnapshot(
+            "::top",
+            cu.top_level.cfg,
+            cu.top_level.ssa,
+            cu.top_level.analysis,
+            cu.top_level.execution_intent,
+        )
     ]
 
     for qname in sorted(cu.procedures):
         fu = cu.procedures[qname]
-        snapshots.append(FunctionSnapshot(qname, fu.cfg, fu.ssa, fu.analysis))
+        snapshots.append(FunctionSnapshot(qname, fu.cfg, fu.ssa, fu.analysis, fu.execution_intent))
 
     total_blocks = sum(len(s.cfg.blocks) for s in snapshots)
     return snapshots, total_blocks

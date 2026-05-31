@@ -33,7 +33,13 @@ from compiler.ir import (
 from compiler.lowering import lower_to_ir
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.green_tree import GreenNode, descend_token, node_for, tokenise
+from compiler.parsing.green_tree import (
+    GreenNode,
+    descend_command,
+    descend_token,
+    node_for,
+    tokenise,
+)
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -44,7 +50,6 @@ from compiler.registry.runtime import (
     CommandSig,
     SubcommandSig,
     arg_indices_for_role,
-    iter_body_arguments,
 )
 from shared.codes import diag
 from shared.diagnostic import Diagnostic, Range, Severity
@@ -65,6 +70,15 @@ diag(
     section="security",
     ai_category="style",
 )
+
+
+# Source-byte ceiling for deep proc-body analysis (the analyser/IR-walk
+# analogue of the CFG-block complexity guard in ``compiler.ssa``).  Bodies above
+# this are machine-generated dispatch tables (fumagic's ``filetypes.tcl``
+# analyze proc is ~1.1 MB); deep-walking them costs tens of seconds for
+# negligible findings.  Single source of truth — imported by the analyser
+# proc-body walk so the two guards stay in lockstep.
+_DEEP_ANALYSIS_BODY_BYTES = 262144
 
 
 def iter_ir_statements(script: IRScript):
@@ -318,17 +332,13 @@ class _CompilerCheckRunner:
         prev_event = self._current_event
         if cmd_name == "when" and args:
             self._current_event = args[0]
-        for body in iter_body_arguments(cmd_name, args, arg_tokens):
-            if body.token.type is not TokenType.STR:
-                continue
-            if not body.text.strip():
-                continue
+        for child in descend_command(cmd_name, args, arg_tokens, self._source):
             # switch list-form body (`switch x {pattern body ...}`) is a Tcl
             # list, not a script. Parse pairs and recurse into each body arm.
-            if cmd_name == "switch" and _switch_list_body_index(args) == body.index:
-                self._recurse_switch_list_body(body.text, body.token)
+            if cmd_name == "switch" and _switch_list_body_index(args) == child.index:
+                self._recurse_switch_list_body(child.text, child.token)
                 continue
-            self._process_node(descend_token(body.token, self._source))
+            self._process_node(child.node)
         if cmd_name == "when":
             self._current_event = prev_event
 
@@ -530,6 +540,63 @@ def _resolves_to_user_command(
     return False
 
 
+# Bare commands whose entire purpose is destructive and which error on a
+# missing target — ``catch {<cmd> ...}`` is the canonical "if exists" idiom.
+_FIRE_AND_FORGET_BARE: frozenset[str] = frozenset(
+    {
+        "close",  # close ?-nocomplain? channel
+        "unset",  # unset ?-nocomplain? ?var ...?
+        "rename",  # rename foo ""  (delete)
+    }
+)
+
+# Ensemble commands where ONLY certain subcommands are fire-and-forget.
+# ``chan close`` is, but ``chan configure`` errors that should not be
+# silently swallowed.  Maps the ensemble name to its destructive subcommand set.
+_FIRE_AND_FORGET_SUBCOMMANDS: dict[str, frozenset[str]] = {
+    "after": frozenset({"cancel"}),
+    "chan": frozenset({"close"}),
+    "array": frozenset({"unset"}),
+    "dict": frozenset({"unset"}),
+    "interp": frozenset({"delete"}),
+    "namespace": frozenset({"delete", "forget"}),
+    "file": frozenset({"delete"}),
+}
+
+
+def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
+    """Return True when the body of a ``catch`` matches the documented
+    "fire-and-forget" idiom: a single command whose head is a destructive
+    builtin (``close $h``, ``unset var``, ``rename foo \"\"``) OR a
+    documented destructive ensemble subcommand (``after cancel``, ``chan
+    close``, ``array unset``, ``dict unset``, ``interp delete``,
+    ``namespace delete``, ``file delete``).
+
+    Conservative: only single-statement bodies are matched, and ensemble
+    commands are subcommand-checked — ``catch {chan configure $h}`` and
+    ``catch {file copy a b}`` still fire W302 because those operations
+    are not the canonical "if exists" idiom.
+    """
+    stmts = list(getattr(body, "statements", ()) or ())
+    if len(stmts) != 1:
+        return False
+    stmt = stmts[0]
+    if not isinstance(stmt, IRCall):
+        return False
+    cmd = stmt.command
+    if not cmd:
+        return False
+    bare = cmd.lstrip(":").split("::")[-1]
+    if bare in _FIRE_AND_FORGET_BARE:
+        return True
+    subcommands = _FIRE_AND_FORGET_SUBCOMMANDS.get(bare)
+    if subcommands is None:
+        return False
+    if not stmt.args:
+        return False
+    return stmt.args[0] in subcommands
+
+
 def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
     """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
 
@@ -554,7 +621,18 @@ def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> 
         # W302: catch without result variable (IR-native).  Highlight just
         # the ``catch`` command word — narrowest span that identifies the
         # issue — rather than the whole ``catch {…}`` statement.
+        #
+        # Suppress the hint on the documented "fire-and-forget" idiom:
+        # ``catch {after cancel ...}``, ``catch {file delete ...}``,
+        # ``catch {close ...}`` etc.  These commands error when the target
+        # is already gone, and ``catch {<cmd>}`` without a result var is
+        # the canonical Tcl idiom for "do this if possible, ignore if
+        # not".  Capturing the result there is verbose and produces a
+        # variable that is genuinely never used — the user has already
+        # decided to ignore the failure.
         if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            if _catch_body_is_fire_and_forget(stmt.body):
+                return
             w302_range = stmt.range
             if stmt.tokens is not None and stmt.tokens.argv:
                 w302_range = range_from_token(stmt.tokens.argv[0])
@@ -711,6 +789,13 @@ def _check_arity(
         sub_sig = sig.subcommands.get(sub_name)
         if sub_sig is None:
             if sig.allow_unknown:
+                return
+            # Tk geometry managers accept ``manager pathName ?args?`` as a
+            # shortcut for ``manager configure pathName ?args?`` (verified per
+            # Tk man pages — grid.n, pack.n, place.n).  A window path starts
+            # with ``.`` (Tk's path convention), and ``.`` is not a valid Tcl
+            # subcommand-name first character, so this is unambiguous.
+            if cmd_name in ("grid", "pack", "place") and sub_name.startswith("."):
                 return
             msg = f"Unknown subcommand '{sub_name}' for '{cmd_name}'"
             suggestions = _suggest_similar_impl(
@@ -1037,6 +1122,12 @@ def run_compiler_checks(
     stmts: list[IRStatement] = []
     stmts.extend(iter_ir_statements(ir_module.top_level))
     for proc in ir_module.procedures.values():
+        # Complexity guard: skip pathologically large (generated) bodies — the
+        # analyser-walk / SSA / dataflow guards skip them too, so compiler
+        # checks stay consistent and don't recurse tens of thousands of
+        # nested statements for negligible findings.
+        if proc.range.end.offset - proc.range.start.offset > _DEEP_ANALYSIS_BODY_BYTES:
+            continue
         stmts.extend(iter_ir_statements(proc.body))
     stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
 

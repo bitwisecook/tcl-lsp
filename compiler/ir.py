@@ -229,6 +229,15 @@ class IRBlock:
     (``("eval", ns, body_text)``) so a codegen target that can't
     inline (the stack-VM) can still dispatch the call with full
     namespace semantics at runtime.
+
+    ``caller_scope`` is ``True`` when the body runs in the *enclosing*
+    frame (plain ``eval {…}``), so a ``$x`` inside it reads a caller
+    local — analyses recover those reads to suppress false dead-store /
+    unused findings.  It is ``False`` for ``namespace eval ns {…}``,
+    whose body runs in ``ns``: an unqualified ``$x`` there resolves in
+    ``ns`` (Tcl errors ``can't read "x"`` if absent), so it is *not* a
+    read of the caller's local and must not suppress the caller's unused
+    / dead-store diagnostics.
     """
 
     range: Range
@@ -236,6 +245,7 @@ class IRBlock:
     namespace: str = "::"
     source_args: tuple[str, ...] = ()
     source_tokens: CommandTokens | None = None
+    caller_scope: bool = True
 
 
 @dataclass(frozen=True, slots=True)

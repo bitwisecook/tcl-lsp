@@ -59,6 +59,15 @@ class _Emitter(
     ) -> None:
         self._cfg = cfg
         self._lit = LiteralTable()
+        # NOTE (Phase 5): opt-in proc-local slot coalescing was wired here but
+        # REVERTED — a pre-emission, SSA-derived slot map is unsound because the
+        # SSA variable-name set does not match the names the emitter actually
+        # interns (SSA sees vars the emitter never emits a scalar slot for, and
+        # the emitter interns names absent from the map → frame-size/offset
+        # mismatch → corruption; fuzzer seed_794).  The allocator lives in
+        # `compiler/slot_allocation.py` (unit-tested); the SOUND wiring is a
+        # *post-emission* remap over the emitter's real load/store slots.  See
+        # the Phase 5 ledger.  Default path: one slot per name (tclsh parity).
         self._lvt = LocalVarTable(params)
         self._instrs: list[Instruction] = []
         self._labels: dict[str, int] = {}  # label → instruction index

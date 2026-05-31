@@ -131,16 +131,48 @@ class TestUseSiteShimmer:
         warnings = _warnings_for(source, code="S100")
         assert len(warnings) > 0, "Expected S100 outside loop"
 
-    def test_shimmer_inside_loop_is_s101(self):
+    def test_loop_invariant_shimmer_inside_loop_is_s100(self):
+        """A use-site inside a loop body whose variable is **loop-invariant**
+        (no def in the loop) shimmers ONCE at the first iteration — Tcl's Obj
+        intrep cache keeps the converted form for the rest of the loop.  That
+        is S100 (one-time conversion), not S101 (per-iteration cost).
+
+        Verified against Tcl's intrep semantics: ``[llength $items]`` converts
+        ``items``'s Obj intrep from String → List on first call; subsequent
+        calls in the loop body re-use the cached List intrep.  Updated from
+        a pre-lattice baseline that pessimistically labelled all in-loop uses
+        S101 regardless of the variable's def location.
+        """
         source = """\
 set items "a b c d"
 for {set i 0} {$i < 10} {incr i} {
     set n [llength $items]
 }
 """
+        # The conversion happens once → S100.  S101 must NOT fire because the
+        # variable is loop-invariant.
+        s100 = _warnings_for(source, code="S100")
+        s101 = _warnings_for(source, code="S101")
+        assert any(w.variable == "items" for w in s100 if isinstance(w, ShimmerWarning)), (
+            f"Expected S100 for loop-invariant 'items' shimmer in loop, got S100={s100} S101={s101}"
+        )
+        assert not any(w.variable == "items" for w in s101 if isinstance(w, ShimmerWarning)), (
+            f"S101 must NOT fire for loop-invariant 'items'; got {s101}"
+        )
+
+    def test_shimmer_inside_loop_with_reassignment_is_s101(self):
+        """A use-site inside a loop body whose variable IS reassigned in the
+        loop is a genuine per-iteration cost — each iteration resets the
+        intrep, so every iteration pays the conversion.  That is S101."""
+        source = """\
+for {set i 0} {$i < 10} {incr i} {
+    set items "a b c d"
+    set n [llength $items]
+}
+"""
         warnings = _warnings_for(source, code="S101")
         assert any(w.variable == "items" for w in warnings if isinstance(w, ShimmerWarning)), (
-            f"Expected S101 for items in loop, got {warnings}"
+            f"Expected S101 for items reassigned inside loop, got {warnings}"
         )
 
 
@@ -153,6 +185,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         # There should be a SHIMMERED phi for x.
@@ -167,6 +200,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         shimmer = [
@@ -188,6 +222,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         warnings = find_shimmer_warnings(source)
         shimmer = [
@@ -724,6 +759,69 @@ incr x $step
     def test_literal_increment_no_shimmer(self):
         """A literal integer increment should not shimmer."""
         assert _codes("set x 0\nincr x 5") == []
+
+    def test_hex_literal_increment_no_shimmer(self):
+        """A hex integer literal (``0x80``) is INT — incrementing it
+        is not a shimmer.  tcllib idna's ``variable initial_n 0x80``
+        +  ``set n \\$initial_n``  +  ``incr n`` previously fired
+        S101 because the hex literal was classified as STRING.
+        """
+        src = "proc f {} { set n 0x80; for {set i 0} {$i<10} {incr i} { incr n }; return $n }"
+        assert _codes(src) == []
+
+    def test_binary_literal_increment_no_shimmer(self):
+        """``0b...`` integer literal is INT, not STRING."""
+        src = "proc f {} { set n 0b1010; incr n; return $n }"
+        assert _codes(src) == []
+
+    def test_destructure_foreach_does_not_pollute_loop_body_types(self):
+        # ``foreach VARS LIST break`` is the pre-8.5 ``lassign``
+        # equivalent — a single-iteration destructure that binds
+        # multiple vars at once.  Its var bindings should NOT count
+        # as per-iter body types when computing S102 shimmer for an
+        # encompassing real loop.
+        #
+        # tcllib grammar_me me_cpucore.tcl idiom: destructure
+        # ``state`` at the proc top via ``foreach {... sv ...} $state
+        # break``, then the main instruction loop assigns
+        # ``set sv [list ...]``.  Previously the destructure's STRING
+        # binding leaked into the main loop's body types and triggered
+        # S102 ("oscillates between string and list").  With the
+        # destructure detected as single-iter (body is ``break``),
+        # its bindings are excluded from loop_body_types.
+        src = (
+            "proc f {state} {\n"
+            "    foreach {a b c sv} $state break\n"
+            "    foreach inst {1 2 3} {\n"
+            "        set sv [list 1 2 3]\n"
+            "    }\n"
+            "    return $sv\n"
+            "}\n"
+        )
+        codes = _codes(src)
+        # S102 on $sv should NOT fire — the destructure binding is
+        # one-time, not per-iter.
+        assert "S102" not in codes, f"unexpected S102: {codes}"
+
+    def test_sibling_loop_body_types_do_not_pollute_s102(self):
+        # Sibling loops in the same proc must not pollute each other's
+        # S102 body_types map.  Loop A sets $x to STRING; loop B sets
+        # $x to LIST.  Neither loop alone should fire S102 on $x.
+        # The previous function-wide loop_body_types would have
+        # incorrectly classified $x as oscillating in EITHER loop
+        # because the union ({STRING, LIST}) had ≥2 types.
+        src = (
+            "proc f {items} {\n"
+            "    foreach a $items {\n"
+            '        set x "value"\n'  # loop A: x=STRING
+            "    }\n"
+            "    foreach b $items {\n"
+            "        set x [list 1 2]\n"  # loop B: x=LIST
+            "    }\n"
+            "}\n"
+        )
+        codes = _codes(src)
+        assert "S102" not in codes, f"sibling-loop S102 should not fire: {codes}"
 
     def test_boolean_increment_no_shimmer(self):
         """BOOLEAN is numeric-compatible with INT — no shimmer."""

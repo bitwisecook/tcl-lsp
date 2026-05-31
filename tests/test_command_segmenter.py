@@ -994,6 +994,26 @@ class TestFindFirstDirtyChunk:
     def test_both_empty(self):
         assert find_first_dirty_chunk([], []) == 0
 
+    def test_position_shift_is_dirty(self):
+        # A chunk whose text is unchanged but which moved (blank line inserted
+        # above) is dirty — its cached IR/diagnostics carry stale absolute
+        # positions.  The first shifted chunk is the dirty index.
+        old = segment_top_level_chunks("set a 1\nset b 2")
+        new = segment_top_level_chunks("\nset a 1\nset b 2")
+        assert find_first_dirty_chunk(old, new) == 0
+
+    def test_blank_line_between_chunks_marks_suffix_dirty(self):
+        old = segment_top_level_chunks("set a 1\nset b 2\nset c 3")
+        new = segment_top_level_chunks("set a 1\n\nset b 2\nset c 3")
+        # a is unshifted; b (and c) shifted down → first dirty is index 1.
+        assert find_first_dirty_chunk(old, new) == 1
+
+    def test_append_still_not_dirty(self):
+        # Appending a command must not shift existing chunks' offsets.
+        old = segment_top_level_chunks("set a 1\nset b 2")
+        new = segment_top_level_chunks("set a 1\nset b 2\nset c 3")
+        assert find_first_dirty_chunk(old, new) == 2
+
 
 class TestDocumentStateIncremental:
     """Integration: DocumentState skips re-analysis for unchanged sources."""
@@ -1025,3 +1045,45 @@ class TestDocumentStateIncremental:
         assert len(state.chunks) == 1
         state.update("set a 1\nset b 2")
         assert len(state.chunks) == 2
+
+
+class TestStableChunkHashes:
+    """``TopLevelChunk.source_hash`` must be deterministic across processes:
+    fresh analysis runs in a ``forkserver`` pool worker (fresh ``PYTHONHASHSEED``)
+    and returns chunks the main process compares against locally-segmented ones.
+    A salted builtin ``hash()`` made unchanged chunks look dirty and collapsed
+    cache reuse."""
+
+    _SRC = "proc alpha {} { return 1 }\nproc beta {} { return 2 }\nset c 3\n"
+
+    def _hashes_under_seed(self, seed: str) -> tuple[str, str]:
+        import os
+        import subprocess
+        import sys
+
+        code = (
+            "from compiler.parsing.command_segmenter import segment_top_level_chunks\n"
+            f"src = {self._SRC!r}\n"
+            "chunks = segment_top_level_chunks(src)\n"
+            "print('CHUNK ' + ','.join(str(c.source_hash) for c in chunks))\n"
+            "print('BUILTIN ' + str(hash(src)))\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        )
+        assert proc.returncode == 0, proc.stderr
+        chunk_line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("CHUNK "))
+        builtin_line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("BUILTIN "))
+        return chunk_line[len("CHUNK ") :], builtin_line[len("BUILTIN ") :]
+
+    def test_source_hash_identical_across_hash_seeds(self):
+        chunks1, builtin1 = self._hashes_under_seed("1")
+        chunks2, builtin2 = self._hashes_under_seed("2")
+        # Guard: the two runs really used different seeds (builtin hash differs).
+        assert builtin1 != builtin2, "PYTHONHASHSEED did not vary between runs"
+        # The chunk source hashes must match regardless of seed.
+        assert chunks1 == chunks2
+        assert chunks1  # non-empty

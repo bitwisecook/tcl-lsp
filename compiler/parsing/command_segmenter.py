@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
+from shared.hashing import stable_text_hash
 from shared.ranges import range_from_tokens, range_from_word_token
 
 from .known_commands import known_command_names
@@ -407,7 +408,7 @@ def tile_commands(
                 index=start_index + i,
                 start_offset=start,
                 end_offset=tile_end,
-                source_hash=hash(cmd_text),
+                source_hash=stable_text_hash(cmd_text),
                 commands=(cmd,),
             )
         )
@@ -430,12 +431,20 @@ def find_first_dirty_chunk(
 ) -> int:
     """Return the index of the first chunk that differs between two versions.
 
-    Compares ``source_hash`` values pairwise.  Returns the length of the
-    shorter list when all shared chunks match (i.e. one version has extra
-    chunks appended).
+    Compares both the ``source_hash`` (command text) **and** ``start_offset``
+    (absolute position) pairwise.  Position matters because a chunk's cached IR
+    / analyser snapshot / diagnostics carry *absolute* source positions: a chunk
+    whose text is unchanged but which *moved* (e.g. a blank line or comment
+    inserted above it, a ``# tcl-dialect:`` directive added) would otherwise be
+    reused with stale line numbers.  Returns the length of the shorter list when
+    all shared chunks match (i.e. one version has extra chunks appended — an
+    append shifts no existing chunk's offset, so that case stays incremental).
     """
     for i in range(min(len(old_chunks), len(new_chunks))):
-        if old_chunks[i].source_hash != new_chunks[i].source_hash:
+        if (
+            old_chunks[i].source_hash != new_chunks[i].source_hash
+            or old_chunks[i].start_offset != new_chunks[i].start_offset
+        ):
             return i
     return min(len(old_chunks), len(new_chunks))
 

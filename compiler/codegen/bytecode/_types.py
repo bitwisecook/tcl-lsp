@@ -66,7 +66,17 @@ class LiteralTable:
 
 
 class LocalVarTable:
-    """Maps variable names to LVT slot indices."""
+    """Maps variable names to LVT slot indices (one slot per distinct name).
+
+    The slot is an *index into the name table* — the VM resolves
+    ``lvt.entries()[slot]`` back to the variable **name** and accesses the
+    frame by name (``machine.py`` ``loadScalar``/``storeScalar``).  Slots are
+    therefore variable *identities*, not reusable storage: distinct names must
+    get distinct slots, matching tclsh's compiled-local model (every named
+    local stays name-addressable — ``upvar``/``info locals``/``trace`` — for
+    the proc's whole lifetime).  This is why dataflow-liveness slot coalescing
+    is unsound here; see ``compiler/slot_allocation.py``.
+    """
 
     __slots__ = ("_slots", "_index")
 

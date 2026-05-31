@@ -55,6 +55,107 @@ def _next_pull_diag_result_id() -> str:
     return f"tcl-lsp-diag-{next(_pull_diag_counter)}"
 
 
+# Per-document single-writer serialization (W1)
+#
+# Guarantees at most one in-flight analysis+publish per document — the
+# single-writer invariant the persistent incremental graph will rely on, so
+# two overlapping did_change coroutines can never mutate a document's state
+# concurrently. Distinct uris get distinct locks, so documents still analyse
+# in parallel. ``_publish_latest_version`` lets a request that was superseded
+# while queued bail *before* the expensive analysis (avoids a rapid-typing
+# pileup that a bare lock would create).
+_publish_locks: dict[str, asyncio.Lock] = {}
+_publish_latest_version: dict[str, int] = {}
+
+
+def _get_publish_lock(uri: str) -> asyncio.Lock:
+    lock = _publish_locks.get(uri)
+    if lock is None:
+        lock = asyncio.Lock()
+        _publish_locks[uri] = lock
+    return lock
+
+
+def _superseded(uri: str, version: int | None) -> bool:
+    """True when a newer version was requested while this run was analysing.
+
+    The pool ``await`` is a suspension point: a later ``did_change`` runs the
+    top of ``_publish_diagnostics`` (bumping ``_publish_latest_version``) before
+    queueing on the writer lock.  A stale result must therefore re-check this
+    *after* analysis — before swapping state or publishing — or it would clobber
+    the document with an old analysis and publish out-of-date diagnostics.
+    """
+    if version is None:
+        return False
+    latest = _publish_latest_version.get(uri)
+    return latest is not None and version < latest
+
+
+def _release_publish_state(uri: str) -> None:
+    """Drop a document's per-URI state (call on did_close).
+
+    Includes the pull-model diagnostics cache: without this, every ever-opened
+    URI kept a full diagnostics list (and its result id) resident for the life
+    of the session — a slow, unbounded leak across a long editing session that
+    opens many files.
+    """
+    _publish_locks.pop(uri, None)
+    _publish_latest_version.pop(uri, None)
+    _pull_diag_cache.pop(uri, None)
+    _pull_diag_result_ids.pop(uri, None)
+
+
+# asyncio keeps only a *weak* reference to the result of ``create_task`` /
+# ``ensure_future``, so a fire-and-forget analysis task can be garbage-collected
+# mid-flight — silently dropping a document's diagnostics (a documented asyncio
+# foot-gun).  Hold a strong reference until the task completes.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def spawn_publish_diagnostics(
+    uri: str,
+    source: str,
+    version: int | None = None,
+    *,
+    force_reanalyse: bool = False,
+    loop: asyncio.AbstractEventLoop | None = None,
+) -> asyncio.Task:
+    """Fire-and-forget ``_publish_diagnostics`` while holding a strong reference.
+
+    The three callers that schedule a publish without awaiting it (did_open, the
+    reanalyse-all command, and a config change) all route through here so the
+    task can't be collected before it finishes.  Pass *loop* when scheduling from
+    a sync context that already resolved the running loop; otherwise the current
+    running loop is used.
+    """
+    coro = _publish_diagnostics(uri, source, version, force_reanalyse=force_reanalyse)
+    task = loop.create_task(coro) if loop is not None else asyncio.ensure_future(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
+# Fresh-build routing by source size.  Every *fresh* build (full, non-
+# incremental analysis) runs in a subprocess pool — CPU-bound analysis is
+# GIL-bound, so in-thread fan-out is slower than serial (measured 4-thread
+# 20.8s vs serial 15.3s vs 4-process 7.7s).  A build at/below this size uses the
+# small-file lane (:func:`server.state._get_small_pool`); a larger one uses the
+# cold pool.  The two lanes are separate pools so a trivial file never queues
+# behind a workspace of multi-second cold builds (head-of-line blocking).
+_SMALL_BUILD_MAX_BYTES = 16 * 1024
+# A generous wall-clock ceiling for a *big* cold build in the pool, far above any
+# legitimate build (per-proc cost is bounded by the complexity guard).  Unlike
+# the old per-build timeout it does NOT re-run the build in-thread on expiry
+# (that doubled the work and froze the event loop); it poisons-and-recreates the
+# cold pool to reclaim a wedged worker and abandons the build, releasing the
+# per-uri writer lock so later edits to that document aren't starved.
+_COLD_BUILD_CEILING_S = 120.0
+# The small-file lane's ceiling.  A genuinely small build finishes in well under
+# a second; this is a large margin that still reclaims a wedged small worker far
+# faster than the cold ceiling.
+_SMALL_BUILD_CEILING_S = 30.0
+
+
 def _publish_diags_to_client(
     uri: str,
     diagnostics: list[types.Diagnostic],
@@ -265,6 +366,38 @@ async def _publish_diagnostics(
     *,
     force_reanalyse: bool = False,
 ) -> None:
+    # Record the newest requested version before queueing on the writer lock,
+    # so an older request that loses the race can detect it was superseded.
+    if version is not None:
+        prev = _publish_latest_version.get(uri)
+        if prev is None or version >= prev:
+            _publish_latest_version[uri] = version
+
+    async with _get_publish_lock(uri):
+        # Superseded while we waited for the lock: a newer version is already
+        # queued/running and will publish the authoritative result. Bail
+        # before doing the expensive analysis. (force_reanalyse passes
+        # version=None and is never superseded.)
+        if version is not None:
+            latest = _publish_latest_version.get(uri)
+            if latest is not None and version < latest:
+                log.info(
+                    "[timing] _publish_diagnostics superseded before analysis "
+                    "(newest req v%s, this v%s)",
+                    latest,
+                    version,
+                )
+                return
+        await _publish_diagnostics_locked(uri, source, version, force_reanalyse=force_reanalyse)
+
+
+async def _publish_diagnostics_locked(
+    uri: str,
+    source: str,
+    version: int | None = None,
+    *,
+    force_reanalyse: bool = False,
+) -> None:
     from analyser.checks._style import non_ascii_mode_scope
     from compiler.registry.dialect import dialect_scope
     from compiler.registry.stub_comments import ambient_stub_scope
@@ -330,15 +463,58 @@ async def _publish_diagnostics_inner(
     did_analyse = needs_analysis or force_reanalyse
     subprocess_result: dict | None = None
     if did_analyse:
-        is_fresh = state.analysis is None or force_reanalyse
+        # "Fresh" = full (non-incremental) build.  A warm edit clears analysis
+        # via update_source_quick but preserves an incremental base
+        # (``can_analyse_incrementally``), so it takes the in-thread incremental
+        # update() path — cheap, and it mutates the DocumentState in place.
+        #
+        # Every *fresh* build runs in a subprocess pool: CPU-bound analysis is
+        # GIL-bound, so in-thread fan-out is slower than serial under a storm.
+        # A large build uses the cold pool; a small one uses a separate
+        # small-file lane (its own pool) so a trivial file never queues behind a
+        # workspace of multi-second cold builds (head-of-line blocking).
+        is_fresh = force_reanalyse or not state.can_analyse_incrementally
         if is_fresh:
             from analyser.checks._style import _non_ascii_mode_var
             from compiler.registry.runtime import _dialect_var, _extra_commands_var
             from server.workspace.document_state import _analyse_document_fresh
 
+            lane = "cold" if len(source) > _SMALL_BUILD_MAX_BYTES else "small"
+
+            # Cheap pre-submission supersession check: if a newer edit was
+            # already requested while this build queued behind the writer lock,
+            # don't even acquire a pool worker for a result we'd discard at line
+            # ~540 anyway.  Submitting it would occupy a (scarce) subprocess slot
+            # the newer build needs, so the live edit queues behind a corpse.
+            if _superseded(uri, version):
+                log.info(
+                    "[timing] _publish_diagnostics abandoned (superseded before "
+                    "%s submit: newest req v%s, this v%s)",
+                    lane,
+                    _publish_latest_version.get(uri),
+                    version,
+                )
+                return
+
+            if lane == "cold":
+                pool = _state._get_process_pool()
+                reset_pool = _state._reset_process_pool
+                ceiling = _COLD_BUILD_CEILING_S
+            else:
+                pool = _state._get_small_pool()
+                reset_pool = _state._reset_small_pool
+                ceiling = _SMALL_BUILD_CEILING_S
+
+            # The build runs in its lane's pool and is abandoned if a newer edit
+            # supersedes it.  A generous wall-clock ceiling guards a wedged build
+            # the complexity guard doesn't catch: unlike the old per-build
+            # timeout it does NOT re-run in-thread on expiry (that doubled the
+            # work and froze the event loop) — it poisons-and-recreates the
+            # lane's pool and returns, releasing this URI's writer lock so later
+            # edits aren't starved.  A worker crash surfaces as BrokenProcessPool
+            # below.
             try:
                 loop = asyncio.get_running_loop()
-                pool = _state._get_process_pool()
                 result = await asyncio.wait_for(
                     loop.run_in_executor(
                         pool,
@@ -365,15 +541,49 @@ async def _publish_diagnostics_inner(
                             # ContextVar, so forward them explicitly for the
                             # subprocess to re-establish (mirrors dialect).
                             stub_commands=tuple(_state.workspace_stub_commands),
+                            # Forward the line-ending config and the (small,
+                            # picklable) workspace diagnostic context so the
+                            # subprocess build's basic diagnostics match the
+                            # in-thread phase1: line-ending checks + W120/W123
+                            # workspace filtering.
+                            line_ending=_state.formatter_config_for_uri(uri).line_ending,
+                            workspace_context=_build_workspace_diagnostic_context(),
                         ),
                     ),
-                    timeout=15.0,
+                    timeout=ceiling,
                 )
+                if _superseded(uri, version):
+                    # A newer version was requested while we were analysing —
+                    # don't overwrite the document with this stale result.
+                    log.info(
+                        "[timing] _publish_diagnostics abandoned (superseded after "
+                        "analysis: newest req v%s, this v%s)",
+                        _publish_latest_version.get(uri),
+                        version,
+                    )
+                    return
                 state.apply_subprocess_result(result, version)
                 subprocess_result = result
+            except asyncio.TimeoutError:
+                # The build blew past the generous ceiling — almost certainly a
+                # wedged worker.  Poison-and-recreate the lane's pool to reclaim
+                # it and abandon this build; do NOT re-run in-thread (that would
+                # block the event loop on the same wedge).  The orphaned pool
+                # future is uncancellable but dies with the pool.
+                log.warning(
+                    "%s build exceeded %.0fs ceiling for %s (v%s); "
+                    "recreating %s pool and abandoning",
+                    lane,
+                    ceiling,
+                    uri,
+                    version,
+                    lane,
+                )
+                reset_pool()
+                return
             except BrokenProcessPool:
-                log.warning("Process pool broken, falling back to thread")
-                _state._process_pool = None
+                log.warning("%s build pool broken, falling back to thread", lane)
+                reset_pool()
                 await asyncio.to_thread(
                     state.update,
                     source,
@@ -391,6 +601,8 @@ async def _publish_diagnostics_inner(
                     line_length=line_length,
                 )
         else:
+            # Warm/incremental edit: cheap; runs in a worker thread (it mutates
+            # the DocumentState in place, so it can't go to a subprocess).
             await asyncio.to_thread(
                 state.update,
                 source,
@@ -407,11 +619,12 @@ async def _publish_diagnostics_inner(
         len(state.buffer.line_starts),
     )
 
-    if state.version != version:
+    if state.version != version or _superseded(uri, version):
         log.info(
-            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
+            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s, newest v%s)",
             state.version,
             version,
+            _publish_latest_version.get(uri),
         )
         return
 
@@ -499,13 +712,49 @@ async def _publish_diagnostics_inner(
     _scheduled_version = version
 
     from compiler.registry.dialect import active_dialect
+    from compiler.registry.runtime import _extra_commands_var
     from server.features.diagnostics import _run_deep_diagnostics
 
     _dialect = active_dialect()
-    _pool = _state._get_process_pool()
+    # Snapshot the per-folder command overlay in the parent (the worker can't
+    # read the parent's ContextVar) so the deep pass re-establishes it.
+    _extra_commands = tuple(_extra_commands_var.get())
+    # Deep diagnostics run in their OWN pool, separate from cold builds, so a
+    # storm of multi-second cold builds can't starve every document's deep pass.
+    _pool = _state._get_deep_pool()
     _generic_var_patterns = list(cfg.generic_variable_patterns)
 
+    # Body-local (shimmer) diagnostic memoization (W2 leaf tier): recompute
+    # shimmer only for procs whose body/context changed; reuse re-offset cached
+    # shimmer for the clean rest.  ``_proc_infos`` is falsy (None / no procs)
+    # when memoization can't apply (no CU, shimmer disabled, or procs can't be
+    # positioned consistently) — then we run the full shimmer pass and skip the
+    # cache.  ``_shimmer_targets`` is the dirty qname set passed to the pass.
+    from server.features.incremental_diagnostics import (
+        merge_memoized_deep,
+        proc_diag_infos,
+        split_clean_dirty,
+    )
+
+    _proc_infos = proc_diag_infos(cu) if (cu is not None and shimmer_enabled) else None
+    _prev_proc_diag = state.get_proc_diag_cache() or {}
+    _shimmer_targets: frozenset[str] | None = (
+        split_clean_dirty(_proc_infos, _prev_proc_diag)[1] if _proc_infos else None
+    )
+
     async def _deep_coro() -> list[types.Diagnostic]:
+        # Cheap pre-submission supersession check: the deep coro is scheduled and
+        # may sit behind earlier work before it runs.  If a newer edit already
+        # arrived, don't burn a deep-pool worker on a result ``_guarded_publish``
+        # will discard anyway — submitting it queues the live edit behind a corpse.
+        if _superseded(uri, version):
+            log.info(
+                "[timing] deep build abandoned (superseded before submit: "
+                "newest req v%s, this v%s)",
+                _publish_latest_version.get(uri),
+                version,
+            )
+            return []
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
@@ -523,11 +772,19 @@ async def _publish_diagnostics_inner(
                     disabled_optimisations=disabled_opts,
                     uri=uri,
                     generic_variable_patterns=_generic_var_patterns,
+                    shimmer_target_procs=_shimmer_targets,
+                    # The deep pool's workers don't share the parent's
+                    # ContextVars, so forward the per-folder command overlay and
+                    # workspace .tcl.stubs for the worker to re-establish — the
+                    # same context the parent applies via dialect_scope(...,
+                    # extra_commands) + ambient_stub_scope (issue #407).
+                    extra_commands=_extra_commands,
+                    stub_commands=tuple(_state.workspace_stub_commands),
                 ),
             )
         except BrokenProcessPool:
-            log.warning("Process pool broken in deep diagnostics, falling back to thread")
-            _state._process_pool = None
+            log.warning("Deep-diagnostics pool broken, falling back to thread")
+            _state._deep_pool = None
             result = await asyncio.to_thread(
                 get_deep_diagnostics,
                 source,
@@ -542,6 +799,7 @@ async def _publish_diagnostics_inner(
                 disabled_optimisations=disabled_opts,
                 uri=uri,
                 generic_variable_patterns=_generic_var_patterns,
+                shimmer_target_procs=_shimmer_targets,
             )
         except Exception:
             log.warning("Subprocess deep diagnostics failed, falling back to thread", exc_info=True)
@@ -559,17 +817,40 @@ async def _publish_diagnostics_inner(
                 disabled_optimisations=disabled_opts,
                 uri=uri,
                 generic_variable_patterns=_generic_var_patterns,
+                shimmer_target_procs=_shimmer_targets,
             )
+        # Merge the dirty-only shimmer recompute with the re-offset cache for
+        # clean procs (non-body-local codes pass through unchanged).  Byte-for-
+        # byte identical to a full deep pass — gated by test_incremental_diagnostics.
+        new_proc_diag: dict | None = None
+        if _proc_infos:
+            result, new_proc_diag = merge_memoized_deep(_proc_infos, _prev_proc_diag, result)
         if _state_ref.version == _scheduled_version:
             _state_ref.store_deep_diagnostics(result)
+            if new_proc_diag is not None:
+                _state_ref.store_proc_diag_cache(new_proc_diag)
         return result
+
+    def _guarded_publish(u: str, diags: list[types.Diagnostic], v: int | None) -> None:
+        # The deep pass publishes after its background await; a newer edit may
+        # have arrived meanwhile.  Re-check supersession before publishing (and
+        # before overwriting the pull cache), matching the basic path's guards —
+        # the scheduler's task cancellation alone races the publish.
+        if _superseded(u, v):
+            log.info(
+                "[timing] deep publish abandoned (superseded: newest v%s, this v%s)",
+                _publish_latest_version.get(u),
+                v,
+            )
+            return
+        _publish_diags_to_client(u, diags, v)
 
     _state.diagnostic_scheduler.schedule_async(
         uri,
         version,
         basic_diags,
         _deep_coro,
-        _publish_diags_to_client,
+        _guarded_publish,
     )
 
 

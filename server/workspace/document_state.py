@@ -20,8 +20,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from analyser import Analyser, AnalyserSnapshot, AnalysisResult
 from compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
@@ -33,14 +34,23 @@ from compiler.parsing.command_segmenter import (
     find_first_dirty_chunk,
     segment_top_level_chunks,
 )
-from compiler.parsing.incremental import incremental_top_level_chunks, infer_edit_range
+from compiler.parsing.incremental import (
+    EditRange,
+    incremental_top_level_chunks,
+    infer_edit_range,
+)
 from compiler.parsing.lexer import TclLexer
 from compiler.registry.dialect import detect_dialect_from_source, dialect_scope
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect
 from shared.codes import default_disabled_diagnostics
 from shared.document_buffer import DocumentBuffer
+from shared.rope import RopeEdit
 from shared.tokens import Token
+
+if TYPE_CHECKING:
+    from analyser.semantic_model import WorkspaceDiagnosticContext
+    from server.features.incremental_diagnostics import ProcDiagEntry
 
 # Lazy import to avoid circular dependencies at module load time.
 _style_diag_fn = None
@@ -66,6 +76,32 @@ def _get_style_diag_all_fn():
 
         _style_diag_all_fn = compute_all_style_diagnostics
     return _style_diag_all_fn
+
+
+def _owned_style_diags(
+    all_style_diags: list[Any],
+    diag_lines: list[int],
+    start_line: int,
+    end_line: int,
+    consumed: int,
+) -> tuple[list[Any], int]:
+    """Style diagnostics owned by one chunk, advancing a monotonic cursor.
+
+    Whole-line style diagnostics (W111/W112/W115) are computed once for the
+    file and partitioned to chunks by inclusive line range.  When several
+    top-level chunks share a physical line (``cmd1 ; cmd2``), a plain per-chunk
+    bisect slice hands the *same* line-level diagnostic to every chunk on that
+    line, so ``get_cached_style_diagnostics`` then publishes it N times.  The
+    ``consumed`` cursor (exclusive end index already handed out, with chunks
+    visited in document order) makes each diagnostic land in exactly the first
+    chunk whose ``end_line`` reaches it.  Returns ``(style_diags, new_consumed)``.
+    """
+    from bisect import bisect_left, bisect_right
+
+    lo = max(consumed, bisect_left(diag_lines, start_line))
+    hi = bisect_right(diag_lines, end_line)
+    style = all_style_diags[lo:hi] if hi > lo else []
+    return style, max(consumed, hi)
 
 
 def _get_precompute_chunk_tokens_fn():
@@ -207,6 +243,8 @@ def _analyse_document_fresh(
     extra_commands: tuple[str, ...] = (),
     non_ascii_mode: str | None = None,
     stub_commands: tuple = (),
+    line_ending: str = "\n",
+    workspace_context: "WorkspaceDiagnosticContext | None" = None,
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 
@@ -294,8 +332,9 @@ def _analyse_document_fresh(
                 disabled_diagnostics=disabled_diagnostics or set(),
                 disabled_optimisations=disabled_optimisations or set(),
                 line_length=line_length,
+                line_ending=line_ending,
                 cached_style_diagnostics=None,
-                workspace_context=None,
+                workspace_context=workspace_context,
                 uri=uri,
             )
         except Exception:
@@ -371,8 +410,14 @@ def _analyse_document_fresh(
             disabled_diagnostics=disabled_diagnostics or set(),
             disabled_optimisations=disabled_optimisations or set(),
             line_length=line_length,
+            line_ending=line_ending,
             cached_style_diagnostics=None,
-            workspace_context=None,
+            # Forwarded from the parent so the cold build produces the same
+            # workspace-aware diagnostics as the in-thread phase1: line-ending
+            # checks (line_ending) and W120/W123 workspace filtering
+            # (workspace_context).  WorkspaceDiagnosticContext is a small,
+            # picklable bundle of frozensets/dicts of strings.
+            workspace_context=workspace_context,
             uri=uri,
         )
     except Exception:
@@ -418,13 +463,12 @@ def _build_chunk_caches_standalone(
     Standalone version of ``DocumentState._build_full_chunk_caches``
     suitable for subprocess execution (no ``self`` dependency).
     """
-    from bisect import bisect_left, bisect_right
-
     buf = DocumentBuffer.from_source(source)
     caches: list[ChunkCache | None] = []
 
     all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
     diag_lines = [d.range.start.line for d in all_style_diags]
+    style_consumed = 0
 
     chunk_ir_map = _extract_chunk_ir(compilation_unit, chunks)
 
@@ -453,9 +497,9 @@ def _build_chunk_caches_standalone(
             snap = snapshot_analyser.snapshot()
 
         start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
-        lo = bisect_left(diag_lines, start_line)
-        hi = bisect_right(diag_lines, end_line)
-        style_diags = all_style_diags[lo:hi]
+        style_diags, style_consumed = _owned_style_diags(
+            all_style_diags, diag_lines, start_line, end_line, style_consumed
+        )
 
         caches.append(
             ChunkCache(
@@ -499,18 +543,42 @@ def _build_proc_cache(
     so a procedure's FunctionUnit can be reused across edits as long as
     both the body text and the active stub overlay are unchanged.
     """
-    from compiler.compilation_unit import compute_stub_fingerprint
+    from compiler.cfg import cfg_context_fingerprint, prepare_cfg_context
+    from compiler.compilation_unit import compute_stub_fingerprint, known_classes_fingerprint
 
     cache: dict[tuple[str, int], FunctionUnit] = {}
     stub_fingerprint = compute_stub_fingerprint(cu.source)
+    # The CFG-construction context (which callees write back into the caller
+    # frame via upvar, and proc param maps) is part of a cached unit's validity:
+    # a caller's CFG/analysis can change when a *callee*'s upvar behaviour
+    # changes even though the caller's own text is unchanged.  Must match
+    # _proc_cache_key in compilation_unit.py exactly, or a callee edit would
+    # leave callers reusing stale units.
+    upvar_procs, proc_params = prepare_cfg_context(cu.ir_module)
+    context_fingerprint = cfg_context_fingerprint(upvar_procs, proc_params)
+    known_classes_fp = known_classes_fingerprint(cu.known_classes)
     for qname, fu in cu.procedures.items():
         ir_proc = cu.ir_module.procedures.get(qname)
         if ir_proc is not None:
             # +1: range.end.offset is the proc's last character (inclusive).
-            # Must match _proc_cache_key in compilation_unit.py exactly, or
-            # lookups built by compile_source never hit this cache.
-            proc_src = cu.source[ir_proc.range.start.offset : ir_proc.range.end.offset + 1]
-            cache[(qname, hash((proc_src, stub_fingerprint)))] = fu
+            # Key must match _proc_cache_key in compilation_unit.py exactly
+            # (body text + stub + context + class-set fingerprints + the proc's
+            # start line/char/offset), or a moved-but-unchanged proc is reused
+            # with stale positions/offsets or stale object-type facts.
+            start = ir_proc.range.start
+            proc_src = cu.source[start.offset : ir_proc.range.end.offset + 1]
+            key_hash = hash(
+                (
+                    proc_src,
+                    stub_fingerprint,
+                    context_fingerprint,
+                    start.line,
+                    start.character,
+                    start.offset,
+                    known_classes_fp,
+                )
+            )
+            cache[(qname, key_hash)] = fu
     return cache
 
 
@@ -557,6 +625,9 @@ class _StateSnapshot:
     buffer: DocumentBuffer | None = None
     deep_diag_proc_key: frozenset[tuple[str, int]] | None = None
     deep_diag_result: list[Any] | None = None
+    # Per-proc body-local (shimmer) diagnostic cache, keyed (qname, body_hash);
+    # the leaf tier of the incremental query-DAG, updated by the deep worker.
+    proc_diag_cache: dict[tuple[str, int], ProcDiagEntry] | None = None
     # Conf-wrapped iRules mode: file contains ``ltm rule`` / ``gtm rule``
     # stanzas rather than bare iRule bodies.
     conf_wrapped: bool = False
@@ -588,16 +659,54 @@ class DocumentState:
         default_factory=dict,
         repr=False,
     )
+    # The last fully-analysed snapshot, preserved when ``update_source_quick``
+    # swaps in a source-only (analysis-cleared) snapshot.  ``update()`` uses it
+    # as the incremental base so a quick update — which exposes new source for
+    # immediate token requests — does not force the next analysis down the cold
+    # ``_analyse_document_fresh`` path.
+    _prev_analysed: _StateSnapshot | None = field(default=None, repr=False)
+    # The dialect the currently-cached analysis (live or ``_prev_analysed``) was
+    # built under.  ``update_source_quick`` refreshes ``dialect_hint`` eagerly,
+    # so ``update()`` must compare the new source's dialect against *this* —
+    # not against ``dialect_hint`` — to notice a source-level dialect change.
+    _analysed_dialect: str | None = field(default=None, repr=False)
+    # MVCC version registry: version -> that version's rope-backed buffer, held
+    # *weakly*.  The single live buffer all consumers should read is whichever
+    # version is current; an in-flight reader (request handler / analysis task)
+    # that captured an older version keeps it alive only while it holds it, and
+    # Python's GC reclaims any version no longer referenced — the immutable rope
+    # means a still-pinned older version shares structure with the current one,
+    # so coexisting in-flight versions are cheap.  Never holds a strong ref, so
+    # it cannot itself leak old versions.
+    _versions: weakref.WeakValueDictionary[int, DocumentBuffer] = field(
+        default_factory=weakref.WeakValueDictionary, repr=False
+    )
+
+    def _register_version(self, buf: DocumentBuffer | None) -> None:
+        """Record *buf* in the weak MVCC registry (no-op for None / no version)."""
+        if buf is not None and isinstance(buf.version, int):
+            self._versions[buf.version] = buf
+
+    def buffer_for_version(self, version: int) -> DocumentBuffer | None:
+        """The rope-backed buffer for document *version*, if still live.
+
+        Held weakly: returns ``None`` once every in-flight reader of that
+        version has dropped it (GC reclaimed it).  Lets background / in-flight
+        work look a version up without pinning it — the caller pins it for the
+        duration of its work simply by holding the returned buffer."""
+        return self._versions.get(version)
 
     def _swap_snapshot(self, snapshot: _StateSnapshot) -> None:
         """Install a fully-built state snapshot under the document lock."""
         with self._lock:
             self._snap = snapshot
+            self._register_version(snapshot.buffer)
 
     def _replace_snapshot(self, **changes: Any) -> None:
         """Replace the current snapshot with selected fields changed."""
         with self._lock:
             self._snap = replace(self._snap, **changes)
+            self._register_version(self._snap.buffer)
 
     def refresh_dialect_hint(self, source: str) -> None:
         """Refresh the per-document dialect hint from metadata and source."""
@@ -618,6 +727,19 @@ class DocumentState:
     def snap(self) -> _StateSnapshot:
         """The current immutable state snapshot."""
         return self._snap
+
+    @property
+    def can_analyse_incrementally(self) -> bool:
+        """True when an analysed base exists to build the next analysis on.
+
+        Either the live snapshot is analysed, or a prior analysed snapshot was
+        preserved by ``update_source_quick``.  The diagnostics pipeline consults
+        this so a quick-update (which clears ``analysis``) does not send a warm
+        edit through the cold ``_analyse_document_fresh`` path.
+        """
+        return self._snap.analysis is not None or (
+            self._prev_analysed is not None and self._prev_analysed.analysis is not None
+        )
 
     @property
     def source(self) -> str:
@@ -735,6 +857,14 @@ class DocumentState:
     def _deep_diag_result(self, value: list[Any] | None) -> None:
         self._replace_snapshot(deep_diag_result=value)
 
+    def get_proc_diag_cache(self) -> dict[tuple[str, int], ProcDiagEntry] | None:
+        """Per-proc body-local diagnostic cache from the previous deep pass."""
+        return self._snap.proc_diag_cache
+
+    def store_proc_diag_cache(self, cache: dict[tuple[str, int], ProcDiagEntry]) -> None:
+        """Persist the per-proc body-local diagnostic cache for the next edit."""
+        self._replace_snapshot(proc_diag_cache=cache)
+
     @property
     def buffer(self) -> DocumentBuffer:
         """Shared position infrastructure for the current source text.
@@ -749,8 +879,22 @@ class DocumentState:
                 if snap.buffer is None or snap.buffer.source != snap.source:
                     buffer = DocumentBuffer.from_source(snap.source, snap.version)
                     self._snap = replace(snap, buffer=buffer)
+                    self._register_version(buffer)
                     return buffer
         return snap.buffer
+
+    def _carry_or_build_buffer(self, source: str, version: int | None) -> DocumentBuffer:
+        """Reuse the current snapshot's rope-backed buffer when it already
+        matches *source* — ``update_source_quick`` built it by splicing the edit
+        into the prior rope — instead of rebuilding the O(n) position index for
+        the full-analysis snapshot.  Refreshes only the version when the text is
+        identical but the version advanced; builds fresh when nothing reusable."""
+        buf = self._snap.buffer
+        if buf is not None and buf.source == source:
+            if buf.version == version:
+                return buf
+            return DocumentBuffer(source=source, version=version, rope=buf.rope)
+        return DocumentBuffer.from_source(source, version)
 
     @property
     def lines(self) -> list[str]:
@@ -789,6 +933,7 @@ class DocumentState:
 
     def get_semantic_token_cache(
         self,
+        snap: _StateSnapshot | None = None,
     ) -> (
         tuple[
             list[list[tuple[int, int, int, int, int]] | None],
@@ -804,37 +949,63 @@ class DocumentState:
 
         Each range is ``(start_line, start_col, end_line, end_col)`` so
         that chunks sharing a line get non-overlapping boundaries.
+
+        Pass *snap* to read from a specific snapshot (so a handler that captured
+        ``state.snap`` once stays consistent with the source/analysis it read
+        from the same snapshot); defaults to the live snapshot.
         """
-        if not self._chunk_caches or not self.chunks:
+        snap = snap if snap is not None else self._snap
+        chunk_caches = snap.chunk_caches
+        chunks = snap.chunks
+        if not chunk_caches or not chunks:
             return None
-        if len(self._chunk_caches) != len(self.chunks):
+        if len(chunk_caches) != len(chunks):
             return None
 
+        buf = snap.buffer if snap.buffer is not None else DocumentBuffer.from_source(snap.source)
         cache: list[list[tuple[int, int, int, int, int]] | None] = []
         ranges: list[tuple[int, int, int, int]] = []
-        buf = self.buffer
-        for i, cc in enumerate(self._chunk_caches):
+        for i, cc in enumerate(chunk_caches):
             if cc is None:
                 cache.append(None)
             else:
                 cache.append(cc.semantic_tokens_abs)
-            ranges.append(_chunk_line_range(buf, self.chunks[i]))
+            ranges.append(_chunk_line_range(buf, chunks[i]))
         return cache, ranges
 
     def store_semantic_token_cache(
         self,
         chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None],
+        computed_for: _StateSnapshot | None = None,
     ) -> None:
-        """Write back computed semantic tokens to chunk caches."""
+        """Write back computed semantic tokens to chunk caches.
+
+        *computed_for* is the snapshot the tokens were computed against.  A
+        concurrent edit may have swapped the live snapshot since; a token list
+        is written into chunk *i* only when that chunk's text is unchanged
+        (its ``source_hash`` still matches the one the tokens were computed for),
+        so stale tokens are never grafted onto a different chunk by index.
+        """
         with self._lock:
             snap = self._snap
+            src_chunks = computed_for.chunks if computed_for is not None else snap.chunks
             chunk_caches = list(snap.chunk_caches)
+            cur_chunks = snap.chunks
             changed = False
             for i, tokens in enumerate(chunk_token_cache):
                 if tokens is None or i >= len(chunk_caches):
                     continue
                 cache = chunk_caches[i]
                 if cache is None:
+                    continue
+                # Only write if chunk i is the same text the tokens were built
+                # for and the cache entry still matches the live chunk.
+                if i >= len(cur_chunks) or i >= len(src_chunks):
+                    continue
+                if (
+                    src_chunks[i].source_hash != cur_chunks[i].source_hash
+                    or cache.chunk_hash != cur_chunks[i].source_hash
+                ):
                     continue
                 chunk_caches[i] = replace(cache, semantic_tokens_abs=tokens)
                 changed = True
@@ -866,6 +1037,10 @@ class DocumentState:
                 embedded_rules=result.get("embedded_rules", []),
             )
         )
+        # The fresh analysis ran under the document's current dialect; record it
+        # so the next warm edit doesn't needlessly force a full rebuild (and a
+        # genuine dialect switch is still detected) in update().
+        self._analysed_dialect = self.dialect_hint
 
     def precompute_syntax_tokens(
         self,
@@ -932,6 +1107,13 @@ class DocumentState:
         all procedures in the current compilation unit, plus a synthetic
         entry for the top-level code so that edits to non-proc code also
         invalidate the cache.
+
+        **Intra-process only:** the entries use salted ``hash()`` (via the
+        ``_proc_cache`` keys and ``hash(self.source)``), so this key is only
+        ever compared against another key built in the *same* process
+        (``get_cached_deep_diagnostics``).  Do not persist it or send it across
+        the process-pool boundary — use ``shared.hashing.stable_text_hash`` if a
+        process-stable identity is ever needed there.
         """
         key_entries: set[tuple[str, int]] = set(self._proc_cache.keys())
         key_entries.add(("__TOPLEVEL__", hash(self.source)))
@@ -953,7 +1135,14 @@ class DocumentState:
             deep_diag_result=diagnostics,
         )
 
-    def _segment_chunks(self, source: str, old_snap: _StateSnapshot) -> list[TopLevelChunk]:
+    def _segment_chunks(
+        self,
+        source: str,
+        old_snap: _StateSnapshot,
+        *,
+        edit: "EditRange | None" = None,
+        new_buffer: DocumentBuffer | None = None,
+    ) -> list[TopLevelChunk]:
         """Segment *source* into top-level chunks, incrementally when possible.
 
         On an edit, the previous segmentation is reused everywhere the change
@@ -962,11 +1151,26 @@ class DocumentState:
         from-scratch :func:`segment_top_level_chunks`; the incremental builder
         returns ``None`` (and we fall back to a full pass) whenever it cannot
         prove equivalence.
+
+        *edit* / *new_buffer* let ``update_source_quick`` pass the edit range it
+        already inferred and the rope it already spliced, so the incremental
+        builder neither re-infers the edit nor builds a throwaway rope for its
+        two offset→position conversions (it reuses the spliced rope, O(log n)).
         """
         if old_snap.chunks and old_snap.source:
-            edit = infer_edit_range(old_snap.source, source)
+            if edit is None:
+                edit = infer_edit_range(old_snap.source, source)
             if edit is not None:
-                inc = incremental_top_level_chunks(old_snap.source, old_snap.chunks, source, edit)
+                # Reuse the spliced rope's position index when it matches the
+                # new source; else the builder falls back to a direct scan.
+                to_pos = (
+                    new_buffer.offset_to_position
+                    if new_buffer is not None and new_buffer.source == source
+                    else None
+                )
+                inc = incremental_top_level_chunks(
+                    old_snap.source, old_snap.chunks, source, edit, to_pos
+                )
                 if inc is not None:
                     return inc
         return segment_top_level_chunks(source)
@@ -1004,7 +1208,33 @@ class DocumentState:
         old = self._snap
         if source == old.source and (version is None or version == old.version):
             return False  # unchanged
-        new_chunks = self._segment_chunks(source, old)
+        # Preserve the last fully-analysed snapshot so the later update() can
+        # reuse it as the incremental base (this swap clears analysis).  Don't
+        # overwrite it on a run of consecutive quick updates (old.analysis is
+        # then already None) — keep the freshest *analysed* snapshot.
+        if old.analysis is not None:
+            self._prev_analysed = old
+        # Reuse the prior rope: splice the edit into it in O(log n + |edit|)
+        # instead of rebuilding the whole position index from scratch, so the
+        # buffer that serves semantic-token requests in the window before full
+        # analysis doesn't re-scan the document on every keystroke.  Falls back
+        # to a fresh build (buffer=None → lazy from_source) when the previous
+        # rope is unavailable or the edit can't be inferred.
+        # Infer the edit once here: the rope splice below and the incremental
+        # chunk segmentation both consume it (and its line_delta), instead of
+        # each re-inferring the edit and recounting newlines.
+        new_buffer: DocumentBuffer | None = None
+        edit: EditRange | None = None
+        if old.buffer is not None and old.buffer.source == old.source:
+            edit = infer_edit_range(old.source, source)
+            if edit is not None:
+                new_buffer = DocumentBuffer.from_edit(
+                    old.buffer,
+                    source,
+                    RopeEdit(edit.start, edit.old_end, edit.new_end, edit.line_delta),
+                    version,
+                )
+        new_chunks = self._segment_chunks(source, old, edit=edit, new_buffer=new_buffer)
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
         # Carry forward chunk caches for unchanged chunks so that
         # semantic token requests can serve cached tokens immediately.
@@ -1027,6 +1257,7 @@ class DocumentState:
                 has_partial_commands=has_partial,
                 chunk_caches=new_caches,
                 file_profiles=old.file_profiles,
+                buffer=new_buffer,
             )
         )
         return True
@@ -1040,6 +1271,25 @@ class DocumentState:
         line_length: int = 120,
     ) -> None:
         self.refresh_dialect_hint(source)
+        # Compare against the dialect the *cached analysis* was built under, not
+        # against the live dialect_hint: update_source_quick refreshes the hint
+        # eagerly, so a same-length source-level dialect switch would otherwise
+        # look unchanged here and reuse stale analysis.
+        if self.dialect_hint != self._analysed_dialect:
+            # A dialect change invalidates *all* cached analysis: chunk hashes
+            # are position+text only and the per-proc/interproc cache keys omit
+            # the dialect, yet a FunctionUnit's CFG/analysis depends on the
+            # dialect's command set (e.g. ``try``/``lassign`` arg roles).  Force
+            # a full rebuild so the new dialect is applied document-wide.
+            force_reanalyse = True
+        if force_reanalyse:
+            # A hard refresh must not reuse per-proc/interproc units or the
+            # preserved analysed snapshot: their keys (body text + position +
+            # stub/context fingerprints) do not encode the dialect, so a dialect
+            # switch would otherwise reuse a unit analysed under the old dialect.
+            self._proc_cache = {}
+            self._interproc_cache = {}
+            self._prev_analysed = None
         with self._signature_profile():
             self._update_for_active_profile(
                 source,
@@ -1047,6 +1297,9 @@ class DocumentState:
                 force_reanalyse=force_reanalyse,
                 line_length=line_length,
             )
+        # Record the dialect the now-current analysis was built under.
+        if self.analysis is not None:
+            self._analysed_dialect = self.dialect_hint
 
     def _update_for_active_profile(
         self,
@@ -1079,6 +1332,11 @@ class DocumentState:
         # Snapshot the current state for incremental decisions.
         # This read is atomic (single attribute load under the GIL).
         old_snap = self._snap
+        # Incremental base: the live snapshot when it is analysed, else the
+        # snapshot update_source_quick() preserved before clearing analysis.
+        # Using it means a quick update (new source, analysis=None) does not
+        # force the next analysis down the cold full-rebuild path.
+        base = old_snap if old_snap.analysis is not None else self._prev_analysed
         # Reuse chunks from update_source_quick() when the source matches,
         # avoiding a redundant O(source_len) lexer pass.
         if source == old_snap.source and old_snap.chunks:
@@ -1088,28 +1346,32 @@ class DocumentState:
         t_seg = time.perf_counter()
         has_partial = any(cmd.is_partial for chunk in new_chunks for cmd in chunk.commands)
 
-        if not force_reanalyse and old_snap.analysis is not None:
-            if source == old_snap.source:
+        if not force_reanalyse and base is not None and base.analysis is not None:
+            if source == base.source and base is old_snap:
+                # Live snapshot is already the analysed result for this source.
                 log.debug(
                     "[timing] document update %.0fms (unchanged)",
                     (time.perf_counter() - t0) * 1000,
                 )
                 return
-            dirty_idx = find_first_dirty_chunk(old_snap.chunks, new_chunks)
-            if dirty_idx >= len(new_chunks) and dirty_idx >= len(old_snap.chunks):
-                # All chunks match — source is semantically identical.
+            dirty_idx = find_first_dirty_chunk(base.chunks, new_chunks)
+            if dirty_idx >= len(new_chunks) and dirty_idx >= len(base.chunks):
+                # All chunks match the analysed base — reuse its analysis under
+                # the new version (restores analysis a quick update cleared).
                 new_snap = _StateSnapshot(
                     source=source,
                     version=version,
-                    _tokens=old_snap._tokens,
-                    analysis=old_snap.analysis,
-                    compilation_unit=old_snap.compilation_unit,
+                    _tokens=base._tokens if source == base.source else None,
+                    analysis=base.analysis,
+                    compilation_unit=base.compilation_unit,
                     chunks=new_chunks,
                     has_partial_commands=has_partial,
-                    file_profiles=old_snap.file_profiles,
-                    chunk_caches=old_snap.chunk_caches if old_snap.chunks == new_chunks else [],
-                    deep_diag_proc_key=old_snap.deep_diag_proc_key,
-                    deep_diag_result=old_snap.deep_diag_result,
+                    file_profiles=base.file_profiles,
+                    chunk_caches=base.chunk_caches if base.chunks == new_chunks else [],
+                    buffer=self._carry_or_build_buffer(source, version),
+                    deep_diag_proc_key=base.deep_diag_proc_key,
+                    deep_diag_result=base.deep_diag_result,
+                    proc_diag_cache=base.proc_diag_cache,
                 )
                 self._swap_snapshot(new_snap)
                 log.debug(
@@ -1118,12 +1380,12 @@ class DocumentState:
                 )
                 return
 
-            # Incremental path: try to reuse cached artefacts.
+            # Incremental path: try to reuse cached artefacts from the base.
             try:
                 self._update_incremental(
                     source,
                     version,
-                    old_snap,
+                    base,
                     new_chunks,
                     has_partial,
                     dirty_idx,
@@ -1280,6 +1542,7 @@ class DocumentState:
                 has_partial_commands=has_partial,
                 file_profiles=file_profiles,
                 chunk_caches=new_chunk_caches,
+                buffer=self._carry_or_build_buffer(source, version),
             )
         )
 
@@ -1318,11 +1581,20 @@ class DocumentState:
         dirty chunks so the next ``semanticTokens/full`` gets a cache hit.
         """
         try:
-            from bisect import bisect_left, bisect_right
+            from bisect import bisect_right
 
             buf = DocumentBuffer.from_source(source)
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
+            # Seed the dedup cursor past diagnostics already owned by the clean
+            # chunks [0:dirty_idx] (whose cached style diagnostics we keep), so a
+            # boundary-line diagnostic shared with the last clean chunk is not
+            # re-emitted by the first dirty chunk.
+            style_consumed = (
+                bisect_right(diag_lines, _chunk_line_range(buf, chunks[dirty_idx - 1])[2])
+                if dirty_idx > 0
+                else 0
+            )
 
             # Extract per-chunk IR from the IR module when available.
             dirty_chunks = chunks[dirty_idx:]
@@ -1342,9 +1614,9 @@ class DocumentState:
 
                 # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
-                lo = bisect_left(diag_lines, start_line)
-                hi = bisect_right(diag_lines, end_line)
-                style_diags = all_style_diags[lo:hi]
+                style_diags, style_consumed = _owned_style_diags(
+                    all_style_diags, diag_lines, start_line, end_line, style_consumed
+                )
 
                 # Extend chunk_caches to cover this index.
                 while len(chunk_caches) <= i:
@@ -1364,12 +1636,23 @@ class DocumentState:
             try:
                 chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
                 uri_lower = self.uri.lower()
-                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                # Tokenizer flags must match the full-rebuild path
+                # (_build_chunk_caches_standalone) exactly, or incrementally
+                # precomputed tokens for a dirty chunk would differ from a full
+                # reanalysis — e.g. an iRules file identified by dialect rather
+                # than the .irul/.irule extension, or a .conf/.apl file.
+                is_irules = (
+                    uri_lower.endswith(".irul")
+                    or uri_lower.endswith(".irule")
+                    or is_irules_dialect()
+                )
                 chunk_toks = _get_precompute_chunk_tokens_fn()(
                     source,
                     chunk_line_ranges,
                     analysis=analysis,
                     is_irules=is_irules,
+                    is_bigip_conf=uri_lower.endswith(".conf"),
+                    is_apl=uri_lower.endswith(".apl"),
                 )
                 for ci in range(dirty_idx, len(chunks)):
                     cc = chunk_caches[ci] if ci < len(chunk_caches) else None
@@ -1485,6 +1768,7 @@ class DocumentState:
                 has_partial_commands=has_partial,
                 file_profiles=file_profiles,
                 chunk_caches=chunk_caches,
+                buffer=self._carry_or_build_buffer(source, version),
             )
         )
 
@@ -1569,16 +1853,15 @@ class DocumentState:
         """
         t0 = time.perf_counter()
         try:
-            from bisect import bisect_left, bisect_right
-
             buf = DocumentBuffer.from_source(source)
             caches: list[ChunkCache | None] = []
 
-            # Compute style diagnostics once for the whole file, then
-            # partition by chunk using bisect (O(lines) + O(chunks×log(diags))
-            # instead of the old O(chunks×lines) approach).
+            # Compute style diagnostics once for the whole file, then partition
+            # by chunk via a monotonic cursor (each line-level diagnostic owned
+            # by exactly one chunk, even when chunks share a physical line).
             all_style_diags = _get_style_diag_all_fn()(source, line_length=line_length)
             diag_lines = [d.range.start.line for d in all_style_diags]
+            style_consumed = 0
 
             # Semantic tokens are pre-computed per chunk later via
             # ``precompute_chunk_tokens()``; we avoid an additional full-file
@@ -1617,9 +1900,9 @@ class DocumentState:
 
                 # Partition pre-computed style diagnostics for this chunk.
                 start_line, _sc, end_line, _ec = _chunk_line_range(buf, chunk)
-                lo = bisect_left(diag_lines, start_line)
-                hi = bisect_right(diag_lines, end_line)
-                style_diags = all_style_diags[lo:hi]
+                style_diags, style_consumed = _owned_style_diags(
+                    all_style_diags, diag_lines, start_line, end_line, style_consumed
+                )
 
                 caches.append(
                     ChunkCache(
@@ -1637,12 +1920,22 @@ class DocumentState:
             try:
                 chunk_line_ranges = [_chunk_line_range(buf, c) for c in chunks]
                 uri_lower = self.uri.lower()
-                is_irules = uri_lower.endswith(".irul") or uri_lower.endswith(".irule")
+                # Tokenizer flags must match the subprocess full-rebuild path
+                # (_build_chunk_caches_standalone) so incrementally/in-thread
+                # precomputed tokens equal a from-scratch reanalysis — covers
+                # iRules-by-dialect and .conf/.apl files.
+                is_irules = (
+                    uri_lower.endswith(".irul")
+                    or uri_lower.endswith(".irule")
+                    or is_irules_dialect()
+                )
                 chunk_toks = _get_precompute_chunk_tokens_fn()(
                     source,
                     chunk_line_ranges,
                     analysis=analysis,
                     is_irules=is_irules,
+                    is_bigip_conf=uri_lower.endswith(".conf"),
+                    is_apl=uri_lower.endswith(".apl"),
                 )
                 for ci, cc in enumerate(caches):
                     if cc is not None and ci < len(chunk_toks):

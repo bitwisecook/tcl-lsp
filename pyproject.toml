@@ -53,6 +53,9 @@ dev = [
     "hatch-vcs>=0.5",
     "wasmtime>=44.0",
     "flask>=3.1",
+    # Textual live TUI for the compiler explorer (``tcl-explorer``).  The CLI
+    # falls back to flat text when it isn't installed, so it stays optional.
+    "textual>=0.80",
     # Used by the test-slow TLS / x509 suites that spin up an HTTPS
     # server with a generated self-signed cert and exercise
     # ``url_get`` / ``tls_handshake`` / ``cert_load`` against it.

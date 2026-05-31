@@ -14,6 +14,21 @@ User-facing compiler troubleshooting and how-tos live in
   map and fact hand-off boundaries.
 - [compiler-systems-overview.md](compiler-systems-overview.md) —
   subsystem contract map for quick ownership triage.
+- [algorithms.md](algorithms.md) — the classic algorithms the pipeline uses
+  (SSA, dominators, SCCP, semi-pruned SSA, interval abstract interpretation,
+  GVN, slot allocation, worklist dataflow), their **verified** original
+  references, and how each is adapted for Tcl's dynamism.
+- [phases-3-5-6-design.md](phases-3-5-6-design.md) — status and deferral
+  rationale for the parser/compiler algorithmic-improvement programme.
+- [semi-pruned-ssa-deferred.md](semi-pruned-ssa-deferred.md) — investigation
+  and deferral of semi-pruned SSA (vs the current minimal-SSA phi placement).
+- [review-findings-deferred.md](review-findings-deferred.md) — verified-real
+  external code-review findings that remain deferred, with root cause and fix
+  approach.
+- [fp-audit-todo.md](fp-audit-todo.md) — living checklist of the full
+  diagnostic / optimisation / shimmer code inventory: which codes have been
+  swept against the corpus for false positives and which remain, plus the
+  resolved fixes and confirmed-true-positive outcomes.
 
 ## Pipeline stages
 
@@ -48,6 +63,9 @@ User-facing compiler troubleshooting and how-tos live in
   and consumer contracts.
 - [memory-ssa.md](memory-ssa.md) — memory-SSA, alias detection, and
   versioned memory operations.
+- [phase8-place-migration.md](phase8-place-migration.md) — versioned-Place
+  memory-SSA and the coordinated consumer migration (array-element / dict-path
+  precision).
 - [dataflow-graph.md](dataflow-graph.md) — data-flow graph extraction,
   serialisation, and consumer contracts.
 - [rendered-value-properties.md](rendered-value-properties.md) — string

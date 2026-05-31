@@ -118,6 +118,7 @@ class TclLspSettingsPanel {
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
     private val diagW231 = JBCheckBox("W231: Constant list index out of range")
     private val diagW232 = JBCheckBox("W232: Constant string index out of range")
+    private val diagW233 = JBCheckBox("W233: Division or modulo by a provably-zero divisor")
     private val diagW240 = JBCheckBox("W240: Loop condition is a constant false")
     private val diagW241 = JBCheckBox("W241: Loop is provably infinite")
 
@@ -341,7 +342,7 @@ class TclLspSettingsPanel {
             diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
             diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
             diagW127, diagW200, diagW201, diagW230, diagW231, diagW232,
-            diagW240, diagW241,
+            diagW233, diagW240, diagW241,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -551,6 +552,7 @@ class TclLspSettingsPanel {
             diagW230.isSelected != s.diagnosticW230 ||
             diagW231.isSelected != s.diagnosticW231 ||
             diagW232.isSelected != s.diagnosticW232 ||
+            diagW233.isSelected != s.diagnosticW233 ||
             diagW240.isSelected != s.diagnosticW240 ||
             diagW241.isSelected != s.diagnosticW241 ||
             diagW210.isSelected != s.diagnosticW210 ||
@@ -770,6 +772,7 @@ class TclLspSettingsPanel {
         s.diagnosticW230 = diagW230.isSelected
         s.diagnosticW231 = diagW231.isSelected
         s.diagnosticW232 = diagW232.isSelected
+        s.diagnosticW233 = diagW233.isSelected
         s.diagnosticW240 = diagW240.isSelected
         s.diagnosticW241 = diagW241.isSelected
         s.diagnosticW210 = diagW210.isSelected
@@ -1005,6 +1008,7 @@ class TclLspSettingsPanel {
         diagW230.isSelected = s.diagnosticW230
         diagW231.isSelected = s.diagnosticW231
         diagW232.isSelected = s.diagnosticW232
+        diagW233.isSelected = s.diagnosticW233
         diagW240.isSelected = s.diagnosticW240
         diagW241.isSelected = s.diagnosticW241
         diagW210.isSelected = s.diagnosticW210

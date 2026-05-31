@@ -3,8 +3,12 @@ from __future__ import annotations
 import logging
 import time
 from bisect import bisect_right
+from typing import TYPE_CHECKING
 
 from analyser.semantic_model import AnalysisResult
+
+if TYPE_CHECKING:
+    from shared.document_buffer import DocumentBuffer
 
 from ._bigip import (
     _collect_apl_tokens,
@@ -29,6 +33,7 @@ def semantic_tokens_full(
     chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None] | None = None,
     chunk_line_ranges: list[tuple[int, int, int, int]] | None = None,
     line_starts: list[int] | tuple[int, ...] | None = None,
+    buffer: DocumentBuffer | None = None,
 ) -> list[int]:
     """Produce the flat list of 5-int encoded semantic tokens for the source.
 
@@ -75,7 +80,7 @@ def semantic_tokens_full(
         # Run full Tcl tokenisation on embedded iRule/iApp bodies.
         embedded_tokens: list[tuple[int, int, int, int, int]] = []
         body_ranges = _collect_embedded_tcl_tokens(
-            embedded_tokens, source, regex_positions=regex_positions
+            embedded_tokens, source, regex_positions=regex_positions, buffer=buffer
         )
         if body_ranges:
             # Remove tokens from the whole-file Tcl pass that overlap
@@ -94,8 +99,8 @@ def semantic_tokens_full(
         raw_tokens.extend(base_tokens)
         raw_tokens.extend(embedded_tokens)
         _collect_bigip_tokens(raw_tokens, source)
-        _collect_registry_property_ref_tokens(raw_tokens, source)
-        _collect_bigip_embedded_irules_object_tokens(raw_tokens, source)
+        _collect_registry_property_ref_tokens(raw_tokens, source, buffer=buffer)
+        _collect_bigip_embedded_irules_object_tokens(raw_tokens, source, buffer=buffer)
     else:
         raw_tokens.extend(base_tokens)
     if is_irules:
@@ -142,6 +147,7 @@ def precompute_chunk_tokens(
     is_bigip_conf: bool = False,
     is_irules: bool = False,
     is_apl: bool = False,
+    buffer: DocumentBuffer | None = None,
 ) -> list[list[tuple[int, int, int, int, int]]]:
     """Pre-compute per-chunk semantic tokens in the background thread.
 
@@ -169,7 +175,7 @@ def precompute_chunk_tokens(
     if is_bigip_conf:
         embedded_tokens: list[tuple[int, int, int, int, int]] = []
         body_ranges = _collect_embedded_tcl_tokens(
-            embedded_tokens, source, regex_positions=regex_positions
+            embedded_tokens, source, regex_positions=regex_positions, buffer=buffer
         )
         if body_ranges:
             body_ranges.sort()
@@ -184,8 +190,8 @@ def precompute_chunk_tokens(
         raw_tokens.extend(base_tokens)
         raw_tokens.extend(embedded_tokens)
         _collect_bigip_tokens(raw_tokens, source)
-        _collect_registry_property_ref_tokens(raw_tokens, source)
-        _collect_bigip_embedded_irules_object_tokens(raw_tokens, source)
+        _collect_registry_property_ref_tokens(raw_tokens, source, buffer=buffer)
+        _collect_bigip_embedded_irules_object_tokens(raw_tokens, source, buffer=buffer)
     else:
         raw_tokens.extend(base_tokens)
     if is_irules:

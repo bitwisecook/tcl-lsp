@@ -128,4 +128,20 @@ suite("Diagnostics", () => {
       await config.update("enabled", undefined, vscode.ConfigurationTarget.Global);
     }
   });
+
+  test("no false dead-store / unused diagnostics where variables are read", async () => {
+    const uri = getDocUri("precision-lifecycle.tcl");
+    await activate(uri);
+    // The fixture's last line (unbraced expr) yields W100, proving analysis ran.
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
+
+    assert.ok(codes.includes("W100"), `expected analysis to run (W100) in [${codes}]`);
+    for (const lifecycle of ["W210", "W211", "W214", "W220"]) {
+      assert.ok(
+        !codes.includes(lifecycle),
+        `unexpected ${lifecycle} (variable is read) in [${codes}]`,
+      );
+    }
+  });
 });

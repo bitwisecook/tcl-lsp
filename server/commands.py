@@ -19,7 +19,6 @@ from compiler.registry import REGISTRY
 from compiler.registry.info import effective_event_requires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import configure_signatures
-from shared.document_buffer import DocumentBuffer
 from shared.optimisation_profiles import (
     DEFAULT_ACTION_PROFILE,
     profile_from_name,
@@ -132,6 +131,32 @@ def on_minify_document(
         "source": minified,
         "originalLength": len(source),
         "minifiedLength": len(minified),
+    }
+
+
+def on_minimize_diagnostic(uri: str, code: str, rename: bool = True) -> dict | None:
+    """Reduce the document to a minimal reproducer for diagnostic *code*.
+
+    Returns the minimised source (identifiers renamed to short ``a b c …``
+    names unless *rename* is False) plus reduction stats, for the client to
+    show in a new buffer / copy to the clipboard for a bug report.
+    """
+    from server.features.minimize import minimize_diagnostic
+
+    source = _state._get_doc_source(uri)
+    if source is None:
+        return None
+    try:
+        result = minimize_diagnostic(source, code, rename=rename)
+    except ValueError:
+        return {"code": code, "reproduces": False, "source": "", "error": f"{code} does not fire"}
+    return {
+        "code": result.code,
+        "source": result.source,
+        "originalLines": result.original_lines,
+        "reducedLines": result.reduced_lines,
+        "renamed": result.renamed,
+        "reproduces": result.reproduces,
     }
 
 
@@ -865,7 +890,7 @@ def on_write_rule_back(
     except Exception:
         return False
 
-    buf = DocumentBuffer.from_source(source)
+    buf = _state.document_buffer_for(uri, source)
     start_pos = buf.offset_to_position(body_start_offset)
     end_pos = buf.offset_to_position(body_end_offset)
     start = types.Position(line=start_pos.line, character=start_pos.character)
@@ -1053,17 +1078,19 @@ def _switch_dialect(dialect: str) -> dict:
         except RuntimeError:
             loop = None
 
-        from server.diagnostics_pipeline import _publish_diagnostics, _publish_diagnostics_sync
+        from server.diagnostics_pipeline import (
+            _publish_diagnostics_sync,
+            spawn_publish_diagnostics,
+        )
 
         for uri, state in _state.workspace_state.items():
             if loop is not None:
-                loop.create_task(
-                    _publish_diagnostics(
-                        uri,
-                        state.source,
-                        state.version,
-                        force_reanalyse=True,
-                    )
+                spawn_publish_diagnostics(
+                    uri,
+                    state.source,
+                    state.version,
+                    force_reanalyse=True,
+                    loop=loop,
                 )
             else:
                 _publish_diagnostics_sync(
@@ -1150,6 +1177,7 @@ def register(server_instance: LanguageServer) -> None:
     configure(server_instance)
     server_instance.command("tcl-lsp.optimiseDocument")(on_optimise_document)
     server_instance.command("tcl-lsp.minifyDocument")(on_minify_document)
+    server_instance.command("tcl-lsp.minimizeDiagnostic")(on_minimize_diagnostic)
     server_instance.command("tcl-lsp.unminifyError")(on_unminify_error)
     server_instance.command("tcl-lsp.describeIruleEvent")(on_describe_irule_event)
     server_instance.command("tcl-lsp.describeIruleCommand")(on_describe_irule_command)

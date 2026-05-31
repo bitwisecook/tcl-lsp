@@ -995,26 +995,31 @@ function drawOrthogonalEdges(container, edges, options) {
   }
   if (!edges.length) return null;
 
-  // Lane assignment: shortest span first → innermost lane.
-  var sorted = edges.slice().sort(function(a, b) {
-    return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos);
-  });
-  var assigned = [];
-  for (var edge of sorted) {
-    var lane = 0;
-    while (true) {
-      var clash = false;
-      for (var other of assigned) {
-        if (other.lane !== lane) continue;
-        var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
-        var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
-        if (!(a2 < b1 || a1 > b2)) { clash = true; break; }
+  // Lane assignment: shortest span first → innermost lane.  Skipped when the
+  // caller supplies precomputed lanes (CFG edges carry lanes from the shared
+  // cfg_layout model); WASM and opt-diff edges still assign here.  Kept
+  // byte-identical to cfg_layout.assign_lanes so both paths agree.
+  if (edges.some(function(e) { return e.lane == null; })) {
+    var sorted = edges.slice().sort(function(a, b) {
+      return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos);
+    });
+    var assigned = [];
+    for (var edge of sorted) {
+      var lane = 0;
+      while (true) {
+        var clash = false;
+        for (var other of assigned) {
+          if (other.lane !== lane) continue;
+          var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
+          var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
+          if (!(a2 < b1 || a1 > b2)) { clash = true; break; }
+        }
+        if (!clash) break;
+        lane++;
       }
-      if (!clash) break;
-      lane++;
+      edge.lane = lane;
+      assigned.push(edge);
     }
-    edge.lane = lane;
-    assigned.push(edge);
   }
 
   var rect = container.getBoundingClientRect();
@@ -1480,28 +1485,24 @@ function drawAllCfgEdges(pane, funcs) {
     if (!container) continue;
     var blockEls = {};
     container.querySelectorAll('.cfg-block[data-block]').forEach(function(el) { blockEls[el.dataset.block] = el; });
+    // Edges + lanes come precomputed from the shared cfg_layout routing model
+    // (serialised as func.edges), so the SVG router and the CLI/TUI ASCII
+    // gutter nest control-flow edges identically.
     var edges = [];
-    var positions = {};
-    Object.keys(blockEls).forEach(function(name, i) { positions[name] = i; });
-    for (var block of func.blocks) {
-      if (!block.successors) continue;
-      var term = block.terminator;
-      for (var target of block.successors) {
-        var kind = 'goto';
-        if (term && term.type === 'branch') kind = target === term.trueTarget ? 'true' : 'false';
-        var fromEl = blockEls[block.name];
-        var toEl = blockEls[target];
-        if (!fromEl || !toEl) continue;
-        edges.push({
-          from: fromEl,
-          to: toEl,
-          fromId: block.name,
-          toId: target,
-          fromPos: positions[block.name] != null ? positions[block.name] : 0,
-          toPos: positions[target] != null ? positions[target] : 0,
-          kind: kind,
-        });
-      }
+    for (var e of (func.edges || [])) {
+      var fromEl = blockEls[e.from];
+      var toEl = blockEls[e.to];
+      if (!fromEl || !toEl) continue;
+      edges.push({
+        from: fromEl,
+        to: toEl,
+        fromId: e.from,
+        toId: e.to,
+        fromPos: e.fromPos,
+        toPos: e.toPos,
+        kind: e.kind,
+        lane: e.lane,
+      });
     }
     var fid = func.name.replace(/[^A-Za-z0-9]/g, '_');
     drawOrthogonalEdges(container, edges, {
