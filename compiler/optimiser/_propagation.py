@@ -190,6 +190,8 @@ def optimise_expression_args(
         combined_expr, combine_changed = _instcombine_expr(
             compared_expr,
             bool_context=is_bool_ctx,
+            ssa_uses=ssa_uses,
+            types=types,
         )
         folded_expr = _try_fold_expr(combined_expr)
 
@@ -318,7 +320,11 @@ def optimise_expr_substitutions(
             ssa_uses=ssa_uses,
             types=types,
         )
-        combined_expr, combine_changed = _instcombine_expr(compared_expr)
+        combined_expr, combine_changed = _instcombine_expr(
+            compared_expr,
+            ssa_uses=ssa_uses,
+            types=types,
+        )
         folded_expr = _try_fold_expr(combined_expr)
 
         if folded_expr is not None:

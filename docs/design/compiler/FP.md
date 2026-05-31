@@ -6009,6 +6009,81 @@ function ::f
 
 ---
 
+### FP-OPT-09 — O110 identity/annihilator drops require provably-numeric operand (D5-O110)
+
+- **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
+- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_09_*`
+- **Codes:** O110 (canonicalise expression / InstCombine)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O110
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    set y [expr {$x + 0}]
+    puts $y
+}
+f abc
+```
+
+#### Per-line reasoning
+
+1. `proc f {x}` — parameter `x` has UNKNOWN type at the proc entry.  SCCP can't prove `x` is numeric (the caller could pass anything).
+2. `set y [expr {$x + 0}]` — the InstCombine identity rewrite `$x + 0` → `$x` *drops* the `+ 0` arithmetic, but that arithmetic is also what triggers Tcl's numeric coercion.  After the rewrite, `set y $x` simply assigns the unchanged string — silently hiding the runtime error.
+3. `puts $y` — observable output: pre-rewrite tclsh errors with `can't use non-numeric string "abc" as left operand of "+"`; post-rewrite the program prints `abc` cleanly.  The two are not behaviour-equivalent.
+4. D5-O110 closure: `_simplify_expr_node` now consults `_is_provably_numeric_expr_node(node, ssa_uses, types)` before every identity/annihilator rewrite that elides an operand.  An operand is provably numeric only when it is an ExprLiteral, an ExprString whose text parses as numeric, or an ExprVar whose SSA type lattice is `INT`, `DOUBLE`, `NUMERIC`, or `BOOLEAN` at this program point.  When the proof is unavailable, the rewrite is skipped (better: a missed optimisation than wrong output).
+5. The same predicate gates: `x + 0`, `0 + x`, `x - 0`, `x * 0`, `0 * x`, `x * 1`, `1 * x`, `x / 1`, `x % 1`, `x << 0`, `x >> 0`, `x & 0`, `0 & x`, `x | 0`, `0 | x`, `x ^ 0`, `0 ^ x`, `x ** 0`, `x ** 1`, `x ^ x`, `x - x`, `+x`, `-(-x)`, `~~x`.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc f {x} { set y [expr {$x + 0}]; puts $y }
+% catch {f abc} err
+1
+% puts $err
+can't use non-numeric string as left operand of "+"
+
+% # Compare to the unsound post-rewrite (set y $x; puts $y):
+% proc g {x} { set y $x; puts $y }
+% g abc
+abc
+```
+
+The pre-rewrite ERRORS; the post-rewrite SILENTLY SUCCEEDS — the rewrite is unsound when `x` is not provably numeric.
+
+#### Compiler evidence
+
+```
+--- FP-OPT-09: O110 identity/annihilator drops require provably-numeric operand (D5-O110)
+regen: python -m bench.fp_snippets --id FP-OPT-09
+function ::f
+  block entry_1
+    [0] AssignExpr 'y'  defs={y#1}  uses={x#0}
+    [1] Call cmd='puts'  defs={}  uses={y#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  types
+    y#1: NUMERIC
+```
+(regen: `python -m bench.fp_snippets --id FP-OPT-09`)
+
+`x#0` is the entry version (param) and carries no type lattice entry — the predicate falls back to "not provably numeric" and the rewrite is skipped.
+
+#### Why the analyser reaches that verdict
+
+`compiler/optimiser/_expr_simplify.py` — `_simplify_expr_node` and `_simplify_to_fixpoint` now take `ssa_uses` and `types` kwargs threaded from `_instcombine_expr` through `optimise_expression_args` / `optimise_expr_substitutions` / `optimise_branch_conditions`.  Each identity/annihilator rewrite that drops an operand calls `_is_provably_numeric_expr_node(operand, ssa_uses=ssa_uses, types=types)` and bails when it returns False.
+
+For literals the predicate is trivially True (the parser only emits ExprLiteral for int/float/boolean); for SCCP-substituted ExprString it parses the text; for ExprVar it looks up the SSA type lattice at the use site.  Strength-reduction rewrites (`x ** 2` → `x * x`, `x % (2^N)` → `x & (2^N - 1)`) keep `x` as an operand on both sides, so error semantics are preserved without a guard.
+
+#### Tests
+
+- `tests/test_fp_opt.py::test_FP_OPT_09_unknown_type_param_blocks_identity_rewrite` (TP)
+- `tests/test_fp_opt.py::test_FP_OPT_09_provably_numeric_var_still_fires` (TN control)
+
+---
+
 
 ## TNT — taint flow (T100/T101)
 

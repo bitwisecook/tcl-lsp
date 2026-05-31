@@ -397,6 +397,49 @@ def _is_definitely_string_expr_node(
     return known is TclType.STRING
 
 
+# Numeric types for which Tcl expr arithmetic coercion is guaranteed to succeed.
+_NUMERIC_TCL_TYPES = frozenset(
+    {TclType.INT, TclType.DOUBLE, TclType.NUMERIC, TclType.BOOLEAN}
+)
+
+
+def _is_provably_numeric_expr_node(
+    node: ExprNode,
+    *,
+    ssa_uses: dict[str, int] | None,
+    types: dict[tuple[str, int], TypeLattice] | None,
+) -> bool:
+    """Return True when *node* is guaranteed to be a numeric value for expr.
+
+    Used to gate identity/annihilator rewrites that DROP an operand
+    (``x + 0 -> x``, ``x * 0 -> 0``, ``x % 1 -> 0``, etc.).  Without this
+    guard, removing the operator hides Tcl's numeric-coercion error: tclsh
+    treats ``expr {"abc" + 0}`` as an error but ``expr {"abc"}`` simply
+    returns the string ``"abc"``.
+
+    Safe shapes:
+        * integer or float literal
+        * boolean literal (true/false/yes/no/on/off) — accepted by expr
+          arithmetic as 0/1
+        * variable whose SSA type lattice is INT / DOUBLE / NUMERIC /
+          BOOLEAN at this program point
+        * string literal whose text parses as numeric (handles the case
+          where SCCP CONST substitution has already inlined a numeric
+          constant as an ``ExprString`` literal)
+    """
+    if isinstance(node, ExprLiteral):
+        # Any literal that the parser produced as ExprLiteral is numeric
+        # (the lexer only routes int/float/boolean text here).
+        return True
+    if isinstance(node, ExprString):
+        text = _strip_expr_string(node.text)
+        return _is_numeric_string_value(text)
+    if isinstance(node, ExprVar):
+        known = _known_var_type_for_expr_node(node, ssa_uses=ssa_uses, types=types)
+        return known in _NUMERIC_TCL_TYPES
+    return False
+
+
 def _rewrite_eq_ne_string_compare_node(
     node: ExprNode,
     *,
@@ -618,17 +661,49 @@ def _simplify_glob_match(
     )
 
 
-def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNode:
-    _simp = _simplify_expr_node  # local alias for brevity
+def _simplify_expr_node(
+    node: ExprNode,
+    *,
+    bool_context: bool = False,
+    ssa_uses: dict[str, int] | None = None,
+    types: dict[tuple[str, int], TypeLattice] | None = None,
+) -> ExprNode:
+    """Simplify a single expr AST node (one pass).
+
+    ``ssa_uses`` + ``types`` provide the SCCP type/value context required to
+    keep identity/annihilator rewrites sound — see D5-O110.  Without them,
+    every drop-operand rewrite (``x + 0 -> x``, ``x * 0 -> 0``, ``x % 1 -> 0``,
+    ``x << 0 -> x``, ``x ** 0 -> 1`` …) is conservatively suppressed because
+    dropping the operator removes Tcl's numeric coercion error
+    (``expr {"abc" + 0}`` errors; ``expr {"abc"}`` returns ``"abc"``).
+    """
+
+    def _simp(n: ExprNode, *, bool_context: bool = False) -> ExprNode:
+        return _simplify_expr_node(
+            n,
+            bool_context=bool_context,
+            ssa_uses=ssa_uses,
+            types=types,
+        )
+
+    def _numeric(n: ExprNode) -> bool:
+        return _is_provably_numeric_expr_node(n, ssa_uses=ssa_uses, types=types)
 
     match node:
         case ExprUnary(op=op, operand=operand):
             simp_operand = _simp(operand)
             if op is UnaryOp.POS:
-                return simp_operand
+                # +x is a no-op rewrite that drops the unary numeric coercion;
+                # only safe when x is provably numeric.
+                if _numeric(simp_operand):
+                    return simp_operand
+                return ExprUnary(op=op, operand=simp_operand)
             if op is UnaryOp.NEG:
                 if isinstance(simp_operand, ExprUnary) and simp_operand.op is UnaryOp.NEG:
-                    return simp_operand.operand
+                    # -(-x) -> x: only safe when x is provably numeric
+                    # (otherwise hides "can't use non-numeric string" error).
+                    if _numeric(simp_operand.operand):
+                        return simp_operand.operand
                 lit_val = _int_literal_value(simp_operand)
                 if lit_val is not None:
                     return _make_int_literal(-lit_val)
@@ -656,7 +731,9 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 # ~(~x) -> x
             if op is UnaryOp.BIT_NOT:
                 if isinstance(simp_operand, ExprUnary) and simp_operand.op is UnaryOp.BIT_NOT:
-                    return simp_operand.operand
+                    # ~~x -> x: same numeric-coercion concern as above.
+                    if _numeric(simp_operand.operand):
+                        return simp_operand.operand
             return ExprUnary(op=op, operand=simp_operand)
 
         case ExprBinary(op=op, left=left, right=right):
@@ -670,6 +747,12 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
             rv = _int_literal_value(simp_right)
 
             # Additive identities / reassociation
+            #
+            # D5-O110: dropping ``x`` (the non-literal operand) hides Tcl's
+            # numeric-coercion error.  Only fire the identity/reassoc when
+            # the surviving operand is provably numeric.  When the operand
+            # is non-provably-numeric we skip the rewrite entirely
+            # (better: a missed optimisation rather than a wrong rewrite).
             if op in (BinOp.ADD, BinOp.SUB):
                 # Pure-reorder guard: the reassoc canonicalises operand
                 # order ("literal on the right"), which is useful internally
@@ -691,6 +774,16 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                     BinOp.SUB,
                 )
                 if not (left_is_additive or right_is_additive):
+                    # Identity drops happen when one literal is 0.  For
+                    # ``0 + x`` the operand kept is ``simp_right``; for
+                    # ``x +/- 0`` the operand kept is ``simp_left``.  We
+                    # need to confirm the *kept* operand is provably
+                    # numeric, otherwise dropping the 0-arithmetic erases
+                    # Tcl's numeric coercion error.
+                    if lv == 0 and op is BinOp.ADD and not _numeric(simp_right):
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
+                    if rv == 0 and not _numeric(simp_left):
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
                     real_change = (
                         lv == 0  # 0 + x  -> x
                         or rv == 0  # x +/- 0  -> x
@@ -716,13 +809,26 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                 left_is_mul = isinstance(simp_left, ExprBinary) and simp_left.op is BinOp.MUL
                 right_is_mul = isinstance(simp_right, ExprBinary) and simp_right.op is BinOp.MUL
                 if not (left_is_mul or right_is_mul):
-                    # Still take multiplicative-identity shortcuts.
-                    if lv == 0 or rv == 0:
-                        return _make_int_literal(0)
+                    # D5-O110: identity/annihilator drops require numeric
+                    # proof on the operand being elided.
+                    if lv == 0:
+                        if _numeric(simp_right):
+                            return _make_int_literal(0)
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
+                    if rv == 0:
+                        if _numeric(simp_left):
+                            return _make_int_literal(0)
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
                     if lv == 1:
-                        return simp_right
+                        if _numeric(simp_right):
+                            # ``1 * x``: dropping the literal is fine if x is
+                            # provably numeric (returning x preserves coercion).
+                            return simp_right
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
                     if rv == 1:
-                        return simp_left
+                        if _numeric(simp_left):
+                            return simp_left
+                        return ExprBinary(op=op, left=simp_left, right=simp_right)
                     return ExprBinary(op=op, left=simp_left, right=simp_right)
 
                 terms = []
@@ -730,45 +836,65 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                     ExprBinary(op=op, left=simp_left, right=simp_right),
                     terms,
                 )
+                # When the constant is 0 we annihilate the entire product,
+                # dropping every term — only safe if every term is provably
+                # numeric.  When the constant is 1 and there is exactly one
+                # term we drop the surviving ``* 1`` and need that term to
+                # be provably numeric.  Other cases keep all operands.
+                if constant == 0 and not all(_numeric(t) for t in terms):
+                    return ExprBinary(op=op, left=simp_left, right=simp_right)
+                if constant == 1 and len(terms) == 1 and not _numeric(terms[0]):
+                    return ExprBinary(op=op, left=simp_left, right=simp_right)
                 return _build_mul_expr(terms, constant)
 
             # Division: x / 1 -> x
             if op is BinOp.DIV:
-                if rv == 1:
+                if rv == 1 and _numeric(simp_left):
                     return simp_left
 
             # Exponentiation
             if op is BinOp.POW:
                 if rv == 0:
-                    return _make_int_literal(1)
-                if rv == 1:
-                    return simp_left
+                    # x ** 0 -> 1: drops x, must be provably numeric.
+                    if _numeric(simp_left):
+                        return _make_int_literal(1)
+                elif rv == 1:
+                    if _numeric(simp_left):
+                        return simp_left
                 # O113: strength reduction -- x ** 2 -> x * x
-                if rv == 2:
+                # Keeps x as an operand in both sides; preserves error
+                # semantics (``"abc" ** 2`` errors, ``"abc" * "abc"`` also
+                # errors).  Safe without a numeric guard.
+                elif rv == 2:
                     return ExprBinary(op=BinOp.MUL, left=simp_left, right=simp_left)
 
             # Shift: x << 0 -> x, x >> 0 -> x
             if op in (BinOp.LSHIFT, BinOp.RSHIFT):
-                if rv == 0:
+                if rv == 0 and _numeric(simp_left):
                     return simp_left
 
             # Bitwise AND: x & 0 -> 0, 0 & x -> 0
             if op is BinOp.BIT_AND:
-                if rv == 0 or lv == 0:
+                if rv == 0 and _numeric(simp_left):
+                    return _make_int_literal(0)
+                if lv == 0 and _numeric(simp_right):
                     return _make_int_literal(0)
 
             # Bitwise OR / XOR: x | 0 -> x, x ^ 0 -> x
             if op in (BinOp.BIT_OR, BinOp.BIT_XOR):
-                if rv == 0:
+                if rv == 0 and _numeric(simp_left):
                     return simp_left
-                if lv == 0:
+                if lv == 0 and _numeric(simp_right):
                     return simp_right
 
             # Modulo: x % 1 -> 0
             if op is BinOp.MOD:
-                if rv == 1:
+                if rv == 1 and _numeric(simp_left):
                     return _make_int_literal(0)
-                # O113: strength reduction -- x % (2^N) -> x & (2^N - 1)
+                # O113: strength reduction -- x % (2^N) -> x & (2^N - 1).
+                # Keeps x as an operand and the result still requires
+                # numeric x (the bitwise op coerces too) so error semantics
+                # are preserved; no numeric guard needed.
                 if rv is not None and rv > 1 and (rv & (rv - 1)) == 0:
                     return ExprBinary(
                         op=BinOp.BIT_AND,
@@ -815,9 +941,11 @@ def _simplify_expr_node(node: ExprNode, *, bool_context: bool = False) -> ExprNo
                     return _make_int_literal(1)
                 if op in (BinOp.NE, BinOp.LT, BinOp.GT, BinOp.STR_NE, BinOp.STR_LT, BinOp.STR_GT):
                     return _make_int_literal(0)
-                if op is BinOp.SUB:
+                # x - x / x ^ x drop x entirely; only sound when x is
+                # provably numeric (otherwise erases the coercion error).
+                if op is BinOp.SUB and _numeric(simp_left):
                     return _make_int_literal(0)
-                if op is BinOp.BIT_XOR:
+                if op is BinOp.BIT_XOR and _numeric(simp_left):
                     return _make_int_literal(0)
 
             # Pattern match simplification (matches_regex / matches_glob)
@@ -956,10 +1084,17 @@ def _simplify_to_fixpoint(
     *,
     bool_context: bool = False,
     max_iters: int = 4,
+    ssa_uses: dict[str, int] | None = None,
+    types: dict[tuple[str, int], TypeLattice] | None = None,
 ) -> ExprNode:
     """Apply _simplify_expr_node repeatedly until no further change."""
     for _ in range(max_iters):
-        simplified = _simplify_expr_node(node, bool_context=bool_context)
+        simplified = _simplify_expr_node(
+            node,
+            bool_context=bool_context,
+            ssa_uses=ssa_uses,
+            types=types,
+        )
         if simplified == node:
             break
         node = simplified
@@ -1047,7 +1182,20 @@ def _try_simplify_pattern_match(parsed: ExprNode) -> ExprNode | None:
     return None
 
 
-def _instcombine_expr(expr: str, *, bool_context: bool = False) -> tuple[str, bool]:
+def _instcombine_expr(
+    expr: str,
+    *,
+    bool_context: bool = False,
+    ssa_uses: dict[str, int] | None = None,
+    types: dict[tuple[str, int], TypeLattice] | None = None,
+) -> tuple[str, bool]:
+    """Instruction-combining rewriter for an expression string.
+
+    ``ssa_uses`` + ``types`` (D5-O110) gate identity/annihilator rewrites
+    that would otherwise drop Tcl's numeric coercion error.  When the
+    caller has no type context (None/None), drop-operand rewrites are
+    suppressed — they only fire for literals.
+    """
     stripped = expr.strip()
     parsed = parse_expr(stripped, dialect=active_dialect())
     if isinstance(parsed, ExprRaw):
@@ -1064,7 +1212,12 @@ def _instcombine_expr(expr: str, *, bool_context: bool = False) -> tuple[str, bo
             return rewritten, rewritten != stripped
         return expr, False
 
-    simplified = _simplify_to_fixpoint(parsed, bool_context=bool_context)
+    simplified = _simplify_to_fixpoint(
+        parsed,
+        bool_context=bool_context,
+        ssa_uses=ssa_uses,
+        types=types,
+    )
     rewritten = _render_expr_for_rewrite(simplified)
     return rewritten, rewritten != stripped
 

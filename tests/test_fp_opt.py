@@ -67,9 +67,24 @@ def test_FP_OPT_01_commutative_reorder_no_o110():
 
 
 def test_FP_OPT_01_genuine_simplification_still_fires():
-    """TP control: a genuine simplification (e.g. ``x + 0``) still fires O110."""
-    src = "set y [expr {$x + 0}]\n"
-    # The identity x+0 -> x is a real simplification; O110 must fire.
+    """TP control: a genuine simplification on a provably-numeric SSA value
+    (here ``$i + 0`` where ``$i`` is typed INT via a loop-overdefined
+    counter) still fires O110.
+
+    Note: post-D5-O110 fix, the ``$x + 0`` form on an unknown-type
+    parameter no longer fires (would erase Tcl's numeric coercion error).
+    See FP-OPT-09."""
+    src = (
+        "proc f {n} {\n"
+        "  for {set i 0} {$i < $n} {incr i} {\n"
+        "    set y [expr {$i + 0}]\n"
+        "    puts $y\n"
+        "  }\n"
+        "}\n"
+        "f 3\n"
+    )
+    # i is INT via SCCP (loop counter, OVERDEFINED value but KNOWN INT
+    # type) — the identity is sound, O110 must fire.
     diags = _codes(src, "O110")
     assert diags, f"identity simplification must still fire O110; got {get_diagnostics(src)}"
 
@@ -334,4 +349,57 @@ def test_FP_OPT_08_unrelated_set_still_eligible_for_o126():
     # anywhere else -- O126 should fire.
     assert "O126" in codes, (
         f"unreferenced 'set unused 42' must still be eligible for O126; got {codes}"
+    )
+
+
+# FP-OPT-09 — D5-O110: O110 InstCombine identity/annihilator rewrites must
+# preserve Tcl's numeric-coercion / error semantics.
+#
+# Tclsh ground truth:
+#   expr {"abc"}     -> "abc"            (rc=0, just returns the string)
+#   expr {"abc" + 0} -> ERROR            ("can't use non-numeric string as left operand of '+'")
+# So rewriting ``$x + 0`` to ``$x`` is unsound when $x might be a
+# non-numeric string -- the rewrite hides the runtime error.
+
+FP_OPT_09_TP_REPRO = "proc f {x} {\n  puts [expr {$x + 0}]\n}\nf abc\n"
+FP_OPT_09_TN_REPRO = (
+    "proc f {} {\n"
+    "  for {set i 0} {$i < 3} {incr i} {\n"
+    "    set y [expr {$i + 0}]\n"
+    "    puts $y\n"
+    "  }\n"
+    "}\n"
+    "f\n"
+)
+
+
+def test_FP_OPT_09_unknown_type_param_blocks_identity_rewrite():
+    """TP: ``$x + 0`` on a parameter with unknown type MUST NOT be
+    rewritten to ``$x`` -- the rewrite would hide ``can't use non-
+    numeric string "abc"`` when the caller passes a non-numeric value.
+    """
+    from compiler.optimiser import optimise_source
+
+    optimised, rewrites = optimise_source(FP_OPT_09_TP_REPRO)
+    # Look for any optimisation that would turn the expression into
+    # bare ``$x`` (drops the ``+ 0``).
+    o110_drops = [
+        r
+        for r in rewrites
+        if r.code == "O110" and "+ 0" not in r.replacement and "$x" in r.replacement
+    ]
+    assert not o110_drops, (
+        f"unsound O110 drop of ``$x + 0`` on unknown-type param; got {o110_drops}"
+    )
+    # Also the diagnostic surface should be quiet on O110.
+    assert _codes(FP_OPT_09_TP_REPRO, "O110") == []
+
+
+def test_FP_OPT_09_provably_numeric_var_still_fires():
+    """TN: ``$i + 0`` where ``$i`` is provably INT (SSA type lattice
+    INT, loop counter pattern) IS sound -- O110 MUST fire."""
+    diags = _codes(FP_OPT_09_TN_REPRO, "O110")
+    assert diags, (
+        f"provably-numeric identity simplification must still fire O110; "
+        f"got {get_diagnostics(FP_OPT_09_TN_REPRO)}"
     )

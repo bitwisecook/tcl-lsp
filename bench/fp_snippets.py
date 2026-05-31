@@ -2456,6 +2456,44 @@ register(
 )
 
 
+register(
+    "FP-OPT-09",
+    _Entry(
+        label="O110 identity/annihilator drops require provably-numeric operand (D5-O110)",
+        proc="::f",
+        vars=("x", "y"),
+        show=("ssa", "types"),
+        notes=(
+            "Pre-fix: ``_simplify_expr_node`` rewrote ``$x + 0`` -> ``$x``,\n"
+            "``$x * 1`` -> ``$x``, ``$x * 0`` -> ``0``, ``$x % 1`` -> ``0``,\n"
+            "``$x << 0`` -> ``$x``, ``$x & 0`` -> ``0``, ``$x ^ $x`` -> ``0``\n"
+            "etc. unconditionally.  These rewrites DROP an operand, which\n"
+            "removes Tcl's numeric coercion error: ``expr {\"abc\" + 0}``\n"
+            "errors with ``cannot use non-numeric string`` but ``expr\n"
+            "{\"abc\"}`` simply returns the string.  Post-fix: every drop-\n"
+            "operand identity/annihilator now consults a\n"
+            "``_is_provably_numeric_expr_node`` predicate that requires the\n"
+            "operand to be an ExprLiteral, a numeric ExprString literal,\n"
+            "or an ExprVar whose SSA type lattice is INT / DOUBLE /\n"
+            "NUMERIC / BOOLEAN at this program point.  See D5-O110.\n"
+            "\n"
+            "The proc here takes ``x`` as a param (type UNKNOWN) and uses\n"
+            "``$x + 0`` -- the lattice cannot prove ``$x`` is numeric, so\n"
+            "the rewrite is suppressed."
+        ),
+        source=_dedent(
+            """
+            proc f {x} {
+                set y [expr {$x + 0}]
+                puts $y
+            }
+            f abc
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # SH family (04..06) -- shimmer fixes (post-PR review)
 # ----------------------------------------------------------------------

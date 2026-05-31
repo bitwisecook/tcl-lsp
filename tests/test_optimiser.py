@@ -309,44 +309,58 @@ class TestOptimiser:
         assert any(r.code == "O110" for r in rewrites)
 
     # Identity / absorbing element rules
+    #
+    # D5-O110: identity/annihilator drops require provably-numeric
+    # operands; wrap each in a loop where ``x`` is SCCP-typed INT.
+
+    @staticmethod
+    def _int_x(body: str) -> str:
+        return (
+            "proc f {n} {\n"
+            "  for {set x 0} {$x < $n} {incr x} {\n"
+            "    " + body + "\n"
+            "    puts $v\n"
+            "  }\n"
+            "}\n"
+        )
 
     def test_instcombine_pow_zero(self):
-        source = "set v [expr {$x ** 0}]"
+        source = self._int_x("set v [expr {$x ** 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 1" in optimised
 
     def test_instcombine_pow_one(self):
-        source = "set v [expr {$x ** 1}]"
+        source = self._int_x("set v [expr {$x ** 1}]")
         optimised, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_shift_zero(self):
-        source = "set v [expr {$x << 0}]"
+        source = self._int_x("set v [expr {$x << 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_rshift_zero(self):
-        source = "set v [expr {$x >> 0}]"
+        source = self._int_x("set v [expr {$x >> 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitand_zero(self):
-        source = "set v [expr {$x & 0}]"
+        source = self._int_x("set v [expr {$x & 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
     def test_instcombine_bitor_zero(self):
-        source = "set v [expr {$x | 0}]"
+        source = self._int_x("set v [expr {$x | 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitxor_zero(self):
-        source = "set v [expr {$x ^ 0}]"
+        source = self._int_x("set v [expr {$x ^ 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_mod_one(self):
-        source = "set v [expr {$x % 1}]"
+        source = self._int_x("set v [expr {$x % 1}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -450,8 +464,10 @@ class TestOptimiser:
         assert "!$x || !$y" in o110.replacement
 
     def test_instcombine_double_bitnot(self):
-        """~~$x → $x."""
-        source = "set v [expr {~~$x}]"
+        """~~$x → $x.
+
+        D5-O110: drops the bitwise-not operator; needs provably-numeric x."""
+        source = self._int_x("set v [expr {~~$x}]")
         optimised, _ = optimise_source(source)
         assert "set v [expr {$x}]" in optimised
 
@@ -468,7 +484,8 @@ class TestOptimiser:
         assert "set v 0" in optimised
 
     def test_instcombine_self_xor(self):
-        source = "set v [expr {$x ^ $x}]"
+        # D5-O110: x ^ x drops both operands; needs numeric proof.
+        source = self._int_x("set v [expr {$x ^ $x}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -1120,11 +1137,15 @@ class TestStrengthReduction:
 
 
 class TestIncrIdiom:
-    """O114 — incr idiom recognition."""
+    """O114 — incr idiom recognition.
+
+    D5-O114: requires SSA-known INT type on the loop var.  Seeding with
+    ``set x 0`` lets SCCP type ``x`` as INT and the rewrite fires."""
 
     def test_incr_add_one(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 1}]
             }
         """).rstrip()
@@ -1134,7 +1155,8 @@ class TestIncrIdiom:
 
     def test_incr_add_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 5}]
             }
         """).rstrip()
@@ -1144,7 +1166,8 @@ class TestIncrIdiom:
 
     def test_incr_sub_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x - 3}]
             }
         """).rstrip()
@@ -2808,13 +2831,21 @@ class TestLoadForwarding:
         assert not any(r.code == "O127" for r in rewrites)
 
     def test_skip_when_pre_loop_pass_already_rewrites_def(self):
-        """If O114 (incr idiom) already targets the def, O127 must not conflict."""
+        """If O114 (incr idiom) already targets the def, O127 must not conflict.
+
+        D5-O114: O114 only fires when x is provably INT.  Loop-counter
+        pattern: x is INT-typed but OVERDEFINED in value, so O114 fires
+        and O127 must defer to it."""
         source = textwrap.dedent("""\
-            proc test {} {
-                set x [expr {$x + 1}]
-                puts $x
+            proc test {n} {
+                for {set x 0} {$x < $n} {incr x} {
+                    set x [expr {$x + 1}]
+                    puts $x
+                }
             }""")
         _optimised, rewrites = optimise_source(source)
+        codes = [r.code for r in rewrites]
+        assert "O114" in codes, f"sanity: O114 should fire here; got {codes}"
         # O114 rewrites the set→incr. O127 should not also try to
         # inline and delete the same statement.
         assert not any(r.code == "O127" for r in rewrites)

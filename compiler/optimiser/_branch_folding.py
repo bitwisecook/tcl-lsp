@@ -121,7 +121,12 @@ def optimise_branch_proc_calls(
             ssa_uses=ssa_block.exit_versions if ssa_block is not None else None,
             types=analysis.types,
         )
-        combined, combine_changed = _instcombine_expr(compared, bool_context=True)
+        combined, combine_changed = _instcombine_expr(
+            compared,
+            bool_context=True,
+            ssa_uses=ssa_block.exit_versions if ssa_block is not None else None,
+            types=analysis.types,
+        )
 
         if not (var_changed or proc_changed or compare_changed or combine_changed):
             continue
