@@ -4511,9 +4511,9 @@ class TestW214EmptyBodyStubs:
         from server.features.diagnostics import get_diagnostics
 
         return {
-            _re.search(r"'(\w+)'", d.message).group(1)
+            m.group(1)
             for d in get_diagnostics(src)
-            if d.code == "W214" and _re.search(r"'(\w+)'", d.message)
+            if d.code == "W214" and (m := _re.search(r"'(\w+)'", d.message)) is not None
         }
 
     def test_empty_body_silences_w214(self):
@@ -4547,9 +4547,10 @@ class TestW214QuotedKeywordMarker:
         from server.features.diagnostics import get_diagnostics
 
         return {
-            _re.search(r"Parameter '(.*?)' of", d.message).group(1)
+            m.group(1)
             for d in get_diagnostics(src)
-            if d.code == "W214" and _re.search(r"Parameter '(.*?)' of", d.message)
+            if d.code == "W214"
+            and (m := _re.search(r"Parameter '(.*?)' of", d.message)) is not None
         }
 
     def test_quoted_keyword_marker_silenced(self):

@@ -577,7 +577,7 @@ def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
     ``catch {file copy a b}`` still fire W302 because those operations
     are not the canonical "if exists" idiom.
     """
-    stmts = getattr(body, "statements", ())
+    stmts = list(getattr(body, "statements", ()) or ())
     if len(stmts) != 1:
         return False
     stmt = stmts[0]
