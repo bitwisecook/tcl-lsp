@@ -1128,37 +1128,59 @@ eval $x
 class TestListCanonical:
     """LIST_CANONICAL colour: produced by list/concat, lost on interpolation."""
 
-    def test_list_command_propagates_taint_to_eval_suppressed(self):
-        """[list] wrapping → LIST_CANONICAL → eval suppressed (T100)."""
+    def test_list_command_propagates_taint_to_eval_fires(self):
+        """[list] wrapping → eval STILL fires T100 (D5-T100).
+
+        LIST_CANONICAL only proves list-quoting; ``eval $lst`` still
+        re-parses the value and the first list element becomes the
+        command word.  Verified tclsh::
+
+            % proc marker args { puts EXECUTED }
+            % set raw marker
+            % set lst [list $raw]   ;# {marker}
+            % eval $lst             ;# prints EXECUTED
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset lst [list $raw]\neval $lst",
             "T100",
         )
-        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+        assert len(ws) >= 1  # tainted first element becomes the command word
 
-    def test_lsort_propagates_list_canonical(self):
-        """[lsort] returns canonical list → eval suppressed (T100)."""
+    def test_lsort_eval_fires(self):
+        """[lsort] result -> eval STILL fires T100 (D5-T100).
+
+        lsort returns a canonical list but its first element is still
+        whatever the user controlled — no command-word safety guarantee.
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset sorted [lsort $raw]\neval $sorted",
             "T100",
         )
-        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+        assert len(ws) >= 1
 
-    def test_lrange_propagates_list_canonical(self):
-        """[lrange] returns canonical list → eval suppressed (T100)."""
+    def test_lrange_eval_fires(self):
+        """[lrange] result -> eval STILL fires T100 (D5-T100).
+
+        lrange's first element is whatever element the slice starts at;
+        no command-word safety guarantee.
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset sub [lrange $raw 0 2]\neval $sub",
             "T100",
         )
-        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+        assert len(ws) >= 1
 
-    def test_split_propagates_list_canonical(self):
-        """[split] returns canonical list → eval suppressed (T100)."""
+    def test_split_eval_fires(self):
+        """[split] result -> eval STILL fires T100 (D5-T100).
+
+        split's first element is the first colon-separated token of the
+        tainted input; no command-word safety guarantee.
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset parts [split $raw :]\neval $parts",
             "T100",
         )
-        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+        assert len(ws) >= 1
 
     def test_list_command_propagates_taint_to_puts(self):
         """[list] wrapping → taint still flows to non-eval sinks (T101)."""
@@ -1168,15 +1190,20 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
 
-    def test_concat_of_canonical_lists_eval_suppressed(self):
-        """concat of two canonical lists keeps LIST_CANONICAL → eval suppressed."""
+    def test_concat_of_canonical_lists_eval_fires(self):
+        """concat of two canonical lists -> eval STILL fires T100 (D5-T100).
+
+        Even when both sources are list-canonical, ``eval $c`` still
+        re-parses the value as a script and the first element of the
+        first wrapped list becomes the command word.
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset a [list $raw]\n"
             "set raw2 [read $fd2]\nset b [list $raw2]\n"
             "set c [concat $a $b]\neval $c",
             "T100",
         )
-        assert len(ws) == 0  # suppressed by LIST_CANONICAL
+        assert len(ws) >= 1
 
     def test_interpolation_preserves_taint_from_list(self):
         """String interpolation of list-wrapped tainted data keeps taint."""
@@ -1186,13 +1213,19 @@ class TestListCanonical:
         )
         assert len(ws) >= 1
 
-    def test_list_canonical_copy_preserves_colour(self):
-        """LIST_CANONICAL propagates through variable copy → eval suppressed."""
+    def test_list_canonical_copy_eval_fires(self):
+        """[list]-wrapped value, then copy, then eval -> T100 STILL fires (D5-T100).
+
+        The lattice still propagates LIST_CANONICAL through the copy,
+        but suppression no longer keys on that bit -- it requires a
+        literal [list <known-cmd> ...] cmd-sub at the eval site, which
+        is not visible when eval reads a propagated variable.
+        """
         ws = _taint_warnings(
             "set raw [read $fd]\nset lst [list $raw]\nset copy $lst\neval $copy",
             "T100",
         )
-        assert len(ws) == 0  # LIST_CANONICAL preserved through copy
+        assert len(ws) >= 1
 
     def test_list_canonical_copy_still_tainted(self):
         """LIST_CANONICAL copy is still tainted for non-eval sinks."""
@@ -1617,17 +1650,22 @@ regexp $x test
         ws = _taint_warnings(source, "T102")
         assert len(ws) >= 1
 
-    def test_helper_list_wrapper_adds_canonical(self):
-        """Proc that wraps in list adds LIST_CANONICAL — suppresses T100 for eval."""
+    def test_helper_list_wrapper_eval_still_fires(self):
+        """Proc that wraps in [list] -> eval STILL fires T100 (D5-T100).
+
+        Even though the helper produces a canonical list, the first
+        element of that list is the tainted input -- ``eval`` will run
+        it as the command word.  See test_eval_with_list_canonical_fires
+        for the underlying tclsh verification.
+        """
         source = """\
 proc wrap_list {x} { return [list $x] }
 set raw [read $fd]
 set lst [wrap_list $raw]
 eval $lst
 """
-        # LIST_CANONICAL from [list] propagated through proc → suppresses T100 for eval
         ws = _taint_warnings(source, "T100")
-        assert len(ws) == 0
+        assert len(ws) >= 1
 
     def test_helper_list_wrapper_still_tainted(self):
         """Proc that wraps in list still propagates taint to non-eval sinks."""
@@ -1846,11 +1884,23 @@ class TestT100SinkSuppression:
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
 
-    def test_eval_with_list_canonical_suppressed(self):
-        """eval with LIST_CANONICAL tainted data → T100 suppressed."""
+    def test_eval_with_list_canonical_fires(self):
+        """eval $safe where $safe was [list $raw] -> T100 STILL FIRES (D5-T100).
+
+        tclsh 9.0.3::
+
+            % proc marker args { puts EXECUTED }
+            % set raw marker
+            % set safe [list $raw]   ;# {marker}
+            % eval $safe             ;# prints EXECUTED -- $raw became cmd word
+
+        LIST_CANONICAL only proves list-quoting, NOT that the synthesised
+        command word is trusted.  The tainted value flows to the command-
+        head position and executes as a command.  T100 must fire.
+        """
         source = "set raw [read $fd]\nset safe [list $raw]\neval $safe"
         ws = _taint_warnings(source, "T100")
-        assert len(ws) == 0
+        assert len(ws) >= 1
 
     def test_eval_with_generic_taint_not_suppressed(self):
         """eval with generic tainted data → T100 fires."""
@@ -1858,11 +1908,48 @@ class TestT100SinkSuppression:
         ws = _taint_warnings(source, "T100")
         assert len(ws) >= 1
 
-    def test_uplevel_with_list_canonical_suppressed(self):
-        """uplevel with LIST_CANONICAL tainted data → T100 suppressed."""
+    def test_uplevel_with_list_canonical_fires(self):
+        """uplevel $safe where $safe was [list $raw] -> T100 STILL FIRES (D5-T100).
+
+        Same hazard as eval: the LIST_CANONICAL colour only proves the
+        value is a properly-quoted Tcl list, not that the first element
+        is a trusted command word.  ``uplevel`` will run the substituted
+        $raw as a command in the caller's frame.
+        """
         source = "set raw [read $fd]\nset safe [list $raw]\nuplevel $safe"
         ws = _taint_warnings(source, "T100")
+        assert len(ws) >= 1
+
+    def test_eval_with_literal_list_known_head_suppressed(self):
+        """eval [list <known-cmd> $raw] -> T100 SUPPRESSED.
+
+        tclsh 9.0.3::
+
+            % set raw marker
+            % eval [list puts $raw]  ;# prints "marker" -- $raw is the ARG, not the cmd
+            marker
+
+        When the eval arg is a literal ``[list <known-cmd> ...]`` cmd-sub
+        AND the tainted var sits at list-index >= 1, the synthesised
+        command word is the known-cmd literal and the tainted value can
+        only become an argument -- no code-execution vector.
+        """
+        source = "set raw [read $fd]\neval [list puts $raw]"
+        ws = _taint_warnings(source, "T100")
         assert len(ws) == 0
+
+    def test_eval_with_literal_list_tainted_head_fires(self):
+        """eval [list $raw] -> T100 FIRES (tainted var at list-index 0 becomes cmd word).
+
+        tclsh 9.0.3::
+
+            % proc marker args { puts EXECUTED }
+            % set raw marker
+            % eval [list $raw]   ;# prints EXECUTED -- $raw became cmd word
+        """
+        source = "set raw [read $fd]\neval [list $raw]"
+        ws = _taint_warnings(source, "T100")
+        assert len(ws) >= 1
 
     def test_uplevel_with_generic_taint_not_suppressed(self):
         """uplevel with generic tainted data → T100 fires."""
@@ -2205,9 +2292,27 @@ class TestT105InterpEvalSinks:
         ws = _taint_warnings(source, "T105")
         assert len(ws) >= 1
 
-    def test_list_suppresses_t105(self):
-        """LIST_CANONICAL colour suppresses T105."""
+    def test_list_does_not_suppress_t105(self):
+        """[list]-wrapped tainted data -> interp eval STILL fires T105 (D5-T105).
+
+        Same hazard as eval/uplevel: LIST_CANONICAL only proves
+        list-quoting, not that the synthesised command word in the child
+        interpreter is trusted.  ``interp eval $child $safe`` re-parses
+        $safe in the child and the first list element becomes the
+        command word.
+        """
         source = "set x [read $fd]\nset safe [list $x]\ninterp eval $child $safe"
+        ws = _taint_warnings(source, "T105")
+        assert len(ws) >= 1
+
+    def test_interp_eval_literal_list_known_head_suppressed(self):
+        """interp eval $child [list <known-cmd> $raw] -> T105 SUPPRESSED.
+
+        When the script arg is a literal ``[list <known-cmd> ...]``
+        cmd-sub with the tainted var at list-index >= 1, the cmd-word
+        is the literal and tainted value becomes only an argument.
+        """
+        source = "set x [read $fd]\ninterp eval $child [list puts $x]"
         ws = _taint_warnings(source, "T105")
         assert len(ws) == 0
 

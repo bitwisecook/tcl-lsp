@@ -6,7 +6,6 @@ from __future__ import annotations
 from compiler.registry._base import CommandDef
 from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from compiler.registry.signatures import ArgRole, Arity
-from compiler.registry.taint_hints import TaintColour
 from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from compiler.types import TclType
 
@@ -49,7 +48,12 @@ class EvalCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
-            taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
+            # NOTE (D5-T100/T105): LIST_CANONICAL is NO LONGER a sound
+            # suppression for eval -- it only proves list-quoting, not
+            # that the synthesised command word is trusted.  T100 is
+            # instead suppressed only when the literal eval arg is a
+            # ``[list <known-cmd> ...]`` cmd-sub with the tainted var at
+            # list-index >= 1, in compiler/taint/_sinks.py.
             xc_translatable=False,
             arg_roles={0: frozenset({ArgRole.BODY})},
             return_type=TclType.STRING,

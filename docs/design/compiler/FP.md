@@ -6454,6 +6454,96 @@ ignored.
 
 ---
 
+### FP-TNT-03 — eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)
+
+- **Verdict:** TRUE POSITIVE / security FN (now fixed)
+- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_03_*`
+- **Codes:** T100 (taint -> code-exec), T105 (taint -> cross-interpreter eval)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T100, D5-T105
+
+#### Reproducer
+
+```tcl
+# UNSAFE -- tainted var becomes the command word
+set raw [gets stdin]
+eval [list $raw]
+```
+
+vs
+
+```tcl
+# SAFE -- literal "puts" is the command word; tainted var is an arg
+set raw [gets stdin]
+eval [list puts $raw]
+```
+
+#### Per-line reasoning
+
+1. `set raw [gets stdin]` — `$raw` is tainted (user input).
+2. `eval [list $raw]` — at runtime `[list $raw]` produces `{marker}` (or whatever the user typed) — a properly-quoted single-element list.  `eval` then re-parses it as a script: the first list element becomes the command word.  Pre-fix the LIST_CANONICAL taint colour suppressed T100 unconditionally — this missed the case where the tainted value sits at list-index 0 and *becomes* the cmd word.
+3. Post-fix `_should_suppress_t100` requires the literal eval arg to be a `[list <known-cmd> ...]` cmd-sub AND the tainted var to sit at list-index >= 1.  When either condition fails, T100 fires.
+4. The TN case (`eval [list puts $raw]`) keeps suppression: `puts` is in `REGISTRY.specs_by_name`, the tainted var is at index 1, so it can only become an argument to puts — no code execution.
+5. Propagated cases (`set lst [list $raw]; eval $lst`) no longer benefit from LIST_CANONICAL — they refuse to suppress and T100 fires.  This is conservative: even when the helper produces a canonical list with a literal head, the eval site can't see that.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc marker args { puts EXECUTED }
+% set raw marker
+
+% # UNSAFE: tainted var at list-index 0 becomes the cmd word.
+% eval [list $raw]
+EXECUTED
+
+% # SAFE: literal "puts" at index 0; tainted var is an arg.
+% eval [list puts $raw]
+marker
+
+% # Same hazard via uplevel and through a variable copy.
+% set lst [list $raw]
+% eval $lst
+EXECUTED
+```
+
+#### Compiler evidence
+
+```
+--- FP-TNT-03: eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)
+regen: python -m bench.fp_snippets --id FP-TNT-03
+function ::top
+  block entry_1
+    [0] AssignValue 'raw' value='[gets stdin]'  defs={raw#1}  uses={}
+    [1] InterpBoundary  defs={}  uses={}
+    [2] Barrier cmd='eval'  defs={}  uses={raw#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-TNT-03`)
+
+The eval statement's args are `('[list $raw]',)`; `_eval_arg_protected_by_list_literal` parses the cmd-sub, sees the first element is `$raw` (not a pure literal), returns False -> T100 fires.
+
+#### Why the analyser reaches that verdict
+
+`compiler/taint/_sinks.py`:
+
+- `_eval_arg_protected_by_list_literal(arg, var_name)` — parses *arg* as a `[list ...]` cmd-sub.  Suppresses only when (a) the inner cmd is `list`, (b) the first list element is a pure literal (no `$` / `[` / `{*}`), (c) the head is in `REGISTRY.specs_by_name`, and (d) the tainted var appears only at list-index >= 1.
+- `_should_suppress_t100(stmt, var_name, taint)` — for `eval`/`uplevel`/`::eval`/`::uplevel`, ignores `taint_sink_safe_colours` and delegates to `_eval_stmt_protected_by_list_literal`.
+- `_should_suppress_sink_warning(code="T105", ...)` — same delegation for `interp eval` / `interp invokehidden`.
+- `dialects/tcl/eval.py` and `dialects/tcl/uplevel.py` — `taint_sink_safe_colour=LIST_CANONICAL` removed.
+
+#### Tests
+
+- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_tainted_head_fires_t100` (TP, `eval [list $raw]`)
+- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_literal_head_no_t100` (TN, `eval [list puts $raw]`)
+- `tests/test_fp_tnt.py::test_FP_TNT_03_uplevel_list_tainted_head_fires_t100` (TP, `uplevel [list $raw]`)
+- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_via_var_still_fires` (TP, propagation defeats suppression)
+- `tests/test_fp_tnt.py::test_FP_TNT_03_interp_eval_list_tainted_head_fires_t105` (TP, T105)
+- `tests/test_fp_tnt.py::test_FP_TNT_03_interp_eval_list_literal_head_no_t105` (TN, T105)
+
+---
+
 
 ## STY — style / usage (W001/W104/W120/W122/W124/W126/W214/W302/W306)
 

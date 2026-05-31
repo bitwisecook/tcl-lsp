@@ -2967,6 +2967,48 @@ register(
 )
 
 
+register(
+    "FP-TNT-03",
+    _Entry(
+        label="eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)",
+        proc="::top",
+        vars=("raw",),
+        show=("ssa",),
+        notes=(
+            "Pre-fix: ``LIST_CANONICAL`` taint colour suppressed T100 for\n"
+            "any tainted value reaching ``eval``/``uplevel`` and T105 for\n"
+            "``interp eval``.  But LIST_CANONICAL only proves the value\n"
+            "is a *properly quoted Tcl list* -- the FIRST list element\n"
+            "still becomes the synthesised command word when re-parsed.\n"
+            "\n"
+            "tclsh 9.0.3 (the unsoundness, verified by execution)::\n"
+            "\n"
+            "    % proc marker args { puts EXECUTED }\n"
+            "    % set raw marker\n"
+            "    % eval [list $raw]    ;# UNSAFE -- prints EXECUTED\n"
+            "    EXECUTED\n"
+            "    % eval [list puts $raw] ;# SAFE -- prints \"marker\"\n"
+            "    marker\n"
+            "\n"
+            "Post-fix: T100/T105 suppression for eval/uplevel/interp\n"
+            "eval is granted only when the literal sink arg is a\n"
+            "``[list <known-cmd> ...]`` cmd-sub AND the tainted var\n"
+            "sits at list-index >= 1.  ``_eval_arg_protected_by_list_\n"
+            "literal`` parses the cmd-sub, checks the head against\n"
+            "``REGISTRY.specs_by_name`` for known-command status, and\n"
+            "verifies the tainted var appears only at index >= 1.  See\n"
+            "D5-T100/T105."
+        ),
+        source=_dedent(
+            """
+            set raw [gets stdin]
+            eval [list $raw]
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)

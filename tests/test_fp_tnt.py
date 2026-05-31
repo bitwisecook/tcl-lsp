@@ -142,3 +142,115 @@ proc f {} {
     assert _codes(src, "T101"), (
         f"tainted puts content arg must still fire T101 even with explicit channel; got {get_diagnostics(src)}"
     )
+
+
+# FP-TNT-03 — eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)
+
+
+FP_TNT_03_REPRO_TP = """\
+proc f {raw} {
+    eval [list $raw]
+}
+"""
+
+FP_TNT_03_REPRO_TN = """\
+proc f {raw} {
+    eval [list puts $raw]
+}
+"""
+
+
+def test_FP_TNT_03_eval_list_tainted_head_fires_t100():
+    """TP: ``eval [list $raw]`` -- the tainted var is at list-index 0
+    (the future command word).  Pre-fix the LIST_CANONICAL colour
+    suppressed T100 unconditionally; post-fix suppression requires
+    *literal known cmd at index 0 AND tainted var at index >= 1*.
+
+    tclsh 9.0.3::
+
+        % proc marker args { puts EXECUTED }
+        % set raw marker
+        % eval [list $raw]
+        EXECUTED
+    """
+    # When raw is a proc parameter it isn't a taint source -- materialise
+    # it via a taint source first.
+    src = """\
+set raw [gets stdin]
+eval [list $raw]
+"""
+    assert _codes(src, "T100"), (
+        f"tainted var at [list ...] index 0 must fire T100; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_03_eval_list_literal_head_no_t100():
+    """TN: ``eval [list puts $raw]`` -- the command word is the literal
+    ``puts`` (a known registry command); the tainted var is at list-
+    index 1 (an argument position).  No code-execution vector.
+
+    tclsh 9.0.3::
+
+        % set raw marker
+        % eval [list puts $raw]
+        marker
+    """
+    src = """\
+set raw [gets stdin]
+eval [list puts $raw]
+"""
+    assert _codes(src, "T100") == [], (
+        f"[list <known-cmd> $raw] must suppress T100; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_03_uplevel_list_tainted_head_fires_t100():
+    """TP: same hazard as eval; ``uplevel [list $raw]`` runs $raw as the
+    command word in the caller's frame."""
+    src = """\
+set raw [gets stdin]
+uplevel [list $raw]
+"""
+    assert _codes(src, "T100"), (
+        f"tainted var at uplevel [list ...] index 0 must fire T100; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_03_eval_list_via_var_still_fires():
+    """TP: ``set lst [list $raw]; eval $lst`` -- the literal [list ...]
+    is not visible at the eval site (eval reads a variable, not a
+    cmd-sub).  Suppression must NOT apply; T100 fires."""
+    src = """\
+set raw [gets stdin]
+set lst [list $raw]
+eval $lst
+"""
+    assert _codes(src, "T100"), (
+        f"propagated [list]-wrapped tainted value must still fire T100; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_03_interp_eval_list_tainted_head_fires_t105():
+    """TP (T105): ``interp eval $child [list $raw]`` -- same hazard for
+    cross-interpreter eval: the child interpreter parses the script and
+    the tainted first element becomes the command word."""
+    src = """\
+set raw [gets stdin]
+interp eval $child [list $raw]
+"""
+    assert _codes(src, "T105"), (
+        f"interp eval [list $raw] must fire T105; got {get_diagnostics(src)}"
+    )
+
+
+def test_FP_TNT_03_interp_eval_list_literal_head_no_t105():
+    """TN (T105): ``interp eval $child [list puts $raw]`` -- literal cmd
+    at index 0, tainted var at index 1, no code-execution vector in
+    the child interp."""
+    src = """\
+set raw [gets stdin]
+interp eval $child [list puts $raw]
+"""
+    assert _codes(src, "T105") == [], (
+        f"[list puts $raw] in interp eval must suppress T105; got {get_diagnostics(src)}"
+    )
