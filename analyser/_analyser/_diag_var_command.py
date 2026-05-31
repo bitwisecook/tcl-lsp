@@ -20,6 +20,60 @@ from compiler.value_shapes import parse_command_substitution
 
 from ..semantic_model import Diagnostic, Severity
 
+# snit reserved object/type self-references — ``$self``/``$type``/``$selfns``/
+# ``$win``/``$hull`` used as a command word are object dispatch, but *only*
+# inside a snit type body (``$hull configure`` is the widgetadaptor delegation
+# idiom).  Outside a snit body these are ordinary variable names, so the
+# exemption must be scoped (see the membership check at the use site) — a
+# vanilla ``proc f {} { set self …; $self foo }`` must still get W307.
+_OO_SELF_REFS = frozenset({"self", "type", "selfns", "win", "hull"})
+
+
+def _last_return_var(cfg) -> str | None:
+    """Return the name of the variable returned by the proc, or None.
+
+    Walks the CFG looking for the LAST IRReturn whose value is a single
+    ``$var`` or ``${var}`` substitution.  Used by the object-returning
+    -proc inference in the W307 suppression pass: a proc returning
+    ``$X`` where ``X`` was assigned from a factory is itself an object
+    factory.
+    """
+    from compiler.cfg import CFGReturn
+    from compiler.ir import IRReturn
+
+    def _extract(v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.strip()
+        if not v.startswith("$"):
+            return None
+        rest = v[1:]
+        # Braced form ``${name}``.
+        if rest.startswith("{") and rest.endswith("}") and rest.count("{") == 1:
+            inner = rest[1:-1]
+            if inner and all(c.isalnum() or c in "_:" for c in inner):
+                return inner
+            return None
+        # Bare ``$name``.
+        if rest and all(c.isalnum() or c in "_:" for c in rest):
+            return rest
+        return None
+
+    last: str | None = None
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            if isinstance(stmt, IRReturn):
+                name = _extract(stmt.value)
+                if name is not None:
+                    last = name
+        term = block.terminator
+        if isinstance(term, CFGReturn):
+            v = term.value if isinstance(term.value, str) else None
+            name = _extract(v)
+            if name is not None:
+                last = name
+    return last
+
 
 def _scan_tcl_command_name(source: str, start: int) -> str:
     """Return the longest Tcl command-name token at *source[start:]*.

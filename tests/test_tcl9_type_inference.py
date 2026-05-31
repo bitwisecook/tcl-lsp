@@ -25,12 +25,20 @@ class TestLiteralTypeInference:
             pytest.param("set x 42", "x", TclType.INT, id="int-decimal"),
             pytest.param("set x -7", "x", TclType.INT, id="int-negative"),
             pytest.param("set x 0", "x", TclType.INT, id="int-zero"),
-            # Hex/octal/binary prefixed literals are STRING at `set` level
-            # (they become INT only when used in expr context)
-            pytest.param("set x 0xFF", "x", TclType.STRING, id="set-hex-is-string"),
-            pytest.param("set x 0xff", "x", TclType.STRING, id="set-hex-lower-is-string"),
+            # Hex and binary prefixed literals are INT at set level too:
+            # tcl's first numeric use (incr / expr) parses them via
+            # Tcl_GetIntFromObj as a single clean string→int conversion,
+            # so the natural lattice type matches the natural intrep.  The
+            # corpus precedent is tcllib cookiejar/idna's
+            # ``variable initial_n 0x80; incr n`` — typing as INT silences
+            # the spurious per-iteration S101 shimmer that arose when
+            # hex/binary literals were typed STRING.  Octal (``0o...``)
+            # falls through to STRING because no regex matches it; that
+            # case is not used in the tcllib corpus.
+            pytest.param("set x 0xFF", "x", TclType.INT, id="set-hex-is-int"),
+            pytest.param("set x 0xff", "x", TclType.INT, id="set-hex-lower-is-int"),
             pytest.param("set x 0o15", "x", TclType.STRING, id="set-octal-is-string"),
-            pytest.param("set x 0b1010", "x", TclType.STRING, id="set-binary-is-string"),
+            pytest.param("set x 0b1010", "x", TclType.INT, id="set-binary-is-int"),
             pytest.param("set x 3.14", "x", TclType.DOUBLE, id="double"),
             pytest.param("set x -4.2", "x", TclType.DOUBLE, id="double-negative"),
             pytest.param("set x 2.0e2", "x", TclType.DOUBLE, id="double-sci-notation"),

@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import re
+
+# A single ``$name`` / ``$ns::name`` / ``$arr(idx)`` reference and nothing else.
+# Crucially it must NOT match a *concatenation* of references (``$x$y``,
+# ``$x_$y``, ``$x.foo``): that double-substitutes a composed value, so e.g.
+# ``uplevel 1 $x$y`` is not the safe single-var idiom and must still warn (W301).
+_SINGLE_VAR_REF = re.compile(r"\$[\w:]+(\([^)]*\))?")
+
 
 def _scan_pure_var_ref(text: str, i: int) -> int:
     """Scan one Tcl variable reference starting at *text[i]*.  Returns

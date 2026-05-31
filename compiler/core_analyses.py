@@ -3649,22 +3649,18 @@ def _return_type_for_command(
 def _literal_type(text: str) -> TypeLattice:
     """Infer the intrep type from a literal string value.
 
-    The rule matches ``compiler.expr_types._literal_type_from_text``:
-    plain decimal is INT, hex/octal/binary are STRING (their canonical
-    stringified intrep is the decimal form, not the source spelling --
-    treating them as INT would lose the user-written text identity for
-    downstream comparison / display analysis).
-
-    Note on shimmer: an earlier version of this helper classified
-    ``0xff`` / ``0b1010`` as INT to avoid string->int shimmer FPs on
-    patterns like ``variable initial_n 0x80; incr n``.  That was a
-    workaround for the type-merge edge case; the real fix is to allow
-    STRING (the text spelling) -> INT promotion at the first
-    arithmetic op without flagging it as shimmer.  See the shimmer
-    detector's handling of hex/binary literal seeds.
+    Hex (``0x...``) and binary (``0b...``) literals are typed INT to
+    match the natural Tcl path: ``set n 0x80; incr n`` does a single
+    clean string→int parse and is the canonical idiom in tcllib
+    (cookiejar/idna's ``variable initial_n 0x80; incr n``).  Treating
+    hex/binary as STRING here would fire a per-iteration S101 on that
+    pattern when really the cost is a one-time parse.  The matching
+    EXPR-context classifier in ``compiler/expr_types.py`` agrees.
     """
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
+        return TypeLattice.of(TclType.INT)
+    if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.INT)
     if _FLOAT_RE.fullmatch(stripped):
         return TypeLattice.of(TclType.DOUBLE)

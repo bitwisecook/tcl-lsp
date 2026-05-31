@@ -109,3 +109,7 @@ iso2022.txt
 # inspection.  Not a source artefact and historically tripped CodeQL
 # js/xss on the helper functions it imports from explorer-core.js.
 docs/screenshots/compiler-explorer-debug.html
+
+# Auto-generated VSCode test-fixture workspace config — written by the
+# extension's test runner each time tests execute; not a source artefact.
+editors/vscode/testFixture/.vscode/

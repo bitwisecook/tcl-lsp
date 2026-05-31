@@ -192,7 +192,7 @@ def _check_command_substitution_intent(
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
     loop_def_names: frozenset[str] | None = None,
-    loop_use_expected_types: dict[str, set[TclType]] | None = None,
+    loop_use_targets: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check shimmer warnings for a pre-parsed command substitution intent."""
     if intent.shimmer_pressure <= 0:
@@ -206,7 +206,7 @@ def _check_command_substitution_intent(
         in_loop,
         already_coerced,
         loop_def_names,
-        loop_use_expected_types,
+        loop_use_targets,
     )
 
 
@@ -229,7 +229,7 @@ def _check_args_for_shimmer(
     in_loop: bool,
     already_coerced: set[tuple[str, int, TclType]] | None = None,
     loop_def_names: frozenset[str] | None = None,
-    loop_use_expected_types: dict[str, set[TclType]] | None = None,
+    loop_use_targets: dict[str, set[TclType]] | None = None,
 ) -> list[ShimmerWarning]:
     """Check a command invocation's arguments for type mismatches."""
     warnings: list[ShimmerWarning] = []
@@ -270,31 +270,19 @@ def _check_args_for_shimmer(
         # In-loop classification: a use inside a loop is "per-iteration cost"
         # (S101) ONLY if the variable's intrep can be reset each iteration.
         # If the variable is **loop-invariant** (no def of it inside the loop
-        # body), the runtime intrep converts once at the first iteration and
-        # is cached for the rest — that is S100 (one-time conversion), not
-        # S101 (recurring).  ``loop_def_names`` carries the set of variable
-        # names ever defined inside the enclosing loop's blocks; absence means
-        # invariant.  None means the caller didn't supply the lattice, so we
-        # fall back to the historical pessimistic classification.
-        #
-        # IMPORTANT: the invariant exemption only holds when there's a
-        # SINGLE target intrep across all loop uses of this variable.
-        # If the same loop body has uses expecting DIFFERENT types
-        # (``dict get $data; lindex $data 2``), the converters thrash
-        # the intrep against each other each iteration -- S101 is the
-        # right verdict, not S100.  ``loop_use_expected_types`` is the
-        # per-var set of distinct expected types observed in the loop.
+        # body) AND only ONE distinct target type is requested inside the loop,
+        # the runtime intrep converts once at the first iteration and is cached
+        # for the rest — that is S100 (one-time conversion), not S101.
+        # BUT if the same loop-invariant variable is coerced to ≥2 distinct
+        # target types inside the loop body (e.g. ``dict get $data ...`` AND
+        # ``lindex $data ...``), the intrep oscillates per iteration because
+        # each use re-thunks it — that IS S101 (per-iteration cost) even
+        # though the variable is loop-invariant.
         effective_in_loop = in_loop
-        if (
-            in_loop
-            and loop_def_names is not None
-            and var_name not in loop_def_names
-            and (
-                loop_use_expected_types is None
-                or len(loop_use_expected_types.get(var_name, ())) <= 1
-            )
-        ):
-            effective_in_loop = False  # loop-invariant + single-target → one-time
+        if in_loop and loop_def_names is not None and var_name not in loop_def_names:
+            distinct_targets = loop_use_targets.get(var_name, set()) if loop_use_targets else set()
+            if len(distinct_targets) < 2:
+                effective_in_loop = False  # one-time, not per-iteration
 
         code = "S101" if effective_in_loop else "S100"
         severity = "loop " if effective_in_loop else ""
@@ -413,6 +401,60 @@ def _find_use_site_shimmers(
                     if exp is not None:
                         loop_use_expected.setdefault(nm, set()).add(exp)
 
+    # Loop-invariance lattice for the in-loop classification: a variable used
+    # inside a loop is "per-iteration" (S101) only if its intrep can be reset
+    # each iteration — i.e. SOMETHING in the loop body defines it.  A
+    # loop-invariant variable (no def inside the loop) shimmers once at first
+    # iteration and is cached for the rest, so the right code is S100
+    # (one-time), not S101 (per-iteration).  Build the set of names ever
+    # defined in any loop block — absence means invariant.  Cheap, single
+    # pass; only computed when loops exist.
+    loop_def_names: frozenset[str] = frozenset()
+    if loop_blocks:
+        defs: set[str] = set()
+        for lbn in loop_blocks:
+            sb = ssa.blocks.get(lbn)
+            if sb is None:
+                continue
+            for st in sb.statements:
+                defs.update(st.defs.keys())
+            for phi in sb.phis:
+                defs.add(phi.name)
+        loop_def_names = frozenset(defs)
+
+    # Per-loop target-type oscillation: a loop-invariant var coerced to
+    # ≥2 distinct intrep targets inside the loop body re-thunks each
+    # iteration (S101), not once-and-cached (S100).  Collect per-var the
+    # set of target types requested at any use-site in any loop block.
+    loop_use_targets: dict[str, set[TclType]] = {}
+    if loop_blocks:
+        for lbn in loop_blocks:
+            block = cfg.blocks.get(lbn)
+            if block is None:
+                continue
+            for stmt in block.statements:
+                if isinstance(stmt, IRCall):
+                    for arg_idx, arg_text in enumerate(stmt.args):
+                        stripped = arg_text.strip()
+                        if not stripped.startswith("$"):
+                            continue
+                        var_name = _normalise_var_name(stripped)
+                        expected = _arg_type_for_call(stmt.command, stmt.args, arg_idx)
+                        if expected is not None:
+                            loop_use_targets.setdefault(var_name, set()).add(expected)
+                elif isinstance(stmt, IRAssignValue):
+                    parsed = parse_command_substitution(stmt.value)
+                    if parsed is not None:
+                        cmd_name, cmd_args = parsed
+                        for arg_idx, arg_text in enumerate(cmd_args):
+                            stripped = arg_text.strip()
+                            if not stripped.startswith("$"):
+                                continue
+                            var_name = _normalise_var_name(stripped)
+                            expected = _arg_type_for_call(cmd_name, cmd_args, arg_idx)
+                            if expected is not None:
+                                loop_use_targets.setdefault(var_name, set()).add(expected)
+
     for bn in executable_blocks:
         block = cfg.blocks.get(bn)
         ssa_block = ssa.blocks.get(bn)
@@ -441,7 +483,7 @@ def _find_use_site_shimmers(
                         in_loop,
                         already_coerced,
                         loop_def_names,
-                        loop_use_expected,
+                        loop_use_targets,
                     )
                 )
             elif isinstance(stmt, IRAssignValue):
@@ -457,7 +499,7 @@ def _find_use_site_shimmers(
                             in_loop,
                             already_coerced,
                             loop_def_names,
-                            loop_use_expected,
+                            loop_use_targets,
                         )
                     )
                 else:
@@ -474,7 +516,7 @@ def _find_use_site_shimmers(
                                 in_loop,
                                 already_coerced,
                                 loop_def_names,
-                                loop_use_expected,
+                                loop_use_targets,
                             )
                         )
             elif isinstance(stmt, IRIncr):
