@@ -2653,6 +2653,53 @@ register(
 )
 
 
+register(
+    "FP-SH-08",
+    _Entry(
+        label="==/!= falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)",
+        proc="::f",
+        vars=("s", "y"),
+        show=("ssa", "types"),
+        notes=(
+            "Pre-fix: ``_NUMERIC_OPS`` included ``BinOp.EQ`` and\n"
+            "``BinOp.NE``, so any STRING-typed var compared with == fired\n"
+            "S100.  But Tcl ``==`` only takes the numeric-coercion path\n"
+            "when BOTH operands can parse as numeric -- if either side is\n"
+            "non-numeric text, the operator short-circuits to the string-\n"
+            "compare path and no shimmer happens.\n"
+            "\n"
+            "tclsh 9.0.3 (verified)::\n"
+            "\n"
+            "    % set s hello\n"
+            "    % expr {$s == \"hello\"}\n"
+            "    1                ;# string path, no intrep change\n"
+            "    % set s2 \"5\"\n"
+            "    % expr {$s2 == \"5\"}\n"
+            "    1                ;# numeric path (both parse) -- shimmer\n"
+            "    % expr {$s2 + 0}\n"
+            "    5                ;# always-numeric op -- shimmer\n"
+            "\n"
+            "Post-fix: ``BinOp.EQ`` / ``BinOp.NE`` moved to\n"
+            "``_CONDITIONAL_NUMERIC_OPS``.  The shimmer check fires only\n"
+            "when ``_operand_looks_numeric`` returns True for at least\n"
+            "one operand.  Numeric-looking = ExprLiteral, ExprString\n"
+            "whose text parses as a number, or ExprVar whose SSA type is\n"
+            "INT/DOUBLE/NUMERIC/BOOLEAN, or SCCP CONST that parses as a\n"
+            "number."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                set s [string trim hello]
+                set y [expr {$s == "world"}]
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # STY family (01..08) -- style/usage suppressions
 # ----------------------------------------------------------------------

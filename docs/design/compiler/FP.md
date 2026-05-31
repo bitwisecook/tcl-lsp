@@ -3412,6 +3412,82 @@ Sample impact (six tcllib files): S102 93→30 (−68%).  me_cpucore.tcl: 29→3
 
 ---
 
+### FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_08_*`
+- **Codes:** S100 (use-site shimmer)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-SH-EQ
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    set s [string trim hello]
+    # Both operands are non-numeric text. tclsh takes the STRING-compare
+    # path; no numeric coercion is attempted on $s and no shimmer occurs.
+    set y [expr {$s == "world"}]
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `set s [string trim hello]` — `s` is KNOWN STRING-typed.
+2. `expr {$s == "world"}` — Tcl's `==` semantics: try integer parse on both sides, then double parse on both sides; if BOTH parses succeed go numeric, else fall back to string compare.  ``"hello"`` and ``"world"`` both fail numeric parse, so tclsh short-circuits to string compare — no intrep conversion happens.
+3. Pre-fix `_NUMERIC_OPS` contained `BinOp.EQ`/`BinOp.NE`, so the shimmer collector treated `==`/`!=` as ALWAYS numeric and flagged $s.  That's a false positive — no actual shimmer occurs at runtime.
+4. Post-fix `_CONDITIONAL_NUMERIC_OPS = {EQ, NE}` is checked separately: shimmer fires only when `_operand_looks_numeric` returns True for at least one operand.  Both-non-numeric stays silent.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set s hello
+% expr {$s == "hello"}
+1                       ;# string-compare path; no shimmer
+% set s2 "5"
+% expr {$s2 == "5"}
+1                       ;# numeric path (both parse) -- shimmer
+% expr {$s + 0}
+can't use non-numeric string "hello" as left operand of "+"
+```
+
+#### Compiler evidence
+
+```
+--- FP-SH-08: ==/!= falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)
+regen: python -m bench.fp_snippets --id FP-SH-08
+function ::f
+  block entry_1
+    [0] AssignValue 's' value='[string trim hello]'  defs={s#1}  uses={}
+    [1] AssignExpr 'y'  defs={y#1}  uses={s#1}
+    [2] Call cmd='puts'  defs={}  uses={y#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  types
+    s#1: STRING
+    y#1: BOOLEAN
+```
+(regen: `python -m bench.fp_snippets --id FP-SH-08`)
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py`:
+
+- `_CONDITIONAL_NUMERIC_OPS = frozenset({BinOp.EQ, BinOp.NE})` — partitioned out of `_NUMERIC_OPS`.
+- `_collect_expr_shimmers` checks the conditional set separately: only when `_operand_looks_numeric(left, ...) or _operand_looks_numeric(right, ...)` does the per-operand `_check_operand_shimmer` run.  Otherwise both operands are silently accepted (tclsh's string-compare short-circuit).
+- `_operand_looks_numeric` accepts: `ExprLiteral` (parser-validated numeric), `ExprString` whose stripped text parses as a number/boolean, `ExprVar` whose KNOWN SSA type is INT/DOUBLE/NUMERIC/BOOLEAN, or `ExprVar` whose SCCP CONST value parses as a number.
+- `_find_expr_shimmers` now takes `values=fu.analysis.values` and threads it through.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_08_eq_both_non_numeric_no_shimmer` (FP)
+- `tests/test_fp_sh.py::test_FP_SH_08_eq_with_numeric_literal_still_fires` (TP, `$s == "5"` with $s STRING)
+- `tests/test_fp_sh.py::test_FP_SH_08_add_still_fires` (TP control, `$s + 0` — always numeric)
+
+---
+
 
 ## OBJ — object dispatch (W307/W308) + snit modelling
 

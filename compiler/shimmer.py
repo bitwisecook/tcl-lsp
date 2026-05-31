@@ -33,8 +33,10 @@ from .execution_intent import CommandSubstitutionIntent, FunctionExecutionIntent
 from .expr_ast import (
     BinOp,
     ExprBinary,
+    ExprLiteral,
     ExprNode,
     ExprRaw,
+    ExprString,
     ExprUnary,
     ExprVar,
     UnaryOp,
@@ -1179,7 +1181,8 @@ def _phi_range(cfg: CFGFunction, block, ssa_block) -> Range | None:
     return None
 
 
-# Operators that require numeric operands — STRING → shimmer.
+# Operators that ALWAYS require numeric operands — STRING operand → shimmer
+# (D5-SH-EQ: EQ/NE excluded; see _CONDITIONAL_NUMERIC_OPS below).
 _NUMERIC_OPS = frozenset(
     {
         BinOp.ADD,
@@ -1195,14 +1198,35 @@ _NUMERIC_OPS = frozenset(
         BinOp.BIT_XOR,
         BinOp.AND,
         BinOp.OR,
-        BinOp.EQ,
-        BinOp.NE,
         BinOp.LT,
         BinOp.LE,
         BinOp.GT,
         BinOp.GE,
     }
 )
+
+
+# Operators that are numeric-context ONLY when at least one operand is
+# provably numeric (D5-SH-EQ).  Tcl's ``==``/``!=`` semantics:
+#
+#     if BOTH operands can parse as numeric -> numeric compare
+#     else                                  -> string compare (fall-through)
+#
+# So a STRING-typed var compared with a STRING-typed other (e.g.
+# ``$s == "hello"`` when ``s = "hello"``) does NOT trigger numeric
+# coercion -- no shimmer happens.  But ``$s == "1"`` when ``s`` is
+# string-typed and the other side is numeric-looking text DOES trigger
+# the numeric path on the other operand, and Tcl will attempt to coerce
+# ``$s`` to a number -- a real shimmer.
+#
+# Verified with tclsh 9.0.3::
+#
+#     % set s hello
+#     % expr {$s == "hello"}   ;# 1 -- string path, no shimmer
+#     % set s2 "5"
+#     % expr {$s2 == "5"}      ;# 1 -- numeric path (both parse), promotes s2
+#     % expr {$s2 + 0}         ;# 5  -- always numeric path
+_CONDITIONAL_NUMERIC_OPS = frozenset({BinOp.EQ, BinOp.NE})
 
 # Operators that require string operands — INT/DOUBLE → shimmer.
 _STRING_OPS = frozenset(
@@ -1219,11 +1243,95 @@ _STRING_OPS = frozenset(
 _NUMERIC_UNARY_OPS = frozenset({UnaryOp.NEG, UnaryOp.POS, UnaryOp.BIT_NOT, UnaryOp.NOT})
 
 
+def _operand_looks_numeric(
+    operand: ExprNode,
+    uses: dict[str, SSAVersion],
+    types: dict[SSAValueKey, TypeLattice],
+    values: dict | None,
+) -> bool:
+    """Return True when *operand* is provably numeric-looking (D5-SH-EQ).
+
+    Used to gate the conditional EQ/NE numeric-shimmer check: Tcl ``==``/
+    ``!=`` only takes the numeric-coercion path when at least one side
+    can parse as a number.  When both operands are provably non-numeric
+    (literal text that isn't a number, var whose SCCP CONST is non-
+    numeric), the comparison short-circuits to the string path and no
+    shimmer occurs.
+
+    Recognises:
+        * ExprLiteral (parser-validated int/float/boolean).
+        * ExprString whose stripped text parses as a number.
+        * ExprVar whose KNOWN SSA type is INT/DOUBLE/NUMERIC/BOOLEAN.
+        * ExprVar whose SCCP CONST value parses as a number (or is non-
+          string CONST -- int/float/bool).
+    """
+    if isinstance(operand, ExprLiteral):
+        return True
+    if isinstance(operand, ExprString):
+        return _expr_string_is_numeric(operand.text)
+    if isinstance(operand, ExprVar):
+        ver = uses.get(operand.name, 0)
+        if ver > 0:
+            var_type = types.get((operand.name, ver))
+            if var_type is not None and var_type.kind is TypeKind.KNOWN:
+                if var_type.tcl_type in (
+                    TclType.INT,
+                    TclType.DOUBLE,
+                    TclType.NUMERIC,
+                    TclType.BOOLEAN,
+                ):
+                    return True
+            if values is not None:
+                lv = values.get((operand.name, ver))
+                if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
+                    val = getattr(lv, "value", None)
+                    if isinstance(val, str):
+                        return _expr_string_is_numeric(val)
+                    if val is not None:
+                        # Non-string CONST (int/float/bool) is by definition numeric.
+                        return True
+    return False
+
+
+def _expr_string_is_numeric(text: str) -> bool:
+    """Return True if *text* (an ExprString.text or raw value) parses as
+    an integer, float, or Tcl boolean literal.  Used by the D5-SH-EQ
+    operand classifier.
+    """
+    stripped = text
+    # Strip wrapping braces or quotes that the parser preserved.
+    if len(stripped) >= 2 and (
+        (stripped[0] == "{" and stripped[-1] == "}")
+        or (stripped[0] == '"' and stripped[-1] == '"')
+    ):
+        stripped = stripped[1:-1]
+    stripped = stripped.strip()
+    if not stripped:
+        return False
+    # Try int parse first.
+    try:
+        int(stripped, 0)
+        return True
+    except ValueError:
+        pass
+    # Then float (handles 1.0, 1e3, Inf, NaN per tclsh's accepts).
+    try:
+        float(stripped)
+        return True
+    except ValueError:
+        pass
+    # Boolean words tclsh accepts in numeric coercion.
+    if stripped.lower() in {"true", "false", "yes", "no", "on", "off"}:
+        return True
+    return False
+
+
 def _collect_expr_shimmers(
     node: ExprNode,
     uses: dict[str, SSAVersion],
     types: dict[SSAValueKey, TypeLattice],
     out: list[tuple[str, TclType, TclType]],
+    values: dict | None = None,
 ) -> None:
     """Walk an expression AST and collect (variable, from_type, to_type) shimmer triples."""
     match node:
@@ -1231,17 +1339,27 @@ def _collect_expr_shimmers(
             if op in _NUMERIC_OPS:
                 _check_operand_shimmer(left, uses, types, TclType.NUMERIC, out)
                 _check_operand_shimmer(right, uses, types, TclType.NUMERIC, out)
+            elif op in _CONDITIONAL_NUMERIC_OPS:
+                # D5-SH-EQ: ``==``/``!=`` only triggers numeric coercion
+                # when at least one operand is provably numeric-looking.
+                # Otherwise tclsh short-circuits to the string compare
+                # path and no shimmer occurs.
+                left_numeric = _operand_looks_numeric(left, uses, types, values)
+                right_numeric = _operand_looks_numeric(right, uses, types, values)
+                if left_numeric or right_numeric:
+                    _check_operand_shimmer(left, uses, types, TclType.NUMERIC, out)
+                    _check_operand_shimmer(right, uses, types, TclType.NUMERIC, out)
             elif op in _STRING_OPS:
                 _check_operand_shimmer(left, uses, types, TclType.STRING, out)
                 _check_operand_shimmer(right, uses, types, TclType.STRING, out)
             # Recurse into sub-expressions.
-            _collect_expr_shimmers(left, uses, types, out)
-            _collect_expr_shimmers(right, uses, types, out)
+            _collect_expr_shimmers(left, uses, types, out, values)
+            _collect_expr_shimmers(right, uses, types, out, values)
 
         case ExprUnary(op=op, operand=operand):
             if op in _NUMERIC_UNARY_OPS:
                 _check_operand_shimmer(operand, uses, types, TclType.NUMERIC, out)
-            _collect_expr_shimmers(operand, uses, types, out)
+            _collect_expr_shimmers(operand, uses, types, out, values)
 
         case _:
             pass  # Atoms, calls, ternary, raw — no operator shimmer check
@@ -1282,6 +1400,7 @@ def _find_expr_shimmers(
     types: dict[SSAValueKey, TypeLattice],
     executable_blocks: set[str],
     loop_blocks: set[str],
+    values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> list[ShimmerWarning]:
     """Find expression-level shimmers where operator expects incompatible operand type."""
     warnings: list[ShimmerWarning] = []
@@ -1304,7 +1423,7 @@ def _find_expr_shimmers(
                 continue
 
             shimmer_triples: list[tuple[str, TclType, TclType]] = []
-            _collect_expr_shimmers(stmt.expr, ssa_stmt.uses, types, shimmer_triples)
+            _collect_expr_shimmers(stmt.expr, ssa_stmt.uses, types, shimmer_triples, values)
 
             # Deduplicate by variable name (report each variable once per statement).
             seen_vars: set[str] = set()
@@ -1387,6 +1506,7 @@ def find_shimmer_warnings(
                 fu.analysis.types,
                 executable,
                 loops,
+                fu.analysis.values,
             )
         )
         all_warnings.extend(

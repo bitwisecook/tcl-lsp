@@ -257,3 +257,51 @@ def test_FP_SH_06_real_oscillation_within_one_loop_still_fires():
     )
     codes = {d.code for d in get_diagnostics(src)}
     assert codes & {"S101", "S102"}, f"real intra-loop oscillation must still fire; got {codes}"
+
+
+# FP-SH-08 — ``==``/``!=`` falsely flagged as numeric shimmer when both
+# operands are provably non-numeric (D5-SH-EQ).
+
+
+def test_FP_SH_08_eq_both_non_numeric_no_shimmer():
+    """FP: ``expr {$s == "hello"}`` with ``s = "hello"`` -- both operands
+    are non-numeric text.  tclsh takes the STRING compare path (no
+    coercion attempt), so no shimmer occurs.
+
+    tclsh 9.0.3::
+
+        % set s hello
+        % expr {$s == "hello"}
+        1
+        % # Both operands non-numeric -> string path -- no intrep change.
+
+    Pre-fix S100 fired because ``==`` was in ``_NUMERIC_OPS``.  Post-fix
+    it sits in ``_CONDITIONAL_NUMERIC_OPS`` and the predicate requires
+    at least one operand to be provably numeric-looking.
+    """
+    src = "proc f {} { set s [string trim hello]; set y [expr {$s == \"world\"}]; puts $y }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" not in codes and "S101" not in codes, (
+        f"both-non-numeric == must not fire shimmer; got {codes}"
+    )
+
+
+def test_FP_SH_08_eq_with_numeric_literal_still_fires():
+    """TP control: ``expr {$s == "5"}`` with ``s`` STRING-typed -- the
+    other operand parses as numeric, so tclsh attempts the numeric path
+    and coerces $s.  Genuine shimmer."""
+    src = "proc f {} { set s [string trim hello]; set y [expr {$s == \"5\"}]; puts $y }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" in codes or "S101" in codes, (
+        f"==/numeric-literal mix must still fire shimmer; got {codes}"
+    )
+
+
+def test_FP_SH_08_add_still_fires():
+    """TP control: ``expr {$s + 0}`` always takes numeric path, regardless
+    of operand types.  ADD is in the unconditional ``_NUMERIC_OPS``."""
+    src = "proc f {} { set s [string trim \"5\"]; set y [expr {$s + 0}]; puts $y }"
+    codes = [d.code for d in get_diagnostics(src)]
+    assert "S100" in codes or "S101" in codes, (
+        f"$s + 0 must still fire shimmer; got {codes}"
+    )
