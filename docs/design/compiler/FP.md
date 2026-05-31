@@ -5561,6 +5561,207 @@ variable.  Detect via param name starting + ending with `"`.
 
 ---
 
+### FP-STY-09 — W214 dispatcher needs arity-compatible peer (D3-P9 / D4-F4)
+
+- **Verdict:** TRUE POSITIVE (precision-gap closure) — earlier suppression was over-broad
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_09_*`
+- **Codes:** W214 (unused proc parameter)
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P9, D4-F4
+
+#### Reproducer
+
+```tcl
+namespace eval ::n {
+    proc a {ctx token} { puts $ctx }
+    proc b {ctx token} { puts $ctx }
+    proc c {ctx token} { puts $ctx }
+    proc unrelated {cmd} { $cmd x }
+}
+```
+
+#### Per-line reasoning
+
+1. The three peer procs `a`/`b`/`c` share the signature `(ctx, token)` and each one only reads `ctx`.  Without a dispatch-protocol exemption, `token` is unused -> W214 fires three times.
+2. `proc unrelated {cmd} { $cmd x }` is a one-argument dispatcher (it passes ONE positional arg to `$cmd`).  Pre-fix the W214 suppressor matched on "same-namespace dispatcher exists" regardless of arity, so the presence of `unrelated` would silence all three W214s.
+3. But a 1-arg dispatcher CANNOT be calling a 2-arg peer family — the arity is incompatible.  No call site in the corpus would actually invoke `a`/`b`/`c` via `unrelated`.
+4. Closure: `var_command_sites` now records the positional arg count of each variable-command dispatch, and the protocol-match heuristic requires `dispatcher_arity >= peer_arity`.  `unrelated`'s 1-arg dispatch no longer counts toward the 2-arg peer family, so `W214` correctly fires three times on `token`.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+The peers ignore `token` at runtime — no error — but the diagnostic is a code-smell: nothing in the program calls `a`/`b`/`c` with a `(ctx, token)` shape.
+
+#### Compiler evidence
+
+```
+--- FP-STY-09: W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)
+regen: python -m bench.fp_snippets --id FP-STY-09
+function ::n::a
+  block entry_1
+    [0] Call cmd='puts'  defs={}  uses={ctx#0}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-STY-09`)
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_param.py` — the W214 dispatcher-protocol suppression now compares dispatcher arity (from `var_command_sites`, populated with each site's positional arg count) to peer arity.  Sites with `dispatcher_arity < peer_arity` are filtered out before the "≥1 compatible dispatcher" check; a peer family with no surviving dispatcher gets no suppression and W214 fires on each member's unused params.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_09_arity_incompatible_dispatcher_does_not_suppress` (TP — W214 fires 3x on `token`)
+- `tests/test_fp_sty.py::test_FP_STY_09_arity_compatible_dispatcher_suppresses` (TN control — 2-arg dispatcher correctly suppresses)
+- `tests/test_ground_truth_tn_fn.py::test_TP_W307_unrelated_dispatcher_does_not_suppress_peer_family` (audit pair; test name says W307 but asserts on W214 — read the body)
+- `tests/test_ground_truth_tn_fn.py::test_TN_W307_protocol_compatible_dispatcher_suppresses_peer_family` (audit pair)
+
+---
+
+### FP-STY-10 — `scan_provably_no_match` soundness: `%n` always succeeds, `Inf` / format whitespace (D4-F1)
+
+- **Verdict:** FALSE POSITIVE (now fixed; four sub-fixes)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_10_*`
+- **Codes:** W210 (read-before-set) — fires on scan output vars when the scan provably can't consume input
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F1
+
+#### Reproducer
+
+```tcl
+proc f {} { scan {} %n n; puts $n }
+```
+
+#### Per-line reasoning
+
+1. `scan {} %n n` — the format directive `%n` writes "the number of characters consumed so far" to its var-arg WITHOUT consuming any input.  On empty input it sets `n` to `0` and succeeds; this is documented Tcl behaviour (see `Tcl_ScanObjCmd`).
+2. `puts $n` — reads `n`.  Since `%n` always succeeds and writes the var, the read is safe; W210 must NOT fire.
+3. Pre-fix `scan_provably_no_match` treated `%n` like any other directive: if the input couldn't satisfy a preceding directive, the format was deemed unable to match and the output var was treated as unset.  The new code maps `%n` to a special `"always"` kind that short-circuits the no-match check (the var is always written).
+
+The same soundness sweep covered three other gaps:
+
+- `%f` now accepts `Inf`/`Infinity`/`NaN` as well as ordinary decimals (per `Tcl_GetDouble`).
+- Format-whitespace now includes `\r\f\v` in addition to space/tab/newline.
+- The analyser sees the *raw* (pre-escape) source text, so a backslash, `$`, or `[` in the input string could hide content that tclsh would resolve at runtime — the function now conservatively bails on those forms.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% scan "" %n n; puts $n
+0
+% scan Inf %f f; puts $f
+inf
+% scan { 123} "\r%d" n; puts $n
+123
+```
+
+All three succeed; pre-fix the analyser fired W210 on each.
+
+#### Compiler evidence
+
+```
+--- FP-STY-10: scan_provably_no_match soundness: %n / Inf / format whitespace (D4-F1)
+regen: python -m bench.fp_snippets --id FP-STY-10
+function ::f
+  block entry_1
+    [0] Call cmd='scan'  defs={n#1}  uses={}
+    [1] Call cmd='puts'  defs={}  uses={n#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+(regen: `python -m bench.fp_snippets --id FP-STY-10`)
+
+#### Why the analyser reaches that verdict
+
+`compiler/scan_format.py:193` — `scan_provably_no_match`.  The directive-kind table maps `%n` to `"always"` (line ~70-80), which causes the predicate to short-circuit to `False` (i.e. the scan CAN match, so we cannot prove no-match) — output vars are recorded as defined.  The float-kind acceptance set now includes `Inf`/`Infinity`/`NaN`; the whitespace set includes `\r\f\v`; and any `\\`/`$`/`[` in the raw input string triggers a conservative bail.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_10_scan_percent_n_on_empty_input_silent` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_10_scan_float_accepts_inf_silent` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_10_scan_format_whitespace_cr_silent` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_10_scan_genuine_no_match_still_fires` (TP control)
+- `tests/test_ground_truth_tn_fn.py::test_TN_scan_percent_n_on_empty_input`
+- `tests/test_ground_truth_tn_fn.py::test_TN_scan_float_accepts_inf`
+- `tests/test_ground_truth_tn_fn.py::test_TN_scan_format_whitespace_includes_cr_ff_vt`
+- `tests/test_ground_truth_tn_fn.py::test_TP_scan_genuine_no_match_still_fires`
+
+---
+
+### FP-STY-11 — variadic var-write resolver for `scan` / `lassign` / `binary scan` (D4-F2)
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_11_*`
+- **Codes:** W210 (read-before-set) on variadic var-args past slot 18
+- **Corpus:** synthetic — verified vs tclsh 9.0.3
+- **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F2
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    scan {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19} {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 v16 v17 v18 v19
+    return $v19
+}
+```
+
+#### Per-line reasoning
+
+1. `scan` is variadic in its var-args (one var per `%`-directive in the format).  Tcl scripts in the wild frequently call it with more than ~18 vars (e.g. binary scan parsers, fixed-format protocols).
+2. Pre-fix the spec hard-coded `arg_roles[i]=VAR_WRITE` for slots `[2..19]` only — a finite slot budget.  Var #19 (the 20th positional argument) wasn't recognised as a var-write, so the SSA def for `v19` was missing and the subsequent `return $v19` fired W210.
+3. Closure: each of `scan`, `lassign`, `binary scan` now defines an `arg_role_resolver` callback that takes the actual args list and returns a per-index role map — slot-budget-free.  Vars 19, 100, 1000 all get classified.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set s {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19}
+% scan $s {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} \
+       v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 v16 v17 v18 v19
+20
+% puts $v19
+x19
+```
+
+All 20 vars are defined; reading `v19` succeeds.
+
+#### Compiler evidence
+
+```
+--- FP-STY-11: variadic var-write resolver for scan/lassign/binary scan (D4-F2)
+regen: python -m bench.fp_snippets --id FP-STY-11
+function ::f
+  block entry_1
+    [0] Call cmd='scan'  defs={v0#1, v1#1, v2#1, v3#1, v4#1, v5#1, v6#1, v7#1, v8#1, v9#1, v10#1, v11#1, v12#1, v13#1, v14#1, v15#1, v16#1, v17#1, v18#1, v19#1}  uses={}
+    term Return ${v19}
+  block exit_2
+    term (none — fall-through exit)
+```
+(regen: `python -m bench.fp_snippets --id FP-STY-11`)
+
+Every var from `v0` through `v19` shows up as a def of the `scan` call — the resolver classified all 20 var slots as VAR_WRITE.
+
+#### Why the analyser reaches that verdict
+
+- `dialects/tcl/scan.py:46` — `_scan_arg_roles` walks the actual args list, counts `%`-directives in the format, and emits VAR_WRITE for the trailing var-arg slots.
+- `dialects/tcl/lassign.py:47` — `_lassign_arg_roles` marks all positional args after the list arg as VAR_WRITE.
+- `dialects/tcl/binary.py:105` — inline lambda computes the var-arg slot set from the actual call.
+
+Each is wired through `CommandSpec.arg_role_resolver`, which the registry consults in preference to the static `arg_roles` map.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_11_scan_20_vars_no_false_w210` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_11_lassign_many_vars_no_false_w210` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_11_binary_scan_many_vars_no_false_w210` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_11_scan_fewer_specifiers_than_vars_still_fires` (TP control)
+- `tests/test_ground_truth_tn_fn.py::test_TN_scan_with_more_than_18_vars_no_false_w210`
+- `tests/test_ground_truth_tn_fn.py::test_TN_lassign_with_many_vars_no_false_w210`
+- `tests/test_ground_truth_tn_fn.py::test_TN_binary_scan_with_many_vars_no_false_w210`
+
+---
+
 
 ## Precision gaps (PR #498 deep-review) — ALL CLOSED
 

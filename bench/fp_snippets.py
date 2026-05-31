@@ -2304,6 +2304,94 @@ register(
 )
 
 
+register(
+    "FP-STY-09",
+    _Entry(
+        label="W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)",
+        proc="::n::a",
+        vars=("ctx", "token"),
+        show=("ssa",),
+        notes=(
+            "Pre-fix any ``$cmd …`` dispatch in the same namespace as 3+ peer\n"
+            "procs with the same suffix was treated as dispatch-protocol\n"
+            "evidence and suppressed W214 on the peers' unused params.  But a\n"
+            "1-arg ``$cmd x`` dispatcher cannot be calling a 2-arg ``(ctx, token)``\n"
+            "peer family -- the arities don't match.  Closure: var_command_sites\n"
+            "now records positional arg count, and the protocol-match heuristic\n"
+            "requires arity-compatible dispatcher (dispatcher arity >= peer arity).\n"
+            "W214 on ``token`` in a/b/c now fires.  See analyser/checks/_param.py."
+        ),
+        source=_dedent(
+            """
+            namespace eval ::n {
+                proc a {ctx token} { puts $ctx }
+                proc b {ctx token} { puts $ctx }
+                proc c {ctx token} { puts $ctx }
+                proc unrelated {cmd} { $cmd x }
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-10",
+    _Entry(
+        label="scan_provably_no_match soundness: %n / Inf / format whitespace (D4-F1)",
+        proc="::f",
+        vars=("n",),
+        show=("ssa", "rbs"),
+        notes=(
+            "scan_provably_no_match (compiler/scan_format.py) is the predicate\n"
+            "behind W210 firings on scan output vars: when scan provably can't\n"
+            "consume input, the output is unset and the post-scan read is W210.\n"
+            "Pre-fix it had three soundness gaps -- (a) ``%n`` always succeeds\n"
+            "(writes the count of consumed chars without consuming any input);\n"
+            "(b) ``%f`` accepts ``Inf``/``Infinity``/``NaN`` per Tcl_GetDouble;\n"
+            "(c) format whitespace was ``\\t\\n`` only, missing ``\\r\\f\\v``; and\n"
+            "(d) backslash/$/[ in raw source text could hide content.  Closure\n"
+            "maps %n to a new ``always``-match kind, extends the float predicate,\n"
+            "extends the whitespace set, and adds a conservative bail-out on the\n"
+            "backslash/$/[ raw-source forms."
+        ),
+        source=_dedent(
+            """
+            proc f {} { scan {} %n n; puts $n }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-STY-11",
+    _Entry(
+        label="variadic var-write resolver for scan/lassign/binary scan (D4-F2)",
+        proc="::f",
+        vars=("v19",),
+        show=("ssa",),
+        notes=(
+            "Pre-fix scan/lassign/binary-scan specs hard-coded a fixed slot\n"
+            "budget (~18 VarName positions); calls with more variadic var-args\n"
+            "left vars 19+ unclassified as VAR_WRITE, so the subsequent ``return\n"
+            "$v19`` fired W210.  Closure: per-command ``arg_role_resolver``\n"
+            "callbacks compute the variadic var-write slot set dynamically from\n"
+            "the actual args list.  See dialects/tcl/scan.py, dialects/tcl/\n"
+            "lassign.py, dialects/tcl/binary.py (their ``arg_role_resolver``)."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                scan {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19} {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 v16 v17 v18 v19
+                return $v19
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # TNT family (01..02) -- position-aware taint filters
 # ----------------------------------------------------------------------

@@ -28,7 +28,7 @@ Verified against current HEAD in `tests/test_fp_*` + `tests/test_ground_truth_tn
 | D1-4 | regexp/scan output vars need CFG/SSA conditional defs | ✅ FIXED (both reviewer cases) | F2 closure (same-statement dominator walk + embedded-condition F2 extension + scan no-match estimator with D4-F1 conservative bail-out) covers both reviewer examples: `regexp {x} y -> v; if {1} { puts $v }` AND `if {![regexp {x} y -> v]} { puts $v }` both fire W210.  Full CFG branch-sensitive conditional-def model is a deeper architectural refactor (not needed for the reviewer's specific cases). |
 | D1-5 | Python `re` regexp estimator not conservative | ✅ FIXED | commit `569eaf84` (F5 closure: option-aware estimator, conservative bail) |
 | D1-6 | Proc arg traits need caller-frame vs callee-local | ✅ FIXED | DYNAMIC_NAME_LOCAL trait + per-handler integration verified |
-| D1-7 | W214 dispatch-protocol evidence too broad | ✅ FIXED | D4-F4 closure tightens the heuristic to require arity-compatible dispatcher; unrelated 1-arg `$cmd x` no longer suppresses 2-arg peer family. |
+| D1-7 | W214 dispatch-protocol evidence too broad | ✅ FIXED | D4-F4 closure tightens the heuristic to require arity-compatible dispatcher; unrelated 1-arg `$cmd x` no longer suppresses 2-arg peer family. · [FP-STY-09](FP.md#fp-sty-09) |
 | D1-8 | W304 uses lexical last-set scan | ✅ ALREADY FIXED | Earlier follow-up wave |
 | D1-9 | Optimiser regex `\$(\w+)` for var scan | ✅ ALREADY FIXED | Replaced with `VarReferenceScanner` |
 | D1-10 | Place / var-ref command-walking duplicated | ✅ MOSTLY FIXED | The shared services the reviewer called for are already implemented: `compiler.parsing.command_segmenter.segment_commands`, `compiler.registry.runtime.arg_indices_for_role[s]`, `compiler.var_refs.VarReferenceScanner`.  Heavily used in this session's closures (F11/F10/F9/F8/F7).  Remaining work is mechanical migration of legacy regex-based consumers; D4-F8/F9/F10/F11 closures completed that for the worst offenders.  Per-pass duplication that remains (e.g. SSA's pre-uses extraction in `_uses` vs `var_refs.scan_script`) is justified by different consumer needs (SSA needs versioned defs/uses, VarReferenceScanner needs name-set). |
@@ -67,7 +67,7 @@ Tclsh-verified positive/negative pairs.
 | D3-P6 | `[NotAClass new]` external returns string | ✅ FIXED | Via D4-F6 (`new`-subcommand heuristic on bare names removed) |
 | D3-P7 | `array set state {-command notACommand}` non-cmd | ✅ FIXED | New `array set` literal-element harvester feeds SCCP CONST evidence to override the callback-key heuristic |
 | D3-P8 | `dict with d { $cmd hi }` with literal `{cmd notACommand}` | ✅ FIXED | Built on D3-P2 closure: the dict-with key-value-pair harvester in `_emit_var_command_diagnostics` reads the dict_var's SCCP CONST value at v0 and registers each key->value pair in the CONSTSET map.  The W307 check then sees `cmd -> notACommand` and fires (the value isn't a known command). |
-| D3-P9 | W214 unrelated dispatcher suppresses peers | ✅ FIXED | Via D4-F4 (arity-compatible dispatcher requirement) |
+| D3-P9 | W214 unrelated dispatcher suppresses peers | ✅ FIXED | Via D4-F4 (arity-compatible dispatcher requirement) · [FP-STY-09](FP.md#fp-sty-09) |
 
 ---
 
@@ -75,10 +75,10 @@ Tclsh-verified positive/negative pairs.
 
 | ID | Finding | Status | Closure |
 |---|---|---|---|
-| D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | ✅ FIXED | `%n` mapped to new `"always"` kind; float predicate accepts `Inf`/`Infinity`/`NaN`; format-whitespace extended to `\r\f\v`; conservative bail on backslash/$/[ in raw source text (analyser sees pre-escape source) |
-| D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ✅ FIXED | Dynamic `arg_role_resolver` per command -- no more finite slot budget |
+| D4-F1 | `scan_provably_no_match` unsound (`%n`, `Inf`, `\r\f\v` in format) | ✅ FIXED | `%n` mapped to new `"always"` kind; float predicate accepts `Inf`/`Infinity`/`NaN`; format-whitespace extended to `\r\f\v`; conservative bail on backslash/$/[ in raw source text (analyser sees pre-escape source) · [FP-STY-10](FP.md#fp-sty-10) |
+| D4-F2 | Variadic var-writes hard-coded in `scan`/`lassign`/`binary scan` specs | ✅ FIXED | Dynamic `arg_role_resolver` per command -- no more finite slot budget · [FP-STY-11](FP.md#fp-sty-11) |
 | D4-F3 | `dict with` return-path uses blanket suppression (= D3-P1 FN) | ✅ FIXED | Mirrored key-aware logic from statement-use path to the CFGReturn arm of `_read_before_set` |
-| D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ✅ FIXED | Extended var_command_sites to record positional arg count; protocol match now requires arity-compatible dispatcher (1-arg `$cmd x` no longer suppresses 2-arg peer family) |
+| D4-F4 | W214 dispatch-protocol evidence too broad (= D3-P9 FN) | ✅ FIXED | Extended var_command_sites to record positional arg count; protocol match now requires arity-compatible dispatcher (1-arg `$cmd x` no longer suppresses 2-arg peer family) · [FP-STY-09](FP.md#fp-sty-09) |
 | D4-F5 | Cmd-sub-as-command in methods still has blanket W307 (= D3-P3 FN) | ✅ FIXED | Removed blanket `in_method` suppression for cmd-sub-as-command; only `my`/`self` self-dispatch + KNOWN OBJECT return-type now suppress |
 | D4-F6 | Object-factory inference from `::ns::` and `new` spelling (= D3-P5, P6) | 🔄 PARTIAL | `new`-subcommand heuristic removed; `::`-prefix heuristic kept for tcllib corpus compat but downgraded -- user procs with non-object-returning fixpoint result override.  D3-P5 (unknown external `::pkg::plain`) still suppressed pending registry coverage of tcllib factory commands. |
 | D4-F7 | `${ns}::tail` source-offset scan over-fires + misses composed cmds | ✅ FIXED | Composed-name lookup runs unconditionally for namespaced ensembles -- known proc -> override `sccp_says_not_a_command`, all unknown -> set it True, mixed -> conservative |

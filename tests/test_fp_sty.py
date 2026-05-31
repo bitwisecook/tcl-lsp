@@ -254,3 +254,138 @@ def test_FP_STY_08_bare_keyword_param_still_fires():
     src = "proc xyz {as v} { return $v }"
     w214 = [d for d in _codes(src, "W214") if "'as'" in (d.message or "")]
     assert w214, "bare unused 'as' param (no quote marker) must still fire W214"
+
+
+# FP-STY-09 — W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)
+
+
+FP_STY_09_REPRO = """\
+namespace eval ::n {
+    proc a {ctx token} { puts $ctx }
+    proc b {ctx token} { puts $ctx }
+    proc c {ctx token} { puts $ctx }
+    proc unrelated {cmd} { $cmd x }
+}
+"""
+
+
+def test_FP_STY_09_arity_incompatible_dispatcher_does_not_suppress():
+    """TP: a 1-arg ``$cmd x`` dispatcher in the same namespace as 2-arg
+    peers a/b/c is NOT evidence for the peer protocol -- the arities
+    don't match.  W214 must still fire 3 times on ``token``.
+
+    Locks in the D4-F4 closure: ``var_command_sites`` records each
+    dispatch's positional arg count, and the protocol-match heuristic
+    filters out arity-incompatible dispatchers before the
+    "≥1 compatible dispatcher" check (analyser/checks/_param.py)."""
+    diags = [d for d in get_diagnostics(FP_STY_09_REPRO) if d.code == "W214" and "'token'" in (d.message or "")]
+    assert len(diags) == 3, (
+        "W214 must fire on 'token' in all three peers (a/b/c); the 1-arg "
+        f"unrelated dispatcher is arity-incompatible.  Got {len(diags)}: {diags}"
+    )
+
+
+def test_FP_STY_09_arity_compatible_dispatcher_suppresses():
+    """TN control: when a same-namespace dispatcher's arity matches the
+    peer signature (2-arg ``$cmd $ctx $token``), the protocol-match
+    heuristic correctly applies and W214 stays silent."""
+    src = """\
+namespace eval ::n {
+    proc a {ctx token} { puts $ctx }
+    proc b {ctx token} { puts $ctx }
+    proc c {ctx token} { puts $ctx }
+    proc dispatch {cmd ctx token} { $cmd $ctx $token }
+}
+"""
+    diags = [d for d in get_diagnostics(src) if d.code == "W214" and "'token'" in (d.message or "")]
+    assert not diags, (
+        f"2-arg dispatcher must suppress 2-arg peer family W214; got {diags}"
+    )
+
+
+# FP-STY-10 — scan_provably_no_match soundness (%n / Inf / format whitespace, D4-F1)
+
+
+FP_STY_10_REPRO = """proc f {} { scan {} %n n; puts $n }\n"""
+
+
+def test_FP_STY_10_scan_percent_n_on_empty_input_silent():
+    """FP: ``scan "" %n n`` ALWAYS succeeds (writes the count of
+    consumed characters with no input required); reading ``$n`` after
+    must NOT fire W210.  Locks the D4-F1 closure: %n maps to the new
+    ``always``-match directive kind in compiler/scan_format.py."""
+    assert _codes(FP_STY_10_REPRO, "W210") == []
+
+
+def test_FP_STY_10_scan_float_accepts_inf_silent():
+    """FP: ``scan Inf %f f`` succeeds in tclsh (Tcl_GetDouble accepts
+    ``Inf``/``Infinity``/``NaN``).  Closure extends the float-kind
+    no-match predicate to accept those tokens."""
+    src = "proc f {} { scan Inf %f f; puts $f }\n"
+    assert _codes(src, "W210") == []
+
+
+def test_FP_STY_10_scan_format_whitespace_cr_silent():
+    """FP: format ``\\r`` is whitespace that skips input whitespace;
+    ``scan " 123" "\\r%d" n`` parses 123 successfully.  Closure
+    extends the format-whitespace set to include ``\\r\\f\\v``."""
+    src = 'proc f {} { scan { 123} "\\r%d" n; puts $n }\n'
+    assert _codes(src, "W210") == []
+
+
+def test_FP_STY_10_scan_genuine_no_match_still_fires():
+    """TP control: a real provable no-match (``scan abc %d n``) must
+    still fire W210 -- confirms the soundness sweep didn't disable
+    the predicate entirely."""
+    src = "proc f {} { scan abc %d n; puts $n }\n"
+    assert _codes(src, "W210"), "real provable no-match (abc vs %d) must still fire W210"
+
+
+# FP-STY-11 — variadic var-write resolver for scan / lassign / binary scan (D4-F2)
+
+
+FP_STY_11_REPRO = """\
+proc f {} {
+    scan {x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19} {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 v16 v17 v18 v19
+    return $v19
+}
+"""
+
+
+def test_FP_STY_11_scan_20_vars_no_false_w210():
+    """FP: pre-fix the scan spec hard-coded VAR_WRITE for slots [2..19]
+    only; the 20th var (v19) wasn't recognised and the subsequent
+    ``return $v19`` falsely fired W210.  D4-F2 closure adds the dynamic
+    ``arg_role_resolver`` callback (dialects/tcl/scan.py:46) which
+    walks the actual args list, slot-budget-free."""
+    assert _codes(FP_STY_11_REPRO, "W210") == [], (
+        "scan with 20 vars must not false-fire W210 on v18/v19"
+    )
+
+
+def test_FP_STY_11_lassign_many_vars_no_false_w210():
+    """FP: same fix for ``lassign`` (dialects/tcl/lassign.py:47).  All
+    positional args after the list arg classified VAR_WRITE."""
+    src = (
+        "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n"
+    )
+    assert _codes(src, "W210") == []
+
+
+def test_FP_STY_11_binary_scan_many_vars_no_false_w210():
+    """FP: same fix for ``binary scan`` (dialects/tcl/binary.py:105)."""
+    src = (
+        "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n"
+    )
+    assert _codes(src, "W210") == []
+
+
+def test_FP_STY_11_scan_fewer_specifiers_than_vars_still_fires():
+    """TP control: when scan has fewer ``%``-directives than var slots
+    (only %s in the format but two var-args), the second var IS
+    provably unset and the read must fire W210.  Confirms the new
+    resolver doesn't blanket-mark every trailing arg as defined."""
+    src = "proc f {} { scan abc %s v1; return $v2 }\n"
+    assert _codes(src, "W210"), (
+        "scan with one %s but a ``return $v2`` must fire W210 on v2 (never written)"
+    )
