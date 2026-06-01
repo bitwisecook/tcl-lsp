@@ -653,8 +653,10 @@ def _run_irule_pgo(args: argparse.Namespace) -> int:
     shared_profile: ProfileData | None = None
     if args.profile:
         try:
-            log_text = sys.stdin.read() if args.profile == "-" else Path(args.profile).read_text(
-                encoding="utf-8"
+            log_text = (
+                sys.stdin.read()
+                if args.profile == "-"
+                else Path(args.profile).read_text(encoding="utf-8")
             )
         except OSError as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -685,8 +687,7 @@ def _run_irule_pgo(args: argparse.Namespace) -> int:
 
     if args.apply:
         transformed = [
-            _apply_pgo_suggestions(entry.source, suggestions)
-            for entry, suggestions, _ in results
+            _apply_pgo_suggestions(entry.source, suggestions) for entry, suggestions, _ in results
         ]
         return _write_iRule_outputs(
             args=args,

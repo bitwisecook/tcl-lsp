@@ -159,7 +159,9 @@ def _subject_key(node: _Subject) -> str:
 def _const_value(node: _Const) -> str:
     """The constant's value text, stripped of one layer of quotes/braces."""
     text = node.text
-    if len(text) >= 2 and ((text[0] == '"' and text[-1] == '"') or (text[0] == "{" and text[-1] == "}")):
+    if len(text) >= 2 and (
+        (text[0] == '"' and text[-1] == '"') or (text[0] == "{" and text[-1] == "}")
+    ):
         return text[1:-1]
     return text
 

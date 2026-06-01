@@ -56,9 +56,7 @@ def generate_occurrence_log(
     Returns an empty string if the test framework backend is unavailable.
     """
     try:
-        session_cm = IruleTestSessionSync(
-            profiles=profiles or ["TCP", "HTTP"], backend=backend
-        )
+        session_cm = IruleTestSessionSync(profiles=profiles or ["TCP", "HTTP"], backend=backend)
     except Exception:
         return ""
     try:
@@ -83,7 +81,5 @@ def generate_profile(
     backend: str = "auto",
 ) -> ProfileData:
     """Run *irule_source* against *stimuli* and return aggregated profile data."""
-    log = generate_occurrence_log(
-        irule_source, stimuli, profiles=profiles, backend=backend
-    )
+    log = generate_occurrence_log(irule_source, stimuli, profiles=profiles, backend=backend)
     return ProfileData.from_occurrences(parse_f5_occurrences(log), source="test-gen")

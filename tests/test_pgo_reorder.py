@@ -43,7 +43,7 @@ def test_precise_line_profile_reorders_hottest_first() -> None:
 
     rewritten = _apply(DISPATCH, sugs)
     # Hottest branch tested first, original first branch demoted to last.
-    first_if = rewritten.index('if {[IP::remote_addr]')
+    first_if = rewritten.index("if {[IP::remote_addr]")
     assert rewritten[first_if:].startswith('if {[IP::remote_addr] eq "10.0.0.2"}')
     # Order of the three constants in the rewrite reflects the weights.
     order = [rewritten.index(f'"10.0.0.{n}"') for n in (2, 3, 1)]
@@ -171,7 +171,7 @@ when HTTP_REQUEST {
 
 def test_coarse_command_attribution_ranks_distinct_commands() -> None:
     src = (
-        'when HTTP_REQUEST {\n'
+        "when HTTP_REQUEST {\n"
         '    if {$x eq "a"} { log local0. hit }'
         ' elseif {$x eq "b"} { HTTP::redirect http://x }\n'
         "}\n"

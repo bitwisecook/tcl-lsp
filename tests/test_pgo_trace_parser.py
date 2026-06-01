@@ -126,4 +126,3 @@ def test_multi_tmm_timing_paired_per_flow() -> None:
     )
     prof = parse_f5_log(log)
     assert prof.command_time_us == {"table": 105}
-
