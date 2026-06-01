@@ -38,8 +38,15 @@ class TestRenderView:
             out = _capture(view)
             assert out.strip(), f"view {view} produced no output"
 
-    def test_unknown_view_is_silent(self):
-        assert _capture("does-not-exist") == ""
+    def test_unknown_view_raises(self):
+        # ``render_view`` now errors loudly on a view it has no renderer
+        # for — the dataflow silent-no-op bug used to hide this.  A
+        # typo in ``--show`` is normally caught earlier (argparse) but
+        # the dispatcher belt-and-braces.
+        import pytest
+
+        with pytest.raises(ValueError, match="no renderer for view"):
+            _capture("does-not-exist")
 
 
 class TestJsonMode:

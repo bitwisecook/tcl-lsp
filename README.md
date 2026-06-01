@@ -2035,11 +2035,11 @@ Run `make help` to see all targets:
 | `make format-py` | Format and auto-fix Python code with Ruff |
 | `make npm-env` | Install/update npm dependencies |
 | `make compile` | Compile the TypeScript extension |
-| `make zipapps` | Build all zipapps (Tcl, CLI, GUI, GUI-CDN, LSP, AI, MCP, WASM) |
+| `make zipapps` | Build all zipapps (Tcl, explorer-cli, explorer-gui, explorer-gui-cdn, LSP, AI, MCP, WASM) |
 | `make zipapp-tcl` | Build the unified Tcl tools zipapp |
-| `make zipapp-cli` | Build the CLI compiler explorer zipapp |
-| `make zipapp-gui` | Build the standalone GUI zipapp (bundles Pyodide) |
-| `make zipapp-gui-cdn` | Build the CDN GUI zipapp (loads Pyodide from CDN) |
+| `make zipapp-explorer-cli` | Build the compiler-explorer CLI zipapp |
+| `make zipapp-explorer-gui` | Build the standalone explorer GUI zipapp (bundles Pyodide) |
+| `make zipapp-explorer-gui-cdn` | Build the CDN explorer GUI zipapp (loads Pyodide from CDN) |
 | `make zipapp-lsp` | Build the LSP server zipapp |
 | `make zipapp-ai` | Build the AI analysis zipapp |
 | `make zipapp-mcp` | Build the MCP server zipapp |

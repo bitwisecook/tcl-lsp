@@ -365,7 +365,10 @@ function renderTaint() {
   if(hasWarnings){
     html+='<div class="section-header">Warnings</div>';
     for(var w of data.taintWarnings){
-      var severity=w.code.startsWith('T1')||w.code.includes('3001')||w.code.includes('3002')||w.code.includes('3003')||w.code.includes('3004')?'danger':'warn';
+      // ``severity`` is set by the backend (tooling/explorer/annotations.taint_severity);
+      // the renderer just maps it to a CSS class.  Falls back to "warning"
+      // when the backend didn't classify (older payloads / unit tests).
+      var severity = w.severity || 'warning';
       html+='<div class="taint-item taint-'+severity+'"'+sourceRangeAttrs(w.range)+'><span class="taint-code">'+esc(w.code)+'</span> '+esc(w.message)+' ';
       if(w.variable)html+='<span style="color:var(--orange)">'+esc(w.variable)+'</span> ';
       if(w.sinkCommand)html+='<span style="color:var(--red)">\u2192 '+esc(w.sinkCommand)+'</span> ';
@@ -466,23 +469,36 @@ function renderDataFlow() {
 }
 
 // Source callouts
+//
+// The backend pre-groups annotations by source line (data.annotationsByLine,
+// see tooling/cli/serialise._group_annotations_by_line); we just iterate
+// the source lines and look up which annotation indices apply.  No
+// client-side line indexing, no source parsing.
 function renderCallouts() {
   var pane=$('#pane-callouts');
   if(!data.annotations.length){pane.innerHTML='<div class="empty-state">No annotations</div>';return;}
   var source=getSource();var lines=source.split('\n');
-  var lineStarts=[0];for(var i=0;i<source.length;i++){if(source[i]==='\n')lineStarts.push(i+1);}
-  function offsetToLine(offset){var lo=0,hi=lineStarts.length-1;while(lo<hi){var mid=(lo+hi+1)>>1;if(lineStarts[mid]<=offset)lo=mid;else hi=mid-1;}return lo;}
-  var annotsByLine={};
-  for(var ann of data.annotations){var line=offsetToLine(ann.range.startOffset);if(!annotsByLine[line])annotsByLine[line]=[];annotsByLine[line].push(ann);}
+  // Per-line lineStart array — recomputed locally because the marker
+  // arithmetic needs offset → column, which is presentation, not data.
+  var lineStarts=[0];
+  for(var i=0;i<source.length;i++){if(source[i]==='\n')lineStarts.push(i+1);}
+  var byLine = data.annotationsByLine || {};
   var html='';var gutterWidth=String(lines.length).length;
   for(var i=0;i<lines.length;i++){
     html+='<div class="callout-line"><span class="gutter">'+String(i+1).padStart(gutterWidth)+'</span><span class="code-text">'+esc(lines[i])+'</span></div>';
-    if(annotsByLine[i]){for(var ann of annotsByLine[i]){
+    var indices = byLine[String(i)];
+    if (!indices) continue;
+    for (var idx of indices) {
+      var ann = data.annotations[idx];
       var lineStart=lineStarts[i];var startCol=Math.max(0,ann.range.startOffset-lineStart);var endCol=Math.max(startCol,ann.range.endOffset-lineStart);
       var marker=' '.repeat(startCol)+'^'+'-'.repeat(Math.max(0,endCol-startCol));
       var arrow=' '.repeat(startCol)+'+--> '+ann.label;
-      html+='<div class="callout-annotation kind-'+ann.kind+'"'+sourceRangeAttrs(ann.range)+'>'+esc(marker)+'\n'+esc(arrow)+'</div>';
-    }}
+      // Both ``kind`` (source) and ``severity`` (classification) drive
+      // CSS — kind colours the per-source visual identity, severity
+      // gives danger/warn/info a consistent treatment across panes.
+      var sevClass = ann.severity ? (' severity-' + ann.severity) : '';
+      html+='<div class="callout-annotation kind-'+ann.kind+sevClass+'"'+sourceRangeAttrs(ann.range)+'>'+esc(marker)+'\n'+esc(arrow)+'</div>';
+    }
   }
   pane.innerHTML=html;setupHoverHighlighting(pane);
 }
@@ -613,7 +629,12 @@ function renderDisasmFunction(entry, kind) {
     }
     html += '</details>';
   }
-  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '">';
+  // Edges are pre-laid-out by the backend (cfg_layout.assign_lanes via
+  // tooling/cli/serialise._wasm_edges_with_lanes).  Stash the list on
+  // the container so drawWasmEdges renders the lanes the backend
+  // assigned — no client-side computation.
+  var edgesJson = entry.edges ? JSON.stringify(entry.edges) : '[]';
+  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '" data-edges="' + esc(edgesJson) + '">';
   var source = getSource();
   var prevRangeKey = null;
   for (var ins of (entry.instructions || [])) {
@@ -882,38 +903,38 @@ function navigateToWasmInstruction(funcEl, targetIdx) {
 }
 
 // Draw orthogonal control-flow arrows in the gutter of each function.
+//
+// Edges (and their lane assignments) come from the backend via the
+// container's ``data-edges`` attribute — set by renderDisasmFunction
+// from ``entry.edges`` (tooling/cli/serialise._wasm_edges_with_lanes).
+// The renderer just maps idx → DOM element and lets drawOrthogonalEdges
+// paint the lanes.  No client-side branch-target scanning or layout.
 function drawWasmEdges(container) {
   var instrs = Array.from(container.querySelectorAll('.wasm-instr'));
   if (!instrs.length) return;
   var byIdx = {};
   for (var el of instrs) byIdx[el.dataset.idx] = el;
+  var rawEdges = [];
+  try {
+    rawEdges = JSON.parse(container.dataset.edges || '[]');
+  } catch (_) {
+    rawEdges = [];
+  }
   var edges = [];
-  for (var el of instrs) {
-    // One row can carry multiple branch targets — a ``jumpTable``
-    // instruction in Tcl ASM renders one ``.wasm-branch-target``
-    // span per ``pattern->label`` pair, plus potentially a fallback
-    // target.  Emit one edge per target so every arm in a switch
-    // dispatch shows up in the gutter.  ``querySelector`` (which we
-    // previously used) only caught the first span.
-    var bts = el.querySelectorAll('.wasm-branch-target');
-    if (!bts.length) continue;
-    var fromIdx = el.dataset.idx;
-    var fromPos = parseInt(fromIdx);
-    for (var bt of bts) {
-      var toIdxStr = bt.dataset.branchTargetIdx;
-      if (!toIdxStr) continue;
-      var tgt = byIdx[toIdxStr];
-      if (!tgt) continue;
-      edges.push({
-        from: el,
-        to: tgt,
-        fromId: fromIdx,
-        toId: toIdxStr,
-        fromPos: fromPos,
-        toPos: parseInt(toIdxStr),
-        kind: parseInt(toIdxStr) >= fromPos ? 'forward' : 'back',
-      });
-    }
+  for (var e of rawEdges) {
+    var fromEl = byIdx[String(e.fromIdx)];
+    var toEl = byIdx[String(e.toIdx)];
+    if (!fromEl || !toEl) continue;
+    edges.push({
+      from: fromEl,
+      to: toEl,
+      fromId: String(e.fromIdx),
+      toId: String(e.toIdx),
+      fromPos: e.fromIdx,
+      toPos: e.toIdx,
+      kind: e.kind,
+      lane: e.lane,
+    });
   }
   drawOrthogonalEdges(container, edges, {
     svgClass: 'wasm-edges-svg',
@@ -995,31 +1016,12 @@ function drawOrthogonalEdges(container, edges, options) {
   }
   if (!edges.length) return null;
 
-  // Lane assignment: shortest span first → innermost lane.  Skipped when the
-  // caller supplies precomputed lanes (CFG edges carry lanes from the shared
-  // cfg_layout model); WASM and opt-diff edges still assign here.  Kept
-  // byte-identical to cfg_layout.assign_lanes so both paths agree.
-  if (edges.some(function(e) { return e.lane == null; })) {
-    var sorted = edges.slice().sort(function(a, b) {
-      return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos);
-    });
-    var assigned = [];
-    for (var edge of sorted) {
-      var lane = 0;
-      while (true) {
-        var clash = false;
-        for (var other of assigned) {
-          if (other.lane !== lane) continue;
-          var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
-          var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
-          if (!(a2 < b1 || a1 > b2)) { clash = true; break; }
-        }
-        if (!clash) break;
-        lane++;
-      }
-      edge.lane = lane;
-      assigned.push(edge);
-    }
+  // Lanes always come from the backend — CFG edges carry lanes from
+  // ``cfg_layout.build_cfg_edges``, WASM edges from the WASM serialiser
+  // (``_wasm_edges_with_lanes``), and opt-diff brackets are all
+  // single-point spans (lane 0).  Renderer never recomputes layout.
+  for (var edge of edges) {
+    if (edge.lane == null) edge.lane = 0;
   }
 
   var rect = container.getBoundingClientRect();
