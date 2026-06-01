@@ -3736,13 +3736,16 @@ def _infer_return_type(
     executable_blocks: set[str],
     known_classes: frozenset[str],
     namespace: str,
+    types_map: dict[SSAValueKey, TypeLattice],
 ) -> TypeLattice | None:
     """Join the inferred type of every ``CFGReturn`` terminator.
 
     Returns ``None`` when the function has no executable returns (e.g. an
     infinite loop, or a top-level script whose terminator is ``CFGGoto``).
-    Var-typed expressions fall back to operator-implied types since SSA
-    reaching defs at terminators are not tracked.
+    For ``return $x``, joins the lattice types of every known version of
+    ``x`` in ``types_map`` (SSA reaching defs at terminators aren't
+    tracked, but joining all versions is a sound over-approximation --
+    if every path defines ``x`` as numeric, the joined type is numeric).
     """
     from compiler.expr_types import infer_expr_type
 
@@ -3760,7 +3763,14 @@ def _infer_return_type(
         else:
             stripped = term.value.strip()
             if is_pure_var_ref(stripped):
-                t = _TYPE_UNKNOWN
+                name = _normalise_var_name(stripped)
+                versions = [tl for (n, _v), tl in types_map.items() if n == name]
+                if not versions:
+                    t = _TYPE_UNKNOWN
+                else:
+                    t = versions[0]
+                    for vt in versions[1:]:
+                        t = type_join(t, vt)
             elif stripped.startswith("[") and stripped.endswith("]"):
                 cmd_text = stripped[1:-1].strip()
                 parts = cmd_text.split(None, 1)
@@ -3926,7 +3936,9 @@ def analyse_function(
     )
 
     return_namespace = _normalise_qualified_name(cfg.name).rsplit("::", 1)[0] or "::"
-    return_type = _infer_return_type(cfg, executable_blocks, known_classes, return_namespace)
+    return_type = _infer_return_type(
+        cfg, executable_blocks, known_classes, return_namespace, inferred_types
+    )
 
     from .rendered_properties import rendered_properties_propagation
 
