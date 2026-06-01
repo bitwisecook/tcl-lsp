@@ -202,10 +202,12 @@ def add_irule_subparser(
         help="Profile-guided suggestions: reorder branches by execution frequency.",
         description=(
             "Use an execution profile to suggest reordering if/elseif "
-            "equality-dispatch chains so the most-frequently-taken branch is "
-            "tested first.  Supply an F5 rule-profiler occurrence log with "
-            "--profile, or --capture to trace each input under a local tclsh.  "
-            "Suggestions are advisory; pass --apply to rewrite the chains.\n\n"
+            "equality-dispatch chains and exact-match switch arms so the "
+            "most-frequently-taken branch is tested first.  Supply a profile "
+            "via --profile (an F5 rule-profiler occurrence log), --capture "
+            "(trace each input under a local tclsh), or --from-test (run each "
+            "input through the iRule test framework with a JSON stimuli file).  "
+            "Suggestions are advisory; pass --apply to rewrite.\n\n"
             "Off by default: PGO never runs as part of the normal optimiser — "
             "it only runs through this verb when a profile is supplied."
         ),
@@ -214,6 +216,7 @@ def add_irule_subparser(
             f"  {prog_name} irule pgo --profile rule_profiler.log rule.irule\n"
             f"  {prog_name} irule pgo --profile rule_profiler.log rule.irule --apply -o tuned/\n"
             f"  {prog_name} irule pgo --capture script.tcl\n"
+            f"  {prog_name} irule pgo --from-test stimuli.json rule.irule\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -228,6 +231,15 @@ def add_irule_subparser(
         "--capture",
         action="store_true",
         help="Capture a profile by running each input under a local tclsh.",
+    )
+    pgo_src.add_argument(
+        "--from-test",
+        metavar="STIMULI",
+        help=(
+            "Generate a profile by running each input through the iRule test "
+            "framework. STIMULI is a JSON list of "
+            '{"event": NAME, "state": {layer: {key: val}}, "repeat": N}.'
+        ),
     )
     pgo_p.add_argument(
         "--apply",
@@ -594,6 +606,40 @@ def _apply_pgo_suggestions(source: str, suggestions: list) -> str:
     return apply_edits(source, edits)
 
 
+def _load_pgo_stimuli(path: str):
+    """Load a ``--from-test`` stimuli JSON file into ``Stimulus`` objects.
+
+    Returns a list on success or an exit code (already-printed error) on
+    failure.  The file is a JSON list of objects with optional ``event``
+    (default ``HTTP_REQUEST``), ``state`` (``{layer: {key: val}}``) and
+    ``repeat`` (default 1) keys.
+    """
+    from tooling.irule_test.profile_gen import Stimulus
+
+    try:
+        raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, ValueError) as exc:
+        print(f"error: cannot read stimuli {path}: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(data, list):
+        print("error: stimuli JSON must be a list of stimulus objects", file=sys.stderr)
+        return 2
+    stimuli = []
+    for item in data:
+        if not isinstance(item, dict):
+            print("error: each stimulus must be a JSON object", file=sys.stderr)
+            return 2
+        stimuli.append(
+            Stimulus(
+                event=str(item.get("event", "HTTP_REQUEST")),
+                state=item.get("state", {}) or {},
+                repeat=int(item.get("repeat", 1)),
+            )
+        )
+    return stimuli
+
+
 def _run_irule_pgo(args: argparse.Namespace) -> int:
     from compiler.pgo import find_pgo_suggestions, parse_f5_log
     from compiler.pgo.profile_data import ProfileData
@@ -615,6 +661,12 @@ def _run_irule_pgo(args: argparse.Namespace) -> int:
             return 2
         shared_profile = parse_f5_log(log_text)
 
+    stimuli = None
+    if args.from_test:
+        stimuli = _load_pgo_stimuli(args.from_test)
+        if isinstance(stimuli, int):
+            return stimuli
+
     results: list[tuple[IruleInput, list, ProfileData | None]] = []
     for entry in inputs:
         if args.capture:
@@ -622,6 +674,10 @@ def _run_irule_pgo(args: argparse.Namespace) -> int:
             if profile is None:
                 print("error: --capture requires tclsh on PATH", file=sys.stderr)
                 return 2
+        elif stimuli is not None:
+            from tooling.irule_test.profile_gen import generate_profile
+
+            profile = generate_profile(entry.source, stimuli, profiles=["TCP", "HTTP"])
         else:
             profile = shared_profile
         suggestions = find_pgo_suggestions(entry.source, profile)

@@ -1,31 +1,30 @@
 """Profile-guided branch-reordering suggestions.
 
-This is the first profile-guided optimisation: given a
-:class:`~compiler.pgo.profile_data.ProfileData`, find ``if`` / ``elseif``
-**equality-dispatch chains** whose branches are not tested
-hottest-first, and suggest reordering them so the most-frequently-taken
-branch is checked first (fewer comparisons on the common path).
+Given a :class:`~compiler.pgo.profile_data.ProfileData`, find branch
+constructs that are not tested hottest-first and suggest reordering them so
+the most-frequently-taken branch is checked first (fewer comparisons on the
+common path).  Two constructs are handled, each only when reordering is
+provably behaviour-preserving:
 
-Safety — a chain is only ever touched when reordering is provably
-behaviour-preserving:
+**if / elseif equality-dispatch chains.**  Every clause condition must be
+``<subject> eq|==|equals <constant>`` with the **same** subject expression
+and **distinct** constants (so the clauses are mutually exclusive — exactly
+one matches regardless of order), and the subject must be
+**side-effect-free** (a variable read, or a command the side-effect
+registry classifies as non-writing), since reordering changes how many
+times it is evaluated.
 
-* Every clause condition is ``<subject> eq|==|equals <constant>`` with the
-  **same** subject expression and **distinct** constants, so the clauses
-  are mutually exclusive — exactly one can match regardless of order.
-* The subject is **side-effect-free** (a variable read, or a command the
-  side-effect registry classifies as non-writing), so evaluating it a
-  different number of times across the reordered tests changes nothing
-  observable.
+**exact-match switch arms.**  Reordering arms is *safer* than an if/elseif
+chain: the subject is evaluated exactly once, so no purity requirement
+applies.  Only ``-exact`` switches with **distinct, non-fallthrough**
+patterns qualify (``-glob`` / ``-regexp`` arms are first-match-wins and may
+overlap); a trailing ``default`` arm stays last.
 
-Anything that does not fit (mixed operators, a side-effecting subject,
-repeated constants, ``glob`` / range tests, fewer than two ``elseif``
-clauses) is left untouched.
-
-Suggestions are emitted as ``hint_only`` :class:`Optimisation` objects
-(code ``P100``) carrying a materialised ``replacement`` so an opt-in
-``--apply`` can rewrite the chain.  This module is **never** called by the
-default optimiser pipeline — only by the explicit, off-by-default PGO
-entry points.
+Anything that does not fit is left untouched.  Suggestions are emitted as
+``hint_only`` :class:`Optimisation` objects (code ``P100``) carrying a
+materialised ``replacement`` so an opt-in ``--apply`` can rewrite the
+source.  This module is **never** called by the default optimiser pipeline
+— only by the explicit, off-by-default PGO entry points.
 """
 
 from __future__ import annotations
@@ -57,7 +56,6 @@ from ..ir import (
     IRFor,
     IRForeach,
     IRIf,
-    IRIfClause,
     IRIncr,
     IRModule,
     IRScript,
@@ -91,40 +89,41 @@ _DIALECT = "f5-irules"
 # ---------------------------------------------------------------------------
 
 
-def _iter_ifs(script: IRScript | None) -> Iterator[IRIf]:
-    """Yield every :class:`IRIf` in *script*, descending into nested bodies."""
+def _iter_control(script: IRScript | None) -> Iterator[IRIf | IRSwitch]:
+    """Yield every :class:`IRIf` / :class:`IRSwitch`, descending into bodies."""
     if script is None:
         return
     for stmt in script.statements:
         if isinstance(stmt, IRIf):
             yield stmt
             for clause in stmt.clauses:
-                yield from _iter_ifs(clause.body)
-            yield from _iter_ifs(stmt.else_body)
-        elif isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRBlock, IRUpFrame)):
-            yield from _iter_ifs(stmt.body)
-        elif isinstance(stmt, IRFor):
-            yield from _iter_ifs(stmt.init)
-            yield from _iter_ifs(stmt.next)
-            yield from _iter_ifs(stmt.body)
-        elif isinstance(stmt, IRTry):
-            yield from _iter_ifs(stmt.body)
-            for handler in stmt.handlers:
-                yield from _iter_ifs(handler.body)
-            yield from _iter_ifs(stmt.finally_body)
+                yield from _iter_control(clause.body)
+            yield from _iter_control(stmt.else_body)
         elif isinstance(stmt, IRSwitch):
+            yield stmt
             for arm in stmt.arms:
-                yield from _iter_ifs(arm.body)
-            yield from _iter_ifs(stmt.default_body)
+                yield from _iter_control(arm.body)
+            yield from _iter_control(stmt.default_body)
+        elif isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRBlock, IRUpFrame)):
+            yield from _iter_control(stmt.body)
+        elif isinstance(stmt, IRFor):
+            yield from _iter_control(stmt.init)
+            yield from _iter_control(stmt.next)
+            yield from _iter_control(stmt.body)
+        elif isinstance(stmt, IRTry):
+            yield from _iter_control(stmt.body)
+            for handler in stmt.handlers:
+                yield from _iter_control(handler.body)
+            yield from _iter_control(stmt.finally_body)
 
 
-def _iter_module_ifs(module: IRModule) -> Iterator[IRIf]:
-    """Yield every :class:`IRIf` across the whole module."""
-    yield from _iter_ifs(module.top_level)
+def _iter_module_control(module: IRModule) -> Iterator[IRIf | IRSwitch]:
+    """Yield every :class:`IRIf` / :class:`IRSwitch` across the whole module."""
+    yield from _iter_control(module.top_level)
     for proc in module.procedures.values():
-        yield from _iter_ifs(proc.body)
+        yield from _iter_control(proc.body)
     for method in module.methods.values():
-        yield from _iter_ifs(method.body)
+        yield from _iter_control(method.body)
 
 
 # ---------------------------------------------------------------------------
@@ -197,20 +196,20 @@ def _subject_is_safe(node: _Subject) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _first_line(clause: IRIfClause) -> int | None:
-    """1-based source line of the clause body's first statement."""
-    for stmt in clause.body.statements:
+def _body_first_line(body: IRScript, body_range: Range | None) -> int | None:
+    """1-based source line of *body*'s first statement."""
+    for stmt in body.statements:
         rng = getattr(stmt, "range", None)
         if rng is not None:
             return rng.start.line + 1  # internal lines are 0-based
-    if clause.body_range is not None:
-        return clause.body_range.start.line + 1
+    if body_range is not None:
+        return body_range.start.line + 1
     return None
 
 
-def _signal_key(clause: IRIfClause) -> tuple[str, str] | None:
+def _body_signal_key(body: IRScript) -> tuple[str, str] | None:
     """Coarse attribution key — the first observable command / variable write."""
-    for stmt in clause.body.statements:
+    for stmt in body.statements:
         if isinstance(stmt, IRCall):
             return ("cmd", stmt.command)
         if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
@@ -218,13 +217,13 @@ def _signal_key(clause: IRIfClause) -> tuple[str, str] | None:
     return None
 
 
-def _clause_weight(clause: IRIfClause, profile: ProfileData) -> int | None:
-    """Execution weight for *clause*, preferring precise line counts."""
+def _body_weight(body: IRScript, body_range: Range | None, profile: ProfileData) -> int | None:
+    """Execution weight for *body*, preferring precise line counts."""
     if profile.has_line_data:
-        line = _first_line(clause)
+        line = _body_first_line(body, body_range)
         if line is not None:
             return profile.line_count(line)
-    key = _signal_key(clause)
+    key = _body_signal_key(body)
     if key is None:
         return None
     kind, name = key
@@ -283,6 +282,59 @@ def _replace_range(if_node: IRIf, source: str) -> Range:
     return Range(start=if_node.range.start, end=end)
 
 
+def _rebuild_switch(switch: IRSwitch, order: list[int], source: str) -> str | None:
+    """Reassemble a ``switch`` with arms in *order*, preserving formatting.
+
+    Works in slots: the inter-element separators (whitespace/newlines) keep
+    their positions and only the arm *texts* are permuted, so original
+    indentation is preserved exactly.  ``default`` keeps the final slot.
+    """
+    switch_start = switch.range.start.offset
+    switch_end = widen_range_for_closer(source, switch.range).end.offset
+
+    # Source-order element spans: arms first, then default (if present).
+    spans: list[tuple[int, int]] = []
+    for arm in switch.arms:
+        if arm.body_range is None:
+            return None
+        spans.append(
+            (
+                arm.pattern_range.start.offset,
+                widen_range_for_closer(source, arm.body_range).end.offset,
+            )
+        )
+    has_default = switch.default_body is not None and switch.default_range is not None
+    if has_default:
+        assert switch.default_range is not None
+        kw = source.rfind("default", switch_start, switch.default_range.start.offset)
+        if kw < 0:
+            return None
+        spans.append((kw, widen_range_for_closer(source, switch.default_range).end.offset))
+
+    # Spans must be within the switch and strictly increasing (no overlap).
+    cursor = switch_start
+    for start, end in spans:
+        if not (switch_start <= start <= end <= switch_end) or start < cursor:
+            return None
+        cursor = end + 1
+
+    texts = [source[start : end + 1] for start, end in spans]
+    prefix = source[switch_start : spans[0][0]]
+    suffix = source[spans[-1][1] + 1 : switch_end + 1]
+    seps = [source[spans[i][1] + 1 : spans[i + 1][0]] for i in range(len(spans) - 1)]
+
+    # Permute arm texts into the leading slots; default text stays last.
+    new_texts = [texts[i] for i in order] + (texts[len(switch.arms) :] if has_default else [])
+
+    out = [prefix]
+    for i, text in enumerate(new_texts):
+        out.append(text)
+        if i < len(seps):
+            out.append(seps[i])
+    out.append(suffix)
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
@@ -315,7 +367,7 @@ def _analyse_if(if_node: IRIf, source: str, profile: ProfileData) -> Optimisatio
 
     weights: list[int] = []
     for clause in clauses:
-        w = _clause_weight(clause, profile)
+        w = _body_weight(clause.body, clause.body_range, profile)
         if w is None:
             return None
         weights.append(w)
@@ -347,6 +399,67 @@ def _analyse_if(if_node: IRIf, source: str, profile: ProfileData) -> Optimisatio
     )
 
 
+def _analyse_switch(switch: IRSwitch, source: str, profile: ProfileData) -> Optimisation | None:
+    """Suggest reordering exact-match ``switch`` arms by profile frequency.
+
+    Safer than an if/elseif chain: the subject is evaluated exactly once, so
+    no purity requirement applies.  Only ``-exact`` switches with distinct,
+    non-fallthrough patterns qualify (glob/regexp arms are first-match-wins
+    and may overlap).  A ``default`` arm is, by construction, already last
+    (the lowerer only treats a trailing ``default`` as the catch-all) and
+    stays there.
+    """
+    # Only exact matching is order-independent for distinct patterns.
+    if switch.mode != "exact":
+        return None
+    arms = switch.arms
+    if len(arms) < 2:
+        return None
+    # Fallthrough (``pat -``) chains share a body — reordering breaks them.
+    if any(arm.fallthrough or arm.body is None for arm in arms):
+        return None
+    # Distinct patterns (case-normalised under -nocase) ⇒ mutually exclusive.
+    patterns = [arm.pattern.lower() if switch.nocase else arm.pattern for arm in arms]
+    if len(set(patterns)) != len(patterns):
+        return None
+
+    weights: list[int] = []
+    for arm in arms:
+        assert arm.body is not None  # guaranteed by the fallthrough guard
+        w = _body_weight(arm.body, arm.body_range, profile)
+        if w is None:
+            return None
+        weights.append(w)
+
+    if sum(1 for w in weights if w > 0) < 2:
+        return None
+
+    order = sorted(range(len(arms)), key=lambda i: (-weights[i], i))
+    if order == list(range(len(arms))):
+        return None  # already hottest-first
+
+    replacement = _rebuild_switch(switch, order, source)
+    if replacement is None:
+        return None
+
+    hot_idx = order[0]
+    message = (
+        f"Reorder switch arms by profile frequency: the arm matching "
+        f"{arms[hot_idx].pattern!r} is taken most often ({weights[hot_idx]}×) but "
+        f"is in position {hot_idx + 1}; place the hottest arm first."
+    )
+    return Optimisation(
+        code=REORDER_CODE,
+        message=message,
+        range=Range(
+            start=switch.range.start,
+            end=widen_range_for_closer(source, switch.range).end,
+        ),
+        replacement=replacement,
+        hint_only=True,
+    )
+
+
 def find_pgo_suggestions(
     source: str,
     profile: ProfileData | None,
@@ -363,8 +476,11 @@ def find_pgo_suggestions(
     if cu is None:
         return []
     suggestions: list[Optimisation] = []
-    for if_node in _iter_module_ifs(cu.ir_module):
-        opt = _analyse_if(if_node, source, profile)
+    for node in _iter_module_control(cu.ir_module):
+        if isinstance(node, IRIf):
+            opt = _analyse_if(node, source, profile)
+        else:
+            opt = _analyse_switch(node, source, profile)
         if opt is not None:
             suggestions.append(opt)
     suggestions.sort(key=lambda o: o.range.start.offset)

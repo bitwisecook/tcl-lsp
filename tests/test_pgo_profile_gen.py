@@ -110,3 +110,32 @@ def test_generated_profile_drives_branch_reorder() -> None:
     sugs = find_pgo_suggestions(_DISPATCH, prof)
     assert len(sugs) == 1
     assert "10.0.0.2" in sugs[0].message
+
+
+@requires_backend
+def test_cli_from_test_reports_suggestion(tmp_path, capsys) -> None:
+    import json
+
+    from tooling.f5.main import main
+
+    irule = tmp_path / "rule.irule"
+    irule.write_text(_DISPATCH, encoding="utf-8")
+    stimuli = tmp_path / "stimuli.json"
+    stimuli.write_text(
+        json.dumps(
+            [
+                {"state": {"connection": {"client_addr": "10.0.0.2"}}, "repeat": 20},
+                {"state": {"connection": {"client_addr": "10.0.0.3"}}, "repeat": 5},
+                {"state": {"connection": {"client_addr": "10.0.0.1"}}, "repeat": 2},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    code = main(["irule", "pgo", "--from-test", str(stimuli), str(irule), "--json"])
+    out = capsys.readouterr().out
+    assert code == 0
+    payload = json.loads(out)
+    suggestions = payload["rules"][0]["suggestions"]
+    assert len(suggestions) == 1
+    assert suggestions[0]["code"] == "P100"
+    assert "10.0.0.2" in suggestions[0]["message"]

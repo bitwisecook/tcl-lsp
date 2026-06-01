@@ -198,3 +198,74 @@ def test_coarse_cannot_rank_same_command_branches() -> None:
         ]
     )
     assert find_pgo_suggestions(DISPATCH, parse_f5_log(log)) == []
+
+
+# --- switch arms -----------------------------------------------------------
+
+SWITCH = """\
+when HTTP_REQUEST {
+    switch [HTTP::path] {
+        /a {
+            pool pool_a
+        }
+        /b {
+            pool pool_b
+        }
+        /c {
+            pool pool_c
+        }
+        default {
+            pool pool_default
+        }
+    }
+}
+"""
+
+
+def test_switch_reorders_hottest_arm_first_default_last() -> None:
+    # Arm bodies: /a line 4, /b line 7, /c line 10.  /b hottest.
+    prof = ProfileData(line_counts={4: 5, 7: 500, 10: 30}, source="test")
+    sugs = find_pgo_suggestions(SWITCH, prof)
+    assert len(sugs) == 1
+    assert sugs[0].code == REORDER_CODE
+    assert "/b" in sugs[0].message
+
+    rewritten = _apply(SWITCH, sugs)
+    # Hottest arm first, default still last, indentation preserved.
+    order = [rewritten.index(f"/{c} {{") for c in ("b", "c", "a")]
+    assert order == sorted(order)
+    assert rewritten.index("default {") > rewritten.index("/a {")
+    assert "        /b {\n            pool pool_b" in rewritten
+
+
+def test_switch_glob_mode_not_reordered() -> None:
+    src = """\
+when HTTP_REQUEST {
+    switch -glob [HTTP::path] {
+        /a* { pool a }
+        /b* { pool b }
+        /c* { pool c }
+    }
+}
+"""
+    prof = ProfileData(line_counts={3: 1, 4: 999, 5: 1}, source="t")
+    assert find_pgo_suggestions(src, prof) == []
+
+
+def test_switch_fallthrough_not_reordered() -> None:
+    src = """\
+when HTTP_REQUEST {
+    switch [HTTP::path] {
+        /a -
+        /b { pool ab }
+        /c { pool c }
+    }
+}
+"""
+    prof = ProfileData(line_counts={4: 1, 5: 999}, source="t")
+    assert find_pgo_suggestions(src, prof) == []
+
+
+def test_switch_already_hottest_first_not_reordered() -> None:
+    prof = ProfileData(line_counts={4: 500, 7: 30, 10: 5}, source="test")
+    assert find_pgo_suggestions(SWITCH, prof) == []
