@@ -361,6 +361,23 @@ def _serialise_interproc(interproc: InterproceduralAnalysis) -> list[dict]:
                 "writesGlobal": s.writes_global,
             }
         )
+    # TclOO method summaries (SF-2).
+    for mqname in sorted(interproc.methods):
+        m = interproc.methods[mqname]
+        out.append(
+            {
+                "name": mqname,
+                "kind": "method",
+                "methodKind": m.method_kind,
+                "className": m.class_name,
+                "pure": m.pure,
+                "calls": list(m.calls),
+                "hasBarrier": m.has_barrier,
+                "hasUnknownCalls": m.has_unknown_calls,
+                "writesGlobal": m.writes_global,
+                "writesInstanceVars": sorted(m.writes_instance_vars),
+            }
+        )
     return out
 
 

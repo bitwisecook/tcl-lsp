@@ -452,6 +452,12 @@ class IRMethodDef:
     body: IRScript
     kind: str = "method"  # "method" | "classmethod" | "constructor" | "destructor"
     range: Range | None = None
+    # Instance-variable names in scope for this method (class-level
+    # ``variable`` declarations + the method's own ``variable`` decls).  A
+    # method that *writes* any of these mutates object state and is therefore
+    # impure for O126 purposes, even though the write looks like a plain local
+    # ``set``.  Used by interprocedural method-purity (SF-2).
+    instance_vars: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,6 +500,11 @@ class IRModule:
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
     methods: dict[str, IRMethodDef] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
+    # TclOO method qnames defined more than once (a later ``oo::define`` /
+    # in-body redefinition replaces the body at runtime).  Method purity is
+    # forced impure for these — we can't prove which body a given dispatch
+    # runs, so the O126 ``my <method>`` deletion gate must stay conservative.
+    redefined_methods: set[str] = field(default_factory=set)
     # Static ``namespace import`` directives captured at lowering time.
     # Each entry is ``(context_namespace, pattern)`` — the namespace
     # that executed the import and the raw pattern argument (either a

@@ -14,6 +14,7 @@ Later passes disagree on command/argument interpretation, especially around subs
 - Command-level token snapshots (`CommandTokens`) should preserve enough lexical context for downstream diagnostics.
 - Unknown/dynamic constructs should degrade to explicit barrier/call shapes rather than silent assumptions.
 - Namespace/proc qualification should be normalized consistently.
+- TclOO method bodies (`oo::class create` / `oo::define`) are lifted to `IRModule.methods` (`IRMethodDef`) by `extract_oo_methods_pass` — a post-pass over the *assembled* module so it is independent of incremental chunk caching. The class command itself still lowers to its existing barrier (codegen-unaffected); method extraction is an analysis-only side artefact.
 
 ## Operational guidance
 
