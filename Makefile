@@ -882,12 +882,12 @@ fuzz-cov: $(UV_STAMP) ## Coverage-guided fuzz campaign (N=iterations, SEED=base_
 # runs the bundled CLI against a sanity-check command sequence, then
 # deletes the throwaway artefacts.  Aggregated by `make smoke-zipapps`.
 #
-# Three profiles (mcp, lsp, cli) only need `--help`; the other three
-# (ai, tcl, f5) exercise representative subcommands.
+# Three profiles (mcp, lsp, explorer-cli) only need `--help`; the
+# other three (ai, tcl, f5) exercise representative subcommands.
 # ---------------------------------------------------------------------------
 
 # define smoke_help — build a zipapp and run `--help` only.
-#   $(1) = profile name (cli, lsp, mcp, …)
+#   $(1) = profile name (explorer-cli, lsp, mcp, …)
 define smoke_help
 _smoke-zipapp-$(1): $$(BUILD_INFO)
 	@echo "==> Smoke-testing $(1) zipapp"

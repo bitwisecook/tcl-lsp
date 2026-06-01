@@ -324,14 +324,18 @@ fi
 TCL_PREFIX_OVERRIDE=""
 F5_PREFIX_OVERRIDE=""
 MCP_PREFIX_OVERRIDE=""
+EXPLORER_CLI_PREFIX_OVERRIDE=""
+EXPLORER_GUI_PREFIX_OVERRIDE=""
 
 # Install dir for binary $1.
 prefix_for() {
     case "$1" in
-        tcl) printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        f5)  printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        mcp) printf '%s' "${MCP_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        *)   printf '%s' "$PREFIX" ;;
+        tcl)              printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        f5)               printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        mcp)              printf '%s' "${MCP_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        tcl-explorer)     printf '%s' "${EXPLORER_CLI_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        tcl-explorer-gui) printf '%s' "${EXPLORER_GUI_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        *)                printf '%s' "$PREFIX" ;;
     esac
 }
 
@@ -1621,8 +1625,9 @@ propose_update_mcp() {
 }
 
 propose_update_clis() {
-    # Offer to update each existing tcl/f5 install in place; recorded
-    # per-CLI in *_PREFIX_OVERRIDE for split-directory layouts.
+    # Offer to update each existing tcl/f5/explorer install in place;
+    # recorded per-binary in *_PREFIX_OVERRIDE for split-directory
+    # layouts.
     [ "$PREFIX_EXPLICIT" = "1" ] && return 0
 
     # `|| return 0` because propose_update_one's non-zero is an internal
@@ -1632,27 +1637,40 @@ propose_update_clis() {
         f5)   propose_update_one f5   || return 0 ;;
         both) propose_update_one tcl  || return 0
               propose_update_one f5   || return 0 ;;
-        *)    return 0 ;;
     esac
+    [ "$WANT_EXPLORER_CLI" = "1" ] && { propose_update_one tcl-explorer     || return 0; }
+    [ "$WANT_EXPLORER_GUI" = "1" ] && { propose_update_one tcl-explorer-gui || return 0; }
 
-    if [ -z "$TCL_PREFIX_OVERRIDE" ] && [ -z "$F5_PREFIX_OVERRIDE" ]; then
-        return
-    fi
+    # Pick a PATH/completion anchor from whichever overrides got
+    # populated, preferring tcl (the headline binary) then f5, then
+    # the explorers.  When the user is updating multiple binaries that
+    # live in different dirs, the helper above already set per-binary
+    # overrides; this just picks the one we'll log + use as $PREFIX.
+    anchor=""
+    [ -n "$TCL_PREFIX_OVERRIDE" ]          && anchor="$TCL_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$F5_PREFIX_OVERRIDE" ]           && anchor="$F5_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$EXPLORER_CLI_PREFIX_OVERRIDE" ] && anchor="$EXPLORER_CLI_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$EXPLORER_GUI_PREFIX_OVERRIDE" ] && anchor="$EXPLORER_GUI_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && return
 
-    if [ -n "$TCL_PREFIX_OVERRIDE" ] && [ -n "$F5_PREFIX_OVERRIDE" ] \
-       && [ "$TCL_PREFIX_OVERRIDE" != "$F5_PREFIX_OVERRIDE" ]; then
+    # Report split-directory updates when any pair of overrides
+    # disagrees with the anchor.
+    split=0
+    for o in "$TCL_PREFIX_OVERRIDE" "$F5_PREFIX_OVERRIDE" \
+             "$EXPLORER_CLI_PREFIX_OVERRIDE" "$EXPLORER_GUI_PREFIX_OVERRIDE"; do
+        if [ -n "$o" ] && [ "$o" != "$anchor" ]; then split=1; fi
+    done
+    if [ "$split" = 1 ]; then
         log "split-directory update:"
-        log "  tcl will update at $TCL_PREFIX_OVERRIDE/tcl"
-        log "  f5  will update at $F5_PREFIX_OVERRIDE/f5"
-        log "(PATH / completion anchor on $TCL_PREFIX_OVERRIDE)"
-        set_prefix "$TCL_PREFIX_OVERRIDE"
-    elif [ -n "$TCL_PREFIX_OVERRIDE" ]; then
-        set_prefix "$TCL_PREFIX_OVERRIDE"
-        log "updating in place: $PREFIX"
+        [ -n "$TCL_PREFIX_OVERRIDE" ]          && log "  tcl              -> $TCL_PREFIX_OVERRIDE/tcl"
+        [ -n "$F5_PREFIX_OVERRIDE" ]           && log "  f5               -> $F5_PREFIX_OVERRIDE/f5"
+        [ -n "$EXPLORER_CLI_PREFIX_OVERRIDE" ] && log "  tcl-explorer     -> $EXPLORER_CLI_PREFIX_OVERRIDE/tcl-explorer"
+        [ -n "$EXPLORER_GUI_PREFIX_OVERRIDE" ] && log "  tcl-explorer-gui -> $EXPLORER_GUI_PREFIX_OVERRIDE/tcl-explorer-gui"
+        log "(PATH / completion anchor on $anchor)"
     else
-        set_prefix "$F5_PREFIX_OVERRIDE"
-        log "updating in place: $PREFIX"
+        log "updating in place: $anchor"
     fi
+    set_prefix "$anchor"
     PREFIX_EXPLICIT=1
     PREFIX_FROM_UPDATE=1
 }
@@ -1669,8 +1687,10 @@ propose_update_one() {
             return 1
         fi
         case "$n" in
-            tcl) TCL_PREFIX_OVERRIDE="$dir" ;;
-            f5)  F5_PREFIX_OVERRIDE="$dir" ;;
+            tcl)              TCL_PREFIX_OVERRIDE="$dir" ;;
+            f5)               F5_PREFIX_OVERRIDE="$dir" ;;
+            tcl-explorer)     EXPLORER_CLI_PREFIX_OVERRIDE="$dir" ;;
+            tcl-explorer-gui) EXPLORER_GUI_PREFIX_OVERRIDE="$dir" ;;
         esac
         return 0
     fi
@@ -1725,8 +1745,9 @@ detect_conflicts() {
         tcl)  count_conflicts_for tcl ;;
         f5)   count_conflicts_for f5  ;;
         both) count_conflicts_for tcl; count_conflicts_for f5 ;;
-        *)    return ;;
     esac
+    [ "$WANT_EXPLORER_CLI" = "1" ] && count_conflicts_for tcl-explorer
+    [ "$WANT_EXPLORER_GUI" = "1" ] && count_conflicts_for tcl-explorer-gui
     [ "$conflicts" = 0 ] && return
 
     if [ -n "$INSTALL_SUFFIX" ]; then
@@ -1917,12 +1938,13 @@ install_cli() {
     log "installed $name -> $dir/$final_name"
 }
 
-# Compiler-explorer CLI — drops a `tcl-explorer` binary into $PREFIX.
-# The asset is `tcl-lsp-explorer-cli-<ver>.pyz` (not `<name>-<ver>.pyz`),
-# so it doesn't fit install_cli().
+# Compiler-explorer CLI — drops a `tcl-explorer` binary into the dir
+# returned by prefix_for tcl-explorer (in-place update override, or
+# $PREFIX).  The asset is `tcl-lsp-explorer-cli-<ver>.pyz` (not
+# `<name>-<ver>.pyz`), so it doesn't fit install_cli().
 install_explorer_cli() {
     final_name="tcl-explorer${INSTALL_SUFFIX}"
-    dir="$PREFIX"
+    dir="$(prefix_for tcl-explorer)"
     ensure_tag
     asset="tcl-lsp-explorer-cli-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -1936,12 +1958,13 @@ install_explorer_cli() {
 }
 
 # Compiler-explorer GUI (web UI) — drops a `tcl-explorer-gui` binary
-# into $PREFIX.  We always install the CDN variant so the zipapp stays
-# small (~3 MB); the user's browser fetches Pyodide from the CDN on
-# first launch.
+# into the dir returned by prefix_for tcl-explorer-gui (in-place
+# update override, or $PREFIX).  We always install the CDN variant so
+# the zipapp stays small (~3 MB); the user's browser fetches Pyodide
+# from the CDN on first launch.
 install_explorer_gui() {
     final_name="tcl-explorer-gui${INSTALL_SUFFIX}"
-    dir="$PREFIX"
+    dir="$(prefix_for tcl-explorer-gui)"
     ensure_tag
     asset="tcl-lsp-explorer-gui-cdn-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -2285,9 +2308,9 @@ main() {
                   plan_overwrite_check "$(prefix_for f5)/f5${INSTALL_SUFFIX}" ;;
         esac
         [ "$WANT_EXPLORER_CLI" = "1" ] \
-            && plan_overwrite_check "$PREFIX/tcl-explorer${INSTALL_SUFFIX}"
+            && plan_overwrite_check "$(prefix_for tcl-explorer)/tcl-explorer${INSTALL_SUFFIX}"
         [ "$WANT_EXPLORER_GUI" = "1" ] \
-            && plan_overwrite_check "$PREFIX/tcl-explorer-gui${INSTALL_SUFFIX}"
+            && plan_overwrite_check "$(prefix_for tcl-explorer-gui)/tcl-explorer-gui${INSTALL_SUFFIX}"
     fi
 
     choose_ai_components
