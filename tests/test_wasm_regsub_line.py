@@ -115,3 +115,30 @@ def test_regsub_no_line(source: str, expected: str) -> None:
 )
 def test_regsub_command(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # regexp-26.7: -line ^ anchors after a newline, with -start.
+        (
+            'puts [list [regexp -start 0 -indices -line {^a} "\nab" m1] $m1 '
+            '[regexp -start 1 -indices -line {^a} "\nab" m2] $m2]',
+            "1 {1 1} 1 {1 1}",
+        ),
+        # regexp-26.8: -all -inline -line diff-style block matching.
+        (
+            'set d "@1\n2\n+3\n@4\n-5\n+6\n7\n@8\n9\n"; '
+            "puts [regexp -all -inline -line {^@.*\n(?:[^@].*\n?)*} $d]",
+            "{@1\n2\n+3\n} {@4\n-5\n+6\n7\n} {@8\n9\n}",
+        ),
+        # regexp-26.9: embedded (?n) line flag, no -line switch.
+        (
+            'set d "@1\n2\n+3\n@4\n-5\n+6\n7\n@8\n9\n"; '
+            "puts [regexp -all -inline {(?n)^@.*\n(?:[^@].*\n?)*} $d]",
+            "{@1\n2\n+3\n} {@4\n-5\n+6\n7\n} {@8\n9\n}",
+        ),
+    ],
+)
+def test_regexp_line_anchors(source: str, expected: str) -> None:
+    assert _run(source) == expected

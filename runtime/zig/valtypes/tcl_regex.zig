@@ -880,7 +880,13 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         // aaaa`` returned every "a" instead of only the first
         // (regexp.test 18.11) and a similar pattern in the
         // -all loop overcounted.
-        const exec_flags: c_int = if (pos_cp == 0) 0 else REG_NOTBOL;
+        // Mirror ``Tcl_RegexpObjCmd``: suppress ``^`` re-anchoring past
+        // the start, except when the preceding character is a newline so
+        // ``-line`` mode anchors after each line break (regexp-26.7/26.8)
+        // — including at an explicit ``-start`` offset.
+        const prev_is_nl = pos_cp > 0 and
+            @as([*]const i32, @ptrFromInt(sub_u.ptr))[pos_cp - 1] == '\n';
+        const exec_flags: c_int = if (pos_cp == 0 or prev_is_nl) 0 else REG_NOTBOL;
         const matched = run_match_cap_flags(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf, exec_flags);
         if (!matched) break;
         match_count += 1;
