@@ -8,6 +8,8 @@ keeps the updated value on the stack for implicit return.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from compiler.registry import REGISTRY, EmitContext
 
 from ..._ownership import Ownership
@@ -58,40 +60,55 @@ def _emit_append(
         or _is_dynamic_var_name(var_name)
     )
     keep_last = context is EmitContext.VALUE
-    last_index = len(args) - 1
+    values = args[1:]
+    # ``append`` auto-creates an unset variable (``append missing x`` ⇒
+    # ``x``; ``append arr(new) x`` creates the element), so the read must
+    # be lenient — a missing scalar / array element / alias must read as
+    # the null TclObj (empty), not raise ``can't read …``.
+    # ``tcl_cmd_append`` treats null as the empty starting value.
+    #
+    # A single value keeps the in-place read-modify-write (the canonical
+    # ``append acc $piece`` loop idiom — O(1) amortised in the runtime's
+    # cap-doubling fast path).  Two or more values route through a
+    # fresh-seeded concat chain: appending the running result back into
+    # the variable between values would let the in-place fast path mutate
+    # the variable's object mid-expression, so a value arg that aliases
+    # the target (``append x $x $x``) re-reads the half-built accumulator
+    # and the result doubles.  ``_emit_concat_chain`` seeds with a null
+    # accumulator so the operands (including the variable's own object)
+    # are never mutated, then we write the fresh result back once.
 
+    ops: list[Callable[[], object]]
     if use_var_path:
-        for i, value_arg in enumerate(args[1:], start=1):
-            # ``append`` auto-creates an unset variable (``append missing
-            # x`` ⇒ ``x``; ``append arr(new) x`` creates the element), so
-            # the read must be lenient — a missing scalar / array element
-            # / alias must read as the null TclObj (empty), not raise
-            # ``can't read "<var>": no such variable``.  ``tcl_cmd_append``
-            # treats null as the empty starting value.  Matches lappend
-            # and the var-24.x ``array default`` append cases.
-            emitter._emit_var_read_obj_lenient(var_name)
-            emitter._emit_value(value_arg)
-            emitter._emit_call(func_idx)
-            # ``tcl_cmd_append`` returns an OWNED handle (a fresh
-            # canonical-rebuild result on the slow path, or the input
-            # mutated in place on the fast path).  Declaring the write
-            # source OWNED balances the store's retain against the
-            # caller's +1 — without it the fresh element on an empty
-            # array is dropped before the store lands (var-24.7 append).
-            if keep_last and i == last_index:
-                emitter._emit_var_write_obj_keep(var_name, source=Ownership.OWNED)
-            else:
-                emitter._emit_var_write_obj(var_name, source=Ownership.OWNED)
+        ops = [lambda: emitter._emit_var_read_obj_lenient(var_name)]
     else:
         var_idx = emitter._intern_local(var_name)
-        for i, value_arg in enumerate(args[1:], start=1):
-            emitter._emit_local_get(var_idx)
-            emitter._emit_value(value_arg)
-            emitter._emit_call(func_idx)
-            if keep_last and i == last_index:
-                emitter._emit_local_tee(var_idx)
-            else:
-                emitter._emit_local_set(var_idx)
+        ops = [lambda vi=var_idx: emitter._emit_local_get(vi)]
+    ops += [lambda a=v: emitter._emit_value(a) for v in values]
+    if len(values) == 1:
+        # Single value — in-place read-modify-write (no re-read hazard).
+        ops[0]()
+        ops[1]()
+        emitter._emit_call(func_idx)
+    else:
+        emitter._emit_concat_chain(func_idx, ops)
+    # ``tcl_cmd_append`` / the concat chain leave an OWNED handle on the
+    # stack (a fresh result, or the input mutated in place on the
+    # single-value fast path).  Declaring the write source OWNED balances
+    # the store's retain against the caller's +1 — without it the fresh
+    # element on an empty array is dropped before the store lands
+    # (var-24.7 append).
+    if use_var_path:
+        if keep_last:
+            emitter._emit_var_write_obj_keep(var_name, source=Ownership.OWNED)
+        else:
+            emitter._emit_var_write_obj(var_name, source=Ownership.OWNED)
+    else:
+        var_idx = emitter._intern_local(var_name)
+        if keep_last:
+            emitter._emit_local_tee(var_idx)
+        else:
+            emitter._emit_local_set(var_idx)
 
     return True
 
