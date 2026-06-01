@@ -112,9 +112,10 @@ class TestProfileSpec:
 
     def test_standard_code_count(self):
         spec = profile_spec(OptimisationProfile.STANDARD)
-        # readability + constant-folding + pattern codes (O129 added the
-        # general builtin-command-substitution fold to constant_folding).
-        assert len(spec.enabled_codes) == 18
+        # readability + constant-folding + pattern codes.  O129 added the
+        # general builtin-command-substitution fold (constant_folding); O130
+        # added the lappend list-build-chain fold (pattern).
+        assert len(spec.enabled_codes) == 19
 
 
 # ---------------------------------------------------------------------------

@@ -802,6 +802,11 @@ export const OPTIMISATIONS: OptimisationDef[] = [
       "Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …).",
     defaultEnabled: true,
   },
+  {
+    code: "O130",
+    description: "Fold static `lappend` list build chains into a single assignment.",
+    defaultEnabled: true,
+  },
 ];
 
 export const SECTION_TITLES: Record<string, string> = {

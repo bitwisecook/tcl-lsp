@@ -222,6 +222,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var optimiserO127: Boolean = true
     var optimiserO128: Boolean = true
     var optimiserO129: Boolean = true
+    var optimiserO130: Boolean = true
     // @generated:optimiser-vars:end
 
     // Shimmer
@@ -470,6 +471,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "O127" to optimiserO127,
                 "O128" to optimiserO128,
                 "O129" to optimiserO129,
+                "O130" to optimiserO130,
                 // @generated:optimiser-map:end
             ),
             "shimmer" to mapOf(

@@ -4688,6 +4688,16 @@
             "default": null,
             "markdownDescription": "**O129:** Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …). (`null` = inherit from profile)",
             "order": 31
+          },
+          "tclLsp.optimiser.O130": {
+            "scope": "resource",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O130:** Fold static `lappend` list build chains into a single assignment. (`null` = inherit from profile)",
+            "order": 32
           }
         }
       },

@@ -60,6 +60,10 @@ class _StringWriteChain:
     var_word: str
     writes: list[int]
     value: str
+    # When not None the chain is in *list* mode: it began as ``set var <list>``
+    # and was extended by ``lappend``, so the accumulated state is a list of
+    # elements rendered with list quoting rather than string concatenation.
+    elements: list[str] | None = None
 
 
 @dataclass

@@ -152,6 +152,7 @@ object DiagnosticCatalog {
         OptimisationDef("O127", "O127: Inline single-use variable assignment", true),
         OptimisationDef("O128", "O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...", true),
         OptimisationDef("O129", "O129: Fold a pure builtin command substitution with consta...", true),
+        OptimisationDef("O130", "O130: Fold static lappend list build chains into a single ...", true),
     )
 
     val sectionTitles: Map<String, String> = mapOf(

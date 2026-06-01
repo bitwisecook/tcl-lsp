@@ -137,6 +137,15 @@ _E2E = [
     "puts [string repeat = 6]",
     "set r [format %5.2f 3.14159]\nputs $r",
     "set n [llength {a b c}]\nputs [expr {$n + 1}]",
+    # lappend list-build chains (O130)
+    "set l {}\nlappend l a b\nputs $l",
+    "set l {x}\nlappend l {a b}\nputs $l",
+    "proc f {} {set acc {}\nlappend acc 1\nlappend acc 2\nlappend acc 3\nreturn $acc}\nputs [f]",
+    # scan of constant literals (no varName form)
+    "puts [scan 42 %d]",
+    "puts [scan ff %x]",
+    "puts [scan {1 2 3} {%d %d %d}]",
+    "set n [scan 99 %d]\nputs $n",
 ]
 
 

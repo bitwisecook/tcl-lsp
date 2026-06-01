@@ -237,6 +237,16 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
         'puts [expr {"a" lt "b"}]',
         "puts 1",
     ),
+    # lappend list-build chain folds (O130).
+    "lappend_chain_fold": (
+        "proc f {} {set l {}\nlappend l a\nlappend l b\nlappend l c\nreturn $l}\nputs [f]",
+        "return {a b c}",
+    ),
+    # scan of literal constants folds (O129 via the const-fold callback).
+    "scan_int_fold": (
+        "puts [scan 42 %d]",
+        "puts 42",
+    ),
 }
 
 

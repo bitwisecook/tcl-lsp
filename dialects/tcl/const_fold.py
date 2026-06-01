@@ -589,6 +589,105 @@ def fold_format(args: tuple[str, ...]) -> str | None:
         return None
 
 
+_SCAN_WS = " \t\n\r\f\v"
+
+
+def fold_scan(args: tuple[str, ...]) -> str | None:
+    """``scan string format`` — the *inline* (no ``varName``) form only.
+
+    Returns the list of converted values.  Deliberately conservative: only the
+    integer / string / char conversions (``%d %o %x %X %u %s %c``) are folded,
+    and only when **every** conversion succeeds (no whitespace-flag, width,
+    ``*`` suppression, ``%[`` set, size modifier, or float conversion, and no
+    partial / failed match — those have empty-element semantics we don't
+    reproduce).  Returns ``None`` (don't fold) otherwise.
+    """
+    if len(args) != 2:  # the ?varName ...? form has side effects — never fold
+        return None
+    return _tcl_scan(args[0], args[1])
+
+
+def _tcl_scan(string: str, fmt: str) -> str | None:
+    results: list[str] = []
+    si = 0
+    fi = 0
+    n = len(string)
+    m = len(fmt)
+    while fi < m:
+        fc = fmt[fi]
+        if fc in " \t\n":
+            # whitespace in the format matches a (possibly empty) run
+            while si < n and string[si] in _SCAN_WS:
+                si += 1
+            fi += 1
+            continue
+        if fc != "%":
+            if si < n and string[si] == fc:
+                si += 1
+                fi += 1
+                continue
+            return None  # literal mismatch — bail conservatively
+        # conversion specifier
+        fi += 1
+        if fi >= m:
+            return None
+        conv = fmt[fi]
+        if conv == "%":
+            if si < n and string[si] == "%":
+                si += 1
+                fi += 1
+                continue
+            return None
+        # Suppression / width / size / scan-set / positional — not folded.
+        if conv in "*0123456789[lhqLjzt" or conv == "$":
+            return None
+        fi += 1
+        if conv == "c":
+            # %c consumes exactly one character (no whitespace skip).
+            if si >= n:
+                return None
+            results.append(str(ord(string[si])))
+            si += 1
+            continue
+        # Numeric / string conversions skip leading whitespace.
+        while si < n and string[si] in _SCAN_WS:
+            si += 1
+        if si >= n:
+            return None  # nothing left to convert — bail
+        if conv == "s":
+            start = si
+            while si < n and string[si] not in _SCAN_WS:
+                si += 1
+            results.append(string[start:si])
+        elif conv in "doxXu":
+            start = si
+            if string[si] in "+-":
+                si += 1
+            digit_start = si
+            if conv in "xX":
+                base = 16
+                allowed = "0123456789abcdefABCDEF"
+            elif conv == "o":
+                base = 8
+                allowed = "01234567"
+            else:  # d, u
+                base = 10
+                allowed = "0123456789"
+            while si < n and string[si] in allowed:
+                si += 1
+            if si == digit_start:
+                return None  # no digits — conversion failed
+            try:
+                results.append(str(int(string[start:si], base)))
+            except ValueError:
+                return None
+        else:
+            return None  # %f/%e/%g and any other conversion — not folded
+    if not results:
+        return None
+    return tcl_list_join(results)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
