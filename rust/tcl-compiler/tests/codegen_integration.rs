@@ -350,6 +350,33 @@ fn switch_dispatch_emits_jump_table() {
 }
 
 #[test]
+fn switch_glob_as_proc_tail_keeps_result_on_stack() {
+    // Regression (PR #514 review): a glob/regexp `switch` as a proc's
+    // last command must leave the invoke result on TOS for the proc
+    // return — emitting a statement-level POP underflows the stack.
+    use tcl_compiler::cfg_builder::build_cfg;
+    use tcl_compiler::lowering::lower_to_ir;
+
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
+    let cfg = build_cfg(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let f = asm.procedures.get("::f").expect("proc ::f");
+    let ops: Vec<Op> = f.instructions.iter().map(|i| i.op).collect();
+    // The arm bodies are subsumed by the runtime invoke, so the only
+    // command is the `switch` invoke. Its result flows straight to the
+    // proc return — there must be no POP dropping it.
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "expected a generic switch invoke, got {ops:?}",
+    );
+    assert!(
+        !ops.contains(&Op::POP),
+        "glob switch as proc tail must not POP its result, got {ops:?}",
+    );
+}
+
+#[test]
 fn switch_glob_emits_generic_invoke_not_jump_table() {
     use tcl_compiler::cfg_builder::build_cfg_function;
     use tcl_compiler::ir::{SwitchArm, SwitchMode};

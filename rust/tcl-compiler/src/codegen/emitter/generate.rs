@@ -401,6 +401,21 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 tokens: None,
             };
             ctx.emit_stmt_with_start_cmd(&invoke, None, None);
+            // The invoke's result is the switch's value — it must reach
+            // `switch_end` on TOS like an exact arm's result, so the
+            // value-join at the join block can keep it (proc return /
+            // nested value) or pop it (statement context). Drop the
+            // statement-level POP that `emit_call` appended; without
+            // this the join's own pop / proc-return underflows the
+            // stack (a glob/regexp switch as a proc's last command, or
+            // followed by another statement).
+            if ctx
+                .instructions
+                .last()
+                .is_some_and(|inst| inst.op == Op::POP)
+            {
+                ctx.instructions.pop();
+            }
             if next_block != Some(sd.end_block.as_str()) {
                 ctx.emit_comment(
                     Op::JUMP4,
