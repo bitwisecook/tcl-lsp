@@ -55,8 +55,8 @@ proc square {r} {
 
 # O104: string build chain
 proc build_banner {} {
-    set msg {Hello World}
-    return $msg
+
+    return {Hello World}
 }
 
 # O119: pack consecutive sets into lassign

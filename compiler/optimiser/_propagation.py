@@ -40,6 +40,7 @@ from ._helpers import (
     _parse_command_words,
     _parse_single_command_from_range,
     _render_folded_literal,
+    _render_static_string_word,
     _resolve_summary_proc_name,
 )
 from ._types import Optimisation, PassContext
@@ -502,16 +503,24 @@ def optimise_constant_var_refs(
         value = constants.get(name)
         if value is None:
             continue
-        # String constants with Tcl metacharacters ($, [, \, etc.) would
-        # change the interpretation if substituted as a bare word.
+        # String constants with Tcl metacharacters ($, [, \, etc.) cannot be
+        # dropped in as a bare word.  But this $var is a single-token whole
+        # word (``arg_single[idx]``), so the value can instead be re-rendered
+        # as a self-contained word -- a brace-quoted ``{...}`` word suppresses
+        # the metacharacters and is semantically identical to substituting the
+        # variable, which already yields the value as a single word.
         if _UNSAFE_IN_WORD_RE.search(value):
-            continue
+            replacement = _render_static_string_word(value)
+            if replacement is None:
+                continue
+        else:
+            replacement = value
         ctx.optimisations.append(
             Optimisation(
                 code="O100",
                 message="Propagate constant into command argument",
                 range=_var_token_range(tok),
-                replacement=value,
+                replacement=replacement,
             )
         )
 

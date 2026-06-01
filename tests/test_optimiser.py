@@ -982,6 +982,50 @@ class TestConstantVarRefPropagation:
         assert any(r.code == "O105" for r in rewrites)
         assert any(r.code == "O109" for r in rewrites)
 
+    def test_string_constant_with_space_propagated_as_braced_word(self):
+        """A whole-word $var holding a multi-word string folds to a braced word.
+
+        ``$msg`` already evaluates to the single value "Hello World"; replacing
+        it with the brace-quoted ``{Hello World}`` is semantically identical and
+        unblocks the constant from being inlined into its (sole) use.
+        """
+        source = "set msg {Hello World}\nputs $msg"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "puts {Hello World}"
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_string_constant_with_metachars_propagated_safely(self):
+        """Metacharacters in the value are suppressed by the braces, not run."""
+        source = 'set x {a $b [c]}\nputs $x'
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "puts {a $b [c]}"
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_string_constant_returned_collapses_via_multipass(self):
+        """``set msg {Hello World}; return $msg`` -> ``return {Hello World}``.
+
+        The dead ``set`` is then removed, leaving the proc body as a single
+        ``return`` of the literal — the local never escapes, so dropping the
+        assignment is not an observable side effect.
+        """
+        from compiler.optimiser import optimise_source_multipass
+
+        source = textwrap.dedent(
+            """\
+            proc build_banner {} {
+                set msg {Hello}
+                append msg { }
+                append msg World
+                return $msg
+            }
+            """
+        )
+        optimised, _rewrites, _iters = optimise_source_multipass(source)
+        assert "return {Hello World}" in optimised
+        assert "append" not in optimised
+        # The intermediate local must be gone — no surviving ``set msg``.
+        assert "set msg" not in optimised
+
 
 class TestPatternMatchSimplification:
     """O110: simplify matches_regex / matches_glob to simpler string ops."""
