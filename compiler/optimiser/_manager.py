@@ -173,11 +173,17 @@ class _CompilerOptimiser:
         # owning class qname so the O126 ``my <method>`` purity gate can
         # resolve same-class pure methods.  Rewrites map back to source via
         # the method body's statement ranges (same as procs).
-        ctx.cross_event_vars = frozenset()
         for mqname, fu in cu.methods.items():
             if fu.complexity_guarded:
                 continue
             ir_method = cu.ir_module.methods.get(mqname)
+            # Instance variables escape the method frame (they are object
+            # state), so a write to one is NOT a dead store even when the
+            # method never reads it back.  Feed them through the same
+            # escaping-var channel iRules cross-event state uses, so the
+            # dead-store / unused-assignment passes don't delete a
+            # state-mutating ``set ivar ...`` inside the method body.
+            ctx.cross_event_vars = frozenset(ir_method.instance_vars) if ir_method else frozenset()
             self._process_function(
                 ctx,
                 fu.cfg,
@@ -188,6 +194,7 @@ class _CompilerOptimiser:
                 namespace=_namespace_from_qualified(mqname),
                 enclosing_class=ir_method.class_name if ir_method else None,
             )
+        ctx.cross_event_vars = frozenset()
         # Tail-call detection (cross-procedure, runs once).
         _tail_call.optimise_tail_calls(ctx)
         # Module-level passes

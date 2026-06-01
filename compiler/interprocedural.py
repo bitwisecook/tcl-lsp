@@ -68,6 +68,9 @@ from shared.naming import (
 from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from shared.naming import (
+    split_array_name as _split_array_name,
+)
 from shared.proc_traits import ProcArgTrait
 from shared.tokens import TokenType
 
@@ -1287,13 +1290,26 @@ def analyse_interprocedural_ir(
                 for block in m_cfg.blocks.values():
                     for stmt in block.statements:
                         if isinstance(stmt, IRCall):
-                            for d in stmt.defs:
-                                if d in ir_method.instance_vars:
-                                    written_ivars.add(d)
+                            # ``variable`` / ``upvar`` link or declare a name;
+                            # they are not writes to instance state.  Counting
+                            # their defs would mark a read-only instance-var
+                            # method (``variable x; return $x``) impure.
+                            if stmt.canonical_command in ("::variable", "::upvar"):
+                                continue
+                            written = stmt.defs
                         else:
                             nm = getattr(stmt, "name", None)
-                            if isinstance(nm, str) and nm in ir_method.instance_vars:
-                                written_ivars.add(nm)
+                            written = (nm,) if isinstance(nm, str) else ()
+                        for raw in written:
+                            if not raw:
+                                continue
+                            # The def name may be an array element
+                            # (``counter(0)``) or qualified; compare the base
+                            # scalar/array name against the declared instance
+                            # vars so element writes are not missed.
+                            base = _split_array_name(_normalise_var_name(raw))[0]
+                            if base in ir_method.instance_vars:
+                                written_ivars.add(base)
             m_pure_base = (
                 not m_local.has_barrier
                 and not m_local.has_unknown_calls

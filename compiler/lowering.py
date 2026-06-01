@@ -2665,14 +2665,19 @@ class _Lowerer:
 
         # Class-level instance-variable declarations (``variable a b ...``
         # in the class body) are auto-linked into every method, so a method
-        # that writes one of these mutates object state.  Collect the literal
-        # names up front (dynamic names are skipped — conservative).
+        # that writes one of these mutates object state.  The TclOO class-body
+        # ``variable`` slot is **names-only** — ``variable a b c`` declares
+        # three instance vars (verified vs tclsh 9.0), NOT name/value pairs
+        # like the namespace ``variable`` command — so every literal trailing
+        # word is a name.  Normalise to the bare scalar name so it matches the
+        # base-name comparison in the interproc write check (dynamic names are
+        # skipped — conservative).
         class_ivars: set[str] = set()
         for seg in segments:
             if not seg.is_partial and len(seg.texts) >= 2 and seg.texts[0] == "variable":
                 for nm in seg.texts[1:]:
                     if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
-                        class_ivars.add(nm)
+                        class_ivars.add(_normalise_var_name(nm))
 
         for seg in segments:
             if seg.is_partial or not seg.texts:
@@ -2716,13 +2721,17 @@ class _Lowerer:
                 self._proc_depth -= 1
             # Instance vars in scope: class-level decls plus this method's
             # own top-level ``variable`` declarations.  A write to any of
-            # these mutates object state (impure for O126).
+            # these mutates object state (impure for O126).  Like the class
+            # body, a method-local ``variable a b`` links instance vars by
+            # name; over-approximating the name set is the sound direction
+            # here (a missed name would wrongly let a state-mutating method
+            # be deleted, whereas a spurious name only costs precision).
             method_ivars = set(class_ivars)
             for st in body_script.statements:
                 if isinstance(st, IRCall) and st.canonical_command == "::variable" and st.args:
                     for nm in st.args:
                         if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
-                            method_ivars.add(nm)
+                            method_ivars.add(_normalise_var_name(nm))
             method_qname = f"{class_qname}::{name}"
             # First definition wins for the stored body (matches proc
             # registration), but a redefinition (a later ``oo::define`` or a

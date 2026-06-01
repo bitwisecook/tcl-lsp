@@ -611,6 +611,28 @@ def test_FP_OPT_12_method_local_instance_var_write_not_deleted():
     assert not [r for r in rewrites if r.code == "O126"]
 
 
+def test_FP_OPT_12_array_element_instance_var_write_not_deleted():
+    """SF-2 soundness: a method that writes an *array element* of an
+    instance var (``set counter(0) 1``) mutates object state — the def
+    name is ``counter(0)``, so the write-detection must compare the base
+    name (``counter``) against the declared instance vars, not the raw
+    name.  Otherwise ``my bump`` is wrongly pure and O126 deletes the
+    mutating call (PR #506 review)."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method bump {} { set counter(0) 1 }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "array-element instance-var write must not be treated as pure"
+    )
+
+
 def test_FP_OPT_12_instance_var_read_only_method_deleted():
     """SF-2 precision: a method that only *reads* an instance var (no write)
     is still pure — its discarded result is safe to delete."""
