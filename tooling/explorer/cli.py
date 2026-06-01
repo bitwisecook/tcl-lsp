@@ -703,24 +703,46 @@ def print_cfg_post_ssa(
     _render_cfg(snapshots, line_index=line_index, use_colour=use_colour, post_ssa=True)
 
 
-def _render_green_node(node, *, depth: int, use_colour: bool, max_depth: int = 16) -> None:
+def _render_green_tokens(
+    node, *, prefix: str, use_colour: bool, depth: int, max_depth: int
+) -> None:
+    """Draw a node's tokens as a box-drawing tree, nesting opaque regions.
+
+    Each token is a tree entry tagged with its type and absolute byte range;
+    an opaque ``{...}`` / ``[...]`` token descends into its re-lexed child
+    region (a dim ``kind [mode]`` descriptor, then that region's own tokens).
+    """
     from shared.tokens import TokenType
 
-    indent = "  " * depth
-    print(
-        style(
-            f"{indent}{node.kind.name.lower()} [{node.mode.name.lower()}] "
-            f"@{node.base_offset} w={node.width} tokens={len(node.tokens)}",
-            Ansi.CYAN if node.kind.name != "ERROR" else Ansi.RED,
-            use_colour,
+    tokens = node.tokens
+    for idx, tok in enumerate(tokens):
+        is_last = idx == len(tokens) - 1
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
+        opaque = tok.type in (TokenType.STR, TokenType.CMD) and bool(tok.text)
+        preview_text = repr(preview(tok.text.replace("\n", "⏎"), 40))
+        print(
+            f"{prefix}{connector}"
+            f"{style(tok.type.name, Ansi.CYAN if opaque else Ansi.GRAY, use_colour)} "
+            f"{preview_text} "
+            f"{style(f'[{tok.start.offset}:{tok.end.offset}]', Ansi.DIM, use_colour)}"
         )
-    )
-    if depth >= max_depth:
-        return
-    for tok in node.tokens:
-        if tok.type in (TokenType.STR, TokenType.CMD) and tok.text:
-            _render_green_node(
-                node.descend(tok), depth=depth + 1, use_colour=use_colour, max_depth=max_depth
+        if opaque and depth < max_depth:
+            child = node.descend(tok)
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
+            print(
+                style(
+                    f"{child_prefix}{child.kind.name.lower()} [{child.mode.name.lower()}] "
+                    f"w={child.width}",
+                    Ansi.CYAN if child.kind.name != "ERROR" else Ansi.RED,
+                    use_colour,
+                )
+            )
+            _render_green_tokens(
+                child,
+                prefix=child_prefix,
+                use_colour=use_colour,
+                depth=depth + 1,
+                max_depth=max_depth,
             )
 
 
@@ -737,7 +759,16 @@ def print_greentree(source: str, *, use_colour: bool) -> None:
     print()
     print(style("green-tree", Ansi.BOLD, use_colour))
     with green_tree_scope():
-        _render_green_node(node_for(source), depth=0, use_colour=use_colour)
+        root = node_for(source)
+        print(
+            style(
+                f"{root.kind.name.lower()} [{root.mode.name.lower()}] "
+                f"@{root.base_offset} w={root.width}",
+                Ansi.CYAN if root.kind.name != "ERROR" else Ansi.RED,
+                use_colour,
+            )
+        )
+        _render_green_tokens(root, prefix="", use_colour=use_colour, depth=0, max_depth=16)
 
 
 def print_loops(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
