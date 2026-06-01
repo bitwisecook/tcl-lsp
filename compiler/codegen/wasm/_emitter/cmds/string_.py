@@ -165,10 +165,9 @@ def _emit_string(
                 else:
                     emitter._emit(WasmOp.DROP)
                 return True
-            emitter._emit_value(sub_args[0])
-            for rest in sub_args[1:]:
-                emitter._emit_value(rest)
-                emitter._emit_call(append_idx)
+            emitter._emit_concat_chain(
+                append_idx, [lambda a=arg: emitter._emit_value(a) for arg in sub_args]
+            )
         if defs:
             def_idx = emitter._intern_local(defs[0])
             emitter._emit_local_set(def_idx)

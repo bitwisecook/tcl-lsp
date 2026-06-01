@@ -597,6 +597,7 @@ def _rewrite_stmt(
                 mode=stmt.mode,
                 nocase=stmt.nocase,
                 raw_args=stmt.raw_args,
+                patterns_braced=stmt.patterns_braced,
             )
         return stmt
     if isinstance(stmt, IRBlock):

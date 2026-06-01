@@ -5491,10 +5491,53 @@ pub fn eval_apply(words: []const i32) i32 {
         var pi: u32 = 0;
         while (pi < n_params) : (pi += 1) {
             const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
-            const param_name_ptr = ps.ptr + param_elem.start;
-            const param_name_len = param_elem.len;
+            // A parameter is itself a list ``{name ?default?}`` — element
+            // 0 is the variable name, an optional element 1 the default
+            // value used when no argument is supplied.  ``{}`` (no name)
+            // and ``{a b c}`` (>2 fields) are malformed (apply-2.2 / 2.3).
+            const spec_ptr = ps.ptr + param_elem.start;
+            const spec_len = param_elem.len;
+            const field_count = list_count_elements(spec_ptr, spec_len);
+            if (field_count == 0) {
+                const stubs = @import("../stubs/tcl_stubs.zig");
+                frames.frame_pop();
+                stubs.raise("argument with no name");
+                return 0;
+            }
+            if (field_count > 2) {
+                var mbuf: [256]u8 = undefined;
+                const pfx = "too many fields in argument specifier \"";
+                var mo: u32 = 0;
+                for (pfx) |c| {
+                    mbuf[mo] = c;
+                    mo += 1;
+                }
+                const sp_bytes: [*]const u8 = @ptrFromInt(spec_ptr);
+                var si: u32 = 0;
+                while (si < spec_len and mo < mbuf.len - 1) : (si += 1) {
+                    mbuf[mo] = sp_bytes[si];
+                    mo += 1;
+                }
+                mbuf[mo] = '"';
+                mo += 1;
+                const stubs = @import("../stubs/tcl_stubs.zig");
+                frames.frame_pop();
+                stubs.raise(mbuf[0..mo]);
+                return 0;
+            }
+            const name_elem = list_element_at(spec_ptr, spec_len, 0);
+            const param_name_ptr = spec_ptr + name_elem.start;
+            const param_name_len = name_elem.len;
             const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
             defer obj_mod.tcl_obj_release(param_name);
+            const has_default = field_count == 2;
+            var default_ptr: u32 = 0;
+            var default_len: u32 = 0;
+            if (has_default) {
+                const def_elem = list_element_at(spec_ptr, spec_len, 1);
+                default_ptr = spec_ptr + def_elem.start;
+                default_len = def_elem.len;
+            }
             const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
             const arg_idx = pi + 2; // skip words[0]=apply, words[1]=lambda
             const is_args_param = (pi == n_params - 1) and (param_name_len == 4) and
@@ -5544,6 +5587,10 @@ pub fn eval_apply(words: []const i32) i32 {
             } else {
                 if (arg_idx < words.len) {
                     _ = frames.local_set(param_name, words[arg_idx]);
+                } else if (has_default) {
+                    const dv = obj_new_string_copy(default_ptr, default_len);
+                    _ = frames.local_set(param_name, dv);
+                    obj_mod.tcl_obj_release(dv);
                 } else {
                     const empty = obj_new_string(0, 0);
                     _ = frames.local_set(param_name, empty);

@@ -968,6 +968,10 @@ class _Lowerer:
             )
 
         pairs: list[tuple[str, Token | None, str, Token | None]] = []
+        # Patterns from a single braced body are literal list elements;
+        # patterns supplied as separate words undergo runtime $var/[cmd]
+        # substitution (the ``switch $s $pat {body}`` wrapper form).
+        patterns_braced = True
         if i == len(args) - 1 and i < len(arg_tokens) and i < len(arg_single) and arg_single[i]:
             body_text = args[i]
             body_tok = arg_tokens[i]
@@ -994,6 +998,7 @@ class _Lowerer:
                 )
                 j += 2
         else:
+            patterns_braced = False
             remaining_count = len(args) - i
             if remaining_count & 1:
                 return IRBarrier(
@@ -1061,6 +1066,7 @@ class _Lowerer:
             mode=mode,
             nocase=nocase,
             raw_args=tuple(args),
+            patterns_braced=patterns_braced,
         )
 
     def _lower_for(self, cmd: _Command, *, namespace: str) -> IRFor | IRBarrier:
