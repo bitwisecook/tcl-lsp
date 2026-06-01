@@ -5,16 +5,16 @@ Usage:
 
 Profiles:
 
-    tcl       Unified Tcl tools CLI         (entry: scripts/zipapp-main/tcl.py)
-    cli       Compiler-explorer CLI         (entry: tooling.explorer.cli)
-    f5        F5 BIG-IP CLI                 (entry: tooling.f5.main)
-    lsp       LSP server                    (entry: scripts/zipapp-main/lsp.py)
-    ai        AI analysis CLI               (entry: scripts/zipapp-main/ai.py)
-    mcp       MCP server                    (entry: scripts/zipapp-main/mcp.py)
-    wasm      Tcl→WASM compiler CLI         (entry: tooling.wasm.main)
-    gui       Standalone web GUI            (--static-dir REQUIRED)
-    gui-cdn   Web GUI (Pyodide from CDN)    (--static-dir REQUIRED)
-    claude-skills  Bundled Claude Code skill set (--ai-pyz REQUIRED)
+    tcl              Unified Tcl tools CLI       (entry: scripts/zipapp-main/tcl.py)
+    explorer-cli     Compiler-explorer CLI       (entry: tooling.explorer.cli)
+    f5               F5 BIG-IP CLI               (entry: tooling.f5.main)
+    lsp              LSP server                  (entry: scripts/zipapp-main/lsp.py)
+    ai               AI analysis CLI             (entry: scripts/zipapp-main/ai.py)
+    mcp              MCP server                  (entry: scripts/zipapp-main/mcp.py)
+    wasm             Tcl→WASM compiler CLI       (entry: tooling.wasm.main)
+    explorer-gui     Standalone web GUI          (--static-dir REQUIRED)
+    explorer-gui-cdn Web GUI (Pyodide from CDN)  (--static-dir REQUIRED)
+    claude-skills    Bundled Claude Code skill set (--ai-pyz REQUIRED)
 
 Each profile declares which of the seven concern packages it ships
 (`shared`, `compiler`, `dialects`, `analyser`, `server`, `tooling`,
@@ -109,8 +109,8 @@ def _ignore_patterns(profile: Profile, package: str):
     base = ["__pycache__", "*.pyc"]
     if profile.exclude_explorer_static and package == "tooling":
         # tooling/explorer/static/ contains the pyodide bundle (~5 MB) —
-        # only the gui / gui-cdn profiles want it; everyone else ships
-        # without the Pyodide payload.
+        # only the explorer-gui / explorer-gui-cdn profiles want it;
+        # everyone else ships without the Pyodide payload.
         base.append("static")
     name_ignore = shutil.ignore_patterns(*base)
     if package != "tooling":
@@ -228,11 +228,19 @@ def build_profile(profile: Profile, version: str, output: Path) -> None:
 _BASE_BACKEND = ("shared", "compiler", "dialects", "analyser")
 
 PROFILES: dict[str, Profile] = {
-    "cli": Profile(
-        name="cli",
+    "explorer-cli": Profile(
+        name="explorer-cli",
         # tooling.explorer.cli pulls in server._build_info for `--version`,
         # so server/ comes along.
         packages=_BASE_BACKEND + ("server", "tooling"),
+        # ``--tui`` mode imports ``tooling.explorer.tui`` which needs the
+        # ``textual`` library (and its dep ``rich``).  Without them the
+        # zipapp's ``--tui`` flag dies at import time with
+        # ``ModuleNotFoundError: No module named 'rich'``.  The flat
+        # ``--text`` mode still works without these, so the CLI degrades
+        # gracefully — but the default surface on an interactive TTY is
+        # the TUI, so ship the deps.
+        pip_packages=("textual>=0.80",),
         entry_module="tooling.explorer.cli:main",
     ),
     "f5": Profile(
@@ -301,7 +309,7 @@ def build_gui(version: str, output: Path, static_dir: Path, *, cdn: bool) -> Non
         print(f"Run 'make {target}' first.", file=sys.stderr)
         sys.exit(1)
 
-    label = "gui-cdn" if cdn else "gui"
+    label = "explorer-gui-cdn" if cdn else "explorer-gui"
     with tempfile.TemporaryDirectory(prefix=f"zipapp-{label}-") as tmp:
         stage = Path(tmp)
         shutil.copy2(ROOT / "scripts" / "zipapp-main" / "gui.py", stage / "__main__.py")
@@ -354,7 +362,7 @@ def main() -> int:
         p.add_argument("--version", required=True)
         p.add_argument("--output", required=True, type=Path)
 
-    for name in ("gui", "gui-cdn"):
+    for name in ("explorer-gui", "explorer-gui-cdn"):
         p = sub.add_parser(name, help=f"Build the {name} zipapp")
         p.add_argument("--version", required=True)
         p.add_argument("--output", required=True, type=Path)
@@ -370,9 +378,9 @@ def main() -> int:
 
     if args.command in PROFILES:
         build_profile(PROFILES[args.command], args.version, args.output)
-    elif args.command == "gui":
+    elif args.command == "explorer-gui":
         build_gui(args.version, args.output, args.static_dir, cdn=False)
-    elif args.command == "gui-cdn":
+    elif args.command == "explorer-gui-cdn":
         build_gui(args.version, args.output, args.static_dir, cdn=True)
     elif args.command == "claude-skills":
         build_claude_skills(args.version, args.output, args.ai_pyz)

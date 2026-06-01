@@ -124,11 +124,11 @@ BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 
 # Zipapps — name → output filename mapping.  The pattern rule below
 # drives every zipapp from this list.
-ZIPAPP_TCL     := $(BUILD_DIR)/tcl-$(VERSION).pyz
-ZIPAPP_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
-ZIPAPP_F5      := $(BUILD_DIR)/f5-$(VERSION).pyz
-ZIPAPP_GUI     := $(BUILD_DIR)/tcl-lsp-explorer-gui-$(VERSION).pyz
-ZIPAPP_GUI_CDN := $(BUILD_DIR)/tcl-lsp-explorer-gui-cdn-$(VERSION).pyz
+ZIPAPP_TCL              := $(BUILD_DIR)/tcl-$(VERSION).pyz
+ZIPAPP_EXPLORER_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
+ZIPAPP_F5               := $(BUILD_DIR)/f5-$(VERSION).pyz
+ZIPAPP_EXPLORER_GUI     := $(BUILD_DIR)/tcl-lsp-explorer-gui-$(VERSION).pyz
+ZIPAPP_EXPLORER_GUI_CDN := $(BUILD_DIR)/tcl-lsp-explorer-gui-cdn-$(VERSION).pyz
 ZIPAPP_LSP     := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
 ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
 ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
@@ -172,7 +172,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
-.PHONY: zipapps zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
+.PHONY: zipapps zipapp-tcl zipapp-explorer-cli zipapp-f5 zipapp-explorer-gui zipapp-explorer-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
 .PHONY: smoke-zipapps smoke-vsix
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
@@ -899,7 +899,7 @@ endef
 
 $(eval $(call smoke_help,mcp))
 $(eval $(call smoke_help,lsp))
-$(eval $(call smoke_help,cli))
+$(eval $(call smoke_help,explorer-cli))
 
 # AI smoke: build and run the `context` verb against the sample iRule.
 _smoke-zipapp-ai: $(BUILD_INFO)
@@ -950,7 +950,7 @@ _smoke-zipapp-f5: $(BUILD_INFO)
 	rm -f $$PYZ $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
 .PHONY: _smoke-zipapp-f5
 
-smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli _smoke-zipapp-f5 ## Build and smoke-test all zipapps
+smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-explorer-cli _smoke-zipapp-f5 ## Build and smoke-test all zipapps
 	@echo "All zipapp smoke tests passed."
 
 smoke-vsix: compile $(BUILD_INFO) ## Build and verify the VSIX packages without error
@@ -1160,30 +1160,30 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 #
 #   scripts/build/zipapps.py <profile> --version <V> --output <OUT>
 #
-# The seven "plain" zipapps (tcl / cli / f5 / lsp / ai / mcp / wasm) share
-# the same dependency set: PY_SRCS + BUILD_INFO (plus KCS_DB for the
-# unified `tcl` zipapp because it bundles help pages).  The two GUI
-# zipapps need the static explorer bundle first.
+# The seven "plain" zipapps (tcl / explorer-cli / f5 / lsp / ai / mcp / wasm)
+# share the same dependency set: PY_SRCS + BUILD_INFO (plus KCS_DB for
+# the unified `tcl` zipapp because it bundles help pages).  The two
+# explorer GUI zipapps need the static explorer bundle first.
 #
 # Use `$(call zipapp_rule,profile,output-var,extra-deps,description)` to
 # add a new one — it generates the friendly `zipapp-<profile>` phony,
 # the recipe, and a `## help` line for `make help`.
 # ---------------------------------------------------------------------------
 
-zipapps: zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build every zipapp
+zipapps: zipapp-tcl zipapp-explorer-cli zipapp-f5 zipapp-explorer-gui zipapp-explorer-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build every zipapp
 
 # Friendly aliases — kept as plain rules so `make help` sees the
 # docstring.  The actual build recipes are macro-generated below.
-zipapp-tcl:  $(ZIPAPP_TCL)  ## Build the unified Tcl tools zipapp
-zipapp-cli:  $(ZIPAPP_CLI)  ## Build the CLI compiler explorer zipapp
-zipapp-f5:   $(ZIPAPP_F5)   ## Build the F5 BIG-IP CLI zipapp
-zipapp-lsp:  $(ZIPAPP_LSP)  ## Build the LSP server zipapp
-zipapp-ai:   $(ZIPAPP_AI)   ## Build the AI analysis zipapp
-zipapp-mcp:  $(ZIPAPP_MCP)  ## Build the MCP server zipapp
-zipapp-wasm: $(ZIPAPP_WASM) ## Build the WASM compiler zipapp
+zipapp-tcl:           $(ZIPAPP_TCL)          ## Build the unified Tcl tools zipapp
+zipapp-explorer-cli:  $(ZIPAPP_EXPLORER_CLI) ## Build the compiler-explorer CLI zipapp
+zipapp-f5:            $(ZIPAPP_F5)           ## Build the F5 BIG-IP CLI zipapp
+zipapp-lsp:           $(ZIPAPP_LSP)          ## Build the LSP server zipapp
+zipapp-ai:            $(ZIPAPP_AI)           ## Build the AI analysis zipapp
+zipapp-mcp:           $(ZIPAPP_MCP)          ## Build the MCP server zipapp
+zipapp-wasm:          $(ZIPAPP_WASM)         ## Build the WASM compiler zipapp
 
 # define plain_zipapp_recipe — generate the file-producing recipe for
-# one of the seven plain zipapps (tcl / cli / f5 / lsp / ai / mcp / wasm).
+# one of the seven plain zipapps (tcl / explorer-cli / f5 / lsp / ai / mcp / wasm).
 #
 #   $(1) = profile passed to build_zipapp.py
 #   $(2) = name of the variable holding the output path (e.g. ZIPAPP_TCL)
@@ -1197,30 +1197,30 @@ $$($(2)): $$(PY_SRCS) $$(BUILD_INFO) $(3)
 endef
 
 $(eval $(call plain_zipapp_recipe,tcl,ZIPAPP_TCL,$(KCS_DB)))
-$(eval $(call plain_zipapp_recipe,cli,ZIPAPP_CLI,))
+$(eval $(call plain_zipapp_recipe,explorer-cli,ZIPAPP_EXPLORER_CLI,))
 $(eval $(call plain_zipapp_recipe,f5,ZIPAPP_F5,))
 $(eval $(call plain_zipapp_recipe,lsp,ZIPAPP_LSP,))
 $(eval $(call plain_zipapp_recipe,ai,ZIPAPP_AI,))
 $(eval $(call plain_zipapp_recipe,mcp,ZIPAPP_MCP,))
 $(eval $(call plain_zipapp_recipe,wasm,ZIPAPP_WASM,$(RUNTIME_WASM)))
 
-# GUI zipapps need the static explorer bundle, so they don't fit the
-# plain-zipapp pattern.
+# Explorer GUI zipapps need the static explorer bundle, so they don't
+# fit the plain-zipapp pattern.
 
-zipapp-gui: $(ZIPAPP_GUI) ## Build the standalone GUI zipapp (bundles Pyodide)
+zipapp-explorer-gui: $(ZIPAPP_EXPLORER_GUI) ## Build the standalone explorer GUI zipapp (bundles Pyodide)
 
-$(ZIPAPP_GUI): explorer-build $(BUILD_INFO_JSON)
-	@echo "==> Building gui zipapp"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py gui \
+$(ZIPAPP_EXPLORER_GUI): explorer-build $(BUILD_INFO_JSON)
+	@echo "==> Building explorer-gui zipapp"
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py explorer-gui \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_STATIC)
 
-zipapp-gui-cdn: $(ZIPAPP_GUI_CDN) ## Build the CDN GUI zipapp (loads Pyodide from CDN)
+zipapp-explorer-gui-cdn: $(ZIPAPP_EXPLORER_GUI_CDN) ## Build the CDN explorer GUI zipapp (loads Pyodide from CDN)
 
-$(ZIPAPP_GUI_CDN): explorer-build-cdn
-	@echo "==> Building gui-cdn zipapp"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py gui-cdn \
+$(ZIPAPP_EXPLORER_GUI_CDN): explorer-build-cdn
+	@echo "==> Building explorer-gui-cdn zipapp"
+	$(PYTHON) $(ROOT)scripts/build/zipapps.py explorer-gui-cdn \
 		--version $(VERSION) \
 		--output $@ \
 		--static-dir $(EXPLORER_CDN_DIR)
@@ -1359,7 +1359,7 @@ publish-zed: verify-test-slow-stamp build-editor-zed ## Publish Zed extension (p
 
 # Release
 
-release: verify-test-slow-stamp package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: verify-test-slow-stamp package-vsix zipapp-explorer-cli zipapp-tcl zipapp-f5 zipapp-explorer-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
@@ -1368,7 +1368,7 @@ release: verify-test-slow-stamp package-vsix zipapp-cli zipapp-tcl zipapp-f5 zip
 # SHA256SUMS itself and its signature bundle); this target mirrors that
 # selection so developers can compare locally-built SUMS against the
 # published file.
-release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
+release-sums: zipapp-explorer-cli zipapp-tcl zipapp-f5 zipapp-explorer-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \
