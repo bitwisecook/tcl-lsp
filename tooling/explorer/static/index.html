@@ -674,6 +674,46 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
 }
 .tab.irules-only { display: none; }
 .tab.irules-only.irules-visible { display: flex; }
+/* Generic expand-on-click / Space items (green tree, loops, intervals, ...) */
+.xpand { cursor: pointer; outline: none; border-radius: 4px; }
+.xpand:focus-visible { box-shadow: inset 2px 0 0 var(--accent); background: var(--highlight); }
+.xpand > .xpand-detail, .xpand > .xpand-children { display: none; }
+.xpand.expanded > .xpand-detail, .xpand.expanded > .xpand-children { display: block; }
+.xpand-detail {
+  margin: 2px 0 6px 22px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border-left: 2px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.xpand-detail-row { display: flex; gap: 8px; padding: 1px 0; }
+.xpand-detail-k { color: var(--text-dim); min-width: 110px; flex: 0 0 auto; }
+.xpand-detail-v { color: var(--text); word-break: break-word; }
+.gt-text-full {
+  margin: 4px 0 0; padding: 6px 8px; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-bright); font-family: var(--font-mono); font-size: 11px; max-height: 220px; overflow: auto;
+}
+/* Green tree */
+.gt-tree { padding: 4px 8px; font-family: var(--font-mono); font-size: 12px; }
+.gt-node { padding: 0; }
+.gt-head { display: flex; align-items: baseline; gap: 6px; padding: 2px 6px; border-radius: 4px; }
+.gt-head:hover { background: var(--bg-hover); }
+.gt-toggle { display: inline-block; width: 12px; color: var(--text-dim); transition: transform 0.12s; flex: 0 0 auto; }
+.gt-node.expanded > .gt-head .gt-toggle { transform: rotate(90deg); }
+.gt-type { color: var(--accent); font-weight: 600; flex: 0 0 auto; }
+.gt-text { color: var(--text); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.gt-range { color: var(--text-dim); font-size: 10px; margin-left: auto; flex: 0 0 auto; }
+.gt-node.gt-opaque > .gt-head .gt-type { color: var(--cyan); }
+.gt-node.gt-error > .gt-head .gt-type { color: var(--red); }
+.xpand-children { margin-left: 14px; border-left: 1px solid var(--border); padding-left: 4px; }
+.gt-region { color: var(--text-dim); font-size: 10px; padding: 2px 6px; font-style: italic; }
+.gt-empty { color: var(--text-dim); padding: 2px 6px; font-style: italic; }
+.loop-item > .xpand-head, .bounds-item > .xpand-head { padding: 3px 6px; border-radius: 4px; }
+.loop-item > .xpand-head:hover, .bounds-item > .xpand-head:hover { background: var(--bg-hover); }
+.type-entry.xpand > .xpand-head { display: flex; justify-content: space-between; gap: 8px; padding: 2px 4px; border-radius: 4px; }
+.type-entry.xpand > .xpand-head:hover { background: var(--bg-hover); }
 /* WASM disassembly view */
 .wasm-module { margin-bottom: 16px; }
 .wasm-module-details { margin-left: 16px; font-size: 11px; color: var(--text-dim); }
@@ -895,10 +935,14 @@ puts $x"></textarea>
     <div class="output-panel" id="outputPanel" style="position:relative">
       <div class="tab-bar" id="tabBar">
         <div class="tab active" data-tab="ir">IR</div>
+        <div class="tab" data-tab="greentree">Green Tree</div>
         <div class="tab" data-tab="cfg-pre">CFG</div>
         <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
+        <div class="tab" data-tab="loops">Loops</div>
         <div class="tab" data-tab="interproc">Interproc</div>
         <div class="tab" data-tab="types">Types</div>
+        <div class="tab" data-tab="intervals">Intervals</div>
+        <div class="tab" data-tab="bounds">Bounds</div>
         <div class="tab" data-tab="rendered">Rendered</div>
         <div class="tab" data-tab="dataflow">Data Flow</div>
         <div class="tab" data-tab="opt">Optimiser</div>
@@ -906,6 +950,7 @@ puts $x"></textarea>
         <div class="tab" data-tab="shimmer">Shimmer</div>
         <div class="tab" data-tab="taint">Taint</div>
         <div class="tab irules-only" data-tab="irules-flow">iRules Flow</div>
+        <div class="tab irules-only" data-tab="event-order">Event Order</div>
         <div class="tab" data-tab="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
@@ -914,10 +959,14 @@ puts $x"></textarea>
         <div class="tab-pane active" id="pane-ir">
           <div class="empty-state" id="emptyState">Loading compiler...</div>
         </div>
+        <div class="tab-pane" id="pane-greentree"></div>
         <div class="tab-pane" id="pane-cfg-pre"></div>
         <div class="tab-pane" id="pane-cfg-post"></div>
+        <div class="tab-pane" id="pane-loops"></div>
         <div class="tab-pane" id="pane-interproc"></div>
         <div class="tab-pane" id="pane-types"></div>
+        <div class="tab-pane" id="pane-intervals"></div>
+        <div class="tab-pane" id="pane-bounds"></div>
         <div class="tab-pane" id="pane-rendered"></div>
         <div class="tab-pane" id="pane-dataflow"></div>
         <div class="tab-pane" id="pane-opt"></div>
@@ -925,6 +974,7 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-shimmer"></div>
         <div class="tab-pane" id="pane-taint"></div>
         <div class="tab-pane" id="pane-irules-flow"></div>
+        <div class="tab-pane" id="pane-event-order"></div>
         <div class="tab-pane" id="pane-callouts"></div>
         <div class="tab-pane" id="pane-asm"></div>
         <div class="tab-pane" id="pane-wasm"></div>
@@ -1152,10 +1202,14 @@ function renderAll() {
   updateIrulesTabVisibility();
   renderStats();
   renderIR();
+  renderGreentree();
   renderCfgPre();
   renderCfgPost();
+  renderLoops();
   renderInterproc();
   renderTypes();
+  renderIntervals();
+  renderBounds();
   renderRendered();
   renderDataFlow();
   renderOpt();
@@ -1163,6 +1217,7 @@ function renderAll() {
   renderShimmer();
   renderTaint();
   renderIrulesFlow();
+  renderEventOrder();
   renderCallouts();
   renderAsm();
   renderWasm();
@@ -1181,7 +1236,11 @@ function updateBadges() {
     'gvn': data.gvn.length,
     'shimmer': data.shimmer.length,
     'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),
+    'loops': (data.loops || []).reduce((n, f) => n + f.loops.length, 0),
+    'intervals': (data.intervals || []).reduce((n, f) => n + f.entries.length, 0),
+    'bounds': (data.bounds || []).reduce((n, f) => n + f.findings.length + f.divzero.length, 0),
     'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
+    'event-order': (data.eventOrder || []).length,
     'callouts': data.annotations.length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),

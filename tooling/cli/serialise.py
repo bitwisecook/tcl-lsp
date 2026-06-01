@@ -554,6 +554,143 @@ def _serialise_rendered_properties(snapshots: list[FunctionSnapshot]) -> list[di
     return out
 
 
+def _serialise_greentree(source: str) -> dict | None:
+    """Serialise the lossless green token tree for the explorer.
+
+    Mirrors the CLI ``greentree`` view but keeps *every* token (not only the
+    opaque ones that descend), each tagged with its type, absolute character
+    range and verbatim text, so the GUI/TUI can expand any entry to the fullest
+    detail.  Opaque ``{...}`` / ``[...]`` tokens carry a ``child`` region.
+    Wrapped in a ``green_tree_scope`` because ``descend`` memoises per scope.
+    """
+    from compiler.parsing.green_tree import green_tree_scope, node_for
+    from shared.tokens import TokenType
+
+    opaque = (TokenType.STR, TokenType.CMD)
+
+    def node_dict(node, depth: int) -> dict:
+        tokens = []
+        for tok in node.tokens:
+            entry = {
+                "type": tok.type.name,
+                "text": tok.text,
+                "startOffset": tok.start.offset,
+                "endOffset": tok.end.offset,
+                "startLine": tok.start.line,
+                "startCol": tok.start.character,
+                "endLine": tok.end.line,
+                "endCol": tok.end.character,
+            }
+            if depth < 24 and tok.type in opaque and tok.text:
+                entry["child"] = node_dict(node.descend(tok), depth + 1)
+            tokens.append(entry)
+        return {
+            "kind": node.kind.name,
+            "mode": node.mode.name,
+            "offset": node.base_offset,
+            "endOffset": node.base_offset + node.width,
+            "width": node.width,
+            "isError": node.kind.name == "ERROR",
+            "tokens": tokens,
+        }
+
+    try:
+        with green_tree_scope():
+            return node_dict(node_for(source), 0)
+    except Exception as exc:  # a malformed tree must not kill the whole result
+        print(f"warning: greentree serialisation failed: {exc}", file=sys.stderr)
+        return None
+
+
+def _serialise_loops(snapshots: list[FunctionSnapshot]) -> list[dict]:
+    """Serialise the natural-loop forest per function (mirrors CLI ``loops``)."""
+    from compiler.loops import build_loop_forest, dominates
+
+    out = []
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        try:
+            executable = set(snap.cfg.blocks) - snap.analysis.unreachable_blocks
+            forest = build_loop_forest(snap.cfg, snap.ssa, executable)
+        except Exception:
+            continue
+        headers = list(forest.by_header)
+        loops = []
+        for loop in forest.loops:
+            depth = 1 + sum(
+                1 for h in headers if h != loop.header and dominates(snap.ssa, h, loop.header)
+            )
+            loops.append(
+                {
+                    "header": loop.header,
+                    "depth": depth,
+                    "blockCount": len(loop.blocks),
+                    "blocks": sorted(loop.blocks),
+                    "latches": sorted(loop.latches),
+                }
+            )
+        out.append({"name": snap.name, "loops": loops})
+    return out
+
+
+def _serialise_intervals(snapshots: list[FunctionSnapshot]) -> list[dict]:
+    """Serialise the integer-interval domain per SSA value (mirrors ``intervals``).
+
+    Only non-trivial (bounded) ranges are emitted; ``lo``/``hi`` are ``null``
+    for an unbounded (-inf / +inf) end.
+    """
+    from compiler.intervals import compute_intervals
+
+    out = []
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        try:
+            intervals = compute_intervals(snap.cfg, snap.ssa, snap.analysis.values)
+        except Exception:
+            continue
+        entries = []
+        for (name, ver), iv in sorted(intervals.items()):
+            if iv.is_top or (iv.lo is None and iv.hi is None):
+                continue
+            entries.append({"variable": name, "version": ver, "lo": iv.lo, "hi": iv.hi})
+        out.append({"name": snap.name, "entries": entries})
+    return out
+
+
+def _serialise_bounds(snapshots: list[FunctionSnapshot]) -> list[dict]:
+    """Serialise interval-driven bounds / divide-by-zero findings (``bounds``)."""
+    from compiler.interval_bounds import find_interval_findings
+
+    out = []
+    for snap in snapshots:
+        if snap.cfg is None or snap.ssa is None or snap.analysis is None:
+            continue
+        try:
+            executable = set(snap.cfg.blocks) - snap.analysis.unreachable_blocks
+            findings, divzero = find_interval_findings(
+                snap.cfg, snap.ssa, snap.execution_intent, snap.analysis.values, executable
+            )
+        except Exception:
+            continue
+        f_out = [
+            {
+                "code": f.code,
+                "command": f.command,
+                "indexVar": f.index_var,
+                "lo": f.index_interval.lo,
+                "hi": f.index_interval.hi,
+                "length": f.length,
+                "reason": f.reason,
+            }
+            for f in findings
+        ]
+        d_out = [{"code": "W233", "op": dz.op} for dz in divzero]
+        out.append({"name": snap.name, "findings": f_out, "divzero": d_out})
+    return out
+
+
 # Annotations (source callouts)
 
 
@@ -829,9 +966,13 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
 
     return {
         "meta": _serialise_meta(),
+        "greentree": _serialise_greentree(result.source),
         "ir": _serialise_ir(result.ir_module),
         "cfgPreSsa": _serialise_cfg_pre_ssa(result.snapshots),
         "cfgPostSsa": _serialise_cfg_post_ssa(result.snapshots),
+        "loops": _serialise_loops(result.snapshots),
+        "intervals": _serialise_intervals(result.snapshots),
+        "bounds": _serialise_bounds(result.snapshots),
         "interprocedural": _serialise_interproc(result.interproc),
         "optimisations": _serialise_optimisations(result.optimisations),
         "shimmer": _serialise_shimmer(result.shimmer_warnings),

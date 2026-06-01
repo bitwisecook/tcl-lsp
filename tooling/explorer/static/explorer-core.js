@@ -443,6 +443,185 @@ function renderRendered() {
   pane.innerHTML=html;
 }
 
+// Generic expand-on-click / Space|Enter for explorer items.
+//
+// Any element with class ``xpand`` toggles ``expanded`` when clicked or
+// (when focused) on Space/Enter, revealing its direct ``.xpand-detail`` and
+// ``.xpand-children``.  Markup gives expandable rows ``tabindex="0"`` so
+// keyboard users can focus and expand them.  Clicks inside an already-open
+// ``.xpand-detail`` are ignored so text stays selectable, and ``closest``
+// resolves to the innermost row so nested trees toggle independently.
+function setupExpandable(container) {
+  if (container._xpandWired) return;
+  container._xpandWired = true;
+  container.addEventListener('click', function(e) {
+    if (e.target.closest('a, button, input, textarea, .xpand-detail')) return;
+    var row = e.target.closest('.xpand');
+    if (row && container.contains(row)) row.classList.toggle('expanded');
+  });
+  container.addEventListener('keydown', function(e) {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    var row = e.target.closest && e.target.closest('.xpand');
+    if (row && row === document.activeElement) {
+      e.preventDefault();
+      row.classList.toggle('expanded');
+    }
+  });
+}
+
+function detailRow(k, v) {
+  return '<div class="xpand-detail-row"><span class="xpand-detail-k">' + esc(k) +
+         '</span><span class="xpand-detail-v">' + esc(String(v)) + '</span></div>';
+}
+
+// Green token tree — proper tree with click/Space to expand every token to
+// its type, absolute character range, line:col span and verbatim text.
+// Opaque {...} / [...] tokens expand into their re-lexed child region.
+function renderGreentree() {
+  var pane = $('#pane-greentree');
+  var root = data.greentree;
+  if (!root) { pane.innerHTML = '<div class="empty-state">No green tree</div>'; return; }
+  var html = '<div class="section-header">green tree <span style="color:var(--text-dim);font-weight:normal">' +
+             esc(root.kind.toLowerCase()) + ' / ' + esc(root.mode.toLowerCase()) + ' &middot; ' + root.width + ' bytes</span></div>';
+  html += '<div class="gt-tree">' + gtTokens(root.tokens) + '</div>';
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+  setupExpandable(pane);
+}
+function gtTokens(tokens) {
+  if (!tokens || !tokens.length) return '<div class="gt-empty">(no tokens)</div>';
+  var html = '';
+  for (var t of tokens) {
+    var hasChild = !!t.child;
+    var opaque = t.type === 'STR' || t.type === 'CMD';
+    var errChild = hasChild && t.child.isError;
+    var cls = errChild ? 'gt-error' : (opaque ? 'gt-opaque' : '');
+    var oneLine = t.text.replace(/\n/g, '⏎');
+    var preview = oneLine.length > 48 ? oneLine.slice(0, 48) + '…' : oneLine;
+    html += '<div class="gt-node xpand ' + cls + '" tabindex="0" data-start="' + t.startOffset + '" data-end="' + t.endOffset + '">';
+    html += '<div class="xpand-head gt-head">';
+    html += '<span class="gt-toggle">' + (hasChild ? '▸' : '·') + '</span>';
+    html += '<span class="gt-type">' + esc(t.type) + '</span>';
+    html += '<span class="gt-text">' + esc(preview) + '</span>';
+    html += '<span class="gt-range">[' + t.startOffset + ':' + t.endOffset + ']</span>';
+    html += '</div>';
+    html += '<div class="xpand-detail">';
+    html += detailRow('token type', t.type);
+    html += detailRow('byte range', t.startOffset + '…' + t.endOffset + ' (' + Math.max(0, t.endOffset - t.startOffset) + ' bytes)');
+    html += detailRow('line:col', (t.startLine + 1) + ':' + (t.startCol + 1) + ' → ' + (t.endLine + 1) + ':' + (t.endCol + 1));
+    if (hasChild) html += detailRow('region', t.child.kind.toLowerCase() + ' / ' + t.child.mode.toLowerCase() + (t.child.isError ? ' (ERROR — unterminated)' : ''));
+    html += '<div class="xpand-detail-row"><span class="xpand-detail-k">text</span></div>';
+    html += '<pre class="gt-text-full">' + esc(t.text) + '</pre>';
+    html += '</div>';
+    if (hasChild) {
+      var c = t.child;
+      html += '<div class="xpand-children">';
+      html += '<div class="gt-region">' + esc(c.kind.toLowerCase()) + ' &middot; mode ' + esc(c.mode.toLowerCase()) + ' &middot; ' + c.width + ' bytes' + (c.isError ? ' &middot; <span style="color:var(--red)">ERROR</span>' : '') + '</div>';
+      html += gtTokens(c.tokens);
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function fmtBound(v, pos) { return v === null || v === undefined ? (pos ? '+∞' : '−∞') : String(v); }
+
+// Natural-loop forest
+function renderLoops() {
+  var pane = $('#pane-loops');
+  var fns = data.loops || [];
+  if (!fns.reduce(function(n, f) { return n + f.loops.length; }, 0)) {
+    pane.innerHTML = '<div class="empty-state">No natural loops</div>'; return;
+  }
+  var html = '';
+  for (var f of fns) {
+    if (!f.loops.length) continue;
+    html += '<div class="proc-card"><div class="proc-name">' + esc(f.name) + '</div>';
+    for (var lp of f.loops) {
+      html += '<div class="xpand loop-item" tabindex="0"><div class="xpand-head"><span class="gt-toggle">▸</span> header <span class="val">' + esc(lp.header) + '</span> &middot; depth <span class="val">' + lp.depth + '</span> &middot; <span class="val">' + lp.blockCount + '</span> block(s)</div>';
+      html += '<div class="xpand-detail">';
+      html += detailRow('header block', lp.header);
+      html += detailRow('nesting depth', lp.depth);
+      html += detailRow('blocks (' + lp.blockCount + ')', lp.blocks.join(', '));
+      html += detailRow('latches', lp.latches.join(', ') || '—');
+      html += '</div></div>';
+    }
+    html += '</div>';
+  }
+  pane.innerHTML = html;
+  setupExpandable(pane);
+}
+
+// Integer-interval abstract domain
+function renderIntervals() {
+  var pane = $('#pane-intervals');
+  var fns = data.intervals || [];
+  if (!fns.reduce(function(n, f) { return n + f.entries.length; }, 0)) {
+    pane.innerHTML = '<div class="empty-state">No bounded ranges</div>'; return;
+  }
+  var html = '';
+  for (var f of fns) {
+    if (!f.entries.length) continue;
+    html += '<div class="proc-card"><div class="proc-name">' + esc(f.name) + '</div>';
+    for (var e of f.entries) {
+      var lo = fmtBound(e.lo, false), hi = fmtBound(e.hi, true);
+      html += '<div class="xpand type-entry" tabindex="0"><div class="xpand-head"><span class="type-var">' + esc(e.variable) + '#' + e.version + '</span><span class="type-val">[' + lo + ', ' + hi + ']</span></div>';
+      html += '<div class="xpand-detail">' + detailRow('lower bound', lo) + detailRow('upper bound', hi) + detailRow('ssa value', e.variable + '#' + e.version) + '</div></div>';
+    }
+    html += '</div>';
+  }
+  pane.innerHTML = html;
+  setupExpandable(pane);
+}
+
+// Interval-driven bounds / divide-by-zero findings
+function renderBounds() {
+  var pane = $('#pane-bounds');
+  var fns = data.bounds || [];
+  if (!fns.reduce(function(n, f) { return n + f.findings.length + f.divzero.length; }, 0)) {
+    pane.innerHTML = '<div class="empty-state">No provable out-of-range / divide-by-zero</div>'; return;
+  }
+  var html = '';
+  for (var f of fns) {
+    if (!f.findings.length && !f.divzero.length) continue;
+    html += '<div class="proc-card"><div class="proc-name">' + esc(f.name) + '</div>';
+    for (var b of f.findings) {
+      var lo = fmtBound(b.lo, false), hi = fmtBound(b.hi, true);
+      html += '<div class="xpand bounds-item" tabindex="0"><div class="xpand-head"><span class="shimmer-code">' + esc(b.code) + '</span> ' + esc(b.command) + ' $' + esc(b.indexVar) + ' in [' + lo + ', ' + hi + '] vs length ' + b.length + '</div>';
+      html += '<div class="xpand-detail">' + detailRow('code', b.code) + detailRow('command', b.command) + detailRow('index var', '$' + b.indexVar) + detailRow('index range', '[' + lo + ', ' + hi + ']') + detailRow('container length', b.length) + detailRow('reason', b.reason) + '</div></div>';
+    }
+    for (var dz of f.divzero) {
+      html += '<div class="xpand bounds-item" tabindex="0"><div class="xpand-head"><span class="shimmer-code">' + esc(dz.code) + '</span> \'' + esc(dz.op) + '\' divisor is provably 0 (divide by zero)</div>';
+      html += '<div class="xpand-detail">' + detailRow('code', dz.code) + detailRow('operator', dz.op) + detailRow('reason', 'divisor interval is exactly [0, 0]') + '</div></div>';
+    }
+    html += '</div>';
+  }
+  pane.innerHTML = html;
+  setupExpandable(pane);
+}
+
+// iRules event firing order
+function renderEventOrder() {
+  var pane = $('#pane-event-order');
+  var events = (data.eventOrder || []).slice();
+  if (!events.length) { pane.innerHTML = '<div class="empty-state">No event-order data</div>'; return; }
+  events.sort(function(a, b) {
+    return (b.base_priority + b.priority_offset) - (a.base_priority + a.priority_offset) || (a.event < b.event ? -1 : 1);
+  });
+  var html = '<div class="proc-card"><div class="proc-name">Event firing order (high → low priority)</div>';
+  for (var e of events) {
+    var eff = e.base_priority + e.priority_offset;
+    var mult = e.multiplicity && e.multiplicity !== 'once' ? ' [' + esc(e.multiplicity) + ']' : '';
+    html += '<div class="xpand type-entry" tabindex="0"' + sourceRangeAttrs(e.range) + '><div class="xpand-head"><span class="type-var">' + esc(e.event) + '</span><span class="type-val">eff ' + eff + mult + '</span></div>';
+    html += '<div class="xpand-detail">' + detailRow('event', e.event) + detailRow('effective priority', eff) + detailRow('base priority', e.base_priority) + detailRow('priority offset', e.priority_offset) + detailRow('multiplicity', e.multiplicity || 'once') + '</div></div>';
+  }
+  html += '</div>';
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+  setupExpandable(pane);
+}
+
 // Data Flow
 function renderDataFlow() {
   var pane=$('#pane-dataflow');
