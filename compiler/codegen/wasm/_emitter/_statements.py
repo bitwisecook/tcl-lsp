@@ -854,6 +854,7 @@ class _WasmEmitterStmtMixin(_Base):
                 default_body=default_body,
                 mode=mode,
                 raw_args=raw_args,
+                patterns_braced=patterns_braced,
             ):
                 if mode == "regexp":
                     # No WASM regex matcher: re-invoke ``switch`` through
@@ -872,7 +873,13 @@ class _WasmEmitterStmtMixin(_Base):
                         # is now stale.
                         self._const_map.clear()
                 else:
-                    self._emit_switch(subject, arms, default_body, mode=mode)
+                    self._emit_switch(
+                        subject,
+                        arms,
+                        default_body,
+                        mode=mode,
+                        patterns_braced=patterns_braced,
+                    )
 
             case IRCatch(body=body, result_var=result_var, options_var=options_var):
                 self._emit_catch(body, result_var, options_var=options_var)
