@@ -68,3 +68,50 @@ def test_regsub_line_anchors(source: str, expected: str) -> None:
 )
 def test_regsub_no_line(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # regexp-27.1 / 27.2: the command result replaces each match.
+        ("puts [regsub -command {.x.} {abcxdef} {string length}]", "ab3ef"),
+        (
+            "puts [regsub -command {.x.} {abcxdefxghi} {string length}]",
+            "ab3efxghi",
+        ),
+        # regexp-27.3: -all with a zero-width lookahead, command counts.
+        (
+            "set x 0; puts [regsub -all -command {(?=.)} abcde {apply {args {incr ::x}}}]",
+            "1a2b3c4d5e",
+        ),
+        # regexp-27.5 / 27.6: whole match + capture groups are appended.
+        ("puts [regsub -command {(.)(.)} {abcdef} {list ,}]", ", ab a bcdef"),
+        (
+            "puts [regsub -command -all {(.)(.)} {abcdef} {list ,}]",
+            ", ab a b, cd c d, ef e f",
+        ),
+        # regexp-27.7 / 27.8 / 27.12: representation-smash safety — the
+        # command body rewrites the variable holding the subject /
+        # subSpec, which must not corrupt the in-flight substitution.
+        (
+            "set ::s {123=456 789}; "
+            r"puts [regsub -command -all {\d+} $::s {apply {n {expr {[llength $::s] + $n}}}}]",
+            "125=458 791",
+        ),
+        (
+            "set s {list (.+)}; puts [regsub -command $s {list list} $s]",
+            "(.+) {list list} list",
+        ),
+        # Error cases — regexp-27.10 / 27.11.
+        (
+            'puts [list [catch {regsub -command . abc "def \\{ghi"} m] $m]',
+            "1 {unmatched open brace in list}",
+        ),
+        (
+            "puts [list [catch {regsub -command . abc {}} m] $m]",
+            "1 {command prefix must be a list of at least one element}",
+        ),
+    ],
+)
+def test_regsub_command(source: str, expected: str) -> None:
+    assert _run(source) == expected

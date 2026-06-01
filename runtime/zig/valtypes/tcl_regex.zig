@@ -1364,6 +1364,224 @@ fn append_repl(
     return w - off;
 }
 
+// A grow-on-demand byte buffer for ``regsub -command``, whose output
+// length isn't known ahead of time (each match's replacement is a
+// command result).  Backed by libc ``alloc`` so the final buffer can
+// become the returned TclObj's payload.
+const Growable = struct { addr: u32 = 0, cap: u32 = 0, len: u32 = 0 };
+
+fn grow_append(g: *Growable, src: u32, n: u32) bool {
+    if (n == 0) return true;
+    if (g.len + n > g.cap) {
+        var nc: u32 = if (g.cap == 0) 256 else g.cap;
+        while (nc < g.len + n) nc *= 2;
+        const na = alloc(nc);
+        if (na == 0) return false;
+        if (g.len > 0) rt.memcpy(na, g.addr, g.len);
+        if (g.cap > 0) obj.free_sized(g.addr, g.cap);
+        g.addr = na;
+        g.cap = nc;
+    }
+    rt.memcpy(g.addr + g.len, src, n);
+    g.len += n;
+    return true;
+}
+
+/// Build a fresh string TclObj from the UniChar range ``ustr[from..to]``.
+fn ucs_range_to_obj(ustr: [*]const i32, from: usize, to: usize) i32 {
+    if (to <= from) return obj_new_string(0, 0);
+    const n: u32 = @intCast((to - from) * 4 + 1);
+    const buf = alloc(n);
+    if (buf == 0) return obj_new_string(0, 0);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var w: usize = 0;
+    var j = from;
+    while (j < to) : (j += 1) w += encode_cp(dst, w, @intCast(ustr[j]));
+    return obj.obj_new_string_take(buf, @intCast(w), n);
+}
+
+/// ``regsub -command`` — for each match, evaluate the command prefix
+/// (subSpec, a list) with the whole match and each capture group
+/// appended as arguments, and substitute the command's result.  Mirrors
+/// the command-prefix arm of C ``Tcl_RegsubObjCmd``.  ``ustr`` is the
+/// already-decoded (and therefore representation-smash-immune) subject;
+/// ``re_addr`` exposes ``re_nsub``.  Returns the result string (or sets
+/// ``varname`` and returns the match count) — or ``obj_new_int(0)`` with
+/// the interp error flag set when the command body raises.
+fn do_regsub_command(
+    re_ptr: *anyopaque,
+    re_nsub: usize,
+    ustr: [*]const i32,
+    ustr_len: usize,
+    repl_obj: i32,
+    do_all: bool,
+    has_var: bool,
+    varname: i32,
+) i32 {
+    const interp = @import("../interp/tcl_interp.zig");
+    const result_mod = @import("../interp/tcl_result.zig");
+    const list_parse = @import("tcl_list_parse.zig");
+    const list_mod = @import("tcl_list.zig");
+
+    // The command prefix must be a well-formed, non-empty list.
+    const repl_s = obj_ensure_string(repl_obj);
+    if (repl_s.len > 0 and list_parse.check_list_syntax(repl_s.ptr, repl_s.len) != 0) {
+        regfree_safe(re_ptr);
+        return obj_new_int(0); // error already raised
+    }
+    const n_prefix_i = obj.list_count_elements(repl_s.ptr, repl_s.len);
+    if (n_prefix_i < 1) {
+        regfree_safe(re_ptr);
+        stubs.raise("command prefix must be a list of at least one element");
+        return obj_new_int(0);
+    }
+    const n_prefix: u32 = @intCast(n_prefix_i);
+
+    // Snapshot the prefix words into freshly-owned string objs up front
+    // so the command body re-defining the variable that held the subSpec
+    // can't pull the bytes out from under us (regexp-27.12).
+    const prefix_objs = alloc(n_prefix * 4);
+    if (prefix_objs == 0) {
+        regfree_safe(re_ptr);
+        return obj_new_int(0);
+    }
+    {
+        var k: u32 = 0;
+        while (k < n_prefix) : (k += 1) {
+            const e = list_mod.tcl_cmd_list_index(repl_obj, obj_new_int(@intCast(k)));
+            const es = obj_ensure_string(e);
+            const copy = obj.obj_new_string_copy(@bitCast(es.ptr), @bitCast(es.len));
+            obj.write_i32(prefix_objs + k * 4, copy);
+        }
+    }
+
+    const nmatch: usize = re_nsub + 1;
+    const pmatch_alloc = arena.arena_alloc_or_libc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_buf = pmatch_alloc.addr;
+    const pmatch: [*]u8 = @ptrFromInt(pmatch_buf);
+
+    // One reusable argv: prefix words + (whole match + capture groups).
+    const total_args: u32 = n_prefix + @as(u32, @intCast(nmatch));
+    const argv = alloc(total_args * 4);
+
+    var out: Growable = .{};
+    var pos: usize = 0;
+    var match_count: i64 = 0;
+    var errored = false;
+
+    while (argv != 0 and pos <= ustr_len) {
+        const remaining = ustr_len - pos;
+        const sub_from: [*]const i32 = @ptrFromInt(@intFromPtr(ustr) + pos * 4);
+        const exec_flags: c_int = if (pos == 0 or ustr[pos - 1] == '\n') 0 else REG_NOTBOL;
+        const exec_rc = TclReExec(re_ptr, sub_from, remaining, null, nmatch, pmatch, exec_flags);
+        if (exec_rc != REG_OKAY) break;
+
+        const rm_so: u32 = @bitCast([4]u8{ pmatch[0], pmatch[1], pmatch[2], pmatch[3] });
+        const rm_eo: u32 = @bitCast([4]u8{ pmatch[4], pmatch[5], pmatch[6], pmatch[7] });
+
+        // Pre-match text.
+        const pre = ucs_range_to_obj(ustr, pos, pos + rm_so);
+        const pre_s = obj_ensure_string(pre);
+        _ = grow_append(&out, pre_s.ptr, pre_s.len);
+        obj.tcl_obj_release(pre);
+
+        // Build argv: prefix words + whole match + each capture group.
+        var ai: u32 = 0;
+        while (ai < n_prefix) : (ai += 1) {
+            const p = obj.read_i32(prefix_objs + ai * 4);
+            obj.tcl_obj_retain(p);
+            obj.write_i32(argv + ai * 4, p);
+        }
+        var gi: usize = 0;
+        while (gi < nmatch) : (gi += 1) {
+            const g_so_raw: u32 = @bitCast([4]u8{
+                pmatch[gi * 8 + 0], pmatch[gi * 8 + 1], pmatch[gi * 8 + 2], pmatch[gi * 8 + 3],
+            });
+            const g_eo_raw: u32 = @bitCast([4]u8{
+                pmatch[gi * 8 + 4], pmatch[gi * 8 + 5], pmatch[gi * 8 + 6], pmatch[gi * 8 + 7],
+            });
+            const gobj = if (g_so_raw == @as(u32, @bitCast(@as(i32, -1))))
+                obj_new_string(0, 0)
+            else
+                ucs_range_to_obj(ustr, pos + g_so_raw, pos + g_eo_raw);
+            obj.write_i32(argv + (n_prefix + @as(u32, @intCast(gi))) * 4, gobj);
+        }
+
+        const argv_slice: []const i32 = @as([*]const i32, @ptrFromInt(argv))[0..total_args];
+        const cmd_result = interp.eval_command(argv_slice);
+
+        // Release every argv slot (each carried a +1 ref).
+        var rj: u32 = 0;
+        while (rj < total_args) : (rj += 1) {
+            const v = obj.read_i32(argv + rj * 4);
+            if (v != 0) obj.tcl_obj_release(v);
+        }
+
+        if (result_mod.snapshot(0).code == .ERROR) {
+            errored = true;
+            break;
+        }
+
+        match_count += 1;
+        if (cmd_result != 0) {
+            const rs = obj_ensure_string(cmd_result);
+            _ = grow_append(&out, rs.ptr, rs.len);
+        }
+
+        // Advance; zero-width match consumes one codepoint (see the
+        // non-command loop for the rationale).
+        pos += rm_eo;
+        if (rm_so == rm_eo) {
+            if (pos < ustr_len) {
+                const one = ucs_range_to_obj(ustr, pos, pos + 1);
+                const os = obj_ensure_string(one);
+                _ = grow_append(&out, os.ptr, os.len);
+                obj.tcl_obj_release(one);
+            }
+            pos += 1;
+        }
+
+        if (!do_all) break;
+    }
+
+    // Append the unmatched tail (only when we didn't bail on an error).
+    if (!errored) {
+        const tail = ucs_range_to_obj(ustr, pos, ustr_len);
+        const ts = obj_ensure_string(tail);
+        _ = grow_append(&out, ts.ptr, ts.len);
+        obj.tcl_obj_release(tail);
+    }
+
+    // Release the snapshotted prefix words and scratch.
+    {
+        var k: u32 = 0;
+        while (k < n_prefix) : (k += 1) {
+            const p = obj.read_i32(prefix_objs + k * 4);
+            if (p != 0) obj.tcl_obj_release(p);
+        }
+    }
+    obj.free_sized(prefix_objs, n_prefix * 4);
+    if (argv != 0) obj.free_sized(argv, total_args * 4);
+    arena.arena_free(pmatch_alloc);
+    regfree_safe(re_ptr);
+
+    if (errored) {
+        if (out.cap > 0) obj.free_sized(out.addr, out.cap);
+        return obj_new_int(0); // error flag already set by eval_command
+    }
+
+    const result = if (out.cap > 0)
+        obj.obj_new_string_take(out.addr, out.len, out.cap)
+    else
+        obj_new_string(0, 0);
+
+    if (has_var) {
+        _ = frames.var_set(varname, result);
+        return obj_new_int(match_count);
+    }
+    return result;
+}
+
 /// Interpreter-side ``regsub`` command handler.
 /// Syntax: ``regsub ?-all? ?-nocase? ?--? exp string subSpec ?varName?``
 pub fn eval_regsub_cmd(words: []const i32) i32 {
@@ -1374,6 +1592,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
 
     var flags: c_int = 0;
     var do_all = false;
+    var command_mode = false;
     var i: usize = 1;
 
     // Parse options.
@@ -1444,9 +1663,10 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
                 }
             }
         } else if (str_eq(w, "-command")) {
-            // ``-command`` form is not yet implemented — mirror
-            // reference Tcl's behaviour of accepting the option for
-            // option-parser parity but raising at use time.
+            // ``-command`` runs the subSpec (a command prefix) for each
+            // match, appending the matched text + capture groups as
+            // arguments and substituting the command's result.
+            command_mode = true;
         } else {
             // Unknown option — emit Tcl 9's full ``bad option ...
             // must be -all, -command, -expanded, -line, -linestop,
@@ -1513,6 +1733,16 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         // patterns.
         raise_compile_error(comp_rc);
         return obj_new_int(0);
+    }
+
+    // ``-command`` takes a wholly separate path: it evaluates the
+    // subSpec as a command per match rather than expanding ``&`` / ``\N``
+    // backrefs.  ``sub_u`` is the decoded subject (smash-immune).  Read
+    // ``re_nsub`` here — right after compile, before any other
+    // allocation — exactly as the regexp path does.
+    if (command_mode) {
+        const re_nsub: usize = @intCast(obj.read_i32(re_addr + 8));
+        return do_regsub_command(re_ptr, re_nsub, @ptrFromInt(sub_u.ptr), sub_u.len, repl_obj, do_all, has_var, varname);
     }
 
     const dummy_repl = [1]u8{0};
