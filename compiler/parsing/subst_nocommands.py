@@ -11,7 +11,7 @@ Semantics (matching ``tclsh 9.0``'s ``subst -nocommands``):
   evaluation by returning ``None`` (the caller keeps the dynamic
   dispatch path in that case).
 * ``\\…`` — standard backslash processing via
-  :func:`compiler.parsing.substitution.backslash_subst`.  Handles
+  :func:`shared.tcl_subst.backslash_subst`.  Handles
   ``\\n \\t \\xNN \\uNNNN`` and octal / continuation-line forms.
 * ``[…]`` — left as a literal ``[…]`` string (the ``-nocommands``
   flag is exactly this: skip command substitution).  Unbalanced
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from .substitution import backslash_subst
+from shared.tcl_subst import backslash_subst
 
 # Character classes used for bare ``$name`` scanning.  Tcl's
 # variable-name parser accepts ASCII alphanumerics plus underscore;

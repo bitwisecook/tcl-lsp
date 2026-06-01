@@ -20,8 +20,8 @@ from compiler.expr_ast import (
     UnaryOp,
     render_expr,
 )
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.tcl_expr_eval import _parse_literal, eval_tcl_expr, format_tcl_value
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 from ._helpers import _tcl_hash_table_order
 from .opcodes import (

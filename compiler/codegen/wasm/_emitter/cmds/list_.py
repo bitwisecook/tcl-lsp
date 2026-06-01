@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from compiler.registry import REGISTRY, EmitContext
-from shared.tcl_quoting import tcl_list_quote
+from shared.tcl_list import tcl_list_quote
 
 from ..._encoding import _tcl_token_value
 from ..._ir import ValType, WasmOp

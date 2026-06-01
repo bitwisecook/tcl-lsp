@@ -17,7 +17,7 @@ from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
 from shared.ranges import range_from_token
-from shared.tcl_quoting import tcl_list_quote
+from shared.tcl_list import tcl_list_quote
 from shared.tokens import Token, TokenType
 
 from ..token_helpers import parse_decimal_int as _parse_decimal_int

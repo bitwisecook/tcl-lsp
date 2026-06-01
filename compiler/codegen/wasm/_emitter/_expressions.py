@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 from ....expr_ast import (
     BinOp,

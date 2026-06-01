@@ -11,10 +11,10 @@ else:
 
 from collections.abc import Callable
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext as _EmitContext
-from shared.tcl_quoting import tcl_list_quote
+from shared.tcl_list import tcl_list_quote
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 from .._imports import (
     runtime_import_for,

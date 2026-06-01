@@ -29,8 +29,6 @@ KNOWN_FAILURES_DICT: set[str] = {
     "dict-2.14",
     "dict-2.3",
     "dict-2.6",
-    "dict-2.7",
-    "dict-2.8",
     "dict-3.12",
     "dict-4.13",
     "dict-4.14",

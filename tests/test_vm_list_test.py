@@ -177,7 +177,6 @@ KNOWN_FAILURES_LINDEX: set[str] = {
     "lindex-12.10",
     "lindex-12.8",
     "lindex-14.3",
-    "lindex-15.3",
     "lindex-16.4",
     "lindex-16.5",
     "lindex-16.6",
@@ -188,8 +187,6 @@ KNOWN_FAILURES_LINDEX: set[str] = {
 }
 
 KNOWN_FAILURES_LRANGE: set[str] = {
-    "lrange-1.15",
-    "lrange-1.16",
     "lrange-3.3",
     "lrange-3.5",
     "lrange-3.6",
@@ -201,45 +198,17 @@ KNOWN_FAILURES_LRANGE: set[str] = {
 }
 
 KNOWN_FAILURES_LIST: set[str] = {
-    "list-1.10",
-    "list-1.12",
-    "list-1.17",
-    "list-1.18",
-    "list-1.19",
-    "list-1.20",
-    "list-1.21",
-    "list-1.25",
-    "list-1.26",
     "list-1.27",
     "list-1.30",
-    "list-1.4",
-    "list-1.5",
-    "list-2.10-0",
-    "list-2.10-1",
-    "list-2.10-2",
-    "list-2.11-0",
-    "list-2.11-1",
-    "list-2.11-2",
-    "list-2.13-1",
-    "list-2.13-2",
-    "list-2.14-0",
-    "list-2.7-0",
-    "list-2.7-2",
     "list-3.1",
-    "list-4.2",
     "list-4.3",
 }
 
 KNOWN_FAILURES_LINSERT: set[str] = {
-    "linsert-1.15",
-    "linsert-1.16",
-    "linsert-1.8",
     "linsert-3.2",
 }
 
-KNOWN_FAILURES_LREPLACE: set[str] = {
-    "lreplace-1.25",
-}
+KNOWN_FAILURES_LREPLACE: set[str] = set()
 
 KNOWN_FAILURES_LMAP: set[str] = {
     "lmap-1.13",

@@ -28,6 +28,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from shared.tcl_subst import backslash_subst
+
 from .cfg import CFGBranch, CFGFunction, CFGReturn
 from .execution_intent import FunctionExecutionIntent, _parse_command_substitution
 from .expr_ast import (
@@ -48,7 +50,6 @@ from .intervals import (
     refine_interval,
 )
 from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall, IRExprEval, IRReturn
-from .parsing.substitution import backslash_subst
 from .ssa import SSAFunction, SSAValueKey
 from .tcl_expr_eval import _split_tcl_list
 

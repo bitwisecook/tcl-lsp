@@ -22,6 +22,7 @@ from typing import Any
 
 from shared.tcl_discovery import find_tclsh as _find_tclsh_shared
 from shared.tcl_discovery import has_tkinter_tcl as _has_tkinter_tcl_shared
+from shared.tcl_list import tcl_list_quote
 
 log = logging.getLogger(__name__)
 
@@ -738,27 +739,8 @@ class IruleTestSession:
 
     @staticmethod
     def _tcl_quote(value: str) -> str:
-        """Brace-quote a value for safe Tcl eval.
-
-        If the value contains unbalanced braces, fall back to
-        backslash-escaping special characters.
-        """
-        # Fast path: if braces are balanced, brace-quoting is safe
-        depth = 0
-        for ch in value:
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth < 0:
-                    break
-        if depth == 0:
-            return "{" + value + "}"
-        # Fallback: backslash-escape Tcl special chars
-        escaped = value.replace("\\", "\\\\")
-        for ch in ('"', "$", "[", "]", "{", "}", ";"):
-            escaped = escaped.replace(ch, f"\\{ch}")
-        return escaped
+        """Quote a value as a single Tcl word for safe eval (canonical)."""
+        return tcl_list_quote(value, first=False)
 
     async def _run_orch_request(self, tcl_proc: str, **kwargs: Any) -> RequestResult:
         """Build ::orch Tcl call, execute, and gather results."""

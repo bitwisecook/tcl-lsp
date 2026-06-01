@@ -12,7 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from compiler.parsing.substitution import backslash_subst
+from shared.tcl_list import tcl_list_quote
+from shared.tcl_subst import backslash_subst
 
 from ..types import TclError, TclResult
 
@@ -138,87 +139,8 @@ class _ParseToken:
 
 
 def _list_escape_parser(s: str) -> str:
-    """Escape a string for inclusion in a Tcl list result.
-
-    Matches Tcl's ``Tcl_ScanElement``/``Tcl_ConvertElement`` rules:
-
-    1. Empty string → ``{}``
-    2. No special characters → return as-is
-    3. Try brace quoting unless the string contains
-       backslash-newline (which would be treated as continuation
-       inside braces) or unbalanced braces or a trailing backslash.
-    4. Fall back to backslash escaping.
-    """
-    if not s:
-        return "{}"
-
-    # Characters that force quoting
-    needs_quoting = False
-    for ch in s:
-        if ch in ' \t\n\r{}"\\;$[':
-            needs_quoting = True
-            break
-    # A leading # also needs quoting (would start a comment)
-    if s[0] == "#":
-        needs_quoting = True
-
-    if not needs_quoting:
-        return s
-
-    # Check whether brace quoting is safe.  Backslash-escaped braces
-    # (\{ and \}) don't count toward depth — matches Tcl_ScanElement.
-    can_brace = True
-    depth = 0
-    i = 0
-    n = len(s)
-    while i < n:
-        ch = s[i]
-        if ch == "\\":
-            if i + 1 < n:
-                if s[i + 1] == "\n":
-                    # Backslash-newline → unsafe for brace quoting
-                    can_brace = False
-                    break
-                # Skip escaped char (\{, \}, etc. don't affect depth)
-                i += 2
-                continue
-            else:
-                # Trailing backslash → unsafe for brace quoting
-                can_brace = False
-                break
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth < 0:
-                can_brace = False
-                break
-        i += 1
-    if depth != 0:
-        can_brace = False
-
-    if can_brace:
-        return "{" + s + "}"
-
-    # Backslash-escape — use Tcl escape sequences for control chars
-    result: list[str] = []
-    for i, ch in enumerate(s):
-        if ch == "\n":
-            result.append("\\n")
-        elif ch == "\t":
-            result.append("\\t")
-        elif ch == "\r":
-            result.append("\\r")
-        elif ch in ' {}"\\;$[':
-            result.append("\\")
-            result.append(ch)
-        elif ch == "#" and i == 0:
-            # Leading # must be escaped (would start a comment)
-            result.append("\\")
-            result.append(ch)
-        else:
-            result.append(ch)
-    return "".join(result)
+    """Escape a string as a Tcl list element (canonical quoting)."""
+    return tcl_list_quote(s, first=True)
 
 
 def _decompose_braced_bsnl(content: str) -> list[_ParseToken]:

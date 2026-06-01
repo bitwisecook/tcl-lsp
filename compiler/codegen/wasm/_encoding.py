@@ -9,7 +9,7 @@ list semantics.
 
 from __future__ import annotations
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 
 def _leb128_unsigned(value: int) -> bytes:
@@ -52,7 +52,7 @@ def _tcl_token_value(token: str) -> str:
       ``\\\\`` → ``\\``, etc.).  Variable and command substitutions are
       left as-is because they must be resolved at runtime.
 
-    Use this before :func:`~shared.tcl_quoting.tcl_list_quote` whenever *token* comes
+    Use this before :func:`~shared.tcl_list.tcl_list_quote` whenever *token* comes
     directly from IR source tokens rather than from a previously-
     evaluated value.
 

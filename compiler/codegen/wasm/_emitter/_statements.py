@@ -11,10 +11,10 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext
-from shared.tcl_quoting import tcl_list_quote
+from shared.tcl_list import tcl_list_quote
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 from shared.tokens import TokenType
 
 from ....ir import (

@@ -23,6 +23,7 @@ from typing import TypeAlias
 
 from compiler.parsing.expr_parser import parse_expr
 from compiler.registry.dialect import active_dialect
+from shared.tcl_list import tcl_list_split
 
 from .expr_ast import (
     BinOp,
@@ -195,51 +196,11 @@ def _eval_as_string(
 
 
 def _split_tcl_list(text: str) -> list[str]:
-    """Split a simple Tcl list string into elements.
+    """Split a simple Tcl list string into elements (lenient).
 
-    Handles space-separated words and brace-grouped elements.
-    Does NOT handle full Tcl list quoting rules (backslash, nested braces)
-    but covers the constant cases seen in practice.
+    Thin wrapper over the canonical :func:`shared.tcl_list.tcl_list_split`.
     """
-    result: list[str] = []
-    i = 0
-    n = len(text)
-    while i < n:
-        # Skip whitespace
-        while i < n and text[i] in " \t\n\r":
-            i += 1
-        if i >= n:
-            break
-        if text[i] == "{":
-            # Brace-quoted element
-            level = 1
-            i += 1
-            start = i
-            while i < n and level > 0:
-                if text[i] == "{":
-                    level += 1
-                elif text[i] == "}":
-                    level -= 1
-                i += 1
-            result.append(text[start : i - 1])
-        elif text[i] == '"':
-            # Quote-delimited element
-            i += 1
-            start = i
-            while i < n and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1  # skip escaped char
-                i += 1
-            result.append(text[start:i])
-            if i < n:
-                i += 1  # skip closing quote
-        else:
-            # Bare word
-            start = i
-            while i < n and text[i] not in " \t\n\r":
-                i += 1
-            result.append(text[start:i])
-    return result
+    return tcl_list_split(text)
 
 
 # Binary operators

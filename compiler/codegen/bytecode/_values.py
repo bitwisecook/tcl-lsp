@@ -6,8 +6,9 @@ import re
 from typing import TYPE_CHECKING
 
 from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
+from shared.tcl_list import tcl_list_join
 
-from ._helpers import _parse_subst_template, _split_list_simple, _tcl_list_element
+from ._helpers import _parse_subst_template, _split_list_simple
 from .format import _esc
 from .opcodes import Op
 
@@ -374,7 +375,7 @@ class _ValuesMixin:
                 return None
         # Parse the literal arguments and re-format as a canonical Tcl list.
         args = _split_list_simple(inner)
-        return " ".join(_tcl_list_element(a) for a in args)
+        return tcl_list_join(args)
 
     @staticmethod
     def _fold_list_cmd(value: str) -> str | None:

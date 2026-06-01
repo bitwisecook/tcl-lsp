@@ -204,7 +204,7 @@ def _leading_literal_prefix_char(value: str) -> str | None:
     ESC tokens are rendered via ``backslash_subst()`` so that escape
     sequences like ``\\x2f`` (``/``) are correctly resolved.
     """
-    from compiler.parsing.substitution import backslash_subst as _bss
+    from shared.tcl_subst import backslash_subst as _bss
 
     lexer = TclLexer(value)
     while True:
@@ -230,7 +230,7 @@ def _literal_contains_crlf(value: str) -> bool:
     ESC tokens are rendered via ``backslash_subst()`` so that escape
     sequences like ``\\n`` are correctly resolved to actual newlines.
     """
-    from compiler.parsing.substitution import backslash_subst as _bss
+    from shared.tcl_subst import backslash_subst as _bss
 
     lexer = TclLexer(value)
     while True:

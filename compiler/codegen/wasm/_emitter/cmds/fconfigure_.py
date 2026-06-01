@@ -14,7 +14,7 @@ list-element quoting against the live values.
 from __future__ import annotations
 
 from compiler.registry import REGISTRY, EmitContext
-from shared.tcl_quoting import tcl_list_quote
+from shared.tcl_list import tcl_list_quote
 
 
 def _emit_fconfigure(

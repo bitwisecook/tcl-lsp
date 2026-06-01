@@ -167,11 +167,6 @@ ignore_imports =
     dialects.f5.xc.translator -> compiler.ir
     dialects.f5.xc.translator -> compiler.lowering
     dialects.f5.xc.translator -> compiler.token_helpers
-    ; The vanilla-Tcl const_fold spec uses compiler.tcl_expr_eval to
-    ; evaluate the constant expressions baked into command specs.
-    ; That edge pulls expr_ast → ssa → cfg → var_refs transitively;
-    ; carve out the direct edge so the deeper graph stays unflagged.
-    dialects.tcl.const_fold -> compiler.tcl_expr_eval
 
 [importlinter:contract:dialects-direction]
 name = dialects/ does not depend on analyser/server/tooling/ai

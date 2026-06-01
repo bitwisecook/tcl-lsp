@@ -15,41 +15,16 @@ SCCP calls them when all arguments resolve to known constants.
 
 from __future__ import annotations
 
+from shared.tcl_list import tcl_list_join, tcl_list_split
+
 # ---------------------------------------------------------------------------
 # list / concat / join / split / lindex / lrange / llength / lreverse / lrepeat
 # ---------------------------------------------------------------------------
 
 
-def _tcl_list_element(value: str) -> str:
-    """Render *value* as a single Tcl list element with proper quoting."""
-    if value == "":
-        return "{}"
-    specials = set(' \t\n\r\v\f{}[];$"\\')
-    if not any(ch in specials for ch in value):
-        return value
-    # Brace-quoting when the element has no unbalanced braces and
-    # doesn't end with a backslash.
-    if "{" not in value and "}" not in value and not value.endswith("\\"):
-        return "{" + value + "}"
-    # Fall back to backslash escaping.
-    escaped: list[str] = []
-    for ch in value:
-        if ch == "\n":
-            escaped.append("\\n")
-        elif ch == "\r":
-            escaped.append("\\r")
-        elif ch == "\t":
-            escaped.append("\\t")
-        elif ch in ' []{};$"\\':
-            escaped.append("\\" + ch)
-        else:
-            escaped.append(ch)
-    return "".join(escaped)
-
-
 def fold_list(args: tuple[str, ...]) -> str | None:
     """``list arg ...`` — returns a proper Tcl list."""
-    return " ".join(_tcl_list_element(arg) for arg in args)
+    return tcl_list_join(args)
 
 
 def fold_concat(args: tuple[str, ...]) -> str | None:
@@ -621,10 +596,8 @@ def fold_format(args: tuple[str, ...]) -> str | None:
 
 def _split_list(s: str) -> list[str] | None:
     """Split a Tcl list string into elements (simple cases)."""
-    from compiler.tcl_expr_eval import _split_tcl_list
-
     try:
-        return _split_tcl_list(s)
+        return tcl_list_split(s)
     except Exception:
         return None
 
