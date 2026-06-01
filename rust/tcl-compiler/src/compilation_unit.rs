@@ -84,10 +84,25 @@ impl FunctionUnit {
     /// Runs in order: SSA → def-use → SCCP → type-propagation →
     /// rendered-properties → taint-propagation.
     #[must_use]
-    pub fn build(name: impl Into<String>, cfg: CfgFunction, registry: &CommandRegistry) -> Self {
+    pub fn build(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        registry: &CommandRegistry,
+    ) -> Self {
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
-        let sccp = sccp(&cfg, &ssa, None);
+        let mut sccp = sccp(&cfg, &ssa, None);
+        // SYNC-MAY31-3: surface `[info exists X]` / `[array exists X]`
+        // folds (parameter → exists, never-defined non-param → absent)
+        // as constant branches so the optimiser's O101 fold / DCE sees
+        // them. The analyser's I230 uses the same fold via
+        // `existence_constant_branches`; the SCCP pass proper has no
+        // parameter/existence facts to fold them itself.
+        let param_set: std::collections::HashSet<&str> =
+            params.iter().map(String::as_str).collect();
+        sccp.constant_branches
+            .extend(crate::sccp::existence_constant_branches(&cfg, &param_set));
         let types = propagate_types(&cfg, &ssa, &sccp, registry);
         let return_type =
             crate::type_infer::infer_function_return_type(&cfg, &sccp, &types, registry);
@@ -177,12 +192,16 @@ impl CompilationUnit {
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
-        let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), registry);
+        let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), &[], registry);
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
+            let params = ir_module
+                .procedures
+                .get(qname)
+                .map_or(&[][..], |p| p.params.as_slice());
             procedures.insert(
                 qname.clone(),
-                FunctionUnit::build(qname, cfg.clone(), registry),
+                FunctionUnit::build(qname, cfg.clone(), params, registry),
             );
         }
         // **C41d7.** Build the cross-event scope from the

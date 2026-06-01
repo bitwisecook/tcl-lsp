@@ -2078,16 +2078,23 @@ dominated (via the SSA `idom` chain) by the true target of
 `[info exists X]` (or the false target of `![info exists X]`) are
 excluded from W210.  This is done at emit time rather than by
 injecting a synthetic SSA def, which would create a spurious merge phi
-and perturb W214/W211.  (3) **Predicate fold → I230** —
-`emit_existence_constant_branch_diagnostics` folds the two
+and perturb W214/W211.  (3) **Predicate fold → I230 + O101/DCE** —
+`sccp::existence_constant_branches(cfg, params)` folds the two
 false-positive-free cases (a *parameter* always exists → true; a
 never-defined non-parameter simple local never exists → false),
 gated on a barrier-free function and skipping `unset` params, array
-elements, and namespaced/global names.  (SCCP itself is left untouched
-— it has neither parameter nor existence facts; the doc's
-`run_all_checks` wiring note reflects the Python layout, not Rust's,
-where these emitters live on the analyser.)  Tests: the
-`info_exists_*` cluster in `analyser/diagnostics.rs`.
+elements, and namespaced/global names.  The fold runs as a post-pass
+(SCCP proper has neither parameter nor existence facts): the analyser's
+`emit_existence_constant_branch_diagnostics` emits the I230 from it, and
+`FunctionUnit::build` appends the same `ConstantBranch`es to
+`sccp.constant_branches` so the optimiser's `branch_folding` surfaces an
+O101 constant-fold / DCE suggestion — unifying both consumers on one
+helper (mirroring the Python "I230 + DCE pipeline").  Emitting I230
+directly avoids a double-emit: `emit_constant_branch_diagnostics` gates
+on the not-taken arm being unreachable in `executable_blocks`, which the
+post-pass folds don't update, so it skips them.  Tests: the
+`info_exists_*` cluster in `analyser/diagnostics.rs` plus
+`optimiser::manager::tests::info_exists_fold_surfaces_o101`.
 
 ### SYNC-MAY31-4 — W127 closed-value command argument + BODY role on iRules nesting scripts (#501)
 

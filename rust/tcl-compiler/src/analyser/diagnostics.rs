@@ -2501,96 +2501,40 @@ before this value so it is treated as data, not an option."
     ///
     /// SYNC-MAY31-3.  SCCP can't fold these (the predicate lowers to an
     /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
-    /// facts), so the fold lives here, where `ir_proc.params` and the
-    /// def-use chains are available.  Only the two false-positive-free
-    /// cases are folded, and only in functions free of opaque barriers
-    /// (an unknown command could `unset` or `upvar`-define the var):
-    ///
-    /// - a **parameter** always exists → the predicate is `true`;
-    /// - a variable that is **never defined anywhere** and is not a
-    ///   parameter never exists → the predicate is `false`.
-    ///
-    /// `![info exists X]` flips the folded value.  Conditionally-set
-    /// variables are left alone.
+    /// facts), so the fold is computed by
+    /// [`crate::sccp::existence_constant_branches`] using
+    /// `ir_proc.params` — the same helper whose result
+    /// `FunctionUnit::build` appends to `sccp.constant_branches` for the
+    /// optimiser's O101 fold / DCE.  Emitting the I230 here (rather than
+    /// via [`Self::emit_constant_branch_diagnostics`]) is deliberate:
+    /// that emitter gates on the not-taken arm being unreachable in
+    /// `executable_blocks`, which these post-pass folds don't update, so
+    /// it skips them and there is no double emission.
     fn emit_existence_constant_branch_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
     ) {
-        use crate::cfg::Terminator;
-        use crate::ir::Statement;
-
-        // An opaque barrier (unknown command, `uplevel`, …) could
-        // define or unset arbitrary variables; bail on the whole
-        // function rather than risk a false fold.
-        let has_barrier = fu.cfg.blocks.values().any(|b| {
-            b.statements
-                .iter()
-                .any(|s| matches!(s, Statement::Barrier { .. }))
-        });
-        if has_barrier {
-            return;
-        }
-
         let params: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
         };
-        let defined = collect_defined_vars(&fu.cfg);
-        // A var explicitly `unset` anywhere can't be assumed to exist
-        // even if it's a parameter.
-        let unset: HashSet<&str> = fu
-            .cfg
-            .blocks
-            .values()
-            .flat_map(|b| &b.statements)
-            .filter_map(|s| match s {
-                Statement::Call { command, args, .. } if command == "unset" => Some(args),
-                _ => None,
-            })
-            .flatten()
-            .map(String::as_str)
-            .collect();
-
-        for block in fu.cfg.blocks.values() {
-            let Some(Terminator::Branch {
-                condition,
-                span: Some(span),
-                ..
-            }) = &block.terminator
-            else {
-                continue;
-            };
-            let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) else {
-                continue;
-            };
-            // Only fold simple local names. Array elements
-            // (`env(PATH)`) and namespaced / global vars (`::g`) may be
-            // populated by state outside this function's def-use view,
-            // so folding them to a constant risks a false positive.
-            if !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') || var.is_empty() {
-                continue;
-            }
-            let exists = if params.contains(var.as_str()) {
-                if unset.contains(var.as_str()) {
-                    continue;
-                }
-                true
-            } else if !defined.contains(&var) {
-                false
+        for cb in crate::sccp::existence_constant_branches(&fu.cfg, &params) {
+            let Some(span) = cb.span else { continue };
+            let message = if cb.value {
+                format!(
+                    "Condition '{}' is always true; the alternate branch is unreachable",
+                    cb.condition,
+                )
             } else {
-                continue;
-            };
-            let value = exists ^ negated;
-            let cond = crate::expr_ast::expr_text(condition);
-            let message = if value {
-                format!("Condition '{cond}' is always true; the alternate branch is unreachable")
-            } else {
-                format!("Condition '{cond}' is always false; the alternate branch is unreachable")
+                format!(
+                    "Condition '{}' is always false; the alternate branch is unreachable",
+                    cb.condition,
+                )
             };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "I230".to_string(),
-                span: *span,
+                span,
                 message,
                 severity: Severity::Hint,
                 fixes: Vec::new(),
