@@ -1787,26 +1787,104 @@ Two deltas:
 Classify: BODY-role piece is in-scope, low-touch (registry edit +
 tests).  W127 emitter is in-scope, depends on `-1b`.
 
-### SYNC-MAY31-5 — Centralised RPO + Cooper-Harvey-Kennedy dominators (#478)
+### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
 
-`main` replaced the duplicated / inconsistent block-ordering helpers
-and the naive O(N²)-memory dominator fixpoint across the compiler
-with a single iterative reverse-postorder + a direct idom computation,
-so large generated procs no longer hang / OOM / overflow the stack.
+`main` consolidated three layers of algorithmic improvement into one
+PR:
 
-**Rust mirror state.**  `rust/tcl-compiler/src/ssa.rs::compute_idom_fast`
-is **already** the Cooper-Harvey-Kennedy algorithm (the doc-comment
-explicitly cites it: *"Compute immediate dominators directly via the
-Cooper-Harvey-Kennedy algorithm"*).  Rust also already has
-`CfgFunction::reverse_postorder` shared by SSA construction, GVN,
-SCCP, and the optimiser passes — see `rust/tcl-compiler/src/cfg.rs`.
+**(a) Shared iterative RPO + Cooper-Harvey-Kennedy idoms.**  Replaced
+duplicated block-ordering helpers + the naive O(N²)-memory dominator
+fixpoint with one shared `CFGFunction.reverse_postorder()` (explicit
+work stack) + direct idom via Cooper-Harvey-Kennedy.
 
-What's left: an audit that **every** dataflow pass + worklist
-driver uses the shared `reverse_postorder` and the fast idom
-(not the legacy set-based `compute_dominators` + `compute_idom`
-pair).  Files to grep: `rust/tcl-compiler/src/{sccp,gvn,memory_ssa,
-def_use}.rs` + every `optimiser/*.rs`.  Classify: in-scope, low-touch
-(no algorithmic change, just consolidation if any duplicates remain).
+**(b) Super-linear hotspot fixes (output-preserving):**
+
+- `gvn.py` partial-redundancy availability moved from per-block hash
+  sets to integer bitmasks (init O(B) vs O(U·B); meet/join is single
+  word-ops).
+- SCCP barrier widening tracks a `non_overdefined` key set so a
+  barrier only widens the not-yet-widened values instead of
+  re-scanning the full value map every fixpoint visit.
+- `interprocedural.py` purity + effect-region fixpoints driven by a
+  **reverse-call-graph worklist** (re-enqueue only callers of a
+  changed proc), not round-robin over every proc (was O(P²·fanout)).
+- `_diag_var_command.py` rebuilds the diagnostics list in one pass
+  when dropping suppressed W307s (O(N) vs O(R·N) tail shifts).
+- `_scope.py` caches resolved namespace-qualified variables by
+  `(namespace, var)` (skip the full scope-tree walk on repeated
+  reads).
+
+**(c) Worklist-driven SSA dataflow** for forward type / rendered-
+property / taint propagations and backward liveness — replaces the
+round-robin "while changed: for every block" sweeps with worklists
+seeded by `value_use_blocks()` (the SSA def→use map).  Outputs
+unchanged (lattice meets are monotone, so least fixpoint is
+visit-order independent).  SCCP is **intentionally** kept on the
+round-robin RPO sweep — it marks CFG edges executable as it goes
+and never un-marks them; a value-driven worklist could visit a
+branch before its condition resolves and lose precision.
+
+**Rust mirror state — wider than the row originally implied:**
+
+- **(a) Already landed** on the rust branch via PR #472 / SYNC-MAY21
+  (commit `97aefd0b` — the *"analyser: fix taint recursion overflow
+  and dominator blowup"* + *"cfg: make reverse_postorder iterative"*
+  strips).  `CfgFunction::reverse_postorder` (rust/tcl-compiler/src/cfg.rs:232)
+  is the shared iterative RPO; `compute_idom_fast` (rust/tcl-compiler/src/ssa.rs)
+  is Cooper-Harvey-Kennedy.  `cfg_order` (sccp.rs:48) is the canonical
+  caller wrapper used by sccp / gvn / rendered_properties / irules_checks
+  and the optimiser passes.  No action.
+- **(b1) GVN partial-redundancy bitmask — Rust gap.**
+  `rust/tcl-compiler/src/gvn.rs::run_partial_redundancy_fixpoint`
+  (line 1308+) still uses `HashSet<ExprKey>` for may_in / must_in /
+  may_out / must_out.  Port to a bitmask (key intern table → `u64`
+  bitmask, or a dense `BitVec` for >64 keys) — same shape Python
+  landed.
+- **(b2) SCCP barrier non-overdefined-key tracking — Rust gap.**
+  `rust/tcl-compiler/src/sccp.rs` (line 290-298) handles barriers
+  by collecting `values.keys().cloned()` and widening *every* key
+  on every fixpoint visit, exactly the O(K²) cost Python eliminated.
+  Track a `non_overdefined: HashSet<ValueKey>` alongside `values`
+  and only widen its members (remove from the set as they go
+  Overdefined).
+- **(b3) Interproc reverse-call-graph worklist — Rust gap.**
+  `rust/tcl-compiler/src/interprocedural.rs::fixpoint_purity`
+  (line 381) and `fixpoint_effects` (line 413) sweep round-robin
+  over every proc each pass.  Build a `callers: HashMap<String, Vec<String>>`
+  reverse map (already implied by the existing `direct_calls`
+  forward map) and drive both fixpoints from a `VecDeque<String>`
+  worklist seeded with all procs, re-enqueuing only callers of a
+  changed callee.
+- **(b4 / b5) W307 list rebuild + scope variable cache** — both
+  live in the Python analyser layer.  Their Rust mirrors close
+  with C41 (W307 emitter) / `S*` (scope-tree cache lives on the
+  per-document analysis snapshot).  No standalone Rust port today.
+- **(c) SSA worklist propagation — Rust gap on all four passes.**
+  Round-robin sweeps confirmed:
+  - `rust/tcl-compiler/src/type_infer.rs::propagate_types`
+    (line 292: `while changed { for block in ... }`).
+  - `rust/tcl-compiler/src/rendered_properties.rs::propagate_rendered_props`
+    (line 636).
+  - `rust/tcl-compiler/src/taint.rs::propagate_taints` (line 738) —
+    intra-procedural propagation.
+  - **Backward liveness** has no Rust port today (live-variable
+    analysis is implicit in def-use chains; if the Rust analyser
+    later grows an explicit liveness pass it should start
+    worklist-driven).
+  Shared infrastructure for the port: add `cfg::value_use_blocks(ssa)`
+  helper (mirrors Python's SSA def→use map), then port each pass
+  one at a time keeping the round-robin form behind a debug-assert
+  cross-check until parity is verified.  Each pass closes with the
+  matching Rust consumer (taint already lives in `compiler_checks`;
+  type / rendered-props feed analyser diagnostics + the optimiser).
+
+Classify: **family-sized**.  Split as `SYNC-MAY31-5a` (GVN bitmask
++ SCCP non-overdefined-key), `-5b` (interproc reverse-call-graph
+worklist), `-5c` (SSA worklist propagation across the four passes)
+when picked up.  None of the (b) / (c) items are *correctness*
+blockers — outputs are unchanged — but they are real performance
+gaps on the same large-CFG files (#481 generated 85k-line procs)
+where the rust branch's SYNC-MAY21 perf fix was already needed.
 
 ### SYNC-MAY31-6 — Green token tree + shared tokenisation memo (#477 / #480)
 
@@ -2021,16 +2099,25 @@ priority queue:
   contributor picks up the interval domain / place model / loop
   forest / precision sweep), #502 (info-exists / array-exists
   folding), #501 (W127 + iRules BODY-role), #480 (token cache —
-  closes with `S*`), #478 (Cooper-Harvey-Kennedy idoms — already
-  in Rust; audit-only), #474 (switch `-regexp` → `IRSwitch`), #473
+  closes with `S*`), #478 (dataflow fixpoint algorithmic
+  improvements — the Cooper-Harvey-Kennedy / shared-RPO half is
+  already in Rust via SYNC-MAY21's `97aefd0b`, but the GVN
+  bitmask availability + SCCP non-overdefined-key tracking +
+  interproc reverse-call-graph worklist + SSA worklist propagation
+  across type_infer / rendered_properties / taint are real
+  performance gaps — promotes to `SYNC-MAY31-5a` / `-5b` / `-5c`
+  when picked up), #474 (switch `-regexp` → `IRSwitch`), #473
   (`ExprRaw` switch-subject scan), #494 (folding ranges for
   backslash line-continuations), #475 (namespace-aware
   arity-suppression — Rust already at ~90% parity from SYNC-MAY21-3,
   the *reachable, in-order* refinement is a follow-up).  None of
-  the new rows are blockers for any landed Rust subsystem (the
-  Rust analyser has no live caller post-#241); they are
-  forward-looking parity targets the relevant `C41-default-on-followups-*`
-  / `S*` chunks pick up as they reach the matching check / feature.
+  the new rows are *correctness* blockers for any landed Rust
+  subsystem (the Rust analyser has no live caller post-#241); they
+  are forward-looking parity targets the relevant
+  `C41-default-on-followups-*` / `S*` chunks pick up as they reach
+  the matching check / feature.  The `-5a` / `-5b` / `-5c`
+  algorithmic items are output-preserving so they can land any
+  time without coordination with the analyser-flip plan.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
