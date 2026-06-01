@@ -198,45 +198,239 @@ fn scan_bignum(
 
 // ── main handler ─────────────────────────────────────────────────────────────
 
-/// Store one converted value.  Consolidates the per-conversion
-/// assignment shared by every spec arm and adds XPG3 (``%N$``) support:
-/// when *xpg_slot* >= 0 the value goes to that 0-based variable rather
-/// than the next sequential one, and the sequential cursor is left
-/// untouched.  ``val`` is always consumed.  Returns false when a
-/// variable-form scan has run past the supplied variables (the caller
-/// stops the format loop).
-fn scan_store(
-    words: []const i32,
+// XPG3 positional indices are limited to INT_MAX-1 (Tcl 9 supports
+// fewer than INT_MAX command arguments); a larger ``%N$`` index is an
+// error rather than an invitation to allocate billions of slots.
+const SCAN_INDEX_LIMIT: u64 = 0x7FFF_FFFF;
+
+// Scratch buffer for the dynamic ``bad scan conversion character "X"``
+// message — single-threaded WASM, so a module-level buffer is safe.
+var g_bad_conv_buf: [64]u8 = undefined;
+
+fn bad_conv_msg(ch: u8) []const u8 {
+    const prefix = "bad scan conversion character \"";
+    @memcpy(g_bad_conv_buf[0..prefix.len], prefix);
+    g_bad_conv_buf[prefix.len] = ch;
+    g_bad_conv_buf[prefix.len + 1] = '"';
+    return g_bad_conv_buf[0 .. prefix.len + 2];
+}
+
+const ValidateResult = struct {
+    total_vars: u32 = 0,
+    err: ?[]const u8 = null,
+};
+
+/// Pre-parse the format string, mirroring C ``ValidateFormat`` in
+/// ``tclScan.c``.  Computes the number of result slots (*total_vars*)
+/// and rejects malformed formats with the canonical Tcl 9 error
+/// messages.  ``has_vars`` / ``n_vars`` describe the classic
+/// (variable) form; the inline form passes ``has_vars=false``.  The
+/// slot count drives the result-list / objs[] sizing the matcher uses,
+/// and the index-range guard keeps a stray ``%9999999999$`` from
+/// triggering a multi-gigabyte allocation.
+fn validate_scan_format(
+    fmt: [*]const u8,
+    fs_len: u32,
     has_vars: bool,
     n_vars: u32,
-    vi: *u32,
-    assigned: *u32,
-    list_result: *i32,
+) ValidateResult {
+    var fi: u32 = 0;
+    var obj_index: u32 = 0; // next sequential slot
+    var got_xpg = false;
+    var got_seq = false;
+    var xpg_size: u32 = 0; // highest XPG position seen (1-based)
+    var seq_count: u32 = 0; // count of sequential non-suppressed conversions
+
+    while (fi < fs_len) {
+        if (fmt[fi] != '%') {
+            fi += 1;
+            continue;
+        }
+        fi += 1;
+        if (fi >= fs_len) break;
+        if (fmt[fi] == '%') {
+            fi += 1;
+            continue;
+        }
+
+        var suppress = false;
+        if (fmt[fi] == '*') {
+            suppress = true;
+            fi += 1;
+        } else if (fmt[fi] >= '0' and fmt[fi] <= '9') {
+            // Possible XPG3 ``%N$`` index.
+            var j = fi;
+            var num: u64 = 0;
+            while (j < fs_len and fmt[j] >= '0' and fmt[j] <= '9') : (j += 1) {
+                num = num * 10 + @as(u64, fmt[j] - '0');
+                if (num > SCAN_INDEX_LIMIT) num = SCAN_INDEX_LIMIT; // saturate
+            }
+            if (j < fs_len and fmt[j] == '$') {
+                got_xpg = true;
+                if (got_seq)
+                    return .{ .err = "cannot mix \"%\" and \"%n$\" conversion specifiers" };
+                if (num == 0 or num >= SCAN_INDEX_LIMIT)
+                    return .{ .err = "\"%n$\" argument index out of range" };
+                obj_index = @intCast(num - 1);
+                if (has_vars and obj_index >= n_vars)
+                    return .{ .err = "\"%n$\" argument index out of range" };
+                if (!has_vars and num > xpg_size) xpg_size = @intCast(num);
+                fi = j + 1;
+            } else {
+                got_seq = true;
+                if (got_xpg)
+                    return .{ .err = "cannot mix \"%\" and \"%n$\" conversion specifiers" };
+            }
+        } else {
+            got_seq = true;
+            if (got_xpg)
+                return .{ .err = "cannot mix \"%\" and \"%n$\" conversion specifiers" };
+        }
+
+        // Width field.
+        var has_width = false;
+        while (fi < fs_len and fmt[fi] >= '0' and fmt[fi] <= '9') : (fi += 1) has_width = true;
+
+        // Size modifiers (h / l / ll / L) — accepted but ignored.
+        while (fi < fs_len and (fmt[fi] == 'h' or fmt[fi] == 'l' or fmt[fi] == 'L')) : (fi += 1) {}
+
+        if (fi >= fs_len) return .{ .err = bad_conv_msg(' ') };
+        const spec = fmt[fi];
+        fi += 1;
+
+        switch (spec) {
+            'c' => {
+                if (has_width)
+                    return .{ .err = "field width may not be specified in %c conversion" };
+            },
+            'n', 's', 'd', 'i', 'o', 'x', 'X', 'b', 'u', 'e', 'E', 'f', 'g', 'G' => {},
+            '[' => {
+                if (fi >= fs_len) return .{ .err = "unmatched [ in format string" };
+                if (fmt[fi] == '^') {
+                    fi += 1;
+                    if (fi >= fs_len) return .{ .err = "unmatched [ in format string" };
+                }
+                if (fmt[fi] == ']') {
+                    fi += 1;
+                    if (fi >= fs_len) return .{ .err = "unmatched [ in format string" };
+                }
+                while (fi < fs_len and fmt[fi] != ']') fi += 1;
+                if (fi >= fs_len) return .{ .err = "unmatched [ in format string" };
+                fi += 1; // closing ]
+            },
+            else => return .{ .err = bad_conv_msg(spec) },
+        }
+
+        if (!suppress) {
+            // ``%N$`` and sequential conversions both advance the cursor.
+            if (has_vars and !got_xpg and obj_index >= n_vars)
+                return .{ .err = "different numbers of variable names and field specifiers" };
+            obj_index += 1;
+            if (!got_xpg) seq_count += 1;
+        }
+    }
+
+    const total: u32 = if (has_vars) n_vars else (if (got_xpg) xpg_size else seq_count);
+
+    // Detect multiply / unassigned slots — mirrors the final nassign
+    // sweep in C.  We re-walk to populate per-slot counts; ``total`` is
+    // bounded by the index-range guard above so the temporary array is
+    // small.
+    if (total > 0) {
+        const counts = bignum.allocator.alloc(u16, total) catch
+            return .{ .total_vars = total };
+        defer bignum.allocator.free(counts);
+        @memset(counts, 0);
+        count_assignments(fmt, fs_len, counts);
+        var i: u32 = 0;
+        while (i < total) : (i += 1) {
+            if (counts[i] > 1)
+                return .{ .err = "variable is assigned by multiple \"%n$\" conversion specifiers" };
+            if (!got_xpg and counts[i] == 0)
+                return .{ .err = "variable is not assigned by any conversion specifiers" };
+        }
+    }
+
+    return .{ .total_vars = total };
+}
+
+/// Re-walk the (already-validated) format counting non-suppressed
+/// assignments per slot, so the caller can flag multiply-assigned or
+/// unassigned positions.
+fn count_assignments(fmt: [*]const u8, fs_len: u32, counts: []u16) void {
+    var fi: u32 = 0;
+    var obj_index: u32 = 0;
+    while (fi < fs_len) {
+        if (fmt[fi] != '%') {
+            fi += 1;
+            continue;
+        }
+        fi += 1;
+        if (fi >= fs_len) break;
+        if (fmt[fi] == '%') {
+            fi += 1;
+            continue;
+        }
+        var suppress = false;
+        if (fmt[fi] == '*') {
+            suppress = true;
+            fi += 1;
+        } else if (fmt[fi] >= '0' and fmt[fi] <= '9') {
+            var j = fi;
+            var num: u64 = 0;
+            while (j < fs_len and fmt[j] >= '0' and fmt[j] <= '9') : (j += 1) {
+                num = num * 10 + @as(u64, fmt[j] - '0');
+                if (num > SCAN_INDEX_LIMIT) num = SCAN_INDEX_LIMIT;
+            }
+            if (j < fs_len and fmt[j] == '$') {
+                obj_index = @intCast(num - 1);
+                fi = j + 1;
+            }
+        }
+        while (fi < fs_len and fmt[fi] >= '0' and fmt[fi] <= '9') : (fi += 1) {}
+        while (fi < fs_len and (fmt[fi] == 'h' or fmt[fi] == 'l' or fmt[fi] == 'L')) : (fi += 1) {}
+        if (fi >= fs_len) break;
+        const spec = fmt[fi];
+        fi += 1;
+        if (spec == '[') {
+            if (fi < fs_len and fmt[fi] == '^') fi += 1;
+            if (fi < fs_len and fmt[fi] == ']') fi += 1;
+            while (fi < fs_len and fmt[fi] != ']') fi += 1;
+            if (fi < fs_len) fi += 1;
+        }
+        if (!suppress) {
+            if (obj_index < counts.len) counts[obj_index] += 1;
+            obj_index += 1;
+        }
+    }
+}
+
+/// Store one converted value into the result slot array.  ``val`` is
+/// always consumed.  Suppressed conversions release the value but still
+/// count toward ``nconversions`` (so a successful ``%*d`` defeats the
+/// "nothing matched" underflow rule, matching C).
+fn scan_store(
+    objs: []i32,
+    obj_index: *u32,
+    nconversions: *u32,
     val: i32,
     suppress: bool,
     xpg_slot: i64,
-) bool {
+) void {
     if (suppress) {
         obj_mod_scan.tcl_obj_release(val);
-        return true;
-    }
-    if (has_vars) {
-        const slot: u32 = if (xpg_slot >= 0) @intCast(xpg_slot) else vi.*;
-        if (slot >= n_vars) {
-            obj_mod_scan.tcl_obj_release(val);
-            return false;
-        }
-        _ = frames.var_set(words[3 + slot], val);
-        obj_mod_scan.tcl_obj_release(val);
     } else {
-        const next = rt.tcl_list(list_result.*, val);
-        obj_mod_scan.tcl_obj_release(list_result.*);
-        obj_mod_scan.tcl_obj_release(val);
-        list_result.* = next;
+        const slot: u32 = if (xpg_slot >= 0) @intCast(xpg_slot) else obj_index.*;
+        if (slot < objs.len) {
+            if (objs[slot] != 0) obj_mod_scan.tcl_obj_release(objs[slot]);
+            objs[slot] = val;
+        } else {
+            // Validation guarantees this never happens; be defensive.
+            obj_mod_scan.tcl_obj_release(val);
+        }
+        if (xpg_slot < 0) obj_index.* += 1;
     }
-    if (xpg_slot < 0) vi.* += 1;
-    assigned.* += 1;
-    return true;
+    nconversions.* += 1;
 }
 
 fn eval_scan(words: []const i32) result_mod.InterpResult {
@@ -252,12 +446,35 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
     const src: [*]const u8 = if (ss.len > 0) @ptrFromInt(ss.ptr) else @ptrFromInt(1);
     const fmt: [*]const u8 = if (fs.len > 0) @ptrFromInt(fs.ptr) else @ptrFromInt(1);
 
+    // Validate the format up front (mirrors C ``ValidateFormat``): this
+    // both rejects malformed specs and yields the result-slot count that
+    // sizes the objs[] array.  Errors are raised exactly as Tcl 9.
+    const vr = validate_scan_format(fmt, fs.len, has_vars, n_vars);
+    if (vr.err) |msg| {
+        raise_scan_error(msg);
+        return result_mod.from_globals(0);
+    }
+    const total_vars = vr.total_vars;
+
+    // One slot per conversion (sequential count, or highest XPG index).
+    // Each successful conversion drops its value into ``objs[slot]``;
+    // unfilled slots become empty strings (inline form) or stay unset
+    // (classic form), mirroring Tcl's inline empty-fill semantics.
+    const objs: []i32 = if (total_vars == 0)
+        &[_]i32{}
+    else
+        bignum.allocator.alloc(i32, total_vars) catch {
+            raise_scan_error("out of memory");
+            return result_mod.from_globals(0);
+        };
+    defer if (total_vars != 0) bignum.allocator.free(objs);
+    @memset(objs, 0);
+
     var si: u32 = 0; // position in the source string
     var fi: u32 = 0; // position in the format string
-    var vi: u32 = 0; // next variable index
-    var assigned: u32 = 0;
-    // In no-variable form, collected values are appended here.
-    var list_result: i32 = obj_new_string(0, 0);
+    var obj_index: u32 = 0; // next sequential slot
+    var nconversions: u32 = 0; // successful conversions (incl. suppressed)
+    var underflow = false; // ran out of input mid-conversion
 
     while (fi < fs.len) {
         // Non-% literal: must match a character in the source.
@@ -269,8 +486,14 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
                 while (fi < fs.len and is_space(fmt[fi])) fi += 1;
                 continue;
             }
-            // Literal character match.
-            if (si >= ss.len or src[si] != fmt[fi]) break;
+            // Literal character match.  Running out of input here is an
+            // underflow (C ``ValidateFormat``/scan: a literal at EOF);
+            // a plain character mismatch is not.
+            if (si >= ss.len) {
+                underflow = true;
+                break;
+            }
+            if (src[si] != fmt[fi]) break;
             si += 1;
             fi += 1;
             continue;
@@ -280,7 +503,11 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
 
         // %% — match a literal percent.
         if (fmt[fi] == '%') {
-            if (si >= ss.len or src[si] != '%') break;
+            if (si >= ss.len) {
+                underflow = true;
+                break;
+            }
+            if (src[si] != '%') break;
             si += 1;
             fi += 1;
             continue;
@@ -333,7 +560,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
         // %n — number of chars consumed so far (no input consumed).
         if (spec == 'n') {
             const val = obj_new_int(@intCast(si));
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             continue;
         }
 
@@ -346,6 +573,12 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
         // range; a ``-`` adjacent to ``]`` is literal.  Matching is
         // byte-wise, consistent with ``%s`` above.
         if (spec == '[') {
+            // ``%[`` does not skip whitespace, but it still needs at
+            // least one character — running out here is an underflow.
+            if (si >= ss.len) {
+                underflow = true;
+                break;
+            }
             var in_set = [_]bool{false} ** 256;
             var negate = false;
             if (fi < fs.len and fmt[fi] == '^') {
@@ -383,35 +616,49 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
                 si += 1;
                 taken += 1;
             }
-            if (si == start_si) break; // no characters matched — conversion fails
+            if (si == start_si) break; // no characters matched — conversion fails (not underflow)
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(si - start_si));
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             continue;
         }
 
-        // end-of-input, and leave ``x`` unset (12days's
-        // ``[scan [string index $c 0] %c x; set x]`` recursion fed it
-        // a single-space char and tripped ``can't read "x"``).
+        // At this point a conversion needs at least one input character.
+        // ``%c`` consumes the next character verbatim (no whitespace
+        // skip); everything else skips leading whitespace first.  Hitting
+        // end-of-input either before or after the skip is an underflow.
+        if (si >= ss.len) {
+            underflow = true;
+            break;
+        }
         if (spec != 'c') {
             si = skip_space(src, ss.len, si);
+            if (si >= ss.len) {
+                underflow = true;
+                break;
+            }
         }
-        if (si >= ss.len) break;
 
         if (spec == 'c') {
             var tmp_i = si;
             const cp = read_utf8_cp(src, ss.len, &tmp_i);
             const val = obj_new_int(cp);
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             si = tmp_i;
             continue;
         }
 
-        if (spec == 'd' or spec == 'i' or spec == 'x' or spec == 'X' or spec == 'o') {
+        if (spec == 'd' or spec == 'i' or spec == 'x' or spec == 'X' or
+            spec == 'o' or spec == 'u' or spec == 'b')
+        {
             const base: i64 = switch (spec) {
-                'd' => 10,
                 'i' => 0,
                 'x', 'X' => 16,
-                else => 8,
+                'o' => 8,
+                'b' => 2,
+                // ``%d`` and ``%u`` are decimal; we carry full i64 range,
+                // so the unsigned/signed distinction only matters for the
+                // (currently unhandled) modular-wrap edge.
+                else => 10,
             };
             const accept_0x = (spec == 'x' or spec == 'X');
             var matched = false;
@@ -423,7 +670,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
                 obj_mod_scan.tcl_obj_release(val);
                 break;
             }
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             continue;
         }
 
@@ -466,7 +713,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             while (k < tok_len) : (k += 1) fbuf[k] = src[start_si + k];
             const fv = std.fmt.parseFloat(f64, fbuf[0..tok_len]) catch break;
             const val = obj_mod_scan.obj_new_float(fv);
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             continue;
         }
 
@@ -482,24 +729,112 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             }
             if (end_si == start_si) break; // no word
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(end_si - start_si));
-            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
+            scan_store(objs, &obj_index, &nconversions, val, suppress, xpg_slot);
             si = end_si;
             continue;
         }
 
-        // Unsupported specifier (e.g. %[, %u, %p) — stop.
+        // Unreachable: validation rejects unsupported specifiers.
         break;
     }
 
-    if (!has_vars) {
-        // No-variable form: return the list of parsed values.
-        return result_mod.from_globals(list_result);
+    // When the scan ran out of input before *any* conversion matched,
+    // Tcl reports total failure: -1 for the classic form, an empty list
+    // for the inline form — regardless of how many slots the format
+    // declared.  A plain mismatch (no underflow) instead yields the
+    // declared number of empty-filled slots.
+    const totally_failed = underflow and nconversions == 0;
+
+    if (has_vars) {
+        var result_count: i64 = 0;
+        var i: u32 = 0;
+        while (i < objs.len) : (i += 1) {
+            if (objs[i] != 0) {
+                _ = frames.var_set(words[3 + i], objs[i]);
+                obj_mod_scan.tcl_obj_release(objs[i]);
+                result_count += 1;
+            }
+        }
+        if (totally_failed) return result_mod.from_globals(obj_new_int(-1));
+        return result_mod.from_globals(obj_new_int(result_count));
     }
-    // ``has_vars`` path doesn't return ``list_result`` — release the
-    // empty seed (and any partial accumulation if vars ran short
-    // partway through) so it doesn't outlive the call.
-    obj_mod_scan.tcl_obj_release(list_result);
-    return result_mod.from_globals(obj_new_int(@intCast(assigned)));
+
+    // Inline (no-vars) form.  When the scan totally failed, the result
+    // is an empty list regardless of declared slots.
+    if (totally_failed) {
+        var i: u32 = 0;
+        while (i < objs.len) : (i += 1) {
+            if (objs[i] != 0) obj_mod_scan.tcl_obj_release(objs[i]);
+        }
+        return result_mod.from_globals(obj_new_string(0, 0));
+    }
+
+    // Build a list with one element per slot, filling unset slots with
+    // empty strings.  We assemble the string-rep directly rather than
+    // threading ``tcl_list``: its empty-accumulator fast path collapses a
+    // *leading* empty element to "" (scan-13.4 wants ``{} abc``, not
+    // ``abc``), and the canonical quoter does not brace empty elements
+    // (that ``{}`` special case lives in ``append_list_element``).
+    const quote_mod = @import("../valtypes/tcl_list_quote.zig");
+    var total_bytes: u32 = 1;
+    {
+        var i: u32 = 0;
+        while (i < objs.len) : (i += 1) {
+            if (objs[i] != 0) {
+                const sv = obj_ensure_string(objs[i]);
+                total_bytes += sv.len * 2 + 3; // quoted element + separator
+            } else {
+                total_bytes += 3; // "{}" + separator
+            }
+        }
+    }
+    const buf = alloc(total_bytes);
+    if (buf == 0) {
+        var i: u32 = 0;
+        while (i < objs.len) : (i += 1) {
+            if (objs[i] != 0) obj_mod_scan.tcl_obj_release(objs[i]);
+        }
+        return result_mod.from_globals(obj_new_string(0, 0));
+    }
+    var off: u32 = 0;
+    {
+        var i: u32 = 0;
+        while (i < objs.len) : (i += 1) {
+            if (off != 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            const sv_len: u32 = if (objs[i] != 0) obj_ensure_string(objs[i]).len else 0;
+            if (sv_len == 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = '{';
+                d[1] = '}';
+                off += 2;
+            } else {
+                const sv = obj_ensure_string(objs[i]);
+                off = if (i == 0)
+                    quote_mod.list_elem_quote(buf, off, sv.ptr, sv.len)
+                else
+                    quote_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
+            }
+            if (objs[i] != 0) obj_mod_scan.tcl_obj_release(objs[i]);
+        }
+    }
+    return result_mod.from_globals(obj_mod.obj_new_string_take(buf, off, total_bytes));
+}
+
+fn raise_scan_error(msg: []const u8) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const buf = obj_mod.alloc(@intCast(msg.len));
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |c, i| dst[i] = c;
+    const e = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(e);
 }
 
 pub const registrations = [_]reg.CmdEntry{
