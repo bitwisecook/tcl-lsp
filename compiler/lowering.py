@@ -2724,19 +2724,22 @@ class _Lowerer:
                         if nm and "$" not in nm and "[" not in nm and not nm.startswith("-"):
                             method_ivars.add(nm)
             method_qname = f"{class_qname}::{name}"
-            # First definition wins (matches proc registration); a later
-            # redefinition of the same method is left to runtime.
-            self.module.methods.setdefault(
-                method_qname,
-                IRMethodDef(
-                    class_name=class_qname,
-                    method_name=name,
-                    params=params,
-                    body=body_script,
-                    kind=kind,
-                    range=seg.range,
-                    instance_vars=frozenset(method_ivars),
-                ),
+            # First definition wins for the stored body (matches proc
+            # registration), but a redefinition (a later ``oo::define`` or a
+            # duplicate in-body ``method``) replaces the body at runtime — we
+            # can't statically know which body a given dispatch runs, so flag
+            # it impure to keep the O126 purity gate sound.
+            if method_qname in self.module.methods:
+                self.module.redefined_methods.add(method_qname)
+                continue
+            self.module.methods[method_qname] = IRMethodDef(
+                class_name=class_qname,
+                method_name=name,
+                params=params,
+                body=body_script,
+                kind=kind,
+                range=seg.range,
+                instance_vars=frozenset(method_ivars),
             )
 
 

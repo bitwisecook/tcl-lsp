@@ -627,6 +627,43 @@ def test_FP_OPT_12_instance_var_read_only_method_deleted():
     assert [r for r in rewrites if r.code == "O126"], "read-only instance-var method should fold"
 
 
+def test_FP_OPT_12_redefined_method_via_oo_define_not_pure():
+    """SF-2 soundness: a method redefined by a later ``oo::define`` (here
+    pure → impure) must not be treated as pure — runtime dispatch runs the
+    later impure body, so ``set unused [my helper]`` must be preserved.
+    The stored (first) body is flagged via ``redefined_methods`` and forced
+    impure."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method helper {} { return 42 }\n"
+        "    method m {} { set unused [my helper]; puts done }\n"
+        "}\n"
+        "oo::define C { method helper {} { puts side; return 42 } }\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "redefined method must not be treated as pure"
+    )
+
+
+def test_FP_OPT_12_duplicate_in_body_method_not_pure():
+    """SF-2 soundness: a method listed twice in the same class body is a
+    redefinition (last wins at runtime) — conservatively impure."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method helper {} { return 42 }\n"
+        "    method helper {} { puts side; return 42 }\n"
+        "    method m {} { set unused [my helper]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"]
+
+
 def test_FP_OPT_12_nested_proc_in_method_body_not_lifted():
     """SF-2 codegen safety: a ``proc`` defined *inside* a method body is
     created at method-call time, not at class definition — so it must NOT

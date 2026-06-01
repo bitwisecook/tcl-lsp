@@ -1302,6 +1302,12 @@ def analyse_interprocedural_ir(
                 and m_local.local_effect_writes == EffectRegion.NONE
             )
             m_pure = m_pure_base and all(pure.get(callee, False) for callee in m_local.calls)
+            # A redefined method (later oo::define / duplicate body) is
+            # conservatively impure: the stored body may not be the one a
+            # given dispatch runs, so the O126 my-dispatch gate must not
+            # delete on its proven purity.
+            if mqname in ir_module.redefined_methods:
+                m_pure = False
             m_effect_reads = m_local.local_effect_reads
             m_effect_writes = m_local.local_effect_writes
             for callee in m_local.calls:

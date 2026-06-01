@@ -500,6 +500,11 @@ class IRModule:
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
     methods: dict[str, IRMethodDef] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
+    # TclOO method qnames defined more than once (a later ``oo::define`` /
+    # in-body redefinition replaces the body at runtime).  Method purity is
+    # forced impure for these — we can't prove which body a given dispatch
+    # runs, so the O126 ``my <method>`` deletion gate must stay conservative.
+    redefined_methods: set[str] = field(default_factory=set)
     # Static ``namespace import`` directives captured at lowering time.
     # Each entry is ``(context_namespace, pattern)`` — the namespace
     # that executed the import and the raw pattern argument (either a
