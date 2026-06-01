@@ -147,22 +147,55 @@ fn emit_builtin_hints(
         (sub.synopsis, 2, 2, sub.options)
     };
 
-    let param_names = param_names_from_synopsis(synopsis, skip_words);
-    if param_names.is_empty() {
+    let params = param_names_from_synopsis(synopsis, skip_words);
+    if params.is_empty() {
         return;
     }
 
-    // Walk call args, assigning each positional the next param name.
-    // Whether a `-`-prefixed token is an option is decided by the
-    // registry, not its spelling: only tokens matching a declared
-    // `OptionSpec` are skipped (and their value too, when the option
-    // `takes_value`).  This keeps real positionals like the `-1` in
-    // `string index $s -1` — which is no command's option — labelled
-    // correctly.  `argv` and `texts` are parallel, indexed by `arg_idx`.
-    let mut slot = 0;
+    // Collect the call's positional argument tokens (skipping
+    // options).  Whether a `-`-prefixed token is an option is decided
+    // by the registry, not its spelling: only tokens matching a
+    // declared `OptionSpec` are skipped (and their value too, when the
+    // option `takes_value`).  This keeps real positionals like the
+    // `-1` in `string index $s -1` — which is no command's option —
+    // labelled correctly.  `argv` and `texts` are parallel, indexed by
+    // `arg_idx`.
+    let positional_args = collect_positional_args(seg, first_arg_idx, options);
+
+    // Pick which synopsis params bind to the supplied positionals.
+    // When the call supplies fewer positionals than the synopsis
+    // lists, required trailing params win over leading optionals:
+    // `puts ?-nonewline? ?channelId? string` called with one arg
+    // labels it `string:`, not `channelId:`.
+    let selected = select_param_names(&params, positional_args.len());
+
+    for (&arg_idx, name) in positional_args.iter().zip(selected.iter()) {
+        let arg_tok = &seg.argv[arg_idx];
+        let pos = line_index.position_at(arg_tok.span.start());
+        if !position_within_range(pos.line, pos.character, range) {
+            continue;
+        }
+        out.push(InlayHint {
+            position_line: pos.line,
+            position_character: pos.character,
+            label: format!("{name}:"),
+        });
+    }
+}
+
+/// Walk a call's arguments and return the `argv` indices of the
+/// positional (non-option) arguments, in order.  Option tokens
+/// matching a declared `OptionSpec` are skipped along with their
+/// value when the option `takes_value`; `--` ends option parsing.
+fn collect_positional_args(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    first_arg_idx: usize,
+    options: &[tcl_registry::prelude::OptionSpec],
+) -> Vec<usize> {
+    let mut positions = Vec::new();
     let mut arg_idx = first_arg_idx;
     let mut options_ended = false;
-    while arg_idx < seg.argv.len() && slot < param_names.len() {
+    while arg_idx < seg.argv.len() {
         let arg_text = seg.texts.get(arg_idx).map_or("", String::as_str);
         if !options_ended && arg_text.starts_with('-') && arg_text != "-" {
             // `--` ends option parsing; everything after is positional.
@@ -179,30 +212,50 @@ fn emit_builtin_hints(
                 continue;
             }
         }
-        let arg_tok = &seg.argv[arg_idx];
+        positions.push(arg_idx);
         arg_idx += 1;
-        let pos = line_index.position_at(arg_tok.span.start());
-        slot += 1;
-        if !position_within_range(pos.line, pos.character, range) {
-            continue;
-        }
-        out.push(InlayHint {
-            position_line: pos.line,
-            position_character: pos.character,
-            label: format!("{}:", param_names[slot - 1]),
-        });
     }
+    positions
+}
+
+/// Choose the ordered param names to label `n_positional` supplied
+/// arguments.  Required params are always kept; optional params are
+/// filled only up to the slack `max(0, n_positional - n_required)`,
+/// so when fewer args are supplied than the synopsis lists the
+/// trailing required positionals are preferred over leading optionals.
+fn select_param_names(params: &[(String, bool)], n_positional: usize) -> Vec<&str> {
+    let n_required = params.iter().filter(|(_, is_opt)| !*is_opt).count();
+    let mut optional_budget = n_positional.saturating_sub(n_required);
+    let mut selected = Vec::new();
+    for (name, is_opt) in params {
+        if *is_opt {
+            if optional_budget == 0 {
+                continue;
+            }
+            optional_budget -= 1;
+        }
+        selected.push(name.as_str());
+    }
+    selected
 }
 
 /// Parse positional parameter names out of a command synopsis,
 /// dropping the leading `skip_words` command/subcommand tokens.
+/// Each entry is `(name, is_optional)` — `?name?` groups are
+/// optional, bare `name` tokens are required.  The optional flag
+/// lets the emitter prefer required trailing positionals when a
+/// call supplies fewer arguments than the synopsis lists (see
+/// `emit_builtin_hints`).
 ///
 /// Token grammar (best-effort):
-/// * `name` — required positional → emitted.
-/// * `?name?` — optional positional → emitted (stripped).
+/// * `name` — required positional → `(name, false)`.
+/// * `?name?` — optional positional → `(name, true)` (stripped).
 /// * `?-flag?` / `-flag` / `?-flag value?` — flag → skipped.
+/// * `?options?` / `?switches?` — flag-group placeholders → skipped
+///   (the real flags are handled per-call by the registry option
+///   table, so these aren't positional params).
 /// * `?name ...?` / `...` — varargs → stops the parse.
-fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<String> {
+fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<(String, bool)> {
     let groups = synopsis_groups(synopsis);
     let mut names = Vec::new();
     for group in groups.into_iter().skip(skip_words) {
@@ -222,7 +275,13 @@ fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<String> {
                 // skip conservatively.
                 continue;
             }
-            names.push(inner.to_string());
+            // Flag-group documentation placeholders — not real
+            // positional params; the registry option table handles
+            // the actual flags per-call.
+            if inner == "options" || inner == "switches" {
+                continue;
+            }
+            names.push((inner.to_string(), true));
             continue;
         }
         // Bare flag.
@@ -231,7 +290,7 @@ fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<String> {
         }
         // Plain required positional.
         if !group.is_empty() {
-            names.push(group);
+            names.push((group, false));
         }
     }
     names
@@ -461,12 +520,18 @@ mod tests {
     #[test]
     fn param_names_skips_flags_and_keeps_positionals() {
         // After `string compare`, the flags drop out leaving the
-        // two positionals.
+        // two required positionals.
         let names = param_names_from_synopsis(
             "string compare ?-nocase? ?-length length? string1 string2",
             2,
         );
-        assert_eq!(names, vec!["string1", "string2"]);
+        assert_eq!(
+            names,
+            vec![
+                ("string1".to_string(), false),
+                ("string2".to_string(), false)
+            ],
+        );
     }
 
     #[test]
@@ -474,7 +539,68 @@ mod tests {
         let names = param_names_from_synopsis("string cat ?string1? ?string2 ...?", 2);
         // `?string1?` is an optional positional; `?string2 ...?`
         // is varargs → stop.
-        assert_eq!(names, vec!["string1"]);
+        assert_eq!(names, vec![("string1".to_string(), true)]);
+    }
+
+    #[test]
+    fn param_names_tags_optional_and_required() {
+        // `puts ?-nonewline? ?channelId? string` — the flag drops,
+        // `channelId` is optional, `string` is required.
+        let names = param_names_from_synopsis("puts ?-nonewline? ?channelId? string", 1);
+        assert_eq!(
+            names,
+            vec![
+                ("channelId".to_string(), true),
+                ("string".to_string(), false),
+            ],
+        );
+    }
+
+    #[test]
+    fn param_names_drops_flag_group_placeholders() {
+        // `?options?` / `?switches?` are flag-group docs, not params.
+        let names = param_names_from_synopsis("cmd ?options? path", 1);
+        assert_eq!(names, vec![("path".to_string(), false)]);
+        let names = param_names_from_synopsis("cmd ?switches? path", 1);
+        assert_eq!(names, vec![("path".to_string(), false)]);
+    }
+
+    #[test]
+    fn select_prefers_required_trailing_positional() {
+        // One supplied arg against `?channelId? string` binds to the
+        // required `string`, not the leading optional `channelId`.
+        let params = vec![
+            ("channelId".to_string(), true),
+            ("string".to_string(), false),
+        ];
+        assert_eq!(select_param_names(&params, 1), vec!["string"]);
+        // Two args fill the optional then the required.
+        assert_eq!(select_param_names(&params, 2), vec!["channelId", "string"]);
+    }
+
+    #[test]
+    fn builtin_hint_one_arg_labels_required_trailing_positional() {
+        // `puts hello` — one positional arg against
+        // `puts ?-nonewline? ?channelId? string` labels it `string:`,
+        // not the leading optional `channelId:`.
+        let src = "puts hello\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert_eq!(labels, vec!["string:"], "{hints:?}");
+    }
+
+    #[test]
+    fn builtin_hint_two_args_fill_optional_then_required() {
+        // `puts stderr hello` — two positionals fill `channelId` then
+        // `string`.
+        let src = "puts stderr hello\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert_eq!(labels, vec!["channelId:", "string:"], "{hints:?}");
     }
 
     #[test]

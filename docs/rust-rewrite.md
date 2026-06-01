@@ -2161,8 +2161,18 @@ narrative).  The Rust `vars_of_expr` helpers (in
 `Raw.text` for `$var` references — same fix Python applied.
 Files: `rust/tcl-compiler/src/expr_ast.rs::ExprNode::vars`,
 `rust/tcl-compiler/src/var_refs.rs`.  Classify: in-scope, low-touch
-(5-15 LOC) — pure forward-looking fix since the Rust analyser has
-no live caller.
+(5-15 LOC).
+
+**Landed (rust).**  `ExprNode::collect_vars`'s `Self::Raw { text }`
+arm now re-lexes the text via the lexer and collects top-level `$var`
+references (new `collect_raw_vars` helper reusing
+`normalise_var_name`), consistent with the `Self::Command` policy of
+stopping at command-substitution boundaries.  A `compilation_unit`
+integration test proves the `switch -- $col` subject's parameter
+def-use chain is live (verified to fail without the fix).  Note: this
+is no longer "forward-looking" — the LSP server's
+`publish_analyser_diagnostics` calls `Analyser::analyse()`, so the
+W214/W220 precision this restores is user-facing.
 
 ### SYNC-MAY31-8 — Folding for backslash line-continuation commands (#494)
 
@@ -2184,6 +2194,14 @@ a continuation pass mirroring the Python collector (re-tokenise via
 backslash-newline pair into one folding range starting at the
 *first* line and ending at the *last* continued line).  Classify:
 in-scope, low-touch.
+
+**Landed (rust).**  `collect_continuation_folds` in `folding.rs`
+re-lexes the source, collects the lines bearing a backslash-newline
+`Sep` (which starts at the `\`, distinguishing it from ordinary
+whitespace), and folds each maximal run of consecutive continued
+lines into one `Region` from the first continued line through the
+line after the last continuation.  Wired into `folding_ranges` before
+`normalise_overlaps`; 4 tests.
 
 ### SYNC-MAY31-9 — Namespace-aware arity-suppression refinement (#475)
 
@@ -2281,6 +2299,26 @@ Classify: in-scope, both items low-touch.  Item 1 (~30 LOC + tests,
 inlay-hints emitter); item 2 (~50 LOC + tests, new
 `infer_function_return_type` in `type_infer.rs` + field on
 `FunctionUnit`).
+
+**Landed (rust) — both items.**  Item 1:
+`param_names_from_synopsis` now returns `Vec<(String, bool)>`
+(name + `is_optional`) and drops `?options?` / `?switches?`
+placeholders; `emit_builtin_hints` splits into
+`collect_positional_args` + `select_param_names`, which fills
+optional slots only up to `max(0, n_positional - n_required)` so a
+single-arg `puts hello` labels `string:` not `channelId:`.  Item 2:
+`FunctionUnit` carries a `return_type: TypeLattice` populated in
+`build` by `type_infer::infer_function_return_type` (pub(crate),
+matching `return_type_for_command`), joining the result type of every
+executable exit — explicit `Return` terminators *and* fall-through
+exits.  A reachable terminator-`None` block is a fall-through (control
+runs off the end → Tcl returns the last command's result, not
+modelled here) and contributes `Overdefined`, so partial-return procs
+like `if {$c} { return 1 }` don't report an overconfident `Int`
+(caught in PR #512 review).  `infer_return_value_type` mirrors the
+`AssignValue` arm of `evaluate_type_def`; var reads join over all
+known versions of each name (sound over-approximation).  11 tests
+total.
 
 ### SYNC-MAY31-11 — Reposition cache for moved procedures (#508)
 
@@ -2461,14 +2499,19 @@ priority queue:
   joining `CFGReturn` terminators — both apply right now; the
   inlay-hints fix mirrors the same FP family Python just fixed),
   #508 (server-side reposition cache for moved procedures — closes
-  with `S*`).  None of the new rows are *correctness* blockers for
-  any landed Rust subsystem (the Rust analyser has no live caller
-  post-#241); they are forward-looking parity targets the relevant
-  `C41-default-on-followups-*` / `S*` chunks pick up as they reach
-  the matching check / feature.  The `-1e` lattice-driven row, the
-  `-5a` / `-5b` / `-5c` algorithmic items, and `-10` (inlay hints +
-  return type) are output-preserving so they can land any time
-  without coordination with the analyser-flip plan.
+  with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
+  var scan), `-8` (#494 backslash-continuation folding), and `-10`
+  (#510 inlay-hint optional positionals + `infer_function_return_type`)
+  — see those family sections.  Of the remainder, none are
+  *correctness* blockers for the analyser flip.  **Correction to a
+  stale note:** earlier rows said "the Rust analyser has no live
+  caller post-#241" — that referred to the deleted differential
+  harness; the `tcl-lsp-server` `publish_analyser_diagnostics` now
+  calls `Analyser::analyse()` and publishes diagnostics, so analyser
+  precision fixes (e.g. `-7`'s W214/W220) *are* user-facing.  The
+  `-1e` lattice-driven row and the `-5a` / `-5b` / `-5c` algorithmic
+  items remain output-preserving and can land any time without
+  coordination with the analyser-flip plan.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.

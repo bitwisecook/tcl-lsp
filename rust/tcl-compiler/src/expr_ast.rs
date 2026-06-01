@@ -12,6 +12,10 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+use crate::naming::normalise_var_name;
+
 /// Character offset within expression source text.
 pub type ExprOffset = u32;
 
@@ -392,10 +396,34 @@ impl ExprNode {
             // but extracting them requires script-level analysis that
             // lives in the SSA module. At the pure-AST level we stop
             // at the command boundary.
-            Self::Command { .. }
-            | Self::Literal { .. }
-            | Self::String { .. }
-            | Self::Raw { .. } => {}
+            Self::Command { .. } | Self::Literal { .. } | Self::String { .. } => {}
+            // Raw fallback text is unparsed Tcl (e.g. a `switch -- $col`
+            // subject preserved verbatim). Re-lex it and collect
+            // top-level `$var` references so liveness / unused-parameter
+            // detection (W214) sees the read. Nested vars inside command
+            // substitutions are left to the SSA layer, matching the
+            // `Self::Command` policy above.
+            Self::Raw { text } => collect_raw_vars(text, out),
+        }
+    }
+}
+
+/// Re-lex raw fallback text and collect top-level `$var` references
+/// into `out`. Mirrors `var_refs`'s `VAR`-token scan but without the
+/// registry / command-substitution recursion — at the pure-AST level
+/// we stop at command boundaries (nested `[…]` vars belong to the SSA
+/// layer). A lex failure contributes no variables.
+fn collect_raw_vars(text: &str, out: &mut HashSet<String>) {
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        return;
+    };
+    for tok in &tokens {
+        if tok.kind == TokenType::Var {
+            let name = normalise_var_name(source_map.token_text(*tok));
+            if !name.is_empty() {
+                out.insert(name.to_owned());
+            }
         }
     }
 }
@@ -720,6 +748,30 @@ mod tests {
             text: "some complex thing".into(),
         };
         assert_eq!(expr_text(&node), "some complex thing");
+    }
+
+    #[test]
+    fn raw_node_collects_top_level_vars() {
+        // A `switch -- $col` subject is preserved as Raw text; the
+        // var scan must recover `$col` (and array / braced forms) so
+        // W214 doesn't flag the parameter as unused.
+        let node = ExprNode::Raw {
+            text: "$col $arr(idx) ${ns::name}".into(),
+        };
+        let vars = node.vars();
+        assert!(vars.contains("col"), "got {vars:?}");
+        assert!(vars.contains("arr"), "got {vars:?}");
+        assert!(vars.contains("ns::name"), "got {vars:?}");
+    }
+
+    #[test]
+    fn raw_node_stops_at_command_substitution() {
+        // Vars nested inside a command substitution belong to the SSA
+        // layer, not the pure-AST scan — matching `Self::Command`.
+        let node = ExprNode::Raw {
+            text: "[incr counter]".into(),
+        };
+        assert!(node.vars().is_empty(), "got {:?}", node.vars());
     }
 
     #[test]

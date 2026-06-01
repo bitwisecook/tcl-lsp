@@ -56,6 +56,11 @@ pub struct FunctionUnit {
     /// Computed by the type-propagation pass. Absent entries are
     /// implicitly `TypeLattice::unknown()`.
     pub types: HashMap<ValueKey, TypeLattice>,
+    /// Inferred return type — the join of the types produced at every
+    /// executable `Return` terminator.  `Unknown` when the function
+    /// has no executable return value.  Computed by
+    /// [`crate::type_infer::infer_function_return_type`].
+    pub return_type: TypeLattice,
     /// Taint lattice values per SSA definition.
     ///
     /// Computed by the intra-procedural taint-propagation pass.
@@ -84,6 +89,8 @@ impl FunctionUnit {
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         let sccp = sccp(&cfg, &ssa, None);
         let types = propagate_types(&cfg, &ssa, &sccp, registry);
+        let return_type =
+            crate::type_infer::infer_function_return_type(&cfg, &sccp, &types, registry);
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
         let taints = propagate_taints(
             &cfg,
@@ -101,6 +108,7 @@ impl FunctionUnit {
             def_use,
             sccp,
             types,
+            return_type,
             taints,
             rendered_props,
             memory_ssa: None,
@@ -316,6 +324,85 @@ mod tests {
         assert!(!cu.procedures.is_empty());
         assert!(cu.function("::greet").is_some());
         assert!(cu.function("::top").is_some());
+    }
+
+    #[test]
+    fn switch_subject_counts_as_param_use() {
+        // SYNC-MAY31-7: the `switch -- $col` subject lowers to an
+        // `ExprNode::Raw` branch condition.  The expr var-scan now
+        // recovers `$col`, so the parameter's def-use chain has a
+        // live (terminator) use instead of looking dead — the precise
+        // path behind W214 (unused parameter).  `col` is referenced
+        // *only* as the switch subject here, so a live chain proves
+        // the Raw scan reached the def-use builder.
+        let cu = CompilationUnit::build_for(
+            "proc p {col} { switch -- $col { a {set y 1} } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::p").expect("proc ::p should exist");
+        let col_live = fu
+            .def_use
+            .chains
+            .iter()
+            .any(|(k, c)| k.0 == "col" && !c.is_dead());
+        assert!(
+            col_live,
+            "switch subject `$col` should register a live use; chains: {:?}",
+            fu.def_use.chains.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn return_type_infers_int_literal() {
+        let cu = CompilationUnit::build_for("proc f {} { return 1 }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
+    }
+
+    #[test]
+    fn return_type_infers_string_literal() {
+        let cu = CompilationUnit::build_for("proc f {} { return \"hi\" }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(
+            fu.return_type,
+            TypeLattice::of(tcl_registry::TclType::String)
+        );
+    }
+
+    #[test]
+    fn return_type_follows_local_var() {
+        let cu = CompilationUnit::build_for("proc f {} { set x 1; return $x }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
+    }
+
+    #[test]
+    fn return_type_joins_branches_to_common_int() {
+        let cu = CompilationUnit::build_for(
+            "proc f {a} { if {$a} { return 1 } else { return 2 } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
+    }
+
+    #[test]
+    fn return_type_partial_return_widens_via_fallthrough() {
+        // `if {$a} { return 1 }` with no else: the false path falls off
+        // the end of the body (Tcl returns the last command's result),
+        // so the joined return type must not be a confident `Int` — the
+        // fall-through exit widens it to Overdefined.
+        let cu =
+            CompilationUnit::build_for("proc f {a} { if {$a} { return 1 } }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(
+            fu.return_type,
+            TypeLattice::overdefined(),
+            "partial-return proc must widen, got {:?}",
+            fu.return_type,
+        );
     }
 
     #[test]
