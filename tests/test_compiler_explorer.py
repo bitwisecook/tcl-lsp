@@ -256,7 +256,7 @@ class TestCompilerExplorer:
 
         assert code == 0
         assert "source-callouts" in out
-        assert "+--> O102" in out
+        assert "╰─▶ O102" in out
 
     def test_all_focus_includes_both_sections(self, capsys):
         source = "proc foo {x} { return $x }\nset y [foo 1]"

@@ -511,8 +511,8 @@ function renderCallouts() {
     for (var idx of indices) {
       var ann = data.annotations[idx];
       var lineStart=lineStarts[i];var startCol=Math.max(0,ann.range.startOffset-lineStart);var endCol=Math.max(startCol,ann.range.endOffset-lineStart);
-      var marker=' '.repeat(startCol)+'^'+'-'.repeat(Math.max(0,endCol-startCol));
-      var arrow=' '.repeat(startCol)+'+--> '+ann.label;
+      var marker=' '.repeat(startCol)+'^'+'─'.repeat(Math.max(0,endCol-startCol));
+      var arrow=' '.repeat(startCol)+'╰─▶ '+ann.label;
       // Both ``kind`` (source) and ``severity`` (classification) drive
       // CSS — kind colours the per-source visual identity, severity
       // gives danger/warn/info a consistent treatment across panes.

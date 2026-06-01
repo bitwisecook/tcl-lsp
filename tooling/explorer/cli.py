@@ -170,6 +170,19 @@ def _terminator_summary(term: CFGGoto | CFGBranch | CFGReturn | None) -> str:
 # Print functions (ANSI terminal output)
 
 
+# Unicode box-drawing connectors for the IR / callout trees.  The terminal
+# surfaces (flat ``--text`` and the Textual TUI) and the rest of the repo's
+# tree renderers (``tooling/tcl/verbs/pkg.py``, ``scripts/dev/tcl_test_client``)
+# all draw with these glyphs, and the CFG gutter (``_GUTTER_GLYPH``) uses the
+# same line set — so we draw the trees with them too instead of the old 7-bit
+# ASCII ``|-- `` / ``` `-- ``` connectors.  Textual renders a capable terminal,
+# so there is no reason to fall back to ASCII here.
+_TREE_BRANCH = "├── "  # a child that has siblings after it
+_TREE_LAST = "└── "  # the last child
+_TREE_VBAR = "│   "  # continuation column under a branch
+_TREE_GAP = "    "  # continuation column under the last child
+
+
 def print_source_callouts(
     source: str,
     annotations: list[Annotation],
@@ -190,7 +203,7 @@ def print_source_callouts(
     for line_number in range(line_index.line_count()):
         text = line_index.line_text(line_number)
         gutter = str(line_number + 1).rjust(line_no_width)
-        print(f"{style(gutter, Ansi.DIM, use_colour)} | {text}")
+        print(f"{style(gutter, Ansi.DIM, use_colour)} │ {text}")
 
         line_start = line_index.line_start(line_number)
         line_end_exclusive = line_index.line_end_exclusive(line_number)
@@ -209,9 +222,9 @@ def print_source_callouts(
             start_col = max(0, seg_start - line_start)
             end_col = max(start_col, seg_end - line_start)
 
-            marker = (" " * start_col) + "^" + ("-" * max(0, end_col - start_col))
-            marker_line = f"{' ' * line_no_width} | {marker}"
-            arrow_line = f"{' ' * line_no_width} | {' ' * start_col}+--> {ann.label}"
+            marker = (" " * start_col) + "^" + ("─" * max(0, end_col - start_col))
+            marker_line = f"{' ' * line_no_width} │ {marker}"
+            arrow_line = f"{' ' * line_no_width} │ {' ' * start_col}╰─▶ {ann.label}"
 
             colour = _annotation_colour(ann)
             print(style(marker_line, colour, use_colour))
@@ -234,7 +247,7 @@ def _print_ir_script(
 ) -> None:
     for idx, stmt in enumerate(script.statements):
         is_last = idx == (len(script.statements) - 1)
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
         label = stmt_summary(stmt)
         span = line_index.format_range(stmt.range)
 
@@ -244,7 +257,7 @@ def _print_ir_script(
             f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
         )
 
-        child_prefix = prefix + ("    " if is_last else "|   ")
+        child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
 
         if isinstance(stmt, IRIf):
             _print_ir_if(stmt, prefix=child_prefix, line_index=line_index, use_colour=use_colour)
@@ -277,7 +290,7 @@ def _print_ir_if(
 
     for idx, (label, payload) in enumerate(children):
         is_last = idx == (len(children) - 1)
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
 
         if isinstance(payload, IRScript):
             span = (
@@ -289,7 +302,7 @@ def _print_ir_if(
                 f"{prefix}{connector}{style(label, Ansi.BLUE, use_colour)} "
                 f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
             )
-            child_prefix = prefix + ("    " if is_last else "|   ")
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
             _print_ir_script(
                 payload, prefix=child_prefix, line_index=line_index, use_colour=use_colour
             )
@@ -301,7 +314,7 @@ def _print_ir_if(
             f"{prefix}{connector}{style(label, Ansi.BLUE, use_colour)} "
             f"{style(f'[{clause_span}]', Ansi.DIM, use_colour)}"
         )
-        child_prefix = prefix + ("    " if is_last else "|   ")
+        child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
         _print_ir_script(
             clause.body, prefix=child_prefix, line_index=line_index, use_colour=use_colour
         )
@@ -317,13 +330,13 @@ def _print_ir_switch(
     header = f"subject: {preview(stmt.subject, 60)}"
     subject_span = line_index.format_range(stmt.subject_range)
     print(
-        f"{prefix}|-- {style(header, Ansi.BLUE, use_colour)} {style(f'[{subject_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style(header, Ansi.BLUE, use_colour)} {style(f'[{subject_span}]', Ansi.DIM, use_colour)}"
     )
 
     arm_count = len(stmt.arms)
     for i, arm in enumerate(stmt.arms):
         is_last = i == (arm_count - 1) and stmt.default_body is None
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
         kind = "arm"
         if arm.fallthrough:
             kind = "fallthrough"
@@ -334,7 +347,7 @@ def _print_ir_switch(
         )
 
         if arm.body is not None:
-            child_prefix = prefix + ("    " if is_last else "|   ")
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
             _print_ir_script(
                 arm.body, prefix=child_prefix, line_index=line_index, use_colour=use_colour
             )
@@ -346,11 +359,11 @@ def _print_ir_switch(
             else "?:?-?:?"
         )
         print(
-            f"{prefix}`-- {style('default', Ansi.BLUE, use_colour)} {style(f'[{default_span}]', Ansi.DIM, use_colour)}"
+            f"{prefix}{_TREE_LAST}{style('default', Ansi.BLUE, use_colour)} {style(f'[{default_span}]', Ansi.DIM, use_colour)}"
         )
         _print_ir_script(
             stmt.default_body,
-            prefix=prefix + "    ",
+            prefix=prefix + _TREE_GAP,
             line_index=line_index,
             use_colour=use_colour,
         )
@@ -371,28 +384,28 @@ def _print_ir_for(
     body_span = line_index.format_range(stmt.body_range)
 
     print(
-        f"{prefix}|-- {style('init', Ansi.BLUE, use_colour)} {style(f'[{init_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style('init', Ansi.BLUE, use_colour)} {style(f'[{init_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.init, prefix=prefix + "|   ", line_index=line_index, use_colour=use_colour
+        stmt.init, prefix=prefix + _TREE_VBAR, line_index=line_index, use_colour=use_colour
     )
 
     print(
-        f"{prefix}|-- {style(f'condition: {preview(_expr_text(stmt.condition), 60)}', Ansi.BLUE, use_colour)} {style(f'[{cond_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style(f'condition: {preview(_expr_text(stmt.condition), 60)}', Ansi.BLUE, use_colour)} {style(f'[{cond_span}]', Ansi.DIM, use_colour)}"
     )
 
     print(
-        f"{prefix}|-- {style('next', Ansi.BLUE, use_colour)} {style(f'[{next_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style('next', Ansi.BLUE, use_colour)} {style(f'[{next_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.next, prefix=prefix + "|   ", line_index=line_index, use_colour=use_colour
+        stmt.next, prefix=prefix + _TREE_VBAR, line_index=line_index, use_colour=use_colour
     )
 
     print(
-        f"{prefix}`-- {style('body', Ansi.BLUE, use_colour)} {style(f'[{body_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_LAST}{style('body', Ansi.BLUE, use_colour)} {style(f'[{body_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.body, prefix=prefix + "    ", line_index=line_index, use_colour=use_colour
+        stmt.body, prefix=prefix + _TREE_GAP, line_index=line_index, use_colour=use_colour
     )
 
 
