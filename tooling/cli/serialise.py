@@ -462,6 +462,16 @@ def _serialise_types(snapshots: list[FunctionSnapshot]) -> list[dict]:
     out = []
     for snap in snapshots:
         entries = []
+        rt = snap.analysis.return_type
+        if rt is not None and rt.kind is not TypeKind.UNKNOWN:
+            entries.append(
+                {
+                    "variable": "(return)",
+                    "version": 0,
+                    "type": format_type(rt),
+                    "kind": rt.kind.name.lower(),
+                }
+            )
         for (name, ver), tl in sorted(snap.analysis.types.items()):
             if tl.kind is TypeKind.UNKNOWN:
                 continue

@@ -396,7 +396,8 @@ function renderTypes() {
     html+='<div class="proc-card">';
     html+='<div class="proc-name">'+esc(func.name)+'</div>';
     for(var e of func.entries){
-      html+='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
+      var label=e.variable.startsWith('(')?e.variable:e.variable+'#'+e.version;
+      html+='<div class="type-entry"><span class="type-var">'+esc(label)+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
     }
     html+='</div>';
   }

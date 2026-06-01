@@ -412,6 +412,12 @@ class FunctionAnalysis:
     rendered_props: dict[SSAValueKey, "RenderedValueProps"] = field(default_factory=dict)
     def_use_chains: "DefUseResult | None" = None
     memory_ssa: "MemorySSAFunction | None" = None
+    # Joined type of all ``CFGReturn`` terminators in the function.  Unlike
+    # ``types`` (which is keyed by SSA def-sites and therefore empty for
+    # procs whose body is just ``return [expr ...]``), this is computed
+    # directly from the terminators so the LSP/explorer can show a useful
+    # return type for bodies that never assign an intermediate variable.
+    return_type: "TypeLattice | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -3725,6 +3731,53 @@ def _evaluate_type_def(
             return _TYPE_OVERDEFINED
 
 
+def _infer_return_type(
+    cfg: CFGFunction,
+    executable_blocks: set[str],
+    known_classes: frozenset[str],
+    namespace: str,
+) -> TypeLattice | None:
+    """Join the inferred type of every ``CFGReturn`` terminator.
+
+    Returns ``None`` when the function has no executable returns (e.g. an
+    infinite loop, or a top-level script whose terminator is ``CFGGoto``).
+    Var-typed expressions fall back to operator-implied types since SSA
+    reaching defs at terminators are not tracked.
+    """
+    from compiler.expr_types import infer_expr_type
+
+    result: TypeLattice | None = None
+    for bn, block in cfg.blocks.items():
+        if bn not in executable_blocks:
+            continue
+        term = block.terminator
+        if not isinstance(term, CFGReturn):
+            continue
+        if term.expr is not None:
+            t = infer_expr_type(term.expr, {})
+        elif term.value is None or not term.value.strip():
+            t = TypeLattice.of(TclType.STRING)
+        else:
+            stripped = term.value.strip()
+            if is_pure_var_ref(stripped):
+                t = _TYPE_UNKNOWN
+            elif stripped.startswith("[") and stripped.endswith("]"):
+                cmd_text = stripped[1:-1].strip()
+                parts = cmd_text.split(None, 1)
+                if parts:
+                    cmd_name = parts[0]
+                    cmd_args = tuple(parts[1].split()) if len(parts) > 1 else ()
+                    t = _return_type_for_command(cmd_name, cmd_args, known_classes, namespace)
+                else:
+                    t = TypeLattice.of(TclType.STRING)
+            elif "$" in stripped or "[" in stripped:
+                t = TypeLattice.of(TclType.STRING)
+            else:
+                t = _literal_type(stripped)
+        result = t if result is None else type_join(result, t)
+    return result
+
+
 def _type_propagation(
     cfg: CFGFunction,
     ssa: SSAFunction,
@@ -3872,6 +3925,9 @@ def analyse_function(
         cfg, ssa, values, executable_blocks, executable_edges, known_classes
     )
 
+    return_namespace = _normalise_qualified_name(cfg.name).rsplit("::", 1)[0] or "::"
+    return_type = _infer_return_type(cfg, executable_blocks, known_classes, return_namespace)
+
     from .rendered_properties import rendered_properties_propagation
 
     rendered = rendered_properties_propagation(cfg, ssa, executable_blocks, executable_edges)
@@ -3964,6 +4020,7 @@ def analyse_function(
         unused_params=unused_p,
         def_use_chains=du_result,
         memory_ssa=mem_ssa,
+        return_type=return_type,
     )
 
 
