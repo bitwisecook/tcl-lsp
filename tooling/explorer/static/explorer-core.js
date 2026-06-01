@@ -172,7 +172,7 @@ function renderCfgPost() {
       html += '</div>';
       for (var phi of block.phis) {
         var incoming = Object.entries(phi.incoming).map(function(e) { return e[0] + ':' + e[1]; }).join(', ');
-        html += '<div class="cfg-phi">' + renderVarSpan(phi.name, phi.version, phi.type, null, 'def') + ' \u2190 ' + esc(incoming) + (phi.type ? ' : ' + esc(phi.type) : '') + '</div>';
+        html += '<div class="cfg-phi">' + renderVarSpan(phi.name, phi.version, phi.type, null, 'def') + ' \u2190 ' + esc(incoming) + '</div>';
       }
       for (var stmt of block.statements) {
         html += '<div class="cfg-stmt"' + sourceRangeAttrs(stmt.range) + '><span class="' + stmt.colorClass + '">' + esc(stmt.summary) + '</span> <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(stmt.range) + ']</span></div>';
@@ -396,7 +396,8 @@ function renderTypes() {
     html+='<div class="proc-card">';
     html+='<div class="proc-name">'+esc(func.name)+'</div>';
     for(var e of func.entries){
-      html+='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
+      var label=e.variable.startsWith('(')?e.variable:e.variable+'#'+e.version;
+      html+='<div class="type-entry"><span class="type-var">'+esc(label)+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
     }
     html+='</div>';
   }
@@ -1447,7 +1448,9 @@ function normaliseAsmOperand(ins, literals, locals) {
 function renderVarSpan(name,version,type,lattice,role){
   var cls=role==='def'?'ssa-var ssa-var-def':'ssa-var ssa-var-use';
   var ttData={name:name,version:version};if(type)ttData.type=type;if(lattice)ttData.lattice=lattice;ttData.role=role;
-  return '<span class="'+cls+'" data-var=\''+esc(JSON.stringify(ttData))+'\'>'+esc(name)+'#'+version+'</span>';
+  var span='<span class="'+cls+'" data-var=\''+esc(JSON.stringify(ttData))+'\'>'+esc(name)+'#'+version+'</span>';
+  if(role==='def'&&type)span+='<span class="ssa-var-type">:'+esc(type)+'</span>';
+  return span;
 }
 function renderSSAInfo(uses,defs){
   var hasUses=Object.keys(uses).length>0;var hasDefs=Object.keys(defs).length>0;

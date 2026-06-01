@@ -383,13 +383,24 @@ def _synopsis_groups(synopsis: str) -> list[str]:
     return groups
 
 
-def _param_names_from_synopsis(synopsis: str, skip_words: int) -> list[str]:
+# Synopsis tokens like ``?options?`` / ``?switches?`` are documentation
+# placeholders for "the command's flag group" rather than real positional
+# parameters: ``lsearch ?options? list pattern`` called with two args
+# binds them to ``list`` and ``pattern``, not ``options`` and ``list``.
+# Real flags are detected and skipped per-call via the registry option
+# table, so these placeholders never represent a slot to label.
+_FLAG_GROUP_PLACEHOLDERS = frozenset({"options", "switches"})
+
+
+def _param_names_from_synopsis(synopsis: str, skip_words: int) -> list[tuple[str, bool]]:
     """Parse positional parameter names out of a command synopsis.
 
-    ``name`` / ``?name?`` → emitted (optionals stripped); ``-flag`` /
-    ``?-flag value?`` → skipped; ``...`` / ``?name ...?`` → stops the parse.
+    Returns ``(name, is_optional)`` pairs.  ``name`` → required; ``?name?``
+    → optional; ``-flag`` / ``?-flag value?`` → skipped; ``?options?`` /
+    ``?switches?`` → skipped as flag-group placeholders; ``...`` /
+    ``?name ...?`` → stops the parse.
     """
-    names: list[str] = []
+    names: list[tuple[str, bool]] = []
     for group in _synopsis_groups(synopsis)[skip_words:]:
         if "..." in group:
             break
@@ -397,11 +408,13 @@ def _param_names_from_synopsis(synopsis: str, skip_words: int) -> list[str]:
             inner = group[1:-1].strip()
             if not inner or inner.startswith("-") or any(c.isspace() for c in inner):
                 continue
-            names.append(inner)
+            if inner in _FLAG_GROUP_PLACEHOLDERS:
+                continue
+            names.append((inner, True))
         elif group.startswith("-"):
             continue
         elif group:
-            names.append(group)
+            names.append((group, False))
     return names
 
 
@@ -417,12 +430,18 @@ def _lookup_user_proc(analysis: AnalysisResult, cmd_name: str) -> ProcDef | None
 def _emit_positional_hints(
     hints: list[types.InlayHint],
     cmd,
-    param_names: list[str],
+    param_specs: list[tuple[str, bool]],
     first_arg_idx: int,
     option_for: Callable[[str], OptionSpec | None],
     range_: types.Range,
 ) -> None:
     """Label each positional call argument with its parameter name.
+
+    ``param_specs`` is a list of ``(name, is_optional)`` pairs from the
+    synopsis.  When the actual positional count doesn't cover every slot,
+    optional slots are skipped (left-to-right) so the remaining required
+    slots line up: ``puts ?channelId? string`` called with one argument
+    labels it ``string:``, not ``channelId:``.
 
     Whether a ``-``-prefixed token is an option is decided by the
     registry (``option_for``), not its spelling: only declared options
@@ -430,12 +449,13 @@ def _emit_positional_hints(
     a real positional like the ``-1`` in ``string index $s -1`` — which
     is no command's option — labelled correctly.  ``--`` ends options.
     """
-    if not param_names:
+    if not param_specs:
         return
-    slot = 0
+
+    positional_arg_indices: list[int] = []
     arg_idx = first_arg_idx
     options_ended = False
-    while arg_idx < len(cmd.argv) and slot < len(param_names):
+    while arg_idx < len(cmd.argv):
         arg_text = cmd.texts[arg_idx] if arg_idx < len(cmd.texts) else ""
         if not options_ended and arg_text.startswith("-") and arg_text != "-":
             if arg_text == "--":
@@ -448,15 +468,36 @@ def _emit_positional_hints(
                 if opt.takes_value and arg_idx < len(cmd.argv):
                     arg_idx += 1
                 continue
-        tok = cmd.argv[arg_idx]
+        positional_arg_indices.append(arg_idx)
         arg_idx += 1
-        slot += 1
+
+    if not positional_arg_indices:
+        return
+
+    n_required = sum(1 for _, is_opt in param_specs if not is_opt)
+    n_optional = len(param_specs) - n_required
+    n_opt_filled = max(0, min(n_optional, len(positional_arg_indices) - n_required))
+
+    filled_names: list[str] = []
+    remaining_opt = n_opt_filled
+    for name, is_opt in param_specs:
+        if is_opt:
+            if remaining_opt > 0:
+                filled_names.append(name)
+                remaining_opt -= 1
+        else:
+            filled_names.append(name)
+
+    for pos_idx, arg_index in enumerate(positional_arg_indices):
+        if pos_idx >= len(filled_names):
+            break
+        tok = cmd.argv[arg_index]
         pos = tok.start
         if range_.start.line <= pos.line <= range_.end.line:
             hints.append(
                 types.InlayHint(
                     position=types.Position(line=pos.line, character=pos.character),
-                    label=f"{param_names[slot - 1]}:",
+                    label=f"{filled_names[pos_idx]}:",
                     kind=types.InlayHintKind.Parameter,
                     padding_right=True,
                 )
@@ -482,12 +523,15 @@ def _collect_param_name_hints(
 
         proc_def = _lookup_user_proc(analysis, cmd_name)
         if proc_def is not None:
-            names: list[str] = []
+            # Tcl's ``proc`` does strict positional matching: arg N goes
+            # to formal N regardless of which formals have defaults, so
+            # every slot here is "required" for labelling purposes.
+            proc_names: list[tuple[str, bool]] = []
             for p in proc_def.params:
                 if p.name in ("args", "::args"):
                     break
-                names.append(p.name)
-            _emit_positional_hints(hints, cmd, names, 1, lambda _n: None, range_)
+                proc_names.append((p.name, False))
+            _emit_positional_hints(hints, cmd, proc_names, 1, lambda _n: None, range_)
             continue
 
         spec = REGISTRY.get(cmd_name)
@@ -501,17 +545,17 @@ def _collect_param_name_hints(
                 synopsis = spec.forms[0].synopsis
             if not synopsis:
                 continue
-            names = _param_names_from_synopsis(synopsis, skip_words=1)
-            _emit_positional_hints(hints, cmd, names, 1, spec.option, range_)
+            specs = _param_names_from_synopsis(synopsis, skip_words=1)
+            _emit_positional_hints(hints, cmd, specs, 1, spec.option, range_)
         else:
             if len(cmd.texts) < 2:
                 continue
             sub = spec.subcommands.get(cmd.texts[1])
             if sub is None:
                 continue
-            names = _param_names_from_synopsis(sub.synopsis, skip_words=2)
+            specs = _param_names_from_synopsis(sub.synopsis, skip_words=2)
             sub_opts = {o.name: o for o in sub.options}
-            _emit_positional_hints(hints, cmd, names, 2, sub_opts.get, range_)
+            _emit_positional_hints(hints, cmd, specs, 2, sub_opts.get, range_)
     return hints
 
 

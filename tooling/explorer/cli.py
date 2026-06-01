@@ -501,8 +501,12 @@ def _print_function_analysis_summary(snap: FunctionSnapshot, *, use_colour: bool
         for k, v in snap.analysis.types.items()
         if v.kind in (TypeKind.KNOWN, TypeKind.SHIMMERED)
     }
-    if interesting_types:
+    rt = snap.analysis.return_type
+    rt_interesting = rt is not None and rt.kind in (TypeKind.KNOWN, TypeKind.SHIMMERED)
+    if interesting_types or rt_interesting:
         print(style("    inferred-types", Ansi.GREEN, use_colour))
+        if rt_interesting:
+            print(style(f"      (return): {format_type(rt)}", Ansi.GREEN, use_colour))
         for (name, ver), tl in sorted(interesting_types.items()):
             print(style(f"      {name}#{ver}: {format_type(tl)}", Ansi.GREEN, use_colour))
     else:
@@ -1067,27 +1071,42 @@ def print_types(
     *,
     use_colour: bool,
 ) -> None:
+    """Render the full type lattice (peer to the SSA view) for each function.
+
+    Includes ``UNKNOWN`` (``?``) and ``OVERDEFINED`` (``*``) slots so the
+    full lattice progression is visible per SSA version, plus a synthetic
+    ``(return)`` row at the top sourced from ``analysis.return_type`` --
+    the latter shows a return type for procs whose body is just
+    ``return [expr ...]`` and so has no SSA def-site for the analyser to
+    attach the type to.
+    """
     from compiler.intervals import compute_intervals
 
     print(style("type-inference", Ansi.BOLD, use_colour))
 
     any_types = False
     for snap in snapshots:
-        interesting = {
-            k: v
-            for k, v in snap.analysis.types.items()
-            if v.kind in (TypeKind.KNOWN, TypeKind.SHIMMERED, TypeKind.OVERDEFINED)
-        }
-        if not interesting:
+        rt = snap.analysis.return_type
+        if not snap.analysis.types and rt is None:
             continue
         any_types = True
-        # Annotate each typed value with its integer interval (the Phase 3
-        # RANGE domain) when bounded, so the numeric facts the bounds /
-        # divide-by-zero checks consult are visible alongside the type.
         intervals = compute_intervals(snap.cfg, snap.ssa, snap.analysis.values)
         print(style(f"  function {snap.name}", Ansi.CYAN, use_colour))
-        for (name, ver), tl in sorted(interesting.items()):
-            colour = Ansi.YELLOW if tl.kind is TypeKind.SHIMMERED else Ansi.GREEN
+        if rt is not None:
+            rt_colour = {
+                TypeKind.KNOWN: Ansi.GREEN,
+                TypeKind.SHIMMERED: Ansi.YELLOW,
+                TypeKind.OVERDEFINED: Ansi.MAGENTA,
+                TypeKind.UNKNOWN: Ansi.DIM,
+            }.get(rt.kind, Ansi.DIM)
+            print(style(f"    (return): {format_type(rt)}", rt_colour, use_colour))
+        for (name, ver), tl in sorted(snap.analysis.types.items()):
+            colour = {
+                TypeKind.KNOWN: Ansi.GREEN,
+                TypeKind.SHIMMERED: Ansi.YELLOW,
+                TypeKind.OVERDEFINED: Ansi.MAGENTA,
+                TypeKind.UNKNOWN: Ansi.DIM,
+            }.get(tl.kind, Ansi.DIM)
             rng = ""
             iv = intervals.get((name, ver))
             if iv is not None and not iv.is_top and (iv.lo is not None or iv.hi is not None):

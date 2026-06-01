@@ -476,12 +476,26 @@ def _serialise_event_order(entries: list[EventOrderEntry]) -> list[dict]:
 
 
 def _serialise_types(snapshots: list[FunctionSnapshot]) -> list[dict]:
+    """Serialise every tracked SSA value's lattice type for the explorer.
+
+    Includes ``UNKNOWN`` (``?``) and ``OVERDEFINED`` (``*``) entries so
+    the user can see the full lattice progression for a variable, not
+    just the slots that converged to a known type.
+    """
     out = []
     for snap in snapshots:
         entries = []
+        rt = snap.analysis.return_type
+        if rt is not None:
+            entries.append(
+                {
+                    "variable": "(return)",
+                    "version": 0,
+                    "type": format_type(rt),
+                    "kind": rt.kind.name.lower(),
+                }
+            )
         for (name, ver), tl in sorted(snap.analysis.types.items()):
-            if tl.kind is TypeKind.UNKNOWN:
-                continue
             entries.append(
                 {
                     "variable": name,
