@@ -47,6 +47,35 @@ python3 .claude/skills/lsp-client/lsp_client.py --server rust   diagnostics foo.
 python3 .claude/skills/lsp-client/lsp_client.py --server python diagnostics foo.tcl
 ```
 
+## Selecting a dialect (`--language-id`)
+
+The server picks its analysis **dialect** from the LSP `languageId` the
+client sends on `didOpen` (this takes precedence over any `tclLsp.dialect`
+setting).  The client derives the `languageId` from the **file extension**,
+mirroring the editor's language associations:
+
+| Extension | languageId | Dialect |
+|---|---|---|
+| `.tcl`, `.tk`, `.itcl`, `.tm`, `.test` (and anything unrecognised) | `tcl` | `tcl8.6` |
+| `.irul`, `.irule` | `tcl-irule` | `f5-irules` |
+| `.iapp`, `.iappimpl`, `.impl` | `tcl-iapp` | `f5-iapps` |
+| `.exp` | `tcl-expect` | `expect` |
+
+So `.irul` files are analysed as iRules automatically — no extra flags.
+
+Use `--language-id <id>` to override this when the extension doesn't imply
+the dialect you want — e.g. an iRule saved as `.tcl`, or exercising a
+specific Tcl version.  It accepts editor ids (`tcl`, `tcl-irule`,
+`tcl-iapp`, `tcl-expect`) **or** canonical dialect names (`f5-irules`,
+`f5-iapps`, `tcl8.4`, `tcl9.0`, …):
+
+```bash
+# An iRule that happens to live in a .tcl file
+python3 .claude/skills/lsp-client/lsp_client.py --server rust --language-id tcl-irule diagnostics rule.tcl
+# Check tcl9.0-specific behaviour on a plain .tcl file
+python3 .claude/skills/lsp-client/lsp_client.py --server rust --language-id tcl9.0 diagnostics foo.tcl
+```
+
 ## Subcommands
 
 | Subcommand | Arguments | What it does |
