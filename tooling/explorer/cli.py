@@ -170,6 +170,19 @@ def _terminator_summary(term: CFGGoto | CFGBranch | CFGReturn | None) -> str:
 # Print functions (ANSI terminal output)
 
 
+# Unicode box-drawing connectors for the IR / callout trees.  The terminal
+# surfaces (flat ``--text`` and the Textual TUI) and the rest of the repo's
+# tree renderers (``tooling/tcl/verbs/pkg.py``, ``scripts/dev/tcl_test_client``)
+# all draw with these glyphs, and the CFG gutter (``_GUTTER_GLYPH``) uses the
+# same line set — so we draw the trees with them too instead of the old 7-bit
+# ASCII ``|-- `` / ``` `-- ``` connectors.  Textual renders a capable terminal,
+# so there is no reason to fall back to ASCII here.
+_TREE_BRANCH = "├── "  # a child that has siblings after it
+_TREE_LAST = "└── "  # the last child
+_TREE_VBAR = "│   "  # continuation column under a branch
+_TREE_GAP = "    "  # continuation column under the last child
+
+
 def print_source_callouts(
     source: str,
     annotations: list[Annotation],
@@ -190,7 +203,7 @@ def print_source_callouts(
     for line_number in range(line_index.line_count()):
         text = line_index.line_text(line_number)
         gutter = str(line_number + 1).rjust(line_no_width)
-        print(f"{style(gutter, Ansi.DIM, use_colour)} | {text}")
+        print(f"{style(gutter, Ansi.DIM, use_colour)} │ {text}")
 
         line_start = line_index.line_start(line_number)
         line_end_exclusive = line_index.line_end_exclusive(line_number)
@@ -209,9 +222,9 @@ def print_source_callouts(
             start_col = max(0, seg_start - line_start)
             end_col = max(start_col, seg_end - line_start)
 
-            marker = (" " * start_col) + "^" + ("-" * max(0, end_col - start_col))
-            marker_line = f"{' ' * line_no_width} | {marker}"
-            arrow_line = f"{' ' * line_no_width} | {' ' * start_col}+--> {ann.label}"
+            marker = (" " * start_col) + "^" + ("─" * max(0, end_col - start_col))
+            marker_line = f"{' ' * line_no_width} │ {marker}"
+            arrow_line = f"{' ' * line_no_width} │ {' ' * start_col}╰─▶ {ann.label}"
 
             colour = _annotation_colour(ann)
             print(style(marker_line, colour, use_colour))
@@ -234,7 +247,7 @@ def _print_ir_script(
 ) -> None:
     for idx, stmt in enumerate(script.statements):
         is_last = idx == (len(script.statements) - 1)
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
         label = stmt_summary(stmt)
         span = line_index.format_range(stmt.range)
 
@@ -244,7 +257,7 @@ def _print_ir_script(
             f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
         )
 
-        child_prefix = prefix + ("    " if is_last else "|   ")
+        child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
 
         if isinstance(stmt, IRIf):
             _print_ir_if(stmt, prefix=child_prefix, line_index=line_index, use_colour=use_colour)
@@ -277,7 +290,7 @@ def _print_ir_if(
 
     for idx, (label, payload) in enumerate(children):
         is_last = idx == (len(children) - 1)
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
 
         if isinstance(payload, IRScript):
             span = (
@@ -289,7 +302,7 @@ def _print_ir_if(
                 f"{prefix}{connector}{style(label, Ansi.BLUE, use_colour)} "
                 f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
             )
-            child_prefix = prefix + ("    " if is_last else "|   ")
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
             _print_ir_script(
                 payload, prefix=child_prefix, line_index=line_index, use_colour=use_colour
             )
@@ -301,7 +314,7 @@ def _print_ir_if(
             f"{prefix}{connector}{style(label, Ansi.BLUE, use_colour)} "
             f"{style(f'[{clause_span}]', Ansi.DIM, use_colour)}"
         )
-        child_prefix = prefix + ("    " if is_last else "|   ")
+        child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
         _print_ir_script(
             clause.body, prefix=child_prefix, line_index=line_index, use_colour=use_colour
         )
@@ -317,13 +330,13 @@ def _print_ir_switch(
     header = f"subject: {preview(stmt.subject, 60)}"
     subject_span = line_index.format_range(stmt.subject_range)
     print(
-        f"{prefix}|-- {style(header, Ansi.BLUE, use_colour)} {style(f'[{subject_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style(header, Ansi.BLUE, use_colour)} {style(f'[{subject_span}]', Ansi.DIM, use_colour)}"
     )
 
     arm_count = len(stmt.arms)
     for i, arm in enumerate(stmt.arms):
         is_last = i == (arm_count - 1) and stmt.default_body is None
-        connector = "`-- " if is_last else "|-- "
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
         kind = "arm"
         if arm.fallthrough:
             kind = "fallthrough"
@@ -334,7 +347,7 @@ def _print_ir_switch(
         )
 
         if arm.body is not None:
-            child_prefix = prefix + ("    " if is_last else "|   ")
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
             _print_ir_script(
                 arm.body, prefix=child_prefix, line_index=line_index, use_colour=use_colour
             )
@@ -346,11 +359,11 @@ def _print_ir_switch(
             else "?:?-?:?"
         )
         print(
-            f"{prefix}`-- {style('default', Ansi.BLUE, use_colour)} {style(f'[{default_span}]', Ansi.DIM, use_colour)}"
+            f"{prefix}{_TREE_LAST}{style('default', Ansi.BLUE, use_colour)} {style(f'[{default_span}]', Ansi.DIM, use_colour)}"
         )
         _print_ir_script(
             stmt.default_body,
-            prefix=prefix + "    ",
+            prefix=prefix + _TREE_GAP,
             line_index=line_index,
             use_colour=use_colour,
         )
@@ -371,28 +384,28 @@ def _print_ir_for(
     body_span = line_index.format_range(stmt.body_range)
 
     print(
-        f"{prefix}|-- {style('init', Ansi.BLUE, use_colour)} {style(f'[{init_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style('init', Ansi.BLUE, use_colour)} {style(f'[{init_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.init, prefix=prefix + "|   ", line_index=line_index, use_colour=use_colour
+        stmt.init, prefix=prefix + _TREE_VBAR, line_index=line_index, use_colour=use_colour
     )
 
     print(
-        f"{prefix}|-- {style(f'condition: {preview(_expr_text(stmt.condition), 60)}', Ansi.BLUE, use_colour)} {style(f'[{cond_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style(f'condition: {preview(_expr_text(stmt.condition), 60)}', Ansi.BLUE, use_colour)} {style(f'[{cond_span}]', Ansi.DIM, use_colour)}"
     )
 
     print(
-        f"{prefix}|-- {style('next', Ansi.BLUE, use_colour)} {style(f'[{next_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_BRANCH}{style('next', Ansi.BLUE, use_colour)} {style(f'[{next_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.next, prefix=prefix + "|   ", line_index=line_index, use_colour=use_colour
+        stmt.next, prefix=prefix + _TREE_VBAR, line_index=line_index, use_colour=use_colour
     )
 
     print(
-        f"{prefix}`-- {style('body', Ansi.BLUE, use_colour)} {style(f'[{body_span}]', Ansi.DIM, use_colour)}"
+        f"{prefix}{_TREE_LAST}{style('body', Ansi.BLUE, use_colour)} {style(f'[{body_span}]', Ansi.DIM, use_colour)}"
     )
     _print_ir_script(
-        stmt.body, prefix=prefix + "    ", line_index=line_index, use_colour=use_colour
+        stmt.body, prefix=prefix + _TREE_GAP, line_index=line_index, use_colour=use_colour
     )
 
 
@@ -690,24 +703,46 @@ def print_cfg_post_ssa(
     _render_cfg(snapshots, line_index=line_index, use_colour=use_colour, post_ssa=True)
 
 
-def _render_green_node(node, *, depth: int, use_colour: bool, max_depth: int = 16) -> None:
+def _render_green_tokens(
+    node, *, prefix: str, use_colour: bool, depth: int, max_depth: int
+) -> None:
+    """Draw a node's tokens as a box-drawing tree, nesting opaque regions.
+
+    Each token is a tree entry tagged with its type and absolute byte range;
+    an opaque ``{...}`` / ``[...]`` token descends into its re-lexed child
+    region (a dim ``kind [mode]`` descriptor, then that region's own tokens).
+    """
     from shared.tokens import TokenType
 
-    indent = "  " * depth
-    print(
-        style(
-            f"{indent}{node.kind.name.lower()} [{node.mode.name.lower()}] "
-            f"@{node.base_offset} w={node.width} tokens={len(node.tokens)}",
-            Ansi.CYAN if node.kind.name != "ERROR" else Ansi.RED,
-            use_colour,
+    tokens = node.tokens
+    for idx, tok in enumerate(tokens):
+        is_last = idx == len(tokens) - 1
+        connector = _TREE_LAST if is_last else _TREE_BRANCH
+        opaque = tok.type in (TokenType.STR, TokenType.CMD) and bool(tok.text)
+        preview_text = repr(preview(tok.text.replace("\n", "⏎"), 40))
+        print(
+            f"{prefix}{connector}"
+            f"{style(tok.type.name, Ansi.CYAN if opaque else Ansi.GRAY, use_colour)} "
+            f"{preview_text} "
+            f"{style(f'[{tok.start.offset}:{tok.end.offset}]', Ansi.DIM, use_colour)}"
         )
-    )
-    if depth >= max_depth:
-        return
-    for tok in node.tokens:
-        if tok.type in (TokenType.STR, TokenType.CMD) and tok.text:
-            _render_green_node(
-                node.descend(tok), depth=depth + 1, use_colour=use_colour, max_depth=max_depth
+        if opaque and depth < max_depth:
+            child = node.descend(tok)
+            child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
+            print(
+                style(
+                    f"{child_prefix}{child.kind.name.lower()} [{child.mode.name.lower()}] "
+                    f"w={child.width}",
+                    Ansi.CYAN if child.kind.name != "ERROR" else Ansi.RED,
+                    use_colour,
+                )
+            )
+            _render_green_tokens(
+                child,
+                prefix=child_prefix,
+                use_colour=use_colour,
+                depth=depth + 1,
+                max_depth=max_depth,
             )
 
 
@@ -724,7 +759,16 @@ def print_greentree(source: str, *, use_colour: bool) -> None:
     print()
     print(style("green-tree", Ansi.BOLD, use_colour))
     with green_tree_scope():
-        _render_green_node(node_for(source), depth=0, use_colour=use_colour)
+        root = node_for(source)
+        print(
+            style(
+                f"{root.kind.name.lower()} [{root.mode.name.lower()}] "
+                f"@{root.base_offset} w={root.width}",
+                Ansi.CYAN if root.kind.name != "ERROR" else Ansi.RED,
+                use_colour,
+            )
+        )
+        _render_green_tokens(root, prefix="", use_colour=use_colour, depth=0, max_depth=16)
 
 
 def print_loops(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
@@ -1348,6 +1392,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Print line-numbered optimised source when rewrites are found.",
     )
     parser.add_argument(
+        "--opt",
+        choices=("off", "on", "diff"),
+        default="off",
+        help="Optimisation lens for the IR/CFG/SSA/ASM/WASM views: render the "
+        "original path (off), the optimised path (on), or a diff of the two "
+        "(diff).  Other views ignore it.",
+    )
+    parser.add_argument(
         "--no-source-callouts",
         action="store_true",
         help="Disable source callouts with caret/arrow annotations.",
@@ -1529,6 +1581,150 @@ def render_view(
         raise ValueError(f"render_view: no renderer for view {view!r}")
 
 
+# Views whose output reflects the lowered program, so they can be rendered
+# against the optimised path (``--opt on``) or diffed against the original
+# (``--opt diff``).  Other views (greentree, analysis facts, callouts, ...)
+# have no meaningful optimised variant and ignore the opt mode.
+OPT_VIEWS = frozenset({"ir", "cfg", "ssa", "asm", "wasm"})
+
+
+def optimised_result(
+    result: CompilerExplorerResult, dialect: str
+) -> tuple[CompilerExplorerResult, str] | None:
+    """Run the pipeline on the optimised source so opt-aware views can show it.
+
+    Returns ``(opt_result, optimised_source)`` or ``None`` when the optimiser
+    left the source unchanged (nothing to render / diff).
+    """
+    opt_source = result.optimised_source
+    if not opt_source or opt_source == result.source:
+        return None
+    try:
+        return run_pipeline(opt_source, dialect=dialect), opt_source
+    except Exception as exc:  # pragma: no cover - optimised source should re-lower
+        print(f"warning: optimised pipeline failed: {exc}", file=sys.stderr)
+        return None
+
+
+def _capture_view(
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    *,
+    line_index: LineIndex,
+    views: frozenset[str],
+    max_annotations: int,
+) -> list[str]:
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=False,
+            line_index=line_index,
+            views=views,
+            max_annotations=max_annotations,
+        )
+    return buf.getvalue().splitlines()
+
+
+def render_view_opt(
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    *,
+    use_colour: bool,
+    line_index: LineIndex,
+    opt_mode: str = "off",
+    opt: tuple[CompilerExplorerResult, str] | None = None,
+    views: frozenset[str] = frozenset(),
+    show_optimised_source: bool = False,
+    max_annotations: int = 80,
+) -> None:
+    """Render *view* honouring the optimisation lens (off / on / diff).
+
+    *opt* is the ``(opt_result, opt_source)`` pair from :func:`optimised_result`
+    (or ``None``).  Only :data:`OPT_VIEWS` react to the mode; every other view
+    renders exactly as :func:`render_view` would.  This is the shared entry
+    point for the text path and the Textual TUI so the lens behaves identically.
+    """
+    if opt_mode == "off" or view not in OPT_VIEWS:
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=use_colour,
+            line_index=line_index,
+            views=views,
+            show_optimised_source=show_optimised_source,
+            max_annotations=max_annotations,
+        )
+        return
+
+    if opt is None:
+        # Nothing changed — fall back to the original and say so once.
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=use_colour,
+            line_index=line_index,
+            views=views,
+            max_annotations=max_annotations,
+        )
+        print(style("  (optimiser left the source unchanged)", Ansi.DIM, use_colour))
+        return
+
+    opt_result, opt_source = opt
+    if opt_mode == "on":
+        render_view(
+            view,
+            opt_result,
+            opt_source,
+            use_colour=use_colour,
+            line_index=LineIndex(opt_source),
+            views=views,
+            max_annotations=max_annotations,
+        )
+        return
+
+    # diff: a rendered-text unified diff, surface-agnostic across all OPT_VIEWS.
+    import difflib
+
+    before = _capture_view(
+        view, result, source, line_index=line_index, views=views, max_annotations=max_annotations
+    )
+    after = _capture_view(
+        view,
+        opt_result,
+        opt_source,
+        line_index=LineIndex(opt_source),
+        views=views,
+        max_annotations=max_annotations,
+    )
+    diff = list(
+        difflib.unified_diff(
+            before, after, fromfile=f"{view} (original)", tofile=f"{view} (optimised)", lineterm=""
+        )
+    )
+    if not diff:
+        print(style(f"{view}: no change under the optimiser", Ansi.DIM, use_colour))
+        return
+    for line in diff:
+        if line.startswith("+"):
+            print(style(line, Ansi.GREEN, use_colour))
+        elif line.startswith("-"):
+            print(style(line, Ansi.RED, use_colour))
+        elif line.startswith("@@"):
+            print(style(line, Ansi.CYAN, use_colour))
+        else:
+            print(line)
+
+
 def _summary_parts(result: CompilerExplorerResult, dialect: str) -> list[str]:
     total_dead_stores = sum(len(s.analysis.dead_stores) for s in result.snapshots)
     total_unreachable = sum(len(s.analysis.unreachable_blocks) for s in result.snapshots)
@@ -1558,19 +1754,23 @@ def _render_text(
     _version = FULL_VERSION + (f" ({BUILD_TIMESTAMP})" if BUILD_TIMESTAMP else "")
     print(style(f"compiler-optimiser-explorer {_version}", Ansi.BOLD, use_colour))
     print(style(" ".join(_summary_parts(result, args.dialect)), Ansi.DIM, use_colour))
-    print(style(f"views: {','.join(sorted(args.views))}", Ansi.DIM, use_colour))
+    opt_label = "" if args.opt == "off" else f"  opt={args.opt}"
+    print(style(f"views: {','.join(sorted(args.views))}{opt_label}", Ansi.DIM, use_colour))
     print()
+    opt = optimised_result(result, args.dialect) if args.opt != "off" else None
     for view in _VIEW_ORDER:
         if view not in args.views:
             continue
         if view == "callouts" and args.no_source_callouts:
             continue
-        render_view(
+        render_view_opt(
             view,
             result,
             source,
             use_colour=use_colour,
             line_index=line_index,
+            opt_mode=args.opt,
+            opt=opt,
             views=args.views,
             show_optimised_source=args.show_optimised_source,
             max_annotations=args.max_annotations,

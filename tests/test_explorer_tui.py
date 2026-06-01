@@ -99,3 +99,100 @@ class TestTui:
         seq = asyncio.run(drive())
         assert seq == ["ir", "cfg", "ssa", "opt"]
         assert app._result is not None  # pipeline ran inside the app
+
+    def test_greentree_builds_interactive_tree(self):
+        from textual.widgets import Tree
+
+        from tooling.explorer.tui import _format_detail
+
+        args = parse_args(["/dev/null", "--show", "greentree,ir"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app._show("greentree")
+                await pilot.pause()
+                tree = app.query_one("#view-tree", Tree)
+                # The single root group is the region; its children are tokens,
+                # opaque {...}/[...] tokens nesting their re-lexed region.
+                region = tree.root.children[0]
+                tokens = region.children
+                nested = any(t.children for t in tokens)
+                tree_visible = bool(app.query_one("#tree-pane").display)
+                opaque = next(t for t in tokens if t.children)
+                detail = str(_format_detail(opaque.data))
+                return len(tokens), nested, tree_visible, detail
+
+        ntokens, nested, tree_visible, detail = asyncio.run(drive())
+        assert ntokens > 0
+        assert nested  # the proc body / command substitution descended
+        assert tree_visible
+        assert "token type" in detail and "byte range" in detail and "region" in detail
+
+    def test_analysis_views_build_trees_with_detail(self):
+        from textual.widgets import Tree
+
+        from tooling.explorer.tui import _format_detail
+
+        args = parse_args(["/dev/null", "--show", "ir,cfg,types,interproc"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            seen = {}
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                for view in ("ir", "cfg", "types", "interproc"):
+                    app._show(view)
+                    await pilot.pause()
+                    assert not app._is_text_view(view)
+                    tree = app.query_one("#view-tree", Tree)
+
+                    def deepest(n):
+                        return deepest(n.children[0]) if n.children else n
+
+                    leaf = deepest(tree.root)
+                    seen[view] = (len(tree.root.children), str(_format_detail(leaf.data)))
+            return seen
+
+        seen = asyncio.run(drive())
+        for view, (nchildren, detail) in seen.items():
+            assert nchildren > 0, f"{view} produced an empty tree"
+            assert detail.strip(), f"{view} leaf had no detail"
+
+    def test_asm_stays_text_surface(self):
+        args = parse_args(["/dev/null", "--show", "ir,asm"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app._show("ir")
+                await pilot.pause()
+                ir_tree = not app._is_text_view("ir") and bool(app.query_one("#tree-pane").display)
+                app._show("asm")
+                await pilot.pause()
+                asm_text = app._is_text_view("asm") and bool(
+                    app.query_one("#content-scroll").display
+                )
+                return ir_tree, asm_text
+
+        ir_tree, asm_text = asyncio.run(drive())
+        assert ir_tree
+        assert asm_text
+
+    def test_cycle_opt_changes_mode(self):
+        args = parse_args(["/dev/null", "--show", "ir"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                seq = [app._opt_mode]
+                for _ in range(3):
+                    app.action_cycle_opt()
+                    await pilot.pause()
+                    seq.append(app._opt_mode)
+                return seq
+
+        assert asyncio.run(drive()) == ["off", "on", "diff", "off"]

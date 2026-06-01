@@ -68,7 +68,21 @@ CORPUS = {
 
 # Top-level serialisation keys whose ranges index into the *optimised*
 # source rather than the source the user typed.
-_OPTIMISED_KEYS = {"asmOptimised", "wasmOptimised"}
+_OPTIMISED_KEYS = {
+    "asmOptimised",
+    "wasmOptimised",
+    "irOptimised",
+    "cfgPreSsaOptimised",
+    "cfgPostSsaOptimised",
+}
+
+# The green tree is a lossless *lexer* view: its token offsets are raw token
+# spans (a single SEP/EOL, or a braced word's opening delimiter + inner text
+# without the closer), not the balanced whole-word highlight ranges the IR /
+# CFG / optimiser artefacts emit.  Highlighting a green-tree token to its exact
+# raw span is correct, so those ranges are exempt from the well-formed-word
+# assertion below.
+_RAW_TOKEN_KEYS = {"greentree"}
 
 
 def _explorer_dict(source: str) -> dict:
@@ -153,6 +167,8 @@ class TestEveryExplorerRangeIsWellFormed:
         problems = []
         for path, rd in _walk_ranges(data):
             top_key = path.split(".", 1)[0].split("[", 1)[0]
+            if top_key in _RAW_TOKEN_KEYS:
+                continue
             src = optimised if top_key in _OPTIMISED_KEYS else source
             covered = _covered(src, rd)
             if not _well_formed(covered):
