@@ -21,14 +21,14 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 
 | Producer pass/module | Primary facts produced | Typical consumers | Anchors |
 |---|---|---|---|
-| `compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings | CFG builder, interprocedural analysis, diagnostics range mapping | `lower_to_ir()`, `IR*` nodes |
+| `compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings, `IRModule.methods` (`IRMethodDef`, TclOO method bodies) | CFG builder, interprocedural analysis, diagnostics range mapping, method-purity summaries | `lower_to_ir()`, `IR*` nodes, `extract_oo_methods_pass()` |
 | `compiler/cfg.py` | `CFGModule` / `CFGFunction` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg_function()` |
 | `compiler/ssa.py` | SSA versions, phi nodes, dominance metadata | Core analyses (SCCP/liveness/types), taint, optimiser/GVN | `build_ssa()` |
 | `compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice, def-use chains, memory-SSA | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics, dataflow graph | `analyse_function()` |
 | `compiler/def_use.py` | def-use chains (per-SSA-value definition→use mapping) | dead store detection, unused variable precision, copy propagation, dataflow graph | `build_def_use_chains()` |
 | `compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
 | `compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
-| `compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity) | optimiser (O103), interproc taint propagation | `analyse_interprocedural_ir()` |
+| `compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity); TclOO method summaries (`MethodSummary`: purity, instance-var writes, class context) | optimiser (O103; O126 `my <method>` purity gate), interproc taint propagation | `analyse_interprocedural_ir()` |
 | `compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
 | `compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
 | `compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |

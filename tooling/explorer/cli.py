@@ -3,7 +3,7 @@
 Features:
 - Accept Tcl script from file, stdin, or --source.
 - Show lowered IR, CFG (pre-SSA and post-SSA), and core-analysis facts by function.
-- Show interprocedural procedure summaries.
+- Show TclOO method bodies (IR view) and interprocedural procedure + method summaries.
 - Show optimiser rewrites and optional optimised source.
 - Render source with Rust-style caret/arrow callouts for salient compiler facts.
 """
@@ -606,18 +606,36 @@ def print_ir_module(ir_module: IRModule, *, line_index: LineIndex, use_colour: b
 
     if not ir_module.procedures:
         print(style("procedures: (none)", Ansi.DIM, use_colour))
-        return
+    else:
+        print(style("procedures", Ansi.CYAN, use_colour))
+        for qname in sorted(ir_module.procedures):
+            proc = ir_module.procedures[qname]
+            params = " ".join(proc.params)
+            span = line_index.format_range(proc.range)
+            header = f"{qname} {{{params}}}" if params else f"{qname} {{}}"
+            print(
+                f"  {style(header, Ansi.CYAN, use_colour)} "
+                f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
+            )
+            _print_ir_script(proc.body, prefix="    ", line_index=line_index, use_colour=use_colour)
 
-    print(style("procedures", Ansi.CYAN, use_colour))
-    for qname in sorted(ir_module.procedures):
-        proc = ir_module.procedures[qname]
-        params = " ".join(proc.params)
-        span = line_index.format_range(proc.range)
-        header = f"{qname} {{{params}}}" if params else f"{qname} {{}}"
-        print(
-            f"  {style(header, Ansi.CYAN, use_colour)} {style(f'[{span}]', Ansi.DIM, use_colour)}"
-        )
-        _print_ir_script(proc.body, prefix="    ", line_index=line_index, use_colour=use_colour)
+    # TclOO method bodies (analysis-only; not emitted by codegen).
+    if ir_module.methods:
+        print(style("methods", Ansi.CYAN, use_colour))
+        for mqname in sorted(ir_module.methods):
+            method = ir_module.methods[mqname]
+            params = " ".join(method.params)
+            header = f"{mqname} {{{params}}}" if params else f"{mqname} {{}}"
+            tags = method.kind
+            if method.instance_vars:
+                tags += ", ivars: " + " ".join(sorted(method.instance_vars))
+            print(
+                f"  {style(header, Ansi.CYAN, use_colour)} "
+                f"{style(f'[{tags}]', Ansi.DIM, use_colour)}"
+            )
+            _print_ir_script(
+                method.body, prefix="    ", line_index=line_index, use_colour=use_colour
+            )
 
 
 def _format_uses(uses: dict[str, int]) -> str:
@@ -1041,7 +1059,7 @@ def print_interprocedural(
 ) -> None:
     print(style("interprocedural", Ansi.BOLD, use_colour))
 
-    if not interproc.procedures:
+    if not interproc.procedures and not interproc.methods:
         print(style("  (no procedures)", Ansi.DIM, use_colour))
         return
 
@@ -1071,6 +1089,24 @@ def print_interprocedural(
                 use_colour,
             )
         )
+
+    # TclOO method summaries (SF-2 — consumed by the O126 my-dispatch gate).
+    if interproc.methods:
+        print(style("  methods", Ansi.BOLD, use_colour))
+        for mqname in sorted(interproc.methods):
+            msum = interproc.methods[mqname]
+            calls = ", ".join(msum.calls) if msum.calls else "-"
+            status_colour = Ansi.GREEN if msum.pure else Ansi.YELLOW
+            ivars = " ".join(sorted(msum.writes_instance_vars)) or "-"
+            print(
+                style(
+                    f"  {mqname} kind={msum.method_kind} pure={msum.pure}",
+                    status_colour,
+                    use_colour,
+                )
+            )
+            print(style(f"    calls: {calls}", Ansi.DIM, use_colour))
+            print(style(f"    writes-instance-vars: {ivars}", Ansi.DIM, use_colour))
 
 
 def print_optimiser(
