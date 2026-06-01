@@ -1697,7 +1697,9 @@ def _print_opt_diff(view: str, before: list[str], after: list[str], *, use_colou
         [_normalise_diff_line(line) for line in after],
         autojunk=False,
     )
-    groups = matcher.get_grouped_opcodes(n=3)
+    # get_grouped_opcodes is a generator (always truthy) — materialise it so the
+    # "no change" check below fires when the streams are offset-identical.
+    groups = list(matcher.get_grouped_opcodes(n=3))
     if not groups:
         print(
             style(f"{view}: no change under the optimiser (offsets ignored)", Ansi.DIM, use_colour)

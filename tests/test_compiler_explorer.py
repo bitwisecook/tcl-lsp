@@ -212,6 +212,25 @@ class TestDiffNormalisation:
             '  └── call puts "b"'
         )
 
+    def test_offset_only_difference_reports_no_change(self):
+        # When the two streams differ only in offsets, the diff has nothing to
+        # show: it must print the "no change" line, not bare --- / +++ headers.
+        # (get_grouped_opcodes is a generator, so the emptiness check must
+        # materialise it first.)
+        import contextlib
+        import io
+
+        from tooling.explorer.cli import _print_opt_diff
+
+        before = ["  ├── call puts hi [1:1-1:7]"]
+        after = ["  └── call puts hi [9:9-9:15]"]  # same node, only connector + range moved
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_opt_diff("ir", before, after, use_colour=False)
+        out = buf.getvalue()
+        assert "no change under the optimiser" in out
+        assert "--- ir" not in out and "+++ ir" not in out
+
 
 # LineIndex unit tests
 
