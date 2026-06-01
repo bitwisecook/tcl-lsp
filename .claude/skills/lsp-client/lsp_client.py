@@ -156,8 +156,27 @@ SYMBOL_KIND = {
 class LspClient:
     """Manages a language server subprocess and JSON-RPC communication."""
 
-    def __init__(self, server_dir: str) -> None:
+    def __init__(
+        self,
+        server_dir: str,
+        launch_cmd: list[str] | None = None,
+        cwd: str | None = None,
+    ) -> None:
         self.server_dir = server_dir
+        # The command used to spawn the server, and the working
+        # directory to spawn it in. Defaults to the Python server for
+        # backward compatibility; the Rust backend overrides both.
+        self.launch_cmd = launch_cmd or [
+            "uv",
+            "run",
+            "--directory",
+            server_dir,
+            "--no-dev",
+            "python",
+            "-m",
+            "lsp",
+        ]
+        self.cwd = cwd or server_dir
         self.process: subprocess.Popen | None = None
         self._request_id = 0
         self._pending: dict[int, dict] = {}  # id -> {"event": Event, "result": ...}
@@ -171,11 +190,11 @@ class LspClient:
     def start(self) -> None:
         """Spawn the server and start the reader thread."""
         self.process = subprocess.Popen(
-            ["uv", "run", "--directory", self.server_dir, "--no-dev", "python", "-m", "lsp"],
+            self.launch_cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=self.server_dir,
+            cwd=self.cwd,
         )
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
@@ -398,6 +417,71 @@ def find_server_dir(override: str | None = None) -> str:
         f"Cannot find tcl-lsp server. Tried {server_dir} and cwd={cwd}. "
         "Use --server-dir to specify the path."
     )
+
+
+def find_repo_root(override: str | None = None) -> Path:
+    """Locate the Cargo workspace root (contains `Cargo.toml` + `rust/`)."""
+    if override:
+        root = Path(override).resolve()
+        if (root / "Cargo.toml").exists():
+            return root
+        raise FileNotFoundError(f"No Cargo workspace at {root}")
+    # Walk up from this script and from cwd looking for the workspace root.
+    starts = [Path(__file__).resolve(), Path.cwd().resolve()]
+    for start in starts:
+        for cand in [start, *start.parents]:
+            if (cand / "Cargo.toml").exists() and (cand / "rust").is_dir():
+                return cand
+    raise FileNotFoundError(
+        "Cannot find the Cargo workspace root for the Rust server. "
+        "Use --server-dir to point at the repo root."
+    )
+
+
+def resolve_rust_server(override: str | None) -> tuple[str, list[str], str]:
+    """Locate (building if needed) the Rust `tcl-lsp-server` binary.
+
+    Returns ``(server_dir, launch_cmd, cwd)``.
+    """
+    root = find_repo_root(override)
+    binary = root / "target" / "debug" / "tcl-lsp-server"
+    if not binary.exists():
+        print(
+            "Rust server binary not found; building "
+            "(cargo build -p tcl-lsp-server)...",
+            file=sys.stderr,
+        )
+        subprocess.run(
+            ["cargo", "build", "-q", "-p", "tcl-lsp-server", "--bin", "tcl-lsp-server"],
+            cwd=str(root),
+            check=True,
+        )
+    if not binary.exists():
+        raise FileNotFoundError(f"Rust server binary not found at {binary}")
+    return str(root), [str(binary)], str(root)
+
+
+def resolve_server(backend: str, override: str | None) -> tuple[str, list[str], str]:
+    """Resolve the server launch config for the chosen backend.
+
+    Returns ``(server_dir, launch_cmd, cwd)``. ``server_dir`` is used for
+    the ``rootUri`` sent at initialize; ``launch_cmd`` / ``cwd`` spawn the
+    process.
+    """
+    if backend == "rust":
+        return resolve_rust_server(override)
+    server_dir = find_server_dir(override)
+    launch_cmd = [
+        "uv",
+        "run",
+        "--directory",
+        server_dir,
+        "--no-dev",
+        "python",
+        "-m",
+        "lsp",
+    ]
+    return server_dir, launch_cmd, server_dir
 
 
 def initialize(client: LspClient) -> dict:
@@ -1382,7 +1466,18 @@ examples:
   %(prog)s all samples/for_screenshots/03-completions.tcl
 """,
     )
-    parser.add_argument("--server-dir", help="Path to tcl-lsp directory (auto-detected by default)")
+    parser.add_argument(
+        "--server",
+        choices=["python", "rust"],
+        default="python",
+        help="Which language server to drive: the Python server (`python -m lsp`, "
+        "default) or the native Rust server (`tcl-lsp-server`, built on demand).",
+    )
+    parser.add_argument(
+        "--server-dir",
+        help="Path to the server. For --server python: the tcl-lsp dir holding "
+        "`lsp/`. For --server rust: the Cargo workspace root. Auto-detected by default.",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1476,15 +1571,15 @@ examples:
 
     args = parser.parse_args()
 
-    # Find server
+    # Resolve the chosen backend (Python or Rust).
     try:
-        server_dir = find_server_dir(args.server_dir)
-    except FileNotFoundError as e:
+        server_dir, launch_cmd, cwd = resolve_server(args.server, args.server_dir)
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Create client and run
-    client = LspClient(server_dir)
+    client = LspClient(server_dir, launch_cmd=launch_cmd, cwd=cwd)
     try:
         client.start()
         initialize(client)
