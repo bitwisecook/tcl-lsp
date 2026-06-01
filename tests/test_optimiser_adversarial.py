@@ -144,6 +144,23 @@ _CORRECTNESS: dict[str, str] = {
     "list_special_chars": "set x [list \"a b\" {c} \\$d]\nputs $x",
     "empty_string_eq": "set x \"\"\nif {$x eq \"\"} {puts empty}",
     "set_returns_value": "puts [set x 42]",
+    # --- lappend list-build chains (O130): these must stay equivalent whether
+    #     or not they fold (escaping / traced / aliased vars must NOT fold) ---
+    "lappend_traced": (
+        "set log {}\nset l {}\n"
+        "trace add variable l write {apply {{a b c} {lappend ::log w}}}\n"
+        "lappend l a\nlappend l b\nputs $l|$::log"
+    ),
+    "lappend_global": (
+        "set l {}\nproc f {} {global l; lappend l a; lappend l b}\nf\nputs $l"
+    ),
+    "lappend_upvar": (
+        "proc f {} {upvar 1 l x; lappend x a; lappend x b}\nset l {}\nf\nputs $l"
+    ),
+    "lappend_read_between": (
+        "set l {}\nlappend l a\nputs $l\nlappend l b\nputs $l"
+    ),
+    "lappend_nested_elements": "set l {}\nlappend l {a b} {c d}\nputs $l",
 }
 
 
@@ -246,6 +263,20 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
     "scan_int_fold": (
         "puts [scan 42 %d]",
         "puts 42",
+    ),
+    # list/lindex now fold via the registry (not the old single-element-only
+    # hand-rolled folder) — multi-element and special-char lists included.
+    "list_multi_element_fold": (
+        "puts [list a b c]",
+        "puts {a b c}",
+    ),
+    "list_special_char_fold": (
+        'puts [list "a b" c]',
+        "puts {{a b} c}",
+    ),
+    "lindex_fold": (
+        "puts [lindex {a b c} 1]",
+        "puts b",
     ),
 }
 

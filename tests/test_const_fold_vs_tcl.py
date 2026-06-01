@@ -159,3 +159,53 @@ def test_optimised_output_matches_original(src: str) -> None:
     assert (after.returncode, after.stdout) == (before.returncode, before.stdout), (
         f"behaviour changed for {src!r}\noptimised:\n{optimised}"
     )
+
+
+class TestScanBails:
+    """scan only folds when every conversion succeeds; everything else bails
+    (returns None) so the optimiser never emits a wrong / empty-element list."""
+
+    def test_partial_match_bails(self):
+        from dialects.tcl.const_fold import fold_scan
+
+        # third %d has no input — tclsh returns "1 2 {}", we don't reproduce it.
+        assert fold_scan(("1 2", "%d %d %d")) is None
+
+    def test_failed_match_bails(self):
+        from dialects.tcl.const_fold import fold_scan
+
+        assert fold_scan(("abc", "%d")) is None
+
+    def test_float_conversion_bails(self):
+        from dialects.tcl.const_fold import fold_scan
+
+        assert fold_scan(("3.5", "%f")) is None
+
+    def test_varname_form_never_folds(self):
+        from dialects.tcl.const_fold import fold_scan
+
+        # the side-effecting `scan str fmt var ...` form must never fold.
+        assert fold_scan(("42", "%d", "v")) is None
+
+    def test_success_cases_fold(self):
+        from dialects.tcl.const_fold import fold_scan
+
+        assert fold_scan(("42", "%d")) == "42"
+        assert fold_scan(("ff", "%x")) == "255"
+        assert fold_scan(("A", "%c")) == "65"
+
+
+class TestConstFoldIsRegistrySourced:
+    """The knowledge of how to fold a command lives in the command registry
+    (the ``const_fold`` spec field), exposed to the optimiser via FOLD_HINTS."""
+
+    def test_fold_hints_derived_from_registry(self):
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import FOLD_HINTS, configure_signatures
+
+        configure_signatures(dialect="tcl9.0")
+        for name in ("list", "lindex", "format", "scan", "join", "llength"):
+            assert name in FOLD_HINTS, f"{name} should expose a registry const_fold"
+            spec = REGISTRY.get_any(name)
+            # the FOLD_HINTS entry IS the spec's const_fold callback
+            assert spec is not None and spec.const_fold is FOLD_HINTS[name]
