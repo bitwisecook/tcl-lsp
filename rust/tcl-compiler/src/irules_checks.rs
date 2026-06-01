@@ -21,8 +21,10 @@
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
+use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
+use crate::lowering::lower_to_ir;
 use crate::sccp::cfg_order;
 use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
@@ -368,6 +370,7 @@ fn scan_when_body_for_collect_flow(
     fu: &crate::compilation_unit::FunctionUnit,
     side: &str,
     state: &mut CollectFlowState,
+    registry: &CommandRegistry,
 ) {
     for bn in cfg_order(&fu.cfg) {
         if !fu.sccp.executable_blocks.contains(&bn) {
@@ -377,19 +380,82 @@ fn scan_when_body_for_collect_flow(
             continue;
         };
         for stmt in &block.statements {
-            match stmt {
-                Statement::Call { command, span, .. }
-                | Statement::Barrier { command, span, .. } => {
-                    classify_collect_command(command, side, *span, state);
+            classify_stmt_for_collect_flow(stmt, side, state, registry);
+        }
+    }
+}
+
+/// Classify one IR statement for collect/release/payload flow,
+/// descending into iRules side-switch bodies (`clientside` /
+/// `serverside` / `peer`) with the switched side.  `clientside` /
+/// `serverside` carry a fixed side; `peer` evaluates under the
+/// *opposite* of the current side (so `peer { TCP::collect }` in a
+/// client-side event issues a server-side collect, and vice-versa).
+/// These commands carry an `ArgRole::Body` arg so they lower to a
+/// `Statement::Barrier` (or a `Statement::Call` with the body in
+/// `args[0]`); both shapes keep the body text in `args[0]`.  Mirrors
+/// `_scan_ir_body_with_side` in `compiler/irules_flow.py` (#501).
+fn classify_stmt_for_collect_flow(
+    stmt: &Statement,
+    side: &str,
+    state: &mut CollectFlowState,
+    registry: &CommandRegistry,
+) {
+    match stmt {
+        Statement::Call {
+            command,
+            span,
+            args,
+            ..
+        }
+        | Statement::Barrier {
+            command,
+            span,
+            args,
+            ..
+        } => {
+            if registry.is_side_switch(command) {
+                let inner_side = match command.as_str() {
+                    "clientside" => "client",
+                    "serverside" => "server",
+                    // peer — the opposite-side context.
+                    _ if side == "client" => "server",
+                    _ => "client",
+                };
+                if let Some(body) = args.first() {
+                    scan_side_switch_body(body, inner_side, state, registry);
                 }
-                Statement::AssignValue { value, span, .. } => {
-                    let Some((cmd, _)) = parse_command_substitution(value.trim()) else {
-                        continue;
-                    };
-                    classify_collect_command(&cmd, side, *span, state);
-                }
-                _ => {}
+            } else {
+                classify_collect_command(command, side, *span, state);
             }
+        }
+        Statement::AssignValue { value, span, .. } => {
+            if let Some((cmd, _)) = parse_command_substitution(value.trim()) {
+                classify_collect_command(&cmd, side, *span, state);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Lower a side-switch body (the brace-script text in `args[0]`) and
+/// classify its commands under `side`, recursing through any nested
+/// side-switches.  The body is re-lowered to its own CFG so nested
+/// control flow is flattened the same way the enclosing `when` body is.
+fn scan_side_switch_body(
+    body_text: &str,
+    side: &str,
+    state: &mut CollectFlowState,
+    registry: &CommandRegistry,
+) {
+    let module = lower_to_ir(body_text, registry);
+    let cfg_module = build_cfg(&module, false);
+    for bn in cfg_order(&cfg_module.top_level) {
+        let Some(block) = cfg_module.top_level.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            classify_stmt_for_collect_flow(stmt, side, state, registry);
         }
     }
 }
@@ -399,6 +465,7 @@ fn scan_when_body_for_collect_flow(
 #[must_use]
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
+    registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
@@ -413,7 +480,7 @@ pub fn find_collect_flow_warnings(
             let bare = event.split('#').next().unwrap_or(event).to_string();
             events_seen.push(bare.clone());
             let side = default_collect_side(event);
-            scan_when_body_for_collect_flow(fu, side, &mut state);
+            scan_when_body_for_collect_flow(fu, side, &mut state, registry);
         }
     }
 
@@ -892,8 +959,9 @@ mod tests {
     // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_collect_flow_warnings(&cu, Some("f5-irules"))
+        let reg = registry();
+        let cu = CompilationUnit::build_for(source, &reg, false);
+        find_collect_flow_warnings(&cu, &reg, Some("f5-irules"))
     }
 
     #[test]
@@ -965,11 +1033,85 @@ mod tests {
         );
     }
 
+    // -- SYNC-MAY31-4 (#501): side-switch body descent + peer flip -----
+
+    #[test]
+    fn collect_inside_clientside_body_is_seen() {
+        // The collect lives inside a `clientside { ... }` nesting script.
+        // With the BODY role set, the flow check descends into the body
+        // and registers the (client-side) collect, so CLIENT_DATA's
+        // IRULE1005 requirement is satisfied.  Without the descent the
+        // collect was invisible and CLIENT_DATA wrongly fired IRULE1005.
+        let ws = flow_warnings(
+            "when CLIENT_ACCEPTED { clientside { TCP::collect } }
+             when CLIENT_DATA { log local0. \"data\" }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1005"),
+            "no IRULE1005 expected — the clientside body supplies the collect, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn peer_flips_side_for_collect_flow() {
+        // `peer { TCP::collect }` evaluates under the *opposite* side of
+        // the surrounding event.  In the client-side CLIENT_ACCEPTED it
+        // issues a *server*-side collect, so it satisfies SERVER_DATA but
+        // NOT CLIENT_DATA — the inverse of a plain `clientside` collect.
+        let ws = flow_warnings(
+            "when CLIENT_ACCEPTED { peer { TCP::collect } }
+             when CLIENT_DATA { log local0. \"c\" }
+             when SERVER_DATA { log local0. \"s\" }",
+        );
+        let irule1005: Vec<&str> = ws
+            .iter()
+            .filter(|w| w.code == "IRULE1005")
+            .map(|w| w.message.as_str())
+            .collect();
+        assert_eq!(
+            irule1005.len(),
+            1,
+            "expected exactly one IRULE1005 (CLIENT_DATA only), got {ws:?}",
+        );
+        assert!(
+            irule1005[0].contains("CLIENT_DATA"),
+            "the surviving IRULE1005 must be CLIENT_DATA (peer flipped the collect to the server side), got {irule1005:?}",
+        );
+    }
+
+    #[test]
+    fn side_switch_specs_have_body_role_and_arity() {
+        // Registry-level guard for the #501 spec edits.
+        let r = registry();
+        for cmd in ["clientside", "serverside", "peer"] {
+            assert!(r.is_side_switch(cmd), "{cmd} must be a side-switch");
+            assert_eq!(
+                r.arg_indices_for_role(cmd, &["{ TCP::collect }"], tcl_registry::ArgRole::Body),
+                vec![0],
+                "{cmd} body script must be ArgRole::Body at index 0",
+            );
+        }
+        // clientside/serverside accept the bare query form or one body;
+        // peer requires its body; after's timer body is the trailing arg.
+        let cs = r.get("clientside").unwrap().arity;
+        assert_eq!((cs.min, cs.max), (0, 1), "clientside arity");
+        let ss = r.get("serverside").unwrap().arity;
+        assert_eq!((ss.min, ss.max), (0, 1), "serverside arity");
+        let pr = r.get("peer").unwrap().arity;
+        assert_eq!((pr.min, pr.max), (1, 1), "peer arity");
+        // `after`'s deferred timer body runs in its own dispatch context.
+        assert_eq!(
+            r.get("after").unwrap().body_kind,
+            tcl_registry::BodyKind::Structural,
+            "after timer body must be Structural",
+        );
+    }
+
     #[test]
     fn collect_flow_only_in_irules_dialect() {
-        let cu =
-            CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &registry(), false);
-        let none = find_collect_flow_warnings(&cu, None);
+        let reg = registry();
+        let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &reg, false);
+        let none = find_collect_flow_warnings(&cu, &reg, None);
         assert!(none.is_empty(), "got {none:?}");
     }
 

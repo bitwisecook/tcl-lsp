@@ -285,7 +285,7 @@ pub fn run_all_checks(
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
-    for w in find_collect_flow_warnings(cu, dialect) {
+    for w in find_collect_flow_warnings(cu, registry, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
     for w in find_http_flow_warnings(cu, dialect) {

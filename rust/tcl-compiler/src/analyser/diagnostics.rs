@@ -4390,6 +4390,33 @@ mod tests {
         );
     }
 
+    // -- SYNC-MAY31-4 (#501): BODY role on iRules nesting scripts ------
+
+    #[test]
+    fn analyser_recurses_into_irules_nesting_script_bodies() {
+        // clientside / serverside / peer / after now carry an
+        // `ArgRole::Body`, so the analyser descends into the nesting
+        // script and flags problems inside it.  A nested `set` with no
+        // arguments trips E002 only when the body is actually analysed —
+        // i.e. the generic body-walk picks the role up automatically.
+        for src in [
+            "when CLIENT_DATA { clientside { set } }",
+            "when CLIENT_ACCEPTED { serverside { set } }",
+            "when CLIENT_ACCEPTED { peer { set } }",
+            "when RULE_INIT { after 1000 { set } }",
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "f5-irules");
+            assert!(
+                r.diagnostics
+                    .iter()
+                    .any(|d| d.code == "E002" && d.message.contains("'set'")),
+                "expected E002 from the nested `set` (body must be analysed) in {src:?}, got {:?}",
+                r.diagnostics
+            );
+        }
+    }
+
     #[test]
     fn w004_fires_on_lsearch_stride_in_tcl85() {
         // PR #441 review (Codex): the W004 coverage requires the

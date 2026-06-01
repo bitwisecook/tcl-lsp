@@ -2144,6 +2144,31 @@ Two deltas:
 Classify: BODY-role piece is in-scope, low-touch (registry edit +
 tests).  W127 emitter is in-scope, depends on `-1b`.
 
+**Landed (rust) — BODY-role piece only.**  The four registry specs now
+declare the nesting script:
+`clientside` / `serverside` set `arg_roles = &[(0, ArgRole::Body)]` with
+arity `Arity::new(0, 1)` (bare query form or one body, default
+`BodyKind::Plain`); `peer` gains `Traits::IS_SIDE_SWITCH`,
+`arg_roles = &[(0, ArgRole::Body)]`, the synopsis `peer NESTING_SCRIPT`,
+and the required-body arity `Arity::new(1, 1)`; `after` gains an
+`arg_role_resolver` (mirroring `_after_arg_roles` — the trailing timer
+script, never `-periodic`, never the `cancel`/`info` forms) plus
+`body_kind = BodyKind::Structural` (the timer body runs deferred in its
+own dispatch context).  A new `CommandRegistry::is_side_switch` mirrors
+Python's helper.  The analyser's generic `dispatch_body_arguments`
+recursion picks the role up automatically, so problems nested in these
+bodies are now flagged (verified: a nested zero-arg `set` trips E002
+inside each of the four bodies).  The collect/release/payload flow
+check (`irules_checks.rs::find_collect_flow_warnings`) now descends into
+side-switch bodies with the switched side — `clientside`/`serverside`
+fixed, `peer` flipped to the *opposite* of the current side — so a
+`clientside { TCP::collect }` satisfies a `CLIENT_DATA` requirement and
+a `peer { TCP::collect }` in a client event satisfies `SERVER_DATA` (not
+`CLIENT_DATA`).  Six discriminating tests (registry roles/arity, two
+collect-flow behaviours, body recursion across all four), each verified
+to fail without the change.  **Still deferred:** the W127 emitter
+(depends on `-1b`'s place model, not yet landed).
+
 ### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
 
 `main` consolidated three layers of algorithmic improvement into one
