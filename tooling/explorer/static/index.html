@@ -359,8 +359,11 @@ textarea#source::placeholder { color: var(--text-dim); }
 .shimmer-item:hover { background: var(--highlight); }
 .shimmer-item.highlighted { background: var(--highlight-strong); }
 .shimmer-item .shimmer-code { font-weight: 600; min-width: 32px; display: inline-block; }
-.shimmer-S100 .shimmer-code, .shimmer-S101 .shimmer-code { color: var(--yellow); }
-.shimmer-S102 .shimmer-code { color: var(--red); }
+/* Severity classes — set by the backend (annotations.shimmer_severity);
+   the renderer only maps the severity string to a CSS colour. */
+.shimmer-item.shimmer-error .shimmer-code { color: var(--red); }
+.shimmer-item.shimmer-warning .shimmer-code { color: var(--yellow); }
+.shimmer-item.shimmer-info .shimmer-code { color: var(--blue); }
 .shimmer-lines-container { position: relative; padding-left: 40px; font-size: 12px; }
 .shimmer-involved { border-left: 2px solid var(--yellow); }
 .shimmer-involved:hover { background: var(--highlight); }
@@ -391,8 +394,11 @@ textarea#source::placeholder { color: var(--text-dim); }
 .taint-item:hover { background: var(--highlight); }
 .taint-item.highlighted { background: var(--highlight-strong); }
 .taint-item .taint-code { font-weight: 600; min-width: 52px; display: inline-block; }
-.taint-item.taint-danger .taint-code { color: var(--red); }
-.taint-item.taint-warn .taint-code { color: var(--yellow); }
+/* Severity classes — set by the backend (tooling/explorer/annotations.taint_severity).
+   The renderer just maps the severity string to a CSS colour.  No
+   client-side warning-code classification. */
+.taint-item.taint-error .taint-code { color: var(--red); }
+.taint-item.taint-warning .taint-code { color: var(--yellow); }
 .taint-item.taint-info .taint-code { color: var(--blue); }
 .taint-tracking-var {
   font-size: 11px;
@@ -853,21 +859,13 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
   <div class="toolbar">
     <div class="status-light loading" id="statusLight" title="Loading..."></div>
     <h1>Tcl Compiler Explorer</h1>
+    <!-- Options populated from data.meta.dialects on first successful
+         compile (see populateDialectOptions in the bootstrap).  The
+         baseline ``tcl8.6`` is hard-coded so the dropdown isn't empty
+         before the first run; once a compile lands, every dialect the
+         backend supports replaces this list. -->
     <select id="dialect">
-      <option value="cadence-eda-tcl">Cadence EDA</option>
-      <option value="expect">Expect</option>
-      <option value="intel-quartus-eda-tcl">Intel Quartus</option>
-      <option value="mentor-eda-tcl">Mentor EDA</option>
-      <option value="synopsys-eda-tcl">Synopsys EDA</option>
-      <option value="xilinx-eda-tcl">Xilinx EDA</option>
-      <option value="f5-iapps">F5 iapps</option>
-      <option value="f5-bigip">F5 BIG-IP</option>
-      <option value="f5-irules">F5 irules</option>
-      <option value="f5-tmsh">F5 TMSH</option>
-      <option value="tcl8.4">Tcl 8.4</option>
-      <option value="tcl8.5">Tcl 8.5</option>
       <option value="tcl8.6" selected>Tcl 8.6</option>
-      <option value="tcl9.0">Tcl 9.0</option>
     </select>
     <div class="spinner" id="spinner"></div>
     <span class="status-msg" id="statusMsg">Loading compiler...</span>
@@ -981,6 +979,7 @@ worker.onmessage = function(e) {
       data = msg.data;
       compiledSource = lastSource;
       compiledDialect = lastDialect;
+      populateDialectOptions(data && data.meta && data.meta.dialects);
       renderAll();
       $('#spinner').style.display = 'none';
       updateStatusLight();
@@ -1075,6 +1074,48 @@ $('#tabBar').addEventListener('click', e => {
 function scheduleCompile() {
   clearTimeout(compileTimer);
   compileTimer = setTimeout(compile, 600);
+}
+
+// Replace the dropdown's <option> list from data.meta.dialects on the
+// first compile result.  Preserves the current selection if it's still
+// valid; otherwise falls back to tcl8.6.  Avoids hardcoding the dialect
+// list in HTML — adding a dialect is a one-line backend change.
+const DIALECT_LABELS = {
+  'cadence-eda-tcl': 'Cadence EDA',
+  'expect': 'Expect',
+  'f5-bigip': 'F5 BIG-IP',
+  'f5-iapps': 'F5 iApps',
+  'f5-irules': 'F5 iRules',
+  'f5-tmsh': 'F5 TMSH',
+  'intel-quartus-eda-tcl': 'Intel Quartus',
+  'mentor-eda-tcl': 'Mentor EDA',
+  'synopsys-eda-tcl': 'Synopsys EDA',
+  'tcl8.4': 'Tcl 8.4',
+  'tcl8.5': 'Tcl 8.5',
+  'tcl8.6': 'Tcl 8.6',
+  'tcl9.0': 'Tcl 9.0',
+  'xilinx-eda-tcl': 'Xilinx EDA',
+};
+function populateDialectOptions(dialects) {
+  if (!Array.isArray(dialects) || dialects.length === 0) return;
+  const sel = $('#dialect');
+  if (!sel) return;
+  // Skip when the option list already matches (every compile after the
+  // first would otherwise rebuild the dropdown).
+  const have = Array.from(sel.options).map(o => o.value).join(',');
+  const want = dialects.slice().sort().join(',');
+  if (have === want) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  for (const id of [...dialects].sort()) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = DIALECT_LABELS[id] || id;
+    if (id === current || (dialects.indexOf(current) < 0 && id === 'tcl8.6')) {
+      opt.selected = true;
+    }
+    sel.appendChild(opt);
+  }
 }
 
 function compile() {
@@ -1322,12 +1363,17 @@ function setupOptDiffHover(pane) {
 }
 
 // Consumer hook: renderShimmer
+//
+// Severity comes from the backend (tooling/explorer/annotations.shimmer_severity);
+// the CSS only needs ``shimmer-error`` / ``shimmer-warning`` classes —
+// no per-warning-code colour rules.
 function renderShimmer() {
   const pane=$('#pane-shimmer');
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
   let html='<div class="section-header">Warnings</div>';
   for(const w of data.shimmer){
-    html+=`<div class="shimmer-item shimmer-${w.code}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+    const sev = w.severity || 'warning';
+    html+=`<div class="shimmer-item shimmer-${sev}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
   }
   html+='<div class="section-header">Involved Lines</div>'+buildShimmerLinesView();
   pane.innerHTML=html;

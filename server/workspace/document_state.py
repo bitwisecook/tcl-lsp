@@ -534,19 +534,37 @@ def _build_chunk_caches_standalone(
     return caches
 
 
-def _build_proc_cache(
+def _build_proc_caches(
     cu: CompilationUnit,
-) -> dict[tuple[str, int], FunctionUnit]:
-    """Build a proc cache from a CompilationUnit.
+) -> tuple[dict[tuple[str, int], FunctionUnit], dict[tuple[str, int], FunctionUnit]]:
+    """Build both the primary proc cache and the reposition cache in one pass.
 
-    Keys are ``(qualified_name, hash((proc_source_text, stub_fingerprint)))``
-    so a procedure's FunctionUnit can be reused across edits as long as
-    both the body text and the active stub overlay are unchanged.
+    Returns ``(proc_cache, reposition_cache)``.  Both caches key the same set of
+    ``FunctionUnit``s by validity fingerprints that must match
+    :func:`compiler.compilation_unit._proc_cache_key` /
+    ``_proc_reposition_key`` exactly; the only difference is that the reposition
+    key omits the proc's start line/char/offset (so a moved-but-otherwise-
+    unchanged proc still hits it).
+
+    The expensive shared inputs — stub fingerprint, CFG-construction context
+    (``prepare_cfg_context`` + ``cfg_context_fingerprint``), known-class
+    fingerprint, and the per-proc call-site-constants fingerprints — are
+    computed once here and fed into both keys, rather than walking the IR twice
+    (one pass per cache).
     """
     from compiler.cfg import cfg_context_fingerprint, prepare_cfg_context
-    from compiler.compilation_unit import compute_stub_fingerprint, known_classes_fingerprint
+    from compiler.compilation_unit import (
+        _proc_cache_key,
+        _proc_reposition_key,
+        call_site_constants_fingerprint,
+        compute_stub_fingerprint,
+        known_classes_fingerprint,
+    )
+    from compiler.core_analyses import _collect_call_site_constants
 
-    cache: dict[tuple[str, int], FunctionUnit] = {}
+    proc_cache: dict[tuple[str, int], FunctionUnit] = {}
+    reposition_cache: dict[tuple[str, int], FunctionUnit] = {}
+
     stub_fingerprint = compute_stub_fingerprint(cu.source)
     # The CFG-construction context (which callees write back into the caller
     # frame via upvar, and proc param maps) is part of a cached unit's validity:
@@ -557,29 +575,62 @@ def _build_proc_cache(
     upvar_procs, proc_params = prepare_cfg_context(cu.ir_module)
     context_fingerprint = cfg_context_fingerprint(upvar_procs, proc_params)
     known_classes_fp = known_classes_fingerprint(cu.known_classes)
+    # Per-proc call-site-constants fingerprint: a caller editing a literal arg
+    # (``foo 1`` → ``foo 0``) changes the proc's SCCP / unreachable-branch facts
+    # even though the proc's own text and position are unchanged, so both keys
+    # fold it in or a restamped proc would serve stale branch facts.
+    call_site_constants_fps = call_site_constants_fingerprint(
+        _collect_call_site_constants(cu.ir_module)
+    )
     for qname, fu in cu.procedures.items():
         ir_proc = cu.ir_module.procedures.get(qname)
-        if ir_proc is not None:
-            # +1: range.end.offset is the proc's last character (inclusive).
-            # Key must match _proc_cache_key in compilation_unit.py exactly
-            # (body text + stub + context + class-set fingerprints + the proc's
-            # start line/char/offset), or a moved-but-unchanged proc is reused
-            # with stale positions/offsets or stale object-type facts.
-            start = ir_proc.range.start
-            proc_src = cu.source[start.offset : ir_proc.range.end.offset + 1]
-            key_hash = hash(
-                (
-                    proc_src,
-                    stub_fingerprint,
-                    context_fingerprint,
-                    start.line,
-                    start.character,
-                    start.offset,
-                    known_classes_fp,
-                )
-            )
-            cache[(qname, key_hash)] = fu
-    return cache
+        if ir_proc is None:
+            continue
+        cs_fp = call_site_constants_fps.get(qname, 0)
+        start = ir_proc.range.start
+        end_offset = ir_proc.range.end.offset
+        key = _proc_cache_key(
+            cu.source,
+            qname,
+            start.offset,
+            end_offset,
+            stub_fingerprint=stub_fingerprint,
+            context_fingerprint=context_fingerprint,
+            start_line=start.line,
+            start_char=start.character,
+            known_classes_fp=known_classes_fp,
+            call_site_constants_fp=cs_fp,
+        )
+        if key is not None:
+            proc_cache[key] = fu
+        repos_key = _proc_reposition_key(
+            cu.source,
+            qname,
+            start.offset,
+            end_offset,
+            stub_fingerprint=stub_fingerprint,
+            context_fingerprint=context_fingerprint,
+            known_classes_fp=known_classes_fp,
+            call_site_constants_fp=cs_fp,
+        )
+        if repos_key is not None:
+            reposition_cache[repos_key] = fu
+    return proc_cache, reposition_cache
+
+
+def _build_proc_cache(cu: CompilationUnit) -> dict[tuple[str, int], FunctionUnit]:
+    """Primary proc cache only — thin wrapper over :func:`_build_proc_caches`.
+
+    The production update path uses ``_build_proc_caches`` directly (one IR
+    pass for both caches); this wrapper exists for callers/tests that only need
+    the primary cache.
+    """
+    return _build_proc_caches(cu)[0]
+
+
+def _build_reposition_cache(cu: CompilationUnit) -> dict[tuple[str, int], FunctionUnit]:
+    """Reposition cache only — thin wrapper over :func:`_build_proc_caches`."""
+    return _build_proc_caches(cu)[1]
 
 
 @dataclass
@@ -652,6 +703,13 @@ class DocumentState:
     # Internal caches for the compilation pipeline — not accessed by
     # request handlers, so they live outside the snapshot.
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
+        default_factory=dict,
+        repr=False,
+    )
+    # Position-independent companion to ``_proc_cache``: lets a proc that merely
+    # moved (a primary-cache miss because its absolute positions shifted) reuse
+    # its cached dataflow analysis while rebuilding only the cheap CFG + SSA.
+    _reposition_cache: dict[tuple[str, int], FunctionUnit] = field(
         default_factory=dict,
         repr=False,
     )
@@ -1288,6 +1346,7 @@ class DocumentState:
             # stub/context fingerprints) do not encode the dialect, so a dialect
             # switch would otherwise reuse a unit analysed under the old dialect.
             self._proc_cache = {}
+            self._reposition_cache = {}
             self._interproc_cache = {}
             self._prev_analysed = None
         with self._signature_profile():
@@ -1455,6 +1514,7 @@ class DocumentState:
 
         # Lower IR incrementally.
         prev_proc_cache = dict(self._proc_cache)
+        prev_reposition_cache = dict(self._reposition_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         ir_module = None
         compilation_unit: CompilationUnit | None = None
@@ -1465,6 +1525,7 @@ class DocumentState:
                 source,
                 ir_module=ir_module,
                 proc_cache=self._proc_cache,
+                reposition_cache=self._reposition_cache,
                 interproc_cache=self._interproc_cache,
                 prune_interproc_cache=not has_partial,
             )
@@ -1472,6 +1533,7 @@ class DocumentState:
             t_lower = time.perf_counter()
             log.debug("document_state: incremental compilation failed", exc_info=True)
             self._proc_cache = prev_proc_cache
+            self._reposition_cache = prev_reposition_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
@@ -1712,18 +1774,21 @@ class DocumentState:
                 return
 
         prev_proc_cache = dict(self._proc_cache)
+        prev_reposition_cache = dict(self._reposition_cache)
         prev_interproc_cache = dict(self._interproc_cache)
         compilation_unit: CompilationUnit | None = None
         try:
             compilation_unit = compile_source(
                 source,
                 proc_cache=self._proc_cache,
+                reposition_cache=self._reposition_cache,
                 interproc_cache=self._interproc_cache,
                 prune_interproc_cache=not has_partial,
             )
         except Exception:
             log.debug("document_state: compilation failed, preserving caches", exc_info=True)
             self._proc_cache = prev_proc_cache
+            self._reposition_cache = prev_reposition_cache
             self._interproc_cache = prev_interproc_cache
         t_compile = time.perf_counter()
 
@@ -1963,16 +2028,23 @@ class DocumentState:
     ) -> None:
         """Update the procedure cache from the given compilation unit."""
         if compilation_unit is not None:
-            next_proc_cache = _build_proc_cache(compilation_unit)
+            # One IR pass builds both caches, sharing the expensive fingerprint /
+            # CFG-context precomputation rather than walking the IR twice.
+            next_proc_cache, next_reposition_cache = _build_proc_caches(compilation_unit)
             if has_partial:
                 merged = dict(self._proc_cache)
                 merged.update(next_proc_cache)
                 self._proc_cache = merged
+                merged_repos = dict(self._reposition_cache)
+                merged_repos.update(next_reposition_cache)
+                self._reposition_cache = merged_repos
             else:
                 self._proc_cache = next_proc_cache
+                self._reposition_cache = next_reposition_cache
         else:
             if not has_partial:
                 self._proc_cache = {}
+                self._reposition_cache = {}
                 self._interproc_cache = {}
 
 

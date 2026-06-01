@@ -330,9 +330,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - profile: cli
+          - profile: explorer-cli
             artefact_glob: "build/tcl-lsp-explorer-cli-*.pyz"
-            smoke: "python3 build/tcl-lsp-explorer-cli-*.pyz --help"
+            smoke: |
+              python3 build/tcl-lsp-explorer-cli-*.pyz --help
+              # Verify the textual TUI dependency is bundled — without
+              # this, `--tui` mode dies at import with `No module named
+              # 'rich'` (the default surface on an interactive TTY).
+              python3 -c "
+              import zipfile, glob
+              path = glob.glob('build/tcl-lsp-explorer-cli-*.pyz')[0]
+              names = zipfile.ZipFile(path).namelist()
+              assert any(n.startswith('rich/') for n in names), 'rich not bundled (--tui will fail)'
+              assert any(n.startswith('textual/') for n in names), 'textual not bundled (--tui will fail)'
+              print(f'OK: {len(names)} entries (textual + rich bundled for --tui)')
+              "
 
           - profile: f5
             artefact_glob: "build/f5-*.pyz"
@@ -385,7 +397,7 @@ jobs:
           # an SBOM + provenance attestation.  (Leaving it here produced a
           # duplicate `zipapp-wasm` artefact upload and failed for lack of Zig.)
 
-          - profile: gui-cdn
+          - profile: explorer-gui-cdn
             artefact_glob: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
             smoke: |
               python3 -c "

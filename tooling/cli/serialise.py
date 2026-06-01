@@ -11,14 +11,7 @@ from compiler.cfg import CFGBranch, CFGGoto, CFGReturn
 from compiler.dataflow_graph import dataflow_graph_to_dict
 from compiler.gvn import RedundantComputation
 from compiler.interprocedural import InterproceduralAnalysis
-from compiler.ir import (
-    IRBarrier,
-    IRFor,
-    IRIf,
-    IRModule,
-    IRScript,
-    IRSwitch,
-)
+from compiler.ir import IRFor, IRIf, IRModule, IRScript, IRSwitch
 from compiler.irules_flow import EventOrderEntry, IrulesFlowWarning
 from compiler.optimiser import Optimisation
 from compiler.shimmer import ShimmerWarning, ThunkingWarning
@@ -26,11 +19,24 @@ from compiler.taint import (
     TaintWarning,
 )
 from compiler.types import TypeKind
+from tooling.explorer.annotations import (
+    Annotation,
+    Severity,
+    collect_annotations,
+    shimmer_severity,
+    taint_severity,
+)
 from tooling.explorer.cfg_layout import build_cfg_edges
-from tooling.explorer.pipeline import CompilerExplorerResult, FunctionSnapshot
+from tooling.explorer.pipeline import (
+    ALL_VIEWS,
+    AVAILABLE_DIALECTS,
+    CompilerExplorerResult,
+    FunctionSnapshot,
+)
 
 from .formatters import (
     format_lattice,
+    format_return_shape,
     format_taint,
     format_type,
     preview,
@@ -342,20 +348,13 @@ def _serialise_interproc(interproc: InterproceduralAnalysis) -> list[dict]:
     for qname in sorted(interproc.procedures):
         s = interproc.procedures[qname]
         arity = f"{s.arity.min}+" if s.arity.is_unlimited else f"{s.arity.min}..{s.arity.max}"
-        return_shape = "unknown"
-        if s.returns_constant:
-            return_shape = f"const({s.constant_return!r})"
-        elif s.return_passthrough_param is not None:
-            return_shape = f"passthrough({s.return_passthrough_param})"
-        elif s.return_depends_on_params:
-            return_shape = f"depends({','.join(s.return_depends_on_params)})"
         out.append(
             {
                 "name": qname,
                 "arity": arity,
                 "pure": s.pure,
                 "foldable": s.can_fold_static_calls,
-                "returnShape": return_shape,
+                "returnShape": format_return_shape(s),
                 "calls": list(s.calls),
                 "hasBarrier": s.has_barrier,
                 "hasUnknownCalls": s.has_unknown_calls,
@@ -401,6 +400,7 @@ def _serialise_shimmer(warnings: list[ShimmerWarning | ThunkingWarning]) -> list
             "code": w.code,
             "message": w.message,
             "range": range_dict(w.range),
+            "severity": shimmer_severity(w.code).value,
         }
         if isinstance(w, ShimmerWarning):
             d["variable"] = w.variable
@@ -424,6 +424,9 @@ def _serialise_gvn(warnings: list[RedundantComputation]) -> list[dict]:
             "expression": w.expression_text,
             "range": range_dict(w.range),
             "firstRange": range_dict(w.first_range),
+            # GVN findings surface redundant computations the optimiser
+            # can fold — informational, not danger.
+            "severity": Severity.INFO.value,
         }
         for w in warnings
     ]
@@ -438,6 +441,7 @@ def _serialise_taint(
             "code": w.code,
             "message": w.message,
             "range": range_dict(w.range),
+            "severity": taint_severity(w.code).value,
         }
         if isinstance(w, TaintWarning):
             d["variable"] = w.variable
@@ -452,6 +456,7 @@ def _serialise_irules_flow(warnings: list[IrulesFlowWarning]) -> list[dict]:
             "code": w.code,
             "message": w.message,
             "range": range_dict(w.range),
+            "severity": Severity.WARNING.value,
         }
         for w in warnings
     ]
@@ -538,134 +543,21 @@ def _serialise_rendered_properties(snapshots: list[FunctionSnapshot]) -> list[di
 # Annotations (source callouts)
 
 
-def _collect_annotations(result: CompilerExplorerResult) -> list[dict]:
-    annotations: list[dict] = []
+def _serialise_annotation(ann: Annotation) -> dict:
+    """Project an :class:`Annotation` to the wire shape.
 
-    def walk_barriers(script, scope):
-        for stmt in script.statements:
-            if isinstance(stmt, IRBarrier):
-                annotations.append(
-                    {
-                        "range": range_dict(stmt.range),
-                        "label": f"{scope}: compiler barrier ({stmt.reason})",
-                        "kind": "barrier",
-                    }
-                )
-            elif isinstance(stmt, IRIf):
-                for clause in stmt.clauses:
-                    walk_barriers(clause.body, scope)
-                if stmt.else_body:
-                    walk_barriers(stmt.else_body, scope)
-            elif isinstance(stmt, IRFor):
-                walk_barriers(stmt.init, scope)
-                walk_barriers(stmt.body, scope)
-                walk_barriers(stmt.next, scope)
-            elif isinstance(stmt, IRSwitch):
-                for arm in stmt.arms:
-                    if arm.body:
-                        walk_barriers(arm.body, scope)
-                if stmt.default_body:
-                    walk_barriers(stmt.default_body, scope)
-
-    walk_barriers(result.ir_module.top_level, "::top")
-    for qname, proc in result.ir_module.procedures.items():
-        walk_barriers(proc.body, qname)
-
-    for snap in result.snapshots:
-        for dead in snap.analysis.dead_stores:
-            block = snap.cfg.blocks.get(dead.block)
-            if not block or dead.statement_index >= len(block.statements):
-                continue
-            stmt = block.statements[dead.statement_index]
-            annotations.append(
-                {
-                    "range": range_dict(stmt.range),
-                    "label": f"{snap.name}: dead store {dead.variable}#{dead.version}",
-                    "kind": "deadStore",
-                }
-            )
-        for branch in snap.analysis.constant_branches:
-            block = snap.cfg.blocks.get(branch.block)
-            if not block:
-                continue
-            term = block.terminator
-            if not isinstance(term, CFGBranch) or term.range is None:
-                continue
-            direction = "true" if branch.value else "false"
-            annotations.append(
-                {
-                    "range": range_dict(term.range),
-                    "label": f"{snap.name}: branch always {direction}; takes {branch.taken_target}",
-                    "kind": "constantBranch",
-                }
-            )
-        for bn in sorted(snap.analysis.unreachable_blocks):
-            block = snap.cfg.blocks.get(bn)
-            if not block:
-                continue
-            if block.statements:
-                r = block.statements[0].range
-            else:
-                term = block.terminator
-                if isinstance(term, (CFGGoto, CFGBranch, CFGReturn)) and term.range is not None:
-                    r = term.range
-                else:
-                    continue
-            annotations.append(
-                {
-                    "range": range_dict(r),
-                    "label": f"{snap.name}: unreachable block {bn}",
-                    "kind": "unreachable",
-                }
-            )
-
-    for opt in result.optimisations:
-        annotations.append(
-            {
-                "range": range_dict(opt.range),
-                "label": f"{opt.code}: {opt.message} -> {preview(opt.replacement, 40)}",
-                "kind": "optimisation",
-            }
-        )
-
-    for w in result.shimmer_warnings:
-        annotations.append(
-            {
-                "range": range_dict(w.range),
-                "label": f"{w.code}: {w.message}",
-                "kind": "shimmer" if not isinstance(w, ThunkingWarning) else "thunking",
-            }
-        )
-
-    for w in result.gvn_warnings:
-        annotations.append(
-            {
-                "range": range_dict(w.range),
-                "label": f"{w.code}: {w.message or w.expression_text}",
-                "kind": "gvn",
-            }
-        )
-
-    for w in result.taint_warnings:
-        annotations.append(
-            {
-                "range": range_dict(w.range),
-                "label": f"{w.code}: {w.message}",
-                "kind": "taint",
-            }
-        )
-
-    for w in result.irules_flow_warnings:
-        annotations.append(
-            {
-                "range": range_dict(w.range),
-                "label": f"{w.code}: {w.message}",
-                "kind": "irulesFlow",
-            }
-        )
-
-    annotations.sort(key=lambda a: (a["range"]["startOffset"], a["range"]["endOffset"]))
-    return annotations
+    ``kind`` identifies the source, ``severity`` is the backend's
+    classification (so renderers don't re-derive it from warning codes),
+    ``priority`` lets renderers stable-sort within a line.  The CLI
+    callout renderer and the GUI both consume this directly.
+    """
+    return {
+        "range": range_dict(ann.range),
+        "label": ann.label,
+        "kind": ann.kind,
+        "severity": ann.severity.value,
+        "priority": ann.priority,
+    }
 
 
 # Bytecode assembly
@@ -728,6 +620,11 @@ def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=N
     and explorer labels.  The frontend switches to the rich renderer
     when ``instructions`` is present; consumers that don't understand
     the new shape can continue to read ``text``.
+
+    Each function entry also gets a pre-baked ``edges`` list — branch
+    instructions paired with their targets, lane-assigned via
+    :func:`cfg_layout.assign_lanes`.  The web GUI renders those lanes
+    directly (no client-side lane computation); the CLI ignores them.
     """
     from compiler.codegen.wasm import wasm_codegen_module
 
@@ -762,9 +659,65 @@ def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=N
                 {
                     **entry,
                     "text": _format_function_wat_snippet(entry),
+                    "edges": _wasm_edges_with_lanes(entry),
                 }
             )
     return result
+
+
+def _wasm_edges_with_lanes(entry: dict) -> list[dict]:
+    """Extract branch edges from a WASM function entry and assign lanes.
+
+    The JS gutter renderer used to do this by walking the DOM and
+    re-running ``cfg_layout.assign_lanes`` byte-for-byte in JavaScript;
+    pre-baking it here keeps lane assignment in one place (the same
+    helper the CFG views use).
+    """
+    from tooling.explorer.cfg_layout import assign_lanes
+
+    instructions = entry.get("instructions") or []
+    raw: list[tuple[int, int, str]] = []  # (fromIdx, toIdx, kind)
+    for instr in instructions:
+        from_idx = instr.get("idx")
+        if from_idx is None:
+            continue
+        bt = instr.get("branchTarget")
+        if bt is None:
+            continue
+        # ``branchTarget`` is either a scalar int (a single branch) or
+        # a dict carrying ``targets`` (a jump-table dispatch) — both
+        # produced by the WASM codegen.
+        targets: list[int] = []
+        if isinstance(bt, int):
+            targets = [bt]
+        elif isinstance(bt, dict):
+            # jumpTable shape: {"targets": [{"idx": int, ...}, ...],
+            # "fallback": {"idx": int}}.  Be permissive about field
+            # names; codegen revisions may add more.
+            for t in bt.get("targets") or []:
+                tidx = t.get("idx") if isinstance(t, dict) else None
+                if isinstance(tidx, int):
+                    targets.append(tidx)
+            fb = bt.get("fallback")
+            if isinstance(fb, dict):
+                fidx = fb.get("idx")
+                if isinstance(fidx, int):
+                    targets.append(fidx)
+        for to_idx in targets:
+            kind = "forward" if to_idx >= from_idx else "back"
+            raw.append((from_idx, to_idx, kind))
+    if not raw:
+        return []
+    lanes = assign_lanes([(f, t) for (f, t, _k) in raw])
+    return [
+        {
+            "fromIdx": f,
+            "toIdx": t,
+            "kind": k,
+            "lane": lane,
+        }
+        for (f, t, k), lane in zip(raw, lanes)
+    ]
 
 
 def _format_function_wat_snippet(entry: dict) -> str:
@@ -854,7 +807,14 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
         print(f"warning: wasm serialisation failed: {exc}", file=sys.stderr)
         wasm = None
 
+    # Annotations: single backend pass, single classification.  Renderers
+    # read ``severity`` directly — no client-side warning-code mapping.
+    annotations, _omitted = collect_annotations(result, views=ALL_VIEWS, max_annotations=-1)
+    annotation_dicts = [_serialise_annotation(a) for a in annotations]
+    annotations_by_line = _group_annotations_by_line(annotation_dicts, result.source)
+
     return {
+        "meta": _serialise_meta(),
         "ir": _serialise_ir(result.ir_module),
         "cfgPreSsa": _serialise_cfg_pre_ssa(result.snapshots),
         "cfgPostSsa": _serialise_cfg_post_ssa(result.snapshots),
@@ -878,6 +838,81 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
         "optimisedSource": result.optimised_source
         if result.optimised_source != result.source
         else None,
-        "annotations": _collect_annotations(result),
+        "annotations": annotation_dicts,
+        "annotationsByLine": annotations_by_line,
         "stats": compute_stats(result),
+    }
+
+
+# Pre-grouped annotations by source line.  The GUI's old client-side
+# pass walked the source, built a line index, and bucketed annotations
+# — pure data shaping.  Doing it here once gives every renderer the
+# same buckets (and the GUI just iterates without parsing).
+def _group_annotations_by_line(annotation_dicts: list[dict], source: str) -> dict[str, list[int]]:
+    """Bucket annotation indices by 0-based source line.
+
+    Returns ``{line_no_as_string: [annotation_index, ...]}`` so the JSON
+    is a plain object (JS) / dict (Python) — neither side has to scan
+    the annotation list to find which annotations decorate which line.
+    """
+    if not annotation_dicts:
+        return {}
+    # Build line starts from the source once; binary-search per annotation.
+    line_starts = [0]
+    for i, ch in enumerate(source):
+        if ch == "\n":
+            line_starts.append(i + 1)
+    buckets: dict[str, list[int]] = {}
+    for idx, ann in enumerate(annotation_dicts):
+        offset = ann["range"]["startOffset"]
+        # Binary search: largest line_start <= offset.
+        lo, hi = 0, len(line_starts) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) >> 1
+            if line_starts[mid] <= offset:
+                lo = mid
+            else:
+                hi = mid - 1
+        buckets.setdefault(str(lo), []).append(idx)
+    return buckets
+
+
+# Frontend-driving metadata: which dialects exist, which views render,
+# which severity classes mean what.  The HTML / JS bootstrap reads this
+# instead of hardcoding dropdowns or tab lists, so adding a dialect or
+# view is a one-line backend edit.
+_VIEW_META: tuple[tuple[str, str, str], ...] = (
+    # (id, label, group)  — group is informational; CLI uses VIEW_GROUPS.
+    ("greentree", "Green Tree", "compiler"),
+    ("ir", "IR", "compiler"),
+    ("cfg", "CFG (pre-SSA)", "compiler"),
+    ("ssa", "CFG (post-SSA)", "compiler"),
+    ("loops", "Loops", "compiler"),
+    ("types", "Types", "compiler"),
+    ("intervals", "Intervals", "compiler"),
+    ("bounds", "Bounds", "compiler"),
+    ("dataflow", "Data Flow", "compiler"),
+    ("interproc", "Interprocedural", "compiler"),
+    ("rendered", "Rendered Props", "compiler"),
+    ("opt", "Optimisations", "optimiser"),
+    ("gvn", "GVN", "optimiser"),
+    ("shimmer", "Shimmer", "optimiser"),
+    ("taint", "Taint", "optimiser"),
+    ("irules", "iRules Flow", "optimiser"),
+    ("eventOrder", "Event Order", "optimiser"),
+    ("callouts", "Source Callouts", "optimiser"),
+    ("asm", "Tcl ASM", "codegen"),
+    ("asmOpt", "Tcl ASM (opt)", "codegen"),
+    ("wasm", "WASM", "codegen"),
+    ("wasmOpt", "WASM (opt)", "codegen"),
+)
+
+
+def _serialise_meta() -> dict:
+    return {
+        "dialects": list(AVAILABLE_DIALECTS),
+        "views": [
+            {"id": vid, "label": label, "group": group} for (vid, label, group) in _VIEW_META
+        ],
+        "severities": [s.value for s in Severity],
     }
