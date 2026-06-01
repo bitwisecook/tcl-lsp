@@ -71,3 +71,19 @@ def test_string_index_rejects_operator_chains(idx: str, catch_expected: str) -> 
     # direct-import path.
     body = f"set sub index\nputs [catch {{string $sub abcd {idx}}} m]:$m"
     assert _run(body) == catch_expected
+
+
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        # list commands validate via is_valid_list_index before the shared
+        # resolver; it must accept the same whitespace / 0d forms (PR #516).
+        ("lindex {a b c d} { 1 }", "b"),
+        ("lindex {a b c d} 0d2", "c"),
+        ("lindex {a b c d} {end-1 }", "c"),
+        ("lrange {a b c d} { 1 } { 2 }", "b c"),
+        ("lindex {a b c d} { 0d10 }", ""),
+    ],
+)
+def test_list_index_grammar(expr: str, expected: str) -> None:
+    assert _run(f"puts [{expr}]") == expected

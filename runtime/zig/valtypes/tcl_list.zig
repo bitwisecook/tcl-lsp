@@ -320,17 +320,28 @@ pub fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is
 pub fn is_valid_list_index(idx: i32) bool {
     const s = obj_ensure_string(idx);
     if (s.len == 0) return false;
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    const sp0: [*]const u8 = @ptrFromInt(s.ptr);
+    // Trim surrounding whitespace so the validator matches what
+    // :func:`resolve_list_index` (and :func:`is_valid_string_index`)
+    // accept — ``{ 0 }`` / ``{end-1 }`` / ``{ 0d10 }`` are valid.
+    const is_space = @import("tcl_chars.zig").is_space;
+    var beg: u32 = 0;
+    var end: u32 = s.len;
+    while (beg < end and is_space(sp0[beg])) beg += 1;
+    while (end > beg and is_space(sp0[end - 1])) end -= 1;
+    if (beg >= end) return false;
+    const sp: [*]const u8 = sp0 + beg;
+    const len: u32 = end - beg;
     // ``end`` / ``end[+-]N``.  After ``end[+-]`` only a single
     // signed integer literal is allowed — no further arithmetic
     // chain.  Reference Tcl 9 ``GetEndOffsetFromObj`` calls
     // ``TclParseNumber`` once on the substring, so multi-operator
     // forms like ``end-1+2`` would silently truncate to ``end-1``
     // at the resolver and disagree with the validator.
-    if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
-        if (s.len == 3) return true;
+    if (len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+        if (len == 3) return true;
         if (sp[3] != '+' and sp[3] != '-') return false;
-        return is_signed_int_literal(sp, s.len, 4);
+        return is_signed_int_literal(sp, len, 4);
     }
     // Pure integer arithmetic — optional sign, integer literal,
     // optional single ``[+-]N`` continuation (also with optional
@@ -338,8 +349,8 @@ pub fn is_valid_list_index(idx: i32) bool {
     // match what :func:`resolve_list_index` actually evaluates.
     var i: u32 = 0;
     if (sp[0] == '+' or sp[0] == '-') i += 1;
-    if (i >= s.len) return false;
-    return is_int_arith_tail(sp, s.len, i);
+    if (i >= len) return false;
+    return is_int_arith_tail(sp, len, i);
 }
 
 /// Accept an optional sign + integer literal, with NO trailing
@@ -414,6 +425,9 @@ fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
             i += 2;
         } else if (c == 'b' or c == 'B') {
             base = 2;
+            i += 2;
+        } else if (c == 'd' or c == 'D') {
+            base = 10;
             i += 2;
         }
     }

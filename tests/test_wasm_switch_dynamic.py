@@ -55,3 +55,17 @@ def test_switch_exact_dynamic_pattern() -> None:
     # Exact mode with a variable pattern must also substitute.
     body = "set p hello\nputs [switch -- hello $p {set r yes} default {set r no}]\n"
     assert _run(body) == "yes"
+
+
+def test_switch_pattern_only_import_is_scanned() -> None:
+    # A separate-word pattern is emitted via ``_emit_value`` and may be the
+    # *only* token needing a runtime helper (e.g. ``$arr(key)`` -> tcl_array_get).
+    # The import pre-scan must scan patterns when they aren't braced, or the
+    # module instantiates without the helper and the pattern miscompiles
+    # (PR #516 review).
+    body = (
+        "proc P {} { set a(p) {hel*}; "
+        "switch -glob -- hello $a(p) {return MATCH} default {return NO} }\n"
+        "puts [P]\n"
+    )
+    assert _run(body) == "MATCH"
