@@ -113,6 +113,7 @@ pub mod uri_split;
 pub mod value_shapes;
 pub mod var_escape;
 pub mod var_refs;
+pub mod var_resolve;
 pub mod var_scoping;
 
 // Re-export key types for convenience.

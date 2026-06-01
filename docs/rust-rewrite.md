@@ -1623,10 +1623,15 @@ Structural new surfaces (no Rust mirror today):
     discriminating unit tests including the `a(k)` ≠ `a(j)` disjointness
     and the gregorian-style dynamic-alias precision case.  No consumer
     wired yet → corpus byte-identical.
-  - Stage 2 (next): `tcl-compiler::var_resolve` (`resolve_place` +
-    `ResolveContext`, needs a `split_array_name` port + the inner
-    var-read scanner).
-  - Stage 3: `tcl-compiler::place_bridge` (`def_places` / `read_places`
+  - **Stage 2 (done): `tcl-compiler::var_resolve`.**  Faithful port of
+    `var_resolve.py` — `ResolveContext`, `resolve_place` (scalar /
+    array-elem / whole-array / dynamic-name → UNKNOWN), and
+    `resolve_dict_path`, reusing a new `naming::split_array_name` and the
+    existing `VarReferenceScanner` for dynamic-index/name reads.  11 unit
+    tests (local/global/ns binding, literal vs dynamic element, upvar
+    alias owner, trace→observed, the `a(k)`≠`a(j)` resolve→overlap
+    integration).  No consumer wired yet → output-equivalent.
+  - Stage 3 (next): `tcl-compiler::place_bridge` (`def_places` / `read_places`
     / `terminator_read_places` + `build_resolve_context`).
   - Stage 4 (output-changing): reroute the W220 dead-store / W211 unused
     / O109 DCE consumers through `overlap`; gated on the full suite +
