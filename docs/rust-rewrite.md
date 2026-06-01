@@ -2309,10 +2309,15 @@ optional slots only up to `max(0, n_positional - n_required)` so a
 single-arg `puts hello` labels `string:` not `channelId:`.  Item 2:
 `FunctionUnit` carries a `return_type: TypeLattice` populated in
 `build` by `type_infer::infer_function_return_type` (pub(crate),
-matching `return_type_for_command`), joining the type at every
-executable `Return` terminator; `infer_return_value_type` mirrors the
-`AssignValue` arm of `evaluate_type_def`.  Var reads join over all
-known versions of each name (sound over-approximation).  10 tests
+matching `return_type_for_command`), joining the result type of every
+executable exit — explicit `Return` terminators *and* fall-through
+exits.  A reachable terminator-`None` block is a fall-through (control
+runs off the end → Tcl returns the last command's result, not
+modelled here) and contributes `Overdefined`, so partial-return procs
+like `if {$c} { return 1 }` don't report an overconfident `Int`
+(caught in PR #512 review).  `infer_return_value_type` mirrors the
+`AssignValue` arm of `evaluate_type_def`; var reads join over all
+known versions of each name (sound over-approximation).  11 tests
 total.
 
 ### SYNC-MAY31-11 — Reposition cache for moved procedures (#508)

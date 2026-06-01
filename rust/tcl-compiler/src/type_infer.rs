@@ -386,17 +386,25 @@ pub fn propagate_types(
     types
 }
 
-/// Infer a function's overall return type by joining the types
-/// produced at every executable `Return` terminator (SYNC-MAY31-10
-/// item 2, mirroring Python's `infer_return_type`).
+/// Infer a function's overall return type by joining the result types
+/// of every executable exit — explicit `Return` terminators *and*
+/// fall-through exits (SYNC-MAY31-10 item 2, mirroring Python's
+/// `infer_return_type`).
 ///
 /// `types` is the [`propagate_types`] result for the same function.
 /// SSA reaching-defs aren't tracked at terminators, so a `return $x`
 /// (or `return [expr {$x}]`) joins over *every* known version of each
-/// name — a sound over-approximation.  Returns `Unknown` for a
-/// function with no executable return (e.g. only an implicit fall-off
-/// exit, which Tcl treats as an empty-string result handled by the
-/// caller's own inference).
+/// name — a sound over-approximation.
+///
+/// A reachable block with no terminator is a *fall-through* exit:
+/// control runs off the end of the body and Tcl returns the result of
+/// the last command executed (e.g. the empty string of an
+/// else-less `if`, or `set`'s value).  That result is not modelled
+/// here, so a fall-through contributes `Overdefined` to the join
+/// rather than being skipped — without this, a partial-return proc
+/// like `if {$c} { return 1 }` would report an overconfident `Int`.
+/// Returns `Unknown` only when the function has no executable exit at
+/// all.
 #[must_use]
 pub(crate) fn infer_function_return_type(
     cfg: &CfgFunction,
@@ -419,16 +427,21 @@ pub(crate) fn infer_function_return_type(
         if !sccp.executable_blocks.contains(bn) {
             continue;
         }
-        let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
-            continue;
-        };
-        let t = if let Some(expr) = expr {
-            infer_expr_type(expr, &var_types)
-        } else if let Some(value) = value {
-            infer_return_value_type(value, &var_types, registry)
-        } else {
-            // Bare `return` yields the empty string.
-            TypeLattice::of(TclType::String)
+        let t = match &block.terminator {
+            Some(Terminator::Return { value, expr, .. }) => {
+                if let Some(expr) = expr {
+                    infer_expr_type(expr, &var_types)
+                } else if let Some(value) = value {
+                    infer_return_value_type(value, &var_types, registry)
+                } else {
+                    // Bare `return` yields the empty string.
+                    TypeLattice::of(TclType::String)
+                }
+            }
+            // Fall-through exit (last-command result, not modelled).
+            None => TypeLattice::overdefined(),
+            // `Goto` / `Branch` have successors — not exits.
+            Some(_) => continue,
         };
         result = Some(match result {
             Some(acc) => type_join(&acc, &t),

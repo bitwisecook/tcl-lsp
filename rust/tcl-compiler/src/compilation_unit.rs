@@ -389,6 +389,23 @@ mod tests {
     }
 
     #[test]
+    fn return_type_partial_return_widens_via_fallthrough() {
+        // `if {$a} { return 1 }` with no else: the false path falls off
+        // the end of the body (Tcl returns the last command's result),
+        // so the joined return type must not be a confident `Int` — the
+        // fall-through exit widens it to Overdefined.
+        let cu =
+            CompilationUnit::build_for("proc f {a} { if {$a} { return 1 } }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(
+            fu.return_type,
+            TypeLattice::overdefined(),
+            "partial-return proc must widen, got {:?}",
+            fu.return_type,
+        );
+    }
+
+    #[test]
     fn with_memory_ssa_populates_optional() {
         let cu = CompilationUnit::build_for("set x 1", &registry(), false).with_memory_ssa();
         assert!(cu.top_level.memory_ssa.is_some());
