@@ -319,6 +319,33 @@ mod tests {
     }
 
     #[test]
+    fn switch_subject_counts_as_param_use() {
+        // SYNC-MAY31-7: the `switch -- $col` subject lowers to an
+        // `ExprNode::Raw` branch condition.  The expr var-scan now
+        // recovers `$col`, so the parameter's def-use chain has a
+        // live (terminator) use instead of looking dead — the precise
+        // path behind W214 (unused parameter).  `col` is referenced
+        // *only* as the switch subject here, so a live chain proves
+        // the Raw scan reached the def-use builder.
+        let cu = CompilationUnit::build_for(
+            "proc p {col} { switch -- $col { a {set y 1} } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::p").expect("proc ::p should exist");
+        let col_live = fu
+            .def_use
+            .chains
+            .iter()
+            .any(|(k, c)| k.0 == "col" && !c.is_dead());
+        assert!(
+            col_live,
+            "switch subject `$col` should register a live use; chains: {:?}",
+            fu.def_use.chains.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
     fn with_memory_ssa_populates_optional() {
         let cu = CompilationUnit::build_for("set x 1", &registry(), false).with_memory_ssa();
         assert!(cu.top_level.memory_ssa.is_some());
