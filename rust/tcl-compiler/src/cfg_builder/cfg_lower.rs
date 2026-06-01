@@ -275,10 +275,18 @@ impl CfgBuilder {
 
     // ── switch ────────────────────────────────────────────────────
 
-    /// Flatten `Statement::Switch` into a chain of string-equality branches.
+    /// Flatten `Statement::Switch` into a chain of arm-dispatch branches.
     ///
-    /// Glob/regexp switches are emitted as opaque barriers (matching
-    /// tclsh's generic `invokeStk` codegen for those modes).
+    /// All three modes flow through the structured path so SSA recovers
+    /// the subject + arm-body variable reads. Exact arms branch on a
+    /// foldable `STR_EQ(subject, pattern)` (so the bytecode backend can
+    /// build a real jump table); glob/regexp arms branch on a
+    /// non-foldable `Raw(subject)` condition — string equality is the
+    /// wrong predicate for those modes, and a foldable condition would
+    /// let SCCP spuriously kill arms. Glob/regexp dispatches are also
+    /// recorded in [`crate::cfg::Function::switch_dispatches`] so codegen
+    /// emits a generic `switch` invoke instead of walking the chain
+    /// (matching tclsh's un-compiled approach for those modes).
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Switch {
             span,
@@ -293,21 +301,6 @@ impl CfgBuilder {
         else {
             unreachable!("lower_switch called with non-Switch");
         };
-
-        // Glob/regexp → barrier.
-        if *mode != SwitchMode::Exact {
-            self.block_mut(block_name)
-                .statements
-                .push(Statement::Barrier {
-                    span: *span,
-                    reason: format!("switch -{}", mode.as_str()),
-                    command: "switch".into(),
-                    canonical_command: None,
-                    args: raw_args.clone(),
-                    tokens: None,
-                });
-            return block_name.to_owned();
-        }
 
         let end_block = self.new_block("switch_end");
         let default_block = self.new_block("switch_default");
@@ -336,20 +329,31 @@ impl CfgBuilder {
             })
             .collect();
 
-        // Chain of equality tests.
+        // Chain of arm-dispatch tests.
         let mut dispatch = block_name.to_owned();
         for (i, arm) in arms.iter().enumerate() {
             let next_dispatch = self.new_block("switch_next");
-            let cond = ExprNode::Binary {
-                op: BinOp::StrEq,
-                left: Box::new(ExprNode::Raw {
+            // Exact mode uses a foldable `STR_EQ(subject, pattern)` so
+            // the backend can build a jump table. Glob/regexp use a
+            // non-foldable `Raw(subject)`: it still reads the subject
+            // (SSA recovery) but never folds, so SCCP can't kill an arm
+            // on a string-equality fiction.
+            let cond = if *mode == SwitchMode::Exact {
+                ExprNode::Binary {
+                    op: BinOp::StrEq,
+                    left: Box::new(ExprNode::Raw {
+                        text: subject.clone(),
+                    }),
+                    right: Box::new(ExprNode::Literal {
+                        text: arm.pattern.clone(),
+                        start: 0,
+                        end: 0,
+                    }),
+                }
+            } else {
+                ExprNode::Raw {
                     text: subject.clone(),
-                }),
-                right: Box::new(ExprNode::Literal {
-                    text: arm.pattern.clone(),
-                    start: 0,
-                    end: 0,
-                }),
+                }
             };
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: cond,
@@ -389,7 +393,59 @@ impl CfgBuilder {
             self.ensure_goto(&default_block, &end_block, Some(*span));
         }
 
+        // Glob/regexp: record the dispatch so codegen emits a generic
+        // `switch` invoke and skips the structured (analyser-only)
+        // blocks. Members = everything reachable from the entry's
+        // successors, stopping at the join block.
+        if *mode != SwitchMode::Exact {
+            let member_blocks = self.collect_switch_members(block_name, &end_block);
+            self.switch_dispatches.insert(
+                block_name.to_owned(),
+                crate::cfg::SwitchDispatch {
+                    mode: *mode,
+                    raw_args: raw_args.clone(),
+                    end_block: end_block.clone(),
+                    member_blocks,
+                },
+            );
+        }
+
         end_block
+    }
+
+    /// Collect every block belonging to a glob/regexp switch: a BFS
+    /// from the entry dispatch block's successors, stopping at (and
+    /// excluding) the join block `end_block`. The entry block itself is
+    /// excluded — codegen still emits its preceding statements and only
+    /// intercepts its terminator.
+    fn collect_switch_members(&self, entry: &str, end_block: &str) -> Vec<String> {
+        use std::collections::HashSet;
+        let mut members = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        seen.insert(end_block.to_owned());
+        seen.insert(entry.to_owned());
+        let mut queue: Vec<String> = self
+            .blocks
+            .get(entry)
+            .and_then(|b| b.terminator.as_ref())
+            .map(|t| t.successors().iter().map(|s| (*s).to_owned()).collect())
+            .unwrap_or_default();
+        while let Some(name) = queue.pop() {
+            if !seen.insert(name.clone()) {
+                continue;
+            }
+            members.push(name.clone());
+            if let Some(block) = self.blocks.get(&name) {
+                if let Some(term) = &block.terminator {
+                    for succ in term.successors() {
+                        if !seen.contains(succ) {
+                            queue.push(succ.to_owned());
+                        }
+                    }
+                }
+            }
+        }
+        members
     }
 
     // ── try ───────────────────────────────────────────────────────
@@ -624,26 +680,78 @@ mod tests {
         assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
     }
 
-    #[test]
-    fn switch_glob_emits_barrier() {
-        let script = Script::from_statements(vec![Statement::Switch {
-            span: Span::new(0, 30),
+    /// Build a one-arm switch (body reads `$y`) in the given mode.
+    fn glob_regexp_switch(mode: SwitchMode) -> Script {
+        Script::from_statements(vec![Statement::Switch {
+            span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
-            arms: vec![],
+            arms: vec![SwitchArm {
+                pattern: "a*".into(),
+                pattern_span: Span::new(11, 13),
+                body: Some(Script::from_statements(vec![Statement::Call {
+                    span: Span::new(15, 22),
+                    command: "puts".into(),
+                    canonical_command: None,
+                    args: vec!["$y".into()],
+                    defs: vec![],
+                    reads: vec!["y".into()],
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: None,
+                    foreach_groups: None,
+                }])),
+                body_span: Some(Span::new(14, 23)),
+                fallthrough: false,
+            }],
             default_body: None,
             default_span: None,
-            mode: SwitchMode::Glob,
+            mode,
             nocase: false,
-            raw_args: vec!["$x".into(), "a".into(), "{}".into()],
-        }]);
+            raw_args: vec!["$x".into(), "a*".into(), "{puts $y}".into()],
+        }])
+    }
 
-        let func = build_cfg_function("::test", &script, true);
+    #[test]
+    fn switch_glob_creates_branches() {
+        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
+        // No barrier — the entry dispatches via a Branch like exact mode.
         let entry = &func.blocks[&func.entry];
-        assert!(entry.statements.iter().any(|s| matches!(
-            s,
-            Statement::Barrier { reason, .. } if reason.contains("glob")
-        )));
+        assert!(
+            !entry
+                .statements
+                .iter()
+                .any(|s| matches!(s, Statement::Barrier { .. })),
+            "glob switch should no longer lower to a barrier"
+        );
+        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
+        // The dispatch is recorded for the codegen invoke fallback.
+        let sd = func
+            .switch_dispatches
+            .get(&func.entry)
+            .expect("glob dispatch should be recorded");
+        assert_eq!(sd.mode, SwitchMode::Glob);
+        assert_eq!(sd.raw_args, vec!["$x", "a*", "{puts $y}"]);
+        // Member blocks (arm body / dispatch / default) are recorded so
+        // codegen can skip them, but the join block is not a member.
+        assert!(!sd.member_blocks.contains(&sd.end_block));
+        assert!(!sd.member_blocks.contains(&func.entry));
+        assert!(!sd.member_blocks.is_empty());
+    }
+
+    #[test]
+    fn switch_regexp_creates_branches() {
+        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Regexp), true);
+        let entry = &func.blocks[&func.entry];
+        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
+        let sd = func
+            .switch_dispatches
+            .get(&func.entry)
+            .expect("regexp dispatch should be recorded");
+        assert_eq!(sd.mode, SwitchMode::Regexp);
+        // Exact switches are never recorded (they keep the real jump table).
+        let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
+        assert!(exact.switch_dispatches.is_empty());
     }
 
     #[test]

@@ -354,6 +354,31 @@ mod tests {
     }
 
     #[test]
+    fn switch_glob_arm_body_read_counts_as_param_use() {
+        // SYNC-MAY31-2: a `switch -glob`/`-regexp` arm body is now a
+        // real analysed CFG region (it used to vanish into a barrier).
+        // A parameter referenced *only* inside a glob-arm body therefore
+        // has a live def-use chain — the precise path behind W214.
+        // Multi-arg arm form (the single-braced-body form is a separate,
+        // pre-existing lowering gap affecting every mode equally).
+        for (mode, pat) in [("-glob", "a*"), ("-regexp", "a.*")] {
+            let src = format!("proc p {{val}} {{ switch {mode} -- $col {pat} {{puts $val}} }}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::p").expect("proc ::p should exist");
+            let val_live = fu
+                .def_use
+                .chains
+                .iter()
+                .any(|(k, c)| k.0 == "val" && !c.is_dead());
+            assert!(
+                val_live,
+                "{mode} arm-body read `$val` should register a live use; chains: {:?}",
+                fu.def_use.chains.keys().collect::<Vec<_>>(),
+            );
+        }
+    }
+
+    #[test]
     fn return_type_infers_int_literal() {
         let cu = CompilationUnit::build_for("proc f {} { return 1 }", &registry(), false);
         let fu = cu.function("::f").expect("proc ::f");

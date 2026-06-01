@@ -350,6 +350,67 @@ fn switch_dispatch_emits_jump_table() {
 }
 
 #[test]
+fn switch_glob_emits_generic_invoke_not_jump_table() {
+    use tcl_compiler::cfg_builder::build_cfg_function;
+    use tcl_compiler::ir::{SwitchArm, SwitchMode};
+
+    let arm = |pat: &str| SwitchArm {
+        pattern: pat.into(),
+        pattern_span: sp(),
+        body: Some(Script::from_statements(vec![Statement::AssignConst {
+            span: sp(),
+            name: "r".into(),
+            value: "1".into(),
+        }])),
+        body_span: Some(sp()),
+        fallthrough: false,
+    };
+    let make = |mode: SwitchMode| {
+        Script::from_statements(vec![Statement::Switch {
+            span: sp(),
+            subject: "$x".into(),
+            subject_span: sp(),
+            arms: vec![arm("a*"), arm("b*")],
+            default_body: None,
+            default_span: None,
+            mode,
+            nocase: false,
+            raw_args: vec!["$x".into(), "a* {set r 1} b* {set r 1}".into()],
+        }])
+    };
+    let registry = CommandRegistry::build_default();
+
+    // Glob: generic `switch` invoke, never a jump table (glob patterns
+    // are not exact string equality).
+    let glob = build_cfg_function("::top", &make(SwitchMode::Glob), true);
+    let ops: Vec<Op> = codegen_function(&glob, &[], false, &registry)
+        .instructions
+        .iter()
+        .map(|i| i.op)
+        .collect();
+    assert!(
+        !ops.contains(&Op::JUMP_TABLE),
+        "glob switch must not emit a jump table, got {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "glob switch should emit a generic invoke, got {ops:?}"
+    );
+
+    // Exact still compiles to a real jump table.
+    let exact = build_cfg_function("::top", &make(SwitchMode::Exact), true);
+    let exact_ops: Vec<Op> = codegen_function(&exact, &[], false, &registry)
+        .instructions
+        .iter()
+        .map(|i| i.op)
+        .collect();
+    assert!(
+        exact_ops.contains(&Op::JUMP_TABLE),
+        "exact switch should still emit a jump table, got {exact_ops:?}"
+    );
+}
+
+#[test]
 fn foreach_emits_native_opcodes() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
     cfg.blocks

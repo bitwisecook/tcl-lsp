@@ -1943,6 +1943,29 @@ between an inline `STR_EQ` chain for Exact and a runtime
 `Statement::Switch` arm in `lowering` already records `mode` so no
 upstream change is needed.  Classify: in-scope, low-touch.
 
+**Landed (rust).**  `cfg_lower.rs::lower_switch` dropped the
+mode-based barrier short-circuit; all three modes now build the
+structured arm-dispatch + arm-body + default blocks, so SSA recovers
+the subject *and* arm-body variable reads (the W214/W210 path).  Exact
+arms keep a foldable `STR_EQ(subject, pattern)` (the backend still
+builds a real jump table); glob/regexp arms branch on a *non-foldable*
+`ExprNode::Raw { text: subject }` — string equality is the wrong
+predicate for those modes, and a foldable condition would let SCCP
+spuriously kill arms.  A glob/regexp dispatch is recorded in the new
+`cfg::Function::switch_dispatches` map (entry block → `SwitchDispatch
+{ mode, raw_args, end_block, member_blocks }`); codegen
+(`emitter/generate.rs`) consults it to emit a generic `switch` invoke
+(as the old barrier did) and skip the analyser-only member blocks,
+matching tclsh's un-compiled approach for those modes.  (Note: the
+single-braced-body arm form is still lowered to an empty `Script` for
+*every* mode — a separate pre-existing lowering gap, untouched here;
+the multi-arg arm form lowers bodies and is what exercises the SSA
+recovery.)  Tests: `switch_glob_creates_branches` /
+`switch_regexp_creates_branches` (cfg_lower), `switch_glob_arm_body_
+read_counts_as_param_use` (compilation_unit), and
+`switch_glob_emits_generic_invoke_not_jump_table` (codegen
+integration).
+
 ### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
 
 `main` reclassifies `[info exists X]` / `[array exists X]` as
@@ -2500,8 +2523,9 @@ priority queue:
   inlay-hints fix mirrors the same FP family Python just fixed),
   #508 (server-side reposition cache for moved procedures — closes
   with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
-  var scan), `-8` (#494 backslash-continuation folding), and `-10`
-  (#510 inlay-hint optional positionals + `infer_function_return_type`)
+  var scan), `-8` (#494 backslash-continuation folding), `-10`
+  (#510 inlay-hint optional positionals + `infer_function_return_type`),
+  and `-2` (#474 glob/regexp `switch` keeps structured dispatch)
   — see those family sections.  Of the remainder, none are
   *correctness* blockers for the analyser flip.  **Correction to a
   stale note:** earlier rows said "the Rust analyser has no live

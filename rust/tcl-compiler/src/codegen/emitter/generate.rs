@@ -386,6 +386,34 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
 
+        // Glob/regexp switch dispatch: the structured arm blocks exist
+        // only for the analyser. Emit a generic `switch` invoke (as the
+        // old barrier did), jump to the join block, and skip the
+        // member blocks — the runtime invoke subsumes them.
+        if let Some(sd) = cfg.switch_dispatches.get(bname) {
+            let next_block = block_order.get(i + 1).map(String::as_str);
+            let invoke = Statement::Barrier {
+                span: tcl_lexer::Span::new(0, 0),
+                reason: format!("switch -{}", sd.mode.as_str()),
+                command: "switch".into(),
+                canonical_command: None,
+                args: sd.raw_args.clone(),
+                tokens: None,
+            };
+            ctx.emit_stmt_with_start_cmd(&invoke, None, None);
+            if next_block != Some(sd.end_block.as_str()) {
+                ctx.emit_comment(
+                    Op::JUMP4,
+                    vec![Operand::Label(sd.end_block.clone())],
+                    &format!("-> {}", sd.end_block),
+                );
+            }
+            for member in &sd.member_blocks {
+                state.skip_blocks.insert(member.clone());
+            }
+            continue;
+        }
+
         // If/switch arms: keep last statement value on TOS instead of
         // popping — the value is the arm's result.
         if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
