@@ -885,27 +885,21 @@ fn is_valid_string_index(idx: i32) bool {
     if (beg >= end) return false;
     const sp: [*]const u8 = sp0 + beg;
     const len: u32 = end - beg;
-    // Allow ``end`` / ``end-N`` / ``end+N`` (plus optional arithmetic
-    // tail like ``end-1+0`` which C tcl folds at parse time).
+    // ``end`` / ``end±OFFSET`` — OFFSET is a single signed integer
+    // literal (``end+-1`` = end + (-1), ``end--1`` = end - (-1)).  The
+    // resolver folds exactly one offset, so chained tails are rejected.
     if (len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
         if (len == 3) return true;
-        // ``end+N`` / ``end-N`` — N is a signed integer literal (the
-        // offset itself may carry a sign, e.g. ``end+-1`` = end + (-1),
-        // ``end--1`` = end - (-1)), with an optional ``±N`` chain.
         if (sp[3] != '+' and sp[3] != '-') return false;
-        return is_int_arith_tail(sp, len, 4);
+        return is_single_signed_int(sp, len, 4);
     }
-    // Pure integer arithmetic: optional sign, integer literal,
-    // optional ``±N`` continuation.  Integer literals include
-    // decimal, hex (``0x``), octal (``0o``), and binary (``0b``);
-    // bignums also parse here so ``string replace abcd
-    // 0x10000000000000000-0xffffffffffffffff 2 e`` (stringComp-14.26)
-    // makes it to the dispatcher instead of erroring at the syntax
-    // check.
-    var i: u32 = 0;
-    if (sp[i] == '+' or sp[i] == '-') i += 1;
-    if (i >= len) return false;
-    return is_int_arith_tail(sp, len, i);
+    // Integer index: ``[±] int  [ (+|-) [±] int ]`` — one optional
+    // operator, matching the resolver's ``int±int`` fold.  Literals
+    // include decimal, hex (``0x``), octal (``0o``), binary (``0b``),
+    // and explicit-decimal (``0d``); bignums parse too so ``string
+    // replace abcd 0x10000000000000000-0xffffffffffffffff 2 e``
+    // (stringComp-14.26) reaches the dispatcher.
+    return is_signed_int_one_op(sp, len, 0);
 }
 
 fn is_digit_for_base(c: u8, base: u32) bool {
@@ -947,24 +941,38 @@ fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
     return i;
 }
 
-fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+/// A single, optionally-signed integer literal spanning ``sp[start..len]``
+/// exactly.  Used for the ``end±OFFSET`` form, where the resolver folds
+/// one signed offset (``end+-1`` = end + (-1)) — but no further operators.
+fn is_single_signed_int(sp: [*]const u8, len: u32, start: u32) bool {
     var i = start;
-    // The operand may carry its own sign (``end+-1`` / ``-1--2`` —
-    // C Tcl's ``GetEndOffsetFromObj`` parses ``end + (-1)``).
     if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
-    var after0 = consume_integer_literal(sp, len, i);
-    if (after0 == i) return false;
-    i = after0;
-    // Optional ``±N`` continuation runs (each operand may be signed).
-    while (i < len) {
+    const after = consume_integer_literal(sp, len, i);
+    if (after == i) return false;
+    return after == len;
+}
+
+/// ``[±] int  [ (+|-) [±] int ]`` — an integer with at most one trailing
+/// operator and an optionally-signed operand.  This is exactly what
+/// ``resolve_list_index``'s ``int±int`` path evaluates (it folds a single
+/// operator).  Accepting longer chains here would let malformed indices
+/// such as ``-1--2+3`` validate yet resolve to the wrong position
+/// because the resolver only sums the first operator (PR #516 review).
+fn is_signed_int_one_op(sp: [*]const u8, len: u32, start: u32) bool {
+    var i = start;
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    var after = consume_integer_literal(sp, len, i);
+    if (after == i) return false;
+    i = after;
+    if (i < len) {
         if (sp[i] != '+' and sp[i] != '-') return false;
         i += 1;
         if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
-        after0 = consume_integer_literal(sp, len, i);
-        if (after0 == i) return false;
-        i = after0;
+        after = consume_integer_literal(sp, len, i);
+        if (after == i) return false;
+        i = after;
     }
-    return true;
+    return i == len;
 }
 
 fn raise_bad_string_index(idx: i32) void {

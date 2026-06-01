@@ -739,8 +739,11 @@ fn scan_int_obj(v: i64, unsigned: bool) i32 {
     if (unsigned and v < 0) {
         var buf: [20]u8 = undefined;
         const n = fmt_u64(@ptrCast(&buf), 0, @bitCast(v));
-        const addr: u32 = @intCast(@intFromPtr(&buf[0]));
-        return obj_new_string(@bitCast(addr), @bitCast(n));
+        // ``obj_new_string`` borrows its bytes (cap=0), so the stack
+        // buffer must be copied into the obj's own storage rather than
+        // referenced — otherwise the string points at freed stack space.
+        const obj_mod_b = @import("../valtypes/tcl_obj.zig");
+        return obj_mod_b.obj_new_string_copy(@intCast(@intFromPtr(&buf[0])), n);
     }
     return obj_new_int(v);
 }

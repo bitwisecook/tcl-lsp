@@ -49,3 +49,25 @@ def _run(body: str) -> str:
 )
 def test_string_index_grammar(expr: str, expected: str) -> None:
     assert _run(f"puts [{expr}]") == expected
+
+
+@pytest.mark.parametrize(
+    "idx,catch_expected",
+    [
+        # single-operator signed forms remain valid (resolver folds them)
+        ("-1+2", "0:b"),
+        ("end+-1", "0:c"),
+        ("-1--2", "0:b"),
+        # chained operators exceed the resolver's single-operator fold, so
+        # the validator must reject them as a bad index rather than let
+        # them silently resolve to the wrong position (PR #516 review).
+        ("end--1+2", '1:bad index "end--1+2": must be integer?[+-]integer? or end?[+-]integer?'),
+        ("-1--2+3", '1:bad index "-1--2+3": must be integer?[+-]integer? or end?[+-]integer?'),
+    ],
+)
+def test_string_index_rejects_operator_chains(idx: str, catch_expected: str) -> None:
+    # A dynamic subcommand forces the runtime ``string`` command (and its
+    # ``is_valid_string_index`` validator) rather than the compiled
+    # direct-import path.
+    body = f"set sub index\nputs [catch {{string $sub abcd {idx}}} m]:$m"
+    assert _run(body) == catch_expected

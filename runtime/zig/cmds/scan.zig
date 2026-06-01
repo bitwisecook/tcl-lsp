@@ -447,9 +447,16 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
                     while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
                 }
                 if (si < f_limit and (src[si] == 'e' or src[si] == 'E')) {
-                    si += 1;
-                    if (si < f_limit and (src[si] == '+' or src[si] == '-')) si += 1;
-                    while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
+                    // Only consume the exponent when at least one digit
+                    // follows (after an optional sign).  An incomplete
+                    // ``1e`` keeps ``1`` as the float and leaves ``e`` for
+                    // the next conversion (``scan 1e {%f%s}`` → 1 e).
+                    var j = si + 1;
+                    if (j < f_limit and (src[j] == '+' or src[j] == '-')) j += 1;
+                    if (j < f_limit and src[j] >= '0' and src[j] <= '9') {
+                        si = j;
+                        while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
+                    }
                 }
             }
             const tok_len = si - start_si;

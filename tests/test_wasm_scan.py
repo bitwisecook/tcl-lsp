@@ -66,6 +66,10 @@ def test_scan_charset_and_float(source: str, expected: str) -> None:
         ("scan 3.14159 %4f x\nputs $x", "3.14"),
         # Sequential + suppress still work alongside the refactor.
         ('scan {1 2 3} {%d %*d %d} a b\nputs "$a $b"', "1 3"),
+        # Incomplete exponent: %f takes the valid prefix and leaves `e`
+        # for the next conversion rather than failing the whole scan.
+        ('scan 1e {%f%s} a b\nputs "$a $b"', "1.0 e"),
+        ('scan 2.5e {%f%s} a b\nputs "$a $b"', "2.5 e"),
     ],
 )
 def test_scan_xpg_and_width(source: str, expected: str) -> None:

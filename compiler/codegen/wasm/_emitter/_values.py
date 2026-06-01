@@ -688,13 +688,12 @@ class _WasmEmitterValuesMixin(_Base):
         first operand (see ``tcl_cmd_append``'s ``current == 0`` path);
         every subsequent append then mutates that private accumulator,
         leaving all operand objects untouched.  Each ``emit_fns`` entry
-        is a zero-arg callable that pushes one operand TclObj.  Leaves an
-        OWNED TclObj on the stack.
+        is a zero-arg callable that pushes one operand TclObj.  Always
+        leaves an OWNED TclObj on the stack — including the single-operand
+        case, which still seeds the null accumulator so a borrowed
+        ``$var`` operand (e.g. ``string cat $x``) is copied rather than
+        returned borrowed (callers rely on the OWNED contract).
         """
-        if len(emit_fns) == 1:
-            # Single operand — no accumulator, no mutation hazard.
-            emit_fns[0]()
-            return
         self._emit_i32_const(0)
         for fn in emit_fns:
             fn()
