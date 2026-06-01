@@ -111,6 +111,14 @@ opt(
     opt_category="constant_folding",
 )
 opt(
+    code="O129",
+    description=(
+        "Fold a pure builtin command substitution with constant arguments "
+        "(`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …)."
+    ),
+    opt_category="constant_folding",
+)
+opt(
     code="O120",
     description="Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
     opt_category="readability",
@@ -266,6 +274,29 @@ def optimise_expression_args(
             )
 
 
+def _fold_builtin_cmd_subst(
+    cmd_text: str,
+    ssa_uses: dict[str, int] | None,
+    values: dict | None,
+) -> str | None:
+    """Constant-fold a pure builtin ``[cmd args]`` to a safe Tcl word, or None.
+
+    Delegates to the shared registry folder (the same one SCCP uses) so a
+    command folds here exactly when SCCP would treat its result as a constant;
+    the value is then rendered as a single brace/escape-quoted word.
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    # ``cmd_text`` is the CMD token body (no surrounding brackets); the folder
+    # parses the ``[cmd ...]`` substitution form and returns the command's
+    # exact string output (no numeric coercion — ``format %5.2f`` keeps its
+    # leading-space padding).  Render it as one safe Tcl word.
+    result = fold_cmd_subst_to_string(f"[{cmd_text}]", ssa_uses or {}, values or {})
+    if result is None:
+        return None
+    return tcl_list_quote(result, first=False)
+
+
 def optimise_expr_substitutions(
     ctx: PassContext,
     arg_tokens: list[Token],
@@ -306,6 +337,24 @@ def optimise_expr_substitutions(
                     message="Fold constant lindex command",
                     range=_command_subst_range(tok),
                     replacement=lindex_result,
+                )
+            )
+            continue
+
+        # O129: fold any *other* pure builtin command substitution whose args
+        # are all constant, via the registry const_fold callbacks (string /
+        # llength / lrange / join / split / concat / format / dict / ...).  The
+        # callbacks are verified byte-identical to C Tcl 9
+        # (tests/test_const_fold_vs_tcl.py); the result is rendered as a single
+        # safe Tcl word so it can replace the substitution in any word position.
+        general = _fold_builtin_cmd_subst(tok.text, ssa_uses, values)
+        if general is not None:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O129",
+                    message="Fold constant command substitution",
+                    range=_command_subst_range(tok),
+                    replacement=general,
                 )
             )
             continue

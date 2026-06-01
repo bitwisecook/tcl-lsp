@@ -239,6 +239,7 @@ class TclLspSettingsPanel {
     private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
     private val optO127 = JBCheckBox("O127: Inline single-use variable assignment")
     private val optO128 = JBCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...")
+    private val optO129 = JBCheckBox("O129: Fold a pure builtin command substitution with consta...")
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -416,7 +417,7 @@ class TclLspSettingsPanel {
             optO106, optO107, optO108, optO109, optO110, optO111,
             optO112, optO113, optO114, optO115, optO116, optO117,
             optO118, optO119, optO120, optO121, optO122, optO123,
-            optO124, optO125, optO126, optO127, optO128,
+            optO124, optO125, optO126, optO127, optO128, optO129,
         ).forEach { optPanel.add(it) }
         builder.addComponent(optPanel)
         // @generated:opt-ui:end
@@ -656,6 +657,7 @@ class TclLspSettingsPanel {
             optO126.isSelected != s.optimiserO126 ||
             optO127.isSelected != s.optimiserO127 ||
             optO128.isSelected != s.optimiserO128 ||
+            optO129.isSelected != s.optimiserO129 ||
             // @generated:opt-dirty:end
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
@@ -876,6 +878,7 @@ class TclLspSettingsPanel {
         s.optimiserO126 = optO126.isSelected
         s.optimiserO127 = optO127.isSelected
         s.optimiserO128 = optO128.isSelected
+        s.optimiserO129 = optO129.isSelected
         // @generated:opt-apply:end
 
         s.shimmerEnabled = shimmerEnabled.isSelected
@@ -1112,6 +1115,7 @@ class TclLspSettingsPanel {
         optO126.isSelected = s.optimiserO126
         optO127.isSelected = s.optimiserO127
         optO128.isSelected = s.optimiserO128
+        optO129.isSelected = s.optimiserO129
         // @generated:opt-reset:end
 
         shimmerEnabled.isSelected = s.shimmerEnabled

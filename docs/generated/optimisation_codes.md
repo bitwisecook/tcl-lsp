@@ -31,6 +31,7 @@
 | O126 | dce | Remove unused variable assignments — eliminate `set` statements for variables that are never read. |  |  | ✓ |
 | O127 | code_motion | Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. |  |  | ✓ |
 | O128 | readability | Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument. | ✓ | ✓ | ✓ |
+| O129 | constant_folding | Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …). |  | ✓ | ✓ |
 
 **Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
 progressively more passes (single-pass). `aggressive` = `full` with multi-pass

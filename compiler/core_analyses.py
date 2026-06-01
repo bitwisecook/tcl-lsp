@@ -674,6 +674,39 @@ def _try_fold_cmd_subst(
     Uses registry-based fold callbacks from ``FOLD_HINTS`` /
     ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
     is foldable with all-constant arguments, or ``None`` if not.
+
+    The lattice value is numeric where the result *looks* numeric (so SCCP can
+    reason about ``[llength ...] + 1`` etc.).  Callers that must reproduce the
+    command's exact string output (e.g. the O129 source rewrite) should use
+    :func:`fold_cmd_subst_to_string`, which skips that coercion — ``format
+    %5.2f`` yields the string ``" 3.14"`` whose canonical float rep ``3.14``
+    differs.
+    """
+    raw = fold_cmd_subst_to_string(value, uses, values)
+    if raw is None:
+        return None
+    parsed = _parse_literal_value(raw)
+    # Keep the *exact* output string whenever parsing would change its form —
+    # ``format`` padding / leading zeros / leading space (``" 3.14"`` → ``3.14``,
+    # ``"007"`` → ``7``).  In those cases the string itself is the constant;
+    # coercing would lose the formatting when it's propagated back to source.
+    # Only adopt the parsed (possibly numeric) form when it round-trips exactly,
+    # so SCCP still gets ``int``/``float`` values for ``[llength ...] + 1`` etc.
+    if str(parsed) != raw:
+        return LatticeValue.const(raw)
+    return LatticeValue.const(parsed)
+
+
+def fold_cmd_subst_to_string(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> str | None:
+    """Constant-fold ``[cmd args...]`` to its exact string result, or ``None``.
+
+    Same registry fold callbacks as :func:`_try_fold_cmd_subst`, but returns
+    the callback's raw string (no numeric coercion), so the caller can render
+    the command's output byte-for-byte.
     """
     parsed = _parse_cmd_subst(value)
     if parsed is None:
@@ -737,7 +770,7 @@ def _try_fold_cmd_subst(
     # We only reject characters that break command parsing.
     if any(ch in ';\n[$"\\' for ch in result):
         return None
-    return LatticeValue.const(_parse_literal_value(result))
+    return result
 
 
 def _evaluate_def(

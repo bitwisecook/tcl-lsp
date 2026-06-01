@@ -796,6 +796,12 @@ export const OPTIMISATIONS: OptimisationDef[] = [
       "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument.",
     defaultEnabled: true,
   },
+  {
+    code: "O129",
+    description:
+      "Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …).",
+    defaultEnabled: true,
+  },
 ];
 
 export const SECTION_TITLES: Record<string, string> = {
