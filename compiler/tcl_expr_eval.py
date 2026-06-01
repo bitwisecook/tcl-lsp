@@ -218,6 +218,20 @@ _IRULES_STRING_OPS = frozenset(
     }
 )
 
+# ``eq`` / ``ne`` / ``lt`` / ``gt`` / ``le`` / ``ge`` always compare their
+# operands *as strings* (unlike ``==``/``!=``), so a constant fold must extract
+# string operands — evaluating ``"x"`` numerically yields nothing.
+_STRING_COMPARE_OPS = frozenset(
+    {
+        BinOp.STR_EQ,
+        BinOp.STR_NE,
+        BinOp.STR_LT,
+        BinOp.STR_LE,
+        BinOp.STR_GT,
+        BinOp.STR_GE,
+    }
+)
+
 
 def _eval_binary(
     op: BinOp,
@@ -257,6 +271,17 @@ def _eval_binary(
         if rs is None:
             return None
         return _apply_irules_string_op(op, ls, rs)
+
+    # ``eq``/``ne``/``lt``/``gt``/``le``/``ge`` — string comparison: extract
+    # string operands (so ``"x" ne "y"`` and ``5 eq "5"`` fold) and compare.
+    if op in _STRING_COMPARE_OPS:
+        ls = _eval_as_string(left, env)
+        if ls is None:
+            return None
+        rs = _eval_as_string(right, env)
+        if rs is None:
+            return None
+        return _apply_binary(op, ls, rs)
 
     # All other operators evaluate both sides
     lv = _eval(left, env)

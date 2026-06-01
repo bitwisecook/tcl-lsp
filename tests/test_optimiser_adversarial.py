@@ -209,6 +209,34 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
         "proc f {} {set s a\nappend s b\nappend s c\nreturn $s}\nputs [f]",
         "return abc",
     ),
+    # Builtin command substitutions fold (O129).
+    "builtin_cmdsub_fold": (
+        "puts [string length abcde]",
+        "puts 5",
+    ),
+    "format_padding_fold": (
+        "puts [format %03d 7]",
+        "puts 007",
+    ),
+    # A constant read *inside* a direct `[expr {...}]` command sub propagates
+    # and folds (the SSA "gap B" reads, now recovered via reaching versions).
+    "expr_cmdsub_const_prop": (
+        "proc f {} {set x 5\nreturn [expr {$x + 1}]}\nputs [f]",
+        "return 6",
+    ),
+    "expr_cmdsub_identity": (
+        "proc f {} {set x 5\nreturn [expr {$x * 1}]}\nputs [f]",
+        "return 5",
+    ),
+    # Constant string comparison (`eq`/`ne`/`lt`/…) folds.
+    "string_ne_fold": (
+        'puts [expr {"x" ne "y"}]',
+        "puts 1",
+    ),
+    "string_lt_fold": (
+        'puts [expr {"a" lt "b"}]',
+        "puts 1",
+    ),
 }
 
 

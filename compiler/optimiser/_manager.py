@@ -141,6 +141,37 @@ def _safe_string_constants(
     return safe
 
 
+def _augment_expr_subst_constants(
+    constants: dict[str, str],
+    argv_texts: list[str],
+    reach_versions: dict[str, int],
+    values,
+) -> None:
+    """Fold in constants read *inside* expr/body command substitutions.
+
+    The SSA use-collector deliberately keeps reads hidden in ``[expr {$x}]``
+    (and BODY scripts nested in substitutions) out of ``stmt.uses`` so
+    read-before-set isn't perturbed — which also hides them from
+    :func:`_constants_from_uses`.  Recover those names and, using their
+    *reaching* SSA version, fold in any SCCP-known constant.  This lets the
+    expr-substitution pass propagate + fold a direct ``puts [expr {$x + 1}]``
+    the same way it already does for ``set y [expr {$x + 1}]`` (whose expr
+    reads *are* in ``uses``).
+    """
+    from compiler.ssa import expr_substitution_read_names
+
+    names = expr_substitution_read_names(argv_texts)
+    if not names:
+        return
+    extra_uses = {n: reach_versions[n] for n in names if reach_versions.get(n, 0) > 0}
+    if not extra_uses:
+        return
+    # Reuse the same CONST-check + formatting as the uses-based path; don't
+    # override a value already present from real uses.
+    for name, value in _constants_from_uses(extra_uses, values).items():
+        constants.setdefault(name, value)
+
+
 class _CompilerOptimiser:
     def __init__(self) -> None:
         self._interproc = InterproceduralAnalysis(procedures={})
@@ -338,7 +369,13 @@ class _CompilerOptimiser:
             if ssa_block is None:
                 continue
 
+            # Reaching SSA version of each variable as we walk the block, so a
+            # read hidden inside an expr/body command substitution (absent from
+            # ``stmt.uses``) can be resolved to its current value.
+            running_versions: dict[str, int] = dict(getattr(ssa_block, "entry_versions", {}) or {})
             for idx, ssa_stmt in enumerate(ssa_block.statements):
+                reach_versions = running_versions
+                running_versions = {**running_versions, **ssa_stmt.defs}
                 if idx < 0 or idx >= len(block.statements):
                     continue
                 stmt = block.statements[idx]
@@ -358,6 +395,9 @@ class _CompilerOptimiser:
                 arg_tokens = argv_tokens[1:]
                 arg_single = argv_single[1:]
                 constants = _constants_from_uses(ssa_stmt.uses, analysis.values)
+                _augment_expr_subst_constants(
+                    constants, argv_texts, reach_versions, analysis.values
+                )
                 stmt_start = stmt_range.start.offset
                 if constants:
                     for kill_offset, var_name in kill_sites:

@@ -1330,12 +1330,15 @@ class TestStringCompareEqNe:
         assert not any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_both_string_typed(self):
+        # Both operands are SCCP constants ("foo", "bar"), so the comparison
+        # now folds outright -- "foo" != "bar" -> the condition is constant
+        # false.  (That is strictly better than the O120 ==/eq rewrite, which
+        # is still exercised for *non-constant* operands by the other tests
+        # above, e.g. test_rewrites_ne_in_expr_command_substitution.)
         source = "set a foo\nset b bar\nif {$a == $b} {}"
-        optimised, rewrites = optimise_source(source)
-        # O105 may propagate constants, giving "foo" eq "bar"
-        assert "eq" in optimised
+        optimised, _rewrites = optimise_source(source)
         assert "==" not in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        assert "eq" not in optimised  # the constant compare is gone, not rewritten
 
     def test_var_vs_var_one_const_non_numeric_IS_rewritten(self):
         """D5-O120: SCCP CONST proves the runtime value is non-numeric.
