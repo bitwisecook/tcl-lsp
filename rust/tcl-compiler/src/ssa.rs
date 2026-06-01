@@ -542,7 +542,7 @@ fn is_braced_arg(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
 /// Body-carrying options for `tcltest::test`.
 const TCLTEST_BODY_OPTIONS: &[&str] = &["-setup", "-body", "-cleanup"];
 
-fn structural_body_indices(
+pub(crate) fn structural_body_indices(
     command: &str,
     args: &[String],
     tokens: Option<&CommandTokens>,

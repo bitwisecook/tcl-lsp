@@ -1631,9 +1631,21 @@ Structural new surfaces (no Rust mirror today):
     tests (local/global/ns binding, literal vs dynamic element, upvar
     alias owner, trace→observed, the `a(k)`≠`a(j)` resolve→overlap
     integration).  No consumer wired yet → output-equivalent.
-  - Stage 3 (next): `tcl-compiler::place_bridge` (`def_places` / `read_places`
-    / `terminator_read_places` + `build_resolve_context`).
-  - Stage 4 (output-changing): reroute the W220 dead-store / W211 unused
+  - **Stage 3 (done): `tcl-compiler::place_bridge`.**  Faithful port of
+    `place_bridge.py` — `build_resolve_context` (scans the CFG for
+    `global` / `variable` / `upvar` / `trace` decls), `def_places`,
+    `read_places` (element-granular `$`-refs via a new
+    `var_refs::scan_var_ref_forms` *forms* scanner; VAR_READ-role name
+    args incl. whole-array `array get`; `places_read_to_form` for
+    dynamic index/name reads; structural proc/method bodies skipped by
+    reusing `ssa::structural_body_indices`), and `terminator_read_places`
+    (branch conditions + non-braced returns).  New helpers:
+    `var_refs::{scan_var_ref_forms, command_subst_texts}` and
+    `ExprNode::command_texts`.  5 bridge tests + helper tests, including
+    the end-to-end check that `set a(k) 1; set a(j) 2; puts $a(k)`
+    produces an `a(k)` def observed by a read while `a(j)` is observed by
+    none.  No consumer wired yet → output-equivalent.
+  - Stage 4 (next, output-changing): reroute the W220 dead-store / W211 unused
     / O109 DCE consumers through `overlap`; gated on the full suite +
     the array-element FP regression test (`set a(k) 1; set a(j) 2; puts
     $a(k)` no longer emits W220 on `a(k)`, while the scalar dead store

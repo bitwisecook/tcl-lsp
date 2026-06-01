@@ -363,6 +363,48 @@ impl ExprNode {
         result
     }
 
+    /// Collect the raw text of every command substitution in this expr AST
+    /// (each an `[cmd …]` form, brackets included).  Used to recover the side
+    /// effects / reads of command substitutions evaluated inside an
+    /// expression — they run in the current scope.  Mirrors Python's
+    /// `command_texts_in_expr_node`.
+    #[must_use]
+    pub fn command_texts(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        self.collect_command_texts(&mut out);
+        out
+    }
+
+    fn collect_command_texts(&self, out: &mut Vec<String>) {
+        match self {
+            Self::Command { text, .. } => {
+                if !text.is_empty() {
+                    out.push(text.clone());
+                }
+            }
+            Self::Binary { left, right, .. } => {
+                left.collect_command_texts(out);
+                right.collect_command_texts(out);
+            }
+            Self::Unary { operand, .. } => operand.collect_command_texts(out),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                condition.collect_command_texts(out);
+                true_branch.collect_command_texts(out);
+                false_branch.collect_command_texts(out);
+            }
+            Self::Call { args, .. } => {
+                for arg in args {
+                    arg.collect_command_texts(out);
+                }
+            }
+            Self::Var { .. } | Self::Literal { .. } | Self::String { .. } | Self::Raw { .. } => {}
+        }
+    }
+
     /// Recursive variable collection helper.
     fn collect_vars(&self, out: &mut HashSet<String>) {
         match self {

@@ -94,6 +94,7 @@ pub mod naming;
 pub mod optimiser;
 pub mod path_concat;
 pub mod place;
+pub mod place_bridge;
 pub mod rendered_properties;
 pub mod sccp;
 pub mod segmenter;

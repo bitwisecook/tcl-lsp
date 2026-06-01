@@ -240,6 +240,85 @@ pub fn vars_in_expr(expr: &crate::expr_ast::ExprNode) -> BTreeSet<String> {
     expr.vars().into_iter().collect()
 }
 
+/// De-sigil a `VAR`-token's source text, keeping any array-index suffix.
+///
+/// `$a(k)` → `a(k)`, `${a(k)}` → `a(k)`, `${a}` → `a`, `$a` → `a`.  Unlike
+/// [`normalise_var_name`], the `(idx)` suffix is preserved so the form can be
+/// classified as a scalar vs an array element by `var_resolve::resolve_place`.
+fn deref_form(text: &str) -> &str {
+    if let Some(inner) = text.strip_prefix("${") {
+        inner.strip_suffix('}').unwrap_or(inner)
+    } else {
+        text.strip_prefix('$').unwrap_or(text)
+    }
+}
+
+fn collect_ref_forms(text: &str, out: &mut Vec<String>) {
+    if text.is_empty() {
+        return;
+    }
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        return;
+    };
+    for tok in &tokens {
+        match tok.kind {
+            TokenType::Var => {
+                let form = deref_form(source_map.token_text(*tok));
+                if !form.is_empty() {
+                    out.push(form.to_owned());
+                }
+            }
+            TokenType::Cmd => {
+                let inner = source_map.token_text(*tok);
+                if !inner.is_empty() {
+                    collect_ref_forms(inner, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Return the *full* variable-reference forms read in *text* — keeping the
+/// array-index suffix that [`VarReferenceScanner`] normalises away.
+///
+/// `$a` → `"a"`, `$a(k)` → `"a(k)"`, `$state($whom)` → `"state($whom)"`.
+/// Recurses into `[...]` command substitutions.  Unlike the name-set scanners,
+/// this preserves enough structure for `var_resolve::resolve_place` to
+/// distinguish a scalar from an array element from a dynamic ref.  Mirrors
+/// `compiler/var_refs.py::scan_var_ref_forms`.
+#[must_use]
+pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    collect_ref_forms(text, &mut out);
+    out
+}
+
+/// Return the inner text of every top-level `[...]` command substitution in
+/// *text* (without the surrounding brackets).  Used by the place bridge to
+/// recover the reads of commands nested in an argument word.
+#[must_use]
+pub fn command_subst_texts(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    if !text.contains('[') {
+        return out;
+    }
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        return out;
+    };
+    for tok in &tokens {
+        if tok.kind == TokenType::Cmd {
+            let inner = source_map.token_text(*tok);
+            if !inner.is_empty() {
+                out.push(inner.to_owned());
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,6 +333,29 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("$x", &reg);
         assert!(vars.contains("x"), "should find $x; got {vars:?}");
+    }
+
+    #[test]
+    fn scan_var_ref_forms_keeps_array_index() {
+        // Unlike the name scanner, forms preserve the `(idx)` suffix.
+        assert_eq!(scan_var_ref_forms("$a(k)"), vec!["a(k)".to_owned()]);
+        assert_eq!(scan_var_ref_forms("${a(k)}"), vec!["a(k)".to_owned()]);
+        assert_eq!(scan_var_ref_forms("$x"), vec!["x".to_owned()]);
+        assert_eq!(
+            scan_var_ref_forms("$x + $a($i)"),
+            vec!["x".to_owned(), "a($i)".to_owned()]
+        );
+        // recurses into command substitutions
+        assert_eq!(scan_var_ref_forms("[foo $b]"), vec!["b".to_owned()]);
+    }
+
+    #[test]
+    fn command_subst_texts_extracts_inner() {
+        assert_eq!(
+            command_subst_texts("foo [bar $x] baz"),
+            vec!["bar $x".to_owned()]
+        );
+        assert!(command_subst_texts("no subst here").is_empty());
     }
 
     #[test]
