@@ -252,9 +252,16 @@ fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []
                         const bn = @import("../valtypes/tcl_bignum.zig");
                         const parsed = bn.parse_i128(arg_s.ptr + elem.start, elem.len);
                         if (parsed) |p| {
-                            if (p > @as(i128, std.math.maxInt(i64))) break :blk @as(i64, std.math.maxInt(i64));
-                            if (p < @as(i128, std.math.minInt(i64))) break :blk @as(i64, std.math.minInt(i64));
-                            break :blk @as(i64, @intCast(p));
+                            // Tcl packs the integer's low N*8 bits regardless
+                            // of sign or magnitude (``write_le`` / ``write_be``
+                            // mask to ``nbytes``).  Wrap to the low 64 bits
+                            // rather than saturating to the i64 range —
+                            // saturation corrupted values >= 2^63 such as
+                            // ``binary format w 0x8000000000000000`` (which
+                            // clipped to 0x7fff…ffff = a NaN bit pattern when
+                            // re-read as a double; util-10.*).
+                            const low64: u64 = @truncate(@as(u128, @bitCast(p)));
+                            break :blk @as(i64, @bitCast(low64));
                         }
                         break :blk 0;
                     } else 0;
@@ -435,6 +442,15 @@ fn eval_binary_scan(words: []const i32) i32 {
         const spec = fmt[fi];
         fi += 1;
 
+        // Tcl 8.5+ unsigned modifier: a ``u`` immediately after an
+        // integer type letter (``cu`` / ``su`` / ``iu`` / ``wu`` / …)
+        // scans the value as unsigned.  It precedes the optional count.
+        var force_unsigned = false;
+        if (fi < fmt_len and fmt[fi] == 'u') {
+            force_unsigned = true;
+            fi += 1;
+        }
+
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
@@ -511,10 +527,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                 const cnt: u32 = count_or_null orelse
                     if (nbytes > 0) (src_len -| off) / nbytes else 0;
                 const big_end = is_be(spec);
-                const signed = switch (spec) {
-                    'C' => false,
-                    else => true,
-                };
+                // ``C`` is unsigned 8-bit; every other type is signed
+                // unless the ``u`` modifier (8.5+) forces unsigned.
+                const signed = !force_unsigned and spec != 'C';
 
                 if (cnt == 1) {
                     // Scalar: assign single value to variable.
@@ -525,7 +540,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                         (if (signed) read_le_signed(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                     off += nbytes;
                     if (words.len > 3 + vi) {
-                        _ = frames.var_set(words[3 + vi], obj_new_int(v));
+                        _ = frames.var_set(words[3 + vi], scan_int_obj(v, !signed));
                         vi += 1;
                         assigned += 1;
                     }
@@ -548,8 +563,13 @@ fn eval_binary_scan(words: []const i32) i32 {
                             list_dst[list_off] = ' ';
                             list_off += 1;
                         }
-                        // Format the integer as decimal.
-                        list_off += fmt_i64(list_dst, list_off, v);
+                        // Format the integer as decimal — unsigned for a
+                        // high-bit-set ``wu`` / ``mu`` element (exceeds i64).
+                        if (!signed and v < 0) {
+                            list_off += fmt_u64(list_dst, list_off, @bitCast(v));
+                        } else {
+                            list_off += fmt_i64(list_dst, list_off, v);
+                        }
                     }
                     if (words.len > 3 + vi) {
                         _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
@@ -688,6 +708,41 @@ fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
     const digits = 20 - pos;
     for (0..digits) |k| dst[off + len + k] = buf[pos + k];
     return len + digits;
+}
+
+/// Format an unsigned 64-bit integer as decimal into ``dst[off..]``.
+/// Used by the ``u`` scan modifier for 64-bit (``wu`` / ``mu``) values
+/// whose high bit is set — they exceed ``i64`` so the signed formatter
+/// would print a negative number.  Returns the number of bytes written.
+fn fmt_u64(dst: [*]u8, off: u32, val: u64) u32 {
+    if (val == 0) {
+        dst[off] = '0';
+        return 1;
+    }
+    var buf: [20]u8 = undefined;
+    var pos: u32 = 20;
+    var v: u64 = val;
+    while (v > 0) : (v /= 10) {
+        pos -= 1;
+        buf[pos] = @intCast('0' + (v % 10));
+    }
+    const digits = 20 - pos;
+    for (0..digits) |k| dst[off + k] = buf[pos + k];
+    return digits;
+}
+
+/// Build the TclObj for a scanned integer, honouring the ``u`` modifier
+/// for the 64-bit case: a high-bit-set ``wu`` / ``mu`` value exceeds
+/// ``i64`` and must be returned as its unsigned decimal string rather
+/// than a negative integer.
+fn scan_int_obj(v: i64, unsigned: bool) i32 {
+    if (unsigned and v < 0) {
+        var buf: [20]u8 = undefined;
+        const n = fmt_u64(@ptrCast(&buf), 0, @bitCast(v));
+        const addr: u32 = @intCast(@intFromPtr(&buf[0]));
+        return obj_new_string(@bitCast(addr), @bitCast(n));
+    }
+    return obj_new_int(v);
 }
 
 // ─── top-level dispatcher ────────────────────────────────────────────────────
