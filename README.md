@@ -653,6 +653,15 @@ labelled `block` / `loop` / `if` for each Tcl construct (`foreach`,
 above every instruction group, and orthogonal control-flow arrows in the
 left gutter.
 
+The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
+(`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR
+statement, CFG block, or bytecode instruction — rather than raw text, so
+byte offsets, source ranges, sequence indices, and tree-connector glyphs
+that merely shift when the optimiser adds or removes a node are ignored.
+A single rewrite then shows as a single localised change instead of every
+following line being flagged.  The `tcl-explorer` CLI and TUI render the
+same offset-free diff via `--opt diff`.
+
 ```
 ┌─────────────────────────────────────────────────┐
 │  IR  │  CFG  │  SSA  │  Optimiser  │  Bytecode  │
