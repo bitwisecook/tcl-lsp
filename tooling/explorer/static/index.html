@@ -1452,12 +1452,15 @@ function renderShimmer() {
   let html='<div class="section-header">Warnings</div>';
   for(const w of data.shimmer){
     const sev = w.severity || 'warning';
-    html+=`<div class="shimmer-item shimmer-${sev}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+    const head=`<div class="shimmer-item shimmer-${sev}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+    const detail=detailRow('code',w.code)+detailRow('severity',sev)+detailRow('message',w.message)+rangeDetail(w.range);
+    html+=xpand(head,detail);
   }
   html+='<div class="section-header">Involved Lines</div>'+buildShimmerLinesView();
   pane.innerHTML=html;
   setupHoverHighlighting(pane);
   setupShimmerItemLineScroll(pane);
+  setupExpandable(pane);
 }
 
 function buildShimmerLinesView() {

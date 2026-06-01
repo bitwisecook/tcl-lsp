@@ -399,9 +399,11 @@ function renderGvn() {
   if(!data.gvn.length){pane.innerHTML='<div class="empty-state">No redundant computations detected</div>';return;}
   var html='';
   for(var w of data.gvn){
-    html+='<div class="gvn-item"'+sourceRangeAttrs(w.range)+'><span class="gvn-code">'+esc(w.code)+'</span> '+esc(w.message||'redundant computation')+' <span class="gvn-expr">'+esc(w.expression)+'</span> <span class="gvn-first">[first: '+spanLabel(w.firstRange)+']</span> <span style="color:var(--text-dim); font-size:10px">['+spanLabel(w.range)+']</span></div>';
+    var head='<div class="gvn-item"'+sourceRangeAttrs(w.range)+'><span class="gvn-code">'+esc(w.code)+'</span> '+esc(w.message||'redundant computation')+' <span class="gvn-expr">'+esc(w.expression)+'</span> <span class="gvn-first">[first: '+spanLabel(w.firstRange)+']</span> <span style="color:var(--text-dim); font-size:10px">['+spanLabel(w.range)+']</span></div>';
+    var detail=detailRow('code',w.code)+detailRow('message',w.message||'redundant computation')+detailRow('expression',w.expression)+detailRow('first seen',spanLabel(w.firstRange))+rangeDetail(w.range);
+    html+=xpand(head,detail);
   }
-  pane.innerHTML=html;setupHoverHighlighting(pane);
+  pane.innerHTML=html;setupHoverHighlighting(pane);setupExpandable(pane);
 }
 
 // Taint
@@ -418,10 +420,13 @@ function renderTaint() {
       // the renderer just maps it to a CSS class.  Falls back to "warning"
       // when the backend didn't classify (older payloads / unit tests).
       var severity = w.severity || 'warning';
-      html+='<div class="taint-item taint-'+severity+'"'+sourceRangeAttrs(w.range)+'><span class="taint-code">'+esc(w.code)+'</span> '+esc(w.message)+' ';
-      if(w.variable)html+='<span style="color:var(--orange)">'+esc(w.variable)+'</span> ';
-      if(w.sinkCommand)html+='<span style="color:var(--red)">\u2192 '+esc(w.sinkCommand)+'</span> ';
-      html+='<span style="color:var(--text-dim); font-size:10px">['+spanLabel(w.range)+']</span></div>';
+      var head='<div class="taint-item taint-'+severity+'"'+sourceRangeAttrs(w.range)+'><span class="taint-code">'+esc(w.code)+'</span> '+esc(w.message)+' ';
+      if(w.variable)head+='<span style="color:var(--orange)">'+esc(w.variable)+'</span> ';
+      if(w.sinkCommand)head+='<span style="color:var(--red)">\u2192 '+esc(w.sinkCommand)+'</span> ';
+      head+='<span style="color:var(--text-dim); font-size:10px">['+spanLabel(w.range)+']</span></div>';
+      var detail=detailRow('code',w.code)+detailRow('severity',severity)+detailRow('message',w.message)+
+        (w.variable?detailRow('variable',w.variable):'')+(w.sinkCommand?detailRow('sink command',w.sinkCommand):'')+rangeDetail(w.range);
+      html+=xpand(head,detail);
     }
   }
   if(hasTracking){
@@ -429,11 +434,14 @@ function renderTaint() {
     for(var func of data.taintTracking){
       html+='<div class="proc-card">';
       html+='<div class="proc-name">'+esc(func.name)+'</div>';
-      for(var e of func.entries){html+='<div class="taint-tracking-var">'+esc(e.variable)+'#'+e.version+': <span class="taint-val">'+esc(e.taint)+'</span></div>';}
+      for(var e of func.entries){
+        var thead='<div class="taint-tracking-var">'+esc(e.variable)+'#'+e.version+': <span class="taint-val">'+esc(e.taint)+'</span></div>';
+        html+=xpand(thead,detailRow('variable',e.variable)+detailRow('version',e.version)+detailRow('taint',e.taint));
+      }
       html+='</div>';
     }
   }
-  pane.innerHTML=html;setupHoverHighlighting(pane);
+  pane.innerHTML=html;setupHoverHighlighting(pane);setupExpandable(pane);
 }
 
 // Types
@@ -446,11 +454,14 @@ function renderTypes() {
     html+='<div class="proc-name">'+esc(func.name)+'</div>';
     for(var e of func.entries){
       var label=e.variable.startsWith('(')?e.variable:e.variable+'#'+e.version;
-      html+='<div class="type-entry"><span class="type-var">'+esc(label)+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
+      var head='<div class="type-entry"><span class="type-var">'+esc(label)+'</span><span class="type-val type-'+e.kind+'">'+esc(e.type)+'</span></div>';
+      var detail=detailRow('variable',e.variable)+detailRow('version',e.version)+detailRow('kind',e.kind)+detailRow('type',e.type);
+      html+=xpand(head,detail);
     }
     html+='</div>';
   }
   pane.innerHTML=html;
+  setupExpandable(pane);
 }
 
 // Rendered Properties
@@ -466,11 +477,14 @@ function renderRendered() {
       var may=e.may.length?'may: '+e.may.join(', '):'';
       var must=e.must.length?'must: '+e.must.join(', '):'';
       var parts=[may,must].filter(function(x){return x;}).join(' | ');
-      html+='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val" style="color:var(--cyan)">'+esc(parts)+'</span></div>';
+      var head='<div class="type-entry"><span class="type-var">'+esc(e.variable)+'#'+e.version+'</span><span class="type-val" style="color:var(--cyan)">'+esc(parts)+'</span></div>';
+      var detail=detailRow('variable',e.variable)+detailRow('version',e.version)+detailRow('may',e.may.join(', ')||'—')+detailRow('must',e.must.join(', ')||'—');
+      html+=xpand(head,detail);
     }
     html+='</div>';
   }
   pane.innerHTML=html;
+  setupExpandable(pane);
 }
 
 // Generic expand-on-click / Space|Enter for explorer items.
@@ -502,6 +516,20 @@ function setupExpandable(container) {
 function detailRow(k, v) {
   return '<div class="xpand-detail-row"><span class="xpand-detail-k">' + esc(k) +
          '</span><span class="xpand-detail-v">' + esc(String(v)) + '</span></div>';
+}
+
+// Non-destructively wrap an existing item's markup so it expands to a detail
+// block on click / Space.  ``headHtml`` is the item exactly as it rendered
+// before (keeping its class, data-start hover and other hooks intact); the
+// detail is a sibling that only shows when the wrapper is expanded.  Lets us
+// retrofit expand-to-detail onto a tab without restructuring its items.
+function xpand(headHtml, detailHtml) {
+  return '<div class="xpand xpand-wrap" tabindex="0">' + headHtml +
+         '<div class="xpand-detail">' + detailHtml + '</div></div>';
+}
+function rangeDetail(range) {
+  if (!range) return '';
+  return detailRow('range', spanLabel(range) + '  (' + range.startOffset + '…' + range.endOffset + ')');
 }
 
 // Optimisation lens (off / on / diff) for the structured IR & CFG tabs.
@@ -765,14 +793,18 @@ function renderDataFlow() {
     html+='<div class="analysis-entry" style="color:var(--cyan)">def-use chains:</div>';
     for(var n of func.nodes){
       var cls=n.isDead?'color:var(--yellow)':'color:var(--green)';
-      html+='<div class="analysis-entry" style="margin-left:12px; '+cls+'">';
-      html+=esc(n.name)+'#'+n.version;
-      html+=' <span style="color:var(--text-dim)">['+esc(n.defKind)+' in '+esc(n.block)+']</span>';
-      if(n.lattice)html+=' = <span class="val">'+esc(n.lattice)+'</span>';
-      if(n.typeInfo&&n.typeInfo!=='UNKNOWN')html+=' : <span class="val">'+esc(n.typeInfo)+'</span>';
-      html+=' &rarr; '+n.useCount+' use'+(n.useCount!==1?'s':'');
-      if(n.isDead)html+=' <span style="color:var(--red)">(DEAD)</span>';
-      html+='</div>';
+      var head='<div class="analysis-entry" style="margin-left:12px; '+cls+'">';
+      head+=esc(n.name)+'#'+n.version;
+      head+=' <span style="color:var(--text-dim)">['+esc(n.defKind)+' in '+esc(n.block)+']</span>';
+      if(n.lattice)head+=' = <span class="val">'+esc(n.lattice)+'</span>';
+      if(n.typeInfo&&n.typeInfo!=='UNKNOWN')head+=' : <span class="val">'+esc(n.typeInfo)+'</span>';
+      head+=' &rarr; '+n.useCount+' use'+(n.useCount!==1?'s':'');
+      if(n.isDead)head+=' <span style="color:var(--red)">(DEAD)</span>';
+      head+='</div>';
+      var detail=detailRow('ssa value',n.name+'#'+n.version)+detailRow('def kind',n.defKind)+detailRow('block',n.block)+
+        (n.lattice?detailRow('lattice',n.lattice):'')+(n.typeInfo?detailRow('type',n.typeInfo):'')+
+        detailRow('uses',n.useCount)+detailRow('dead',n.isDead?'yes':'no');
+      html+=xpand(head,detail);
     }
     // Edges summary
     if(func.edges.length){
@@ -783,6 +815,7 @@ function renderDataFlow() {
     html+='</div>';
   }
   pane.innerHTML=html;
+  setupExpandable(pane);
 }
 
 // Source callouts
