@@ -1607,6 +1607,32 @@ Structural new surfaces (no Rust mirror today):
   emitters reroute through `places_read_to_form` instead of plain
   variable-name comparison.  Classify in-scope, structural — fold
   into the C41 analyser-core port or land as its own follow-up.
+
+  **Landed (rust) — `SYNC-MAY31-1b`, in progress.**  Per the
+  `docs/design/compiler/phase8-place-migration.md` ledger, the headline
+  ARRAY_ELEM precision win on `main` was achieved with the *suppress-only*
+  `overlap` relation + the 8E refinement, **without** the full 8F versioned
+  substrate — so the Rust port mirrors that: port `place` / `var_resolve`
+  / `place_bridge`, then reroute the W220 / W211 / O109 consumers through
+  `overlap`.  Staged, output-equivalent until the consumer reroute:
+  - **Stage 1 (done): `tcl-compiler::place`.**  Faithful port of
+    `place.py` — `Place` / `Index` / `PlaceKind` / `IndexKind`,
+    constructors, `base` / `is_global`, the over-approximating `overlap`
+    (with the 8E dynamic-*index*-vs-dynamic-*alias* split), and
+    `places_read_to_form`.  Self-contained (stdlib only); 13
+    discriminating unit tests including the `a(k)` ≠ `a(j)` disjointness
+    and the gregorian-style dynamic-alias precision case.  No consumer
+    wired yet → corpus byte-identical.
+  - Stage 2 (next): `tcl-compiler::var_resolve` (`resolve_place` +
+    `ResolveContext`, needs a `split_array_name` port + the inner
+    var-read scanner).
+  - Stage 3: `tcl-compiler::place_bridge` (`def_places` / `read_places`
+    / `terminator_read_places` + `build_resolve_context`).
+  - Stage 4 (output-changing): reroute the W220 dead-store / W211 unused
+    / O109 DCE consumers through `overlap`; gated on the full suite +
+    the array-element FP regression test (`set a(k) 1; set a(j) 2; puts
+    $a(k)` no longer emits W220 on `a(k)`, while the scalar dead store
+    still does).
 - **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
   registry-aware green-tree descent (`descend_command`) single-sources
   body role-resolution.  Phase 1: shared loop-nesting forest
