@@ -71,10 +71,19 @@ function renderStats() {
 // IR rendering
 function renderIR() {
   var pane = $('#pane-ir');
-  var html = '<div class="section-header">top-level</div><div class="ir-tree">';
-  html += renderIRNodes(data.ir.topLevel);
+  var optAvail = !!data.irOptimised;
+  var mode = optAvail ? (structOptState['pane-ir'] || 'off') : 'off';
+  var toolbar = renderOptToolbar('pane-ir', optAvail);
+  if (mode === 'diff') {
+    pane.innerHTML = toolbar + renderTextDiff(irToLines(data.ir), irToLines(data.irOptimised));
+    setupOptToolbar(pane, 'pane-ir', renderIR);
+    return;
+  }
+  var ir = mode === 'on' ? data.irOptimised : data.ir;
+  var html = toolbar + '<div class="section-header">top-level</div><div class="ir-tree">';
+  html += renderIRNodes(ir.topLevel);
   html += '</div>';
-  var procs = data.ir.procedures;
+  var procs = ir.procedures;
   if (Object.keys(procs).length) {
     html += '<div class="section-header">procedures</div>';
     for (var _e of Object.entries(procs)) {
@@ -87,6 +96,7 @@ function renderIR() {
   pane.innerHTML = html;
   setupHoverHighlighting(pane);
   setupIRToggle(pane);
+  setupOptToolbar(pane, 'pane-ir', renderIR);
 }
 function renderIRNodes(nodes) {
   if (!nodes || !nodes.length) return '<div style="color:var(--text-dim); margin-left:16px; font-size:11px">(empty)</div>';
@@ -126,8 +136,17 @@ function setupIRToggle(container) {
 // CFG (pre-SSA)
 function renderCfgPre() {
   var pane = $('#pane-cfg-pre');
-  var html = '';
-  for (var func of data.cfgPreSsa) {
+  var optAvail = !!data.cfgPreSsaOptimised;
+  var mode = optAvail ? (structOptState['pane-cfg-pre'] || 'off') : 'off';
+  var toolbar = renderOptToolbar('pane-cfg-pre', optAvail);
+  if (mode === 'diff') {
+    pane.innerHTML = toolbar + renderTextDiff(cfgToLines(data.cfgPreSsa), cfgToLines(data.cfgPreSsaOptimised));
+    setupOptToolbar(pane, 'pane-cfg-pre', renderCfgPre);
+    return;
+  }
+  var funcs = mode === 'on' ? data.cfgPreSsaOptimised : data.cfgPreSsa;
+  var html = toolbar;
+  for (var func of funcs) {
     html += '<div class="cfg-function cfg-edges-container" data-func="' + esc(func.name) + '">';
     html += '<div class="cfg-func-header">' + esc(func.name) + ' <span style="color:var(--text-dim); font-size:11px">entry=' + esc(func.entry) + ' blocks=' + func.blockCount + '</span></div>';
     for (var block of func.blocks) {
@@ -147,7 +166,8 @@ function renderCfgPre() {
   }
   pane.innerHTML = html || '<div class="empty-state">No functions</div>';
   setupHoverHighlighting(pane);
-  requestAnimationFrame(function() { drawAllCfgEdges(pane, data.cfgPreSsa); });
+  setupOptToolbar(pane, 'pane-cfg-pre', renderCfgPre);
+  requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
 }
 function renderTerminator(t) {
   if (t.type === 'goto') return 'goto ' + esc(t.target);
@@ -159,8 +179,17 @@ function renderTerminator(t) {
 // CFG (post-SSA)
 function renderCfgPost() {
   var pane = $('#pane-cfg-post');
-  var html = '';
-  for (var func of data.cfgPostSsa) {
+  var optAvail = !!data.cfgPostSsaOptimised;
+  var mode = optAvail ? (structOptState['pane-cfg-post'] || 'off') : 'off';
+  var toolbar = renderOptToolbar('pane-cfg-post', optAvail);
+  if (mode === 'diff') {
+    pane.innerHTML = toolbar + renderTextDiff(cfgToLines(data.cfgPostSsa), cfgToLines(data.cfgPostSsaOptimised));
+    setupOptToolbar(pane, 'pane-cfg-post', renderCfgPost);
+    return;
+  }
+  var funcs = mode === 'on' ? data.cfgPostSsaOptimised : data.cfgPostSsa;
+  var html = toolbar;
+  for (var func of funcs) {
     html += '<div class="cfg-function cfg-edges-container" data-func="' + esc(func.name) + '">';
     html += '<div class="cfg-func-header">' + esc(func.name) + ' <span style="color:var(--text-dim); font-size:11px">entry=' + esc(func.entry) + ' blocks=' + func.blockCount + '</span></div>';
     for (var block of func.blocks) {
@@ -212,7 +241,8 @@ function renderCfgPost() {
   pane.innerHTML = html || '<div class="empty-state">No functions</div>';
   setupHoverHighlighting(pane);
   setupVarTooltips(pane);
-  requestAnimationFrame(function() { drawAllCfgEdges(pane, data.cfgPostSsa); });
+  setupOptToolbar(pane, 'pane-cfg-post', renderCfgPost);
+  requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
 }
 
 // Interprocedural
@@ -472,6 +502,94 @@ function setupExpandable(container) {
 function detailRow(k, v) {
   return '<div class="xpand-detail-row"><span class="xpand-detail-k">' + esc(k) +
          '</span><span class="xpand-detail-v">' + esc(String(v)) + '</span></div>';
+}
+
+// Optimisation lens (off / on / diff) for the structured IR & CFG tabs.
+// ``off`` renders the original program, ``on`` the optimised program, and
+// ``diff`` a rendered-line diff of the two.  ASM/WASM have their own toggle
+// (renderDisassembly); this mirrors it for the structured views.
+var structOptState = { 'pane-ir': 'off', 'pane-cfg-pre': 'off', 'pane-cfg-post': 'off' };
+
+function renderOptToolbar(paneId, available) {
+  var mode = available ? (structOptState[paneId] || 'off') : 'off';
+  function btn(val, label) {
+    var dis = (val !== 'off' && !available) ? ' disabled' : '';
+    var on = mode === val ? ' active' : '';
+    return '<button class="optlens-btn' + on + '" data-opt-lens="' + val + '"' + dis + '>' + label + '</button>';
+  }
+  var hint = available ? '' : '<span class="disasm-toolbar-hint">(source unchanged by optimiser)</span>';
+  return '<div class="disasm-toolbar optlens-toolbar">'
+       + '<span class="optlens-label">Optimiser</span>'
+       + btn('off', 'off') + btn('on', 'on') + btn('diff', 'diff') + hint
+       + '</div>';
+}
+function setupOptToolbar(pane, paneId, rerender) {
+  pane.querySelectorAll('[data-opt-lens]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      if (b.disabled) return;
+      structOptState[paneId] = b.dataset.optLens;
+      rerender();
+    });
+  });
+}
+
+// Flatten the structured IR / CFG into plain text lines for a line diff.
+function irToLines(ir) {
+  var lines = [];
+  function walk(nodes, depth) {
+    for (var n of (nodes || [])) {
+      lines.push('  '.repeat(depth) + n.summary);
+      if (n.children) for (var c of n.children) {
+        lines.push('  '.repeat(depth + 1) + c.label + ':');
+        walk(c.body, depth + 2);
+      }
+    }
+  }
+  lines.push('top-level');
+  walk(ir.topLevel, 1);
+  if (ir.procedures) for (var name of Object.keys(ir.procedures)) {
+    lines.push('proc ' + name);
+    walk(ir.procedures[name].body, 1);
+  }
+  return lines;
+}
+function cfgToLines(funcs) {
+  var lines = [];
+  for (var f of (funcs || [])) {
+    lines.push('function ' + f.name + ' entry=' + f.entry + ' blocks=' + f.blockCount);
+    for (var b of f.blocks) {
+      lines.push('block ' + b.name + (b.isEntry ? ' [entry]' : '') + (b.isUnreachable ? ' [unreachable]' : ''));
+      if (b.phis) for (var p of b.phis) lines.push('  phi ' + p.name + '#' + p.version);
+      for (var s of b.statements) lines.push('  ' + s.summary);
+      if (b.terminator) {
+        var t = b.terminator;
+        lines.push('  term ' + t.type + (t.target ? ' ' + t.target : '') +
+                   (t.trueTarget ? ' ' + t.trueTarget + '/' + t.falseTarget : '') +
+                   (t.value ? ' ' + t.value : ''));
+      }
+    }
+  }
+  return lines;
+}
+function renderTextDiff(origLines, optLines) {
+  var segs = computeDiffSegments(origLines, optLines);
+  if (!segs.some(function(s) { return s.type !== 'same'; })) {
+    return '<div class="empty-state">No changes under the optimiser</div>';
+  }
+  var html = '<div class="optlens-legend"><span class="optlens-del-k">− original</span> <span class="optlens-add-k">+ optimised</span></div>';
+  html += '<pre class="optlens-diff">';
+  for (var seg of segs) {
+    if (seg.type === 'same') {
+      var n = seg.optEnd - seg.optStart, show = Math.min(n, 1);
+      for (var i = 0; i < show; i++) html += '<div class="optlens-line"><span class="optlens-sig"> </span>' + esc(optLines[seg.optStart + i]) + '</div>';
+      if (n > show) html += '<div class="optlens-elide">… ' + (n - show) + ' unchanged line' + ((n - show) === 1 ? '' : 's') + '</div>';
+    } else {
+      for (var i = seg.origStart; i < seg.origEnd; i++) html += '<div class="optlens-line optlens-del"><span class="optlens-sig">−</span>' + esc(origLines[i]) + '</div>';
+      for (var j = seg.optStart; j < seg.optEnd; j++) html += '<div class="optlens-line optlens-add"><span class="optlens-sig">+</span>' + esc(optLines[j]) + '</div>';
+    }
+  }
+  html += '</pre>';
+  return html;
 }
 
 // Green token tree — proper tree with click/Space to expand every token to

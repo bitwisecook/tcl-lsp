@@ -25,27 +25,39 @@ from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 
 from tooling.explorer.cli import (
     _VIEW_ORDER,
+    OPT_VIEWS,
     LineIndex,
     _summary_parts,
     load_source,
-    render_view,
+    optimised_result,
+    render_view_opt,
 )
 from tooling.explorer.pipeline import CompilerExplorerResult, run_pipeline
 
+_OPT_CYCLE = ("off", "on", "diff")
+
 
 def _render_view_ansi(
-    view: str, result: CompilerExplorerResult, source: str, args: argparse.Namespace
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    args: argparse.Namespace,
+    *,
+    opt_mode: str = "off",
+    opt: tuple[CompilerExplorerResult, str] | None = None,
 ) -> Text:
-    """Capture ``render_view``'s ANSI output for *view* and parse it for Rich."""
+    """Capture ``render_view_opt``'s ANSI output for *view* and parse it for Rich."""
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         try:
-            render_view(
+            render_view_opt(
                 view,
                 result,
                 source,
                 use_colour=True,
                 line_index=LineIndex(source),
+                opt_mode=opt_mode,
+                opt=opt,
                 views=args.views,
                 show_optimised_source=args.show_optimised_source,
                 max_annotations=args.max_annotations,
@@ -69,6 +81,7 @@ class ExplorerApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Re-run"),
+        ("o", "cycle_opt", "Opt off/on/diff"),
     ]
 
     def __init__(self, source: str, args: argparse.Namespace) -> None:
@@ -76,6 +89,8 @@ class ExplorerApp(App):
         self._source = source
         self._args = args
         self._result: CompilerExplorerResult | None = None
+        self._opt: tuple[CompilerExplorerResult, str] | None = None
+        self._opt_mode = getattr(args, "opt", "off") or "off"
         self._views = [v for v in _VIEW_ORDER if v in args.views]
         self._current = self._views[0] if self._views else "ir"
 
@@ -107,17 +122,44 @@ class ExplorerApp(App):
             )
             self._result = None
             return
-        self.sub_title = self._args.dialect
+        # Recompute the optimised pipeline lazily — only when a lens needs it.
+        self._opt = (
+            optimised_result(self._result, self._args.dialect)
+            if self._opt_mode != "off"
+            else None
+        )
+        self._update_subtitle()
         self.query_one("#summary", Label).update(
             "  ".join(_summary_parts(self._result, self._args.dialect))
         )
+
+    def _update_subtitle(self) -> None:
+        opt = "" if self._opt_mode == "off" else f"  ·  opt: {self._opt_mode}"
+        self.sub_title = f"{self._args.dialect}{opt}"
 
     def _show(self, view: str) -> None:
         self._current = view
         if self._result is None:
             return
         content = self.query_one("#content", Static)
-        content.update(_render_view_ansi(view, self._result, self._source, self._args))
+        content.update(
+            _render_view_ansi(
+                view,
+                self._result,
+                self._source,
+                self._args,
+                opt_mode=self._opt_mode,
+                opt=self._opt,
+            )
+        )
+
+    def action_cycle_opt(self) -> None:
+        """Cycle the optimisation lens off → on → diff and re-render."""
+        self._opt_mode = _OPT_CYCLE[(_OPT_CYCLE.index(self._opt_mode) + 1) % len(_OPT_CYCLE)]
+        if self._opt_mode != "off" and self._opt is None and self._result is not None:
+            self._opt = optimised_result(self._result, self._args.dialect)
+        self._update_subtitle()
+        self._show(self._current)
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if event.item is not None and event.item.id and event.item.id.startswith("view-"):

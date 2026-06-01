@@ -124,6 +124,40 @@ class TestBoundsView:
         assert "range [8, 8]" in out
 
 
+class TestOptLens:
+    # ``set a 1; set b [expr {$a+2}]; puts $b`` folds to ``puts 3`` with a dead
+    # store removed, so the optimised path differs from the original.
+    SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b"
+
+    def test_opt_off_renders_original_ir(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "off"])
+        assert code == 0
+        assert "assign-const a = 1" in out  # original statements present
+
+    def test_opt_on_renders_optimised_ir(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "on"])
+        assert code == 0
+        assert "puts 3" in out  # constant-folded call
+        assert "assign-const a = 1" not in out  # dead store gone
+
+    def test_opt_diff_shows_unified_diff(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        assert "ir (original)" in out and "ir (optimised)" in out
+        assert "-  ├── assign-const a = 1" in out or "-  └── call puts ${b}" in out
+        assert "+  └── call puts 3" in out
+
+    def test_opt_diff_on_unchanged_source_says_so(self, capsys):
+        # No optimiser rewrites here, so the diff has nothing to show.
+        code, out = _run_source("puts hi", capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        assert "unchanged" in out or "no change" in out
+
+    def test_non_opt_view_ignores_lens(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "types", "--opt", "on"])
+        assert code == 0  # types view renders normally regardless of lens
+
+
 # LineIndex unit tests
 
 

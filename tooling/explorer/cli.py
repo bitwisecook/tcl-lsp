@@ -1392,6 +1392,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Print line-numbered optimised source when rewrites are found.",
     )
     parser.add_argument(
+        "--opt",
+        choices=("off", "on", "diff"),
+        default="off",
+        help="Optimisation lens for the IR/CFG/SSA/ASM/WASM views: render the "
+        "original path (off), the optimised path (on), or a diff of the two "
+        "(diff).  Other views ignore it.",
+    )
+    parser.add_argument(
         "--no-source-callouts",
         action="store_true",
         help="Disable source callouts with caret/arrow annotations.",
@@ -1573,6 +1581,150 @@ def render_view(
         raise ValueError(f"render_view: no renderer for view {view!r}")
 
 
+# Views whose output reflects the lowered program, so they can be rendered
+# against the optimised path (``--opt on``) or diffed against the original
+# (``--opt diff``).  Other views (greentree, analysis facts, callouts, ...)
+# have no meaningful optimised variant and ignore the opt mode.
+OPT_VIEWS = frozenset({"ir", "cfg", "ssa", "asm", "wasm"})
+
+
+def optimised_result(
+    result: CompilerExplorerResult, dialect: str
+) -> tuple[CompilerExplorerResult, str] | None:
+    """Run the pipeline on the optimised source so opt-aware views can show it.
+
+    Returns ``(opt_result, optimised_source)`` or ``None`` when the optimiser
+    left the source unchanged (nothing to render / diff).
+    """
+    opt_source = result.optimised_source
+    if not opt_source or opt_source == result.source:
+        return None
+    try:
+        return run_pipeline(opt_source, dialect=dialect), opt_source
+    except Exception as exc:  # pragma: no cover - optimised source should re-lower
+        print(f"warning: optimised pipeline failed: {exc}", file=sys.stderr)
+        return None
+
+
+def _capture_view(
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    *,
+    line_index: LineIndex,
+    views: frozenset[str],
+    max_annotations: int,
+) -> list[str]:
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=False,
+            line_index=line_index,
+            views=views,
+            max_annotations=max_annotations,
+        )
+    return buf.getvalue().splitlines()
+
+
+def render_view_opt(
+    view: str,
+    result: CompilerExplorerResult,
+    source: str,
+    *,
+    use_colour: bool,
+    line_index: LineIndex,
+    opt_mode: str = "off",
+    opt: tuple[CompilerExplorerResult, str] | None = None,
+    views: frozenset[str] = frozenset(),
+    show_optimised_source: bool = False,
+    max_annotations: int = 80,
+) -> None:
+    """Render *view* honouring the optimisation lens (off / on / diff).
+
+    *opt* is the ``(opt_result, opt_source)`` pair from :func:`optimised_result`
+    (or ``None``).  Only :data:`OPT_VIEWS` react to the mode; every other view
+    renders exactly as :func:`render_view` would.  This is the shared entry
+    point for the text path and the Textual TUI so the lens behaves identically.
+    """
+    if opt_mode == "off" or view not in OPT_VIEWS:
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=use_colour,
+            line_index=line_index,
+            views=views,
+            show_optimised_source=show_optimised_source,
+            max_annotations=max_annotations,
+        )
+        return
+
+    if opt is None:
+        # Nothing changed — fall back to the original and say so once.
+        render_view(
+            view,
+            result,
+            source,
+            use_colour=use_colour,
+            line_index=line_index,
+            views=views,
+            max_annotations=max_annotations,
+        )
+        print(style("  (optimiser left the source unchanged)", Ansi.DIM, use_colour))
+        return
+
+    opt_result, opt_source = opt
+    if opt_mode == "on":
+        render_view(
+            view,
+            opt_result,
+            opt_source,
+            use_colour=use_colour,
+            line_index=LineIndex(opt_source),
+            views=views,
+            max_annotations=max_annotations,
+        )
+        return
+
+    # diff: a rendered-text unified diff, surface-agnostic across all OPT_VIEWS.
+    import difflib
+
+    before = _capture_view(
+        view, result, source, line_index=line_index, views=views, max_annotations=max_annotations
+    )
+    after = _capture_view(
+        view,
+        opt_result,
+        opt_source,
+        line_index=LineIndex(opt_source),
+        views=views,
+        max_annotations=max_annotations,
+    )
+    diff = list(
+        difflib.unified_diff(
+            before, after, fromfile=f"{view} (original)", tofile=f"{view} (optimised)", lineterm=""
+        )
+    )
+    if not diff:
+        print(style(f"{view}: no change under the optimiser", Ansi.DIM, use_colour))
+        return
+    for line in diff:
+        if line.startswith("+"):
+            print(style(line, Ansi.GREEN, use_colour))
+        elif line.startswith("-"):
+            print(style(line, Ansi.RED, use_colour))
+        elif line.startswith("@@"):
+            print(style(line, Ansi.CYAN, use_colour))
+        else:
+            print(line)
+
+
 def _summary_parts(result: CompilerExplorerResult, dialect: str) -> list[str]:
     total_dead_stores = sum(len(s.analysis.dead_stores) for s in result.snapshots)
     total_unreachable = sum(len(s.analysis.unreachable_blocks) for s in result.snapshots)
@@ -1602,19 +1754,23 @@ def _render_text(
     _version = FULL_VERSION + (f" ({BUILD_TIMESTAMP})" if BUILD_TIMESTAMP else "")
     print(style(f"compiler-optimiser-explorer {_version}", Ansi.BOLD, use_colour))
     print(style(" ".join(_summary_parts(result, args.dialect)), Ansi.DIM, use_colour))
-    print(style(f"views: {','.join(sorted(args.views))}", Ansi.DIM, use_colour))
+    opt_label = "" if args.opt == "off" else f"  opt={args.opt}"
+    print(style(f"views: {','.join(sorted(args.views))}{opt_label}", Ansi.DIM, use_colour))
     print()
+    opt = optimised_result(result, args.dialect) if args.opt != "off" else None
     for view in _VIEW_ORDER:
         if view not in args.views:
             continue
         if view == "callouts" and args.no_source_callouts:
             continue
-        render_view(
+        render_view_opt(
             view,
             result,
             source,
             use_colour=use_colour,
             line_index=line_index,
+            opt_mode=args.opt,
+            opt=opt,
             views=args.views,
             show_optimised_source=args.show_optimised_source,
             max_annotations=args.max_annotations,

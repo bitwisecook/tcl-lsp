@@ -922,6 +922,9 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
 
     asm_optimised = None
     wasm_optimised = None
+    ir_optimised = None
+    cfg_pre_optimised = None
+    cfg_post_optimised = None
     if result.optimised_source and result.optimised_source != result.source:
         try:
             from compiler.lowering import lower_to_ir
@@ -932,7 +935,7 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
             opt_ir = None
             opt_cfg = None
         if opt_ir is not None:
-            # Optimised asm/wasm ranges index into the optimised source.
+            # Optimised asm/wasm/ir/cfg ranges index into the optimised source.
             opt_token = set_highlight_source(result.optimised_source)
             try:
                 try:
@@ -943,6 +946,21 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
                     wasm_optimised = _serialise_wasm(opt_ir, optimise=True, cfg_module=opt_cfg)
                 except Exception as exc:
                     print(f"warning: optimised wasm serialisation failed: {exc}", file=sys.stderr)
+                try:
+                    ir_optimised = _serialise_ir(opt_ir)
+                except Exception as exc:
+                    print(f"warning: optimised ir serialisation failed: {exc}", file=sys.stderr)
+                # CFG needs SSA + analysis, so re-run the pipeline on the
+                # optimised source to get its snapshots (the opt lens for the
+                # IR/CFG tabs renders / diffs against these).
+                try:
+                    from tooling.explorer.pipeline import run_pipeline
+
+                    opt_snaps = run_pipeline(result.optimised_source).snapshots
+                    cfg_pre_optimised = _serialise_cfg_pre_ssa(opt_snaps)
+                    cfg_post_optimised = _serialise_cfg_post_ssa(opt_snaps)
+                except Exception as exc:
+                    print(f"warning: optimised cfg serialisation failed: {exc}", file=sys.stderr)
             finally:
                 reset_highlight_source(opt_token)
 
@@ -968,8 +986,11 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
         "meta": _serialise_meta(),
         "greentree": _serialise_greentree(result.source),
         "ir": _serialise_ir(result.ir_module),
+        "irOptimised": ir_optimised,
         "cfgPreSsa": _serialise_cfg_pre_ssa(result.snapshots),
         "cfgPostSsa": _serialise_cfg_post_ssa(result.snapshots),
+        "cfgPreSsaOptimised": cfg_pre_optimised,
+        "cfgPostSsaOptimised": cfg_post_optimised,
         "loops": _serialise_loops(result.snapshots),
         "intervals": _serialise_intervals(result.snapshots),
         "bounds": _serialise_bounds(result.snapshots),

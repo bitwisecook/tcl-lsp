@@ -147,6 +147,24 @@ class TestExtraViews:
         assert any(d["code"] == "W233" for d in divzero)
 
 
+class TestOptLensData:
+    SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b"
+
+    def test_optimised_keys_present_when_rewritten(self, client):
+        data = _compile(client, self.SRC)
+        assert data["irOptimised"] is not None
+        assert data["cfgPreSsaOptimised"] is not None
+        assert data["cfgPostSsaOptimised"] is not None
+        summaries = [n["summary"] for n in data["irOptimised"]["topLevel"]]
+        assert any("puts 3" in s for s in summaries)
+
+    def test_optimised_keys_null_when_unchanged(self, client):
+        data = _compile(client, "puts hi")
+        assert data["irOptimised"] is None
+        assert data["cfgPreSsaOptimised"] is None
+        assert data["cfgPostSsaOptimised"] is None
+
+
 # IR serialisation
 
 
