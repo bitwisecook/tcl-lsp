@@ -172,7 +172,9 @@ class TestTui:
                 ir_tree = not app._is_text_view("ir") and bool(app.query_one("#tree-pane").display)
                 app._show("asm")
                 await pilot.pause()
-                asm_text = app._is_text_view("asm") and bool(app.query_one("#content-scroll").display)
+                asm_text = app._is_text_view("asm") and bool(
+                    app.query_one("#content-scroll").display
+                )
                 return ir_tree, asm_text
 
         ir_tree, asm_text = asyncio.run(drive())

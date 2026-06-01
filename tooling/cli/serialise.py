@@ -571,15 +571,19 @@ def _serialise_greentree(source: str) -> dict | None:
     def node_dict(node, depth: int) -> dict:
         tokens = []
         for tok in node.tokens:
+            # Token end positions are inclusive (the last char); the explorer
+            # front-end slices ``src[startOffset:endOffset]`` with an exclusive
+            # end, so +1 makes a single-char token highlight that char (not
+            # nothing) and a word highlight its whole span — matching range_dict.
             entry = {
                 "type": tok.type.name,
                 "text": tok.text,
                 "startOffset": tok.start.offset,
-                "endOffset": tok.end.offset,
+                "endOffset": tok.end.offset + 1,
                 "startLine": tok.start.line,
                 "startCol": tok.start.character,
                 "endLine": tok.end.line,
-                "endCol": tok.end.character,
+                "endCol": tok.end.character + 1,
             }
             if depth < 24 and tok.type in opaque and tok.text:
                 entry["child"] = node_dict(node.descend(tok), depth + 1)

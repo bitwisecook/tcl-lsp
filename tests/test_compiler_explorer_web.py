@@ -117,6 +117,7 @@ class TestExtraViews:
 
     def test_greentree_opaque_token_has_child_region(self, client):
         data = _compile(client, "proc f {} { set y 2 }")
+
         # Find any token that descended into a child region (the braced body).
         def has_child(node):
             for t in node["tokens"]:

@@ -102,8 +102,7 @@ def _build_greentree(d: dict) -> list[ViewNode]:
             ),
             (
                 "line:col",
-                f"{t['startLine'] + 1}:{t['startCol'] + 1} → "
-                f"{t['endLine'] + 1}:{t['endCol'] + 1}",
+                f"{t['startLine'] + 1}:{t['startCol'] + 1} → {t['endLine'] + 1}:{t['endCol'] + 1}",
             ),
         ]
         children: list[ViewNode] = []
@@ -150,7 +149,9 @@ def _build_ir(d: dict) -> list[ViewNode]:
         params = " ".join(proc.get("params", []))
         header = f"{name} {{{params}}}" if params else f"{name} {{}}"
         nodes.append(
-            ViewNode(header, [("range", _rng(proc.get("range")))], _ir_nodes(proc["body"]), style="cyan")
+            ViewNode(
+                header, [("range", _rng(proc.get("range")))], _ir_nodes(proc["body"]), style="cyan"
+            )
         )
     return nodes
 
@@ -164,7 +165,9 @@ def _term_label(t: dict | None) -> str:
     if t["type"] == "goto":
         return f"term goto {t.get('target')}"
     if t["type"] == "branch":
-        return f"term branch {t.get('condition', '')} → {t.get('trueTarget')}/{t.get('falseTarget')}"
+        return (
+            f"term branch {t.get('condition', '')} → {t.get('trueTarget')}/{t.get('falseTarget')}"
+        )
     if t["type"] == "return":
         return "term return" + (f" {t['value']}" if t.get("value") else "")
     return "term"
@@ -194,7 +197,9 @@ def _build_cfg(funcs: list[dict] | None, *, post: bool) -> list[ViewNode]:
                 items.append(ViewNode(s["summary"], detail))
             term = b.get("terminator")
             items.append(
-                ViewNode(_term_label(term), [("range", _rng((term or {}).get("range")))], style="blue")
+                ViewNode(
+                    _term_label(term), [("range", _rng((term or {}).get("range")))], style="blue"
+                )
             )
             tags = (" [entry]" if b.get("isEntry") else "") + (
                 " [unreachable]" if b.get("isUnreachable") else ""
@@ -207,7 +212,10 @@ def _build_cfg(funcs: list[dict] | None, *, post: bool) -> list[ViewNode]:
                 asub.append(
                     ViewNode(
                         f"const branch {br['block']}: always {br['value']}",
-                        [("condition", br.get("condition", "")), ("take", br.get("takenTarget", ""))],
+                        [
+                            ("condition", br.get("condition", "")),
+                            ("take", br.get("takenTarget", "")),
+                        ],
                         style="blue",
                     )
                 )
@@ -228,7 +236,9 @@ def _build_cfg(funcs: list[dict] | None, *, post: bool) -> list[ViewNode]:
                     )
                 )
             for name, ty in (a.get("inferredTypes") or {}).items():
-                asub.append(ViewNode(f"{name}: {ty}", [("value", name), ("type", ty)], style="green"))
+                asub.append(
+                    ViewNode(f"{name}: {ty}", [("value", name), ("type", ty)], style="green")
+                )
             if asub:
                 blocks.append(ViewNode("analysis", [], asub, style="bold"))
         out.append(
@@ -274,7 +284,11 @@ def _build_types(d: dict) -> list[ViewNode]:
             continue
         ents = []
         for e in f["entries"]:
-            label = e["variable"] if e["variable"].startswith("(") else f"{e['variable']}#{e['version']}"
+            label = (
+                e["variable"]
+                if e["variable"].startswith("(")
+                else f"{e['variable']}#{e['version']}"
+            )
             ents.append(
                 ViewNode(
                     f"{label}: {e['type']}",

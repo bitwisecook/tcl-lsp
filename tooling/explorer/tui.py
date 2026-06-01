@@ -62,9 +62,7 @@ def _format_detail(node: ViewNode | None) -> Text:
     if node.children:
         if node.detail:
             t.append("\n")
-        t.append(
-            f"{len(node.children)} child item(s) — Enter / Space to expand", style="dim"
-        )
+        t.append(f"{len(node.children)} child item(s) — Enter / Space to expand", style="dim")
     return t
 
 
@@ -169,11 +167,11 @@ class ExplorerApp(App):
             self._result = None
             self._data = {}
             return
-        # The optimised pipeline is only needed for the text diff path.
+        # The optimised pipeline feeds the text renderer's opt lens (asm/wasm
+        # 'on', and any view's 'diff') — needed for every non-"off" mode, not
+        # just diff.  Tree views get optimised data from the serialised payload.
         self._opt = (
-            optimised_result(self._result, self._args.dialect)
-            if self._opt_mode == "diff"
-            else None
+            optimised_result(self._result, self._args.dialect) if self._opt_mode != "off" else None
         )
         self._update_subtitle()
         self.query_one("#summary", Label).update(
@@ -258,7 +256,11 @@ class ExplorerApp(App):
     def action_cycle_opt(self) -> None:
         """Cycle the optimisation lens off → on → diff and re-render."""
         self._opt_mode = _OPT_CYCLE[(_OPT_CYCLE.index(self._opt_mode) + 1) % len(_OPT_CYCLE)]
-        if self._opt_mode == "diff" and self._opt is None and self._result is not None:
+        # Compute the optimised pipeline for any non-"off" mode so the text
+        # renderer (asm/wasm 'on', diff) has it; clear it when back to "off".
+        if self._opt_mode == "off":
+            self._opt = None
+        elif self._opt is None and self._result is not None:
             self._opt = optimised_result(self._result, self._args.dialect)
         self._update_subtitle()
         self._show(self._current)

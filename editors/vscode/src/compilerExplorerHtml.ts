@@ -728,6 +728,67 @@ body {
   font-style: italic;
 }
 .disasm-diff-unchanged-note { padding: 4px 8px; color: var(--text-dim); font-size: 11px; font-style: italic; }
+/* Generic expand-on-click / Space items (shared explorer-core renderers).
+   Must mirror tooling/explorer/static/index.html so the shared xpand() /
+   optimiser-lens markup renders the same in the VS Code webview. */
+.xpand { cursor: pointer; outline: none; border-radius: 4px; }
+.xpand:focus-visible { box-shadow: inset 2px 0 0 var(--accent); background: var(--highlight); }
+.xpand > .xpand-detail, .xpand > .xpand-children { display: none; }
+.xpand.expanded > .xpand-detail, .xpand.expanded > .xpand-children { display: block; }
+.xpand-detail {
+  margin: 2px 0 6px 22px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border-left: 2px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.xpand-detail-row { display: flex; gap: 8px; padding: 1px 0; }
+.xpand-detail-k { color: var(--text-dim); min-width: 110px; flex: 0 0 auto; }
+.xpand-detail-v { color: var(--text); word-break: break-word; }
+.gt-text-full {
+  margin: 4px 0 0; padding: 6px 8px; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-bright); font-family: var(--font-mono); font-size: 11px; max-height: 220px; overflow: auto;
+}
+/* Green tree */
+.gt-tree { padding: 4px 8px; font-family: var(--font-mono); font-size: 12px; }
+.gt-node { padding: 0; }
+.gt-head { display: flex; align-items: baseline; gap: 6px; padding: 2px 6px; border-radius: 4px; }
+.gt-head:hover { background: var(--bg-hover); }
+.gt-toggle { display: inline-block; width: 12px; color: var(--text-dim); transition: transform 0.12s; flex: 0 0 auto; }
+.gt-node.expanded > .gt-head .gt-toggle { transform: rotate(90deg); }
+.gt-type { color: var(--accent); font-weight: 600; flex: 0 0 auto; }
+.gt-text { color: var(--text); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.gt-range { color: var(--text-dim); font-size: 10px; margin-left: auto; flex: 0 0 auto; }
+.gt-node.gt-opaque > .gt-head .gt-type { color: var(--cyan); }
+.gt-node.gt-error > .gt-head .gt-type { color: var(--red); }
+.xpand-children { margin-left: 14px; border-left: 1px solid var(--border); padding-left: 4px; }
+.gt-region { color: var(--text-dim); font-size: 10px; padding: 2px 6px; font-style: italic; }
+.gt-empty { color: var(--text-dim); padding: 2px 6px; font-style: italic; }
+.loop-item > .xpand-head, .bounds-item > .xpand-head { padding: 3px 6px; border-radius: 4px; }
+.loop-item > .xpand-head:hover, .bounds-item > .xpand-head:hover { background: var(--bg-hover); }
+.type-entry.xpand > .xpand-head { display: flex; justify-content: space-between; gap: 8px; padding: 2px 4px; border-radius: 4px; }
+.type-entry.xpand > .xpand-head:hover { background: var(--bg-hover); }
+/* Optimisation lens (off / on / diff) toolbar + diff for IR & CFG tabs */
+.optlens-toolbar { display: flex; align-items: center; gap: 6px; }
+.optlens-label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.optlens-btn {
+  font: inherit; font-size: 11px; cursor: pointer; padding: 2px 10px;
+  background: var(--bg-surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+}
+.optlens-btn:hover:not(:disabled) { border-color: var(--accent); }
+.optlens-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.optlens-btn:disabled { opacity: 0.4; cursor: default; }
+.optlens-legend { font-size: 11px; color: var(--text-dim); padding: 6px 8px; }
+.optlens-del-k { color: var(--red); }
+.optlens-add-k { color: var(--green); }
+.optlens-diff { margin: 0 8px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
+.optlens-line { display: flex; gap: 6px; padding: 0 4px; border-radius: 2px; }
+.optlens-sig { width: 10px; flex: 0 0 auto; color: var(--text-dim); }
+.optlens-add { background: rgba(166, 227, 161, 0.12); color: var(--green); }
+.optlens-del { background: rgba(243, 139, 168, 0.12); color: var(--red); }
+.optlens-elide { color: var(--text-dim); font-style: italic; padding: 2px 4px 2px 20px; }
 </style>
 </head>
 <body>
