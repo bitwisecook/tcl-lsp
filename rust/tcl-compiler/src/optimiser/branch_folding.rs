@@ -366,6 +366,7 @@ mod tests {
             def_use: DefUseResult::default(),
             sccp,
             types: std::collections::HashMap::new(),
+            return_type: crate::types::TypeLattice::unknown(),
             taints: std::collections::HashMap::new(),
             rendered_props: std::collections::HashMap::new(),
             memory_ssa: None,

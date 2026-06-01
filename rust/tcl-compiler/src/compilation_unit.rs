@@ -56,6 +56,11 @@ pub struct FunctionUnit {
     /// Computed by the type-propagation pass. Absent entries are
     /// implicitly `TypeLattice::unknown()`.
     pub types: HashMap<ValueKey, TypeLattice>,
+    /// Inferred return type — the join of the types produced at every
+    /// executable `Return` terminator.  `Unknown` when the function
+    /// has no executable return value.  Computed by
+    /// [`crate::type_infer::infer_function_return_type`].
+    pub return_type: TypeLattice,
     /// Taint lattice values per SSA definition.
     ///
     /// Computed by the intra-procedural taint-propagation pass.
@@ -84,6 +89,8 @@ impl FunctionUnit {
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         let sccp = sccp(&cfg, &ssa, None);
         let types = propagate_types(&cfg, &ssa, &sccp, registry);
+        let return_type =
+            crate::type_infer::infer_function_return_type(&cfg, &sccp, &types, registry);
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
         let taints = propagate_taints(
             &cfg,
@@ -101,6 +108,7 @@ impl FunctionUnit {
             def_use,
             sccp,
             types,
+            return_type,
             taints,
             rendered_props,
             memory_ssa: None,
@@ -343,6 +351,41 @@ mod tests {
             "switch subject `$col` should register a live use; chains: {:?}",
             fu.def_use.chains.keys().collect::<Vec<_>>(),
         );
+    }
+
+    #[test]
+    fn return_type_infers_int_literal() {
+        let cu = CompilationUnit::build_for("proc f {} { return 1 }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
+    }
+
+    #[test]
+    fn return_type_infers_string_literal() {
+        let cu = CompilationUnit::build_for("proc f {} { return \"hi\" }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(
+            fu.return_type,
+            TypeLattice::of(tcl_registry::TclType::String)
+        );
+    }
+
+    #[test]
+    fn return_type_follows_local_var() {
+        let cu = CompilationUnit::build_for("proc f {} { set x 1; return $x }", &registry(), false);
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
+    }
+
+    #[test]
+    fn return_type_joins_branches_to_common_int() {
+        let cu = CompilationUnit::build_for(
+            "proc f {a} { if {$a} { return 1 } else { return 2 } }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").expect("proc ::f");
+        assert_eq!(fu.return_type, TypeLattice::of(tcl_registry::TclType::Int));
     }
 
     #[test]
