@@ -99,3 +99,52 @@ class TestTui:
         seq = asyncio.run(drive())
         assert seq == ["ir", "cfg", "ssa", "opt"]
         assert app._result is not None  # pipeline ran inside the app
+
+    def test_greentree_builds_interactive_tree(self):
+        from textual.widgets import Tree
+
+        from tooling.explorer.tui import _gt_detail
+
+        args = parse_args(["/dev/null", "--show", "greentree,ir"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                app._show("greentree")
+                await pilot.pause()
+                tree = app.query_one("#gt-tree", Tree)
+                # Tokens hang off the root; opaque {...}/[...] tokens nest their
+                # re-lexed child region's tokens.
+                token_nodes = len(tree.root.children)
+                nested = any(c.children for c in tree.root.children)
+                gt_visible = bool(app.query_one("#gt-pane").display)
+                opaque = next(c for c in tree.root.children if c.children)
+                detail = str(_gt_detail(opaque.data))
+                # Switching away hides the interactive pane again.
+                app._show("ir")
+                await pilot.pause()
+                gt_hidden = not app.query_one("#gt-pane").display
+                return token_nodes, nested, gt_visible, detail, gt_hidden
+
+        token_nodes, nested, gt_visible, detail, gt_hidden = asyncio.run(drive())
+        assert token_nodes > 0
+        assert nested  # the proc body / command substitution descended
+        assert gt_visible and gt_hidden
+        assert "token type" in detail and "byte range" in detail and "region" in detail
+
+    def test_cycle_opt_changes_mode(self):
+        args = parse_args(["/dev/null", "--show", "ir"])
+        app = ExplorerApp(_SRC, args)
+
+        async def drive():
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                seq = [app._opt_mode]
+                for _ in range(3):
+                    app.action_cycle_opt()
+                    await pilot.pause()
+                    seq.append(app._opt_mode)
+                return seq
+
+        assert asyncio.run(drive()) == ["off", "on", "diff", "off"]

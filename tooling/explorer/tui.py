@@ -20,8 +20,8 @@ import io
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Footer, Header, Label, ListItem, ListView, Static, Tree
 
 from tooling.explorer.cli import (
     _VIEW_ORDER,
@@ -35,6 +35,56 @@ from tooling.explorer.cli import (
 from tooling.explorer.pipeline import CompilerExplorerResult, run_pipeline
 
 _OPT_CYCLE = ("off", "on", "diff")
+_GT_OPAQUE = ("STR", "CMD")
+
+
+def _gt_label(tok: dict) -> Text:
+    """A one-line tree label for a green-tree token: ``TYPE 'preview' [a:b]``."""
+    opaque = tok["type"] in _GT_OPAQUE
+    one_line = tok["text"].replace("\n", "⏎")
+    preview = one_line if len(one_line) <= 40 else one_line[:40] + "…"
+    label = Text()
+    label.append(tok["type"], style="cyan" if opaque else "bright_black")
+    label.append(" ")
+    label.append(repr(preview), style="")
+    label.append(f" [{tok['startOffset']}:{tok['endOffset']}]", style="dim")
+    return label
+
+
+def _gt_detail(data: dict) -> Text:
+    """Full detail for a highlighted green-tree node (token or root region)."""
+    t = Text()
+    if "type" in data:  # a token
+        t.append("token type  ", style="bold")
+        t.append(f"{data['type']}\n")
+        t.append("byte range  ", style="bold")
+        t.append(
+            f"{data['startOffset']}…{data['endOffset']} "
+            f"({max(0, data['endOffset'] - data['startOffset'])} bytes)\n"
+        )
+        t.append("line:col    ", style="bold")
+        t.append(
+            f"{data['startLine'] + 1}:{data['startCol'] + 1} → "
+            f"{data['endLine'] + 1}:{data['endCol'] + 1}\n"
+        )
+        child = data.get("child")
+        if child is not None:
+            t.append("region      ", style="bold")
+            style = "red" if child["isError"] else "cyan"
+            t.append(
+                f"{child['kind'].lower()} / {child['mode'].lower()}"
+                + (" (ERROR — unterminated)" if child["isError"] else "")
+                + "\n",
+                style=style,
+            )
+        t.append("text\n", style="bold")
+        t.append(data["text"] or "(empty)", style="bright_white")
+    else:  # the root region
+        t.append("region      ", style="bold")
+        t.append(f"{data['kind'].lower()} / {data['mode'].lower()}\n")
+        t.append("width       ", style="bold")
+        t.append(f"{data['width']} bytes\n")
+    return t
 
 
 def _render_view_ansi(
@@ -76,6 +126,10 @@ class ExplorerApp(App):
     #sidebar > ListView { height: 1fr; }
     #content { padding: 0 1; }
     #summary { color: $text-muted; padding: 0 1; height: auto; }
+    #gt-pane { display: none; }
+    #gt-tree { width: 1fr; }
+    #gt-detail-scroll { width: 45%; border-left: solid $accent; }
+    #gt-detail { padding: 0 1; }
     """
 
     BINDINGS = [
@@ -100,8 +154,17 @@ class ExplorerApp(App):
         with Horizontal():
             with VerticalScroll(id="sidebar"):
                 yield ListView(*(ListItem(Label(v), id=f"view-{v}") for v in self._views))
-            with VerticalScroll():
-                yield Static("", id="content", markup=False)
+            with Vertical(id="main"):
+                # Default surface: captured-ANSI render of the active view.
+                with VerticalScroll(id="content-scroll"):
+                    yield Static("", id="content", markup=False)
+                # Interactive surface used only for the green tree: a real tree
+                # whose entries expand (↑/↓ + Enter/Space/click) and pop their
+                # full token detail into the side panel as you move.
+                with Horizontal(id="gt-pane"):
+                    yield Tree("green-tree", id="gt-tree")
+                    with VerticalScroll(id="gt-detail-scroll"):
+                        yield Static("", id="gt-detail", markup=False)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -141,8 +204,20 @@ class ExplorerApp(App):
         self._current = view
         if self._result is None:
             return
-        content = self.query_one("#content", Static)
-        content.update(
+        # The green tree gets the interactive Tree surface; everything else the
+        # captured-ANSI Static.  Toggle which one is visible.
+        gt_pane = self.query_one("#gt-pane")
+        content_scroll = self.query_one("#content-scroll")
+        if view == "greentree":
+            content_scroll.display = False
+            gt_pane.display = True
+            self._populate_greentree()
+            # Leave focus on the sidebar so ↑/↓ keep switching views; click or
+            # Tab into the tree to navigate/expand its entries.
+            return
+        gt_pane.display = False
+        content_scroll.display = True
+        self.query_one("#content", Static).update(
             _render_view_ansi(
                 view,
                 self._result,
@@ -152,6 +227,35 @@ class ExplorerApp(App):
                 opt=self._opt,
             )
         )
+
+    def _populate_greentree(self) -> None:
+        """(Re)build the interactive green tree from the shared serialiser."""
+        from tooling.cli.serialise import _serialise_greentree
+
+        tree = self.query_one("#gt-tree", Tree)
+        tree.clear()
+        root = _serialise_greentree(self._source)
+        if root is None:
+            tree.root.set_label(Text("(green tree unavailable)", style="red"))
+            return
+        tree.root.set_label(f"{root['kind'].lower()} [{root['mode'].lower()}] w={root['width']}")
+        tree.root.data = root
+        self._add_gt_tokens(tree.root, root["tokens"])
+        tree.root.expand()
+        self.query_one("#gt-detail", Static).update(_gt_detail(root))
+
+    def _add_gt_tokens(self, node, tokens: list[dict]) -> None:
+        for tok in tokens:
+            child = tok.get("child")
+            if child is not None:
+                branch = node.add(_gt_label(tok), data=tok)
+                self._add_gt_tokens(branch, child["tokens"])
+            else:
+                node.add_leaf(_gt_label(tok), data=tok)
+
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        if event.node.data is not None:
+            self.query_one("#gt-detail", Static).update(_gt_detail(event.node.data))
 
     def action_cycle_opt(self) -> None:
         """Cycle the optimisation lens off → on → diff and re-render."""
