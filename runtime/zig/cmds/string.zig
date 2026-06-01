@@ -871,17 +871,29 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
 /// silently treating them as 0.
 fn is_valid_string_index(idx: i32) bool {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const is_space = @import("../valtypes/tcl_chars.zig").is_space;
     const s = obj_mod.obj_ensure_string(idx);
     if (s.len == 0) return false;
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    const sp0: [*]const u8 = @ptrFromInt(s.ptr);
+    // Trim surrounding whitespace — ``Tcl_GetIntForIndex`` parses through
+    // ``TclParseNumber``, which skips leading / trailing whitespace, so
+    // ``string index abcd { 0 }`` / ``{end-1 }`` are valid (util-9.0.*).
+    var beg: u32 = 0;
+    var end: u32 = s.len;
+    while (beg < end and is_space(sp0[beg])) beg += 1;
+    while (end > beg and is_space(sp0[end - 1])) end -= 1;
+    if (beg >= end) return false;
+    const sp: [*]const u8 = sp0 + beg;
+    const len: u32 = end - beg;
     // Allow ``end`` / ``end-N`` / ``end+N`` (plus optional arithmetic
     // tail like ``end-1+0`` which C tcl folds at parse time).
-    if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
-        if (s.len == 3) return true;
-        // ``end+N`` / ``end-N`` — N is an integer literal (digits +
-        // optional further ``±N`` arithmetic chain).
+    if (len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+        if (len == 3) return true;
+        // ``end+N`` / ``end-N`` — N is a signed integer literal (the
+        // offset itself may carry a sign, e.g. ``end+-1`` = end + (-1),
+        // ``end--1`` = end - (-1)), with an optional ``±N`` chain.
         if (sp[3] != '+' and sp[3] != '-') return false;
-        return is_int_arith_tail(sp, s.len, 4);
+        return is_int_arith_tail(sp, len, 4);
     }
     // Pure integer arithmetic: optional sign, integer literal,
     // optional ``±N`` continuation.  Integer literals include
@@ -892,8 +904,8 @@ fn is_valid_string_index(idx: i32) bool {
     // check.
     var i: u32 = 0;
     if (sp[i] == '+' or sp[i] == '-') i += 1;
-    if (i >= s.len) return false;
-    return is_int_arith_tail(sp, s.len, i);
+    if (i >= len) return false;
+    return is_int_arith_tail(sp, len, i);
 }
 
 fn is_digit_for_base(c: u8, base: u32) bool {
@@ -925,6 +937,9 @@ fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
         } else if (c == 'b' or c == 'B') {
             base = 2;
             i += 2;
+        } else if (c == 'd' or c == 'D') {
+            base = 10;
+            i += 2;
         }
     }
     if (i >= len or !is_digit_for_base(sp[i], base)) return start;
@@ -933,15 +948,21 @@ fn consume_integer_literal(sp: [*]const u8, len: u32, start: u32) u32 {
 }
 
 fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
-    var i = consume_integer_literal(sp, len, start);
-    if (i == start) return false;
-    // Optional ``±N`` continuation runs.
+    var i = start;
+    // The operand may carry its own sign (``end+-1`` / ``-1--2`` —
+    // C Tcl's ``GetEndOffsetFromObj`` parses ``end + (-1)``).
+    if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    var after0 = consume_integer_literal(sp, len, i);
+    if (after0 == i) return false;
+    i = after0;
+    // Optional ``±N`` continuation runs (each operand may be signed).
     while (i < len) {
         if (sp[i] != '+' and sp[i] != '-') return false;
         i += 1;
-        const after = consume_integer_literal(sp, len, i);
-        if (after == i) return false;
-        i = after;
+        if (i < len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+        after0 = consume_integer_literal(sp, len, i);
+        if (after0 == i) return false;
+        i = after0;
     }
     return true;
 }

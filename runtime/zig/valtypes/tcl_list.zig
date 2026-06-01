@@ -454,7 +454,22 @@ fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
 // ``tclUtil.c`` for the ``int[+-]int`` form, with the result saturating
 // to ``i64`` bounds when the integer math overflows.
 pub fn resolve_list_index(idx: i32, n: i64) i64 {
-    const sv = obj_ensure_string(idx);
+    const is_space = @import("tcl_chars.zig").is_space;
+    var sv = obj_ensure_string(idx);
+    // Trim surrounding whitespace so ``{ 0 }`` / ``{end-1 }`` /
+    // ``{ -1+2 }`` resolve like their unpadded forms — ``Tcl_GetIntForIndex``
+    // parses through ``TclParseNumber``, which skips leading / trailing
+    // whitespace (util-9.0.*).  Every parse path below recomputes its
+    // pointer from ``sv.ptr`` / ``sv.len``, so trimming here is sufficient.
+    {
+        const tp: [*]const u8 = @ptrFromInt(sv.ptr);
+        var b: u32 = 0;
+        var e: u32 = sv.len;
+        while (b < e and is_space(tp[b])) b += 1;
+        while (e > b and is_space(tp[e - 1])) e -= 1;
+        sv.ptr += b;
+        sv.len = e - b;
+    }
     if (sv.len >= 3) {
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);
         if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
@@ -546,6 +561,14 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
                 return if (positive_overflow) std.math.maxInt(i64) else std.math.minInt(i64);
             }
         }
+    }
+    // Plain integer literal (decimal / hex / octal / binary).  Parse the
+    // trimmed slice so a whitespace-padded ``{ 0 }`` / ``{ 0x0 }`` index
+    // resolves; fall back to the obj integer accessor otherwise.
+    if (@import("tcl_bignum.zig").parse_i128(sv.ptr, sv.len)) |v| {
+        if (v > std.math.maxInt(i64)) return std.math.maxInt(i64);
+        if (v < std.math.minInt(i64)) return std.math.minInt(i64);
+        return @intCast(v);
     }
     return obj_get_int(idx);
 }
