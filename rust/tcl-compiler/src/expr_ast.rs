@@ -535,6 +535,41 @@ pub fn expr_text(node: &ExprNode) -> String {
     }
 }
 
+/// Recognise an `[info exists X]` / `[array exists X]` existence-query
+/// condition, returning `(variable, negated)` where `negated` is true
+/// for `![info exists X]`.  Used by SYNC-MAY31-3 to inject guarded-region
+/// read narrowing (`cfg_lower::lower_if`), suppress the existence-query
+/// word's W210 read, and fold the predicate to a constant (analyser I230).
+///
+/// Only the simple two-/three-word command-substitution form is matched
+/// (e.g. `[info exists name]`); anything embedded in a larger expression
+/// returns `None`.
+#[must_use]
+pub fn existence_query_var(node: &ExprNode) -> Option<(String, bool)> {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => existence_query_var(operand).map(|(v, neg)| (v, !neg)),
+        ExprNode::Command { text, .. } => existence_query_in_text(text).map(|v| (v, false)),
+        _ => None,
+    }
+}
+
+/// Parse a bracketed command-substitution `text` (e.g. `"[info exists
+/// x]"`) and return the queried variable when it is exactly
+/// `info exists NAME` or `array exists NAME`.
+#[must_use]
+pub fn existence_query_in_text(text: &str) -> Option<String> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let words: Vec<&str> = inner.split_whitespace().collect();
+    if words.len() == 3 && matches!(words[0], "info" | "array") && words[1] == "exists" {
+        Some(words[2].to_owned())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

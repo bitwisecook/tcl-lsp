@@ -536,7 +536,28 @@ impl Lowerer<'_> {
             }
 
             let body_tok = pair.body_arg_idx.and_then(|idx| arg_tokens.get(idx));
-            let body = self.lower_body_from_tok(&pair.body_text, body_tok, namespace);
+            let body = if let Some(tok) = body_tok {
+                self.lower_body_from_tok(&pair.body_text, Some(tok), namespace)
+            } else if let Some(bspan) = pair.body_span {
+                // SYNC-JUN-switch-braced-body: the single-braced form
+                // (`switch $x { a {body} … }`) has no arg token — the
+                // body tokens live inside the braced word. Lower from
+                // the body's source span instead of returning an empty
+                // script. `body_span` is brace-inclusive (the element
+                // parser extends it over the closing delimiter), so the
+                // content starts after any leading `{` / `"`; the
+                // even-sized delimiter difference recovers that shift
+                // and matches the offset `lower_body_from_tok` would
+                // have computed from a token's `content_offset`.
+                let span_len = (bspan.end().saturating_sub(bspan.start())) as usize;
+                let skip = span_len.saturating_sub(pair.body_text.len()) / 2;
+                let base = bspan
+                    .start()
+                    .saturating_add(u32::try_from(skip).unwrap_or(0));
+                self.lower_body(&pair.body_text, base, namespace)
+            } else {
+                crate::ir::Script::new()
+            };
 
             if pair.pattern == "default" && pair_idx == pairs.len() - 1 {
                 default_body = Some(body);
@@ -768,13 +789,40 @@ mod tests {
 
     #[test]
     fn switch_exact() {
-        let _m = lower_to_ir("switch $x { a {puts a} b {puts b} }", &reg());
-        // Single braced body may not be fully parsed yet, but multi-arg works:
-        let m2 = lower_to_ir("switch $x a {puts a} b {puts b}", &reg());
-        assert!(matches!(
-            &m2.top_level.statements[0],
-            Statement::Switch { mode, .. } if *mode == SwitchMode::Exact
-        ));
+        // Both forms lower to a structured Switch; the multi-arg form
+        // and the single-braced form must agree on shape.
+        for src in [
+            "switch $x { a {puts a} b {puts b} }",
+            "switch $x a {puts a} b {puts b}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(
+                    &m.top_level.statements[0],
+                    Statement::Switch { mode, .. } if *mode == SwitchMode::Exact
+                ),
+                "expected exact Switch for {src:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn switch_single_braced_body_is_lowered() {
+        // SYNC-JUN-switch-braced-body: the single-braced arm form
+        // `switch $x { a {body} … }` must lower each arm body into real
+        // IR statements (it used to produce an empty Script).
+        let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
+        let Statement::Switch { arms, .. } = &m.top_level.statements[0] else {
+            panic!("expected Switch");
+        };
+        assert_eq!(arms.len(), 2);
+        for arm in arms {
+            let body = arm.body.as_ref().expect("arm body");
+            assert!(
+                !body.statements.is_empty(),
+                "single-braced arm body should lower to non-empty IR, got {body:?}",
+            );
+        }
     }
 
     #[test]

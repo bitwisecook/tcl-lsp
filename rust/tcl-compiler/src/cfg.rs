@@ -146,6 +146,28 @@ pub struct LoopNode {
     pub span: Span,
 }
 
+/// Metadata for a `switch -glob` / `switch -regexp` dispatch whose
+/// structured arm-dispatch blocks exist only for the analyser (SSA
+/// recovers the subject + arm-body reads). Glob/regexp matching is not
+/// string equality, so the bytecode backend must **not** walk the
+/// structured chain — it emits a generic `switch` invoke instead
+/// (matching tclsh's un-compiled approach for those modes) and skips
+/// the member blocks. Keyed by the entry dispatch block in
+/// [`Function::switch_dispatches`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct SwitchDispatch {
+    /// Match mode (`Glob` or `Regexp`; `Exact` is never recorded —
+    /// exact switches lower to a real `STR_EQ` jump table).
+    pub mode: crate::ir::SwitchMode,
+    /// Raw `switch` argument texts for the generic invoke fallback.
+    pub raw_args: Vec<String>,
+    /// Join block control reaches after the switch.
+    pub end_block: String,
+    /// All dispatch / arm-body / default blocks of this switch, which
+    /// codegen skips (the runtime invoke subsumes them).
+    pub member_blocks: Vec<String>,
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -157,6 +179,9 @@ pub struct Function {
     pub blocks: HashMap<String, Block>,
     /// Loop metadata: exit block → loop info.
     pub loop_nodes: HashMap<String, LoopNode>,
+    /// Glob/regexp `switch` dispatch metadata: entry dispatch block →
+    /// generic-invoke fallback info (see [`SwitchDispatch`]).
+    pub switch_dispatches: HashMap<String, SwitchDispatch>,
 }
 
 impl Function {
@@ -171,6 +196,7 @@ impl Function {
             entry,
             blocks,
             loop_nodes: HashMap::new(),
+            switch_dispatches: HashMap::new(),
         }
     }
 

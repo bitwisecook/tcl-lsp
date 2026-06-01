@@ -114,6 +114,33 @@ mod tests {
     }
 
     #[test]
+    fn info_exists_fold_surfaces_o101() {
+        // SYNC-MAY31-3 DCE wiring: a provably-constant `info exists`
+        // guard (never-defined non-param folds false; a parameter folds
+        // true) surfaces as an O101 constant-branch fold.
+        let never = optimise(
+            "proc f {a} { if {[info exists b]} { puts hi } }",
+            &registry(),
+        );
+        assert!(
+            never
+                .iter()
+                .any(|o| o.code == "O101" && o.replacement == "0"),
+            "never-defined `info exists` should fold to 0, got {never:?}",
+        );
+        let param = optimise(
+            "proc f {a} { if {[info exists a]} { puts hi } }",
+            &registry(),
+        );
+        assert!(
+            param
+                .iter()
+                .any(|o| o.code == "O101" && o.replacement == "1"),
+            "parameter `info exists` should fold to 1, got {param:?}",
+        );
+    }
+
+    #[test]
     fn output_is_sorted_by_span_start() {
         let opts = optimise("set x 5\nif {1} { puts $x } else { puts 0 }", &registry());
         let mut prev = 0u32;

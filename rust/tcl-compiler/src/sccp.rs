@@ -446,6 +446,110 @@ fn collect_constant_branches(
     constant_branches
 }
 
+/// SYNC-MAY31-3: fold `[info exists X]` / `[array exists X]`
+/// if-conditions into [`ConstantBranch`] entries for the two
+/// false-positive-free cases — a parameter always exists (`true`); a
+/// never-defined non-parameter never exists (`false`).  `![info exists
+/// X]` flips the value.
+///
+/// SCCP itself can't fold these (the predicate is an opaque
+/// `ExprNode::Command`, and SCCP has neither parameter nor existence
+/// facts), so this runs as a post-pass with the proc's `params`.  The
+/// result feeds both the analyser's I230 (constant condition) and the
+/// optimiser's O101 (constant-branch fold / DCE).  Only simple local
+/// names are folded, and only in functions free of opaque barriers (an
+/// unknown command could `unset` or `upvar`-define the variable).
+#[must_use]
+pub fn existence_constant_branches(
+    cfg: &CfgFunction,
+    params: &HashSet<&str>,
+) -> Vec<ConstantBranch> {
+    let mut out = Vec::new();
+    if cfg.blocks.values().any(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Barrier { .. }))
+    }) {
+        return out;
+    }
+    // Vars defined / unset anywhere in the function.
+    let mut defined: HashSet<String> = HashSet::new();
+    let mut unset: HashSet<&str> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::AssignConst { name, .. }
+                | Statement::AssignExpr { name, .. }
+                | Statement::AssignValue { name, .. }
+                | Statement::Incr { name, .. } => {
+                    let n = crate::naming::normalise_var_name(name);
+                    if !n.is_empty() {
+                        defined.insert(n.to_string());
+                    }
+                }
+                Statement::Call {
+                    command,
+                    args,
+                    defs,
+                    ..
+                } => {
+                    for d in defs {
+                        defined.insert(d.clone());
+                    }
+                    if command == "unset" {
+                        unset.extend(args.iter().map(String::as_str));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    for block in cfg.blocks.values() {
+        let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            span: Some(span),
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) else {
+            continue;
+        };
+        // Array elements / namespaced globals may be populated outside
+        // the function's view — only fold simple local names.
+        if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            continue;
+        }
+        let exists = if params.contains(var.as_str()) {
+            if unset.contains(var.as_str()) {
+                continue;
+            }
+            true
+        } else if !defined.contains(&var) {
+            false
+        } else {
+            continue;
+        };
+        let value = exists ^ negated;
+        let (taken, not_taken) = if value {
+            (true_target.clone(), false_target.clone())
+        } else {
+            (false_target.clone(), true_target.clone())
+        };
+        out.push(ConstantBranch {
+            block: block.name.clone(),
+            span: Some(*span),
+            condition: crate::expr_ast::expr_text(condition),
+            value,
+            taken_target: taken,
+            not_taken_target: not_taken,
+        });
+    }
+    out
+}
+
 /// Evaluate the lattice value produced by an SSA statement's
 /// defs.
 ///

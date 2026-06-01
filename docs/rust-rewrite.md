@@ -1943,6 +1943,100 @@ between an inline `STR_EQ` chain for Exact and a runtime
 `Statement::Switch` arm in `lowering` already records `mode` so no
 upstream change is needed.  Classify: in-scope, low-touch.
 
+**Landed (rust).**  `cfg_lower.rs::lower_switch` dropped the
+mode-based barrier short-circuit; all three modes now build the
+structured arm-dispatch + arm-body + default blocks, so SSA recovers
+the subject *and* arm-body variable reads (the W214/W210 path).  Exact
+arms keep a foldable `STR_EQ(subject, pattern)` (the backend still
+builds a real jump table); glob/regexp arms branch on a *non-foldable*
+`ExprNode::Raw { text: subject }` — string equality is the wrong
+predicate for those modes, and a foldable condition would let SCCP
+spuriously kill arms.  A glob/regexp dispatch is recorded in the new
+`cfg::Function::switch_dispatches` map (entry block → `SwitchDispatch
+{ mode, raw_args, end_block, member_blocks }`); codegen
+(`emitter/generate.rs`) consults it to emit a generic `switch` invoke
+(as the old barrier did) and skip the analyser-only member blocks,
+matching tclsh's un-compiled approach for those modes.  (Note: the
+single-braced-body arm form is still lowered to an empty `Script` for
+*every* mode — a separate pre-existing Rust lowering gap, tracked as
+`SYNC-JUN-switch-braced-body` below and untouched here; the multi-arg
+arm form lowers bodies and is what exercises the SSA recovery.)  Tests: `switch_glob_creates_branches` /
+`switch_regexp_creates_branches` (cfg_lower), `switch_glob_arm_body_
+read_counts_as_param_use` (compilation_unit), and
+`switch_glob_emits_generic_invoke_not_jump_table` (codegen
+integration).
+
+### SYNC-JUN-switch-braced-body — single-braced `switch` arm bodies not lowered to the CFG (Rust gap)
+
+Discovered while landing `SYNC-MAY31-2`.  **Rust-only; not a Python
+parity gap — no backport needed.**
+
+The canonical `switch` form `switch $x { a {body1} b {body2} }` (a
+single braced word holding every pattern/body pair) lowers its arm
+bodies to an **empty `IRScript`** on the Rust side, for *all* modes.
+The multi-arg form `switch $x a {body1} b {body2}` lowers bodies
+correctly.  Root cause: in
+`rust/tcl-compiler/src/lowering/structured.rs`, the single-braced path
+in `lower_switch` (the `i == args.len() - 1` branch) builds each
+`SwitchPair` with `body_arg_idx: None` because the per-body tokens live
+*inside* the braced word, not in `arg_tokens`.  `build_switch_arms`
+then calls `lower_body_from_tok(text, None, …)`, which returns
+`Script::new()` whenever the token is `None`.
+
+**Scope of impact.**  The gap is in the **CFG-lowering** path only, so
+it degrades everything downstream of the CFG for single-braced switch
+arm bodies: SSA / def-use / SCCP, the CFG-SSA diagnostics
+(W210/W211/W214/W220, dead-store, I230 — including the
+`SYNC-MAY31-2/-3` recoveries when the arm uses the braced form), and
+bytecode codegen of those bodies (emitted as empty).  The **analyser
+tree-walk** is a *separate* path and already handles the braced form
+correctly — `analyser/handlers.rs::handle_switch_command` extracts
+per-element tokens via `parse_switch_body_elements(body_text, body_tok)`
+and calls `analyse_body` on each, so W123 / semantic tokens / the
+regexp-pattern recording are unaffected.  (This split is why the
+existing `handle_switch_form2_braced_body_walks_each_arm` test passes
+while the lowering test at `structured.rs:771` discards its result with
+a "single braced body may not be fully parsed yet" comment.)
+
+**Python parity.**  `core/compiler/lowering.py::_lower_switch` handles
+the braced form: `_switch_body_elements` returns extracted *Tokens*,
+each body pair carries a non-`None` `body_tok`, and `_lower_body_arg`
+recursively `_lower_script`s it.  Python is correct, so this is a Rust
+catch-up only.
+
+**Fix sketch.**  The single-braced path already relocates each body's
+span into outer-source coordinates (`body_span`), so the simplest fix
+is to drop the token requirement for this case and lower from the
+offset directly — call `lower_body(text, content_offset, namespace)`
+(`lowering/mod.rs::lower_body`) with `content_offset = body_span.start()
++ 1` (skip the opening `{`), since the element text is already the
+brace-stripped content.  Alternatively, mirror the analyser by
+extracting real per-element sub-tokens (`parse_switch_body_elements`)
+and threading them through `SwitchPair` so `lower_body_from_tok` gets a
+non-`None` token — this also fixes any content-offset / encoding-flag
+nuances the bare-offset path would have to replicate.  Files:
+`rust/tcl-compiler/src/lowering/structured.rs`
+(`lower_switch` single-braced branch + `build_switch_arms`); reference
+`analyser/handlers.rs::handle_switch_command` as the working
+precedent and replace the discarded-result `switch_exact` lowering
+test with a real assertion.  Classify: in-scope, low-touch; affects
+all switch modes equally.
+
+**Landed (rust).**  `build_switch_arms` now lowers the single-braced
+arm body from its `body_span` when there is no arg token (the
+multi-arg form keeps the token path).  Rather than restructuring the
+element parser, it reuses the existing relocated, brace-inclusive
+`body_span`: the content offset is recovered as `body_span.start() +
+(span_len − body_text.len())/2`, which skips a leading `{` / `"`
+delimiter (and is `0` for a bare-word body) — matching the offset
+`lower_body_from_tok` derives from a token's `content_offset`.  So the
+canonical `switch $x { a {body} … }` form now flows real arm-body IR
+into SSA / def-use / SCCP / the CFG-SSA diagnostics and bytecode
+codegen (and, combined with `SYNC-MAY31-2`, the glob/regexp recovery
+now fires for the braced syntax too).  The `switch_exact` lowering
+test's discarded result is now a real assertion, plus
+`switch_single_braced_body_is_lowered`.
+
 ### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
 
 `main` reclassifies `[info exists X]` / `[array exists X]` as
@@ -1970,6 +2064,37 @@ lattice + the `executable_blocks` set); `rust/tcl-compiler/src/analyser/diagnost
 (suppress the query word + suppress reads in the guarded arms); the
 matching `compiler_checks::run_all_checks` wiring.  Classify:
 in-scope, medium.
+
+**Landed (rust).**  All three deltas, re-targeted to the Rust IR
+(where `[info exists X]` lowers to an opaque `ExprNode::Command`, *not*
+a `Statement::Call`, so the doc's `evaluate_def` pointer doesn't
+apply).  A shared `expr_ast::existence_query_var` recognises
+`[info exists X]` / `[array exists X]` (and `![…]`).  (1) **W210
+suppression for the query word** — `emit_read_before_set_diagnostics`
+skips a use whose statement is an existence query for that var (bare
+`info exists X` call *and* the `set y [info exists X]` command-sub
+form).  (2) **Guarded read narrowing** — reads of `X` in any block
+dominated (via the SSA `idom` chain) by the true target of
+`[info exists X]` (or the false target of `![info exists X]`) are
+excluded from W210.  This is done at emit time rather than by
+injecting a synthetic SSA def, which would create a spurious merge phi
+and perturb W214/W211.  (3) **Predicate fold → I230 + O101/DCE** —
+`sccp::existence_constant_branches(cfg, params)` folds the two
+false-positive-free cases (a *parameter* always exists → true; a
+never-defined non-parameter simple local never exists → false),
+gated on a barrier-free function and skipping `unset` params, array
+elements, and namespaced/global names.  The fold runs as a post-pass
+(SCCP proper has neither parameter nor existence facts): the analyser's
+`emit_existence_constant_branch_diagnostics` emits the I230 from it, and
+`FunctionUnit::build` appends the same `ConstantBranch`es to
+`sccp.constant_branches` so the optimiser's `branch_folding` surfaces an
+O101 constant-fold / DCE suggestion — unifying both consumers on one
+helper (mirroring the Python "I230 + DCE pipeline").  Emitting I230
+directly avoids a double-emit: `emit_constant_branch_diagnostics` gates
+on the not-taken arm being unreachable in `executable_blocks`, which the
+post-pass folds don't update, so it skips them.  Tests: the
+`info_exists_*` cluster in `analyser/diagnostics.rs` plus
+`optimiser::manager::tests::info_exists_fold_surfaces_o101`.
 
 ### SYNC-MAY31-4 — W127 closed-value command argument + BODY role on iRules nesting scripts (#501)
 
@@ -2390,6 +2515,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
 | — | `SYNC-MAY19-surrogate-pair` | Landed 2026-05-19 — `scan_unicode_escape` in `rust/tcl-lexer/src/substitution.rs` combines `\uHHHH \uLLLL` pairs into supplementary-plane codepoints. |
 | 7 | `SYNC-MAY19-switch-fallthrough-cfg` | Add `expand_fallthrough_switch` to `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/`.  **Deferred** — the Rust path doesn't emit Tcl bytecode today, so this flag has no consumer.  Listed for tracking only. |
+| — | `SYNC-JUN-switch-braced-body` | **Landed.** `build_switch_arms` lowers single-braced `switch $x { a {body} … }` arm bodies from their `body_span` (was an empty `IRScript`), so CFG-SSA diagnostics + codegen now cover the canonical switch form for every mode.  See the `SYNC-JUN-switch-braced-body` section. |
 | — | `SYNC-JUN-FRAME356-population` | Landed via PR #389 — `EscapeState` and `CfgState` carry `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` populated by `record_barrier` / `escape_with_reason` calls at the informative handler sites; `analyse_script` copies both into `ProcEscapeSummary`. |
 | — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
@@ -2500,9 +2626,11 @@ priority queue:
   inlay-hints fix mirrors the same FP family Python just fixed),
   #508 (server-side reposition cache for moved procedures — closes
   with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
-  var scan), `-8` (#494 backslash-continuation folding), and `-10`
-  (#510 inlay-hint optional positionals + `infer_function_return_type`)
-  — see those family sections.  Of the remainder, none are
+  var scan), `-8` (#494 backslash-continuation folding), `-10`
+  (#510 inlay-hint optional positionals + `infer_function_return_type`),
+  `-2` (#474 glob/regexp `switch` keeps structured dispatch), and `-3`
+  (#502 `info exists` / `array exists` guard narrowing + W210
+  suppression + I230 fold) — see those family sections.  Of the remainder, none are
   *correctness* blockers for the analyser flip.  **Correction to a
   stale note:** earlier rows said "the Rust analyser has no live
   caller post-#241" — that referred to the deleted differential

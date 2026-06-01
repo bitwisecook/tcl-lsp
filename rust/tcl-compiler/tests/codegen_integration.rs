@@ -350,6 +350,94 @@ fn switch_dispatch_emits_jump_table() {
 }
 
 #[test]
+fn switch_glob_as_proc_tail_keeps_result_on_stack() {
+    // Regression (PR #514 review): a glob/regexp `switch` as a proc's
+    // last command must leave the invoke result on TOS for the proc
+    // return — emitting a statement-level POP underflows the stack.
+    use tcl_compiler::cfg_builder::build_cfg;
+    use tcl_compiler::lowering::lower_to_ir;
+
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
+    let cfg = build_cfg(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let f = asm.procedures.get("::f").expect("proc ::f");
+    let ops: Vec<Op> = f.instructions.iter().map(|i| i.op).collect();
+    // The arm bodies are subsumed by the runtime invoke, so the only
+    // command is the `switch` invoke. Its result flows straight to the
+    // proc return — there must be no POP dropping it.
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "expected a generic switch invoke, got {ops:?}",
+    );
+    assert!(
+        !ops.contains(&Op::POP),
+        "glob switch as proc tail must not POP its result, got {ops:?}",
+    );
+}
+
+#[test]
+fn switch_glob_emits_generic_invoke_not_jump_table() {
+    use tcl_compiler::cfg_builder::build_cfg_function;
+    use tcl_compiler::ir::{SwitchArm, SwitchMode};
+
+    let arm = |pat: &str| SwitchArm {
+        pattern: pat.into(),
+        pattern_span: sp(),
+        body: Some(Script::from_statements(vec![Statement::AssignConst {
+            span: sp(),
+            name: "r".into(),
+            value: "1".into(),
+        }])),
+        body_span: Some(sp()),
+        fallthrough: false,
+    };
+    let make = |mode: SwitchMode| {
+        Script::from_statements(vec![Statement::Switch {
+            span: sp(),
+            subject: "$x".into(),
+            subject_span: sp(),
+            arms: vec![arm("a*"), arm("b*")],
+            default_body: None,
+            default_span: None,
+            mode,
+            nocase: false,
+            raw_args: vec!["$x".into(), "a* {set r 1} b* {set r 1}".into()],
+        }])
+    };
+    let registry = CommandRegistry::build_default();
+
+    // Glob: generic `switch` invoke, never a jump table (glob patterns
+    // are not exact string equality).
+    let glob = build_cfg_function("::top", &make(SwitchMode::Glob), true);
+    let ops: Vec<Op> = codegen_function(&glob, &[], false, &registry)
+        .instructions
+        .iter()
+        .map(|i| i.op)
+        .collect();
+    assert!(
+        !ops.contains(&Op::JUMP_TABLE),
+        "glob switch must not emit a jump table, got {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "glob switch should emit a generic invoke, got {ops:?}"
+    );
+
+    // Exact still compiles to a real jump table.
+    let exact = build_cfg_function("::top", &make(SwitchMode::Exact), true);
+    let exact_ops: Vec<Op> = codegen_function(&exact, &[], false, &registry)
+        .instructions
+        .iter()
+        .map(|i| i.op)
+        .collect();
+    assert!(
+        exact_ops.contains(&Op::JUMP_TABLE),
+        "exact switch should still emit a jump table, got {exact_ops:?}"
+    );
+}
+
+#[test]
 fn foreach_emits_native_opcodes() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
     cfg.blocks

@@ -20,11 +20,32 @@ Use this to verify server behavior after making changes.
 Run from the project root (the git worktree directory):
 
 ```bash
-python3 .claude/skills/lsp-client/lsp_client.py <subcommand> <args...>
+python3 .claude/skills/lsp-client/lsp_client.py [--server python|rust] <subcommand> <args...>
 ```
 
-The script auto-detects the `tcl-lsp/` server directory.  Override with
-`--server-dir /path/to/tcl-lsp` if needed.
+The script auto-detects the server location.  Override with
+`--server-dir <path>` if needed.
+
+## Choosing a backend (`--server`)
+
+`--server` selects which language server to drive:
+
+| Value | Server | Notes |
+|---|---|---|
+| `python` (default) | `python -m lsp` (the `lsp/` package, run via `uv`) | The legacy Python server. |
+| `rust` | the native `tcl-lsp-server` binary | Built on demand with `cargo build -p tcl-lsp-server`; the binary is reused on later runs. |
+
+Use this to verify the **Rust** analyser/diagnostics (e.g. after changing
+`rust/tcl-compiler/src/analyser/`), and to A/B the two backends on the same
+file.  `--server-dir` means different things per backend: for `python` it's
+the `tcl-lsp` dir containing `lsp/`; for `rust` it's the Cargo workspace root
+(the dir with `Cargo.toml` + `rust/`).
+
+```bash
+# Same file, both servers — compare diagnostics
+python3 .claude/skills/lsp-client/lsp_client.py --server rust   diagnostics foo.tcl
+python3 .claude/skills/lsp-client/lsp_client.py --server python diagnostics foo.tcl
+```
 
 ## Subcommands
 
@@ -198,6 +219,7 @@ to filter to just `[timing]` entries for performance analysis.
 ## Example Invocations
 
 ```bash
+python3 .claude/skills/lsp-client/lsp_client.py --server rust diagnostics tcl-lsp/editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py semantic-tokens tcl-lsp/samples/for_screenshots/03-completions.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagnostics tcl-lsp/editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py hover tcl-lsp/editors/vscode/testFixture/procs.tcl 1 6
