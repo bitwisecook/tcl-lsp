@@ -2022,6 +2022,21 @@ precedent and replace the discarded-result `switch_exact` lowering
 test with a real assertion.  Classify: in-scope, low-touch; affects
 all switch modes equally.
 
+**Landed (rust).**  `build_switch_arms` now lowers the single-braced
+arm body from its `body_span` when there is no arg token (the
+multi-arg form keeps the token path).  Rather than restructuring the
+element parser, it reuses the existing relocated, brace-inclusive
+`body_span`: the content offset is recovered as `body_span.start() +
+(span_len − body_text.len())/2`, which skips a leading `{` / `"`
+delimiter (and is `0` for a bare-word body) — matching the offset
+`lower_body_from_tok` derives from a token's `content_offset`.  So the
+canonical `switch $x { a {body} … }` form now flows real arm-body IR
+into SSA / def-use / SCCP / the CFG-SSA diagnostics and bytecode
+codegen (and, combined with `SYNC-MAY31-2`, the glob/regexp recovery
+now fires for the braced syntax too).  The `switch_exact` lowering
+test's discarded result is now a real assertion, plus
+`switch_single_braced_body_is_lowered`.
+
 ### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
 
 `main` reclassifies `[info exists X]` / `[array exists X]` as
@@ -2493,7 +2508,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
 | — | `SYNC-MAY19-surrogate-pair` | Landed 2026-05-19 — `scan_unicode_escape` in `rust/tcl-lexer/src/substitution.rs` combines `\uHHHH \uLLLL` pairs into supplementary-plane codepoints. |
 | 7 | `SYNC-MAY19-switch-fallthrough-cfg` | Add `expand_fallthrough_switch` to `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/`.  **Deferred** — the Rust path doesn't emit Tcl bytecode today, so this flag has no consumer.  Listed for tracking only. |
-| 3 | `SYNC-JUN-switch-braced-body` | Rust-only catch-up (Python already correct — no backport).  Single-braced `switch $x { a {body} … }` arm bodies lower to an empty `IRScript`, so CFG-SSA diagnostics + codegen miss them for the *canonical* switch form (the analyser tree-walk already handles it).  Low-touch fix in `lowering/structured.rs` — see the `SYNC-JUN-switch-braced-body` section for the root cause + fix sketch. |
+| — | `SYNC-JUN-switch-braced-body` | **Landed.** `build_switch_arms` lowers single-braced `switch $x { a {body} … }` arm bodies from their `body_span` (was an empty `IRScript`), so CFG-SSA diagnostics + codegen now cover the canonical switch form for every mode.  See the `SYNC-JUN-switch-braced-body` section. |
 | — | `SYNC-JUN-FRAME356-population` | Landed via PR #389 — `EscapeState` and `CfgState` carry `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` populated by `record_barrier` / `escape_with_reason` calls at the informative handler sites; `analyse_script` copies both into `ProcEscapeSummary`. |
 | — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
