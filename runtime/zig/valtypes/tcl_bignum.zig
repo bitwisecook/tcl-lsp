@@ -114,6 +114,9 @@ pub fn parse_i128(ptr: u32, len: u32) ?i128 {
         } else if (c == 'b' or c == 'B') {
             base = 2;
             i += 2;
+        } else if (c == 'd' or c == 'D') {
+            base = 10;
+            i += 2;
         }
     }
     if (i >= len) return null;
@@ -371,6 +374,9 @@ pub fn alloc_from_string(ptr: u32, len: u32) ?*BigInt {
             i += 2;
         } else if (c == 'b' or c == 'B') {
             base = 2;
+            i += 2;
+        } else if (c == 'd' or c == 'D') {
+            base = 10;
             i += 2;
         }
     }

@@ -404,6 +404,12 @@ class IRSwitch:
     mode: str = "exact"  # "exact", "glob", or "regexp"
     nocase: bool = False
     raw_args: tuple[str, ...] = ()  # original command args for generic fallback
+    # True when the arms came from a single braced ``{pat body ...}``
+    # block (patterns are literal list elements — no substitution).
+    # False when they came as separate words (``switch $s $pat {body}``),
+    # where each pattern undergoes normal ``$var`` / ``[cmd]`` runtime
+    # substitution before matching.
+    patterns_braced: bool = True
 
 
 @dataclass(frozen=True, slots=True)

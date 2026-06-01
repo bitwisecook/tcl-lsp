@@ -2138,120 +2138,93 @@ fn lseq_match_word(words: []const i32, i: u32, expected: []const u8) bool {
     return true;
 }
 
-/// Tcl 9 ``lseq``.  Forms supported (matching tcl9.0.3 builtin):
-///
-///   lseq N                    -> 0 .. N-1
-///   lseq START END            -> START .. END (step inferred)
-///   lseq START to END         -> same
-///   lseq START .. END         -> same
-///   lseq START END by STEP    -> step explicit
-///   lseq START to END by STEP -> same
-///   lseq START .. END by STEP -> same
-///   lseq START by STEP        -> N=START items, step from 0
-///
-/// Step direction is inferred from end-vs-start when no explicit
-/// step is given.  Floats are NOT supported yet — this impl is
-/// integer-only; tests that need ``arithSeriesDouble`` are SKIPPED
-/// by tcltest's constraint table because ``arithSeriesDouble``
-/// isn't set.
-fn eval_lseq(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
-    var start_val: i64 = 0;
-    var end_val: i64 = 0;
-    var step_val: i64 = 1;
-    var have_step = false;
+const LSEQ_MAX_COUNT: i64 = 16 * 1024 * 1024; // 16 M elements (integer series)
+// Double series materialise heavier ``TYPE_FLOAT`` objs and have no
+// lazy ArithSeries representation here, so cap them lower to stay well
+// clear of an OOM trap.  Real ``arithSeriesDouble`` tests are tiny; a
+// larger request returns empty rather than hanging the runtime.
+const LSEQ_DBL_MAX_COUNT: i64 = 1 << 20; // ~1 M elements
 
-    if (words.len == 2) {
-        // ``lseq N`` -> 0 .. N-1
-        const count = rt.obj_get_int(words[1]);
-        if (count <= 0) return result_mod.from_globals(obj_new_string(0, 0));
-        end_val = count - 1;
-    } else {
-        // Two-or-more forms.  After ``words[1] = START``, scan for an
-        // optional ``to``/``..`` separator (or its absence) and an
-        // optional ``by STEP`` suffix.
-        start_val = rt.obj_get_int(words[1]);
-        var idx: u32 = 2;
-        if (lseq_match_word(words, idx, "to") or lseq_match_word(words, idx, "..")) {
-            idx += 1;
-        }
-        if (idx >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
-        // ``lseq START by STEP`` (no end) means N=START items; the
-        // separator-less ``words[2]`` could be ``by`` instead of an
-        // end value.
-        if (lseq_match_word(words, idx, "by")) {
-            // ``lseq START by STEP`` — start=0, count=START, step
-            const cnt = start_val;
-            start_val = 0;
-            if (cnt <= 0) return result_mod.from_globals(obj_new_string(0, 0));
-            if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
-            if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
-            // (cnt - 1) * step can overflow when cnt or step were
-            // clamped from out-of-range floats (e.g. ``1e50``).
-            // Bail to an empty list rather than panicking on
-            // i64-overflow safety checks.
-            const cnt_m1 = @subWithOverflow(cnt, 1);
-            if (cnt_m1[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
-            const prod = @mulWithOverflow(cnt_m1[0], step_val);
-            if (prod[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
-            const sum = @addWithOverflow(start_val, prod[0]);
-            if (sum[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
-            end_val = sum[0];
-            have_step = true;
-        } else {
-            end_val = rt.obj_get_int(words[idx]);
-            idx += 1;
-            if (lseq_match_word(words, idx, "by")) {
-                if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
-                have_step = true;
-            } else if (idx < words.len) {
-                // ``lseq START END STEP`` (or ``lseq START to END STEP``)
-                // — Tcl 9 accepts the trailing positional as the step
-                // without an explicit ``by`` keyword.  Without this
-                // branch, ``lseq 1000000 2000000 100000`` falls through
-                // with step=1 and tries to enumerate a million-element
-                // sequence with O(N²) tcl_list appends — that's the
-                // lseq.test hang at lseq-1.16.
-                step_val = rt.obj_get_int(words[idx]);
-                have_step = true;
-            }
-        }
+/// True when *word* is a Tcl double literal (a valid float that is not
+/// a plain integer) — drives ``lseq``'s int-vs-double output mode.
+fn lseq_is_double(word: i32) bool {
+    const s = obj_ensure_string(word);
+    if (s.len == 0) return false;
+    if (obj_mod.try_parse_int(s.ptr, s.len) != null) return false;
+    return obj_mod.try_parse_float(s.ptr, s.len) != null;
+}
 
-        if (!have_step) {
-            // Infer direction from start..end.
-            if (end_val < start_val) step_val = -1 else step_val = 1;
+/// Decimal places after the ``.`` (0 for e-notation / integers) —
+/// mirrors Tcl 9 ``ObjPrecision`` (tclArithSeries.c).
+fn lseq_precision(word: i32) u32 {
+    const s = obj_ensure_string(word);
+    if (s.len == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    var dot: i64 = -1;
+    var k: u32 = 0;
+    while (k < s.len) : (k += 1) {
+        const c = p[k];
+        if (c == 'e' or c == 'E') return 0;
+        if (c == '.') dot = @intCast(k);
+    }
+    if (dot < 0) return 0;
+    return s.len - @as(u32, @intCast(dot)) - 1;
+}
+
+/// Tcl 9 ``ArithSeriesLenDbl`` (tclArithSeries.c): element count of a
+/// double arithmetic series.  Scaling by 10^precision so a fractional
+/// step rounds consistently — ``lseq 4 40 0.1`` yields 361, not 360.
+fn lseq_len_dbl(start: f64, end: f64, step: f64, precision: u32) i64 {
+    if (step == 0) return 0;
+    var s = start;
+    var e = end;
+    var st = step;
+    if (precision > 0) {
+        var scale: f64 = 1;
+        var i: u32 = 0;
+        while (i < precision) : (i += 1) scale *= 10;
+        s *= scale;
+        e *= scale;
+        st *= scale;
+    }
+    e -= s; // distance
+    const wmin: f64 = -9223372036854775808.0;
+    const wmax: f64 = 9223372036854775807.0;
+    if (e >= wmin and e <= wmax and st >= wmin and st <= wmax) {
+        const iend: i64 = @intFromFloat(if (e < 0) e - 0.5 else e + 0.5);
+        const istep: i64 = @intFromFloat(if (st < 0) st - 0.5 else st + 0.5);
+        if (istep != 0) {
+            const n = @divTrunc(iend, istep) + 1;
+            return if (n < 0) 0 else n;
         }
     }
-    if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
+    const len = (e / st) + 1;
+    if (len < 0) return 0;
+    // Don't clamp to the cap — return an over-cap value so the emitter
+    // bails to an empty list rather than materialising a giant series.
+    if (len > @as(f64, @floatFromInt(LSEQ_MAX_COUNT))) return LSEQ_MAX_COUNT + 1;
+    return @intFromFloat(len);
+}
 
-    // Sanity bound: ``lseq 1e50 1e50+1`` and similar large-double
-    // forms convert to out-of-range i64 via ``@intFromFloat`` and
-    // can otherwise loop for billions of iterations before tripping
-    // the wasmtime watchdog.  Cap the absolute span so a poorly
-    // formed call returns an empty list (or partial result) instead
-    // of hanging the test runner.  The cap is conservative — well
-    // above any realistic production lseq — but small enough that
-    // a runaway terminates in <100ms.
-    //
-    // Use overflow-safe subtraction: when start/end are at the i64
-    // extremes (e.g. clamped from ``1e50``) the unguarded ``end - start``
-    // would itself trip the integer-overflow safety panic.
-    const max_count: i64 = 16 * 1024 * 1024; // 16 M elements
+/// Emit the integer arithmetic series ``start .. end`` step ``step``.
+fn lseq_emit_int(start_val: i64, end_val: i64, step_val: i64) result_mod.InterpResult {
+    if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
+    // Span guard: cap element count so a runaway (e.g. a huge clamped
+    // float bound) returns empty instead of hanging.  Overflow-safe so
+    // i64-extreme bounds don't trip the safety panic.
     const span_res = if (step_val > 0)
         @subWithOverflow(end_val, start_val)
     else
         @subWithOverflow(start_val, end_val);
     if (span_res[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
     const span: i64 = span_res[0];
-    // ``abs(step_val)`` via overflow-safe negation: ``-i64_min``
-    // would itself panic, so detect it explicitly and bail.
     const abs_step_res = if (step_val > 0)
         .{ step_val, @as(u1, 0) }
     else
         @subWithOverflow(@as(i64, 0), step_val);
     if (abs_step_res[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
     const abs_step: i64 = abs_step_res[0];
-    if (span < 0 or @divTrunc(span, abs_step) > max_count) {
+    if (span < 0 or @divTrunc(span, abs_step) > LSEQ_MAX_COUNT) {
         return result_mod.from_globals(obj_new_string(0, 0));
     }
 
@@ -2259,19 +2232,11 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
     var i: i64 = start_val;
     if (step_val > 0) {
         while (i <= end_val) {
-            // ``tcl_list`` allocates a fresh accumulator each call
-            // and does not consume its inputs (see
-            // ``valtypes/tcl_list.zig``).  Without explicit releases
-            // we'd leak one accumulator and one element obj per
-            // iteration — up to 16 M of each at the cap above.
             const elem = obj_new_int(i);
             const new_acc = rt.tcl_list(acc, elem);
             obj_mod.tcl_obj_release(acc);
             obj_mod.tcl_obj_release(elem);
             acc = new_acc;
-            // Stop before the increment overflows — this can happen
-            // when ``end_val`` is at i64_max (clamped from a float)
-            // and the loop emits the final element.
             const next = @addWithOverflow(i, step_val);
             if (next[1] != 0) break;
             i = next[0];
@@ -2289,6 +2254,160 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
         }
     }
     return result_mod.from_globals(acc);
+}
+
+/// Emit ``n`` double elements ``start + i*step`` (computed by
+/// multiplication, not accumulation, for stable rounding).  Each
+/// element is rounded to *precision* decimals — Tcl 9 ``ArithRound``
+/// (tclArithSeries.c) — so ``lseq 4 40 0.1`` prints ``6.3`` rather than
+/// the f64 noise ``6.300000000000001``.
+fn lseq_emit_dbl(start: f64, step: f64, n_in: i64, precision: u32) result_mod.InterpResult {
+    // Beyond the element cap, return empty rather than enumerate — the
+    // integer path does the same, and generating tens of millions of
+    // elements would hang the runtime (e.g. ``lseq 1e50 ...`` whose f64
+    // length computation overflows the cap).
+    if (n_in <= 0 or n_in > LSEQ_DBL_MAX_COUNT) return result_mod.from_globals(obj_new_string(0, 0));
+    const n = n_in;
+    var scale: f64 = 1;
+    if (precision > 0) {
+        var k: u32 = 0;
+        while (k < precision) : (k += 1) scale *= 10;
+    }
+    var acc: i32 = obj_new_string(0, 0);
+    var i: i64 = 0;
+    while (i < n) : (i += 1) {
+        var v: f64 = start + @as(f64, @floatFromInt(i)) * step;
+        if (precision > 0) v = @round(v * scale) / scale;
+        const elem = obj_mod.obj_new_float(v);
+        const new_acc = rt.tcl_list(acc, elem);
+        obj_mod.tcl_obj_release(acc);
+        obj_mod.tcl_obj_release(elem);
+        acc = new_acc;
+    }
+    return result_mod.from_globals(acc);
+}
+
+/// Tcl 9 ``lseq``.  Forms (matching tcl9.0.3 builtin):
+///
+///   lseq N                          -> 0 .. N-1
+///   lseq START ?to|..? END ?by? ?STEP?
+///   lseq START count N ?by? ?STEP?
+///   lseq START by STEP              -> N=START items from 0
+///
+/// Step direction is inferred from end-vs-start when no explicit step
+/// is given.  If START, END, or STEP is a double literal the whole
+/// series is generated in floating-point (Tcl ``arithSeriesDouble``);
+/// the ``count`` value's type never forces double output.
+fn eval_lseq(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
+
+    // ``lseq N`` -> integer 0 .. N-1 (``lseq 3.0`` is {0 1 2}).
+    if (words.len == 2) {
+        const count = rt.obj_get_int(words[1]);
+        if (count <= 0) return result_mod.from_globals(obj_new_string(0, 0));
+        return lseq_emit_int(0, count - 1, 1);
+    }
+
+    const start_word = words[1];
+    var idx: u32 = 2;
+    var is_count = false;
+    var legacy_by = false; // ``lseq START by STEP``
+    var end_word: i32 = 0;
+    var count_word: i32 = 0;
+
+    if (lseq_match_word(words, idx, "to") or lseq_match_word(words, idx, "..")) {
+        idx += 1;
+        if (idx >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        end_word = words[idx];
+        idx += 1;
+    } else if (lseq_match_word(words, idx, "count")) {
+        idx += 1;
+        if (idx >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        is_count = true;
+        count_word = words[idx];
+        idx += 1;
+    } else if (lseq_match_word(words, idx, "by")) {
+        // ``lseq START by STEP`` — count=START items starting at 0.
+        legacy_by = true;
+        idx += 1;
+    } else {
+        end_word = words[idx];
+        idx += 1;
+    }
+
+    // Optional explicit step: ``by STEP`` or a trailing positional STEP.
+    var step_word: i32 = 0;
+    var have_step = false;
+    if (lseq_match_word(words, idx, "by")) {
+        idx += 1;
+        if (idx < words.len) {
+            step_word = words[idx];
+            have_step = true;
+        }
+    } else if (idx < words.len) {
+        step_word = words[idx];
+        have_step = true;
+    }
+
+    if (legacy_by) {
+        // ``lseq START by STEP``: integer-only count form (start=0).
+        const cnt = rt.obj_get_int(start_word);
+        if (cnt <= 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const step_i: i64 = if (have_step) rt.obj_get_int(step_word) else 1;
+        if (step_i == 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const cnt_m1 = @subWithOverflow(cnt, 1);
+        if (cnt_m1[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const prod = @mulWithOverflow(cnt_m1[0], step_i);
+        if (prod[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+        return lseq_emit_int(0, prod[0], step_i);
+    }
+
+    // Double mode when any of start / end / step is a double literal
+    // (the count value's type is irrelevant — lseq-1.23 / 1.24).
+    const float_mode = lseq_is_double(start_word) or
+        (end_word != 0 and lseq_is_double(end_word)) or
+        (have_step and lseq_is_double(step_word));
+
+    if (float_mode) {
+        const start_d = obj_mod.obj_get_float(start_word);
+        const step_d: f64 = if (have_step) obj_mod.obj_get_float(step_word) else 1.0;
+        var prec: u32 = lseq_precision(start_word);
+        if (have_step) {
+            const ps = lseq_precision(step_word);
+            if (ps > prec) prec = ps;
+        }
+        if (is_count) {
+            const n = rt.obj_get_int(count_word);
+            return lseq_emit_dbl(start_d, step_d, n, prec);
+        }
+        const end_d = obj_mod.obj_get_float(end_word);
+        const pe = lseq_precision(end_word);
+        if (pe > prec) prec = pe;
+        const st: f64 = if (have_step) step_d else (if (end_d < start_d) @as(f64, -1.0) else @as(f64, 1.0));
+        const n = lseq_len_dbl(start_d, end_d, st, prec);
+        return lseq_emit_dbl(start_d, st, n, prec);
+    }
+
+    // Integer mode.
+    const start_val = rt.obj_get_int(start_word);
+    if (is_count) {
+        const cnt = rt.obj_get_int(count_word);
+        if (cnt <= 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const step_i: i64 = if (have_step) rt.obj_get_int(step_word) else 1;
+        if (step_i == 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const cnt_m1 = @subWithOverflow(cnt, 1);
+        if (cnt_m1[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const prod = @mulWithOverflow(cnt_m1[0], step_i);
+        if (prod[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+        const sum = @addWithOverflow(start_val, prod[0]);
+        if (sum[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+        return lseq_emit_int(start_val, sum[0], step_i);
+    }
+    const end_val = rt.obj_get_int(end_word);
+    const step_val: i64 = if (have_step)
+        rt.obj_get_int(step_word)
+    else if (end_val < start_val) @as(i64, -1) else @as(i64, 1);
+    return lseq_emit_int(start_val, end_val, step_val);
 }
 
 pub const registrations = [_]reg.CmdEntry{
