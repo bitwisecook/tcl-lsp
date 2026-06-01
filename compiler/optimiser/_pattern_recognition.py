@@ -255,16 +255,19 @@ def _statement_rewrite_context(
     description="Fold static string build chains into a single assignment.",
     opt_category="pattern",
 )
-def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
+def optimise_string_build_chains(ctx: PassContext, cfg, ssa, analysis=None) -> None:
     source = ctx.source
-    # Variables that alias outer scope (``global`` / ``variable`` / ``upvar``)
-    # or sit under a ``trace`` are observable on *every* write — folding a
-    # ``set x A; append x B`` chain into one ``set`` would drop a trace
-    # callback or a write another scope can see.  Reuse the canonical
-    # escaping-name analysis so the chain folder never rewrites them.
-    from compiler.core_analyses import _escaping_var_names
+    # A variable that aliases outer scope (``global`` / ``variable`` /
+    # ``upvar``) or sits under a ``trace`` is observable on *every* write, so
+    # folding a ``set x A; append x B`` chain into one ``set`` would drop a
+    # trace callback or a write another scope can see.  Consult the shared
+    # flow-sensitive alias/observability lattice point-wise so a chain entirely
+    # *before* such a declaration still folds.
+    obs = getattr(analysis, "observability", None) if analysis is not None else None
+    if obs is None:
+        from compiler.var_observability import analyse_var_observability
 
-    escaping = _escaping_var_names(cfg)
+        obs = analyse_var_observability(cfg)
     for block_name, block in cfg.blocks.items():
         ssa_block = ssa.blocks.get(block_name)
         if ssa_block is None:
@@ -292,9 +295,11 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
             chain = active.pop(var_key, None)
             if chain is None or len(chain.writes) < 2:
                 return
-            # An escaping / traced variable's intermediate writes are
-            # observable, so the chain must not be collapsed.
-            if var_key in escaping:
+            # If the variable is aliased or traced at *any* write in the chain,
+            # that write is observable (a trace fires, or another scope sees
+            # it), so the chain must not be collapsed.  Flow-sensitive: a chain
+            # whose writes all precede the declaration still folds.
+            if any(obs.is_escaping_at(block_name, w, var_key) for w in chain.writes):
                 return
             rendered = _render_static_string_word(chain.value)
             if rendered is None:

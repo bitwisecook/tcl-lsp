@@ -124,6 +124,7 @@ if TYPE_CHECKING:
     from .memory_ssa import MemorySSAFunction
     from .rendered_properties import RenderedValueProps
     from .taint import TaintLattice
+    from .var_observability import VarObservability
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
 
@@ -413,6 +414,10 @@ class FunctionAnalysis:
     rendered_props: dict[SSAValueKey, "RenderedValueProps"] = field(default_factory=dict)
     def_use_chains: "DefUseResult | None" = None
     memory_ssa: "MemorySSAFunction | None" = None
+    # Flow-sensitive alias + trace-observability lattice — the shared source of
+    # truth for "is this variable a private local at this point?".  ``None``
+    # only for complexity-guarded bodies.
+    observability: "VarObservability | None" = None
     # Joined type of all ``CFGReturn`` terminators in the function.  Unlike
     # ``types`` (which is keyed by SSA def-sites and therefore empty for
     # procs whose body is just ``return [expr ...]``), this is computed
@@ -1855,48 +1860,16 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
     (W211), nor eliminated by DCE, even when the local analysis sees no local
     read.
 
-    Uses the shared :mod:`compiler.var_scoping` grammar so every alias
-    form is recognised identically to memory-SSA alias detection — a single
-    source of truth rather than ad-hoc command-name matching (which misses
-    ``namespace upvar``, whose IR command is just ``namespace``).
+    This is the *whole-function* (flow-insensitive) view of the shared
+    :mod:`compiler.var_observability` lattice — every name that is aliased or
+    traced *anywhere* in the function.  The lattice is the single source of
+    truth (one grammar, one analysis); callers that can pin down a program
+    point should prefer its flow-sensitive ``is_escaping_at`` /
+    ``is_observed_at`` queries via :attr:`FunctionAnalysis.observability`.
     """
-    from compiler.var_scoping import (
-        global_declaration_indices,
-        upvar_local_declaration_indices,
-        variable_declaration_indices,
-    )
+    from compiler.var_observability import analyse_var_observability
 
-    names: set[str] = set()
-    for block in cfg.blocks.values():
-        for stmt in block.statements:
-            if not isinstance(stmt, (IRCall, IRBarrier)):
-                continue
-            args = stmt.args
-            for i in upvar_local_declaration_indices(stmt.command, args, allow_dynamic_target=True):
-                if 0 <= i < len(args):
-                    names.add(_normalise_var_name(args[i]))
-            if stmt.canonical_command == "::global":
-                for i in global_declaration_indices(args):
-                    if 0 <= i < len(args):
-                        names.add(_normalise_var_name(args[i]))
-            elif stmt.canonical_command == "::variable":
-                for i in variable_declaration_indices(args):
-                    if 0 <= i < len(args):
-                        names.add(_normalise_var_name(args[i]))
-            elif stmt.canonical_command == "::trace":
-                # `trace add variable NAME ...` (8.5+) or `trace variable NAME
-                # ...` (8.4): any trace makes accesses to NAME observable, so
-                # its writes are not dead.  Conservative — covers all ops.
-                target: str | None = None
-                if len(args) >= 3 and args[0] == "add" and args[1] == "variable":
-                    target = args[2]
-                elif len(args) >= 2 and args[0] == "variable":
-                    target = args[1]
-                if target is not None:
-                    nm = _normalise_var_name(target)
-                    if nm:
-                        names.add(nm)
-    return frozenset(names)
+    return analyse_var_observability(cfg).escaping_names()
 
 
 def _reportable_local(place: Place) -> bool:
@@ -4025,6 +3998,8 @@ def analyse_function(
     except Exception:
         _log.warning("memory-SSA construction failed", exc_info=True)
 
+    from .var_observability import analyse_var_observability
+
     return FunctionAnalysis(
         live_in=live_in,
         live_out=live_out,
@@ -4041,6 +4016,7 @@ def analyse_function(
         def_use_chains=du_result,
         memory_ssa=mem_ssa,
         return_type=return_type,
+        observability=analyse_var_observability(cfg),
     )
 
 
