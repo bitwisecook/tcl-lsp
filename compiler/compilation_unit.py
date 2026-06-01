@@ -190,6 +190,7 @@ def _proc_cache_key(
     start_line: int = 0,
     start_char: int = 0,
     known_classes_fp: int = 0,
+    call_site_constants_fp: int = 0,
 ) -> tuple[str, int] | None:
     """Build a procedure cache key from source offsets.
 
@@ -209,6 +210,12 @@ def _proc_cache_key(
     ``analyse_function``: ``[ClassName new]`` propagates an OBJECT type only
     when ``ClassName`` is known, so adding/renaming a class elsewhere must
     invalidate an otherwise-unchanged proc's cached object-type facts.
+
+    ``call_site_constants_fp`` covers the literal call-site args seeded into
+    ``analyse_function`` as ``param_constants``: editing a caller's literal arg
+    (``foo 1`` → ``foo 0``) changes the proc's SCCP / unreachable-branch facts
+    even though the proc's own text and position are unchanged, so it must
+    invalidate the cached unit (see :func:`call_site_constants_fingerprint`).
 
     The proc's **start line/char AND byte offset** are all part of the key. The
     cached ``FunctionUnit``'s CFG/SSA carry *absolute* source positions — both
@@ -235,6 +242,7 @@ def _proc_cache_key(
                 start_char,
                 start_offset,
                 known_classes_fp,
+                call_site_constants_fp,
             )
         ),
     )
@@ -248,6 +256,7 @@ def _proc_reposition_key(
     stub_fingerprint: int = 0,
     context_fingerprint: int = 0,
     known_classes_fp: int = 0,
+    call_site_constants_fp: int = 0,
 ) -> tuple[str, int] | None:
     """Build a *position-independent* procedure key for the reposition cache.
 
@@ -257,14 +266,16 @@ def _proc_reposition_key(
     reposition key even though their primary cache keys differ.
 
     A hit means the body text and every non-positional validity input (stub
-    overlay, CFG-construction context, known-class set) are unchanged, so the
-    proc's *dataflow* is identical — only its absolute source ranges shifted.
-    The caller may therefore reuse the cached unit's position-independent
-    ``analysis`` / ``execution_intent`` (keyed by block name + statement index
-    + SSA value key, never by absolute position) and rebuild just the cheap
-    CFG + SSA to recover correct ranges.  The validity contract matches the
-    primary cache exactly minus position, so this is no less sound than the
-    existing whole-unit reuse.
+    overlay, CFG-construction context, known-class set, call-site constants) are
+    unchanged, so the proc's *dataflow* is identical — only its absolute source
+    ranges shifted.  The caller may therefore reuse the cached unit's
+    position-independent ``analysis`` / ``execution_intent`` (keyed by block
+    name + statement index + SSA value key, never by absolute position) and
+    rebuild just the cheap CFG + SSA to recover correct ranges.  The validity
+    contract matches the primary cache exactly minus position, so this is no
+    less sound than the existing whole-unit reuse — including
+    ``call_site_constants_fp`` so a moved proc whose caller also changed a
+    literal arg is not served stale SCCP / unreachable-branch facts.
     """
     if start_offset < 0 or end_offset < start_offset or end_offset > len(source):
         return None
@@ -278,6 +289,7 @@ def _proc_reposition_key(
                 stub_fingerprint,
                 context_fingerprint,
                 known_classes_fp,
+                call_site_constants_fp,
             )
         ),
     )
@@ -292,6 +304,45 @@ def known_classes_fingerprint(known_classes: frozenset[str]) -> int:
     builders outside :func:`compile_source` produce matching keys.
     """
     return hash(tuple(sorted(known_classes)))
+
+
+def call_site_constants_fingerprint(
+    call_site_constants: "dict[str, dict[int, set[object]]]",
+) -> dict[str, int]:
+    """Per-proc fingerprint of the literal values flowing into each proc's
+    params from its call sites.
+
+    ``analyse_function`` is seeded with ``param_constants`` derived (via
+    ``_params_constants_from_call_sites``) from the literal args every call site
+    passes a proc.  Those facts drive SCCP / unreachable-branch results, so a
+    proc whose *body text and position are unchanged* can still need
+    re-analysis when a caller edits a literal arg (``foo 1`` → ``foo 0``).  The
+    proc-cache / reposition keys therefore fold this fingerprint in, or an
+    unchanged-but-restamped proc would serve stale branch facts (the
+    ``analyse_function`` ``param_constants`` seed is invisible to a body-text
+    key).
+
+    Returns ``{qname -> fingerprint}``; a proc absent from *call_site_constants*
+    (no user-proc call sites) maps to ``0`` via the callers' ``.get(qname, 0)``.
+    Arg indices are sorted and each value set is rendered to a sorted tuple of
+    ``(typename, repr)`` pairs so a ``1`` (int) and ``"1"`` (str) never collide.
+    The ``_UNKNOWN_ARG`` sentinel (a bare ``object()`` whose ``repr`` embeds its
+    address) is rendered to a fixed token so the fingerprint is reproducible.
+    """
+    from compiler.core_analyses import _UNKNOWN_ARG
+
+    def _render(v: object) -> tuple[str, str]:
+        if v is _UNKNOWN_ARG:
+            return ("", "<unknown-arg>")
+        return (type(v).__name__, repr(v))
+
+    out: dict[str, int] = {}
+    for qname, by_idx in call_site_constants.items():
+        items = tuple(
+            (idx, tuple(sorted(_render(v) for v in by_idx[idx]))) for idx in sorted(by_idx)
+        )
+        out[qname] = hash(items)
+    return out
 
 
 def compute_stub_fingerprint(source: str) -> int:
@@ -446,17 +497,17 @@ def _compile_source_inner(
     # D3-P2 / D3-P8 closure: collect call-site literal arg values per
     # user proc so the SCCP analysis can fold them.  Shared helper
     # also used by ``analyse_ir_module``; see its docstring for the
-    # full reasoning.  This is gated by the param-cache-key including
-    # ``call_site_constants_fp`` -- but for simplicity we collect once
-    # and pass through; the cache eviction is OK since proc bodies
-    # don't usually contain enough literal-call diversity to force
-    # frequent rebuilds.
+    # full reasoning.  The per-proc fingerprint is folded into the
+    # proc-cache / reposition keys below so a proc whose body text and
+    # position are unchanged is still re-analysed when a caller edits a
+    # literal arg (``foo 1`` → ``foo 0``) that seeds its ``param_constants``.
     from compiler.core_analyses import (
         _collect_call_site_constants,
         _params_constants_from_call_sites,
     )
 
     call_site_constants = _collect_call_site_constants(ir_module)
+    call_site_constants_fps = call_site_constants_fingerprint(call_site_constants)
 
     for qname, ir_proc in ir_module.procedures.items():
         cache_key = _proc_cache_key(
@@ -469,6 +520,7 @@ def _compile_source_inner(
             start_line=ir_proc.range.start.line,
             start_char=ir_proc.range.start.character,
             known_classes_fp=known_classes_fp,
+            call_site_constants_fp=call_site_constants_fps.get(qname, 0),
         )
 
         # Try the proc cache before rebuilding CFG + SSA + analysis.
@@ -516,6 +568,7 @@ def _compile_source_inner(
                 stub_fingerprint=stub_fingerprint,
                 context_fingerprint=context_fingerprint,
                 known_classes_fp=known_classes_fp,
+                call_site_constants_fp=call_site_constants_fps.get(qname, 0),
             )
             repos = reposition_cache.get(repos_key) if repos_key is not None else None
             if repos is not None and not repos.complexity_guarded:
