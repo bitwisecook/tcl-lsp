@@ -1958,13 +1958,69 @@ spuriously kill arms.  A glob/regexp dispatch is recorded in the new
 (as the old barrier did) and skip the analyser-only member blocks,
 matching tclsh's un-compiled approach for those modes.  (Note: the
 single-braced-body arm form is still lowered to an empty `Script` for
-*every* mode — a separate pre-existing lowering gap, untouched here;
-the multi-arg arm form lowers bodies and is what exercises the SSA
-recovery.)  Tests: `switch_glob_creates_branches` /
+*every* mode — a separate pre-existing Rust lowering gap, tracked as
+`SYNC-JUN-switch-braced-body` below and untouched here; the multi-arg
+arm form lowers bodies and is what exercises the SSA recovery.)  Tests: `switch_glob_creates_branches` /
 `switch_regexp_creates_branches` (cfg_lower), `switch_glob_arm_body_
 read_counts_as_param_use` (compilation_unit), and
 `switch_glob_emits_generic_invoke_not_jump_table` (codegen
 integration).
+
+### SYNC-JUN-switch-braced-body — single-braced `switch` arm bodies not lowered to the CFG (Rust gap)
+
+Discovered while landing `SYNC-MAY31-2`.  **Rust-only; not a Python
+parity gap — no backport needed.**
+
+The canonical `switch` form `switch $x { a {body1} b {body2} }` (a
+single braced word holding every pattern/body pair) lowers its arm
+bodies to an **empty `IRScript`** on the Rust side, for *all* modes.
+The multi-arg form `switch $x a {body1} b {body2}` lowers bodies
+correctly.  Root cause: in
+`rust/tcl-compiler/src/lowering/structured.rs`, the single-braced path
+in `lower_switch` (the `i == args.len() - 1` branch) builds each
+`SwitchPair` with `body_arg_idx: None` because the per-body tokens live
+*inside* the braced word, not in `arg_tokens`.  `build_switch_arms`
+then calls `lower_body_from_tok(text, None, …)`, which returns
+`Script::new()` whenever the token is `None`.
+
+**Scope of impact.**  The gap is in the **CFG-lowering** path only, so
+it degrades everything downstream of the CFG for single-braced switch
+arm bodies: SSA / def-use / SCCP, the CFG-SSA diagnostics
+(W210/W211/W214/W220, dead-store, I230 — including the
+`SYNC-MAY31-2/-3` recoveries when the arm uses the braced form), and
+bytecode codegen of those bodies (emitted as empty).  The **analyser
+tree-walk** is a *separate* path and already handles the braced form
+correctly — `analyser/handlers.rs::handle_switch_command` extracts
+per-element tokens via `parse_switch_body_elements(body_text, body_tok)`
+and calls `analyse_body` on each, so W123 / semantic tokens / the
+regexp-pattern recording are unaffected.  (This split is why the
+existing `handle_switch_form2_braced_body_walks_each_arm` test passes
+while the lowering test at `structured.rs:771` discards its result with
+a "single braced body may not be fully parsed yet" comment.)
+
+**Python parity.**  `core/compiler/lowering.py::_lower_switch` handles
+the braced form: `_switch_body_elements` returns extracted *Tokens*,
+each body pair carries a non-`None` `body_tok`, and `_lower_body_arg`
+recursively `_lower_script`s it.  Python is correct, so this is a Rust
+catch-up only.
+
+**Fix sketch.**  The single-braced path already relocates each body's
+span into outer-source coordinates (`body_span`), so the simplest fix
+is to drop the token requirement for this case and lower from the
+offset directly — call `lower_body(text, content_offset, namespace)`
+(`lowering/mod.rs::lower_body`) with `content_offset = body_span.start()
++ 1` (skip the opening `{`), since the element text is already the
+brace-stripped content.  Alternatively, mirror the analyser by
+extracting real per-element sub-tokens (`parse_switch_body_elements`)
+and threading them through `SwitchPair` so `lower_body_from_tok` gets a
+non-`None` token — this also fixes any content-offset / encoding-flag
+nuances the bare-offset path would have to replicate.  Files:
+`rust/tcl-compiler/src/lowering/structured.rs`
+(`lower_switch` single-braced branch + `build_switch_arms`); reference
+`analyser/handlers.rs::handle_switch_command` as the working
+precedent and replace the discarded-result `switch_exact` lowering
+test with a real assertion.  Classify: in-scope, low-touch; affects
+all switch modes equally.
 
 ### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
 
@@ -2437,6 +2493,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
 | — | `SYNC-MAY19-surrogate-pair` | Landed 2026-05-19 — `scan_unicode_escape` in `rust/tcl-lexer/src/substitution.rs` combines `\uHHHH \uLLLL` pairs into supplementary-plane codepoints. |
 | 7 | `SYNC-MAY19-switch-fallthrough-cfg` | Add `expand_fallthrough_switch` to `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/`.  **Deferred** — the Rust path doesn't emit Tcl bytecode today, so this flag has no consumer.  Listed for tracking only. |
+| 3 | `SYNC-JUN-switch-braced-body` | Rust-only catch-up (Python already correct — no backport).  Single-braced `switch $x { a {body} … }` arm bodies lower to an empty `IRScript`, so CFG-SSA diagnostics + codegen miss them for the *canonical* switch form (the analyser tree-walk already handles it).  Low-touch fix in `lowering/structured.rs` — see the `SYNC-JUN-switch-braced-body` section for the root cause + fix sketch. |
 | — | `SYNC-JUN-FRAME356-population` | Landed via PR #389 — `EscapeState` and `CfgState` carry `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` populated by `record_barrier` / `escape_with_reason` calls at the informative handler sites; `analyse_script` copies both into `ProcEscapeSummary`. |
 | — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
