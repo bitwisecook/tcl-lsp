@@ -9,6 +9,7 @@ from __future__ import annotations
 from analyser.semantic_model import Range
 from compiler.core_analyses import LatticeKind, LatticeValue
 from compiler.expr_ast import ExprNode, render_expr
+from compiler.interprocedural import ProcSummary
 from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -134,7 +135,12 @@ def format_taint(tl: TaintLattice) -> str:
 
 
 def stmt_summary(stmt: IRStatement) -> str:
-    """One-line summary of an IR statement."""
+    """One-line summary of an IR statement.
+
+    The single source of truth for both the text CLI / TUI (ANSI-coloured)
+    and the JSON serialiser (web GUI).  Renderers consume the string
+    verbatim; they don't re-format the IR.
+    """
     if isinstance(stmt, IRAssignConst):
         return f"assign-const {stmt.name} = {stmt.value}"
     if isinstance(stmt, IRAssignExpr):
@@ -179,6 +185,26 @@ def stmt_color_class(stmt: IRStatement) -> str:
 def stmt_kind(stmt: IRStatement) -> str:
     """Short name for an IR statement kind."""
     return stmt.__class__.__name__
+
+
+# Interprocedural helpers
+
+
+def format_return_shape(summary: ProcSummary) -> str:
+    """Project a :class:`ProcSummary`'s return facts to a display string.
+
+    Single source of truth for both the text CLI/TUI summary line and
+    the JSON ``returnShape`` field the web GUI reads — neither side
+    derives this from the raw summary fields.
+    """
+    if summary.returns_constant:
+        return f"const({summary.constant_return!r})"
+    if summary.return_passthrough_param is not None:
+        return f"passthrough({summary.return_passthrough_param})"
+    if summary.return_depends_on_params:
+        deps = ",".join(summary.return_depends_on_params)
+        return f"depends({deps})"
+    return "unknown"
 
 
 # Range serialisation helper
