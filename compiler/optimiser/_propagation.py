@@ -17,6 +17,7 @@ from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
 from shared.ranges import range_from_token
+from shared.tcl_quoting import tcl_list_quote
 from shared.tokens import Token, TokenType
 
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
@@ -40,7 +41,6 @@ from ._helpers import (
     _parse_command_words,
     _parse_single_command_from_range,
     _render_folded_literal,
-    _render_static_string_word,
     _resolve_summary_proc_name,
 )
 from ._types import Optimisation, PassContext
@@ -314,6 +314,24 @@ def optimise_expr_substitutions(
         if expr_arg is None:
             continue
 
+        # O115: unwrap a redundant nested expr command substitution.  When the
+        # outer expr body is exactly ``[expr {E}]`` (e.g. inside ``return
+        # [expr {[expr {$x * 2}]}]``), the inner command sub is pointless --
+        # collapse ``[expr {[expr {E}]}]`` to ``[expr {E}]``.  ``optimise_
+        # expression_args`` only fires for EXPR-role args, so this is the path
+        # that reaches expr command subs sitting in value positions.
+        unwrapped = _try_unwrap_expr_in_expr(expr_arg)
+        if unwrapped is not None and unwrapped != expr_arg:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O115",
+                    message="Remove redundant nested expr",
+                    range=_command_subst_range(tok),
+                    replacement=f"[expr {{{unwrapped}}}]",
+                )
+            )
+            continue
+
         substituted_expr, changed, _subst = _substitute_expr_constants(expr_arg, constants)
         sc_detected = _try_eq_ne_string_compare_simplify_expr(
             expr_arg,
@@ -464,9 +482,6 @@ def optimise_static_proc_calls(
         )
 
 
-_UNSAFE_IN_WORD_RE = re.compile(r'[\$\[\]\\"\s{}]')
-
-
 def _is_braced_var_token(tok: Token) -> bool:
     """Return True when ``tok`` is a ``${name}`` style variable token."""
     if tok.type is not TokenType.VAR:
@@ -503,24 +518,21 @@ def optimise_constant_var_refs(
         value = constants.get(name)
         if value is None:
             continue
-        # String constants with Tcl metacharacters ($, [, \, etc.) cannot be
-        # dropped in as a bare word.  But this $var is a single-token whole
-        # word (``arg_single[idx]``), so the value can instead be re-rendered
-        # as a self-contained word -- a brace-quoted ``{...}`` word suppresses
-        # the metacharacters and is semantically identical to substituting the
-        # variable, which already yields the value as a single word.
-        if _UNSAFE_IN_WORD_RE.search(value):
-            replacement = _render_static_string_word(value)
-            if replacement is None:
-                continue
-        else:
-            replacement = value
+        # This $var is a single-token whole word (``arg_single[idx]``), so the
+        # constant can be inlined as the canonical Tcl source for that value.
+        # ``tcl_list_quote`` is the project's 1:1 port of Tcl's own
+        # ``TclScanElement``/``TclConvertElement``: it returns a single word
+        # that parses back to exactly ``value`` -- bare when safe, brace-quoted
+        # when brace-balanced, backslash-escaped otherwise -- which is what
+        # ``$var`` already evaluates to.  ``first=False`` because the
+        # substituted word is always an argument, never a command head, so a
+        # leading ``#`` need not be quoted.
         ctx.optimisations.append(
             Optimisation(
                 code="O100",
                 message="Propagate constant into command argument",
                 range=_var_token_range(tok),
-                replacement=replacement,
+                replacement=tcl_list_quote(value, first=False),
             )
         )
 

@@ -14,6 +14,7 @@ else:
 from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext
+from shared.tcl_quoting import tcl_list_quote
 from shared.tokens import TokenType
 
 from ....ir import (
@@ -37,9 +38,6 @@ from ....ir import (
     IRTry,
     IRUpFrame,
     IRWhile,
-)
-from .._encoding import (
-    _tcl_list_quote,
 )
 from .._imports import (
     command_emits_nothing,
@@ -425,7 +423,7 @@ class _WasmEmitterStmtMixin(_Base):
                             # backslash-bearing word.  See the
                             # IRBarrier branch above for the
                             # ``namespace {*}"…\n…"`` repro.
-                            t = _tcl_list_quote(t, first=False)
+                            t = tcl_list_quote(t, first=False)
                         elif i < len(single_word) and not single_word[i] and t:
                             # Multi-token concatenation (``"$body (suffix)"``,
                             # ``foo$bar``, …).  ``_word_piece`` joined the
@@ -706,7 +704,7 @@ class _WasmEmitterStmtMixin(_Base):
                                     # command name itself, which list-quote
                                     # would force-brace despite never
                                     # needing the wrap).
-                                    t = _tcl_list_quote(t, first=False)
+                                    t = tcl_list_quote(t, first=False)
                                 parts.append(prefix + t)
                             script = " ".join(parts)
                             self._emit_eval_fallback(
@@ -1527,13 +1525,13 @@ class _WasmEmitterStmtMixin(_Base):
             parts.append(
                 subj
                 if (subj.startswith("$") or subj.startswith("["))
-                else _tcl_list_quote(subj, first=False)
+                else tcl_list_quote(subj, first=False)
             )
         for word in raw_args[i:]:
             if word.startswith("$") or word.startswith("["):
                 parts.append(word)
             else:
-                parts.append(_tcl_list_quote(word, first=False))
+                parts.append(tcl_list_quote(word, first=False))
         return " ".join(parts)
 
     def _emit_eval_fallback(
@@ -1665,7 +1663,7 @@ class _WasmEmitterStmtMixin(_Base):
                             # Use list-quote to get balanced/escaped form.
                             # Args are never at command-start so a leading
                             # ``#`` does not need quoting.
-                            parts.append(_tcl_list_quote(a, first=False))
+                            parts.append(tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
                     elif _arg_is_multi_token(i):
@@ -1696,7 +1694,7 @@ class _WasmEmitterStmtMixin(_Base):
                         # ``\`` + ``{``.  Apply backslash substitution
                         # so the value we embed in the script reflects
                         # what the original word would have evaluated
-                        # to.  _tcl_list_quote then encodes it as a
+                        # to.  tcl_list_quote then encodes it as a
                         # safe Tcl word that round-trips through the
                         # interpreter's word parser.
                         #
@@ -1727,9 +1725,9 @@ class _WasmEmitterStmtMixin(_Base):
                         # Script args never sit at command-start — pass
                         # ``first=False`` so a leading ``#`` is left alone.
                         if prepped is None:
-                            parts.append(_tcl_list_quote(a, first=False))
+                            parts.append(tcl_list_quote(a, first=False))
                         else:
-                            parts.append(_tcl_list_quote(prepped, first=False))
+                            parts.append(tcl_list_quote(prepped, first=False))
                 script = " ".join(parts)
             # Sync all live proc-locals into the frame so the
             # interpreter can see them via var_resolve.  We sync

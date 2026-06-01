@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from compiler.registry import REGISTRY, EmitContext
+from shared.tcl_quoting import tcl_list_quote
 
-from ..._encoding import _tcl_list_quote, _tcl_token_value
+from ..._encoding import _tcl_token_value
 from ..._ir import ValType, WasmOp
 
 
@@ -122,7 +123,7 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
         return
     # Fast path: all literals → compile-time string.
     # _tcl_token_value expands each source token to its VALUE (strips
-    # braces, applies backslash subst), then _tcl_list_quote encodes
+    # braces, applies backslash subst), then tcl_list_quote encodes
     # the value as a list element.
     #
     # ``_has_embedded_subst`` catches mid-string ``$var`` / ``${var}``
@@ -138,7 +139,7 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
     ):
         emitter._emit_obj_literal(
             " ".join(
-                _tcl_list_quote(_tcl_token_value(a), first=(i == 0)) for i, a in enumerate(args)
+                tcl_list_quote(_tcl_token_value(a), first=(i == 0)) for i, a in enumerate(args)
             )
         )
         return

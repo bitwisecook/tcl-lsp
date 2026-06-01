@@ -1026,6 +1026,18 @@ class TestConstantVarRefPropagation:
         # The intermediate local must be gone — no surviving ``set msg``.
         assert "set msg" not in optimised
 
+    def test_braced_scalar_array_name_not_folded_as_literal(self):
+        """``set x ${a(1)}`` reads scalar ``a(1)`` — never a literal constant.
+
+        The lowerer reconstructs the braced-scalar reference with an internal
+        ``$={a(1)}`` marker; SCCP must treat that as a (conservatively unknown)
+        variable read, not fold the marker text in as a constant value.
+        """
+        source = "set x ${a(1)}\nputs $x"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert rewrites == []
+
 
 class TestPatternMatchSimplification:
     """O110: simplify matches_regex / matches_glob to simpler string ops."""
@@ -1227,6 +1239,20 @@ class TestNestedExprUnwrap:
         source = "if {[expr {$x + 1}]} {}"
         optimised, rewrites = optimise_source(source)
         assert "[expr" not in optimised
+        assert any(r.code == "O115" for r in rewrites)
+
+    def test_nested_expr_in_return_unwrapped(self):
+        # An ``[expr {...}]`` command sub in a value position (here ``return``)
+        # is reached via optimise_expr_substitutions, not optimise_expression_args.
+        source = "proc double_expr {x} {\n    return [expr {[expr {$x * 2}]}]\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "return [expr {$x * 2}]" in optimised
+        assert any(r.code == "O115" for r in rewrites)
+
+    def test_nested_expr_in_set_unwrapped(self):
+        source = "proc f {x} {\n    set y [expr {[expr {$x * 2}]}]\n    return $y\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set y [expr {$x * 2}]" in optimised
         assert any(r.code == "O115" for r in rewrites)
 
 

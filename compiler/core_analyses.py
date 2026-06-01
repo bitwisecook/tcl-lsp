@@ -114,6 +114,7 @@ from .static_loops import (
 )
 from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
+from .token_helpers import contains_braced_scalar_marker
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
 from .var_refs import VarReferenceScanner, body_write_names, command_sub_write_names
@@ -747,6 +748,13 @@ def _evaluate_def(
             return _substitute_expr_with_lattice(expr, ssa_stmt.uses, values)
 
         case IRAssignValue(value=value):
+            # A ``$={name}`` marker is a braced-scalar *variable reference*
+            # (the SSA use-collector doesn't decode it, so it never reaches
+            # ``ssa_stmt.uses``).  It must not be mistaken for a literal whose
+            # text happens to be ``$={...}`` — resolving the scalar isn't
+            # tracked, so it's conservatively overdefined, matching ``${ns::y}``.
+            if contains_braced_scalar_marker(value):
+                return OVERDEFINED
             if not ssa_stmt.uses:
                 # Only treat as constant if the value doesn't contain
                 # command substitutions (which have runtime results).

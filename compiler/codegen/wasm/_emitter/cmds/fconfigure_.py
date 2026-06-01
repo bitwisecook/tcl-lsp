@@ -14,8 +14,7 @@ list-element quoting against the live values.
 from __future__ import annotations
 
 from compiler.registry import REGISTRY, EmitContext
-
-from ..._encoding import _tcl_list_quote
+from shared.tcl_quoting import tcl_list_quote
 
 
 def _emit_fconfigure(
@@ -55,7 +54,7 @@ def _emit_fconfigure(
             # empty values — ``fconfigure $fd -eofchar {}`` would
             # otherwise be emitted as bare ``-eofchar`` and silently
             # turn into a query at the runtime call.
-            quoted = [_tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(rest)]
+            quoted = [tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(rest)]
             emitter._emit_obj_literal(" ".join(quoted))
         else:
             # Mixed literal + dynamic — fall back to the eval

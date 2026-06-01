@@ -14,10 +14,8 @@ from collections.abc import Callable
 from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext as _EmitContext
+from shared.tcl_quoting import tcl_list_quote
 
-from .._encoding import (
-    _tcl_list_quote,
-)
 from .._imports import (
     runtime_import_for,
     subcommand_runtime_import_for,
@@ -1567,7 +1565,7 @@ class _WasmEmitterValuesMixin(_Base):
             # Build the list string at compile time.  IR values have outer
             # braces already stripped by the lexer, so treat brace-looking
             # values (e.g. "{}" from source "{{}}") as literal data and let
-            # _tcl_list_quote encode them correctly.  Non-braced values may
+            # tcl_list_quote encode them correctly.  Non-braced values may
             # have raw backslash sequences that need expansion first; braced
             # values carry their exact source bytes and must pass through
             # unchanged.
@@ -1579,7 +1577,7 @@ class _WasmEmitterValuesMixin(_Base):
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
             list_str = " ".join(
-                _tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
+                tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
                 for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)
@@ -1594,7 +1592,7 @@ class _WasmEmitterValuesMixin(_Base):
                 self._emit_call(lappend_idx)
         else:
             # No lappend available — fall back to compile-time join.
-            # IR values are already de-braced by the lexer; _tcl_list_quote
+            # IR values are already de-braced by the lexer; tcl_list_quote
             # handles proper list encoding.
             def _prep2(a: str, braced: bool) -> str:
                 if braced:
@@ -1602,7 +1600,7 @@ class _WasmEmitterValuesMixin(_Base):
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
             list_str = " ".join(
-                _tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
+                tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
                 for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)
