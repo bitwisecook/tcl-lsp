@@ -1925,6 +1925,93 @@ before this value so it is treated as data, not an option."
         }
     }
 
+    /// Statements whose dead-store W220 should be **suppressed** because their
+    /// array-element / dict-path def place is observed by some read in the
+    /// function (Phase 8 place-model precision, SYNC-MAY31-1b stage 4).
+    ///
+    /// Name-level SSA folds `a(k)` / `a(j)` / `$a` to the base name `a`, so a
+    /// later `set a(j) 2` looks like it overwrites `set a(k) 1` before any read
+    /// — a false dead store when `a(k)` is in fact read.  Resolving each
+    /// element write to a [`Place`](crate::place::Place) and consulting the
+    /// over-approximating [`overlap`](crate::place::overlap) against the
+    /// function's read places suppresses exactly that case.  Scalars keep the
+    /// precise name-level verdict (they don't fold), so a genuine
+    /// `set x 1; set x 2; puts $x` dead store still fires.  Mirrors the
+    /// suppress-only `overlap` consumer on `main`
+    /// (`docs/design/compiler/phase8-place-migration.md`); the rare
+    /// same-element reassignment dead store is intentionally not recovered (it
+    /// needs the versioned 8F substrate).
+    ///
+    /// Returns `(block_name, statement_index)` keys.  Empty when the function
+    /// has no array-element assignment (the common case — no extra cost) or no
+    /// registry is bound.
+    fn place_suppressed_dead_stores(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) -> std::collections::HashSet<(String, i32)> {
+        use crate::ir::Statement;
+        use crate::place::{overlap, Place, PlaceKind};
+        use crate::place_bridge::{
+            build_resolve_context, def_places, read_places, terminator_read_places,
+        };
+
+        let mut out = std::collections::HashSet::new();
+        let Some(registry) = self.registry.as_ref() else {
+            return out;
+        };
+
+        let is_array_assign = |stmt: &Statement| -> bool {
+            matches!(
+                stmt,
+                Statement::AssignConst { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::AssignExpr { name, .. }
+                    if name.contains('(')
+            )
+        };
+
+        // Cheap pre-check: only array-element assignments can be mis-folded by
+        // the name-level SSA, so non-array functions cost nothing.
+        let has_array_assign = fu
+            .cfg
+            .blocks
+            .values()
+            .any(|b| b.statements.iter().any(&is_array_assign));
+        if !has_array_assign {
+            return out;
+        }
+
+        let ctx = build_resolve_context(&fu.cfg, &fu.name);
+        // All read places in the function, collected once.
+        let mut reads: Vec<Place> = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                reads.extend(read_places(stmt, &ctx, registry));
+            }
+            if let Some(term) = &block.terminator {
+                reads.extend(terminator_read_places(term, &ctx, registry));
+            }
+        }
+
+        for (block_name, block) in &fu.cfg.blocks {
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                if !is_array_assign(stmt) {
+                    continue;
+                }
+                let observed = def_places(stmt, &ctx, registry).iter().any(|d| {
+                    matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
+                        && reads.iter().any(|r| overlap(d, r))
+                });
+                if observed {
+                    if let Ok(i) = i32::try_from(idx) {
+                        out.insert((block_name.clone(), i));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// W220 — dead-store hint.
     ///
     /// Mirrors `_emit_dead_store_diagnostics` in
@@ -1974,6 +2061,9 @@ before this value so it is treated as data, not an option."
         use crate::ir::Statement;
         use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
+        // Phase 8 place-model precision: array-element / dict-path writes the
+        // name-level SSA mis-folds but that a read actually observes.
+        let place_suppressed = self.place_suppressed_dead_stores(fu);
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -2044,6 +2134,14 @@ before this value so it is treated as data, not an option."
                     }
                 }
                 _ => continue,
+            }
+            // Suppress when this element write is observed by a read the
+            // name-level SSA can't see (place-model overlap, stage 4).
+            if place_suppressed.contains(&(
+                chain.definition.block.clone(),
+                chain.definition.statement_index,
+            )) {
+                continue;
             }
             let span = stmt.span();
             if span.is_empty() {
@@ -4645,6 +4743,39 @@ mod tests {
         );
         assert!(w220s.iter().any(|d| d.message.contains("'x'")));
         assert_eq!(w220s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn w220_array_element_overwrite_not_dead() {
+        // SYNC-MAY31-1b (place model): `set a(k) 1` is NOT a dead store even
+        // though the later `set a(j) 2` bumps the name-level SSA version of the
+        // base `a`.  The place model sees `a(k)` is read by `puts $a(k)` and
+        // that `a(k)` ≠ `a(j)`, so the false W220 on the first write is
+        // suppressed.  Goes through `analyse` (the production path) so the
+        // registry — which the place bridge needs — is bound.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }", "tcl8.6");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W220"),
+            "no W220 expected — a(k) is read by `puts $a(k)`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w220_scalar_overwrite_still_fires_via_analyse() {
+        // Regression guard for the element-granular scope of the suppression:
+        // a genuine *scalar* overwrite must still fire W220 with the place
+        // model active (scalars don't fold, so the name-level verdict stands).
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { set x 1; set x 2; puts $x }", "tcl8.6");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W220" && d.message.contains("'x'")),
+            "scalar dead store must still fire; got {:?}",
+            r.diagnostics,
+        );
     }
 
     /// W220-IR-paths.  Variables prefixed with ``::`` are

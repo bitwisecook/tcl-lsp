@@ -1645,11 +1645,30 @@ Structural new surfaces (no Rust mirror today):
     the end-to-end check that `set a(k) 1; set a(j) 2; puts $a(k)`
     produces an `a(k)` def observed by a read while `a(j)` is observed by
     none.  No consumer wired yet → output-equivalent.
-  - Stage 4 (next, output-changing): reroute the W220 dead-store / W211 unused
-    / O109 DCE consumers through `overlap`; gated on the full suite +
-    the array-element FP regression test (`set a(k) 1; set a(j) 2; puts
-    $a(k)` no longer emits W220 on `a(k)`, while the scalar dead store
-    still does).
+  - **Stage 4 (done): reroute the W220 dead-store consumer through
+    `overlap`.**  `emit_dead_store_diagnostics` now consults a new
+    `place_suppressed_dead_stores` helper: for each function it builds the
+    `ResolveContext`, collects every read place (statements +
+    terminators), and suppresses a dead-store candidate whose
+    **array-element / dict-path** def place overlaps a read.  Scalars keep
+    their precise name-level verdict (the suppression is element-granular
+    only), and a cheap "has array-element assign" pre-check keeps non-array
+    functions cost-free.  So `set a(k) 1; set a(j) 2; puts $a(k)` no longer
+    false-fires W220 on `a(k)`, while `set x 1; set x 2; puts $x` still
+    does.  Two discriminating analyser tests (array suppressed, scalar
+    still fires), the array one verified to fail without the reroute.
+    Note: only the **analyser** W220 is rerouted — the Rust optimiser DCE
+    (O109) is a *separate* computation (unlike Python's shared
+    `analysis.dead_stores`), so there is no shared-list desync and no
+    VM-equivalence concern here.  The rare same-element reassignment dead
+    store is intentionally not recovered (needs the versioned 8F
+    substrate), matching `main`'s suppress-only stage.
+
+  Remaining follow-ups (optional, separate chunks): the **W211** unused
+  and **O109** optimiser-DCE consumers could likewise route through
+  `overlap` for full parity; both are lower-value than the W220 −88 win
+  (W211 array cases are mostly false *negatives* from name folding; O109
+  is an optimiser/VM-gated change).
 - **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
   registry-aware green-tree descent (`descend_command`) single-sources
   body role-resolution.  Phase 1: shared loop-nesting forest
