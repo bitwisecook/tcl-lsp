@@ -40,7 +40,7 @@ import pytest
 import server._codes_init  # noqa: F401 — registers every code
 from compiler.registry.dialect import dialect_scope
 from server.features.diagnostics import get_diagnostics
-from shared.codes import all_codes
+from shared.codes import all_codes, pgo_codes
 
 
 @dataclass(frozen=True)
@@ -1108,7 +1108,11 @@ NOT_YET_COVERED: frozenset[str] = frozenset(
 
 def test_every_code_is_classified_exactly_once():
     covered = set(FIXTURES) | set(RANGE_FIXME) | set(CROSSFILE) | set(NOT_YET_COVERED)
-    registered = set(all_codes())
+    # PGO (``P``-series) codes are not diagnostics surfaced through document
+    # analysis — they are produced by the opt-in profile-guided subsystem and
+    # are covered by the dedicated ``test_pgo_*`` suites, so they are outside
+    # this diagnostic/optimisation partition.
+    registered = set(all_codes()) - pgo_codes()
 
     unclassified = registered - covered
     assert not unclassified, (
