@@ -257,6 +257,14 @@ def _statement_rewrite_context(
 )
 def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
     source = ctx.source
+    # Variables that alias outer scope (``global`` / ``variable`` / ``upvar``)
+    # or sit under a ``trace`` are observable on *every* write — folding a
+    # ``set x A; append x B`` chain into one ``set`` would drop a trace
+    # callback or a write another scope can see.  Reuse the canonical
+    # escaping-name analysis so the chain folder never rewrites them.
+    from compiler.core_analyses import _escaping_var_names
+
+    escaping = _escaping_var_names(cfg)
     for block_name, block in cfg.blocks.items():
         ssa_block = ssa.blocks.get(block_name)
         if ssa_block is None:
@@ -283,6 +291,10 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
         def finish_chain(var_key: str) -> None:
             chain = active.pop(var_key, None)
             if chain is None or len(chain.writes) < 2:
+                return
+            # An escaping / traced variable's intermediate writes are
+            # observable, so the chain must not be collapsed.
+            if var_key in escaping:
                 return
             rendered = _render_static_string_word(chain.value)
             if rendered is None:

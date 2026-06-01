@@ -40,6 +40,56 @@ from ._types import Optimisation, PassContext
 log = logging.getLogger(__name__)
 
 
+def _global_scope_names(cfg: CFGFunction, *, is_top_level: bool) -> set[str]:
+    """Names whose storage lives in the *outer* (global / namespace) scope.
+
+    A callee that ``writes_global`` may clobber any of these, so the caller's
+    constant knowledge of them must be killed at the call site.  Uses the
+    canonical :mod:`compiler.var_scoping` alias grammar so every declaration
+    form (``global`` / ``variable`` / ``namespace upvar`` …) is recognised the
+    same way memory-SSA recognises it — not ad-hoc command matching.
+
+    * At the **top level** every simple variable *is* a global, so all defined
+      names qualify.
+    * Inside a **proc** only ``::``-qualified writes and names bound to outer
+      scope by a ``global`` / ``variable`` declaration qualify; plain locals do
+      not (a callee's global write can't touch them).
+    """
+    from compiler.var_scoping import (
+        global_declaration_indices,
+        variable_declaration_indices,
+    )
+
+    names: set[str] = set()
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            stmt_name = getattr(stmt, "name", None)
+            if stmt_name and stmt_name.startswith("::"):
+                names.add(_NORMALISE(stmt_name))
+            defs = getattr(stmt, "defs", None) or ()
+            for d in defs:
+                if d and d.startswith("::"):
+                    names.add(_NORMALISE(d))
+            if is_top_level:
+                if stmt_name:
+                    names.add(_NORMALISE(stmt_name))
+                for d in defs:
+                    if d:
+                        names.add(_NORMALISE(d))
+            elif isinstance(stmt, IRCall):
+                args = stmt.args
+                if stmt.canonical_command == "::global":
+                    idxs = global_declaration_indices(args)
+                elif stmt.canonical_command == "::variable":
+                    idxs = variable_declaration_indices(args)
+                else:
+                    idxs = []
+                for i in idxs:
+                    if 0 <= i < len(args) and args[i]:
+                        names.add(_NORMALISE(args[i]))
+    return names
+
+
 def _safe_string_constants(
     constants: dict[str, str],
     block,
@@ -249,6 +299,37 @@ class _CompilerOptimiser:
                 for name in statement_cmd_sub_write_names(stmt):
                     if name:
                         kill_sites.append((stmt_range.start.offset, name))
+
+        # writes-global closure: a call to a user proc that mutates an
+        # outer-scope variable -- directly (``set ::g``) or through a
+        # ``global`` / ``variable`` / ``upvar #0`` alias (``global g; set
+        # g``) -- invalidates the caller's constant knowledge of every
+        # variable that lives in that outer scope.  Without this a top-level
+        # constant survives past a call that overwrites it, so O100 would
+        # propagate the stale value (unsound).  The callee's effect is read
+        # from its interprocedural ``writes_global`` summary; the outer-scope
+        # name set uses the canonical ``var_scoping`` alias grammar.
+        global_scope_names = _global_scope_names(cfg, is_top_level=is_top_level)
+        if global_scope_names:
+            for block in cfg.blocks.values():
+                for stmt in block.statements:
+                    if not isinstance(stmt, IRCall):
+                        continue
+                    stmt_range = getattr(stmt, "range", None)
+                    if stmt_range is None:
+                        continue
+                    summary = ctx.interproc.procedures.get(stmt.canonical_command or "")
+                    # A callee clobbers outer-scope constants when it provably
+                    # writes a global, OR when its effects are unbounded -- a
+                    # barrier (``uplevel`` / ``eval``) or an unknown call could
+                    # write *any* global, including via ``uplevel #0``.
+                    if summary is not None and (
+                        summary.writes_global
+                        or summary.has_barrier
+                        or summary.has_unknown_calls
+                    ):
+                        for name in global_scope_names:
+                            kill_sites.append((stmt_range.start.offset, name))
         kill_sites.sort()
 
         # Statement loop (propagation)
