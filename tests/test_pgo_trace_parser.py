@@ -83,3 +83,47 @@ def test_merge_sums_counts() -> None:
 def test_empty_profile_is_empty() -> None:
     assert ProfileData().is_empty
     assert parse_f5_log("").is_empty
+
+
+def test_tolerates_syslog_prefix() -> None:
+    # Real /var/log/ltm lines wrap the CSV payload in a syslog prefix.
+    line = (
+        "Nov 24 06:22:32 bigip1 info tmm[18291]: "
+        "1511494952932622,RP_RULE_ENTRY,/Common/vs1,/Common/dc_1,"
+        "18291,0x9455,10.10.10.2,46052,0,10.10.10.160,80,0"
+    )
+    occs = parse_f5_occurrences(line)
+    assert len(occs) == 1
+    assert occs[0].kind is OccurrenceKind.RULE_ENTRY
+    assert occs[0].value == "/Common/dc_1"
+    assert occs[0].timestamp_us == 1511494952932622
+    assert occs[0].context is not None
+    assert occs[0].context.virtual_server == "/Common/vs1"
+    assert occs[0].context.process_id == 18291
+
+
+def test_rule_span_timing() -> None:
+    # RP_RULE_ENTRY → RP_RULE_EXIT span correlates to BIG-IP per-rule timing.
+    log = "\n".join(
+        [
+            "1000,RP_RULE_ENTRY,/Common/vs1,/Common/dc_1,1,0x1,a,1,0,b,2,0",
+            "1042,RP_RULE_EXIT,/Common/vs1,/Common/dc_1,1,0x1,a,1,0,b,2,0",
+        ]
+    )
+    prof = parse_f5_log(log)
+    assert prof.rule_time_us == {"/Common/dc_1": 42}
+
+
+def test_multi_tmm_timing_paired_per_flow() -> None:
+    # Two TMM (distinct pids) interleave; spans must not cross pid/flow.
+    log = "\n".join(
+        [
+            "1000,RP_CMD_ENTRY,/Common/vs1,table,1,0xA,a,1,0,b,2,0",
+            "1005,RP_CMD_ENTRY,/Common/vs1,table,2,0xB,a,1,0,b,2,0",
+            "1010,RP_CMD_EXIT,/Common/vs1,table,2,0xB,a,1,0,b,2,0",  # pid2: 5µs
+            "1100,RP_CMD_EXIT,/Common/vs1,table,1,0xA,a,1,0,b,2,0",  # pid1: 100µs
+        ]
+    )
+    prof = parse_f5_log(log)
+    assert prof.command_time_us == {"table": 105}
+
