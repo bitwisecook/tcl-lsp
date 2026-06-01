@@ -1975,18 +1975,36 @@ in-scope, medium.
 
 Two deltas:
 
-1. **BODY role on `clientside` / `serverside` / `after` nesting
-   scripts.**  These iRules commands accept a nested body that runs
-   in the caller's scope (`clientside` / `serverside`,
-   `BodyKind.INLINE`) or in a deferred coroutine (`after`,
-   `BodyKind.DEFERRED`).  The Python registry tagged them as values,
-   so the nested script wasn't recursively analysed (no diagnostics,
-   no semantic tokens, no scope handling).  Adds the `ArgRole.BODY`
-   tag.  **Rust mirror:** `rust/tcl-registry/src/commands/irules/{clientside,serverside,after}.rs`
-   add the body argument's `arg_role` + matching `BodyKind`
-   (`Inline` / `Deferred`).  The existing recursion in
-   `commands.rs::process_command` will pick it up automatically once
-   the role is set.
+1. **BODY role on `clientside` / `serverside` / `peer` / `after`
+   nesting scripts.**  These iRules commands accept a nested body
+   that the analyser must descend into.  `clientside` / `serverside`
+   / `peer` run synchronously in the caller's scope
+   (`BodyKind.INLINE` in Python = `BodyKind::Plain` in Rust); `after`
+   's timer-form trailing script runs deferred from a timer wakeup
+   (`BodyKind.STRUCTURAL` in Python = `BodyKind::Structural` in
+   Rust — the body executes in its own dispatch context, not the
+   caller's frame).  The Python registry tagged all four bodies as
+   values, so the nested script wasn't recursively analysed (no
+   nested diagnostics, no semantic tokens, no scope handling); adding
+   the `ArgRole.BODY` tag plus the matching `BodyKind` makes them
+   lower to `IRBarrier`/`Statement::Barrier` (the standard
+   body-bearing-command shape), and the iRules-flow side-tracking
+   was extended to descend into the new bodies.  `peer` also flips
+   the side context (clientside body in a serverside event satisfies
+   a CLIENT_DATA payload requirement); `clientside`/`serverside`
+   keep their fixed side.  Arities tightened to `Arity(0, 1)` for
+   all three side-switches.  **Rust mirror:**
+   `rust/tcl-registry/src/commands/irules/{clientside,serverside,peer,after}.rs`
+   set the body argument's `arg_role = ArgRole::Body` + the matching
+   `body_kind` (`Plain` for clientside/serverside/peer, `Structural`
+   for after).  Add `is_side_switch = true` on the three
+   side-switches; teach the iRules-flow check (`irules_checks.rs`)
+   that `peer` flips side.  The existing recursion in
+   `analyser::commands.rs::process_command` will pick up the body
+   role automatically once it's set.  (BodyKind reminder: the two
+   variants on both sides are Python's `INLINE` / `STRUCTURAL` and
+   Rust's `Plain` / `Structural` — there is no `Deferred` variant in
+   either enum.)
 2. **W127** — new analyser warning for command arguments whose value
    is provably "closed" (lattice = `Const` / `ConstSet` with all
    elements known at compile time, the call doesn't write the
