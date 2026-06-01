@@ -22,11 +22,11 @@
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
 use tcl_compiler::segmenter::segment_commands_with_offset;
-use tcl_lexer::{LineIndex, TokenType};
+use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// LSP folding-range kind.  Mirrors `lsprotocol.types.FoldingRangeKind`.
@@ -111,6 +111,7 @@ pub fn folding_ranges(
         &mut ranges,
     );
     collect_comment_folds(source, &mut seen, &mut ranges);
+    collect_continuation_folds(source, &line_index, &mut seen, &mut ranges);
     let mut ctx = FoldCtx {
         registry,
         line_index: &line_index,
@@ -335,6 +336,53 @@ fn collect_comment_folds(
             }
         }
     }
+}
+
+/// Collect folds for commands spread across multiple physical lines
+/// via `\<newline>` continuations (SYNC-MAY31-8, mirroring Python #494).
+///
+/// Each backslash-newline at a word boundary lexes to a `Sep` token
+/// that starts at the backslash (ordinary whitespace Seps start with a
+/// space/tab), so the set of continued lines — the lines bearing a
+/// trailing `\` — falls straight out of the token stream. A command
+/// spanning lines `a..=a+k` has continuations on lines `a..=a+k-1`;
+/// consecutive continued lines therefore fold into one region from the
+/// first continued line through the line after the last continuation.
+fn collect_continuation_folds(
+    source: &str,
+    line_index: &LineIndex,
+    seen: &mut HashSet<(u32, u32)>,
+    ranges: &mut Vec<FoldingRange>,
+) {
+    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+        return;
+    };
+    let bytes = source.as_bytes();
+    let mut continued: BTreeSet<u32> = BTreeSet::new();
+    for tok in &tokens {
+        if tok.kind != TokenType::Sep {
+            continue;
+        }
+        let start = tok.span.start();
+        if bytes.get(start as usize) == Some(&b'\\') {
+            continued.insert(line_index.position_at(start).line);
+        }
+    }
+
+    // Emit one fold per maximal run of consecutive continued lines.
+    let mut iter = continued.into_iter();
+    let Some(mut run_start) = iter.next() else {
+        return;
+    };
+    let mut prev = run_start;
+    for line in iter {
+        if line != prev + 1 {
+            push_unique(seen, ranges, run_start, prev + 1, FoldKind::Region);
+            run_start = line;
+        }
+        prev = line;
+    }
+    push_unique(seen, ranges, run_start, prev + 1, FoldKind::Region);
 }
 
 /// Recursively segment commands and emit folds for every multi-line
@@ -632,6 +680,50 @@ mod tests {
         // Mirrors `test_single_line_no_fold` in tests/test_folding.py.
         let ranges = folding_ranges_default("proc foo {} { return 1 }\n", "tcl8.6");
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
+    }
+
+    // -- SYNC-MAY31-8: backslash line-continuation folding --------
+
+    #[test]
+    fn backslash_continuation_folds_first_to_last_line() {
+        // `puts hello \` + `world` is one logical command spanning two
+        // physical lines — fold line 0 → 1.
+        let src = "puts hello \\\n     world\n";
+        let ranges = folding_ranges_default(src, "tcl8.6");
+        assert!(
+            fold_lines(&ranges, FoldKind::Region).contains(&(0, 1)),
+            "{ranges:?}",
+        );
+    }
+
+    #[test]
+    fn backslash_continuation_spans_three_lines() {
+        let src = "mycmd a \\\nb \\\nc\n";
+        let ranges = folding_ranges_default(src, "tcl8.6");
+        assert!(
+            fold_lines(&ranges, FoldKind::Region).contains(&(0, 2)),
+            "{ranges:?}",
+        );
+    }
+
+    #[test]
+    fn no_continuation_fold_without_backslash() {
+        // A plain two-line script has no continuation → no region fold.
+        let src = "puts hello\nputs world\n";
+        let ranges = folding_ranges_default(src, "tcl8.6");
+        assert!(
+            fold_lines(&ranges, FoldKind::Region).is_empty(),
+            "{ranges:?}",
+        );
+    }
+
+    #[test]
+    fn two_separate_continued_commands_fold_independently() {
+        let src = "aa x \\\ny\nbb p \\\nq\n";
+        let ranges = folding_ranges_default(src, "tcl8.6");
+        let region = fold_lines(&ranges, FoldKind::Region);
+        assert!(region.contains(&(0, 1)), "{region:?}");
+        assert!(region.contains(&(2, 3)), "{region:?}");
     }
 
     #[test]
