@@ -82,12 +82,21 @@ namespace eval ::itest {
             # Try our command dispatch first
             set resolved [::itest::_resolve_command $cmd]
             if {$resolved ne ""} {
-                # Profiler hook (no-op unless enabled): record the command
-                # under its real iRule spelling, around its execution.
+                # Fast path: when the profiler is off (the default), dispatch
+                # exactly as before so error propagation is untouched.
+                if {!$::itest::profiler::enabled} {
+                    return [eval $resolved $args]
+                }
+                # Profiler on: record the command under its real iRule
+                # spelling around execution, then re-raise preserving the
+                # full error context (-errorinfo / -errorcode) so a failing
+                # mock is no harder to debug than the direct dispatch.
                 ::itest::profiler::emit RP_CMD_ENTRY $cmd
                 set _rc [catch {eval $resolved $args} _res]
                 ::itest::profiler::emit RP_CMD_EXIT $cmd
-                if {$_rc} {
+                if {$_rc == 1} {
+                    return -code error -errorinfo $::errorInfo -errorcode $::errorCode $_res
+                } elseif {$_rc != 0} {
                     return -code $_rc $_res
                 }
                 return $_res

@@ -630,13 +630,23 @@ def _load_pgo_stimuli(path: str):
         if not isinstance(item, dict):
             print("error: each stimulus must be a JSON object", file=sys.stderr)
             return 2
-        stimuli.append(
-            Stimulus(
-                event=str(item.get("event", "HTTP_REQUEST")),
-                state=item.get("state", {}) or {},
-                repeat=int(item.get("repeat", 1)),
+        event = item.get("event", "HTTP_REQUEST")
+        if not isinstance(event, str):
+            print("error: stimulus 'event' must be a string", file=sys.stderr)
+            return 2
+        state = item.get("state", {})
+        if not isinstance(state, dict) or not all(isinstance(v, dict) for v in state.values()):
+            print(
+                "error: stimulus 'state' must be an object of {layer: {key: value}}",
+                file=sys.stderr,
             )
-        )
+            return 2
+        repeat = item.get("repeat", 1)
+        # bool is a subclass of int — reject true/false as a count.
+        if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:
+            print("error: stimulus 'repeat' must be a positive integer", file=sys.stderr)
+            return 2
+        stimuli.append(Stimulus(event=event, state=state, repeat=repeat))
     return stimuli
 
 

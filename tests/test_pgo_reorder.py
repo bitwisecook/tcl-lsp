@@ -149,6 +149,41 @@ when HTTP_REQUEST {
     assert find_pgo_suggestions(src, prof) == []
 
 
+def test_numeric_equality_rejected() -> None:
+    # Numeric ``==`` is excluded: 1 == 01 == 1.0, so distinct literal text
+    # does NOT prove the arms are mutually exclusive (Codex review P2).
+    src = """\
+when HTTP_REQUEST {
+    if {$x == 1} {
+        set r 1
+    } elseif {$x == 01} {
+        set r 2
+    } elseif {$x == 2} {
+        set r 3
+    }
+}
+"""
+    prof = ProfileData(line_counts={3: 1, 5: 999, 7: 1}, source="test")
+    assert find_pgo_suggestions(src, prof) == []
+
+
+def test_backslash_escape_constant_rejected() -> None:
+    # "\x41" and "A" are textually distinct but the same runtime string.
+    src = """\
+when HTTP_REQUEST {
+    if {$x eq "A"} {
+        set r 1
+    } elseif {$x eq "\\x41"} {
+        set r 2
+    } elseif {$x eq "B"} {
+        set r 3
+    }
+}
+"""
+    prof = ProfileData(line_counts={3: 1, 5: 999, 7: 1}, source="test")
+    assert find_pgo_suggestions(src, prof) == []
+
+
 def test_repeated_constant_rejected() -> None:
     # Two clauses testing the same value are not a clean dispatch.
     src = """\

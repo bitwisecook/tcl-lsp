@@ -7,12 +7,15 @@ common path).  Two constructs are handled, each only when reordering is
 provably behaviour-preserving:
 
 **if / elseif equality-dispatch chains.**  Every clause condition must be
-``<subject> eq|==|equals <constant>`` with the **same** subject expression
-and **distinct** constants (so the clauses are mutually exclusive — exactly
-one matches regardless of order), and the subject must be
-**side-effect-free** (a variable read, or a command the side-effect
-registry classifies as non-writing), since reordering changes how many
-times it is evaluated.
+``<subject> eq|equals <constant>`` (string equality) with the **same**
+subject expression and **distinct** constant values (so the clauses are
+mutually exclusive — exactly one matches regardless of order), and the
+subject must be **side-effect-free** (a variable read, or a command the
+side-effect registry classifies as non-writing), since reordering changes
+how many times it is evaluated.  Numeric ``==`` is intentionally excluded
+(textually distinct numbers can be numerically equal — ``1`` == ``01``),
+as are constants containing backslash escapes (whose runtime value is
+ambiguous), so distinct source text always implies distinct values.
 
 **exact-match switch arms.**  Reordering arms is *safer* than an if/elseif
 chain: the subject is evaluated exactly once, so no purity requirement
@@ -75,8 +78,13 @@ log = logging.getLogger(__name__)
 REORDER_CODE = "P100"
 
 #: Equality operators that form a mutually-exclusive dispatch on distinct
-#: constants: ``==`` (numeric), ``eq`` (string), ``equals`` (iRules).
-_EQ_OPS = frozenset({BinOp.EQ, BinOp.STR_EQ, BinOp.STR_EQUALS})
+#: String-equality operators whose distinct *constant text* guarantees the
+#: arms are mutually exclusive: ``eq`` (Tcl string ==) and ``equals``
+#: (iRules).  Numeric ``==`` (``BinOp.EQ``) is **excluded**: textually
+#: distinct numeric literals can be numerically equal (``1`` == ``01`` ==
+#: ``1.0`` == ``0x1``), so reordering such arms could change which body
+#: runs.  String comparison has no such collision (``1 eq 01`` is false).
+_EQ_OPS = frozenset({BinOp.STR_EQ, BinOp.STR_EQUALS})
 
 #: Dialect used for subject side-effect classification.  iRule getters
 #: (``IP::remote_addr`` …) resolve here; the registry falls back to
@@ -239,6 +247,26 @@ def _body_weight(body: IRScript, body_range: Range | None, profile: ProfileData)
 # ---------------------------------------------------------------------------
 
 
+def _is_word_char(ch: str) -> bool:
+    return ch.isalnum() or ch == "_"
+
+
+def _find_keyword(source: str, word: str, lo: int, hi: int) -> int:
+    """Offset of the last whole-word *word* in ``source[lo:hi]``, or -1.
+
+    "Whole word" means not flanked by identifier characters, so ``default``
+    is matched but ``mydefault`` / ``defaults`` are not.
+    """
+    idx = source.rfind(word, lo, hi)
+    while idx >= 0:
+        before = source[idx - 1] if idx > 0 else ""
+        after = source[idx + len(word)] if idx + len(word) < len(source) else ""
+        if not _is_word_char(before) and not _is_word_char(after):
+            return idx
+        idx = source.rfind(word, lo, idx)
+    return -1
+
+
 def _slice(source: str, rng: Range | None) -> str | None:
     """Verbatim source for *rng*, including a trailing brace/bracket closer."""
     if rng is None:
@@ -308,7 +336,12 @@ def _rebuild_switch(switch: IRSwitch, order: list[int], source: str) -> str | No
     has_default = switch.default_body is not None and switch.default_range is not None
     if has_default:
         assert switch.default_range is not None
-        kw = source.rfind("default", switch_start, switch.default_range.start.offset)
+        # Locate the ``default`` keyword as a whole word, searching only the
+        # gap between the previous element's body and the default body — so a
+        # stray "default" substring inside an earlier arm (or unrelated text)
+        # cannot be matched.
+        window_lo = spans[-1][1] + 1 if spans else switch_start
+        kw = _find_keyword(source, "default", window_lo, switch.default_range.start.offset)
         if kw < 0:
             return None
         spans.append((kw, widen_range_for_closer(source, switch.default_range).end.offset))
@@ -356,6 +389,11 @@ def _analyse_if(if_node: IRIf, source: str, profile: ProfileData) -> Optimisatio
             return None
         subject, const = split
         if not _subject_is_safe(subject):
+            return None
+        # A backslash escape (e.g. "\x41") makes the runtime string value
+        # ambiguous against another arm's plain text ("A"), so distinct
+        # source text no longer proves distinct values — refuse to reorder.
+        if "\\" in const.text:
             return None
         subjects.append(_subject_key(subject))
         consts.append(_const_value(const))
@@ -419,6 +457,11 @@ def _analyse_switch(switch: IRSwitch, source: str, profile: ProfileData) -> Opti
         return None
     # Fallthrough (``pat -``) chains share a body — reordering breaks them.
     if any(arm.fallthrough or arm.body is None for arm in arms):
+        return None
+    # A backslash escape in a pattern makes its runtime value ambiguous (it
+    # depends on whether the arm list was braced), so distinct text no
+    # longer proves distinct match values — refuse to reorder.
+    if any("\\" in arm.pattern for arm in arms):
         return None
     # Distinct patterns (case-normalised under -nocase) ⇒ mutually exclusive.
     patterns = [arm.pattern.lower() if switch.nocase else arm.pattern for arm in arms]
