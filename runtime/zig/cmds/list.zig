@@ -2301,14 +2301,19 @@ fn lseq_emit_dbl(start: f64, step: f64, n_in: i64, precision: u32) result_mod.In
 fn eval_lseq(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
 
-    // ``lseq N`` -> integer 0 .. N-1 (``lseq 3.0`` is {0 1 2}).
+    // ``lseq N`` -> integer 0 .. N-1 (``lseq 3.0`` is {0 1 2}).  The
+    // count operand is itself an expression — ``lseq {1+1}`` is {0 1}
+    // and ``lseq {[incr i]}`` evaluates the command exactly once
+    // (lseq-2.19 / 2.20).
     if (words.len == 2) {
-        const count = rt.obj_get_int(words[1]);
+        const cw = rt.tcl_expr_canonicalise(words[1]);
+        defer obj_mod.tcl_obj_release(cw);
+        const count = rt.obj_get_int(cw);
         if (count <= 0) return result_mod.from_globals(obj_new_string(0, 0));
         return lseq_emit_int(0, count - 1, 1);
     }
 
-    const start_word = words[1];
+    var start_word = words[1];
     var idx: u32 = 2;
     var is_count = false;
     var legacy_by = false; // ``lseq START by STEP``
@@ -2348,6 +2353,21 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
         step_word = words[idx];
         have_step = true;
     }
+
+    // Evaluate each operand as an expression so forms like ``double(0)``,
+    // ``{3.0+0}`` and ``1e50+0`` resolve to a typed numeric value
+    // (lseq-1.25 / 1.26 / 1.27).  The keyword tokens (``to`` / ``..`` /
+    // ``count`` / ``by``) were already consumed above, so only operands
+    // reach here.  ``tcl_expr_canonicalise`` returns a fresh +1 handle
+    // (a verbatim retain for non-numeric input), released on every exit.
+    start_word = rt.tcl_expr_canonicalise(start_word);
+    defer obj_mod.tcl_obj_release(start_word);
+    if (end_word != 0) end_word = rt.tcl_expr_canonicalise(end_word);
+    defer if (end_word != 0) obj_mod.tcl_obj_release(end_word);
+    if (is_count) count_word = rt.tcl_expr_canonicalise(count_word);
+    defer if (is_count) obj_mod.tcl_obj_release(count_word);
+    if (have_step) step_word = rt.tcl_expr_canonicalise(step_word);
+    defer if (have_step) obj_mod.tcl_obj_release(step_word);
 
     if (legacy_by) {
         // ``lseq START by STEP``: integer-only count form (start=0).
