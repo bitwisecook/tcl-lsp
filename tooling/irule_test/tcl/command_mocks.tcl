@@ -82,7 +82,15 @@ namespace eval ::itest {
             # Try our command dispatch first
             set resolved [::itest::_resolve_command $cmd]
             if {$resolved ne ""} {
-                return [eval $resolved $args]
+                # Profiler hook (no-op unless enabled): record the command
+                # under its real iRule spelling, around its execution.
+                ::itest::profiler::emit RP_CMD_ENTRY $cmd
+                set _rc [catch {eval $resolved $args} _res]
+                ::itest::profiler::emit RP_CMD_EXIT $cmd
+                if {$_rc} {
+                    return -code $_rc $_res
+                }
+                return $_res
             }
 
             # Fall through to original unknown if it exists

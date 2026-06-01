@@ -29,8 +29,9 @@ For precise per-line attribution use :mod:`compiler.pgo.tclsh_capture`.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 
-from .occurrence import RP_OCCURRENCE_KINDS, FlowContext, Occurrence
+from .occurrence import KIND_TO_RP, RP_OCCURRENCE_KINDS, FlowContext, Occurrence
 from .profile_data import ProfileData
 
 #: Anchor on the ``<timestamp>,RP_<TYPE>,<rest…>`` payload, ignoring any
@@ -96,3 +97,41 @@ def parse_f5_occurrences(text: str) -> list[Occurrence]:
 def parse_f5_log(text: str) -> ProfileData:
     """Parse rule-profiler log *text* into aggregated :class:`ProfileData`."""
     return ProfileData.from_occurrences(parse_f5_occurrences(text), source="f5-log")
+
+
+def _csv_field(value: object) -> str:
+    return "" if value is None else str(value)
+
+
+def format_f5_occurrence(occ: Occurrence) -> str:
+    """Render one :class:`Occurrence` as a rule-profiler CSV record.
+
+    The inverse of :func:`parse_f5_occurrences`: produces the bare
+    ``<ts>,RP_<TYPE>,<vs>,<value>,<pid>,<flow>,<r_ip>,<r_port>,<r_rd>,
+    <l_ip>,<l_port>,<l_rd>,<depth>`` payload (no syslog prefix).
+    """
+    rp_type = KIND_TO_RP.get(occ.kind)
+    if rp_type is None:  # pragma: no cover - every kind has an RP_ name
+        raise ValueError(f"no rule-profiler name for {occ.kind}")
+    ctx = occ.context
+    cells = [
+        _csv_field(occ.timestamp_us),
+        rp_type,
+        _csv_field(ctx.virtual_server if ctx else None),
+        occ.value,
+        _csv_field(ctx.process_id if ctx else None),
+        _csv_field(ctx.flow_id if ctx else None),
+        _csv_field(ctx.remote_addr if ctx else None),
+        _csv_field(ctx.remote_port if ctx else None),
+        _csv_field(ctx.remote_rd if ctx else None),
+        _csv_field(ctx.local_addr if ctx else None),
+        _csv_field(ctx.local_port if ctx else None),
+        _csv_field(ctx.local_rd if ctx else None),
+        _csv_field(occ.depth),
+    ]
+    return ",".join(cells)
+
+
+def format_f5_log(occurrences: Iterable[Occurrence]) -> str:
+    """Render an occurrence stream as rule-profiler log text (one line each)."""
+    return "".join(format_f5_occurrence(occ) + "\n" for occ in occurrences)

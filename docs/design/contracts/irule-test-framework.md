@@ -24,6 +24,8 @@ User test script (Tcl or Python)
     -> state_layers.tcl  (10 protocol state namespaces)
     -> tmm_shim.tcl      (disabled commands, info override)
     -> expr_ops.tcl      (contains/starts_with/ends_with/etc.)
+    -> profiler.tcl      (optional, off by default: emits rule-profiler
+                          occurrence logs for profile-guided optimisation)
 ```
 
 ## Decision rules / contracts

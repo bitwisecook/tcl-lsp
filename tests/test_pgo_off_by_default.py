@@ -3,6 +3,12 @@ explicit, profile-driven entry points, never the normal optimiser."""
 
 from __future__ import annotations
 
+# Force registration of every optimisation code BEFORE touching the
+# profile machinery: shared.optimisation_profiles._all_codes() caches the
+# optimisation-code set on first call, so calling profile_to_disabled()
+# with only a partial set registered would freeze that partial set for the
+# whole test session (and break generated-file freshness checks elsewhere).
+import server._codes_init  # noqa: F401
 from compiler.optimiser._manager import find_optimisations
 from compiler.pgo.reorder import REORDER_CODE
 from shared.codes import optimisation_codes, pgo_codes

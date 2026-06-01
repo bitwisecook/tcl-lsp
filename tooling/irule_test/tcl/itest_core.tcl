@@ -119,13 +119,19 @@ namespace eval ::itest {
         set handlers $event_handlers($event_name)
         set sorted [lsort -index 0 -integer $handlers]
 
+        # Profiler hooks (no-op unless enabled): bracket the event and each
+        # rule handler so the occurrence stream mirrors the iRule timing
+        # hierarchy (event -> rule -> commands).
+        ::itest::profiler::emit RP_EVENT_ENTRY $event_name
         set results [list]
         foreach handler $sorted {
             set priority [lindex $handler 0]
             set proc_name [lindex $handler 1]
             set current_priority $priority
 
+            ::itest::profiler::emit RP_RULE_ENTRY [::itest::profiler::rule]
             set code [catch {$proc_name} result]
+            ::itest::profiler::emit RP_RULE_EXIT [::itest::profiler::rule]
             if {$code == 1} {
                 # Error -- single entry with error info
                 lappend results [list priority $priority code $code error $result errorInfo $::errorInfo]
@@ -133,6 +139,7 @@ namespace eval ::itest {
                 lappend results [list priority $priority code $code result $result]
             }
         }
+        ::itest::profiler::emit RP_EVENT_EXIT $event_name
 
         return [list fired 1 handlers $results]
     }

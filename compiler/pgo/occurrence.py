@@ -87,6 +87,10 @@ TCL_TRACE_OP_KINDS: dict[str, OccurrenceKind] = {
     "leavestep": OccurrenceKind.CMD_EXIT,
 }
 
+#: Inverse of :data:`RP_OCCURRENCE_KINDS` — :class:`OccurrenceKind` to the
+#: canonical ``RP_*`` string, for emitting rule-profiler-format logs.
+KIND_TO_RP: dict[OccurrenceKind, str] = {v: k for k, v in RP_OCCURRENCE_KINDS.items()}
+
 
 @dataclass(frozen=True, slots=True)
 class FlowContext:
