@@ -196,6 +196,47 @@ def add_irule_subparser(
     trace_p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     trace_p.set_defaults(handler=_run_irule_trace)
 
+    # ── pgo ────────────────────────────────────────────────────────────
+    pgo_p = irule_sub.add_parser(
+        "pgo",
+        help="Profile-guided suggestions: reorder branches by execution frequency.",
+        description=(
+            "Use an execution profile to suggest reordering if/elseif "
+            "equality-dispatch chains so the most-frequently-taken branch is "
+            "tested first.  Supply an F5 rule-profiler occurrence log with "
+            "--profile, or --capture to trace each input under a local tclsh.  "
+            "Suggestions are advisory; pass --apply to rewrite the chains.\n\n"
+            "Off by default: PGO never runs as part of the normal optimiser — "
+            "it only runs through this verb when a profile is supplied."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} irule pgo --profile rule_profiler.log rule.irule\n"
+            f"  {prog_name} irule pgo --profile rule_profiler.log rule.irule --apply -o tuned/\n"
+            f"  {prog_name} irule pgo --capture script.tcl\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_irule_input_arguments(pgo_p)
+    pgo_src = pgo_p.add_mutually_exclusive_group(required=True)
+    pgo_src.add_argument(
+        "--profile",
+        metavar="FILE",
+        help="F5 rule-profiler occurrence log ('-' for stdin).",
+    )
+    pgo_src.add_argument(
+        "--capture",
+        action="store_true",
+        help="Capture a profile by running each input under a local tclsh.",
+    )
+    pgo_p.add_argument(
+        "--apply",
+        action="store_true",
+        help="Rewrite the reordered chains instead of only reporting suggestions.",
+    )
+    pgo_p.add_argument("--json", action="store_true", help="Emit suggestions as JSON.")
+    pgo_p.set_defaults(handler=_run_irule_pgo)
+
     # ── extract ────────────────────────────────────────────────────────
     extract_p = irule_sub.add_parser(
         "extract",
@@ -515,6 +556,122 @@ def _merge_configs_for_trace(configs: dict[str, BigipConfig]) -> BigipConfig:
     if len(configs) == 1:
         return next(iter(configs.values()))
     return _merge_configs(configs)
+
+
+def _capture_pgo_profile(source: str):
+    """Trace *source* under a local tclsh and return its profile, or ``None``."""
+    import os
+    import tempfile
+
+    from compiler.pgo.tclsh_capture import capture_profile, find_tclsh
+
+    if find_tclsh() is None:
+        return None
+    with tempfile.NamedTemporaryFile("w", suffix=".tcl", delete=False, encoding="utf-8") as fh:
+        fh.write(source)
+        tmp = fh.name
+    try:
+        return capture_profile(tmp)
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def _apply_pgo_suggestions(source: str, suggestions: list) -> str:
+    """Apply non-overlapping PGO rewrites (outermost wins) to *source*."""
+    from shared.text_edits import apply_edits
+
+    edits: list[tuple[int, int, str]] = []
+    last_end = -1
+    for sug in sorted(suggestions, key=lambda o: o.range.start.offset):
+        start = sug.range.start.offset
+        end = sug.range.end.offset
+        if start > last_end:  # skip nested/overlapping rewrites
+            edits.append((start, end - start + 1, sug.replacement))
+            last_end = end
+    return apply_edits(source, edits)
+
+
+def _run_irule_pgo(args: argparse.Namespace) -> int:
+    from compiler.pgo import find_pgo_suggestions, parse_f5_log
+    from compiler.pgo.profile_data import ProfileData
+
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, _configs, _sources = loaded
+    configure_signatures(dialect=args.dialect)
+
+    shared_profile: ProfileData | None = None
+    if args.profile:
+        try:
+            log_text = sys.stdin.read() if args.profile == "-" else Path(args.profile).read_text(
+                encoding="utf-8"
+            )
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        shared_profile = parse_f5_log(log_text)
+
+    results: list[tuple[IruleInput, list, ProfileData | None]] = []
+    for entry in inputs:
+        if args.capture:
+            profile = _capture_pgo_profile(entry.source)
+            if profile is None:
+                print("error: --capture requires tclsh on PATH", file=sys.stderr)
+                return 2
+        else:
+            profile = shared_profile
+        suggestions = find_pgo_suggestions(entry.source, profile)
+        results.append((entry, suggestions, profile))
+
+    if args.apply:
+        transformed = [
+            _apply_pgo_suggestions(entry.source, suggestions)
+            for entry, suggestions, _ in results
+        ]
+        return _write_iRule_outputs(
+            args=args,
+            inputs=inputs,
+            transformed=transformed,
+            file_extension=".irule",
+        )
+
+    if args.json:
+        payload = {
+            "rules": [
+                {
+                    "rule": entry.rule_full_path or entry.label,
+                    "profileSource": profile.source if profile is not None else None,
+                    "suggestions": [
+                        {
+                            "code": sug.code,
+                            "line": sug.range.start.line + 1,
+                            "message": sug.message,
+                            "replacement": sug.replacement,
+                        }
+                        for sug in suggestions
+                    ],
+                }
+                for entry, suggestions, profile in results
+            ]
+        }
+        out = json.dumps(payload, indent=2) + "\n"
+    else:
+        lines: list[str] = []
+        for entry, suggestions, profile in results:
+            label = entry.rule_full_path or entry.label
+            tag = f" [profile: {profile.source}]" if profile is not None and profile.source else ""
+            lines.append(f"{label}: {len(suggestions)} suggestion(s){tag}")
+            for sug in suggestions:
+                lines.append(f"  line {sug.range.start.line + 1}: {sug.code} — {sug.message}")
+        out = "\n".join(lines) + "\n"
+
+    _write_text_output(args.output, out)
+    total = sum(len(suggestions) for _, suggestions, _ in results)
+    return 0 if total else 1
 
 
 def _slice_balanced_braces(source: str, open_brace: int) -> str:
