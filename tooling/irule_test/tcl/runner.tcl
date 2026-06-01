@@ -35,6 +35,7 @@ source [file join $_runner_dir compat84.tcl]
 source [file join $_runner_dir state_layers.tcl]
 source [file join $_runner_dir tmm_shim.tcl]
 source [file join $_runner_dir expr_ops.tcl]
+source [file join $_runner_dir profiler.tcl]
 source [file join $_runner_dir command_mocks.tcl]
 if {[file exists [file join $_runner_dir _mock_stubs.tcl]]} {
     source [file join $_runner_dir _mock_stubs.tcl]
