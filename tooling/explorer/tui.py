@@ -25,7 +25,6 @@ from textual.widgets import Footer, Header, Label, ListItem, ListView, Static, T
 
 from tooling.explorer.cli import (
     _VIEW_ORDER,
-    OPT_VIEWS,
     LineIndex,
     _summary_parts,
     load_source,
