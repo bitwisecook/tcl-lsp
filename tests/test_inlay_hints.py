@@ -112,3 +112,27 @@ class TestInlayHints:
         assert len(type_hints) == 3, type_hints
         positions = {h.position.character for h in type_hints}
         assert len(positions) == 3, [(h.label, h.position.character) for h in type_hints]
+
+    def test_optional_positional_before_required_skipped(self):
+        # ``puts ?-nonewline? ?channelId? string`` with one positional
+        # arg binds to ``string``, not ``channelId`` (the optional gets
+        # skipped because there aren't enough args to fill it).
+        labels = self._param_labels("puts hello\n")
+        assert "string:" in labels
+        assert "channelId:" not in labels
+
+    def test_optional_positional_filled_when_extra_arg(self):
+        # Two positional args fill both ``channelId`` and ``string``.
+        labels = self._param_labels("puts stdout hello\n")
+        assert "channelId:" in labels
+        assert "string:" in labels
+
+    def test_flag_group_placeholder_not_labelled(self):
+        # ``?switches?`` / ``?options?`` are doc placeholders, not real
+        # positional params -- ``regsub pat str sub var`` (4 positionals)
+        # should label ``exp pattern string subSpec varName``, not start
+        # with ``switches:``.
+        labels = self._param_labels("regsub pat str sub var\n")
+        assert "switches:" not in labels
+        assert "exp:" in labels
+        assert "varName:" in labels
