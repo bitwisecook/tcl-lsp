@@ -187,17 +187,22 @@ pub struct Analyser {
     pub line_offsets: Option<Vec<usize>>,
     /// Candidate E002 / E003 arity diagnostics collected during the
     /// command walk, as `(command name, call-site namespace,
-    /// diagnostic)`.  Emitted in a post-walk pass
+    /// enforce_order, diagnostic)`.  Emitted in a post-walk pass
     /// ([`Self::flush_arity_diagnostics`]) so a command that resolves
     /// to a user-defined proc / class / alias / ensemble / stub —
     /// which may be defined *after* its call site — suppresses the
-    /// builtin-arity check regardless of definition order.  The
-    /// namespace is captured so suppression is scoped to the command
-    /// the call actually resolves to (current namespace → global),
-    /// not to every same-tail-named definition anywhere in the file.
-    /// Mirrors Python running `_check_arity` over the fully-resolved
-    /// IR rather than inline during the walk.
-    pub pending_arity: Vec<(String, String, super::types::Diagnostic)>,
+    /// builtin-arity check.  The namespace is captured so suppression
+    /// is scoped to the command the call actually resolves to (current
+    /// namespace → global), not to every same-tail-named definition
+    /// anywhere in the file.  `enforce_order` is `true` for top-level
+    /// calls (module body, `namespace eval` bodies, conditionals) which
+    /// execute in source order during load: a shadowing proc only
+    /// silences such a call when its definition lexically precedes it.
+    /// Proc-body calls (`enforce_order == false`) resolve after load,
+    /// so any same-named definition shadows regardless of order.
+    /// Mirrors Python's `_arity_checks` over the fully-resolved IR
+    /// (#475) rather than checking inline during the walk.
+    pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
 }
 
 impl Analyser {

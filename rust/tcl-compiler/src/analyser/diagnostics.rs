@@ -1027,16 +1027,26 @@ Consider capturing the result: catch {\u{2026}} result"
         // `namespace eval` nesting.
         let ns = self.command_resolution_namespace(scope_path);
 
+        // Top-level calls (module body, `namespace eval` bodies, and
+        // conditionals) execute in source order during load, so a
+        // shadowing proc only silences the builtin arity check when its
+        // definition lexically precedes the call.  Calls inside a proc
+        // body resolve after the whole script has loaded, so order is
+        // not enforced there.  Mirrors Python #475's `enforce_order`.
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+
         // Collect as a *candidate*; the post-walk
         // [`Self::flush_arity_diagnostics`] drops it if the call
-        // resolves to a user proc / class / alias / ensemble / stub
-        // (resolved against the complete tables, so definition order
-        // doesn't matter).
+        // resolves to a user proc / class / alias / ensemble / stub.
+        // A class / alias / ensemble / stub match suppresses regardless
+        // of definition order; a *proc* match additionally honours
+        // `enforce_order` (in-order/reachability gate, #475).
         if !positional_any_expand && (args.len() - positional_start) < min {
             let got = args.len() - positional_start;
             self.pending_arity.push((
                 cmd_name.to_string(),
                 ns,
+                enforce_order,
                 super::types::Diagnostic {
                     code: "E002".to_string(),
                     span: full_span,
@@ -1051,6 +1061,7 @@ Consider capturing the result: catch {\u{2026}} result"
             self.pending_arity.push((
                 cmd_name.to_string(),
                 ns,
+                enforce_order,
                 super::types::Diagnostic {
                     code: "E003".to_string(),
                     span: full_span,
@@ -1081,20 +1092,47 @@ Consider capturing the result: catch {\u{2026}} result"
     /// `# tcl-lsp: stub`s — suppress by bare name regardless of
     /// namespace.
     ///
+    /// Suppression by a shadowing **proc** also honours definition
+    /// reachability (#475 / SYNC-MAY31-9): a top-level call (one whose
+    /// `enforce_order` flag is set — module body, `namespace eval`
+    /// body, or a conditional) is silenced only when the proc's
+    /// definition lexically precedes it, since top-level commands run
+    /// in source order during load (so a `close x y z` *before* a later
+    /// `proc close` still reaches the builtin).  Proc-body calls run
+    /// after load and are not order-gated.  Classes / aliases /
+    /// ensembles / stubs always exist at run time and are never
+    /// order-gated.  (Excluding *conditionally* defined procs would
+    /// need the CFG dominator model and is deferred.)
+    ///
     /// Idempotent: drains `pending_arity`, so a second call is a
     /// no-op.
     pub fn flush_arity_diagnostics(&mut self) {
         if self.pending_arity.is_empty() {
             return;
         }
-        // Fully-qualified user-command names the calls may resolve to
-        // (procs / classes / aliases are keyed by qualified name;
-        // ensemble namespaces *are* the command name).
-        let mut user_qnames: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        user_qnames.extend(self.result.all_procs.keys().map(String::as_str));
-        user_qnames.extend(self.result.all_classes.keys().map(String::as_str));
-        user_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
-        user_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
+        // Fully-qualified non-proc user-command names the calls may
+        // resolve to (classes / aliases keyed by qualified name;
+        // ensemble namespaces *are* the command name).  These always
+        // exist by the time the script runs, so they suppress the
+        // builtin arity check regardless of definition order.
+        let mut non_proc_qnames: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        non_proc_qnames.extend(self.result.all_classes.keys().map(String::as_str));
+        non_proc_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
+        non_proc_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
+        // Qualified proc name → definition offset (the proc-name
+        // token start).  A shadowing proc only silences a *top-level*
+        // call (`enforce_order`) when its definition lexically
+        // precedes the call; proc-body calls are not order-gated.
+        // Conditional / nested definitions are still treated as
+        // shadowing here — distinguishing unconditionally-reachable
+        // definitions needs the CFG dominator model and is deferred
+        // per the SYNC-MAY31-9 doc note (#475).
+        let proc_offsets: std::collections::HashMap<&str, u32> = self
+            .result
+            .all_procs
+            .iter()
+            .map(|(qname, def)| (qname.as_str(), def.name_span.start()))
+            .collect();
         // Inline stubs are document-global and unqualified.
         let stub_names = super::utils::scan_stub_command_names(&self.source);
 
@@ -1109,7 +1147,7 @@ Consider capturing the result: catch {\u{2026}} result"
         };
 
         let pending = std::mem::take(&mut self.pending_arity);
-        for (cmd_name, ns, diag) in pending {
+        for (cmd_name, ns, enforce_order, diag) in pending {
             let bare = cmd_name.rsplit("::").next().unwrap_or(&cmd_name);
             // Candidate qualified names this call could resolve to.
             let candidates: Vec<String> = if cmd_name.contains("::") {
@@ -1125,8 +1163,18 @@ Consider capturing the result: catch {\u{2026}} result"
                 // Unqualified — current namespace, then global.
                 vec![join(&ns, &cmd_name), format!("::{cmd_name}")]
             };
-            let resolves_to_user = candidates.iter().any(|c| user_qnames.contains(c.as_str()))
-                || stub_names.contains(bare);
+            // A proc shadows only when reachable at the call: top-level
+            // calls require the definition to lexically precede them
+            // (`def_off < call_off`); proc-body calls accept any
+            // same-named definition.  Classes / aliases / ensembles /
+            // stubs are not order-gated.
+            let call_off = diag.span.start();
+            let resolves_to_user = candidates.iter().any(|c| {
+                non_proc_qnames.contains(c.as_str())
+                    || proc_offsets
+                        .get(c.as_str())
+                        .is_some_and(|&def_off| !enforce_order || def_off < call_off)
+            }) || stub_names.contains(bare);
             if resolves_to_user {
                 continue;
             }
@@ -4285,6 +4333,60 @@ mod tests {
             (span.start() as usize) < ns_eval_off,
             "flagged the namespaced call instead of the global one: {:?}",
             &src[span.start() as usize..span.end() as usize],
+        );
+    }
+
+    // -- SYNC-MAY31-9 (#475): reachable, in-order shadow gating -------
+
+    #[test]
+    fn e003_top_level_call_before_shadowing_proc_fires() {
+        // A top-level `close x y z` *before* `proc close` resolves to
+        // the builtin at load time (the proc does not exist yet), so the
+        // builtin arity check must fire even though a same-named proc is
+        // defined later in the file.  Regression target for #475's
+        // in-order gate (without it the post-walk flush silenced this).
+        let src = "close x y z\nproc close {a b c d} {}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e003: Vec<&Diagnostic> = r.diagnostics.iter().filter(|d| d.code == "E003").collect();
+        assert_eq!(
+            e003.len(),
+            1,
+            "expected E003 on the top-level close before its shadowing proc, got {:?}",
+            r.diagnostics
+        );
+        // The flagged call is the top-level one (offset 0), not the proc.
+        assert_eq!(e003[0].span.start(), 0, "wrong call flagged");
+    }
+
+    #[test]
+    fn e003_top_level_call_after_shadowing_proc_suppressed() {
+        // The mirror image: once `proc close` is defined, a later
+        // top-level `close x y z` resolves to the 4-param user proc, so
+        // the builtin arity check is suppressed.
+        let src = "proc close {a b c d} {}\nclose x y z\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E003"),
+            "no E003 expected — the call follows its shadowing proc, got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_proc_body_call_not_order_gated() {
+        // A call inside a proc body resolves when that proc is *invoked*
+        // — after the whole script has loaded — so a shadowing proc
+        // defined later in the file still suppresses the builtin check.
+        // Order is only enforced for top-level calls.
+        let src = "proc foo {} { close x y z }\nproc close {a b c d} {}\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E003"),
+            "no E003 expected — proc-body calls are not order-gated, got {:?}",
+            r.diagnostics
         );
     }
 

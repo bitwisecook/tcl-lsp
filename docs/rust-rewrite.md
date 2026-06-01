@@ -2349,18 +2349,28 @@ suppress the check when the qualified call resolves to a user
 SYNC-MAY21-3 confirmed 0 E002/E003 false positives across tcllib 2.0
 + the Tcl 8.6 standard library with this shape.
 
-What's **not** yet ported: the second refinement — gating suppression
-on *reachable, in-order* proc definitions (so a top-level call before
-a `proc close` later in the file fires the arity check against the
-builtin).  Rust's post-walk flush in `flush_arity_diagnostics`
-intentionally drops shadowing-order constraints to handle the
-common "call before definition" case in well-formed code; matching
-Python's stricter check would need a per-call dominator/lexical-order
-test against the proc definition's IR location.
+Classify: in-scope, low-touch refinement.  Rust was ~90 % at parity
+already; the remaining in-order gate is described below.
 
-Classify: in-scope, low-touch refinement.  Rust is ~90 % at parity
-already; the in-order/reachability refinement is a follow-up to
-SYNC-MAY21-3 if the FP rate proves problematic in practice.
+**Landed (rust).**  The in-order half of the refinement now ports.
+`emit_arity_diagnostics` captures an `enforce_order` flag per candidate
+— `true` for top-level calls (module body, `namespace eval` bodies,
+conditionals), `false` for proc-body calls — derived from a new
+`scope_path_in_proc_body` helper (any `ScopeKind::Proc` on the
+call's scope path means the call resolves after load, so order is not
+enforced).  `flush_arity_diagnostics` now splits the suppression set:
+classes / aliases / ensembles / inline stubs always exist at run time
+and stay un-gated, while a shadowing **proc** silences a top-level call
+only when its definition (`ProcDef::name_span` start) lexically precedes
+the call.  So a top-level `close x y z` *before* a later `proc close`
+again fires E003 against the builtin, while the namespace-scoped guard
+(SYNC-MAY21-3) and proc-body forward-references stay suppressed.  Three
+discriminating analyser tests (call-before-def fires, call-after-def
+suppressed, proc-body call un-gated), each verified to fail without the
+gate.  Deferred (matches the old note): *excluding* conditionally
+defined procs from the shadow set needs the CFG dominator model, so a
+conditional `proc close` before the call still suppresses — no worse
+than the prior behaviour and no new false positives.
 
 ### SYNC-MAY31-10 — Inlay hints `is_optional` synopsis tagging + `infer_return_type` (#510)
 

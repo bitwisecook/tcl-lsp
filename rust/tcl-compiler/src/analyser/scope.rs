@@ -375,6 +375,32 @@ impl Analyser {
         ns
     }
 
+    /// True when `scope_path` descends through a `proc` body scope.
+    ///
+    /// Gates the E002/E003 arity-shadow order check.  A call inside a
+    /// proc body resolves at *call* time — after the whole script has
+    /// loaded — so a shadowing proc defined later in the file still
+    /// silences the builtin arity check.  A top-level call (module
+    /// body, `namespace eval` body, or a conditional) executes in
+    /// source order during load, so only a definition that lexically
+    /// precedes it shadows.  Mirrors the `enforce_order` flag Python
+    /// derives from `ir_module.top_level` vs `proc.body` in
+    /// `compiler_checks._arity_checks` (#475).
+    #[must_use]
+    pub(super) fn scope_path_in_proc_body(&self, scope_path: &[usize]) -> bool {
+        let mut cursor = &self.result.global_scope;
+        for &idx in scope_path {
+            let Some(child) = cursor.children.get(idx) else {
+                break;
+            };
+            if child.kind == ScopeKind::Proc {
+                return true;
+            }
+            cursor = child;
+        }
+        false
+    }
+
     /// Record a variable read for go-to-definition / find-references.
     ///
     /// Mirrors `_record_var_read` in
