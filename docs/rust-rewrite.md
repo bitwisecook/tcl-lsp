@@ -1120,6 +1120,16 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Re-audited: 2026-06-01 (refresh) against `origin/main`@`59c770f6`
+(prior anchor `52726510`).  +4 `main` commits in a same-day flurry:
+#510 (inlay hints + new `infer_return_type` joining `CFGReturn`
+terminators), #508 (server-side reposition cache for moved
+procedures), #507 (compiler-explorer CLI / GUI install — out of
+scope, `EXP*`), #511 (cross-ecosystem dependency refresh —
+mechanical).  In-scope rows captured as `SYNC-MAY31-10` (#510) and
+`SYNC-MAY31-11` (#508 — closes with `S*`) in the family section
+below.
+
 Re-audited: 2026-06-01 against `origin/main`@`52726510` (prior
 anchor `7d8a4d8f`). +24 `main` commits; the majority are out of
 scope (release plumbing, CodeQL/security, Sublime/JetBrains/explorer
@@ -2191,6 +2201,112 @@ Classify: in-scope, low-touch refinement.  Rust is ~90 % at parity
 already; the in-order/reachability refinement is a follow-up to
 SYNC-MAY21-3 if the FP rate proves problematic in practice.
 
+### SYNC-MAY31-10 — Inlay hints `is_optional` synopsis tagging + `infer_return_type` (#510)
+
+Two in-scope changes:
+
+1. **Inlay hints — optional positional handling.**  Python's synopsis
+   parser now tags each positional with `is_optional`; the emitter
+   counts positional args first, decides how many optional slots to
+   fill (`max(0, n_positional - n_required)`), and skips the rest.
+   `puts ?-nonewline? ?channelId? string` called with one arg now
+   labels it `string:` (the required trailing positional), not
+   `channelId:` (the first optional in source order).  Also drops the
+   `?options?` / `?switches?` documentation placeholders — those are
+   "the command's flag group", not real positional params, and the
+   actual flags are already handled per-call by the registry option
+   table.  Affects ~30 commands (`puts`, `lsearch`, `regsub`,
+   `uplevel`, `encoding convert*`, `tcltest::test`, …).
+
+   **Rust mirror gap.**
+   `rust/tcl-lsp-core/src/inlay_hints.rs::param_names_from_synopsis`
+   (lines 204-238) emits a flat `Vec<String>` of names with no
+   `is_optional` tagging — required and optional positionals are
+   interleaved in source order, so the same FP family Python just
+   fixed reproduces in Rust verbatim.  `?options?` / `?switches?`
+   are also accepted as plain optional names today (the
+   `is_empty() || contains(char::is_whitespace)` guard at line 220
+   rejects multi-word `?...?` groups but not the single-word
+   placeholder names).  Port: change the return type to
+   `Vec<(String, bool)>` (name + `is_optional`), update the emitter
+   loop in `inlay_hints.rs::emit_for_segment` (~lines 162-194) to
+   count positional args first and pick the slots accordingly, and
+   filter `?options?` / `?switches?` literal placeholders.
+
+2. **`infer_return_type` on `FunctionAnalysis`.**  Python adds a
+   parallel `return_type: TypeLattice | None` field computed by
+   joining every executable `CFGReturn` terminator: `expr`-form
+   returns go through `infer_expr_type` (operator-implied),
+   `[cmd …]` returns consult the registry hint, literals are
+   classified, substitutions fall back to STRING.  For
+   `return $x`, the lattice joins types of every known version of
+   `x` (sound over-approximation when SSA reaching defs at
+   terminators aren't tracked).  Surfaces in the explorer's Types
+   tab + the per-function inferred-types summary as a `(return)`
+   row.
+
+   **Rust mirror gap.**
+   `rust/tcl-compiler/src/type_infer.rs::return_type_for_command`
+   (line 72) consults the registry's *declared* `return_type` for a
+   given command name — but there's no equivalent
+   `infer_function_return_type` that joins types over the function's
+   own `Terminator::Return` sites.  `FunctionUnit` has `cfg` / `ssa`
+   / `def_use` / `sccp` / `memory_ssa` but no `return_type` field.
+   Port: walk `CfgFunction.blocks` over executable blocks, match
+   `Terminator::Return { expr, value }`, dispatch through the
+   existing `infer_expr_type` /
+   `infer_type_for_command_substitution` / literal classifier
+   helpers, and `type_join` the results.  Standalone, applies right
+   now to `tcl-compiler::FunctionUnit`.
+
+Classify: in-scope, both items low-touch.  Item 1 (~30 LOC + tests,
+inlay-hints emitter); item 2 (~50 LOC + tests, new
+`infer_function_return_type` in `type_infer.rs` + field on
+`FunctionUnit`).
+
+### SYNC-MAY31-11 — Reposition cache for moved procedures (#508)
+
+`main` adds two extensions to the proc-cache infrastructure:
+
+1. **`call_site_constants_fp`** on `_proc_cache_key` — when a caller
+   passes a literal arg (`foo 1` → `foo 0`), the proc's SCCP /
+   unreachable-branch facts change even though the proc's own text
+   and position are unchanged.  The cache key now folds in a
+   fingerprint of all literal call-site constants so the cached unit
+   invalidates correctly.
+2. **`_proc_reposition_key`** — a position-independent variant of
+   the proc-cache key.  When a proc moves (e.g. a new proc inserted
+   above it, shifting line/char/offset) without its body changing,
+   the reposition cache lets the document-state machinery re-attach
+   the existing `FunctionUnit` at the new position instead of
+   re-running the full analysis pipeline.  Driven by a new
+   `tooling/fuzzing/reposition_campaign.py` differential harness
+   (mirroring `incremental_diff` — same dev-only test-subject
+   rationale).
+
+**Rust mirror.**  The Rust compiler has no incremental analysis
+caching at all today — `CompilationUnit::build_for` (in
+`compilation_unit.rs`) re-runs `lower_to_ir` → `build_cfg` →
+per-function `FunctionUnit::build` on every call, with no
+proc-cache key, no class-fingerprint, no call-site-constants
+fingerprint, and no reposition adapter.  This is consistent with
+how the Rust analyser has no live caller post-#241 — incremental
+caching only matters when a long-lived document-state driver is
+calling the analyser repeatedly.
+
+**Defer to `S*`.**  The whole proc-cache + reposition-cache stack is
+part of the `S*` LSP-server document-state work (see SYNC-MAY31-1's
+"Incremental analysis staleness cluster (#481)" item).  When the
+Rust server gains an `Arc<DocumentState>` + per-document
+re-analysis loop, the cache infrastructure ports as a single piece:
+proc-cache key + class fingerprint (already documented under
+SYNC-MAY31-1) + call-site-constants fingerprint (this row's first
+piece) + reposition adapter (this row's second piece) +
+`buffer_for_version` (rope-version registry per SYNC-MAY31-1).
+
+Classify: in-scope, **structural**, closes with `S*`.  No standalone
+Rust port today.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -2297,39 +2413,44 @@ priority queue:
   the resolved caller-side defs into the host Call or prepends
   a synthetic `<upvar-invalidate>` Call before a non-Call host.
 * **`SYNC-MAY31` family** — opened 2026-06-01 against
-  `origin/main`@`52726510`.  Nine in-scope rows captured: #498
-  (Phases 0-9 parser/compiler work — promotes to its own
-  `SYNC-MAY31-1a` / `-1b` / `-1c` / `-1d` sub-family once a
-  contributor picks up the interval domain / place model / loop
-  forest / precision sweep, plus the new `-1e` "lattice-driven
-  precision fixes" row catching A0 dominator-tree Euler-tour labels,
-  A11 + A19 semi-pruned SSA, A6 shimmer per-name index pre-pass,
-  W211 / W220 / O109 / O126 call-by-name suppression via
-  `param_traits`, O110 InstCombine whitespace guard, O106 LICM
-  purity recursion into cmd-subs, S100 / S101 loop-invariance
-  lattice, S102 per-loop body_types, hex / binary INT typing —
-  all standalone and applicable today), #502 (info-exists /
-  array-exists folding), #501 (W127 + iRules BODY-role), #480
-  (token cache — closes with `S*`), #478 (dataflow fixpoint
-  algorithmic improvements — the Cooper-Harvey-Kennedy / shared-RPO
-  half is already in Rust via SYNC-MAY21's `97aefd0b`, but the GVN
-  bitmask availability + SCCP non-overdefined-key tracking +
-  interproc reverse-call-graph worklist + SSA worklist propagation
-  across type_infer / rendered_properties / taint are real
-  performance gaps — promotes to `SYNC-MAY31-5a` / `-5b` / `-5c`
-  when picked up), #474 (switch `-regexp` → `IRSwitch`), #473
+  `origin/main`@`52726510`; refreshed same day to
+  `origin/main`@`59c770f6` (+4 commits, 2 in-scope folded in as
+  `-10` / `-11`).  Eleven in-scope rows captured: #498 (Phases 0-9
+  parser/compiler work — promotes to its own `SYNC-MAY31-1a` /
+  `-1b` / `-1c` / `-1d` sub-family once a contributor picks up the
+  interval domain / place model / loop forest / precision sweep,
+  plus the new `-1e` "lattice-driven precision fixes" row catching
+  A0 dominator-tree Euler-tour labels, A11 + A19 semi-pruned SSA,
+  A6 shimmer per-name index pre-pass, W211 / W220 / O109 / O126
+  call-by-name suppression via `param_traits`, O110 InstCombine
+  whitespace guard, O106 LICM purity recursion into cmd-subs, S100
+  / S101 loop-invariance lattice, S102 per-loop body_types, hex /
+  binary INT typing — all standalone and applicable today), #502
+  (info-exists / array-exists folding), #501 (W127 + iRules
+  BODY-role), #480 (token cache — closes with `S*`), #478 (dataflow
+  fixpoint algorithmic improvements — the Cooper-Harvey-Kennedy /
+  shared-RPO half is already in Rust via SYNC-MAY21's `97aefd0b`,
+  but the GVN bitmask availability + SCCP non-overdefined-key
+  tracking + interproc reverse-call-graph worklist + SSA worklist
+  propagation across type_infer / rendered_properties / taint are
+  real performance gaps — promotes to `SYNC-MAY31-5a` / `-5b` /
+  `-5c` when picked up), #474 (switch `-regexp` → `IRSwitch`), #473
   (`ExprRaw` switch-subject scan), #494 (folding ranges for
   backslash line-continuations), #475 (namespace-aware
   arity-suppression — Rust already at ~90% parity from SYNC-MAY21-3,
-  the *reachable, in-order* refinement is a follow-up).  None of
-  the new rows are *correctness* blockers for any landed Rust
-  subsystem (the Rust analyser has no live caller post-#241); they
-  are forward-looking parity targets the relevant
+  the *reachable, in-order* refinement is a follow-up), #510 (inlay
+  hints `is_optional` synopsis tagging + new `infer_return_type`
+  joining `CFGReturn` terminators — both apply right now; the
+  inlay-hints fix mirrors the same FP family Python just fixed),
+  #508 (server-side reposition cache for moved procedures — closes
+  with `S*`).  None of the new rows are *correctness* blockers for
+  any landed Rust subsystem (the Rust analyser has no live caller
+  post-#241); they are forward-looking parity targets the relevant
   `C41-default-on-followups-*` / `S*` chunks pick up as they reach
-  the matching check / feature.  The `-1e` lattice-driven row and
-  the `-5a` / `-5b` / `-5c` algorithmic items are output-preserving
-  so they can land any time without coordination with the
-  analyser-flip plan.
+  the matching check / feature.  The `-1e` lattice-driven row, the
+  `-5a` / `-5b` / `-5c` algorithmic items, and `-10` (inlay hints +
+  return type) are output-preserving so they can land any time
+  without coordination with the analyser-flip plan.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
