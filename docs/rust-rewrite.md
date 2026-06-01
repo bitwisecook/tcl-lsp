@@ -1994,6 +1994,30 @@ lattice + the `executable_blocks` set); `rust/tcl-compiler/src/analyser/diagnost
 matching `compiler_checks::run_all_checks` wiring.  Classify:
 in-scope, medium.
 
+**Landed (rust).**  All three deltas, re-targeted to the Rust IR
+(where `[info exists X]` lowers to an opaque `ExprNode::Command`, *not*
+a `Statement::Call`, so the doc's `evaluate_def` pointer doesn't
+apply).  A shared `expr_ast::existence_query_var` recognises
+`[info exists X]` / `[array exists X]` (and `![…]`).  (1) **W210
+suppression for the query word** — `emit_read_before_set_diagnostics`
+skips a use whose statement is an existence query for that var (bare
+`info exists X` call *and* the `set y [info exists X]` command-sub
+form).  (2) **Guarded read narrowing** — reads of `X` in any block
+dominated (via the SSA `idom` chain) by the true target of
+`[info exists X]` (or the false target of `![info exists X]`) are
+excluded from W210.  This is done at emit time rather than by
+injecting a synthetic SSA def, which would create a spurious merge phi
+and perturb W214/W211.  (3) **Predicate fold → I230** —
+`emit_existence_constant_branch_diagnostics` folds the two
+false-positive-free cases (a *parameter* always exists → true; a
+never-defined non-parameter simple local never exists → false),
+gated on a barrier-free function and skipping `unset` params, array
+elements, and namespaced/global names.  (SCCP itself is left untouched
+— it has neither parameter nor existence facts; the doc's
+`run_all_checks` wiring note reflects the Python layout, not Rust's,
+where these emitters live on the analyser.)  Tests: the
+`info_exists_*` cluster in `analyser/diagnostics.rs`.
+
 ### SYNC-MAY31-4 — W127 closed-value command argument + BODY role on iRules nesting scripts (#501)
 
 Two deltas:
@@ -2525,8 +2549,9 @@ priority queue:
   with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
   var scan), `-8` (#494 backslash-continuation folding), `-10`
   (#510 inlay-hint optional positionals + `infer_function_return_type`),
-  and `-2` (#474 glob/regexp `switch` keeps structured dispatch)
-  — see those family sections.  Of the remainder, none are
+  `-2` (#474 glob/regexp `switch` keeps structured dispatch), and `-3`
+  (#502 `info exists` / `array exists` guard narrowing + W210
+  suppression + I230 fold) — see those family sections.  Of the remainder, none are
   *correctness* blockers for the analyser flip.  **Correction to a
   stale note:** earlier rows said "the Rust analyser has no live
   caller post-#241" — that referred to the deleted differential

@@ -102,6 +102,99 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
     matches.into_iter().next()
 }
 
+/// SYNC-MAY31-3: variables this statement queries *only for
+/// existence* (`info exists X` / `array exists X`, whether a bare call
+/// or a `[...]` command substitution inside an assignment / argument).
+/// Such a reference is not a value read, so it must not raise W210.
+fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
+    use crate::expr_ast::existence_query_in_text;
+    use crate::ir::Statement;
+    let mut out = Vec::new();
+    // Bare-call form: `info exists X` / `array exists X`.
+    if let Statement::Call { command, args, .. } = stmt {
+        if matches!(command.as_str(), "info" | "array")
+            && args.first().map(String::as_str) == Some("exists")
+        {
+            if let Some(v) = args.get(1) {
+                out.push(v.clone());
+            }
+        }
+    }
+    // Command-substitution form: `set y [info exists X]`,
+    // `puts [array exists X]`, etc.
+    let texts: &[String] = match stmt {
+        Statement::AssignValue { value, .. } => std::slice::from_ref(value),
+        Statement::Call { args, .. } => args,
+        _ => &[],
+    };
+    for t in texts {
+        if let Some(v) = existence_query_in_text(t.trim()) {
+            out.push(v);
+        }
+    }
+    out
+}
+
+/// SYNC-MAY31-3: collect `(var, guard_block)` pairs for every
+/// `[info exists X]` / `[array exists X]` branch condition in `fu`.
+/// A read of `var` in any block dominated by `guard_block` is guarded
+/// (X provably exists).  A positive query guards the true target; a
+/// `![info exists X]` query guards the false target.
+fn collect_existence_guards(fu: &crate::compilation_unit::FunctionUnit) -> Vec<(String, String)> {
+    use crate::cfg::Terminator;
+    let mut guards = Vec::new();
+    for block in fu.cfg.blocks.values() {
+        if let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        }) = &block.terminator
+        {
+            if let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) {
+                let target = if negated { false_target } else { true_target };
+                guards.push((var, target.clone()));
+            }
+        }
+    }
+    guards
+}
+
+/// SYNC-MAY31-3: true when a read of `var` at `use_block` is exempt
+/// from W210 because it is the existence-query word itself, or because
+/// it sits in a region guarded by an enclosing `[info exists var]`.
+fn existence_exempt(
+    stmt_opt: Option<&crate::ir::Statement>,
+    var: &str,
+    exists_guards: &[(String, String)],
+    ssa: &crate::ssa::SsaFunction,
+    use_block: &str,
+) -> bool {
+    if let Some(stmt) = stmt_opt {
+        if existence_query_vars(stmt).iter().any(|q| q == var) {
+            return true;
+        }
+    }
+    exists_guards
+        .iter()
+        .any(|(gv, gblk)| gv == var && block_dominated_by(ssa, use_block, gblk))
+}
+
+/// True when `block` is dominated by `dom` (walking the SSA immediate
+/// dominator chain; a block dominates itself).
+fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> bool {
+    let mut cur = block;
+    loop {
+        if cur == dom {
+            return true;
+        }
+        match ssa.idom.get(cur) {
+            Some(Some(parent)) => cur = parent,
+            _ => return false,
+        }
+    }
+}
+
 /// Collect every variable name defined anywhere in `cfg`.
 ///
 /// Mirrors `_collect_defined_vars` in
@@ -1777,6 +1870,7 @@ before this value so it is treated as data, not an option."
             extra_known_defined,
         );
         self.emit_constant_branch_diagnostics(function_unit);
+        self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
@@ -2206,6 +2300,13 @@ before this value so it is treated as data, not an option."
         };
         let params = &params_owned;
 
+        // SYNC-MAY31-3: collect `[info exists X]` / `[array exists X]`
+        // guards: `(var, guard_block)` where reads of `var` in any
+        // block dominated by `guard_block` are guarded (X is known to
+        // exist there).  Positive guards the true arm; `![info exists
+        // X]` guards the false arm.
+        let exists_guards = collect_existence_guards(fu);
+
         for chain in fu.def_use.chains.values() {
             if chain.definition.kind != DefKind::Parameter {
                 continue;
@@ -2247,6 +2348,11 @@ before this value so it is treated as data, not an option."
                         (stmt.span(), Some(stmt))
                     };
                 if span.is_empty() {
+                    continue;
+                }
+                // SYNC-MAY31-3: skip the existence-query word itself and
+                // reads narrowed by an enclosing `[info exists X]` guard.
+                if existence_exempt(stmt_opt, var, &exists_guards, &fu.ssa, &use_site.block) {
                     continue;
                 }
                 // ``unset`` without ``-nocomplain`` → W213.
@@ -2384,6 +2490,107 @@ before this value so it is treated as data, not an option."
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: code.to_string(),
                 span,
+                message,
+                severity: Severity::Hint,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// I230 — fold `[info exists X]` / `[array exists X]` conditions.
+    ///
+    /// SYNC-MAY31-3.  SCCP can't fold these (the predicate lowers to an
+    /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
+    /// facts), so the fold lives here, where `ir_proc.params` and the
+    /// def-use chains are available.  Only the two false-positive-free
+    /// cases are folded, and only in functions free of opaque barriers
+    /// (an unknown command could `unset` or `upvar`-define the var):
+    ///
+    /// - a **parameter** always exists → the predicate is `true`;
+    /// - a variable that is **never defined anywhere** and is not a
+    ///   parameter never exists → the predicate is `false`.
+    ///
+    /// `![info exists X]` flips the folded value.  Conditionally-set
+    /// variables are left alone.
+    fn emit_existence_constant_branch_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ir_proc: Option<&crate::ir::Procedure>,
+    ) {
+        use crate::cfg::Terminator;
+        use crate::ir::Statement;
+
+        // An opaque barrier (unknown command, `uplevel`, …) could
+        // define or unset arbitrary variables; bail on the whole
+        // function rather than risk a false fold.
+        let has_barrier = fu.cfg.blocks.values().any(|b| {
+            b.statements
+                .iter()
+                .any(|s| matches!(s, Statement::Barrier { .. }))
+        });
+        if has_barrier {
+            return;
+        }
+
+        let params: HashSet<&str> = match ir_proc {
+            Some(p) => p.params.iter().map(String::as_str).collect(),
+            None => HashSet::new(),
+        };
+        let defined = collect_defined_vars(&fu.cfg);
+        // A var explicitly `unset` anywhere can't be assumed to exist
+        // even if it's a parameter.
+        let unset: HashSet<&str> = fu
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|b| &b.statements)
+            .filter_map(|s| match s {
+                Statement::Call { command, args, .. } if command == "unset" => Some(args),
+                _ => None,
+            })
+            .flatten()
+            .map(String::as_str)
+            .collect();
+
+        for block in fu.cfg.blocks.values() {
+            let Some(Terminator::Branch {
+                condition,
+                span: Some(span),
+                ..
+            }) = &block.terminator
+            else {
+                continue;
+            };
+            let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) else {
+                continue;
+            };
+            // Only fold simple local names. Array elements
+            // (`env(PATH)`) and namespaced / global vars (`::g`) may be
+            // populated by state outside this function's def-use view,
+            // so folding them to a constant risks a false positive.
+            if !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') || var.is_empty() {
+                continue;
+            }
+            let exists = if params.contains(var.as_str()) {
+                if unset.contains(var.as_str()) {
+                    continue;
+                }
+                true
+            } else if !defined.contains(&var) {
+                false
+            } else {
+                continue;
+            };
+            let value = exists ^ negated;
+            let cond = crate::expr_ast::expr_text(condition);
+            let message = if value {
+                format!("Condition '{cond}' is always true; the alternate branch is unreachable")
+            } else {
+                format!("Condition '{cond}' is always false; the alternate branch is unreachable")
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "I230".to_string(),
+                span: *span,
                 message,
                 severity: Severity::Hint,
                 fixes: Vec::new(),
@@ -4858,6 +5065,125 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must be suppressed via global-alias case; got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    // ── SYNC-MAY31-3: info exists / array exists ──────────────────
+
+    fn codes_for(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(src);
+        a.result
+            .diagnostics
+            .iter()
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn info_exists_control_still_flags_w210() {
+        // Baseline: a plain read of an unset local flags W210.
+        assert!(codes_for("proc f {} { puts $u }").contains(&"W210".to_string()));
+    }
+
+    #[test]
+    fn info_exists_guard_narrows_read_in_then_arm() {
+        // SYNC-MAY31-3(narrowing): reads inside `if {[info exists X]}`
+        // are guarded — X provably exists there, so no W210.
+        let codes = codes_for("proc f {} { if {[info exists u]} { puts $u } }");
+        assert!(
+            !codes.contains(&"W210".to_string()),
+            "guarded read must not flag W210; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_read_outside_guard_still_flags_w210() {
+        // The narrowing is scoped to the guarded arm: a read after the
+        // `if` (not dominated by the guard) still flags W210.
+        let codes = codes_for("proc f {} { if {[info exists u]} { puts hi }\nputs $u }");
+        assert!(
+            codes.contains(&"W210".to_string()),
+            "read outside the guarded arm must still flag W210; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_negated_guard_narrows_false_arm() {
+        // SYNC-MAY31-3(narrowing): the false arm of `![info exists X]`
+        // is guarded.
+        let codes = codes_for("proc f {} { if {![info exists u]} { puts no } else { puts $u } }");
+        assert!(
+            !codes.contains(&"W210".to_string()),
+            "false-arm read of `![info exists X]` must not flag W210; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_query_word_not_read_before_set() {
+        // SYNC-MAY31-3(W210 suppression): the existence-query word is
+        // not a read-before-set — bare call and command-sub forms.
+        assert!(!codes_for("proc f {} { info exists u }").contains(&"W210".to_string()));
+        assert!(!codes_for("proc f {} { array exists u }").contains(&"W210".to_string()));
+        let codes = codes_for("proc f {} { set y [info exists u]; puts $y }");
+        assert!(
+            !codes.contains(&"W210".to_string()),
+            "`set y [info exists u]` must not flag W210 on u; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_folds_false_for_never_defined_local() {
+        // SYNC-MAY31-3(fold): a never-defined non-parameter never
+        // exists → predicate folds false → I230.
+        let codes = codes_for("proc f {a} { if {[info exists b]} { puts hi } }");
+        assert!(
+            codes.contains(&"I230".to_string()),
+            "`info exists` of a never-defined local should fold to I230; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_folds_true_for_parameter() {
+        // A parameter always exists → predicate folds true → I230.
+        let codes = codes_for("proc f {a} { if {[info exists a]} { puts hi } }");
+        assert!(
+            codes.contains(&"I230".to_string()),
+            "`info exists` of a parameter should fold to I230; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_does_not_fold_conditionally_set_var() {
+        // A var that is set on some path is not provably set/unset —
+        // no fold, no false I230.
+        let codes = codes_for(
+            "proc f {flag} { if {$flag} { set u 1 } ; if {[info exists u]} { puts $u } }",
+        );
+        assert!(
+            !codes.contains(&"I230".to_string()),
+            "conditionally-set var must not fold; got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn info_exists_does_not_fold_namespaced_or_array() {
+        // Array elements / namespaced vars may be populated outside the
+        // function's view — never fold them.
+        assert!(
+            !codes_for("proc f {} { if {[info exists ::env(PATH)]} { puts hi } }")
+                .contains(&"I230".to_string())
+        );
+    }
+
+    #[test]
+    fn info_exists_does_not_fold_unset_parameter() {
+        // A parameter that is `unset` before the check can't be assumed
+        // to exist.
+        let codes = codes_for("proc f {a} { unset a; if {[info exists a]} { puts hi } }");
+        assert!(
+            !codes.contains(&"I230".to_string()),
+            "unset parameter must not fold true; got {codes:?}",
         );
     }
 
