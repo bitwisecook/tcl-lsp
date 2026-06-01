@@ -35,6 +35,7 @@ editors/vscode/out/
 editors/vscode/.vscode-test/
 .vscode-test/
 core/_build_info.py
+server/_version.py
 explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock

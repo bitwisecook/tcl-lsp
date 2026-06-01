@@ -1120,6 +1120,33 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Re-audited: 2026-06-01 (refresh) against `origin/main`@`59c770f6`
+(prior anchor `52726510`).  +4 `main` commits in a same-day flurry:
+#510 (inlay hints + new `infer_return_type` joining `CFGReturn`
+terminators), #508 (server-side reposition cache for moved
+procedures), #507 (compiler-explorer CLI / GUI install — out of
+scope, `EXP*`), #511 (cross-ecosystem dependency refresh —
+mechanical).  In-scope rows captured as `SYNC-MAY31-10` (#510) and
+`SYNC-MAY31-11` (#508 — closes with `S*`) in the family section
+below.
+
+Re-audited: 2026-06-01 against `origin/main`@`52726510` (prior
+anchor `7d8a4d8f`). +24 `main` commits; the majority are out of
+scope (release plumbing, CodeQL/security, Sublime/JetBrains/explorer
+front-ends, WASM runtime + Tcl 9 features in #482, the seven-concern
+Python reorganisation in #449 — already captured by the **Python
+source layout** section above).  New in-scope rows captured in the
+**SYNC-MAY31 family** below: #498 (parser/compiler algorithmic
+improvements + W210-W214 / W220-W211 / S100-S102 / O107 / T102 / W101
+precision fixes — the largest single landing since the rust branch
+was cut), #502 (info-exists / array-exists folding), #501 (W127 +
+BODY role on `clientside`/`serverside`/`after` nesting scripts),
+#480 (green token tree + shared tokenisation memo), #478 (centralised
+RPO + Cooper-Harvey-Kennedy idoms), #474 (switch `-regexp` →
+`IRSwitch` instead of `IRBarrier`), #473 (`ExprRaw` switch-subject
+read recovery for W214), #494 (folding ranges for backslash
+line-continuations), #475 (namespace-aware arity-suppression refinement).
+
 Re-audited: 2026-05-21 against `origin/main`@`7d8a4d8f` (prior
 anchor `01d83642`). +27 `main` commits; almost all out of scope
 (Zig/WASM runtime + emitter, JetBrains/explorer front-end, CI /
@@ -1497,6 +1524,807 @@ form in both the replacement and cursor resolution
 (`hover::braced_var_around`). No action — recorded for traceability;
 Rust is at or ahead of `main` here.
 
+## SYNC-MAY31 family — main audit (2026-05-31)
+
+Re-audited `origin/main`@`52726510` against the prior anchor
+`origin/main`@`7d8a4d8f` (the 2026-05-21 refresh point). `main`
+landed **24** commits since then — including the seven-concern
+Python reorganisation (`#449`, already captured by the dedicated
+**Python source layout** section near the top of this document) and
+the largest single product PR since the rust branch was cut (`#498`,
+165 commits of parser/compiler algorithmic work squashed into one
+landing).  Histories still diverge fully (no merge-base), so this
+remains a per-file audit, not a git rebase.
+
+The bulk of the new commits are **out of scope** (no Rust mirror —
+record and skip), grouped by exit point:
+
+- **Release / version bumps / CI / supply-chain** — `f1b58f06`
+  (v1.10.10 notes), `daedf8d6` (pre-release fixes: test-ext flake,
+  CodeQL, npm vulns), `9bd83a4f` (v1.10.9 notes), `281cb0be`
+  (publish-script ROOT path), `0e63f6c9` (CI duplicate jobs), `733df928`
+  (v1.10.8 notes), `eb38223f` (CodeQL alerts + npm pinning +
+  `esc()` hardening), `308d5247` (dependency / GHA upgrades).
+  Mechanical; no Rust mirror.
+- **f5 / query / editor / explorer** — `647fc482` (f5/query ping
+  fallback — `tooling/f5/query/` Python only), `2a371ebf` (Sublime
+  Text key bindings + context menu), `67ed9b97` + `40d3f1f1`
+  (compiler-explorer LSP server wait — `tooling/explorer/`).  All
+  close with `F*` / `EXP*` / editor-specific chunks.
+- **Zig WASM runtime + WASM emitter** — `#482` execution traces /
+  array defaults / Tcl 9 features lives almost entirely in the
+  Zig interp + WASM emitter (`source -encoding/-nopkg`, child interp
+  `Tcl_Init`, `Tcl_VarTraceInfo` round-trip, array element defaults
+  in the runtime).  Mirror is the Zig workstream + the future Rust
+  WASM emitter; none of it has a Rust analyser hook.
+- **Docs / KCS / package reorganisation** — `#449` (seven-concern
+  Python tree split — captured by the **Python source layout**
+  section above; the old `core/`/`lsp/`/`vm/` paths in earlier
+  chunk-log rows map through the table there), `52726510` (FP.md
+  catalog + Doc 2-5 review-finding closures).  No code change in
+  rust-mirrored modules.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-MAY31-1 — Parser/compiler algorithmic improvements (#498)
+
+The largest single landing since the rust branch was cut: 165
+squashed commits delivering Phases 0-9 of the parser/compiler
+algorithmic work plus a long tail of precision fixes across W210 /
+W213 / W214 / W220 / W211 / S100-S102 / O107 / T102 / W101 / W105 /
+W242.  **Rust mirror cost:** this is a structural multi-strip port
+(its own SYNC family by the time it lands).  Several of the items
+land in Rust *only* with the analyser-core port (C41) or the
+`S*` LSP-server work; record the structural pieces here so the chunk
+plan picks them up explicitly.
+
+Structural new surfaces (no Rust mirror today):
+
+- **Phase 3 — interval domain + dynamic bounds (W230-W233).**
+  `compiler/intervals.py` adds an integer-interval abstract domain
+  (CONST/RANGE/OVERDEFINED lattice with loop-header widening +
+  guard-driven narrowing); `compiler/interval_bounds.py` carries
+  per-SSA-version literal list-length + string-length maps;
+  `_analyser/_diag_interval_bounds.py` emits W230 (lindex smell),
+  W231 (lset error / append-slot-aware), W232 (string index out of
+  range), W233 (divide-by-zero — including forced-arm
+  detection through constant guards on `&&` / `||` / `?:`).  **Rust
+  mirror:** new `tcl-compiler::intervals` + `tcl-compiler::interval_bounds`
+  modules + W230-W233 emitters in `analyser/diagnostics.rs`.  Tracked
+  as a multi-strip port; classify in-scope, structural.
+- **Phase 8 — place model + ARRAY_ELEM precision (8A/8B/8E/8G).**
+  `compiler/place.py` adds a `Place(kind, ns, name, index, keys,
+  owner, observed, dynamic)` value with `PlaceKind ∈ SCALAR /
+  ARRAY_ELEM / ARRAY_WHOLE / DICT_PATH / INSTANCE_VAR / UPVAR_ALIAS
+  / UNKNOWN`, an overlap relation, and `places_read_to_form`;
+  `compiler/var_resolve.py` adds a `resolve_place` + `ResolveContext`
+  pair mirroring `lowering._canonicalise_command`; `compiler/place_bridge.py`
+  threads the model through `def_places` / `read_places` /
+  `terminator_read_places`.  Refines `set a(k) 1; set a(j) 2; puts
+  $a(k)` so `a(k)` no longer false-fires dead-store (W220 −88, W211
+  −2, O109 −66).  **Rust mirror:** new `tcl-compiler::place` +
+  `tcl-compiler::var_resolve` modules; the W220 / W211 / O109
+  emitters reroute through `places_read_to_form` instead of plain
+  variable-name comparison.  Classify in-scope, structural — fold
+  into the C41 analyser-core port or land as its own follow-up.
+- **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
+  registry-aware green-tree descent (`descend_command`) single-sources
+  body role-resolution.  Phase 1: shared loop-nesting forest
+  (`compiler/loops.py`) — natural-loop detection promoted from GVN;
+  also drives an explorer loops view.  Phase 6: deep-analysis
+  complexity guard (`_COMPLEXITY_GUARD_BLOCKS`, byte-size guard) +
+  per-proc dependency-fingerprint foundation + body-local diagnostic
+  memoization.  Phase 7: algorithm-reference doc + shared CFG
+  edge-routing model.  **Rust mirror:** the `compiler::loops` natural-
+  loop forest already exists in `tcl-compiler::optimiser::helpers`
+  + `gvn` (used by both GVN-O107 and the partial-redundancy O106
+  pass) — promote to a shared `tcl-compiler::loops` module for the
+  forthcoming interval-domain dominator-tree walks.  The complexity
+  guard is consumer-side (only the per-document pipeline needs it,
+  and the Rust analyser doesn't have a deep-analysis fork today);
+  defer until S*/diagnostics worker.
+- **W1 / W2 — persistent analysis worker model.**  Per-document
+  single-writer asyncio lock, per-uri `_publish_latest_version`
+  supersession, deep-pass `ProcessPoolExecutor` with crash recovery,
+  separate cold-build + deep-diagnostic pools.  **Rust mirror:** the
+  whole worker model closes with the `S*` LSP-server port — `tower-lsp`
+  + a Tokio cancellation token + a per-document `RwLock<Arc<DocumentState>>`
+  achieve the same shape natively.  Defer to the `S*` chunk.
+- **Incremental analysis staleness cluster (#481).**  Chunk hash
+  includes start offset; proc-cache key carries start line/char/offset
+  + known_classes fingerprint; analyser snapshots are independent for
+  TclOO; dialect-change forces full rebuild; persisted partial state
+  round-trips ensemble + objdefine.  Rope-backed DocumentBuffer +
+  AnchorTable foundation + process-stable BLAKE2b chunk-hash +
+  signature-overlay-keyed `VarReferenceScanner` cache.  **Rust
+  mirror:** the rope is already chosen for the `S*` document store
+  (see "Chosen libraries"), and the chunk-hash + signature-overlay
+  cache-keying belongs in the same chunk.  Defer to `S*`.
+
+Precision fixes catalogued by check code (each a self-contained
+analyser-rule port; size 5-30 LOC each):
+
+- **W210 / W213 / W214** read-before-set: `info exists` / `array
+  exists` guards (also see SYNC-MAY31-3 below); catch / regexp / scan
+  command-sub write recovery (incl. inside expr bodies); frozen
+  while/for body recovery; upvar dynamic-target alias; dynamic
+  `namespace eval` body analysis; qualified-variable aliases
+  (`variable ${name}::tail`); for-init / regexp captures in switch
+  arms; eval / `namespace eval` literal-body reads; qualified-builtin
+  loops (`::foreach` / `::lmap` / `::for` / `::while`).  Also: W210
+  exempts `vwait varName` (the canonical "wait for set" idiom is the
+  *whole point* of vwait); `dict for` / `dict map` bodies recognised
+  as un-lowered loop bodies (currently lower to opaque `IRBarrier`);
+  return-value / branch-condition `[set X …]` cmd-sub write recovery
+  (the classic open-read-close idiom).
+- **W220 / W211** dead-store / unused: return-value reads counted;
+  cmd-sub read-modify-write recovery; expr-sub read recovery;
+  traced-var exclusion (soundness); param-as-variable-NAME counts as
+  read.  Plus: **call-by-name suppression via `ProcDef.param_traits`**
+  — a caller-local passed by literal name to a user proc whose
+  parameter has the `VAR_READ` / `VAR_WRITE` trait is read/written by
+  alias.  Suppresses W211/W220/O109/O126 (the four lifecycle codes
+  share the helper).  Extended to scan inside `IRAssignValue.value`
+  cmd-subs + `IRAssignExpr.expr` / `IRReturn.expr` / `ExprCommand`
+  subtrees.  **The four-code suppression is a Rust gap right now —
+  see the "lattice-driven precision fixes" subsection below.**
+- **W307 / W308** object dispatch + Snit modelling: `$self` /
+  `$type` / `$selfns` / `$win` self-reference suppression;
+  `snit::type` / `snit::widget` bodies modelled as ClassDef with real
+  method scopes; in-method commands joined the Snit known set;
+  object-provenance for local Snit, namespaced factories, instance-var
+  / component dispatch; TclOO method resolution with namespace-aware
+  FQ class names.  Plus the W307 precision sweep: proc-param
+  dispatcher heuristic, multi-dispatch local rule (≥ 2 dispatches),
+  taint-aware safety guard (`gets`/`exec`/`$env(USER_CMD)` reachable
+  taint vetoes the suppression), switch-style + callback-suffix
+  array-element key (`-command` / `cmd` / `callback` / `handler` /
+  `hook` / `proc`), namespaced ensemble (`${var}::method` and
+  `[cmd]::method`), interprocedural object-factory tracking
+  (transitive fixpoint over user procs that return
+  `[ns::cmd]` / `[user_obj_factory]`), top-level `::top` scope, W307
+  / W101 dedup on `eval $cmd`.  Recognise `::proc` as proc
+  declaration.  None of W307 / W308 is ported to Rust today (W307
+  emitter is "deferred to C41" per `analyser/commands.rs:10`); the
+  fixes are inherited at the time the matching Rust emitter lands.
+- **S100 / S101 / S102** shimmer: loop accumulator FPs suppressed
+  (≥ 2 KNOWN types or entry-type re-introduction); empty-literal
+  branch-merge FPs; scope-alias declarations typed OVERDEFINED (not
+  STRING); hash-seed-independent phi joins.  Plus: **loop-invariance
+  lattice for S100/S101 classification** (one-time vs per-iteration
+  via the shared loop forest); **per-loop body_types for S102**
+  (eliminates the sibling-loop pollution where loop A's STRING
+  binding + loop B's LIST binding triggered S102 at *either* loop's
+  phi); destructure-foreach exclusion (`foreach VARS LIST break` is a
+  single-iteration multi-assign, not a loop); hex / binary integer
+  literal typing (`0x80`, `0b1010` → INT not STRING — matches
+  `Tcl_GetIntFromObj`); loop-invariant oscillation between distinct
+  intrep targets in the loop body keeps in-loop classification (every
+  iteration re-thunks).
+- **O106** LICM loop-invariant detector now recurses into command
+  substitutions for the purity check — an outer pure `format` call
+  whose arg is `[incr counter]` or `[read $fh 512]` is **not** loop-
+  invariant.  Rust's `gvn.rs::is_pure_command` only consults the
+  outer command's registry traits — real Rust gap.
+- **O107** reachability: break-reachability fix (`break` feeds the
+  innermost-loop-exit edge to SCCP); try body→handler control flow
+  modelled as SSA exception edges (handlers inherit correct versions,
+  not v0).
+- **O109 / O126** call-by-name suppression — same helper as W211 /
+  W220 above (shared `collect_call_by_name_reads` +
+  `build_proc_index_from_summaries` in `compiler/proc_arg_traits`).
+- **O110** InstCombine: pure-whitespace rewrites are now suppressed
+  (`_strip_ws(combined) != _strip_ws(input)` guard on the
+  `expression_args` / `expr_substitutions` / `branch_folding` paths);
+  mixed-bitwise/shift parens are kept (`(a >> 4) ^ b` does not strip
+  to `a >> 4 ^ b`); pure commutative operand reorders are suppressed
+  when no real simplification would result.
+- **O116** quick-fix: `[list]` (empty form) folds to `{}` not `""`
+  (the latter produced a syntactically-valid READ when applied to
+  `set r [list]`).  N/A for Rust today — no O116 emitter (O116 sits
+  in the priority table but no Rust emitter exists yet).
+- **T102** option-injection: position-aware scan-region (fires only
+  for vars inside the `--switch` scan region until the first arg that
+  can't begin with `-`).
+- **T100 / T101** taint sink filters: T100 limits to *direct* expr
+  operands (excludes vars inside cmd-sub interiors that re-evaluate
+  before reaching the expr operand layer); T101 filters `puts` to
+  output-string position only (the channel-id arg is a destination
+  handle, not emitted bytes).
+- **W101** quick-fix: `eval "..."` → `eval [list ...]`.  W105 don't
+  flag command-substitution `eval` / `uplevel` bodies; W242 don't
+  flag cmd-sub-condition loops; W201 URL / HTML / XML suppression
+  refinements; W104 (display-string vs list-build), W113, W120
+  (self-call from `package provide` file), W122 / W124 (skip dotted
+  OID chains like LDAP / SNMP MIBs), W123, W126, W302 (fire-and-
+  forget catch idiom + subcommand-aware tier), W306 (escaped `\[`
+  and literal end-anchor in regexp patterns), I230 idiom-recognition
+  tweaks.
+
+### A-series algorithmic optimisations (#498)
+
+Distinct from precision fixes — these are *performance* optimisations
+on top of existing algorithms.  Each was verified output-preserving
+on the Python side.
+
+- **A0 — O(1) `dominates()` via Euler-tour interval labels.**  Add
+  `dom_in` (preorder index) + `dom_out` (max `dom_in` in the subtree)
+  per block during one linear iterative DFS over the already-built
+  dominator tree.  `dominates(d, n)` becomes the interval test
+  `dom_in[d] <= dom_in[n] <= dom_out[d]` — no idom-chain walk.  Called
+  inside nested loops by the interval / bounds (refine_interval),
+  loop-forest, and GVN-LICM passes, so the previous O(depth) per call
+  degraded toward cubic on wide guard-chained procs.  **Rust gap:**
+  `rust/tcl-compiler/src/gvn.rs::dominates` (line 1030) still walks
+  the idom chain via `ssa.idom.get(&curr)`.  Same shape as Python's
+  pre-A0 implementation.  Port: compute Euler-tour labels in
+  `compute_idom_fast` and add an `O(1) dominates()` variant gated on
+  their presence (fallback to the chain walk when absent for
+  complexity-guarded trivial SSA).  Standalone, output-preserving,
+  applies right now.
+- **A1 / A2 — interval-bounds shared infrastructure.**  Build a
+  per-function guard index `(name, version) → branch-blocks-that-
+  constrain` once per function (A1); compute the interval fixpoint
+  once for both bounds + divide-by-zero passes (A2).  N/A for Rust
+  until the interval domain itself ports (`SYNC-MAY31-1a`).
+- **A4 / A5 — element-observed overlap scan bucketed by base + shared
+  index.**  Build the read set into `(wildcard?, by_base[(ns,name)] →
+  reads, dynamic_nonwild)` so element-overlap queries answer from the
+  same-base bucket plus wildcard / dynamic checks (A4); share the
+  predicate between dead-store (W220) and unused-variable (W211)
+  passes so the read_places walk runs once per function (A5).  N/A
+  until the Place model ports (`SYNC-MAY31-1b`).
+- **A6 — shimmer per-name indices computed once per function.**
+  `_find_phi_shimmers` and `_find_thunking` previously called
+  `_empty_literal_versions(ssa, name)` + `_loop_body_def_types(...)`
+  *per phi*.  Precompute both as function-wide name-keyed maps
+  (`_build_shimmer_name_index`) once and pass through.  **Rust gap:**
+  `rust/tcl-compiler/src/shimmer/` exists and has working phi /
+  thunking detection — port the index pre-pass.  Standalone, applies
+  right now.
+- **A7 — share one green-tree intern index across `compile_source`.**
+  Wrap `_compile_source_inner` in `green_tree_scope` (reentrant —
+  callers that already opened a scope just reuse it).  Closes with
+  the `S*` LSP-server / document-state work; see SYNC-MAY31-6 on the
+  token cache.
+- **A10 — incremental segmentation reuses the spliced rope + brace-
+  safe body splice.**  Lifts `update_source_quick` on the giant
+  single-command files (filetypes.tcl: ~184 ms → ~5 ms per edit).
+  Closes with `S*` — the rope + DocumentState live in the server
+  layer.
+- **A11 — compute non-local names + def-sites in one `build_ssa`
+  pass.**  Phi placement used to walk reachable blocks twice:
+  `_nonlocal_names` collected upward-exposed-use names, then
+  `_phi_vars` walked again to build def-sites.  Merged into one walk
+  (`_nonlocal_names_and_defsites`).  **Rust gap:**
+  `rust/tcl-compiler/src/ssa.rs::compute_phi_vars` (line 461) walks
+  all reachable blocks for `defsites` *and* then runs the dominance-
+  frontier worklist over **every variable**, not just non-local
+  ones.  See A19 — they ship together.
+- **A18 — LoopForest sharing.**  The loop forest is the single
+  natural-loop source for GVN/LICM + the interval domain's widening
+  points, but **not** cached once globally — re-derived per consumer
+  (cheap now that dominance is O(1) — depends on A0).  Shimmer keeps
+  its separate any-cycle detector because try→handler exception
+  edges break dominance-based natural-loop classification.  N/A for
+  Rust until the shared loop forest lands (SYNC-MAY31-1c) + A0.
+- **A19 — semi-pruned SSA ON by default.**  Place phis only for
+  non-local names (variables that have an upward-exposed use across
+  some block boundary).  Local-only variables get no phi.  The
+  output-equivalence blocker (false W220/W211 from reads the
+  use-tracker missed, e.g. `$w` in `::tcl::idna::punydecode`) was
+  closed by the structural read-recovery work.  **Rust gap:**
+  `compute_phi_vars` is **full SSA** today — every variable in
+  `defsites` gets phi placement at its dominance frontier, regardless
+  of upward-exposed-use locality.  Port: extend the merged
+  `compute_phi_vars` to compute non-local names in the same pass (A11)
+  and filter the phi placement to that set (A19).  Standalone,
+  applies right now.
+
+**Rust mirror plan (refined):**
+
+The structural pieces (Phases 3 / 8 / 1) promote to numbered sub-
+chunks (`SYNC-MAY31-1a` / `-1b` / `-1c`) — none of those are
+correctness blockers, just precision gains.
+
+The lattice-driven precision fixes that have a *current* Rust
+emitter consumer split into their own row:
+
+### SYNC-MAY31-1e — Lattice-driven precision fixes (apply right now)
+
+These are fixes from #498 that target diagnostics Rust *already*
+emits, so they're standalone follow-ups rather than waiting for the
+structural sub-chunks:
+
+- **A0 — O(1) `dominates()` via Euler-tour interval labels** on the
+  Rust SSA.  Drops the idom-walk hot path used by GVN-LICM
+  (gvn.rs:1167 + the interval pass once it lands).
+- **A11 + A19 — semi-pruned SSA.**  Merge non-local-name detection
+  into the existing `compute_phi_vars` walk and filter phi placement
+  to upward-exposed-use names.  Reduces phi count substantially on
+  any function with many locally-confined variables.
+- **A6 — shimmer per-name index pre-pass.**  Compute empty-literal
+  versions + loop-body def types once per function instead of per
+  phi.
+- **W211 / W220 / O109 / O126 call-by-name suppression.**  Port
+  `collect_call_by_name_reads` + `build_proc_index_from_summaries`
+  to `rust/tcl-compiler/src/interprocedural.rs` (the `param_traits`
+  infrastructure is already there per ProcSummary at line 146);
+  consume from the four emitters in `analyser/diagnostics.rs` (W211
+  / W220) and `optimiser/{elimination,unused_procs}.rs` (O109 /
+  O126).
+- **O110 InstCombine whitespace guard.**  Add the
+  `strip_ws(combined) != strip_ws(input)` guard to
+  `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`
+  (currently `rendered != trimmed` — character-level structural).
+  Also add the mixed-bitwise/shift paren preservation in
+  `render_expr` and the commutative-no-op reassoc skip.
+- **O106 LICM purity recursion into command substitutions.**  Extend
+  `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
+  and verify each is also pure — an outer pure call wrapping
+  `[incr counter]` is not loop-invariant.
+- **S100 / S101 shimmer loop-invariance lattice.**  Walk loop blocks
+  once and collect every variable name ever defined; classify
+  loop-invariant uses (name *not* in the set) as S100 (one-time),
+  not S101 (per-iteration).  Per-iteration target-set check stays
+  on S101 when a loop-invariant variable has ≥ 2 distinct intrep
+  targets inside the loop body.
+- **S102 per-loop body_types** (sibling-loop pollution fix).
+  Build a per-header `body_types` map using the natural-loop forest
+  instead of a function-wide union; eliminates the false oscillation
+  detection on `foreach a { set x "str" }; foreach b { set x [list] }`.
+  Also: destructure-foreach (`foreach VARS LIST break`) is excluded
+  from the loop_body_types contribution.
+- **Hex / binary literal INT typing** in the shimmer type lattice.
+  `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
+  Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
+  `variable n 0x80; for {…} {…} {incr n}` (tcllib idna idiom).
+
+Classify all of `-1e`: in-scope, low-touch each (5-50 LOC + tests);
+no structural / dependency blockers.  Suitable for PR-sized
+incremental commits.
+
+**Rust mirror plan:**
+
+The precision fixes do not all need to land before the analyser-core
+port (C41) flips on by default — they only need to land before the
+relevant *check* is ported.  Strategy:
+
+1. Catalogue each fix against the existing C41-default-on-followups-*
+   rows in the chunk log; add new rows for codes not yet
+   represented.
+2. Port the structural pieces (intervals, place model, shared loop
+   forest) as their own numbered chunks once C41 reaches the
+   var-lifecycle + diagnostic-range surface.
+3. Inherit the precision tweaks at the time the matching Rust
+   emitter lands.  None of these are "already-failing-in-Rust"
+   regressions — the Rust analyser has no live caller as of
+   2026-05-08 (`tests/test_rust_analyser_differential.py` was
+   deleted by `SYNC-JUN-DIFF-harness-delete`), so they are
+   forward-looking parity targets, not bug fixes.
+
+Classify: in-scope, **family-sized**.  Promote each Phase to its own
+numbered chunk (`SYNC-MAY31-1a` interval domain, `-1b` place model,
+`-1c` loop forest promotion, `-1d` precision-fix sweep) once a
+contributor picks it up.
+
+### SYNC-MAY31-2 — `switch -regexp` keeps `IRSwitch` (#474)
+
+`main` changed `compiler/lowering.py::_lower_switch` to lower
+`switch -regexp` as a structured `IRSwitch` (the same shape glob
+switches already used) instead of collapsing to an `IRBarrier`.
+After #474, **both** `-glob` and `-regexp` flow through the
+structured path with the matched mode preserved on `IRSwitch.mode`;
+only the malformed-options / missing-arms / odd-pattern-count
+sanity checks still bail to `IRBarrier`.  This lets SSA recover the
+subject and arm-body variable reads (so W214 sees parameters used
+by a regex switch as reads) and lets the bytecode backend emit a
+generic `invokeStk` matching tclsh 9.0's un-compiled approach.
+The WASM backend re-invokes `switch` through the runtime eval
+fallback since `_emit_switch` has no regex matcher.
+
+**Rust mirror gap.** `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
+collapses **every** non-Exact mode to a Barrier
+(`if *mode != SwitchMode::Exact { … Statement::Barrier … return }`),
+so `switch -glob` and `switch -regexp` are both opaque on the Rust
+side today — a wider parity gap than #474 alone implies, since
+glob switches were *already* structured on main before #474 landed.
+The Rust analyser already records literal regexp / glob patterns
+via `record_switch_regexp_pattern` (`analyser/handlers.rs`), so the
+analyser-side recovery is partially in place — what's missing is the
+**lowering** keeping the structured switch for both modes.
+
+Files: `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_switch`
+— drop the mode-based barrier short-circuit entirely and reuse the
+exact-mode arm-dispatch path for `Glob` and `Regexp` (with the
+`SwitchMode` carried through so downstream consumers can choose
+between an inline `STR_EQ` chain for Exact and a runtime
+`invokeStk` fallback for Glob/Regexp).  The matching
+`Statement::Switch` arm in `lowering` already records `mode` so no
+upstream change is needed.  Classify: in-scope, low-touch.
+
+### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
+
+`main` reclassifies `[info exists X]` / `[array exists X]` as
+**existence checks**, not value reads.  Three deltas:
+
+1. **W210 suppression for the existence reference itself** — the
+   query word does not raise read-before-set.
+2. **SCCP folds the predicate both ways.**  When the variable is
+   provably set (definite assignment dominates the call) the
+   predicate folds to `1`; when it's provably unset (no def reaches)
+   it folds to `0`.  The fold surfaces the existing I230 (constant
+   condition) + DCE pipeline.
+3. **Read narrowing inside guarded regions.**  Inside the `if-true`
+   arm of `if {[info exists X]} { ... }` (and the `if-false` arm of
+   `if {![info exists X]} { ... }`), the SSA renaming now treats
+   reads of `X` as guarded and excludes them from W210.
+
+**Rust mirror gap.**  `rust/tcl-compiler/src/var_escape/` already
+treats `info exists` literally + symbolically (handlers.rs +
+walker.rs + slot_resolution.rs), but the SCCP folding +
+guarded-region read narrowing are not present.  Files:
+`rust/tcl-compiler/src/sccp.rs::evaluate_def` (`Statement::Call`
+arm with `info exists` / `array exists` — fold against the SSA-versioned
+lattice + the `executable_blocks` set); `rust/tcl-compiler/src/analyser/diagnostics.rs::emit_*_w210*`
+(suppress the query word + suppress reads in the guarded arms); the
+matching `compiler_checks::run_all_checks` wiring.  Classify:
+in-scope, medium.
+
+### SYNC-MAY31-4 — W127 closed-value command argument + BODY role on iRules nesting scripts (#501)
+
+Two deltas:
+
+1. **BODY role on `clientside` / `serverside` / `peer` / `after`
+   nesting scripts.**  These iRules commands accept a nested body
+   that the analyser must descend into.  `clientside` / `serverside`
+   / `peer` run synchronously in the caller's scope
+   (`BodyKind.INLINE` in Python = `BodyKind::Plain` in Rust); `after`
+   's timer-form trailing script runs deferred from a timer wakeup
+   (`BodyKind.STRUCTURAL` in Python = `BodyKind::Structural` in
+   Rust — the body executes in its own dispatch context, not the
+   caller's frame).  The Python registry tagged all four bodies as
+   values, so the nested script wasn't recursively analysed (no
+   nested diagnostics, no semantic tokens, no scope handling); adding
+   the `ArgRole.BODY` tag plus the matching `BodyKind` makes them
+   lower to `IRBarrier`/`Statement::Barrier` (the standard
+   body-bearing-command shape), and the iRules-flow side-tracking
+   was extended to descend into the new bodies.  `peer` also flips
+   the side context (clientside body in a serverside event satisfies
+   a CLIENT_DATA payload requirement); `clientside`/`serverside`
+   keep their fixed side.  Arities tightened to `Arity(0, 1)` for
+   all three side-switches.  **Rust mirror:**
+   `rust/tcl-registry/src/commands/irules/{clientside,serverside,peer,after}.rs`
+   set the body argument's `arg_role = ArgRole::Body` + the matching
+   `body_kind` (`Plain` for clientside/serverside/peer, `Structural`
+   for after).  Add `is_side_switch = true` on the three
+   side-switches; teach the iRules-flow check (`irules_checks.rs`)
+   that `peer` flips side.  The existing recursion in
+   `analyser::commands.rs::process_command` will pick up the body
+   role automatically once it's set.  (BodyKind reminder: the two
+   variants on both sides are Python's `INLINE` / `STRUCTURAL` and
+   Rust's `Plain` / `Structural` — there is no `Deferred` variant in
+   either enum.)
+2. **W127** — new analyser warning for command arguments whose value
+   is provably "closed" (lattice = `Const` / `ConstSet` with all
+   elements known at compile time, the call doesn't write the
+   variable, no alias escapes the scope) but the user-provided
+   command treats the value as if it might change.  Pairs with W126
+   (related closed-value heuristic).  **Rust mirror:** a new
+   `analyser/diagnostics.rs::emit_w127_*` emitter, fed by the SCCP
+   lattice + the existing `places_read_to_form` machinery (the latter
+   landed only on `main` with SYNC-MAY31-1's place model, so this row
+   depends on `-1b`).
+
+Classify: BODY-role piece is in-scope, low-touch (registry edit +
+tests).  W127 emitter is in-scope, depends on `-1b`.
+
+### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
+
+`main` consolidated three layers of algorithmic improvement into one
+PR:
+
+**(a) Shared iterative RPO + Cooper-Harvey-Kennedy idoms.**  Replaced
+duplicated block-ordering helpers + the naive O(N²)-memory dominator
+fixpoint with one shared `CFGFunction.reverse_postorder()` (explicit
+work stack) + direct idom via Cooper-Harvey-Kennedy.
+
+**(b) Super-linear hotspot fixes (output-preserving):**
+
+- `gvn.py` partial-redundancy availability moved from per-block hash
+  sets to integer bitmasks (init O(B) vs O(U·B); meet/join is single
+  word-ops).
+- SCCP barrier widening tracks a `non_overdefined` key set so a
+  barrier only widens the not-yet-widened values instead of
+  re-scanning the full value map every fixpoint visit.
+- `interprocedural.py` purity + effect-region fixpoints driven by a
+  **reverse-call-graph worklist** (re-enqueue only callers of a
+  changed proc), not round-robin over every proc (was O(P²·fanout)).
+- `_diag_var_command.py` rebuilds the diagnostics list in one pass
+  when dropping suppressed W307s (O(N) vs O(R·N) tail shifts).
+- `_scope.py` caches resolved namespace-qualified variables by
+  `(namespace, var)` (skip the full scope-tree walk on repeated
+  reads).
+
+**(c) Worklist-driven SSA dataflow** for forward type / rendered-
+property / taint propagations and backward liveness — replaces the
+round-robin "while changed: for every block" sweeps with worklists
+seeded by `value_use_blocks()` (the SSA def→use map).  Outputs
+unchanged (lattice meets are monotone, so least fixpoint is
+visit-order independent).  SCCP is **intentionally** kept on the
+round-robin RPO sweep — it marks CFG edges executable as it goes
+and never un-marks them; a value-driven worklist could visit a
+branch before its condition resolves and lose precision.
+
+**Rust mirror state — wider than the row originally implied:**
+
+- **(a) Already landed** on the rust branch via PR #472 / SYNC-MAY21
+  (commit `97aefd0b` — the *"analyser: fix taint recursion overflow
+  and dominator blowup"* + *"cfg: make reverse_postorder iterative"*
+  strips).  `CfgFunction::reverse_postorder` (rust/tcl-compiler/src/cfg.rs:232)
+  is the shared iterative RPO; `compute_idom_fast` (rust/tcl-compiler/src/ssa.rs)
+  is Cooper-Harvey-Kennedy.  `cfg_order` (sccp.rs:48) is the canonical
+  caller wrapper used by sccp / gvn / rendered_properties / irules_checks
+  and the optimiser passes.  No action.
+- **(b1) GVN partial-redundancy bitmask — Rust gap.**
+  `rust/tcl-compiler/src/gvn.rs::run_partial_redundancy_fixpoint`
+  (line 1308+) still uses `HashSet<ExprKey>` for may_in / must_in /
+  may_out / must_out.  Port to a bitmask (key intern table → `u64`
+  bitmask, or a dense `BitVec` for >64 keys) — same shape Python
+  landed.
+- **(b2) SCCP barrier non-overdefined-key tracking — Rust gap.**
+  `rust/tcl-compiler/src/sccp.rs` (line 290-298) handles barriers
+  by collecting `values.keys().cloned()` and widening *every* key
+  on every fixpoint visit, exactly the O(K²) cost Python eliminated.
+  Track a `non_overdefined: HashSet<ValueKey>` alongside `values`
+  and only widen its members (remove from the set as they go
+  Overdefined).
+- **(b3) Interproc reverse-call-graph worklist — Rust gap.**
+  `rust/tcl-compiler/src/interprocedural.rs::fixpoint_purity`
+  (line 381) and `fixpoint_effects` (line 413) sweep round-robin
+  over every proc each pass.  Build a `callers: HashMap<String, Vec<String>>`
+  reverse map (already implied by the existing `direct_calls`
+  forward map) and drive both fixpoints from a `VecDeque<String>`
+  worklist seeded with all procs, re-enqueuing only callers of a
+  changed callee.
+- **(b4 / b5) W307 list rebuild + scope variable cache** — both
+  live in the Python analyser layer.  Their Rust mirrors close
+  with C41 (W307 emitter) / `S*` (scope-tree cache lives on the
+  per-document analysis snapshot).  No standalone Rust port today.
+- **(c) SSA worklist propagation — Rust gap on all four passes.**
+  Round-robin sweeps confirmed:
+  - `rust/tcl-compiler/src/type_infer.rs::propagate_types`
+    (line 292: `while changed { for block in ... }`).
+  - `rust/tcl-compiler/src/rendered_properties.rs::propagate_rendered_props`
+    (line 636).
+  - `rust/tcl-compiler/src/taint.rs::propagate_taints` (line 738) —
+    intra-procedural propagation.
+  - **Backward liveness** has no Rust port today (live-variable
+    analysis is implicit in def-use chains; if the Rust analyser
+    later grows an explicit liveness pass it should start
+    worklist-driven).
+  Shared infrastructure for the port: add `cfg::value_use_blocks(ssa)`
+  helper (mirrors Python's SSA def→use map), then port each pass
+  one at a time keeping the round-robin form behind a debug-assert
+  cross-check until parity is verified.  Each pass closes with the
+  matching Rust consumer (taint already lives in `compiler_checks`;
+  type / rendered-props feed analyser diagnostics + the optimiser).
+
+Classify: **family-sized**.  Split as `SYNC-MAY31-5a` (GVN bitmask
++ SCCP non-overdefined-key), `-5b` (interproc reverse-call-graph
+worklist), `-5c` (SSA worklist propagation across the four passes)
+when picked up.  None of the (b) / (c) items are *correctness*
+blockers — outputs are unchanged — but they are real performance
+gaps on the same large-CFG files (#481 generated 85k-line procs)
+where the rust branch's SYNC-MAY21 perf fix was already needed.
+
+### SYNC-MAY31-6 — Green token tree + shared tokenisation memo (#477 / #480)
+
+`main` introduces `core/parsing/token_cache.py`: a per-analysis
+`ContextVar`-scoped cache keyed by
+`(base_offset, base_line, base_col, insidequote, text)` →
+`(tokens, warnings)`.  Replaces 3-4× redundant re-lexing across the
+segmenter, lowerer, compiler-checks, and `VarReferenceScanner`.
+Reports ~10-22 % faster analysis on real corpora (~22 % on
+filetypes.tcl, the worst case for repeated re-lexing).  Output-
+preserving: byte-identical diagnostics across 14744 tests.
+
+**Rust mirror state + plan.**  The Rust lexer is fast enough at the
+**primitive** level that the L11 measurement showed ~10× speedup at
+the PyO3 bridge — but the same anti-pattern (each subsystem builds its
+own `Lexer` over the same bytes) reproduces inside the Rust workspace
+once the analyser, compiler-checks, and segmenter all run in Rust.
+The right shape is **not** a `ContextVar` memo (we don't use
+`ContextVar` in Rust): it's an explicit `&TokenCache` reference
+threaded through the analysis pipeline, or an `Arc<TokenCache>`
+field on the per-document state.  Implementation belongs in the
+`S*` LSP-server chunk where the document-store + analysis driver
+land together; the Rust caches naturally form around the `Arc<Rope>`
++ analysis snapshots.  Classify: in-scope, defer to `S*` (no point
+caching today — the Rust analyser has no production driver).
+
+### SYNC-MAY31-7 — `ExprRaw` switch-subject variable scan (#473)
+
+`main` fixed a W214 false positive: a parameter read only as a
+switch subject (e.g. `switch -- $col`) was wrongly reported as
+unused because the IR lowering preserves the subject as an
+`ExprRaw` node and `vars_in_expr_node` returned no variables for
+`ExprRaw`.  The fix scans `ExprRaw.text` for `$var` references via
+the lexer so liveness / DCE / unused-parameter detection sees the
+read.
+
+**Rust mirror gap.**  `rust/tcl-compiler/src/expr_ast.rs::ExprNode`
+includes a `Raw { text }` variant (used for the same switch-subject
+shape and for the catch-condition fallback noted in C18's "case 5"
+narrative).  The Rust `vars_of_expr` helpers (in
+`rust/tcl-compiler/src/var_refs.rs` and `expr_ast.rs`) need to scan
+`Raw.text` for `$var` references — same fix Python applied.
+Files: `rust/tcl-compiler/src/expr_ast.rs::ExprNode::vars`,
+`rust/tcl-compiler/src/var_refs.rs`.  Classify: in-scope, low-touch
+(5-15 LOC) — pure forward-looking fix since the Rust analyser has
+no live caller.
+
+### SYNC-MAY31-8 — Folding for backslash line-continuation commands (#494)
+
+`main` adds folding ranges for commands spread across multiple
+physical lines via `\<NL>` continuations (long proc calls with each
+argument on its own line).  Restores the legacy Tcl editor plugin's
+"collapse multi-line command to first line" behaviour (#493).
+
+The new continuation collector tokenises the source and treats each
+backslash-newline `SEP` join as evidence that a line continues.
+
+**Rust mirror state.**  `rust/tcl-lsp-core/src/folding.rs` is the
+Rust folding-range provider (used by `S-folding`).  Audit confirms
+no `continuation` / `backslash` handling today — it folds proc /
+namespace / comment / multi-line bodies via the segmenter, not
+backslash joins.  Files: `rust/tcl-lsp-core/src/folding.rs` — add
+a continuation pass mirroring the Python collector (re-tokenise via
+`tcl-lexer`, group consecutive `SEP` tokens whose text contains a
+backslash-newline pair into one folding range starting at the
+*first* line and ending at the *last* continued line).  Classify:
+in-scope, low-touch.
+
+### SYNC-MAY31-9 — Namespace-aware arity-suppression refinement (#475)
+
+`main` refined the builtin-arity-check shadowing guard: a user proc
+`::ns::close` no longer suppresses E002/E003 on a *global* `close`
+call.  The check now resolves each call Tcl-style (call-site
+namespace → global, with a proc body resolving in the proc's
+defining namespace) and only skips the builtin arity check when the
+call truly resolves to a user-defined command.  Follow-up commit
+also "gates arity suppression on reachable, in-order proc
+definitions" — a top-level `close x y z` before a later `proc close`
+is no longer silenced.
+
+**Rust mirror state.**  The Rust shadowing guard (landed under
+SYNC-MAY21-3) is **already namespace-aware** — `command_resolution_namespace`
++ `resolve_command_qualified_name` in `analyser/diagnostics.rs`
+mirror the Tcl resolution order (current namespace → global) and only
+suppress the check when the qualified call resolves to a user
+`proc` / class / alias / ensemble.  The validation note in
+SYNC-MAY21-3 confirmed 0 E002/E003 false positives across tcllib 2.0
++ the Tcl 8.6 standard library with this shape.
+
+What's **not** yet ported: the second refinement — gating suppression
+on *reachable, in-order* proc definitions (so a top-level call before
+a `proc close` later in the file fires the arity check against the
+builtin).  Rust's post-walk flush in `flush_arity_diagnostics`
+intentionally drops shadowing-order constraints to handle the
+common "call before definition" case in well-formed code; matching
+Python's stricter check would need a per-call dominator/lexical-order
+test against the proc definition's IR location.
+
+Classify: in-scope, low-touch refinement.  Rust is ~90 % at parity
+already; the in-order/reachability refinement is a follow-up to
+SYNC-MAY21-3 if the FP rate proves problematic in practice.
+
+### SYNC-MAY31-10 — Inlay hints `is_optional` synopsis tagging + `infer_return_type` (#510)
+
+Two in-scope changes:
+
+1. **Inlay hints — optional positional handling.**  Python's synopsis
+   parser now tags each positional with `is_optional`; the emitter
+   counts positional args first, decides how many optional slots to
+   fill (`max(0, n_positional - n_required)`), and skips the rest.
+   `puts ?-nonewline? ?channelId? string` called with one arg now
+   labels it `string:` (the required trailing positional), not
+   `channelId:` (the first optional in source order).  Also drops the
+   `?options?` / `?switches?` documentation placeholders — those are
+   "the command's flag group", not real positional params, and the
+   actual flags are already handled per-call by the registry option
+   table.  Affects ~30 commands (`puts`, `lsearch`, `regsub`,
+   `uplevel`, `encoding convert*`, `tcltest::test`, …).
+
+   **Rust mirror gap.**
+   `rust/tcl-lsp-core/src/inlay_hints.rs::param_names_from_synopsis`
+   (lines 204-238) emits a flat `Vec<String>` of names with no
+   `is_optional` tagging — required and optional positionals are
+   interleaved in source order, so the same FP family Python just
+   fixed reproduces in Rust verbatim.  `?options?` / `?switches?`
+   are also accepted as plain optional names today (the
+   `is_empty() || contains(char::is_whitespace)` guard at line 220
+   rejects multi-word `?...?` groups but not the single-word
+   placeholder names).  Port: change the return type to
+   `Vec<(String, bool)>` (name + `is_optional`), update the emitter
+   loop in `inlay_hints.rs::emit_for_segment` (~lines 162-194) to
+   count positional args first and pick the slots accordingly, and
+   filter `?options?` / `?switches?` literal placeholders.
+
+2. **`infer_return_type` on `FunctionAnalysis`.**  Python adds a
+   parallel `return_type: TypeLattice | None` field computed by
+   joining every executable `CFGReturn` terminator: `expr`-form
+   returns go through `infer_expr_type` (operator-implied),
+   `[cmd …]` returns consult the registry hint, literals are
+   classified, substitutions fall back to STRING.  For
+   `return $x`, the lattice joins types of every known version of
+   `x` (sound over-approximation when SSA reaching defs at
+   terminators aren't tracked).  Surfaces in the explorer's Types
+   tab + the per-function inferred-types summary as a `(return)`
+   row.
+
+   **Rust mirror gap.**
+   `rust/tcl-compiler/src/type_infer.rs::return_type_for_command`
+   (line 72) consults the registry's *declared* `return_type` for a
+   given command name — but there's no equivalent
+   `infer_function_return_type` that joins types over the function's
+   own `Terminator::Return` sites.  `FunctionUnit` has `cfg` / `ssa`
+   / `def_use` / `sccp` / `memory_ssa` but no `return_type` field.
+   Port: walk `CfgFunction.blocks` over executable blocks, match
+   `Terminator::Return { expr, value }`, dispatch through the
+   existing `infer_expr_type` /
+   `infer_type_for_command_substitution` / literal classifier
+   helpers, and `type_join` the results.  Standalone, applies right
+   now to `tcl-compiler::FunctionUnit`.
+
+Classify: in-scope, both items low-touch.  Item 1 (~30 LOC + tests,
+inlay-hints emitter); item 2 (~50 LOC + tests, new
+`infer_function_return_type` in `type_infer.rs` + field on
+`FunctionUnit`).
+
+### SYNC-MAY31-11 — Reposition cache for moved procedures (#508)
+
+`main` adds two extensions to the proc-cache infrastructure:
+
+1. **`call_site_constants_fp`** on `_proc_cache_key` — when a caller
+   passes a literal arg (`foo 1` → `foo 0`), the proc's SCCP /
+   unreachable-branch facts change even though the proc's own text
+   and position are unchanged.  The cache key now folds in a
+   fingerprint of all literal call-site constants so the cached unit
+   invalidates correctly.
+2. **`_proc_reposition_key`** — a position-independent variant of
+   the proc-cache key.  When a proc moves (e.g. a new proc inserted
+   above it, shifting line/char/offset) without its body changing,
+   the reposition cache lets the document-state machinery re-attach
+   the existing `FunctionUnit` at the new position instead of
+   re-running the full analysis pipeline.  Driven by a new
+   `tooling/fuzzing/reposition_campaign.py` differential harness
+   (mirroring `incremental_diff` — same dev-only test-subject
+   rationale).
+
+**Rust mirror.**  The Rust compiler has no incremental analysis
+caching at all today — `CompilationUnit::build_for` (in
+`compilation_unit.rs`) re-runs `lower_to_ir` → `build_cfg` →
+per-function `FunctionUnit::build` on every call, with no
+proc-cache key, no class-fingerprint, no call-site-constants
+fingerprint, and no reposition adapter.  This is consistent with
+how the Rust analyser has no live caller post-#241 — incremental
+caching only matters when a long-lived document-state driver is
+calling the analyser repeatedly.
+
+**Defer to `S*`.**  The whole proc-cache + reposition-cache stack is
+part of the `S*` LSP-server document-state work (see SYNC-MAY31-1's
+"Incremental analysis staleness cluster (#481)" item).  When the
+Rust server gains an `Arc<DocumentState>` + per-document
+re-analysis loop, the cache infrastructure ports as a single piece:
+proc-cache key + class fingerprint (already documented under
+SYNC-MAY31-1) + call-site-constants fingerprint (this row's first
+piece) + reposition adapter (this row's second piece) +
+`buffer_for_version` (rope-version registry per SYNC-MAY31-1).
+
+Classify: in-scope, **structural**, closes with `S*`.  No standalone
+Rust port today.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -1602,6 +2430,45 @@ priority queue:
   text for `[upvar_proc arg]` substitutions, and either merges
   the resolved caller-side defs into the host Call or prepends
   a synthetic `<upvar-invalidate>` Call before a non-Call host.
+* **`SYNC-MAY31` family** — opened 2026-06-01 against
+  `origin/main`@`52726510`; refreshed same day to
+  `origin/main`@`59c770f6` (+4 commits, 2 in-scope folded in as
+  `-10` / `-11`).  Eleven in-scope rows captured: #498 (Phases 0-9
+  parser/compiler work — promotes to its own `SYNC-MAY31-1a` /
+  `-1b` / `-1c` / `-1d` sub-family once a contributor picks up the
+  interval domain / place model / loop forest / precision sweep,
+  plus the new `-1e` "lattice-driven precision fixes" row catching
+  A0 dominator-tree Euler-tour labels, A11 + A19 semi-pruned SSA,
+  A6 shimmer per-name index pre-pass, W211 / W220 / O109 / O126
+  call-by-name suppression via `param_traits`, O110 InstCombine
+  whitespace guard, O106 LICM purity recursion into cmd-subs, S100
+  / S101 loop-invariance lattice, S102 per-loop body_types, hex /
+  binary INT typing — all standalone and applicable today), #502
+  (info-exists / array-exists folding), #501 (W127 + iRules
+  BODY-role), #480 (token cache — closes with `S*`), #478 (dataflow
+  fixpoint algorithmic improvements — the Cooper-Harvey-Kennedy /
+  shared-RPO half is already in Rust via SYNC-MAY21's `97aefd0b`,
+  but the GVN bitmask availability + SCCP non-overdefined-key
+  tracking + interproc reverse-call-graph worklist + SSA worklist
+  propagation across type_infer / rendered_properties / taint are
+  real performance gaps — promotes to `SYNC-MAY31-5a` / `-5b` /
+  `-5c` when picked up), #474 (switch `-regexp` → `IRSwitch`), #473
+  (`ExprRaw` switch-subject scan), #494 (folding ranges for
+  backslash line-continuations), #475 (namespace-aware
+  arity-suppression — Rust already at ~90% parity from SYNC-MAY21-3,
+  the *reachable, in-order* refinement is a follow-up), #510 (inlay
+  hints `is_optional` synopsis tagging + new `infer_return_type`
+  joining `CFGReturn` terminators — both apply right now; the
+  inlay-hints fix mirrors the same FP family Python just fixed),
+  #508 (server-side reposition cache for moved procedures — closes
+  with `S*`).  None of the new rows are *correctness* blockers for
+  any landed Rust subsystem (the Rust analyser has no live caller
+  post-#241); they are forward-looking parity targets the relevant
+  `C41-default-on-followups-*` / `S*` chunks pick up as they reach
+  the matching check / feature.  The `-1e` lattice-driven row, the
+  `-5a` / `-5b` / `-5c` algorithmic items, and `-10` (inlay hints +
+  return type) are output-preserving so they can land any time
+  without coordination with the analyser-flip plan.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
