@@ -9,7 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler import interprocedural as interproc_module
 from compiler.compilation_unit import compile_source
-from server.workspace.document_state import DocumentState, _build_proc_cache
+from server.workspace.document_state import (
+    DocumentState,
+    _build_proc_cache,
+    _build_reposition_cache,
+)
 
 
 class TestCompileSourceCache:
@@ -286,3 +290,159 @@ class TestDocumentStateProcCache:
         assert state.has_partial_commands
         assert len(state._proc_cache) >= 2
         assert len(state._interproc_cache) >= 2
+
+
+class TestRepositionCache:
+    """A proc whose body is unchanged but which *moved* misses the primary
+    (position-keyed) cache, yet should reuse its position-independent dataflow
+    analysis via the reposition cache while rebuilding only CFG + SSA."""
+
+    THREE_PROCS = (
+        "proc alpha {} { return 1 }\nproc beta {} { return 2 }\nproc gamma {} { return 3 }\n"
+    )
+
+    def test_moved_proc_reuses_analysis_not_whole_unit(self):
+        """A length-changing edit before gamma shifts gamma's offsets, so the
+        primary cache misses (its CFG/SSA carry stale offsets).  With the
+        reposition cache, gamma reuses the cached *analysis* / *execution_intent*
+        object (same identity) but gets a freshly-built CFG (new identity)."""
+        cu1 = compile_source(self.THREE_PROCS)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        # "return 2" -> "return 222": two chars longer, shifting gamma's offsets.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 222 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        g1, g2 = cu1.procedures["::gamma"], cu2.procedures["::gamma"]
+        # Whole-unit primary cache missed: new FunctionUnit, new CFG.
+        assert g2 is not g1
+        assert g2.cfg is not g1.cfg
+        # ...but the expensive position-independent artefacts were reused.
+        assert g2.analysis is g1.analysis
+        assert g2.execution_intent is g1.execution_intent
+
+    def test_moved_proc_has_correct_shifted_ranges(self):
+        """The reused analysis must pair with *correct* (freshly-built) ranges:
+        a moved-proc compile must be byte-identical to a cold rebuild."""
+        src = "set a 1\nproc gamma {x} {\n  if {$x} { set y 1 }\n  return $y\n}\n"
+        cu1 = compile_source(src)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved = "\n\n# pushed down\n" + src
+        cold = compile_source(moved)  # reference: no caches
+        got = compile_source(moved, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        def ranges(cu):
+            fu = cu.procedures["::gamma"]
+            return [
+                (
+                    bn,
+                    s.range.start.line,
+                    s.range.start.character,
+                    s.range.start.offset,
+                    s.range.end.offset,
+                )
+                for bn in sorted(fu.cfg.blocks)
+                for s in fu.cfg.blocks[bn].statements
+                if getattr(s, "range", None) is not None
+            ]
+
+        # Reposition path took effect (analysis reused) yet ranges match cold rebuild.
+        assert got.procedures["::gamma"].analysis is cu1.procedures["::gamma"].analysis
+        assert ranges(got) == ranges(cold)
+
+    def test_reposition_diagnostics_match_cold_rebuild(self):
+        """End-to-end: a read-before-set warning on a moved proc must land on the
+        shifted line, identical to a cold rebuild (no stale positions leak)."""
+        src = "proc gamma {} {\n  puts $undef\n  set undef 1\n}\n"
+        cu1 = compile_source(src)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved = "\n\n\n" + src  # push gamma down 3 lines
+        cold = compile_source(moved)
+        got = compile_source(moved, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        # Index-based analysis facts are identical, and the CFG ranges they
+        # resolve against are freshly shifted — so diagnostics co-locate.
+        assert got.procedures["::gamma"].analysis.read_before_set == (
+            cold.procedures["::gamma"].analysis.read_before_set
+        )
+
+    def test_changed_body_does_not_use_reposition(self):
+        """A genuine body edit (not a pure move) must NOT reuse stale analysis —
+        the reposition key includes body text, so it misses and rebuilds."""
+        cu1 = compile_source("proc gamma {} {\n  set x 1\n  return $x\n}\n")
+        repos_cache = _build_reposition_cache(cu1)
+
+        # Different body: introduces a read-before-set that wasn't there before.
+        changed = "proc gamma {} {\n  return $x\n}\n"
+        cu2 = compile_source(changed, proc_cache={}, reposition_cache=repos_cache)
+
+        g2 = cu2.procedures["::gamma"]
+        # Fresh analysis (not the cached one) — it now reports the new RBS.
+        assert g2.analysis is not cu1.procedures["::gamma"].analysis
+        assert any(r.variable == "x" for r in g2.analysis.read_before_set)
+
+
+class TestCallSiteConstantsInvalidation:
+    """SCCP / unreachable-branch facts are seeded from call-site literal args
+    (``_params_constants_from_call_sites``).  A proc whose own text and position
+    are unchanged must still be re-analysed when a caller edits a literal arg —
+    both keys fold in a call-site-constants fingerprint (PR #508 review P2)."""
+
+    @staticmethod
+    def _branches(cu):
+        fu = cu.procedures["::foo"]
+        return tuple(sorted((c.block, c.value) for c in fu.analysis.constant_branches))
+
+    @staticmethod
+    def _doc(call, lead=""):
+        return (
+            lead
+            + "proc foo {x} {\n    if {$x} { set a 1 } else { set dead 2 }\n    return\n}\n"
+            + f"foo {call}\n"
+        )
+
+    def test_reposition_invalidates_on_call_site_constant_change(self):
+        """Proc moves AND its caller flips ``foo 1`` → ``foo 0`` in one edit: the
+        reposition path must NOT serve the stale ``x == 1`` branch facts."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved_changed = self._doc("0", lead="\n")  # moved + call-site const flipped
+        cold = compile_source(moved_changed)
+        got = compile_source(moved_changed, proc_cache=proc_cache, reposition_cache=repos_cache)
+        assert self._branches(got) == self._branches(cold)
+        # The cached (x==1 → True) analysis must not have been reused.
+        assert got.procedures["::foo"].analysis is not cu1.procedures["::foo"].analysis
+
+    def test_primary_cache_invalidates_on_call_site_constant_change(self):
+        """Same-length call edit (``foo 1`` → ``foo 0``) leaves foo's offsets
+        stable, so the *primary* cache would hit — but must still re-analyse."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+
+        changed = self._doc("0")  # foo unmoved, only the caller's literal changed
+        cold = compile_source(changed)
+        got = compile_source(changed, proc_cache=proc_cache)
+        assert self._branches(got) == self._branches(cold)
+
+    def test_unchanged_call_site_still_reuses_fast_path(self):
+        """A pure move with the call site unchanged must still hit the reposition
+        fast-path (the fingerprint only invalidates on an actual const change)."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved_same = self._doc("1", lead="\n")  # moved, call site unchanged
+        got = compile_source(moved_same, proc_cache=proc_cache, reposition_cache=repos_cache)
+        # Reposition reuse: same analysis object identity, fresh CFG.
+        g1, g2 = cu1.procedures["::foo"], got.procedures["::foo"]
+        assert g2.analysis is g1.analysis
+        assert g2.cfg is not g1.cfg

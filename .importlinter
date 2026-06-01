@@ -246,6 +246,12 @@ ignore_imports =
     ; the test subject, so this dev-only harness legitimately reaches
     ; into server/ to exercise it.
     tooling.fuzzing.incremental_diff -> server.workspace.document_state
+    ; The reposition-tracking differential campaign drives a real
+    ; server.workspace.DocumentState through reposition-biased edit bursts
+    ; and compares its incremental compilation unit (CFG ranges + byte
+    ; offsets) against a full rebuild.  Same dev-only test-subject rationale
+    ; as incremental_diff above.
+    tooling.fuzzing.reposition_campaign -> server.workspace.document_state
     ; The `tcl minimize` CLI verb wraps server.features.minimize, which
     ; deliberately hosts the shared minimize_diagnostic logic for both the
     ; CLI and the LSP code action.  Lazy import behind the verb dispatcher
