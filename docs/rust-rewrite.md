@@ -1696,30 +1696,36 @@ contributor picks it up.
 
 ### SYNC-MAY31-2 — `switch -regexp` keeps `IRSwitch` (#474)
 
-`main` changed `compiler/cfg.py::_CFGBuilder` to lower
-`switch -regexp` as a structured `IRSwitch` (the same shape as
-`switch -glob`) instead of collapsing to an `IRBarrier`.  This lets
-SSA recover the subject and arm-body variable reads (so W214 sees
-parameters used by a regex switch as reads) and lets the bytecode
-backend emit a generic `invokeStk` matching tclsh 9.0's un-compiled
-approach.  The WASM backend re-invokes `switch` through the runtime
-eval fallback since `_emit_switch` has no regex matcher.
+`main` changed `compiler/lowering.py::_lower_switch` to lower
+`switch -regexp` as a structured `IRSwitch` (the same shape glob
+switches already used) instead of collapsing to an `IRBarrier`.
+After #474, **both** `-glob` and `-regexp` flow through the
+structured path with the matched mode preserved on `IRSwitch.mode`;
+only the malformed-options / missing-arms / odd-pattern-count
+sanity checks still bail to `IRBarrier`.  This lets SSA recover the
+subject and arm-body variable reads (so W214 sees parameters used
+by a regex switch as reads) and lets the bytecode backend emit a
+generic `invokeStk` matching tclsh 9.0's un-compiled approach.
+The WASM backend re-invokes `switch` through the runtime eval
+fallback since `_emit_switch` has no regex matcher.
 
 **Rust mirror gap.** `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
-collapses every non-Exact mode to a Barrier
+collapses **every** non-Exact mode to a Barrier
 (`if *mode != SwitchMode::Exact { … Statement::Barrier … return }`),
-so `switch -regexp` and `switch -glob` are both opaque.  The Rust
-analyser already records literal regexp patterns via
-`record_switch_regexp_pattern` (`analyser/handlers.rs`), so the
+so `switch -glob` and `switch -regexp` are both opaque on the Rust
+side today — a wider parity gap than #474 alone implies, since
+glob switches were *already* structured on main before #474 landed.
+The Rust analyser already records literal regexp / glob patterns
+via `record_switch_regexp_pattern` (`analyser/handlers.rs`), so the
 analyser-side recovery is partially in place — what's missing is the
-**lowering** keeping the structured switch (or at least the
-`-regexp` half).  Glob switches keep the barrier on `main` too, so
-the change is `-regexp` specific.
+**lowering** keeping the structured switch for both modes.
 
 Files: `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_switch`
-(narrow the barrier-emission predicate to `Glob` only and reuse the
-existing exact-mode arm dispatch for `Regexp`, with the predicate
-node carrying the regex source for downstream lookup); the matching
+— drop the mode-based barrier short-circuit entirely and reuse the
+exact-mode arm-dispatch path for `Glob` and `Regexp` (with the
+`SwitchMode` carried through so downstream consumers can choose
+between an inline `STR_EQ` chain for Exact and a runtime
+`invokeStk` fallback for Glob/Regexp).  The matching
 `Statement::Switch` arm in `lowering` already records `mode` so no
 upstream change is needed.  Classify: in-scope, low-touch.
 
