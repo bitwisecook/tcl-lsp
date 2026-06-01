@@ -1626,14 +1626,20 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     while (pos <= sub_u.len) {
         const remaining = sub_u.len - pos;
 
-        // Pass the remaining subject suffix to TclReExec.  After the
-        // first iteration, set ``REG_NOTBOL`` so the engine doesn't
-        // re-anchor ``^`` at every advanced position — without this,
-        // ``regsub -all ^ xxx 123`` matched at every codepoint and
-        // produced ``123x123x123x123`` instead of the reference
-        // ``123xxx`` (regexp.test 9.6).
+        // Pass the remaining subject suffix to TclReExec.  Set
+        // ``REG_NOTBOL`` so the engine doesn't re-anchor ``^`` at every
+        // advanced position — without this, ``regsub -all ^ xxx 123``
+        // matched at every codepoint and produced ``123x123x123x123``
+        // instead of the reference ``123xxx`` (regexp.test 9.6).  The
+        // exception, matching ``Tcl_RegsubObjCmd``: when the character
+        // just before the search start is a newline we *don't* set
+        // NOTBOL, so that ``-line`` mode's ``^`` anchors after each line
+        // break (regexp-24.*).
         const sub_from: [*]const i32 = @ptrFromInt(sub_u.ptr + pos * 4);
-        const exec_flags: c_int = if (pos == 0) 0 else REG_NOTBOL;
+        const exec_flags: c_int = if (pos == 0 or ustr[pos - 1] == '\n')
+            0
+        else
+            REG_NOTBOL;
         const exec_rc = TclReExec(
             re_ptr,
             sub_from,
@@ -1669,11 +1675,14 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
 
         match_count += 1;
 
-        if (rm_eo > 0) {
-            pos += rm_eo;
-        } else {
-            // Zero-length match: output the current codepoint and advance
-            // to prevent an infinite loop.
+        // Advance past the match.  A *zero-width* match (``rm_so ==
+        // rm_eo`` — e.g. ``^`` / ``$`` / a word boundary, which can land
+        // mid-string at ``rm_so > 0`` in ``-line`` mode) must additionally
+        // consume one codepoint so the next iteration can't re-match the
+        // same empty span (mirrors ``Tcl_RegsubObjCmd``'s ``end == 0 ||
+        // start == end`` guard).
+        pos += rm_eo;
+        if (rm_so == rm_eo) {
             if (pos < sub_u.len) {
                 out_len += encode_cp(out, out_len, @intCast(ustr[pos]));
             }
