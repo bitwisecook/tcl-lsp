@@ -16,12 +16,13 @@
 //   %c  Unicode codepoint of next character
 //   %s  whitespace-delimited word
 //   %[  character-class match (``%[abc]`` / ``%[^x]`` / ``%[a-z]``)
-//   %f, %e, %g  floating-point (parsed as integer truncation — no fp runtime)
+//   %f, %e, %g  floating-point (real TYPE_FLOAT result)
 //   %n  no-op count specifier (not consuming; assigned current position)
 //   %%  literal percent in format (skip in input)
 //
-// Width fields (e.g. %5d) are parsed but ignored for non-%s specifiers.
-// For %s a width field limits the number of characters taken.
+// A leading ``N$`` (``%2$d``) selects the XPG3 target variable.  Width
+// fields (e.g. %3d) limit the characters consumed for %s, %d, %f, and
+// %[ conversions.
 
 const rt = @import("../tcl_runtime.zig");
 const std = @import("std");
@@ -197,6 +198,47 @@ fn scan_bignum(
 
 // ── main handler ─────────────────────────────────────────────────────────────
 
+/// Store one converted value.  Consolidates the per-conversion
+/// assignment shared by every spec arm and adds XPG3 (``%N$``) support:
+/// when *xpg_slot* >= 0 the value goes to that 0-based variable rather
+/// than the next sequential one, and the sequential cursor is left
+/// untouched.  ``val`` is always consumed.  Returns false when a
+/// variable-form scan has run past the supplied variables (the caller
+/// stops the format loop).
+fn scan_store(
+    words: []const i32,
+    has_vars: bool,
+    n_vars: u32,
+    vi: *u32,
+    assigned: *u32,
+    list_result: *i32,
+    val: i32,
+    suppress: bool,
+    xpg_slot: i64,
+) bool {
+    if (suppress) {
+        obj_mod_scan.tcl_obj_release(val);
+        return true;
+    }
+    if (has_vars) {
+        const slot: u32 = if (xpg_slot >= 0) @intCast(xpg_slot) else vi.*;
+        if (slot >= n_vars) {
+            obj_mod_scan.tcl_obj_release(val);
+            return false;
+        }
+        _ = frames.var_set(words[3 + slot], val);
+        obj_mod_scan.tcl_obj_release(val);
+    } else {
+        const next = rt.tcl_list(list_result.*, val);
+        obj_mod_scan.tcl_obj_release(list_result.*);
+        obj_mod_scan.tcl_obj_release(val);
+        list_result.* = next;
+    }
+    if (xpg_slot < 0) vi.* += 1;
+    assigned.* += 1;
+    return true;
+}
+
 fn eval_scan(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return result_mod.from_globals(obj_new_int(0));
 
@@ -244,6 +286,23 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             continue;
         }
 
+        // XPG3 positional conversion: ``%N$spec`` assigns to the N-th
+        // variable (1-based) rather than the next sequential one.  The
+        // position precedes the suppress / width / size fields.
+        var xpg_slot: i64 = -1;
+        {
+            var j = fi;
+            var num: u32 = 0;
+            while (j < fs.len and fmt[j] >= '0' and fmt[j] <= '9') : (j += 1) {
+                num = num * 10 + @as(u32, fmt[j] - '0');
+            }
+            if (j > fi and num > 0 and j < fs.len and fmt[j] == '$') {
+                xpg_slot = @intCast(num - 1);
+                fi = j + 1;
+                if (fi >= fs.len) break;
+            }
+        }
+
         // Suppress flag: %* means match but don't assign.
         var suppress = false;
         if (fmt[fi] == '*') {
@@ -273,24 +332,8 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
 
         // %n — number of chars consumed so far (no input consumed).
         if (spec == 'n') {
-            if (!suppress) {
-                const val = obj_new_int(@intCast(si));
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            }
+            const val = obj_new_int(@intCast(si));
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             continue;
         }
 
@@ -342,28 +385,9 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             }
             if (si == start_si) break; // no characters matched — conversion fails
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(si - start_si));
-            if (!suppress) {
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            } else {
-                obj_mod_scan.tcl_obj_release(val);
-            }
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             continue;
         }
-
 
         // end-of-input, and leave ``x`` unset (12days's
         // ``[scan [string index $c 0] %c x; set x]`` recursion fed it
@@ -377,25 +401,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             var tmp_i = si;
             const cp = read_utf8_cp(src, ss.len, &tmp_i);
             const val = obj_new_int(cp);
-            if (!suppress) {
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            } else {
-                obj_mod_scan.tcl_obj_release(val);
-            }
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             si = tmp_i;
             continue;
         }
@@ -409,30 +415,15 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             };
             const accept_0x = (spec == 'x' or spec == 'X');
             var matched = false;
-            const val = scan_int(src, ss.len, &si, base, accept_0x, &matched);
+            // A width field caps the digits consumed (``%3d``) — bound
+            // ``scan_int`` to ``si + width`` rather than the whole input.
+            const int_limit: u32 = if (width > 0) @min(ss.len, si + width) else ss.len;
+            const val = scan_int(src, int_limit, &si, base, accept_0x, &matched);
             if (!matched) {
                 obj_mod_scan.tcl_obj_release(val);
                 break;
             }
-            if (!suppress) {
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            } else {
-                obj_mod_scan.tcl_obj_release(val);
-            }
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             continue;
         }
 
@@ -443,20 +434,22 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             // truncated to an integer because the runtime had no fp path,
             // so ``scan 0.2 %f`` returned ``0`` (scan-4.49 / scan-11.*).
             const start_si = si;
-            if (si < ss.len and (src[si] == '-' or src[si] == '+')) si += 1;
-            if (si < ss.len and ((src[si] | 0x20) == 'i' or (src[si] | 0x20) == 'n')) {
+            // A width field caps the characters consumed (``%3f``).
+            const f_limit: u32 = if (width > 0) @min(ss.len, si + width) else ss.len;
+            if (si < f_limit and (src[si] == '-' or src[si] == '+')) si += 1;
+            if (si < f_limit and ((src[si] | 0x20) == 'i' or (src[si] | 0x20) == 'n')) {
                 // ``inf`` / ``infinity`` / ``nan`` — consume the alpha run.
-                while (si < ss.len and (src[si] | 0x20) >= 'a' and (src[si] | 0x20) <= 'z') si += 1;
+                while (si < f_limit and (src[si] | 0x20) >= 'a' and (src[si] | 0x20) <= 'z') si += 1;
             } else {
-                while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
-                if (si < ss.len and src[si] == '.') {
+                while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
+                if (si < f_limit and src[si] == '.') {
                     si += 1;
-                    while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
+                    while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
                 }
-                if (si < ss.len and (src[si] == 'e' or src[si] == 'E')) {
+                if (si < f_limit and (src[si] == 'e' or src[si] == 'E')) {
                     si += 1;
-                    if (si < ss.len and (src[si] == '+' or src[si] == '-')) si += 1;
-                    while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
+                    if (si < f_limit and (src[si] == '+' or src[si] == '-')) si += 1;
+                    while (si < f_limit and src[si] >= '0' and src[si] <= '9') si += 1;
                 }
             }
             const tok_len = si - start_si;
@@ -466,25 +459,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             while (k < tok_len) : (k += 1) fbuf[k] = src[start_si + k];
             const fv = std.fmt.parseFloat(f64, fbuf[0..tok_len]) catch break;
             const val = obj_mod_scan.obj_new_float(fv);
-            if (!suppress) {
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            } else {
-                obj_mod_scan.tcl_obj_release(val);
-            }
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             continue;
         }
 
@@ -500,25 +475,7 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             }
             if (end_si == start_si) break; // no word
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(end_si - start_si));
-            if (!suppress) {
-                if (has_vars) {
-                    if (vi >= n_vars) {
-                        obj_mod_scan.tcl_obj_release(val);
-                        break;
-                    }
-                    _ = frames.var_set(words[3 + vi], val);
-                    obj_mod_scan.tcl_obj_release(val);
-                } else {
-                    const next = rt.tcl_list(list_result, val);
-                    obj_mod_scan.tcl_obj_release(list_result);
-                    obj_mod_scan.tcl_obj_release(val);
-                    list_result = next;
-                }
-                vi += 1;
-                assigned += 1;
-            } else {
-                obj_mod_scan.tcl_obj_release(val);
-            }
+            if (!scan_store(words, has_vars, n_vars, &vi, &assigned, &list_result, val, suppress, xpg_slot)) break;
             si = end_si;
             continue;
         }
