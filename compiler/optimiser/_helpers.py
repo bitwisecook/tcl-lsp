@@ -505,42 +505,6 @@ def _parse_single_command_from_range(
     return argv_texts, argv_tokens, argv_single
 
 
-def _try_fold_list_command(cmd_text: str) -> str | None:
-    """Fold ``[list literal1 literal2 ...]`` to a literal value."""
-    parsed = _parse_command_words(cmd_text)
-    if parsed is None:
-        return None
-    cmd_texts, cmd_tokens, cmd_single = parsed
-    if not cmd_texts or cmd_texts[0] != "list":
-        return None
-    if len(cmd_texts) == 1:
-        # ``[list]`` evaluates to an empty value but in source position it
-        # must be SOMETHING — replacing it with the empty string would
-        # turn ``set r [list]`` into ``set r ;`` which is a read, not a
-        # write.  Use ``{}`` (canonical empty list literal).
-        return "{}"
-    for i in range(1, len(cmd_texts)):
-        if i >= len(cmd_single) or not cmd_single[i]:
-            return None
-        if i >= len(cmd_tokens):
-            return None
-        tok = cmd_tokens[i]
-        if tok.type not in (TokenType.STR, TokenType.ESC):
-            return None
-        if not _is_plain_literal(cmd_texts[i]):
-            return None
-        if not _SAFE_WORD_RE.fullmatch(cmd_texts[i]):
-            return None
-    elements = cmd_texts[1:]
-    if len(elements) == 1:
-        return elements[0]
-    # Multi-element lists: folding [list a b c] to {a b c} changes the intrep
-    # from list to string.  Downstream list commands (lindex, lrange, …) would
-    # then shimmer the braced literal back, and benchmarks show no measurable
-    # performance benefit from the fold.  Skip to avoid triggering S100.
-    return None
-
-
 def _parse_string_length_arg(cmd_text: str) -> str | None:
     """If *cmd_text* is ``[string length <arg>]`` or ``string length <arg>``,
     return the ``<arg>`` text.
@@ -571,53 +535,6 @@ def _parse_string_length_arg(cmd_text: str) -> str | None:
     if len(argv) != 3 or argv[0] != "string" or argv[1] != "length":
         return None
     return argv[2]
-
-
-def _try_fold_lindex_command(cmd_text: str) -> str | None:
-    """Fold ``[lindex {a b c} N]`` to the element at index *N*."""
-    parsed = _parse_command_words(cmd_text)
-    if parsed is None:
-        return None
-    cmd_texts, cmd_tokens, cmd_single = parsed
-    if len(cmd_texts) != 3 or cmd_texts[0] != "lindex":
-        return None
-    # List argument must be a braced literal.
-    if not cmd_single[1] or cmd_tokens[1].type is not TokenType.STR:
-        return None
-    list_text = cmd_texts[1]
-    # Only handle simple lists (no nested braces or backslashes).
-    if any(ch in list_text for ch in "{}\\"):
-        return None
-    # Index must be a literal.
-    if not cmd_single[2]:
-        return None
-    if cmd_tokens[2].type not in (TokenType.STR, TokenType.ESC):
-        return None
-    idx_text = cmd_texts[2].strip()
-    if idx_text == "end":
-        idx = -1
-    elif idx_text.startswith("end-"):
-        try:
-            offset = int(idx_text[4:])
-            idx = -(offset + 1)
-        except ValueError:
-            return None
-    else:
-        try:
-            idx = int(idx_text)
-        except ValueError:
-            return None
-    elements = list_text.split()
-    if not elements:
-        return ""
-    if idx < 0:
-        idx = len(elements) + idx
-    if idx < 0 or idx >= len(elements):
-        return ""
-    result = elements[idx]
-    if not _SAFE_WORD_RE.fullmatch(result):
-        return None
-    return result
 
 
 def _try_incr_idiom(

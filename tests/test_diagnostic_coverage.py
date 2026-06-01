@@ -752,6 +752,10 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # String-build chain: each step's range bleeds onto the next line's
     # first character instead of ending at the statement.
     "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
+    # Builtin command-substitution fold via the registry const_fold callbacks.
+    "O129": FiresCase("puts [string length abcde]\n", "puts 5\n"),
+    # lappend list-build chain fold.
+    "O130": FiresCase("set l {}\nlappend l a b\nputs $l\n", "set l {a b}\nputs $l\n"),
     # Dead store: range bleeds onto the following line's first character.
     "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
     # lassign-pack of consecutive set literals: range bleeds onto the

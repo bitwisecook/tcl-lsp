@@ -307,52 +307,33 @@ def optimise_expr_substitutions(
     types: dict[tuple[str, int], TypeLattice] | None = None,
     values: dict | None = None,
 ) -> None:
-    from ._helpers import _try_fold_lindex_command, _try_fold_list_command
-
     for idx, tok in enumerate(arg_tokens):
         if idx >= len(arg_single) or not arg_single[idx]:
             continue
         if tok.type is not TokenType.CMD:
             continue
 
-        # O116: fold [list a b c] -> a b c
-        list_result = _try_fold_list_command(tok.text)
-        if list_result is not None:
-            ctx.optimisations.append(
-                Optimisation(
-                    code="O116",
-                    message="Fold constant list command",
-                    range=_command_subst_range(tok),
-                    replacement=list_result,
-                )
-            )
-            continue
-
-        # O118: fold [lindex {a b c} 1] -> b
-        lindex_result = _try_fold_lindex_command(tok.text)
-        if lindex_result is not None:
-            ctx.optimisations.append(
-                Optimisation(
-                    code="O118",
-                    message="Fold constant lindex command",
-                    range=_command_subst_range(tok),
-                    replacement=lindex_result,
-                )
-            )
-            continue
-
-        # O129: fold any *other* pure builtin command substitution whose args
-        # are all constant, via the registry const_fold callbacks (string /
-        # llength / lrange / join / split / concat / format / dict / ...).  The
-        # callbacks are verified byte-identical to C Tcl 9
-        # (tests/test_const_fold_vs_tcl.py); the result is rendered as a single
-        # safe Tcl word so it can replace the substitution in any word position.
+        # Fold any pure builtin command substitution with constant arguments
+        # via the *registry* const_fold callbacks — the single source of truth
+        # for how each command folds (string / llength / lrange / join / split /
+        # concat / format / dict / list / lindex / ...).  The callbacks are
+        # verified byte-identical to C Tcl 9 (tests/test_const_fold_vs_tcl.py);
+        # the result is rendered as one safe Tcl word so it can replace the
+        # substitution in any word position.  ``list`` / ``lindex`` keep their
+        # historical diagnostic codes (O116 / O118) for editor granularity;
+        # everything else reports the general O129.
         general = _fold_builtin_cmd_subst(tok.text, ssa_uses, values)
         if general is not None:
+            head = tok.text.split(None, 1)[0] if tok.text.strip() else ""
+            code = {"list": "O116", "lindex": "O118"}.get(head, "O129")
+            message = {
+                "O116": "Fold constant list command",
+                "O118": "Fold constant lindex command",
+            }.get(code, "Fold constant command substitution")
             ctx.optimisations.append(
                 Optimisation(
-                    code="O129",
-                    message="Fold constant command substitution",
+                    code=code,
+                    message=message,
                     range=_command_subst_range(tok),
                     replacement=general,
                 )
