@@ -527,18 +527,17 @@ def test_FP_OPT_12_impure_user_proc_still_blocks():
     assert not o126s, f"impure-user-proc RHS must NOT fire O126; got {o126s}"
 
 
-def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
-    """PARTIAL: TclOO method bodies are not currently lowered to
-    per-method FunctionUnits / interproc summaries, so the
-    ``my <method>`` purity path in
-    ``_word_has_observable_side_effect`` cannot fire today.  The SF-2
-    wiring is in place (consults
-    ``InterproceduralAnalysis.methods`` + ``_method_pure(class, m, set)``)
-    and will turn on the moment method-body analysis lands upstream.
+def test_FP_OPT_12_tcloo_pure_method_rhs_deleted():
+    """SF-2 FIXED (TP): TclOO method bodies are now lowered to per-method
+    FunctionUnits and summarised into ``InterproceduralAnalysis.methods``.
+    The optimiser iterates method bodies with the owning class as
+    ``enclosing_class``, so a ``set unused [my <pure-method>]`` RHS is
+    recognised side-effect-free via ``_method_pure(class, m, pure_set)``
+    and the dead assignment folds to deletion (O126).
 
-    This test pins that fact: the spec's TP TclOO reproducer does
-    NOT fire O126 today, and that is correctly captured as a partial
-    closure (see ``review-findings-tracker.md`` SF-2)."""
+    This is the spec's TP reproducer; it previously could not fire because
+    ``ctx.interproc.methods`` was always empty (method bodies un-lowered).
+    See ``post-stage2-followups.md`` §B."""
     from compiler.optimiser import optimise_source
 
     src = (
@@ -552,7 +551,210 @@ def test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial():
     )
     optimised, rewrites = optimise_source(src)
     o126s = [r for r in rewrites if r.code == "O126"]
-    # Method body NOT lowered to IR today -- the optimiser cannot see
-    # inside the class body, so nothing inside `m` is rewritten.  The
-    # PARTIAL status will flip to FIXED when method-body analysis lands.
-    assert not o126s, f"TclOO method bodies not yet lowered: O126 cannot fire today; got {o126s}"
+    assert o126s, f"pure-method RHS in unused assign must fire O126; got {rewrites}"
+
+
+def test_FP_OPT_12_tcloo_impure_method_rhs_preserved():
+    """SF-2 TN: a ``my <method>`` whose method body has an observable side
+    effect (``puts``) must NOT be deleted — the method summary records
+    ``pure=False`` so ``_method_pure`` returns False and the O126 gate
+    conservatively preserves the assignment."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method impure_helper {} { puts hi; return 0 }\n"
+        "    method m {} {\n"
+        "        set unused [my impure_helper]\n"
+        "        puts done\n"
+        "    }\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    o126s = [r for r in rewrites if r.code == "O126"]
+    assert not o126s, f"impure-method RHS must NOT fire O126; got {o126s}"
+
+
+def test_FP_OPT_12_class_level_instance_var_write_not_deleted():
+    """SF-2 soundness: a method that writes a *class-level* ``variable``
+    mutates object state that survives the call, so ``set unused [my bump]``
+    must NOT be deleted even though ``set counter ...`` looks like a plain
+    local write.  Deleting it would skip the increment — a behaviour
+    change."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method bump {} { set counter [expr {$counter + 1}]; return $counter }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "instance-var-mutating method must not be treated as pure"
+    )
+
+
+def test_FP_OPT_12_method_local_instance_var_write_not_deleted():
+    """SF-2 soundness: same guarantee when the instance var is declared
+    method-locally via ``variable counter`` inside the method body."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method bump {} { variable counter; set counter 5; return $counter }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"]
+
+
+def test_FP_OPT_12_array_element_instance_var_write_not_deleted():
+    """SF-2 soundness: a method that writes an *array element* of an
+    instance var (``set counter(0) 1``) mutates object state — the def
+    name is ``counter(0)``, so the write-detection must compare the base
+    name (``counter``) against the declared instance vars, not the raw
+    name.  Otherwise ``my bump`` is wrongly pure and O126 deletes the
+    mutating call (PR #506 review)."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method bump {} { set counter(0) 1 }\n"
+        "    method m {} { set unused [my bump]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "array-element instance-var write must not be treated as pure"
+    )
+
+
+def test_FP_OPT_12_instance_var_read_only_method_deleted():
+    """SF-2 precision: a method that only *reads* an instance var (no write)
+    is still pure — its discarded result is safe to delete."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    variable counter\n"
+        "    method get {} { return $counter }\n"
+        "    method m {} { set unused [my get]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert [r for r in rewrites if r.code == "O126"], "read-only instance-var method should fold"
+
+
+def test_FP_OPT_12_redefined_method_via_oo_define_not_pure():
+    """SF-2 soundness: a method redefined by a later ``oo::define`` (here
+    pure → impure) must not be treated as pure — runtime dispatch runs the
+    later impure body, so ``set unused [my helper]`` must be preserved.
+    The stored (first) body is flagged via ``redefined_methods`` and forced
+    impure."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method helper {} { return 42 }\n"
+        "    method m {} { set unused [my helper]; puts done }\n"
+        "}\n"
+        "oo::define C { method helper {} { puts side; return 42 } }\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"], (
+        "redefined method must not be treated as pure"
+    )
+
+
+def test_FP_OPT_12_duplicate_in_body_method_not_pure():
+    """SF-2 soundness: a method listed twice in the same class body is a
+    redefinition (last wins at runtime) — conservatively impure."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {\n"
+        "    method helper {} { return 42 }\n"
+        "    method helper {} { puts side; return 42 }\n"
+        "    method m {} { set unused [my helper]; puts done }\n"
+        "}\n"
+    )
+    _, rewrites = optimise_source(src)
+    assert not [r for r in rewrites if r.code == "O126"]
+
+
+def test_FP_OPT_12_nested_proc_in_method_body_not_lifted():
+    """SF-2 codegen safety: a ``proc`` defined *inside* a method body is
+    created at method-call time, not at class definition — so it must NOT
+    be lifted into ``ir_module.procedures`` (codegen would otherwise emit
+    it unconditionally at script load, changing bytecode).  Method-body
+    lowering suppresses the global registration while still analysing the
+    body."""
+    from compiler.lowering import lower_to_ir
+
+    src = (
+        "proc top {} { return 1 }\n"
+        "oo::class create C {\n"
+        "    method m {} {\n"
+        "        proc inner {} { return 2 }\n"
+        "        return 0\n"
+        "    }\n"
+        "}\n"
+    )
+    m = lower_to_ir(src)
+    # Only the genuine top-level proc is registered; the method-local
+    # ``inner`` proc is not, and the method itself is captured separately.
+    assert list(m.procedures) == ["::top"], f"unexpected procedures: {list(m.procedures)}"
+    assert "::C::m" in m.methods
+
+
+def test_FP_OPT_12_methods_survive_incremental_chunk_cache():
+    """SF-2 consistency: method extraction is a post-pass over the
+    assembled module, so methods are populated even when every chunk is
+    replayed from the incremental chunk-IR cache (which stores only
+    statements + procedures).  Without this the O126 method optimisation
+    would intermittently disappear in the editor as unrelated edits cache
+    the class chunk."""
+    from compiler.lowering import lower_commands_to_ir, lower_to_ir
+    from compiler.parsing.command_segmenter import segment_top_level_chunks
+    from compiler.parsing.green_tree import green_tree_scope
+
+    src = (
+        "oo::class create C {\n"
+        "    method pure_helper {} { return 42 }\n"
+        "    method m {} { set unused [my pure_helper]; puts done }\n"
+        "}\n"
+        "proc other {} { return 9 }\n"
+    )
+    with green_tree_scope():
+        chunks = segment_top_level_chunks(src)
+        cache: list[tuple[tuple, dict] | None] = [
+            lower_commands_to_ir(src, list(ch.commands)) for ch in chunks
+        ]
+        m = lower_to_ir(src, chunk_ir=cache, chunks=chunks)
+    assert "::C::pure_helper" in m.methods
+    assert "::C::m" in m.methods
+
+
+def test_FP_OPT_12_oo_define_pure_method_rhs_deleted():
+    """SF-2 TP via ``oo::define`` body form: methods added through
+    ``oo::define C { method ... }`` are lowered and summarised the same
+    way as the inline ``oo::class create`` body."""
+    from compiler.optimiser import optimise_source
+
+    src = (
+        "oo::class create C {}\n"
+        "oo::define C {\n"
+        "    method pure_helper {} { return 42 }\n"
+        "    method m {} {\n"
+        "        set unused [my pure_helper]\n"
+        "        puts done\n"
+        "    }\n"
+        "}\n"
+    )
+    optimised, rewrites = optimise_source(src)
+    o126s = [r for r in rewrites if r.code == "O126"]
+    assert o126s, f"oo::define pure-method RHS must fire O126; got {rewrites}"

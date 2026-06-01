@@ -29,6 +29,14 @@ statement-level side effect — and accumulates the set of Zig runtime
 imports the emitter will need (`tcl_puts`, `tcl_list_index`, `tcl_arith_add`,
 …).  This is a read-only pass; no code emitted yet.
 
+The scan also descends into `ir_module.methods` (TclOO method bodies).
+Method *functions* are not emitted to WASM — they are dispatched by the
+bundled runtime's interpreter at call time — but their bodies still need
+the runtime imports for the commands they invoke, so an OO program whose
+methods use a command not used elsewhere correctly declares that import.
+(`build_cfg` deliberately excludes methods from `cfg_module.procedures`,
+so Phase 5 never emits a method as a standalone callable.)
+
 The scan reads import keys from two sources:
 1. `runtime_import_for(command)` — walks `CommandSpec.wasm_runtime_import`
    on every matching spec.

@@ -221,6 +221,25 @@ function renderInterproc() {
   if (!data.interprocedural.length) { pane.innerHTML = '<div class="empty-state">No procedures to analyse</div>'; return; }
   var html = '';
   for (var p of data.interprocedural) {
+    // TclOO method summaries carry a different shape than proc summaries
+    // (no arity/foldable/returnShape; instead methodKind + instance-var
+    // writes).  Render them with their own layout so the proc branch can
+    // assume its keys exist.
+    if (p.kind === 'method') {
+      html += '<div class="proc-card">';
+      html += '<div class="proc-name">' + esc(p.name) + ' <span style="color:var(--text-dim); font-size:11px">' + esc(p.methodKind || 'method') + '</span>';
+      html += '<span class="pure-badge ' + (p.pure ? 'pure-yes' : 'pure-no') + '">' + (p.pure ? 'pure' : 'impure') + '</span>';
+      html += '</div>';
+      html += '<div class="proc-detail">calls: <span class="val">' + (p.calls && p.calls.length ? esc(p.calls.join(', ')) : '—') + '</span></div>';
+      if (p.writesInstanceVars && p.writesInstanceVars.length) html += '<div class="proc-detail">writes-instance-vars: <span class="val">' + esc(p.writesInstanceVars.join(', ')) + '</span></div>';
+      var mflags = [];
+      if (p.hasBarrier) mflags.push('barrier');
+      if (p.hasUnknownCalls) mflags.push('unknown_calls');
+      if (p.writesGlobal) mflags.push('writes_global');
+      if (mflags.length) html += '<div class="proc-detail">flags: <span class="val">' + esc(mflags.join(', ')) + '</span></div>';
+      html += '</div>';
+      continue;
+    }
     html += '<div class="proc-card">';
     html += '<div class="proc-name">' + esc(p.name) + ' <span style="color:var(--text-dim); font-size:11px">arity=' + esc(p.arity) + '</span>';
     html += '<span class="pure-badge ' + (p.pure ? 'pure-yes' : 'pure-no') + '">' + (p.pure ? 'pure' : 'impure') + '</span>';

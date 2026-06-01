@@ -6436,9 +6436,9 @@ rewrite remains sound regardless of `$a`'s runtime value.
 
 ---
 
-### FP-OPT-12 — TclOO method purity wired into O126 (SF-2 PARTIAL)
+### FP-OPT-12 — TclOO method purity wired into O126 (SF-2 FIXED)
 
-- **Verdict:** PARTIAL — wiring landed; upstream method-body lowering required to activate
+- **Verdict:** FIXED — method-body lowering landed; the wired O126 gate now fires
 - **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_12_*`
 - **Codes:** O126 (unused-assign elimination, RHS-purity gated)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
@@ -6456,11 +6456,11 @@ proc m {} {
 ```
 
 ```tcl
-# Future TclOO target (NOT YET active -- methods aren't lowered)
+# TclOO target (now active -- methods are lowered to per-method FunctionUnits)
 oo::class create C {
     method pure_helper {} { return 42 }
     method m {} {
-        set unused [my pure_helper]
+        set unused [my pure_helper]    ;# my-dispatch RHS provably pure -> O126 deletes
         puts done
     }
 }
@@ -6469,9 +6469,9 @@ oo::class create C {
 #### Per-line reasoning
 
 1. The D2-O126-FU closure already builds `interproc_pure` from `ctx.interproc.procedures`, so `set unused [pure_helper]` (user-proc form) folds today.
-2. SF-2 extends the same pattern to TclOO methods: `interproc_pure_methods = {qn for qn, summary in ctx.interproc.methods.items() if summary.pure}`.  Today `ctx.interproc.methods` is always empty because TclOO method bodies are not lowered to per-method FunctionUnits.
-3. The recursive scanner in `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` now recognises `my <method>` and asks `_method_pure(enclosing_class, method_name, interproc_pure_methods)`.  When the upstream infrastructure lands, this path turns on automatically.
-4. The PARTIAL captures the gap honestly: nothing observable changes today for TclOO bodies, but the wiring is complete and tested so the eventual win is one upstream PR away.
+2. SF-2 extends the same pattern to TclOO methods: `interproc_pure_methods = {qn for qn, summary in ctx.interproc.methods.items() if summary.pure}`.  `ctx.interproc.methods` is now populated: lowering lifts `oo::class create` / `oo::define` method bodies to `IRMethodDef` entries, `compile_source` lowers those to per-method `FunctionUnit`s in `CompilationUnit.methods`, and `analyse_interprocedural_ir` summarises them into `InterproceduralAnalysis.methods`.
+3. The recursive scanner in `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` recognises `my <method>` and asks `_method_pure(enclosing_class, method_name, interproc_pure_methods)`.  The optimiser iterates method bodies (`CompilationUnit.methods`) with the owning class as `enclosing_class`, so this path is now active.
+4. Method purity is conservative-sound: a method is pure iff its own body has no observable side effect AND every *proc* it calls is pure; a `my <other_method>` / `next` self-dispatch surfaces as an unknown call and forces the method impure (false negatives only — the optimiser never deletes on an unproven peer method).
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -6501,7 +6501,7 @@ function ::m
 ```
 (regen: `python -m bench.fp_snippets --id FP-OPT-12`)
 
-The user-proc form folds today via D2-O126-FU.  The TclOO form's class body is opaque (no IRMethodDef populated into `cu.procedures`), so nothing inside `m` is even rewritten.
+The user-proc form folds via D2-O126-FU.  The TclOO form now folds too: lowering populates `cu.ir_module.methods` / `cu.methods` with the method bodies, the interproc summary proves `::C::pure_helper` pure, and the optimiser deletes the `set unused [my pure_helper]` line inside `m`.
 
 #### Why the analyser reaches that verdict
 

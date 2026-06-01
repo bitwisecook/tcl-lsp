@@ -64,7 +64,8 @@ Source: [`shared/tokens.py`](../../../shared/tokens.py),
 | `IRTry` | `try/on/trap/finally` with `IRTryHandler` |
 | `IRSwitch` | `switch` with `IRSwitchArm` patterns |
 | `IRScript` | Container: `tuple[IRStatement, ...]` |
-| `IRModule` | Top-level + `procedures dict` + `redefined_procedures` |
+| `IRMethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body IRScript`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
+| `IRModule` | Top-level + `procedures dict` + `methods dict` (`IRMethodDef`) + `redefined_procedures` |
 
 Every IR node carries a `Range` for precise diagnostic mapping.
 
@@ -124,8 +125,8 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 
 | Type | Purpose |
 |------|---------|
-| `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function |
-| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `connection_scope` |
+| `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function (also built per TclOO method) |
+| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `methods dict` (per-method `FunctionUnit`s), `connection_scope` |
 
 `compile_source()` at `compilation_unit.py:89` orchestrates all stages and
 returns a `CompilationUnit`.
@@ -138,6 +139,12 @@ returns a `CompilationUnit`.
   to create modified copies.
 - `IRModule.procedures` and `CompilationUnit.procedures` use fully qualified
   names as keys (e.g. `"::mylib::helper"`).
+- `IRModule.methods` / `CompilationUnit.methods` are keyed by
+  `"{class_qname}::{method_name}"` (constructors/destructors use the synthetic
+  names `<constructor>` / `<destructor>`). They are populated by a cache-
+  independent post-pass (`_Lowerer.extract_oo_methods_pass`) and consumed by
+  interprocedural method-purity and the O126 `my <method>` gate — **not** by
+  codegen.
 
 ## Related docs
 

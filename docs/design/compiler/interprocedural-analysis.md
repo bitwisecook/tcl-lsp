@@ -69,6 +69,29 @@ single-expression body → `can_fold_static_calls=True`.
 When the optimiser encounters `[helper 21]`, it evaluates the body with
 `x₁ = 21` → `21 * 2 = 42` → O103 fires.
 
+### TclOO method summaries (`MethodSummary`)
+
+When `ir_module.methods` is populated (TclOO method bodies lifted by
+lowering — see [data-structure-reference](data-structure-reference.md)),
+`analyse_interprocedural_ir` also builds a `MethodSummary` (a `ProcSummary`
+subclass with `class_name` / `method_kind` / `writes_instance_vars`) for
+each method, keyed by `{class_qname}::{method_name}` on
+`InterproceduralAnalysis.methods`.
+
+Method purity is **conservative by design** — a method is `pure` iff:
+- its own body has no observable side effect (no barrier, no unknown call,
+  no global write, no local effect-writes), **and**
+- it writes no in-scope instance variable (class-level `variable` decls +
+  the method's own `variable` decls — a write there mutates object state
+  that survives the call), **and**
+- every *proc* it calls is pure.
+
+A `my <method>` / `next` self-dispatch surfaces as an unknown call, which
+already forces the method impure — so a method is never marked pure on the
+strength of an unproven peer method (sound: false negatives only). The
+summaries are consumed by the O126 `set unused [my <pure-method>]` deletion
+gate (`compiler/optimiser/_elimination.py::_method_pure`); SF-2 / FP-OPT-12.
+
 ### Call resolution
 
 `resolve_internal_call(callee_name, caller_qname, known_procs)`:
