@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 try:
@@ -24,7 +23,7 @@ except ImportError:
 
 from compiler.cfg import CFGBranch, CFGGoto, CFGReturn
 from compiler.gvn import RedundantComputation
-from compiler.interprocedural import InterproceduralAnalysis, ProcSummary
+from compiler.interprocedural import InterproceduralAnalysis
 from compiler.ir import (
     IRBarrier,
     IRCall,
@@ -47,10 +46,13 @@ from compiler.types import TypeKind
 from tooling.cli.formatters import (
     LineIndex,
     format_lattice,
+    format_return_shape,
     format_taint,
     format_type,
     preview,
+    stmt_summary,
 )
+from tooling.explorer.annotations import Annotation, Severity, collect_annotations
 from tooling.explorer.cfg_layout import build_cfg_edges
 from tooling.explorer.pipeline import (
     ALL_VIEWS,
@@ -102,22 +104,33 @@ class Ansi:
     GRAY = "\033[90m"
 
 
-@dataclass(slots=True, frozen=True)
-class SourceAnnotation:
-    range: "Range"
-    label: str
-    colour: str
-    priority: int
-
-
 def style(text: str, colour: str, enabled: bool) -> str:
     if not enabled:
         return text
     return f"{colour}{text}{Ansi.RESET}"
 
 
-# Need Range import for SourceAnnotation type hint
-from analyser.semantic_model import Range  # noqa: E402
+# Severity → ANSI colour table.  The backend classifies every annotation
+# (``tooling/explorer/annotations.py``); the CLI only maps its severity
+# to a terminal colour, identical to what the GUI does in CSS.  Kind is
+# still used as a tie-breaker so optimiser callouts stay green and
+# unreachable blocks stay magenta even though both classify as warning.
+_SEVERITY_COLOUR: dict[Severity, str] = {
+    Severity.ERROR: Ansi.RED,
+    Severity.WARNING: Ansi.YELLOW,
+    Severity.INFO: Ansi.BLUE,
+}
+
+_KIND_COLOUR_OVERRIDE: dict[str, str] = {
+    "optimisation": Ansi.GREEN,
+    "gvn": Ansi.GREEN,
+    "unreachable": Ansi.MAGENTA,
+}
+
+
+def _annotation_colour(ann: Annotation) -> str:
+    return _KIND_COLOUR_OVERRIDE.get(ann.kind) or _SEVERITY_COLOUR[ann.severity]
+
 
 # IR statement helpers (CLI-specific: use Ansi colours)
 
@@ -138,44 +151,6 @@ def _stmt_colour(stmt: IRStatement) -> str:
     return Ansi.GRAY
 
 
-def _stmt_summary(stmt: IRStatement) -> str:
-    """One-line summary of an IR statement (CLI version with expr_text)."""
-    from compiler.expr_ast import expr_text as _expr_text
-    from compiler.ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr
-
-    if isinstance(stmt, IRAssignConst):
-        return f"assign-const {stmt.name} = {stmt.value}"
-    if isinstance(stmt, IRAssignExpr):
-        return f"assign-expr {stmt.name} = [expr {{{preview(_expr_text(stmt.expr), 48)}}}]"
-    if isinstance(stmt, IRAssignValue):
-        return f"assign-value {stmt.name} = {preview(stmt.value, 48)}"
-    if isinstance(stmt, IRIncr):
-        if stmt.amount is None:
-            return f"incr {stmt.name}"
-        return f"incr {stmt.name} {preview(stmt.amount, 32)}"
-    if isinstance(stmt, IRCall):
-        rendered_args = " ".join(preview(a, 20) for a in stmt.args[:4])
-        if len(stmt.args) > 4:
-            rendered_args += " ..."
-        return f"call {stmt.command}{(' ' + rendered_args) if rendered_args else ''}"
-    if isinstance(stmt, IRReturn):
-        return f"return {preview(stmt.value, 48) if stmt.value is not None else ''}".strip()
-    if isinstance(stmt, IRBarrier):
-        details = f"{stmt.reason}"
-        if stmt.command:
-            details += f" ({stmt.command})"
-        return f"barrier {details}"
-    if isinstance(stmt, IRIf):
-        return f"if ({len(stmt.clauses)} clause(s){', else' if stmt.else_body is not None else ''})"
-    if isinstance(stmt, IRFor):
-        from compiler.expr_ast import expr_text as _expr_text2
-
-        return f"for ({preview(_expr_text2(stmt.condition), 40)})"
-    if isinstance(stmt, IRSwitch):
-        return f"switch {preview(stmt.subject, 40)} ({len(stmt.arms)} arm(s))"
-    return stmt.__class__.__name__
-
-
 def _terminator_summary(term: CFGGoto | CFGBranch | CFGReturn | None) -> str:
     from compiler.expr_ast import expr_text as _expr_text
 
@@ -192,191 +167,12 @@ def _terminator_summary(term: CFGGoto | CFGBranch | CFGReturn | None) -> str:
     return "<unknown terminator>"
 
 
-# Annotations (source callouts — CLI-specific with Ansi colours)
-
-
-def _append_barrier_annotations(
-    script: IRScript, scope_name: str, out: list[SourceAnnotation]
-) -> None:
-    for stmt in script.statements:
-        if isinstance(stmt, IRBarrier):
-            out.append(
-                SourceAnnotation(
-                    range=stmt.range,
-                    label=f"{scope_name}: compiler barrier ({stmt.reason})",
-                    colour=Ansi.YELLOW,
-                    priority=2,
-                )
-            )
-            continue
-        if isinstance(stmt, IRIf):
-            for clause in stmt.clauses:
-                _append_barrier_annotations(clause.body, scope_name, out)
-            if stmt.else_body is not None:
-                _append_barrier_annotations(stmt.else_body, scope_name, out)
-            continue
-        if isinstance(stmt, IRFor):
-            _append_barrier_annotations(stmt.init, scope_name, out)
-            _append_barrier_annotations(stmt.body, scope_name, out)
-            _append_barrier_annotations(stmt.next, scope_name, out)
-            continue
-        if isinstance(stmt, IRSwitch):
-            for arm in stmt.arms:
-                if arm.body is not None:
-                    _append_barrier_annotations(arm.body, scope_name, out)
-            if stmt.default_body is not None:
-                _append_barrier_annotations(stmt.default_body, scope_name, out)
-
-
-def _collect_annotations(
-    result: CompilerExplorerResult,
-    *,
-    views: frozenset[str],
-    max_annotations: int,
-) -> tuple[list[SourceAnnotation], int]:
-    annotations: list[SourceAnnotation] = []
-    ir_module = result.ir_module
-    snapshots = result.snapshots
-
-    if views & {"ir", "cfg", "ssa", "interproc"}:
-        _append_barrier_annotations(ir_module.top_level, "::top", annotations)
-        for qname, proc in ir_module.procedures.items():
-            _append_barrier_annotations(proc.body, qname, annotations)
-
-        for snap in snapshots:
-            for dead in snap.analysis.dead_stores:
-                block = snap.cfg.blocks.get(dead.block)
-                if block is None:
-                    continue
-                if dead.statement_index < 0 or dead.statement_index >= len(block.statements):
-                    continue
-                stmt = block.statements[dead.statement_index]
-                annotations.append(
-                    SourceAnnotation(
-                        range=stmt.range,
-                        label=f"{snap.name}: dead store {dead.variable}#{dead.version}",
-                        colour=Ansi.YELLOW,
-                        priority=1,
-                    )
-                )
-            for branch in snap.analysis.constant_branches:
-                block = snap.cfg.blocks.get(branch.block)
-                if block is None:
-                    continue
-                term = block.terminator
-                if not isinstance(term, CFGBranch) or term.range is None:
-                    continue
-                direction = "true" if branch.value else "false"
-                annotations.append(
-                    SourceAnnotation(
-                        range=term.range,
-                        label=(
-                            f"{snap.name}: branch is always {direction}; "
-                            f"takes {branch.taken_target}"
-                        ),
-                        colour=Ansi.BLUE,
-                        priority=0,
-                    )
-                )
-            for block_name in sorted(snap.analysis.unreachable_blocks):
-                block = snap.cfg.blocks.get(block_name)
-                if block is None:
-                    continue
-                if block.statements:
-                    target_range = block.statements[0].range
-                else:
-                    term = block.terminator
-                    if isinstance(term, (CFGGoto, CFGBranch, CFGReturn)) and term.range is not None:
-                        target_range = term.range
-                    else:
-                        continue
-                annotations.append(
-                    SourceAnnotation(
-                        range=target_range,
-                        label=f"{snap.name}: unreachable block {block_name}",
-                        colour=Ansi.MAGENTA,
-                        priority=3,
-                    )
-                )
-
-    if "opt" in views:
-        for opt in result.optimisations:
-            annotations.append(
-                SourceAnnotation(
-                    range=opt.range,
-                    label=f"{opt.code}: {opt.message} -> {preview(opt.replacement, 40)}",
-                    colour=Ansi.GREEN,
-                    priority=-1,
-                )
-            )
-
-    if "shimmer" in views and result.shimmer_warnings:
-        for w in result.shimmer_warnings:
-            colour = Ansi.RED if w.code == "S102" else Ansi.YELLOW
-            annotations.append(
-                SourceAnnotation(
-                    range=w.range,
-                    label=f"{w.code}: {w.message}",
-                    colour=colour,
-                    priority=1 if w.code == "S102" else 2,
-                )
-            )
-
-    if "gvn" in views and result.gvn_warnings:
-        for w in result.gvn_warnings:
-            annotations.append(
-                SourceAnnotation(
-                    range=w.range,
-                    label=f"{w.code}: {w.message or w.expression_text}",
-                    colour=Ansi.GREEN,
-                    priority=1,
-                )
-            )
-
-    if "taint" in views and result.taint_warnings:
-        for w in result.taint_warnings:
-            annotations.append(
-                SourceAnnotation(
-                    range=w.range,
-                    label=f"{w.code}: {w.message}",
-                    colour=Ansi.RED,
-                    priority=0,
-                )
-            )
-
-    if "irules" in views and result.irules_flow_warnings:
-        for w in result.irules_flow_warnings:
-            annotations.append(
-                SourceAnnotation(
-                    range=w.range,
-                    label=f"{w.code}: {w.message}",
-                    colour=Ansi.YELLOW,
-                    priority=1,
-                )
-            )
-
-    annotations.sort(
-        key=lambda a: (
-            a.range.start.offset,
-            a.priority,
-            a.range.end.offset - a.range.start.offset,
-            a.label,
-        )
-    )
-
-    if max_annotations >= 0 and len(annotations) > max_annotations:
-        omitted = len(annotations) - max_annotations
-        return annotations[:max_annotations], omitted
-
-    return annotations, 0
-
-
 # Print functions (ANSI terminal output)
 
 
 def print_source_callouts(
     source: str,
-    annotations: list[SourceAnnotation],
+    annotations: list[Annotation],
     *,
     use_colour: bool,
     omitted_annotations: int,
@@ -417,8 +213,9 @@ def print_source_callouts(
             marker_line = f"{' ' * line_no_width} | {marker}"
             arrow_line = f"{' ' * line_no_width} | {' ' * start_col}+--> {ann.label}"
 
-            print(style(marker_line, ann.colour, use_colour))
-            print(style(arrow_line, ann.colour, use_colour))
+            colour = _annotation_colour(ann)
+            print(style(marker_line, colour, use_colour))
+            print(style(arrow_line, colour, use_colour))
 
     if omitted_annotations > 0:
         print()
@@ -438,7 +235,7 @@ def _print_ir_script(
     for idx, stmt in enumerate(script.statements):
         is_last = idx == (len(script.statements) - 1)
         connector = "`-- " if is_last else "|-- "
-        label = _stmt_summary(stmt)
+        label = stmt_summary(stmt)
         span = line_index.format_range(stmt.range)
 
         print(
@@ -815,7 +612,7 @@ def _render_cfg(
 
             for idx, stmt in enumerate(block.statements):
                 span = line_index.format_range(stmt.range)
-                summary = _stmt_summary(stmt)
+                summary = stmt_summary(stmt)
                 lines.append(
                     f"    [{idx}] {style(summary, _stmt_colour(stmt), use_colour)} "
                     f"{style(f'[{span}]', Ansi.DIM, use_colour)}"
@@ -869,17 +666,6 @@ def print_cfg_post_ssa(
     use_colour: bool,
 ) -> None:
     _render_cfg(snapshots, line_index=line_index, use_colour=use_colour, post_ssa=True)
-
-
-def _summary_return_shape(summary: ProcSummary) -> str:
-    if summary.returns_constant:
-        return f"const({summary.constant_return!r})"
-    if summary.return_passthrough_param is not None:
-        return f"passthrough({summary.return_passthrough_param})"
-    if summary.return_depends_on_params:
-        deps = ",".join(summary.return_depends_on_params)
-        return f"depends({deps})"
-    return "unknown"
 
 
 def _render_green_node(node, *, depth: int, use_colour: bool, max_depth: int = 16) -> None:
@@ -1057,7 +843,7 @@ def print_interprocedural(
         fold = "yes" if summary.can_fold_static_calls else "no"
         line = (
             f"  {qname} arity={arity} pure={summary.pure} foldable={fold} "
-            f"return={_summary_return_shape(summary)}"
+            f"return={format_return_shape(summary)}"
         )
         print(style(line, status_colour, use_colour))
         print(style(f"    calls: {calls}", Ansi.DIM, use_colour))
@@ -1071,6 +857,126 @@ def print_interprocedural(
                 use_colour,
             )
         )
+
+
+def print_rendered_properties(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
+    """Render the per-SSA-value rendered-property flags.
+
+    Mirrors the GUI's Rendered Properties tab — each variable that has
+    any may/must rendered-context flag set is listed with both sets.
+    Variables with no flags are skipped (top-of-lattice).
+    """
+    print()
+    print(style("rendered-properties", Ansi.BOLD, use_colour))
+    any_entry = False
+    for snap in snapshots:
+        entries = []
+        for (name, ver), rp in sorted(snap.analysis.rendered_props.items()):
+            may = [f.name for f in type(rp.may).__members__.values() if f in rp.may and f.value]
+            must = [f.name for f in type(rp.must).__members__.values() if f in rp.must and f.value]
+            if not may and not must:
+                continue
+            entries.append((name, ver, may, must))
+        if not entries:
+            continue
+        any_entry = True
+        print(style(f"function {snap.name}", Ansi.CYAN, use_colour))
+        for name, ver, may, must in entries:
+            may_s = ",".join(may) if may else "-"
+            must_s = ",".join(must) if must else "-"
+            print(
+                style(
+                    f"  {name}#{ver}: may={{{may_s}}} must={{{must_s}}}",
+                    Ansi.BLUE,
+                    use_colour,
+                )
+            )
+    if not any_entry:
+        print(style("  (no rendered-property flags)", Ansi.DIM, use_colour))
+
+
+def print_event_order(event_entries, *, use_colour: bool) -> None:
+    """Render the iRules event-order list.
+
+    The optimiser/iRules-flow extractor gives one entry per ``when``
+    block with the resolved base/offset priority and multiplicity; the
+    CLI just projects that to a sorted list.  No source parsing.
+    """
+    print()
+    print(style("event-order", Ansi.BOLD, use_colour))
+    if not event_entries:
+        print(style("  (no event-order data)", Ansi.DIM, use_colour))
+        return
+    # Effective priority = base + offset (higher fires earlier).
+    sorted_entries = sorted(
+        event_entries,
+        key=lambda e: (-(e.base_priority + e.priority_offset), e.event),
+    )
+    for e in sorted_entries:
+        eff = e.base_priority + e.priority_offset
+        # multiplicity is a string label ("once", "per-request", "init")
+        # — render as a tag, not a count.
+        mult = f" [{e.multiplicity}]" if e.multiplicity and e.multiplicity != "once" else ""
+        print(
+            style(
+                f"  {e.event} effective={eff} (base={e.base_priority} "
+                f"offset={e.priority_offset}){mult}",
+                Ansi.BLUE,
+                use_colour,
+            )
+        )
+
+
+def print_dataflow(dataflow_graph, *, use_colour: bool) -> None:
+    """Render the SSA dataflow graph (def → use edges) per function.
+
+    The compiler's :class:`DataFlowGraph` ships nodes (defs) and edges
+    (def → use) per function; the CLI walks each function and prints
+    each node followed by its outgoing edges.  Purely a typed graph
+    projection — no source text or IR re-derivation.
+    """
+    print()
+    print(style("dataflow", Ansi.BOLD, use_colour))
+    if dataflow_graph is None or not dataflow_graph.functions:
+        print(style("  (no dataflow graph)", Ansi.DIM, use_colour))
+        return
+    for func in dataflow_graph.functions:
+        print(style(f"function {func.function_name}", Ansi.CYAN, use_colour))
+        print(
+            style(
+                f"  defs={func.total_defs} uses={func.total_uses} dead={func.dead_defs} "
+                f"aliased={func.aliased_vars}",
+                Ansi.DIM,
+                use_colour,
+            )
+        )
+        if not func.nodes:
+            print(style("  (no defs)", Ansi.DIM, use_colour))
+            continue
+        # Group edges by source (def_name, def_version) for compact print.
+        edges_by_src: dict[tuple[str, int], list] = {}
+        for edge in func.edges:
+            edges_by_src.setdefault((edge.from_name, edge.from_version), []).append(edge)
+        for node in func.nodes:
+            tag = " (dead)" if node.is_dead else ""
+            type_part = f" : {node.type_info}" if node.type_info else ""
+            lattice_part = f" = {node.lattice}" if node.lattice else ""
+            print(
+                style(
+                    f"  {node.name}#{node.version} [{node.def_kind} @ {node.block}]"
+                    f"{type_part}{lattice_part}{tag}",
+                    Ansi.BLUE,
+                    use_colour,
+                )
+            )
+            for edge in edges_by_src.get((node.name, node.version), []):
+                target = f"{edge.to_block}[{edge.to_statement_index}]"
+                if edge.to_name:
+                    target += f" → {edge.to_name}"
+                kind = edge.edge_kind.name.lower()
+                print(style(f"    └── {kind} → {target}", Ansi.DIM, use_colour))
+        for alias in func.aliases:
+            print(style(f"  alias: {alias!r}", Ansi.DIM, use_colour))
 
 
 def print_optimiser(
@@ -1373,7 +1279,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--focus",
         choices=("all", "compiler", "optimiser"),
         default=None,
-        help=argparse.SUPPRESS,
+        help="Shortcut for a common --show group (compiler / optimiser / all).",
     )
     parser.add_argument(
         "--dialect",
@@ -1446,6 +1352,7 @@ _VIEW_ORDER: tuple[str, ...] = (
     "ssa",
     "loops",
     "types",
+    "rendered",
     "intervals",
     "bounds",
     "dataflow",
@@ -1455,6 +1362,7 @@ _VIEW_ORDER: tuple[str, ...] = (
     "shimmer",
     "taint",
     "irules",
+    "event-order",
     "callouts",
     "asm",
     "wasm",
@@ -1546,12 +1454,24 @@ def render_view(
         except Exception as exc:
             print(f"warning: optimised {view} generation failed: {exc}", file=sys.stderr)
     elif view == "callouts":
-        annotations, omitted = _collect_annotations(
+        annotations, omitted = collect_annotations(
             result, views=views or frozenset(_VIEW_ORDER), max_annotations=max_annotations
         )
         print_source_callouts(
             source, annotations, use_colour=use_colour, omitted_annotations=omitted
         )
+    elif view == "dataflow":
+        print_dataflow(result.dataflow_graph, use_colour=use_colour)
+    elif view == "rendered":
+        print_rendered_properties(result.snapshots, use_colour=use_colour)
+    elif view == "event-order":
+        print_event_order(result.event_order, use_colour=use_colour)
+    else:
+        # Loud failure when a view in ALL_VIEWS / _VIEW_ORDER has no
+        # rendering branch — beats the silent no-op the dataflow view
+        # used to produce.  Catches view-registration drift between the
+        # pipeline and this dispatcher early.
+        raise ValueError(f"render_view: no renderer for view {view!r}")
 
 
 def _summary_parts(result: CompilerExplorerResult, dialect: str) -> list[str]:

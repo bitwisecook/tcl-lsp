@@ -34,12 +34,16 @@
 #   TCL_LSP_PREFIX          - install dir (default: prompt; non-interactive: ~/.local/bin)
 #   TCL_LSP_REPO            - GitHub owner/repo (default: bitwisecook/tcl-lsp)
 #   TCL_LSP_ONLY            - "tcl", "f5", or "both" (default: both)
+#   TCL_LSP_EXPLORER        - "cli", "gui", "both", or "none" (default: none)
+#                              The GUI option installs the CDN variant (~3 MB)
+#                              that loads Pyodide from a public CDN at runtime.
 #   TCL_LSP_OS              - bypass /etc/os-release: debian|rhel|fedora|arch|alpine|macos
 #   TCL_LSP_NO_DEPS         - 1 to skip OS-package install (Python, curl, unzip)
 #   TCL_LSP_NO_PATH         - 1 to skip PATH/rc modification
 #   TCL_LSP_NO_COMP         - 1 to skip shell completion
 #   TCL_LSP_NO_MCP          - 1 to skip MCP-server install for AI clients
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
+#   TCL_LSP_NO_EXPLORER     - 1 to skip the compiler-explorer install prompt
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
 #   TCL_LSP_NO_CODEX        - 1 to ignore Codex even if detected
 #   TCL_LSP_NO_VERIFY            - 1 to install without SHA256SUMS verification
@@ -93,11 +97,14 @@ else
     ONLY_EXPLICIT=0
 fi
 
-# Plan flags set by choose_clis().  All "" (unset) until then,
-# at which point each becomes "1" or "0".  install_cli / install_ai_*
-# read these instead of asking again later.
+# Plan flags set by choose_clis() / choose_explorers() / choose_ai_components().
+# All "" (unset) until then, at which point each becomes "1" or "0".
+# install_cli / install_explorer_* / install_ai_* read these instead of
+# asking again later.
 WANT_TCL=""
 WANT_F5=""
+WANT_EXPLORER_CLI=""
+WANT_EXPLORER_GUI=""
 WANT_MCP=""
 WANT_SKILLS=""
 
@@ -317,14 +324,18 @@ fi
 TCL_PREFIX_OVERRIDE=""
 F5_PREFIX_OVERRIDE=""
 MCP_PREFIX_OVERRIDE=""
+EXPLORER_CLI_PREFIX_OVERRIDE=""
+EXPLORER_GUI_PREFIX_OVERRIDE=""
 
 # Install dir for binary $1.
 prefix_for() {
     case "$1" in
-        tcl) printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        f5)  printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        mcp) printf '%s' "${MCP_PREFIX_OVERRIDE:-$PREFIX}" ;;
-        *)   printf '%s' "$PREFIX" ;;
+        tcl)              printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        f5)               printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        mcp)              printf '%s' "${MCP_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        tcl-explorer)     printf '%s' "${EXPLORER_CLI_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        tcl-explorer-gui) printf '%s' "${EXPLORER_GUI_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        *)                printf '%s' "$PREFIX" ;;
     esac
 }
 
@@ -1322,6 +1333,70 @@ _finalise_only() {
     fi
 }
 
+# Anything that lands a binary under $PREFIX — used to decide whether
+# the prefix-related setup (location prompt, PATH update, conflict
+# detection, etc.) needs to run when the user installs *only*
+# explorer-cli or explorer-gui (i.e. ONLY=none).
+needs_prefix() {
+    [ "$WANT_TCL" = "1" ] || [ "$WANT_F5" = "1" ] \
+        || [ "$WANT_EXPLORER_CLI" = "1" ] || [ "$WANT_EXPLORER_GUI" = "1" ]
+}
+
+choose_explorers() {
+    # Phase 1.5: pick compiler-explorer components.  Defaults to NONE
+    # because most users won't want the explorer — it's a dev/debug
+    # tool, not part of the normal Tcl workflow.  When the GUI is
+    # picked we ship the *CDN* variant (loads Pyodide from a public
+    # CDN — ~3 MB vs ~10 MB for the offline-Pyodide variant).
+    WANT_EXPLORER_CLI=0
+    WANT_EXPLORER_GUI=0
+
+    if [ "${TCL_LSP_NO_EXPLORER:-0}" = "1" ]; then
+        log "compiler explorer disabled via TCL_LSP_NO_EXPLORER=1"
+        return
+    fi
+
+    if [ -n "${TCL_LSP_EXPLORER:-}" ]; then
+        case "$TCL_LSP_EXPLORER" in
+            cli)  WANT_EXPLORER_CLI=1 ;;
+            gui)  WANT_EXPLORER_GUI=1 ;;
+            both) WANT_EXPLORER_CLI=1; WANT_EXPLORER_GUI=1 ;;
+            none) : ;;
+            *) die "TCL_LSP_EXPLORER must be cli|gui|both|none (got: $TCL_LSP_EXPLORER)" ;;
+        esac
+        log "compiler explorer (TCL_LSP_EXPLORER=$TCL_LSP_EXPLORER): cli=$WANT_EXPLORER_CLI gui=$WANT_EXPLORER_GUI"
+        return
+    fi
+
+    if ! tty_available \
+       || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        log "compiler explorer (non-interactive default): none"
+        return
+    fi
+
+    print_line ""
+    print_line "${BOLD}Compiler explorer (optional):${RESET}"
+    print_line "  Dumps IR / CFG / SSA / bytecode for a Tcl source file."
+    print_line "  cli: prints to the terminal (textual TUI on an interactive shell)."
+    print_line "  gui: serves the interactive web UI (Pyodide loaded from CDN, ~3 MB)."
+    print_line "  1) cli (terminal)"
+    print_line "  2) gui (web browser)"
+    print_line "  3) both"
+    print_line "  4) none (default)"
+    print_prompt "$(printf '  selection [%s]: ' 4)"
+    read_user_line || reply=""
+    ans="${reply:-4}"
+    case "$ans" in
+        1) WANT_EXPLORER_CLI=1 ;;
+        2) WANT_EXPLORER_GUI=1 ;;
+        3) WANT_EXPLORER_CLI=1; WANT_EXPLORER_GUI=1 ;;
+        4) : ;;
+        *) die "invalid selection: $ans (expected 1..4)" ;;
+    esac
+    prompt_record explorer-plan "menu pick (1..4)" "$ans"
+    log "compiler explorer: cli=$WANT_EXPLORER_CLI gui=$WANT_EXPLORER_GUI"
+}
+
 choose_ai_components() {
     # Phase 2: which AI components to install. Sets WANT_MCP / WANT_SKILLS.
     # Short-circuits when no AI client was detected.
@@ -1389,6 +1464,7 @@ choose_ai_components() {
 
 guard_install_plan() {
     if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ] \
+       && [ "$WANT_EXPLORER_CLI" != "1" ] && [ "$WANT_EXPLORER_GUI" != "1" ] \
        && [ "$WANT_MCP" != "1" ] && [ "$WANT_SKILLS" != "1" ]; then
         die "nothing selected — at least one component must be picked"
     fi
@@ -1440,11 +1516,11 @@ looks_like_our_zipapp() {
     # them must recognise it as ours, not refuse to overwrite.
     if have unzip; then
         if unzip -l -- "$f" 2>/dev/null \
-            | grep -qE 'shared/_build_info\.py|lsp/_build_info\.py'; then
+            | grep -qE 'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html'; then
             return 0
         fi
         if unzip -p -- "$f" __main__.py 2>/dev/null \
-            | grep -qE 'tooling\.(tcl|f5|wasm)\.main|explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|shared\._build_info|server\.(server|_build_info)|lsp\.(server|_build_info)'; then
+            | grep -qE 'tooling\.(tcl|f5|wasm|explorer\.cli)|tooling\.explorer|explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|shared\._build_info|server\.(server|_build_info)|lsp\.(server|_build_info)|Tcl Compiler Explorer'; then
             return 0
         fi
         return 1
@@ -1459,6 +1535,10 @@ try:
         names = set(z.namelist())
         if 'shared/_build_info.py' in names or 'lsp/_build_info.py' in names:
             sys.exit(0)
+        # Explorer GUI zipapps bundle the static web payload — no
+        # shared/_build_info.py, no Python source from the main tree.
+        if 'static/index.html' in names:
+            sys.exit(0)
         try:
             main = z.read('__main__.py').decode('utf-8', errors='replace')
         except KeyError:
@@ -1466,6 +1546,7 @@ try:
         markers = (
             # Post-restructure entry points (Phase 4+).
             'tooling.tcl.main', 'tooling.f5.main', 'tooling.wasm.main',
+            'tooling.explorer.cli', 'tooling.explorer',
             'server.server', 'server._build_info',
             'shared._build_info',
             # Pre-restructure entry points (shipped on earlier tags).
@@ -1473,6 +1554,9 @@ try:
             'lsp._build_info', 'lsp.server',
             # MCP server stays valid across the restructure.
             'ai.mcp.tcl_mcp_server',
+            # Explorer GUI zipapp uses scripts/zipapp-main/gui.py as
+            # its __main__ — match on the distinctive banner string.
+            'Tcl Compiler Explorer',
         )
         for m in markers:
             if m in main:
@@ -1541,8 +1625,9 @@ propose_update_mcp() {
 }
 
 propose_update_clis() {
-    # Offer to update each existing tcl/f5 install in place; recorded
-    # per-CLI in *_PREFIX_OVERRIDE for split-directory layouts.
+    # Offer to update each existing tcl/f5/explorer install in place;
+    # recorded per-binary in *_PREFIX_OVERRIDE for split-directory
+    # layouts.
     [ "$PREFIX_EXPLICIT" = "1" ] && return 0
 
     # `|| return 0` because propose_update_one's non-zero is an internal
@@ -1552,27 +1637,40 @@ propose_update_clis() {
         f5)   propose_update_one f5   || return 0 ;;
         both) propose_update_one tcl  || return 0
               propose_update_one f5   || return 0 ;;
-        *)    return 0 ;;
     esac
+    [ "$WANT_EXPLORER_CLI" = "1" ] && { propose_update_one tcl-explorer     || return 0; }
+    [ "$WANT_EXPLORER_GUI" = "1" ] && { propose_update_one tcl-explorer-gui || return 0; }
 
-    if [ -z "$TCL_PREFIX_OVERRIDE" ] && [ -z "$F5_PREFIX_OVERRIDE" ]; then
-        return
-    fi
+    # Pick a PATH/completion anchor from whichever overrides got
+    # populated, preferring tcl (the headline binary) then f5, then
+    # the explorers.  When the user is updating multiple binaries that
+    # live in different dirs, the helper above already set per-binary
+    # overrides; this just picks the one we'll log + use as $PREFIX.
+    anchor=""
+    [ -n "$TCL_PREFIX_OVERRIDE" ]          && anchor="$TCL_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$F5_PREFIX_OVERRIDE" ]           && anchor="$F5_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$EXPLORER_CLI_PREFIX_OVERRIDE" ] && anchor="$EXPLORER_CLI_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && [ -n "$EXPLORER_GUI_PREFIX_OVERRIDE" ] && anchor="$EXPLORER_GUI_PREFIX_OVERRIDE"
+    [ -z "$anchor" ] && return
 
-    if [ -n "$TCL_PREFIX_OVERRIDE" ] && [ -n "$F5_PREFIX_OVERRIDE" ] \
-       && [ "$TCL_PREFIX_OVERRIDE" != "$F5_PREFIX_OVERRIDE" ]; then
+    # Report split-directory updates when any pair of overrides
+    # disagrees with the anchor.
+    split=0
+    for o in "$TCL_PREFIX_OVERRIDE" "$F5_PREFIX_OVERRIDE" \
+             "$EXPLORER_CLI_PREFIX_OVERRIDE" "$EXPLORER_GUI_PREFIX_OVERRIDE"; do
+        if [ -n "$o" ] && [ "$o" != "$anchor" ]; then split=1; fi
+    done
+    if [ "$split" = 1 ]; then
         log "split-directory update:"
-        log "  tcl will update at $TCL_PREFIX_OVERRIDE/tcl"
-        log "  f5  will update at $F5_PREFIX_OVERRIDE/f5"
-        log "(PATH / completion anchor on $TCL_PREFIX_OVERRIDE)"
-        set_prefix "$TCL_PREFIX_OVERRIDE"
-    elif [ -n "$TCL_PREFIX_OVERRIDE" ]; then
-        set_prefix "$TCL_PREFIX_OVERRIDE"
-        log "updating in place: $PREFIX"
+        [ -n "$TCL_PREFIX_OVERRIDE" ]          && log "  tcl              -> $TCL_PREFIX_OVERRIDE/tcl"
+        [ -n "$F5_PREFIX_OVERRIDE" ]           && log "  f5               -> $F5_PREFIX_OVERRIDE/f5"
+        [ -n "$EXPLORER_CLI_PREFIX_OVERRIDE" ] && log "  tcl-explorer     -> $EXPLORER_CLI_PREFIX_OVERRIDE/tcl-explorer"
+        [ -n "$EXPLORER_GUI_PREFIX_OVERRIDE" ] && log "  tcl-explorer-gui -> $EXPLORER_GUI_PREFIX_OVERRIDE/tcl-explorer-gui"
+        log "(PATH / completion anchor on $anchor)"
     else
-        set_prefix "$F5_PREFIX_OVERRIDE"
-        log "updating in place: $PREFIX"
+        log "updating in place: $anchor"
     fi
+    set_prefix "$anchor"
     PREFIX_EXPLICIT=1
     PREFIX_FROM_UPDATE=1
 }
@@ -1589,8 +1687,10 @@ propose_update_one() {
             return 1
         fi
         case "$n" in
-            tcl) TCL_PREFIX_OVERRIDE="$dir" ;;
-            f5)  F5_PREFIX_OVERRIDE="$dir" ;;
+            tcl)              TCL_PREFIX_OVERRIDE="$dir" ;;
+            f5)               F5_PREFIX_OVERRIDE="$dir" ;;
+            tcl-explorer)     EXPLORER_CLI_PREFIX_OVERRIDE="$dir" ;;
+            tcl-explorer-gui) EXPLORER_GUI_PREFIX_OVERRIDE="$dir" ;;
         esac
         return 0
     fi
@@ -1645,8 +1745,9 @@ detect_conflicts() {
         tcl)  count_conflicts_for tcl ;;
         f5)   count_conflicts_for f5  ;;
         both) count_conflicts_for tcl; count_conflicts_for f5 ;;
-        *)    return ;;
     esac
+    [ "$WANT_EXPLORER_CLI" = "1" ] && count_conflicts_for tcl-explorer
+    [ "$WANT_EXPLORER_GUI" = "1" ] && count_conflicts_for tcl-explorer-gui
     [ "$conflicts" = 0 ] && return
 
     if [ -n "$INSTALL_SUFFIX" ]; then
@@ -1835,6 +1936,45 @@ install_cli() {
     verify_artefact "$asset" "$tmpfile"
     write_target "$tmpfile" "$dir/$final_name"
     log "installed $name -> $dir/$final_name"
+}
+
+# Compiler-explorer CLI — drops a `tcl-explorer` binary into the dir
+# returned by prefix_for tcl-explorer (in-place update override, or
+# $PREFIX).  The asset is `tcl-lsp-explorer-cli-<ver>.pyz` (not
+# `<name>-<ver>.pyz`), so it doesn't fit install_cli().
+install_explorer_cli() {
+    final_name="tcl-explorer${INSTALL_SUFFIX}"
+    dir="$(prefix_for tcl-explorer)"
+    ensure_tag
+    asset="tcl-lsp-explorer-cli-${VER_NO_V}.pyz"
+    url="$(asset_url "$asset")"
+    log "resolved tcl-explorer -> $asset (tag $RESOLVED_TAG)"
+
+    tmpfile="$WORKDIR/$asset"
+    download "$url" "$tmpfile"
+    verify_artefact "$asset" "$tmpfile"
+    write_target "$tmpfile" "$dir/$final_name"
+    log "installed tcl-explorer -> $dir/$final_name"
+}
+
+# Compiler-explorer GUI (web UI) — drops a `tcl-explorer-gui` binary
+# into the dir returned by prefix_for tcl-explorer-gui (in-place
+# update override, or $PREFIX).  We always install the CDN variant so
+# the zipapp stays small (~3 MB); the user's browser fetches Pyodide
+# from the CDN on first launch.
+install_explorer_gui() {
+    final_name="tcl-explorer-gui${INSTALL_SUFFIX}"
+    dir="$(prefix_for tcl-explorer-gui)"
+    ensure_tag
+    asset="tcl-lsp-explorer-gui-cdn-${VER_NO_V}.pyz"
+    url="$(asset_url "$asset")"
+    log "resolved tcl-explorer-gui -> $asset (tag $RESOLVED_TAG)"
+
+    tmpfile="$WORKDIR/$asset"
+    download "$url" "$tmpfile"
+    verify_artefact "$asset" "$tmpfile"
+    write_target "$tmpfile" "$dir/$final_name"
+    log "installed tcl-explorer-gui -> $dir/$final_name"
 }
 
 
@@ -2147,8 +2287,9 @@ main() {
 
     # === PHASE 2: gather every decision the user needs to make ===
     choose_clis
+    choose_explorers
 
-    if [ "$ONLY" != "none" ]; then
+    if needs_prefix; then
         propose_update_clis
         choose_prefix
         detect_conflicts
@@ -2166,6 +2307,10 @@ main() {
             both) plan_overwrite_check "$(prefix_for tcl)/tcl${INSTALL_SUFFIX}"
                   plan_overwrite_check "$(prefix_for f5)/f5${INSTALL_SUFFIX}" ;;
         esac
+        [ "$WANT_EXPLORER_CLI" = "1" ] \
+            && plan_overwrite_check "$(prefix_for tcl-explorer)/tcl-explorer${INSTALL_SUFFIX}"
+        [ "$WANT_EXPLORER_GUI" = "1" ] \
+            && plan_overwrite_check "$(prefix_for tcl-explorer-gui)/tcl-explorer-gui${INSTALL_SUFFIX}"
     fi
 
     choose_ai_components
@@ -2190,13 +2335,16 @@ main() {
     install_downloader
     log "using Python: $PYTHON"
 
-    if [ "$ONLY" != "none" ]; then
+    if needs_prefix; then
         case "$ONLY" in
             tcl)  install_cli tcl ;;
             f5)   install_cli f5 ;;
             both) install_cli tcl; install_cli f5 ;;
+            none) : ;;
             *) die "invalid ONLY=$ONLY" ;;
         esac
+        [ "$WANT_EXPLORER_CLI" = "1" ] && install_explorer_cli
+        [ "$WANT_EXPLORER_GUI" = "1" ] && install_explorer_gui
         install_cli_runtime_dependencies
         apply_path_update
     fi
@@ -2210,17 +2358,27 @@ main() {
     install_ai_integrations
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
-    if [ "$ONLY" != "none" ] && ! path_contains "$PREFIX"; then
+    if needs_prefix && ! path_contains "$PREFIX"; then
         # shellcheck disable=SC2016  # instruction text shown to user
         printf 'Open a new shell, or run:  %sexport PATH="%s:$PATH"%s\n' \
                "$BOLD" "$PREFIX" "$RESET"
     fi
     s="$INSTALL_SUFFIX"
+    verify_parts=""
     case "$ONLY" in
-        tcl)  printf 'Verify:  %stcl%s --help%s\n' "$BOLD" "$s" "$RESET" ;;
-        f5)   printf 'Verify:  %sf5%s --help%s\n'  "$BOLD" "$s" "$RESET" ;;
-        both) printf 'Verify:  %stcl%s --help && f5%s --help%s\n' "$BOLD" "$s" "$s" "$RESET" ;;
+        tcl)  verify_parts="tcl${s} --help" ;;
+        f5)   verify_parts="f5${s} --help" ;;
+        both) verify_parts="tcl${s} --help && f5${s} --help" ;;
     esac
+    if [ "$WANT_EXPLORER_CLI" = "1" ]; then
+        verify_parts="${verify_parts:+$verify_parts && }tcl-explorer${s} --help"
+    fi
+    if [ "$WANT_EXPLORER_GUI" = "1" ]; then
+        verify_parts="${verify_parts:+$verify_parts && }tcl-explorer-gui${s} --help"
+    fi
+    if [ -n "$verify_parts" ]; then
+        printf 'Verify:  %s%s%s\n' "$BOLD" "$verify_parts" "$RESET"
+    fi
     if [ "$WANT_MCP" = "1" ] || [ "$WANT_SKILLS" = "1" ]; then
         printf 'AI integrations: '
         sep=""
