@@ -15,7 +15,7 @@
 //   %o  octal integer
 //   %c  Unicode codepoint of next character
 //   %s  whitespace-delimited word
-//   %[  character-class match (not implemented; traps gracefully)
+//   %[  character-class match (``%[abc]`` / ``%[^x]`` / ``%[a-z]``)
 //   %f, %e, %g  floating-point (parsed as integer truncation — no fp runtime)
 //   %n  no-op count specifier (not consuming; assigned current position)
 //   %%  literal percent in format (skip in input)
@@ -24,6 +24,7 @@
 // For %s a width field limits the number of characters taken.
 
 const rt = @import("../tcl_runtime.zig");
+const std = @import("std");
 const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
@@ -293,11 +294,77 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             continue;
         }
 
-        // ``%c`` is unique among the consuming specs — it reads the
-        // NEXT character without skipping leading whitespace, matching
-        // reference Tcl's ``CharConvert`` (tclScan.c).  All other
-        // specifiers skip whitespace before parsing.  Without this
-        // exemption ``scan " " %c x`` would skip the space, hit
+        // ``%[...]`` — character set.  Matches a run of input characters
+        // that are members (or, with a leading ``^``, non-members) of the
+        // set defined inline in the format string.  Like ``%c`` it does
+        // not skip leading whitespace.  Scan-charset quirks: a ``]``
+        // immediately after the ``[`` (or after ``^``) is a literal
+        // member rather than the close; ``a-z`` is an (order-normalised)
+        // range; a ``-`` adjacent to ``]`` is literal.  Matching is
+        // byte-wise, consistent with ``%s`` above.
+        if (spec == '[') {
+            var in_set = [_]bool{false} ** 256;
+            var negate = false;
+            if (fi < fs.len and fmt[fi] == '^') {
+                negate = true;
+                fi += 1;
+            }
+            // A ``]`` as the first set member is literal, not the close.
+            if (fi < fs.len and fmt[fi] == ']') {
+                in_set[']'] = true;
+                fi += 1;
+            }
+            while (fi < fs.len and fmt[fi] != ']') {
+                const lo = fmt[fi];
+                // Range ``lo-hi`` — but a ``-`` just before ``]`` is literal.
+                if (fi + 2 < fs.len and fmt[fi + 1] == '-' and fmt[fi + 2] != ']') {
+                    const hi = fmt[fi + 2];
+                    const a: u32 = if (lo < hi) lo else hi;
+                    const b: u32 = if (lo < hi) hi else lo;
+                    var ci: u32 = a;
+                    while (ci <= b) : (ci += 1) in_set[ci] = true;
+                    fi += 3;
+                } else {
+                    in_set[lo] = true;
+                    fi += 1;
+                }
+            }
+            // Consume the closing ``]`` (an unclosed set implicitly closes
+            // at end-of-format, mirroring the glob char-class handling).
+            if (fi < fs.len and fmt[fi] == ']') fi += 1;
+
+            const max_chars: u32 = if (width > 0) width else ss.len;
+            const start_si = si;
+            var taken: u32 = 0;
+            while (si < ss.len and taken < max_chars and (in_set[src[si]] != negate)) {
+                si += 1;
+                taken += 1;
+            }
+            if (si == start_si) break; // no characters matched — conversion fails
+            const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(si - start_si));
+            if (!suppress) {
+                if (has_vars) {
+                    if (vi >= n_vars) {
+                        obj_mod_scan.tcl_obj_release(val);
+                        break;
+                    }
+                    _ = frames.var_set(words[3 + vi], val);
+                    obj_mod_scan.tcl_obj_release(val);
+                } else {
+                    const next = rt.tcl_list(list_result, val);
+                    obj_mod_scan.tcl_obj_release(list_result);
+                    obj_mod_scan.tcl_obj_release(val);
+                    list_result = next;
+                }
+                vi += 1;
+                assigned += 1;
+            } else {
+                obj_mod_scan.tcl_obj_release(val);
+            }
+            continue;
+        }
+
+
         // end-of-input, and leave ``x`` unset (12days's
         // ``[scan [string index $c 0] %c x; set x]`` recursion fed it
         // a single-space char and tripped ``can't read "x"``).
@@ -370,35 +437,35 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
         }
 
         if (spec == 'f' or spec == 'e' or spec == 'g' or spec == 'E' or spec == 'G') {
-            // Floating-point: parse as much as looks like a float, return int
-            // truncation (we have no fp runtime).
-            const neg = if (si < ss.len and src[si] == '-') blk: {
-                si += 1;
-                break :blk true;
-            } else if (si < ss.len and src[si] == '+') blk: {
-                si += 1;
-                break :blk false;
-            } else false;
-            var int_val: i64 = 0;
-            var has_digits = false;
-            while (si < ss.len and src[si] >= '0' and src[si] <= '9') : (si += 1) {
-                int_val = int_val * 10 + @as(i64, src[si] - '0');
-                has_digits = true;
-            }
-            // Skip fractional part.
-            if (si < ss.len and src[si] == '.') {
-                si += 1;
+            // Floating-point.  Capture the float token (optional sign,
+            // then digits / ``.`` / exponent, or ``Inf`` / ``Infinity`` /
+            // ``NaN``) and box a real ``TYPE_FLOAT`` value.  Earlier this
+            // truncated to an integer because the runtime had no fp path,
+            // so ``scan 0.2 %f`` returned ``0`` (scan-4.49 / scan-11.*).
+            const start_si = si;
+            if (si < ss.len and (src[si] == '-' or src[si] == '+')) si += 1;
+            if (si < ss.len and ((src[si] | 0x20) == 'i' or (src[si] | 0x20) == 'n')) {
+                // ``inf`` / ``infinity`` / ``nan`` — consume the alpha run.
+                while (si < ss.len and (src[si] | 0x20) >= 'a' and (src[si] | 0x20) <= 'z') si += 1;
+            } else {
                 while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
-                has_digits = true;
+                if (si < ss.len and src[si] == '.') {
+                    si += 1;
+                    while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
+                }
+                if (si < ss.len and (src[si] == 'e' or src[si] == 'E')) {
+                    si += 1;
+                    if (si < ss.len and (src[si] == '+' or src[si] == '-')) si += 1;
+                    while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
+                }
             }
-            // Skip exponent.
-            if (si < ss.len and (src[si] == 'e' or src[si] == 'E')) {
-                si += 1;
-                if (si < ss.len and (src[si] == '+' or src[si] == '-')) si += 1;
-                while (si < ss.len and src[si] >= '0' and src[si] <= '9') si += 1;
-            }
-            if (!has_digits) break;
-            const val = obj_new_int(if (neg) -int_val else int_val);
+            const tok_len = si - start_si;
+            if (tok_len == 0 or tok_len > 64) break;
+            var fbuf: [64]u8 = undefined;
+            var k: u32 = 0;
+            while (k < tok_len) : (k += 1) fbuf[k] = src[start_si + k];
+            const fv = std.fmt.parseFloat(f64, fbuf[0..tok_len]) catch break;
+            const val = obj_mod_scan.obj_new_float(fv);
             if (!suppress) {
                 if (has_vars) {
                     if (vi >= n_vars) {
