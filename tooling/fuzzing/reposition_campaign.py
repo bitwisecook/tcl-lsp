@@ -156,17 +156,6 @@ _FILLERS = [
 ]
 
 
-def _proc_starts(text: str) -> list[int]:
-    """Offsets of line-starts that begin a ``proc`` or ``namespace`` — the
-    natural insertion points for repositioning edits."""
-    offs = [0]
-    pos = 0
-    for line in text.splitlines(keepends=True):
-        offs.append(pos + len(line))
-        pos += len(line)
-    return offs
-
-
 def reposition_edit(rng: random.Random, text: str) -> str:
     """Apply one reposition-biased edit: insert/remove filler at a line boundary
     (above/between procs), or duplicate/delete a whole line.  Keeps proc *body*
