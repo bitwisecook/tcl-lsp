@@ -97,6 +97,75 @@ class TestCompileBasic:
         assert resp.content_type == "application/json"
 
 
+# Green tree / loops / intervals / bounds — views brought over from the CLI.
+
+
+class TestExtraViews:
+    def test_keys_present(self, client):
+        data = _compile(client, "set x 1")
+        for key in ("greentree", "loops", "intervals", "bounds"):
+            assert key in data
+
+    def test_greentree_tokens_carry_detail(self, client):
+        data = _compile(client, "set x 1")
+        gt = data["greentree"]
+        assert gt["kind"] == "ROOT"
+        assert gt["tokens"]
+        tok = gt["tokens"][0]
+        for key in ("type", "text", "startOffset", "endOffset", "startLine", "startCol"):
+            assert key in tok
+
+    def test_greentree_opaque_token_has_child_region(self, client):
+        data = _compile(client, "proc f {} { set y 2 }")
+
+        # Find any token that descended into a child region (the braced body).
+        def has_child(node):
+            for t in node["tokens"]:
+                if "child" in t:
+                    return True
+                # children only hang off opaque tokens, no deeper walk needed
+            return False
+
+        assert has_child(data["greentree"]) or any(
+            "child" in t for t in data["greentree"]["tokens"]
+        )
+
+    def test_loops_reports_natural_loop(self, client):
+        data = _compile(client, "for {set i 0} {$i < 5} {incr i} { puts $i }")
+        loops = [lp for f in data["loops"] for lp in f["loops"]]
+        assert loops
+        assert "header" in loops[0]
+        assert "blockCount" in loops[0]
+
+    def test_intervals_bounded_range(self, client):
+        data = _compile(client, "proc f {} { set m 8 ; return [lindex {a} $m] }")
+        entries = [e for f in data["intervals"] for e in f["entries"]]
+        assert any(e["lo"] is not None or e["hi"] is not None for e in entries)
+
+    def test_bounds_divide_by_zero(self, client):
+        data = _compile(client, "proc f {} { return [expr {1 / 0}] }")
+        divzero = [d for f in data["bounds"] for d in f["divzero"]]
+        assert any(d["code"] == "W233" for d in divzero)
+
+
+class TestOptLensData:
+    SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b"
+
+    def test_optimised_keys_present_when_rewritten(self, client):
+        data = _compile(client, self.SRC)
+        assert data["irOptimised"] is not None
+        assert data["cfgPreSsaOptimised"] is not None
+        assert data["cfgPostSsaOptimised"] is not None
+        summaries = [n["summary"] for n in data["irOptimised"]["topLevel"]]
+        assert any("puts 3" in s for s in summaries)
+
+    def test_optimised_keys_null_when_unchanged(self, client):
+        data = _compile(client, "puts hi")
+        assert data["irOptimised"] is None
+        assert data["cfgPreSsaOptimised"] is None
+        assert data["cfgPostSsaOptimised"] is None
+
+
 # IR serialisation
 
 
