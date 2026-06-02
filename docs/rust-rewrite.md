@@ -3294,10 +3294,26 @@ The consumer-side optimisation gaps #525 closes:
 - **B3** — a pure proc returning a multi-word string folds, list-quoted
   (the O103 fold + the canonical quoter).
 Classify in-scope, **features** — consumer-logic ports on top of the
-fold library.  **Rust state: deferred** — these extend
-`propagation::visit_call_cmd_subst_folds` / the string-interpolation
-path with the reaching-version + embedded-splice logic; tracked for
-follow-up strips.
+fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
+- **B1 — LANDED** (`propagation::visit_string_interpolation_cmd_subs`,
+  dispatched from `visit_call_tokens`).  Scans an interpolation string
+  for embedded `[cmd …]` subs (UTF-8-safe byte scan with bracket
+  nesting + `\[` escape handling), folds each pure-builtin sub via the
+  shared `fold_builtin_cmd_subst_raw` (the raw, *un*-quoted O129 core),
+  and splices the result into the surrounding `"…"` — `puts
+  "v=[string length abc]"` → `puts "v=5"`.  Guards: a whole-word `[…]`
+  is skipped (handled by `visit_call_cmd_subst_folds` — avoids a
+  duplicate O129); a fold result that would re-introduce a substitution
+  into the `"…"` (`$` / `[` / `]` / `\` / `"`) is left unfolded; at
+  least one successful fold is required to emit.  Discriminating test
+  `o129_folds_embedded_cmd_subst_in_interpolation`.
+- **B2** (nested reaching-version constants threaded into the fold so
+  `puts [expr {[string length $s]}]` → `puts 3`, gated to same-block
+  straight-line defs) and **B3** (a pure proc returning a multi-word
+  string folds, list-quoted) — **deferred.**  B1 handles only literal
+  args (the `[expr {…}]` half and `$var` reaching-version threading are
+  B2); B3 extends the O103 proc-fold with the canonical quoter.  Tracked
+  for follow-up strips.
 
 ## Next-up priority queue
 

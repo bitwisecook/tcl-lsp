@@ -700,25 +700,40 @@ fn try_o129_fold(
     mutations: &crate::command_binding::ModuleCommandMutations,
     inner: &str,
 ) -> Option<String> {
+    let folded = fold_builtin_cmd_subst_raw(registry, mutations, inner)?;
+    Some(render_propagation_word(&folded))
+}
+
+/// The shared core of the O129 fold: resolve the cmd-sub head to its
+/// spec (or subcommand), check all args are clean literals, and run the
+/// registry `const_fold`, returning the **raw** result (no
+/// single-word quoting).  [`try_o129_fold`] wraps this with
+/// [`render_propagation_word`] for free-standing argument positions; the
+/// embedded-interpolation path splices the raw result directly into the
+/// surrounding string.
+fn fold_builtin_cmd_subst_raw(
+    registry: &tcl_registry::CommandRegistry,
+    mutations: &crate::command_binding::ModuleCommandMutations,
+    inner: &str,
+) -> Option<String> {
     let words = literal_words(inner)?;
     let (head, rest) = words.split_first()?;
     if !mutations.trusts(head) {
         return None;
     }
     let spec = registry.get(head)?;
-    let folded = if spec.subcommands.is_empty() {
+    if spec.subcommands.is_empty() {
         let fold = spec.const_fold?;
         let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
-        fold(&arg_refs)?
+        fold(&arg_refs)
     } else {
         // Subcommand-dispatched builtin (`string`, `dict`, …): the fold
         // lives on the matching subcommand and sees the args after it.
         let (sub, sub_rest) = rest.split_first()?;
         let fold = spec.subcommand(sub)?.const_fold?;
         let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-        fold(&arg_refs)?
-    };
-    Some(render_propagation_word(&folded))
+        fold(&arg_refs)
+    }
 }
 
 /// Re-lex a command-substitution interior into its literal words for the
@@ -775,7 +790,141 @@ fn visit_call_tokens(
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
         visit_string_interpolation(ctx, *span, text, constants);
+        // B1 (SYNC-JUN02d-2): fold a pure-builtin `[cmd …]` substitution
+        // embedded *inside* an interpolation string.
+        visit_string_interpolation_cmd_subs(ctx, *span, text);
     }
+}
+
+/// True when `inside` is exactly one bracket-balanced `[…]` covering the
+/// whole word (a free-standing command substitution), as opposed to a
+/// sub embedded in surrounding interpolation text.
+fn is_whole_word_cmd_subst(inside: &str) -> bool {
+    let b = inside.as_bytes();
+    if b.first() != Some(&b'[') {
+        return false;
+    }
+    let mut depth = 0u32;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'\\' => i += 1,
+            b'[' => depth += 1,
+            b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return i == b.len() - 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+/// B1 (SYNC-JUN02d-2, #525): fold a pure-builtin command substitution
+/// embedded *inside* an interpolation string, splicing the raw result
+/// into the surrounding `"…"` (O129): `puts "v=[string length abc]"` →
+/// `puts "v=5"`.
+///
+/// Each `[cmd …]` whose head resolves to a const-foldable builtin with
+/// clean literal args is folded via [`fold_builtin_cmd_subst_raw`] and
+/// the raw result spliced in.  Soundness guards: the result must not
+/// reintroduce a substitution into the `"…"` context — a result
+/// carrying `$`, `[`, `]`, `\`, or `"` is left unfolded.  `$var`
+/// substitutions and any non-foldable `[cmd]` are kept verbatim; at
+/// least one successful fold is required to emit.
+fn visit_string_interpolation_cmd_subs(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    text: &str,
+) {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    let inside = text
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .unwrap_or(text);
+    if !inside.contains('[') {
+        return;
+    }
+    // A whole-word `[…]` cmd-sub is already folded by
+    // `visit_call_cmd_subst_folds`; B1 only handles a sub *embedded* in
+    // surrounding interpolation text (else we'd emit a duplicate O129).
+    if is_whole_word_cmd_subst(inside) {
+        return;
+    }
+    // Byte scan is UTF-8-safe: the structural bytes we match (`[`, `]`,
+    // `\`, `"`) are all < 0x80, so they never occur inside a multi-byte
+    // sequence.  Text runs are flushed as `&str` slices (char-boundary
+    // safe) only when a fold actually happens; unfolded subs stay in the
+    // trailing un-flushed region.
+    let bytes = inside.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut last = 0; // start of the not-yet-flushed text
+    let mut i = 0;
+    let mut folded_any = false;
+    while i < n {
+        match bytes[i] {
+            b'\\' => i += 2, // skip an escaped pair (so `\[` is not a sub)
+            b'[' => {
+                let start = i;
+                let mut depth = 0u32;
+                let mut j = i;
+                let mut close = None;
+                while j < n {
+                    match bytes[j] {
+                        b'\\' => j += 1,
+                        b'[' => depth += 1,
+                        b']' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                close = Some(j);
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                let Some(close) = close else {
+                    break; // unbalanced — leave the rest in `[last..]`
+                };
+                let cmd = &inside[start + 1..close];
+                if let Some(result) =
+                    fold_builtin_cmd_subst_raw(registry, &ctx.command_mutations, cmd)
+                {
+                    // Reject a result that would re-introduce a
+                    // substitution into the `"…"` context.
+                    if !result
+                        .bytes()
+                        .any(|b| matches!(b, b'$' | b'[' | b']' | b'\\' | b'"'))
+                    {
+                        out.push_str(&inside[last..start]);
+                        out.push_str(&result);
+                        last = close + 1;
+                        folded_any = true;
+                    }
+                }
+                i = close + 1;
+            }
+            _ => i += 1,
+        }
+    }
+    if !folded_any {
+        return;
+    }
+    out.push_str(&inside[last..]);
+    let rewrite_span = full_quoted_string_span(ctx.source, span);
+    ctx.report(Optimisation::new(
+        "O129",
+        "Fold constant builtin command substitution in interpolation",
+        rewrite_span,
+        format!("\"{out}\""),
+    ));
 }
 
 fn visit_simple_var_word(
@@ -1470,6 +1619,32 @@ mod tests {
         assert!(fold("puts [string toupper foo 0 0]").is_empty());
         // A non-builtin head (a user proc) is not an O129 candidate.
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
+    }
+
+    #[test]
+    fn o129_folds_embedded_cmd_subst_in_interpolation() {
+        // B1 (SYNC-JUN02d-2, #525): a pure-builtin cmd-sub embedded inside
+        // an interpolation string folds, splicing the raw result.
+        let fold = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O129")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(
+            fold("puts \"v=[string length abc]\""),
+            vec!["\"v=3\"".to_string()],
+        );
+        assert_eq!(
+            fold("puts \"n=[llength {a b c}] items\""),
+            vec!["\"n=3 items\"".to_string()],
+        );
+        // A non-foldable embedded sub leaves the string unfolded.
+        assert!(fold("puts \"x=[someproc]\"").is_empty());
+        // Soundness guard: a result that would re-introduce a `$`
+        // substitution into the `\"…\"` is not spliced.
+        assert!(fold("puts \"v=[string cat {$} x]\"").is_empty());
     }
 
     #[test]
