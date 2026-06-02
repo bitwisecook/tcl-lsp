@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.command_trust import builtin_is_trusted
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext
 from shared.tcl_list import tcl_list_quote
@@ -295,6 +296,17 @@ class _WasmEmitterStmtMixin(_Base):
                     self._const_map.pop(name, None)
 
             case IRIncr(name=name, amount=amount):
+                # ``incr`` renamed/redefined in this unit → run it through the
+                # interpreter (live runtime command table) instead of the inline
+                # increment, so the replacement command's semantics apply.
+                if not builtin_is_trusted("incr"):
+                    self._intern_local(name)
+                    incr_args = (name,) if amount is None else (name, amount)
+                    self._emit_eval_fallback("incr", incr_args)
+                    self._emit(WasmOp.DROP)
+                    if self._optimise:
+                        self._const_map.pop(name, None)
+                    return
                 # Issue #262: route through the runtime helper so the
                 # strict-integer guard fires on the current value
                 # (a float string like ``"52.60"`` raises ``expected
@@ -1376,7 +1388,14 @@ class _WasmEmitterStmtMixin(_Base):
         # Uses get_wasm_hook (not get_any) to scan all specs: dialect packs
         # loaded after the emitter was first imported add new specs without
         # hooks, but the hook is still on an earlier spec.
-        hook = _REGISTRY.get_wasm_hook(command)
+        #
+        # Honour the command-binding lattice: a builtin that was renamed /
+        # redefined in this unit no longer has its core semantics, so skip the
+        # direct hook and fall through to the interpreter, which resolves the
+        # name through the live (rename-aware) runtime command table.  (Procs
+        # already dispatch via the runtime table above, so this only guards the
+        # builtin fast-path.)
+        hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
         if hook is not None:
             # Stash the current call's tokens on self so a hook that
             # routes to ``_emit_eval_fallback`` can recover the
@@ -1958,7 +1977,9 @@ class _WasmEmitterStmtMixin(_Base):
         prev_tokens = getattr(self, "_current_call_tokens", None)
         self._current_call_tokens = tokens
         try:
-            hook = _REGISTRY.get_wasm_hook(command)
+            # Skip the builtin fast-path for a command renamed/redefined in this
+            # unit (see the statement-context dispatch for the rationale).
+            hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
             if hook is not None and hook(self, args, defs, EmitContext.VALUE):
                 return
         finally:

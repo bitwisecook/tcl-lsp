@@ -2105,6 +2105,39 @@ class TestUnknownCommandTraps:
         assert result == 6
 
 
+class TestRenamedBuiltinDispatch:
+    """Codegen honours the command-binding lattice: a builtin renamed away is no
+    longer direct-dispatched with its core semantics — it routes through the
+    interpreter (the live, rename-aware runtime command table).  Normal code
+    (empty untrusted set) keeps the builtin fast-path unchanged."""
+
+    def _stdout(self, source: str) -> str:
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _ = _compile_tcl_with_diag(source, "rename")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_unrenamed_builtin_still_folds(self):
+        assert self._stdout("puts [string length hi]\n") == "2"
+        assert self._stdout("puts [llength [list a b c]]\n") == "3"
+
+    def test_renamed_away_builtin_does_not_silently_miscompute(self):
+        # ``rename string ::s`` removes ``string``; the old name must NOT be
+        # direct-dispatched to the builtin (which would print 2).  It routes to
+        # the interpreter, where the now-missing command traps — matching that
+        # ``string length hi`` is an error once ``string`` is gone.
+        with pytest.raises(wasmtime.Trap):
+            self._stdout("rename string ::s\nputs [string length hi]\n")
+
+    def test_renamed_away_builtin_in_expr(self):
+        with pytest.raises(wasmtime.Trap):
+            self._stdout("rename llength ::ll\nputs [expr {[llength {a b}] + 1}]\n")
+
+
 # Interpreter fallback
 
 

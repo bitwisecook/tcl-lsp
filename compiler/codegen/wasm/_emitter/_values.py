@@ -11,6 +11,7 @@ else:
 
 from collections.abc import Callable
 
+from compiler.command_trust import builtin_is_trusted
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext as _EmitContext
 from shared.tcl_list import tcl_list_quote
@@ -777,6 +778,15 @@ class _WasmEmitterValuesMixin(_Base):
         cmd_name = parts[0]
         cmd_args = parts[1:]
 
+        # A command renamed / redefined in this unit no longer carries its
+        # builtin semantics — route it through the interpreter (which resolves
+        # the name via the live, rename-aware runtime command table) rather than
+        # any builtin fast-path / subcommand import below.  Untouched commands
+        # (the common case: an empty untrusted set) are unaffected.
+        if not builtin_is_trusted(cmd_name):
+            self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+            return
+
         # [expr {...}] — compile expression and leave TclObj on stack.
         # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
@@ -1219,7 +1229,9 @@ class _WasmEmitterValuesMixin(_Base):
         prev_tokens = getattr(self, "_current_call_tokens", None)
         self._current_call_tokens = None
         try:
-            hook = _REGISTRY.get_wasm_hook(cmd_name)
+            # Skip the builtin fast-path for a command renamed/redefined in this
+            # unit — the live runtime command table resolves it instead.
+            hook = _REGISTRY.get_wasm_hook(cmd_name) if builtin_is_trusted(cmd_name) else None
             if hook is not None and hook(self, tuple(cmd_args), (), _EmitContext.VALUE):
                 return
         finally:
