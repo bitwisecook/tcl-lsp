@@ -1944,7 +1944,12 @@ structural sub-chunks:
 - **O106 LICM purity recursion into command substitutions.**  Extend
   `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
   and verify each is also pure — an outer pure call wrapping
-  `[incr counter]` is not loop-invariant.
+  `[incr counter]` is not loop-invariant.  **Landed (rust):**
+  `is_pure_command` and `is_pure_with_procs_core` now recurse into
+  `scan_bracketed_commands(arg)` (shared `arg_substitutions_pure`
+  helper) and reject any invocation with an impure nested subst;
+  `is_pure_command_with_traces` inherits it via its `is_pure_command`
+  delegation.
 - **S100 / S101 shimmer loop-invariance lattice.**  Walk loop blocks
   once and collect every variable name ever defined; classify
   loop-invariant uses (name *not* in the set) as S100 (one-time),

@@ -526,22 +526,20 @@ fn is_pure_with_procs_core(
     args: &[String],
     dialect: Option<&str>,
 ) -> bool {
-    if pure.contains(cmd) {
-        return true;
-    }
-    // Try the common `::` prefix form too — some lowerings yield
-    // fully-qualified command words.
-    if let Some(stripped) = cmd.strip_prefix("::") {
-        if pure.contains(stripped) {
-            return true;
+    let outer_pure = pure.contains(cmd)
+        // Try the common `::` prefix form too — some lowerings yield
+        // fully-qualified command words.
+        || match cmd.strip_prefix("::") {
+            Some(stripped) => pure.contains(stripped),
+            None => pure.contains(&format!("::{cmd}")),
         }
-    } else {
-        let prefixed = format!("::{cmd}");
-        if pure.contains(&prefixed) {
-            return true;
-        }
-    }
-    classify_side_effects(registry, cmd, args, dialect, None).pure
+        || classify_side_effects(registry, cmd, args, dialect, None).pure;
+    // O106: an outer-pure command whose args read from an impure inner
+    // substitution is not loop-invariant — recurse into nested `[…]`.
+    outer_pure
+        && arg_substitutions_pure(args, |c, a| {
+            is_pure_with_procs_core(registry, pure, c, a, dialect)
+        })
 }
 
 /// Purity predicate for GVN that consults the intra-module
@@ -599,8 +597,29 @@ pub fn is_pure_command(
     args: &[String],
     dialect: Option<&str>,
 ) -> bool {
-    let effect = classify_side_effects(registry, command, args, dialect, None);
-    effect.pure
+    if !classify_side_effects(registry, command, args, dialect, None).pure {
+        return false;
+    }
+    // O106 (SYNC-MAY31-1e): an outer pure command whose args read from
+    // an impure command substitution is NOT loop-invariant — its value
+    // depends on the inner side effect's per-call return (e.g.
+    // `expr [incr counter]`). Recurse into every nested `[…]` and
+    // require each to be pure too. Mirrors `gvn.py::_is_pure_command`.
+    arg_substitutions_pure(args, |c, a| is_pure_command(registry, c, a, dialect))
+}
+
+/// Scan `args` for embedded `[cmd …]` command substitutions and return
+/// `true` iff every nested command satisfies `check`. Braced regions
+/// are skipped (no substitution inside `{…}`). Shared by the purity
+/// gates so an outer pure command wrapping an impure inner subst is
+/// rejected as loop-invariant (O106).
+fn arg_substitutions_pure(args: &[String], check: impl Fn(&str, &[String]) -> bool) -> bool {
+    args.iter().all(|arg| {
+        !arg.contains('[')
+            || scan_bracketed_commands(arg)
+                .iter()
+                .all(|(cmd, inner)| check(cmd, inner))
+    })
 }
 
 /// SYNC8: trace-aware purity gate.
@@ -1754,6 +1773,29 @@ mod tests {
             &["x".into(), "1".into()],
             None
         ));
+    }
+
+    #[test]
+    fn is_pure_command_recurses_into_impure_substitution() {
+        // O106 (SYNC-MAY31-1e): `expr` is pure, but an arg that embeds
+        // an impure `[incr c]` substitution makes the whole invocation
+        // impure — its value depends on the per-call side effect, so it
+        // must not be hoisted as loop-invariant.
+        let registry = CommandRegistry::build_default();
+        assert!(
+            !is_pure_command(&registry, "expr", &["[incr c]".into()], None),
+            "outer pure `expr` wrapping impure `[incr c]` must be impure",
+        );
+        // A pure nested substitution keeps the outer call pure.
+        assert!(
+            is_pure_command(&registry, "expr", &["[expr {1 + 1}]".into()], None),
+            "outer pure `expr` wrapping a pure subst stays pure",
+        );
+        // Deeper nesting: the impurity is two levels down.
+        assert!(
+            !is_pure_command(&registry, "expr", &["[expr [incr c]]".into()], None),
+            "nested impure subst at any depth must propagate",
+        );
     }
 
     /// SYNC8: a pure command (`expr`) gates to non-pure once its
